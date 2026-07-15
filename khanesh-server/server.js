@@ -1,14 +1,15 @@
 // ============================================================
 // سرور واسط «خوانش» — نسخه با غنی‌سازی MedlinePlus
 // ------------------------------------------------------------
-// این نسخه علاوه بر کار قبلی (اتصال امن به آوال‌ای)، قبل از
-// فرستادن درخواست به مدل، اطلاعات مرتبط هر تست را از وب‌سرویس
-// رسمی MedlinePlus می‌گیرد و به‌عنوان «زمینه معتبر» به پرامپت
-// تزریق می‌کند تا تفسیر AI دقیق‌تر و مستندتر شود.
+// تغییر مهم نسبت به نسخه قبل:
+//   خواندن عکس و تحلیل، دو مرحله جدا شده‌اند.
+//   مرحله ۱: OCR خالص (فقط خواندن جدول، بدون هیچ تفسیری)
+//   مرحله ۲: تحلیل روی متنِ خوانده‌شده (همان مسیر حالت متنی)
+//   نتیجه: دقت خواندن بالاتر + MedlinePlus برای عکس هم فعال می‌شود.
 //
-// قرارداد API دقیقاً مثل قبل است:
+// API:
 //   POST /api/analyze  با بدنه { patientInfo, testResults?, imageDataUrl? }
-//   خروجی: همان JSON ساختاریافته که فرانت‌اند انتظار دارد.
+//   خروجی: همان JSON ساختاریافته قبلی + فیلد ocr_warnings
 //
 // اجرا:
 //   npm install
@@ -29,14 +30,10 @@ const TEXT_MODEL = process.env.TEXT_MODEL || "gpt-4o-mini";
 const VISION_MODEL = process.env.VISION_MODEL || "gpt-4o-mini";
 const PORT = process.env.PORT || 8787;
 
-// وب‌سرویس رسمی MedlinePlus (رایگان، بدون ثبت‌نام)
 const MEDLINE_BASE = "https://wsearch.nlm.nih.gov/ws/query";
 
 // ============================================================
-// [۱] نگاشت نام فارسی/انگلیسی تست‌ها به عبارت جستجوی MedlinePlus
-// کلید = نامی که ممکن است در متن ورودی بیاید (فارسی یا انگلیسی)
-// مقدار = عبارت جستجوی انگلیسی مناسب برای MedlinePlus
-// این نگاشت همه تست‌های REF فرانت‌اند را پوشش می‌دهد.
+// [۱] نگاشت نام تست‌ها به عبارت جستجوی MedlinePlus
 // ============================================================
 const TEST_MEDLINE_MAP = {
   // قند و دیابت
@@ -91,6 +88,7 @@ const TEST_MEDLINE_MAP = {
   "rbc": "RBC Count",
   "هموگلوبین": "Hemoglobin Test",
   "hemoglobin": "Hemoglobin Test",
+  "hgb": "Hemoglobin Test",
   "هماتوکریت": "Hematocrit Test",
   "hematocrit": "Hematocrit Test",
   "hct": "Hematocrit Test",
@@ -99,6 +97,7 @@ const TEST_MEDLINE_MAP = {
   "mchc": "Red Blood Cell (RBC) Indices",
   "پلاکت": "Platelet Tests",
   "platelet": "Platelet Tests",
+  "plt": "Platelet Tests",
   "esr": "ESR (Erythrocyte Sedimentation Rate)",
   "rdw": "Red Blood Cell (RBC) Indices",
   // انعقاد
@@ -120,19 +119,15 @@ const TEST_MEDLINE_MAP = {
 
 // ============================================================
 // [۲] استخراج نام تست‌ها از متن ورودی
-// فرانت‌اند خطوطی مثل «قند خون ناشتا: 95 mg/dL (محدوده طبیعی: 70-110)» می‌فرستد.
-// این تابع نام هر خط را جدا کرده و به عبارت MedlinePlus نگاشت می‌کند.
 // ============================================================
 function extractMedlineTerms(testResultsText) {
   if (!testResultsText) return [];
-  const terms = new Map(); // عبارت MedlinePlus → نام تست اصلی (برای جلوگیری از تکرار)
+  const terms = new Map();
   const lines = testResultsText.split("\n");
   for (const line of lines) {
     if (!line.trim()) continue;
-    // نام تست معمولاً قبل از «:» است
     const namePart = (line.split(":")[0] || "").trim().toLowerCase();
     if (!namePart) continue;
-    // جستجو در نگاشت: اگر کلیدی از نگاشت داخل نام خط بود
     for (const key in TEST_MEDLINE_MAP) {
       if (namePart.includes(key.toLowerCase())) {
         const term = TEST_MEDLINE_MAP[key];
@@ -145,35 +140,26 @@ function extractMedlineTerms(testResultsText) {
 }
 
 // ============================================================
-// [۳] کش ساده در حافظه برای نتایج MedlinePlus
-// طبق سیاست NLM، نتایج را ۱۲ تا ۲۴ ساعت کش می‌کنیم تا بار سرور کم شود.
+// [۳] کش ساده برای نتایج MedlinePlus
 // ============================================================
-const medlineCache = new Map(); // term → { summary, url, ts }
+const medlineCache = new Map();
 const CACHE_TTL = 20 * 60 * 60 * 1000; // ۲۰ ساعت
 
-// حذف تگ‌های HTML و span های هایلایت از خلاصه
 function stripHtml(html) {
   if (!html) return "";
-  return html
-    .replace(/<[^>]+>/g, " ")   // حذف همه تگ‌ها
-    .replace(/\s+/g, " ")        // فشرده‌سازی فاصله‌ها
-    .trim();
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-// استخراج اولین FullSummary از پاسخ XML وب‌سرویس (بدون کتابخانه، با regex ساده)
 function parseFirstSummary(xml) {
   if (!xml) return null;
-  // به دنبال اولین content با name="FullSummary"
   const m = xml.match(/<content name="FullSummary">([\s\S]*?)<\/content>/i);
   if (!m) return null;
-  // محتوای داخل ممکن است entity های XML داشته باشد
   let raw = m[1]
     .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
   return stripHtml(raw);
 }
 
-// گرفتن URL موضوع از اولین document
 function parseFirstUrl(xml) {
   if (!xml) return null;
   const m = xml.match(/<document[^>]*url="([^"]+)"/i);
@@ -181,7 +167,7 @@ function parseFirstUrl(xml) {
 }
 
 // ============================================================
-// [۴] واکشی خلاصه یک تست از MedlinePlus (با کش)
+// [۴] واکشی خلاصه یک تست از MedlinePlus
 // ============================================================
 async function fetchMedline(term) {
   const now = Date.now();
@@ -198,7 +184,6 @@ async function fetchMedline(term) {
     const summary = parseFirstSummary(xml);
     const topicUrl = parseFirstUrl(xml);
     if (!summary) return null;
-    // خلاصه را به حدود ۶۰۰ کاراکتر محدود می‌کنیم تا پرامپت سنگین نشود
     const trimmed = summary.length > 600 ? summary.slice(0, 600) + "…" : summary;
     const result = { summary: trimmed, url: topicUrl, ts: now };
     medlineCache.set(term, result);
@@ -210,7 +195,7 @@ async function fetchMedline(term) {
 }
 
 // ============================================================
-// [۵] ساخت رشته زمینه از داده MedlinePlus برای همه تست‌های مطابقت‌یافته
+// [۵] ساخت بستهٔ زمینه از MedlinePlus
 // ============================================================
 async function buildMedlineContext(testResultsText) {
   const items = extractMedlineTerms(testResultsText);
@@ -218,7 +203,6 @@ async function buildMedlineContext(testResultsText) {
 
   const parts = [];
   const sources = [];
-  // به‌صورت موازی می‌گیریم ولی تعداد کم است (چند تست)
   const results = await Promise.all(
     items.map(async ({ term, sourceLine }) => ({
       term, sourceLine, data: await fetchMedline(term),
@@ -240,15 +224,53 @@ async function buildMedlineContext(testResultsText) {
 }
 
 // ============================================================
-// [۶] System Prompt — مغز علمی محصول (مثل قبل، با افزودن دستور استفاده از زمینه)
+// [۶] پرامپت مرحله اول — OCR خالص
+// این مدل هیچ تحلیلی نمی‌کند. فقط جدول را می‌خواند.
+// جدا کردن خواندن از تحلیل، خطای جابه‌جایی ردیف/ستون را
+// به‌شدت کم می‌کند (مثلاً خواندن مقدار MCH به‌جای HCT).
+// ============================================================
+const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده از برگهٔ آزمایش پزشکی هستی. وظیفهٔ تو فقط و فقط خواندن است. هیچ تفسیر، تحلیل، نظر پزشکی یا نتیجه‌گیری ارائه نده.
+
+## روش خواندن
+- جدول را ردیف به ردیف بخوان. هر ردیف یک تست است.
+- ستون‌ها معمولاً به این ترتیب‌اند: نام تست | نتیجه (Result) | واحد (Unit) | محدوده مرجع (Normal Range)
+- ستون‌ها را با دقت دنبال کن. هرگز مقدار یک ردیف را به ردیف دیگر نسبت نده.
+- قبل از ثبت هر عدد، بررسی کن که واقعاً در همان ردیفِ نام تست قرار دارد.
+
+## نکات مهم
+- حرف H یا L چسبیده به عدد (مثل «L 2.58» یا «H 104.4») یعنی High/Low. عدد را جدا کن و H/L را در فیلد flag بگذار.
+- محدودهٔ مرجع را دقیقاً از روی همان برگه بخوان. از دانش خودت محدوده نساز.
+- واحد را عیناً همان‌طور که در برگه نوشته شده ثبت کن.
+- تست‌هایی که در برگه نیستند را اضافه نکن.
+- اگر برگه بخش‌های مختلف دارد (Hematology، Biochemistry، Differential و…)، همهٔ ردیف‌ها را بخوان.
+- یادداشت‌های کیفی مثل Anisocytosis (+++) را هم ثبت کن؛ value را همان متن بگذار.
+- اگر عددی تار، مبهم یا مخدوش است، confidence را "low" بگذار. اگر اصلاً خوانا نیست، value را null بگذار.
+- اطلاعات شناسایی‌کننده (نام بیمار، کد ملی، تلفن، نام پزشک) را ثبت نکن. فقط سن و جنسیت را در صورت وجود بردار.
+
+## خروجی
+فقط JSON برگردان، بدون بک‌تیک و بدون متن اضافه:
+{
+  "patient": { "age": "51 سال یا null", "sex": "مرد|زن|null" },
+  "tests": [
+    { "name": "WBC", "value": "5.66", "unit": "10*3/µL", "reference": "3.5 - 11", "flag": null, "confidence": "high" },
+    { "name": "RBC", "value": "2.58", "unit": "10*6/ul", "reference": "3.6 - 6.1", "flag": "L", "confidence": "high" }
+  ],
+  "unreadable_notes": ["توضیح مواردی که خوانا نبودند"]
+}
+
+flag یکی از "H" | "L" | null است.
+confidence یکی از "high" | "low" است.`;
+
+// ============================================================
+// [۷] System Prompt مرحله دوم — تحلیل
 // ============================================================
 const SYSTEM_PROMPT = `شما یک تحلیلگر مجرب نتایج آزمایش‌های پزشکی هستید که تفسیری اولیه، دقیق و آموزشی به زبان ساده فارسی ارائه می‌دهید. شما پزشک نیستید و هرگز تشخیص قطعی نمی‌دهید یا دارو تجویز نمی‌کنید. هدف شما افزایش آگاهی بیمار است، نه آموزش تخصصی پزشکی.
 
 ## استفاده از دانش پزشکی معتبر
-برای تفسیر نتایج، از دانش پزشکی همسو با معتبرترین منابع علمی و راهنماهای بین‌المللی استفاده کن، از جمله: CLSI (Clinical and Laboratory Standards Institute)، UpToDate، Merck Manual Professional، LabTestsOnline، NIH و AACC (Association for Diagnostics & Laboratory Medicine). از این دانش برای درک عملکرد تست‌ها، ارتباط بین نتایج، اهمیت بالینی، علل احتمالی و ارائه توصیه‌های عمومی استفاده کن. پاسخ باید از نظر علمی دقیق و همسو با این منابع باشد.
+برای تفسیر نتایج، از دانش پزشکی همسو با معتبرترین منابع علمی و راهنماهای بین‌المللی استفاده کن، از جمله: CLSI، UpToDate، Merck Manual Professional، LabTestsOnline، NIH و AACC. از این دانش برای درک عملکرد تست‌ها، ارتباط بین نتایج، اهمیت بالینی، علل احتمالی و ارائه توصیه‌های عمومی استفاده کن. پاسخ باید از نظر علمی دقیق و همسو با این منابع باشد.
 
 ## قانون طلایی: فقط بر اساس محدوده‌های ارائه‌شده قضاوت کن
-برای هر تست، محدوده مرجع دقیق در ورودی به تو داده می‌شود. قضاوت «نرمال / بالا / پایین» را فقط و فقط بر اساس همین محدوده‌های ارائه‌شده انجام بده، نه بر اساس دانش عمومی خودت. اگر مقداری داخل محدوده ارائه‌شده است، آن را نرمال بدان — حتی اگر با محدوده‌ای که در ذهن داری کمی فرق کند. هرگز تستی را که داخل محدوده است «بالا» یا «پایین» توصیف نکن.
+برای هر تست، محدودهٔ مرجع دقیق در ورودی به تو داده می‌شود. قضاوت «نرمال / بالا / پایین» را فقط و فقط بر اساس همین محدوده‌های ارائه‌شده انجام بده، نه بر اساس دانش عمومی خودت. اگر مقداری داخل محدودهٔ ارائه‌شده است، آن را نرمال بدان — حتی اگر با محدوده‌هایی که در ذهن داری کمی فرق کند. هرگز تستی را که داخل محدوده است «بالا» یا «پایین» توصیف نکن.
 
 ## زبان ساده و قابل فهم برای عموم
 - پاسخ را کاملاً به فارسی روان و ساده بنویس، طوری که فردی بدون دانش پزشکی هم مفهوم آن را درک کند.
@@ -258,14 +280,14 @@ const SYSTEM_PROMPT = `شما یک تحلیلگر مجرب نتایج آزمای
 ## توجه به شدت انحراف (بسیار مهم)
 صرف خارج بودن از محدوده کافی نیست؛ «میزان» انحراف را بسنج و لحن و اهمیت را متناسب با آن تنظیم کن:
 - انحراف جزئی (تا حدود ۱۰ تا ۱۵ درصد فراتر از مرز): معمولاً اهمیت بالینی کمی دارد. با لحن آرام و اطمینان‌بخش توصیف کن و صرفاً پیگیری ساده یا تکرار آزمایش را پیشنهاد بده. از ایجاد نگرانی بی‌مورد خودداری کن. مثال: اوره‌ای که فقط ۲ واحد بالاتر از حد نرمال است، ارزش بالینی چندانی ندارد و نباید مثل یک مشکل جدی توصیف شود.
-- انحراف متوسط: شایسته توجه است؛ ارزیابی توسط پزشک در آینده نزدیک را پیشنهاد بده.
-- انحراف شدید یا مقادیر بحرانی: واضح، ساده و بدون اغراق بیان کن و مراجعه سریع به پزشک را توصیه کن.
+- انحراف متوسط: شایستهٔ توجه است؛ ارزیابی توسط پزشک در آیندهٔ نزدیک را پیشنهاد بده.
+- انحراف شدید یا مقادیر بحرانی: واضح، ساده و بدون اغراق بیان کن و مراجعهٔ سریع به پزشک را توصیه کن.
 
 ## تحلیل به‌صورت تصویر کلی (تشخیص الگو)
 نتایج را جدا از هم نبین. مهم‌ترین یافته‌ها را به زبان ساده توضیح بده و در صورت مشاهده الگوهای مرتبط، آن‌ها را توضیح بده (مثلاً هموگلوبین پایین همراه با فریتین پایین و MCV پایین = الگوی کم‌خونی فقر آهن). فقط در صورت نیاز علل احتمالی را بیان کن. اگر چند انحراف جزئی و بی‌ربط وجود دارد، لازم نیست همه را بزرگ کنی.
 
-## دقت در تشخیص تست‌ها (به‌ویژه از روی عکس)
-اگر ورودی از روی عکس خوانده می‌شود، به واحدها دقت کن تا تست‌ها را اشتباه نگیری:
+## دقت در تشخیص تست‌ها
+اگر ورودی از روی عکس خوانده شده، به واحدها دقت کن تا تست‌ها را اشتباه نگیری:
 - هموگلوبین (Hb): واحد g/dL، معمولاً بین ۱۲ تا ۱۸
 - MCH: واحد pg، معمولاً بین ۲۷ تا ۳۳
 - MCHC: واحد g/dL، معمولاً بین ۳۲ تا ۳۶
@@ -293,39 +315,130 @@ const SYSTEM_PROMPT = `شما یک تحلیلگر مجرب نتایج آزمای
   "has_critical": true
 }
 
-در abnormal_results فقط تست‌هایی را بیاور که واقعاً خارج از محدوده ارائه‌شده هستند. انحرافات بسیار جزئی را می‌توانی با severity «خفیف» و لحن اطمینان‌بخش بیاوری. extracted_tests فقط وقتی پر می‌شود که ورودی از عکس خوانده شده باشد. has_critical فقط وقتی true است که حداقل یک مقدار در محدوده بحرانی واقعی باشد.`;
+در abnormal_results فقط تست‌هایی را بیاور که واقعاً خارج از محدودهٔ ارائه‌شده هستند. انحرافات بسیار جزئی را می‌توانی با severity «خفیف» و لحن اطمینان‌بخش بیاوری. extracted_tests فقط وقتی پر می‌شود که ورودی از عکس خوانده شده باشد. has_critical فقط وقتی true است که حداقل یک مقدار در محدودهٔ بحرانی واقعی باشد.`;
 
 // ============================================================
-// [۷] ساخت پیام کاربر (متن یا عکس) با تزریق زمینه MedlinePlus
+// [۸] فراخوانی AvalAI — تابع مشترک
 // ============================================================
-function buildTextUserMessage(patientInfo, testResults, medlineContext) {
+async function callAvalAI({ model, messages, maxTokens = 2000, temperature = 0.2 }) {
+  const upstream = await fetch(`${AVALAI_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${AVALAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature,
+      response_format: { type: "json_object" },
+      max_tokens: maxTokens,
+    }),
+  });
+
+  if (!upstream.ok) {
+    const errText = await upstream.text();
+    console.error("AvalAI error:", upstream.status, errText);
+    throw new Error("upstream_error");
+  }
+
+  const data = await upstream.json();
+  const raw = data?.choices?.[0]?.message?.content || "{}";
+  return raw;
+}
+
+// ============================================================
+// [۹] مرحله اول — خواندن عکس (OCR خالص)
+// ============================================================
+async function readImage(imageDataUrl) {
+  const raw = await callAvalAI({
+    model: VISION_MODEL,
+    temperature: 0, // برای خواندن، خلاقیت صفر
+    maxTokens: 2500,
+    messages: [
+      { role: "system", content: OCR_PROMPT },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "این برگهٔ آزمایش را ردیف به ردیف بخوان و طبق قالب JSON برگردان." },
+          { type: "image_url", image_url: { url: imageDataUrl } },
+        ],
+      },
+    ],
+  });
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    console.error("OCR JSON parse failed. Raw:", raw.slice(0, 300));
+    return null;
+  }
+}
+
+// ============================================================
+// [۱۰] تبدیل خروجی OCR به متن برای مرحله تحلیل
+// ============================================================
+function ocrToText(ocr) {
+  if (!ocr || !Array.isArray(ocr.tests)) return { text: "", warnings: [] };
+
+  const lines = [];
+  const warnings = [];
+
+  for (const t of ocr.tests) {
+    if (!t || !t.name) continue;
+
+    // مقادیر ناخوانا را وارد تحلیل نمی‌کنیم
+    if (t.value === null || t.value === undefined || t.value === "") {
+      warnings.push(`${t.name}: مقدار خوانا نبود و در تحلیل لحاظ نشد.`);
+      continue;
+    }
+
+    let line = `${t.name}: ${t.value}`;
+    if (t.unit) line += ` ${t.unit}`;
+    if (t.reference) line += ` (محدوده مرجع: ${t.reference})`;
+    if (t.flag) line += ` [${t.flag}]`;
+
+    if (t.confidence === "low") {
+      line += " ⚠️نامطمئن";
+      warnings.push(`${t.name}: خواندن این مقدار مطمئن نبود — لطفاً با برگه مقایسه کنید.`);
+    }
+
+    lines.push(line);
+  }
+
+  if (Array.isArray(ocr.unreadable_notes)) {
+    for (const n of ocr.unreadable_notes) {
+      if (n) warnings.push(n);
+    }
+  }
+
+  return { text: lines.join("\n"), warnings };
+}
+
+// ============================================================
+// [۱۱] ساخت پیام کاربر برای مرحله تحلیل
+// ============================================================
+function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImage) {
   let text =
     `<patient_info>\n${patientInfo || "ارائه نشده"}\n</patient_info>\n\n` +
     `<test_results>\n${testResults}\n</test_results>`;
+
+  if (fromImage) {
+    text +=
+      "\n\nتوجه: این مقادیر از روی عکس برگه آزمایش خوانده شده‌اند. " +
+      "مواردی که با ⚠️نامطمئن علامت خورده‌اند ممکن است دقیق نباشند؛ " +
+      "در تفسیر با احتیاط بیشتری به آن‌ها استناد کن.";
+  }
+
   if (medlineContext) {
     text += `\n\n<زمینه معتبر از MedlinePlus>\n${medlineContext}\n</زمینه معتبر از MedlinePlus>`;
   }
+
   return { role: "user", content: text };
 }
 
-function buildImageUserMessage(patientInfo, imageDataUrl, medlineContext) {
-  const textParts =
-    `اطلاعات بیمار:\n<patient_info>\n${patientInfo || "ارائه نشده"}\n</patient_info>\n\n` +
-    `عکس برگه آزمایش پیوست است. مقادیر را از روی عکس استخراج و سپس تحلیل کن.` +
-    (medlineContext
-      ? `\n\n<زمینه معتبر از MedlinePlus>\n${medlineContext}\n</زمینه معتبر از MedlinePlus>`
-      : "");
-  return {
-    role: "user",
-    content: [
-      { type: "text", text: textParts },
-      { type: "image_url", image_url: { url: imageDataUrl } },
-    ],
-  };
-}
-
 // ============================================================
-// [۸] نقطه پایانی اصلی — قرارداد دقیقاً مثل قبل
+// [۱۲] نقطه پایانی اصلی
 // ============================================================
 app.post("/api/analyze", async (req, res) => {
   try {
@@ -337,68 +450,81 @@ app.post("/api/analyze", async (req, res) => {
       return res.status(400).json({ error: "نه متن آزمایش وارد شده و نه عکسی آپلود شده است." });
     }
 
-    // زمینه MedlinePlus را می‌سازیم.
-    // فقط برای حالت متن، چون مقادیر دقیق را داریم.
-    // برای عکس، مدل یک‌بار عکس را می‌خواند و تفسیر می‌کند (خواندن دقیق‌تر)،
-    // بدون مرحله استخراج جداگانه که دقت را پایین می‌آورد.
-    let medlineContext = "";
-    if (hasText) {
-      try {
-        const { context } = await buildMedlineContext(testResults);
-        medlineContext = context;
-      } catch (e) {
-        // اگر MedlinePlus در دسترس نبود، بدون زمینه ادامه می‌دهیم (سرور خراب نمی‌شود)
-        console.error("MedlinePlus context build failed:", e.message);
+    let finalText = hasText ? testResults : "";
+    let ocrWarnings = [];
+    let ocrPatient = null;
+
+    // ---- مرحله ۱: اگر عکس هست، اول بخوان ----
+    if (hasImage) {
+      const ocr = await readImage(imageDataUrl);
+      if (!ocr) {
+        return res.status(502).json({ error: "خواندن عکس ممکن نشد. لطفاً عکس واضح‌تری آپلود کنید یا مقادیر را دستی وارد کنید." });
       }
+
+      const { text, warnings } = ocrToText(ocr);
+      if (!text) {
+        return res.status(422).json({
+          error: "هیچ مقدار خوانایی در عکس پیدا نشد. لطفاً عکس واضح‌تری بگیرید یا مقادیر را دستی وارد کنید.",
+          ocr_warnings: warnings,
+        });
+      }
+
+      ocrWarnings = warnings;
+      ocrPatient = ocr.patient || null;
+
+      // اگر کاربر هم متن داده و هم عکس، هر دو را می‌فرستیم
+      finalText = hasText ? `${testResults}\n\n--- خوانده‌شده از عکس ---\n${text}` : text;
     }
 
-    const model = hasImage ? VISION_MODEL : TEXT_MODEL;
-    const userMessage = hasImage
-      ? buildImageUserMessage(patientInfo, imageDataUrl, medlineContext)
-      : buildTextUserMessage(patientInfo, testResults, medlineContext);
+    // ---- زمینه MedlinePlus (حالا برای عکس هم فعال است) ----
+    let medlineContext = "";
+    try {
+      const { context } = await buildMedlineContext(finalText);
+      medlineContext = context;
+    } catch (e) {
+      console.error("MedlinePlus context build failed:", e.message);
+    }
 
-    const upstream = await fetch(`${AVALAI_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${AVALAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          userMessage,
-        ],
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        max_tokens: 2000,
-      }),
+    // ---- اطلاعات بیمار: ورودی کاربر اولویت دارد، در نبودش از عکس ----
+    let patientText = patientInfo || "";
+    if (!patientText && ocrPatient) {
+      const bits = [];
+      if (ocrPatient.age) bits.push(`سن: ${ocrPatient.age}`);
+      if (ocrPatient.sex) bits.push(`جنسیت: ${ocrPatient.sex}`);
+      if (bits.length) patientText = bits.join("، ") + " (از روی برگه خوانده شد)";
+    }
+
+    // ---- مرحله ۲: تحلیل ----
+    const raw = await callAvalAI({
+      model: TEXT_MODEL,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        buildAnalysisMessage(patientText, finalText, medlineContext, hasImage),
+      ],
     });
-
-    if (!upstream.ok) {
-      const errText = await upstream.text();
-      console.error("AvalAI error:", upstream.status, errText);
-      return res.status(502).json({ error: "خطا در ارتباط با سرویس هوش مصنوعی." });
-    }
-
-    const data = await upstream.json();
-    const raw = data?.choices?.[0]?.message?.content || "{}";
 
     let parsed;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      return res.status(200).json({ raw, parseError: true });
+      return res.status(200).json({ raw, parseError: true, ocr_warnings: ocrWarnings });
     }
+
+    // هشدارهای OCR را به خروجی اضافه می‌کنیم تا در رابط کاربری نمایش داده شوند
+    if (ocrWarnings.length) parsed.ocr_warnings = ocrWarnings;
+
     res.json(parsed);
   } catch (err) {
+    if (err.message === "upstream_error") {
+      return res.status(502).json({ error: "خطا در ارتباط با سرویس هوش مصنوعی." });
+    }
     console.error(err);
     res.status(500).json({ error: "خطای داخلی سرور." });
   }
 });
 
 app.get("/health", (_req, res) =>
-  res.json({ ok: true, textModel: TEXT_MODEL, visionModel: VISION_MODEL, medline: "webservice" })
+  res.json({ ok: true, textModel: TEXT_MODEL, visionModel: VISION_MODEL, medline: "webservice", ocr: "two-stage" })
 );
 
 app.listen(PORT, () => {
