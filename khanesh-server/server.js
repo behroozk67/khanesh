@@ -2,11 +2,14 @@
 // سرور واسط «خوانش» — نسخه با غنی‌سازی MedlinePlus
 // ------------------------------------------------------------
 // تغییرات این نسخه:
-//   ۱. خواندن عکس و تحلیل، دو مرحله جدا شده‌اند:
+//   ۱. خواندن عکس و تحلیل، دو مرحله جدا:
 //      مرحله ۱: OCR خالص (فقط خواندن جدول، بدون هیچ تفسیری)
-//      مرحله ۲: تحلیل روی متنِ خوانده‌شده (همان مسیر حالت متنی)
-//   ۲. مهلت زمانی (timeout) بلندتر برای مدل‌های کند مثل Gemini
-//   ۳. سقف توکن بالاتر برای OCR تا خروجی نصفه نماند
+//      مرحله ۲: تحلیل روی متنِ خوانده‌شده
+//   ۲. فهرست «مقادیر خوانده‌شده از عکس» مستقیماً از خروجی OCR ساخته
+//      می‌شود، نه از هوش مصنوعیِ مرحله دوم.
+//      دو فایده: (الف) هیچ ردیفی به‌خاطر سقف توکن جا نمی‌افتد
+//                (ب) مدل تحلیل نمی‌تواند اعداد را عوض کند
+//   ۳. مهلت زمانی بلندتر برای مدل‌های کند مثل Gemini
 //   ۴. اگر JSON ناقص رسید، تلاش برای بازیابی بخش سالم
 //
 // API:
@@ -32,7 +35,6 @@ const VISION_MODEL = process.env.VISION_MODEL || "gpt-4o-mini";
 const PORT = process.env.PORT || 8787;
 
 // مهلت زمانی درخواست به سرویس هوش مصنوعی (میلی‌ثانیه)
-// مدل‌های بینایی مثل Gemini برای خواندن جدول کند هستند.
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 240000); // ۴ دقیقه
 
 const MEDLINE_BASE = "https://wsearch.nlm.nih.gov/ws/query";
@@ -185,7 +187,7 @@ async function fetchMedline(term) {
       `&tool=khanesh&term=${encodeURIComponent(term)}`;
     const res = await fetch(url, {
       headers: { Accept: "application/xml" },
-      signal: AbortSignal.timeout(15000), // MedlinePlus نباید کل درخواست را معطل کند
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return null;
     const xml = await res.text();
@@ -233,8 +235,6 @@ async function buildMedlineContext(testResultsText) {
 
 // ============================================================
 // [۶] پرامپت مرحله اول — OCR خالص
-// این مدل هیچ تحلیلی نمی‌کند. فقط جدول را می‌خواند.
-// جدا کردن خواندن از تحلیل، خطای جابه‌جایی ردیف/ستون را کم می‌کند.
 // ============================================================
 const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده از برگهٔ آزمایش پزشکی هستی. وظیفهٔ تو فقط و فقط خواندن است. هیچ تفسیر، تحلیل، نظر پزشکی یا نتیجه‌گیری ارائه نده.
 
@@ -244,20 +244,25 @@ const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده ا
 - ستون‌ها را با دقت دنبال کن. هرگز مقدار یک ردیف را به ردیف دیگر نسبت نده.
 - ستون «نتیجه» و ستون «محدوده مرجع» را با هم اشتباه نگیر. مقدار بیمار یک عدد تکی است؛ محدوده مرجع معمولاً دو عدد با خط تیره است (مثل 80 - 100). هرگز عدد ابتدای محدوده مرجع را به‌عنوان نتیجه ثبت نکن.
 - قبل از ثبت هر عدد، بررسی کن که واقعاً در همان ردیفِ نام تست و در ستون درست قرار دارد.
-- هیچ ردیفی را جا نینداز. همهٔ ردیف‌های جدول را بخوان.
+
+## کامل بودن (بسیار مهم)
+- هیچ ردیفی را جا نینداز. همهٔ ردیف‌های همهٔ بخش‌ها را بخوان.
+- برگه معمولاً چند بخش دارد: Hematology (CBC)، Differential، Hemostasis (ESR)، Blood Biochemistry و…
+- بخش بیوشیمی (قند، اوره، کراتینین، چربی، آنزیم‌های کبدی، کلسیم و…) را حتماً کامل بخوان — این بخش را فراموش نکن.
+- در انتها تعداد ردیف‌هایی که خوانده‌ای را با تعداد ردیف‌های برگه مقایسه کن.
 
 ## نکات مهم
 - حرف H یا L چسبیده به عدد (مثل «L 2.58» یا «H 104.4») یعنی High/Low. عدد را جدا کن و H/L را در فیلد flag بگذار.
 - محدودهٔ مرجع را دقیقاً از روی همان برگه بخوان. از دانش خودت محدوده نساز. اگر برگه محدوده‌ای ننوشته، reference را null بگذار.
 - واحد را عیناً همان‌طور که در برگه نوشته شده ثبت کن.
 - تست‌هایی که در برگه نیستند را اضافه نکن.
-- اگر برگه بخش‌های مختلف دارد (Hematology، Hemostasis، Biochemistry، Differential و…)، همهٔ ردیف‌ها را بخوان.
+- درصدهای Differential (Neutrophils، Lymphocytes و…) را هم به‌عنوان تست ثبت کن.
 - یادداشت‌های کیفی مثل Anisocytosis (+++) را هم ثبت کن؛ value را همان متن بگذار.
 - اگر عددی تار، مبهم یا مخدوش است، confidence را "low" بگذار. اگر اصلاً خوانا نیست، value را null بگذار.
 - اطلاعات شناسایی‌کننده (نام بیمار، کد ملی، تلفن، نام پزشک) را ثبت نکن. فقط سن و جنسیت را در صورت وجود بردار.
 
 ## خروجی
-فقط JSON برگردان، بدون بک‌تیک و بدون متن اضافه. کوتاه و فشرده بنویس:
+فقط JSON برگردان، بدون بک‌تیک و بدون متن اضافه. فشرده بنویس:
 {
   "patient": { "age": "51 سال", "sex": "مرد" },
   "tests": [
@@ -272,6 +277,9 @@ confidence یکی از "high" | "low" است.`;
 
 // ============================================================
 // [۷] System Prompt مرحله دوم — تحلیل
+// نکته: از مدل نمی‌خواهیم فهرست کامل تست‌ها را تکرار کند،
+// چون آن فهرست را خودمان از OCR داریم. این کار توکن را
+// آزاد می‌کند تا تحلیل ناقص نماند.
 // ============================================================
 const SYSTEM_PROMPT = `شما یک تحلیلگر مجرب نتایج آزمایش‌های پزشکی هستید که تفسیری اولیه، دقیق و آموزشی به زبان ساده فارسی ارائه می‌دهید. شما پزشک نیستید و هرگز تشخیص قطعی نمی‌دهید یا دارو تجویز نمی‌کنید. هدف شما افزایش آگاهی بیمار است، نه آموزش تخصصی پزشکی.
 
@@ -316,7 +324,6 @@ const SYSTEM_PROMPT = `شما یک تحلیلگر مجرب نتایج آزمای
 خروجی را دقیقاً به صورت JSON معتبر و فقط JSON برگردان (بدون بک‌تیک، بدون متن اضافه):
 {
   "summary": "خلاصه یک‌پاراگرافی به زبان ساده؛ لحن متناسب با شدت. اگر مورد بحرانی هست، هشدار همین‌جا تکرار شود",
-  "extracted_tests": [ { "test": "نام تست", "value": "مقدار و واحد", "reference": "محدوده مرجع" } ],
   "abnormal_results": [ { "test": "نام تست", "value": "مقدار و واحد", "severity": "خفیف|متوسط|بحرانی", "note": "توضیح کوتاه و ساده متناسب با شدت انحراف" } ],
   "interpretation": "تحلیل پیوسته و ساده با در نظر گرفتن شرایط بیمار، تصویر کلی و شدت انحرافات",
   "general_recommendations": ["توصیه ۱", "توصیه ۲"],
@@ -324,7 +331,8 @@ const SYSTEM_PROMPT = `شما یک تحلیلگر مجرب نتایج آزمای
   "has_critical": true
 }
 
-در abnormal_results فقط تست‌هایی را بیاور که واقعاً خارج از محدودهٔ ارائه‌شده هستند. انحرافات بسیار جزئی را می‌توانی با severity «خفیف» و لحن اطمینان‌بخش بیاوری. extracted_tests فقط وقتی پر می‌شود که ورودی از عکس خوانده شده باشد. has_critical فقط وقتی true است که حداقل یک مقدار در محدودهٔ بحرانی واقعی باشد.`;
+مهم: فهرست کامل تست‌ها را در خروجی تکرار نکن — آن فهرست جداگانه به کاربر نشان داده می‌شود. فقط روی تحلیل تمرکز کن.
+در abnormal_results فقط تست‌هایی را بیاور که واقعاً خارج از محدودهٔ ارائه‌شده هستند. انحرافات بسیار جزئی را می‌توانی با severity «خفیف» و لحن اطمینان‌بخش بیاوری. has_critical فقط وقتی true است که حداقل یک مقدار در محدودهٔ بحرانی واقعی باشد.`;
 
 // ============================================================
 // [۸] فراخوانی AvalAI — تابع مشترک
@@ -348,7 +356,6 @@ async function callAvalAI({ model, messages, maxTokens = 2000, temperature = 0.2
       }),
     });
   } catch (err) {
-    // خطای شبکه یا اتمام مهلت
     console.error("AvalAI fetch failed:", model, err.name, err.message);
     const e = new Error("upstream_timeout");
     e.model = model;
@@ -365,10 +372,9 @@ async function callAvalAI({ model, messages, maxTokens = 2000, temperature = 0.2
 
   const data = await upstream.json();
 
-  // اگر مدل به دلیل رسیدن به سقف توکن متوقف شده باشد، خروجی ناقص است
   const finishReason = data?.choices?.[0]?.finish_reason;
   if (finishReason === "length") {
-    console.warn("AvalAI response truncated (max_tokens reached) for model:", model);
+    console.warn("⚠️ AvalAI response TRUNCATED (max_tokens reached) for model:", model);
   }
 
   return data?.choices?.[0]?.message?.content || "{}";
@@ -380,19 +386,16 @@ async function callAvalAI({ model, messages, maxTokens = 2000, temperature = 0.2
 function safeParseJson(raw) {
   if (!raw) return null;
 
-  // تلاش اول: مستقیم
   try {
     return JSON.parse(raw);
   } catch { /* ادامه */ }
 
-  // تلاش دوم: حذف بک‌تیک احتمالی
   const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
   try {
     return JSON.parse(cleaned);
   } catch { /* ادامه */ }
 
-  // تلاش سوم: اگر خروجی نصفه مانده، تا آخرین شیء کامل را برداریم
-  // (مثلاً وقتی مدل وسط نوشتن tests قطع شده)
+  // اگر خروجی نصفه مانده، تا آخرین شیء کامل را برداریم
   const lastComplete = cleaned.lastIndexOf("},");
   if (lastComplete > 0) {
     const candidate = cleaned.slice(0, lastComplete + 1) + "]}";
@@ -410,14 +413,14 @@ function safeParseJson(raw) {
 async function readImage(imageDataUrl) {
   const raw = await callAvalAI({
     model: VISION_MODEL,
-    temperature: 0,      // برای خواندن، خلاقیت صفر
-    maxTokens: 4000,     // جای کافی برای همه ردیف‌ها
+    temperature: 0,
+    maxTokens: 4000,
     messages: [
       { role: "system", content: OCR_PROMPT },
       {
         role: "user",
         content: [
-          { type: "text", text: "این برگهٔ آزمایش را ردیف به ردیف بخوان و طبق قالب JSON برگردان." },
+          { type: "text", text: "این برگهٔ آزمایش را کامل و ردیف به ردیف بخوان — همهٔ بخش‌ها شامل بیوشیمی. طبق قالب JSON برگردان." },
           { type: "image_url", image_url: { url: imageDataUrl } },
         ],
       },
@@ -427,7 +430,9 @@ async function readImage(imageDataUrl) {
   const parsed = safeParseJson(raw);
   if (!parsed) {
     console.error("OCR JSON parse failed. Raw head:", raw.slice(0, 300));
+    return null;
   }
+  console.log(`OCR خواند: ${Array.isArray(parsed.tests) ? parsed.tests.length : 0} تست`);
   return parsed;
 }
 
@@ -443,7 +448,6 @@ function ocrToText(ocr) {
   for (const t of ocr.tests) {
     if (!t || !t.name) continue;
 
-    // مقادیر ناخوانا را وارد تحلیل نمی‌کنیم
     if (t.value === null || t.value === undefined || t.value === "") {
       warnings.push(`${t.name}: مقدار خوانا نبود و در تحلیل لحاظ نشد.`);
       continue;
@@ -472,7 +476,29 @@ function ocrToText(ocr) {
 }
 
 // ============================================================
-// [۱۲] ساخت پیام کاربر برای مرحله تحلیل
+// [۱۲] ساخت فهرست extracted_tests مستقیماً از OCR
+// این‌طوری هیچ ردیفی جا نمی‌افتد و مدل تحلیل نمی‌تواند
+// اعداد را تغییر دهد.
+// ============================================================
+function ocrToExtractedTests(ocr) {
+  if (!ocr || !Array.isArray(ocr.tests)) return [];
+
+  return ocr.tests
+    .filter((t) => t && t.name && t.value !== null && t.value !== undefined && t.value !== "")
+    .map((t) => {
+      let value = String(t.value);
+      if (t.unit) value += ` ${t.unit}`;
+      if (t.confidence === "low") value += " ⚠️";
+      return {
+        test: t.name,
+        value,
+        reference: t.reference || "—",
+      };
+    });
+}
+
+// ============================================================
+// [۱۳] ساخت پیام کاربر برای مرحله تحلیل
 // ============================================================
 function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImage) {
   let text =
@@ -494,7 +520,7 @@ function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImag
 }
 
 // ============================================================
-// [۱۳] نقطه پایانی اصلی
+// [۱۴] نقطه پایانی اصلی
 // ============================================================
 app.post("/api/analyze", async (req, res) => {
   try {
@@ -509,6 +535,7 @@ app.post("/api/analyze", async (req, res) => {
     let finalText = hasText ? testResults : "";
     let ocrWarnings = [];
     let ocrPatient = null;
+    let extractedTests = [];
 
     // ---- مرحله ۱: اگر عکس هست، اول بخوان ----
     if (hasImage) {
@@ -529,11 +556,12 @@ app.post("/api/analyze", async (req, res) => {
 
       ocrWarnings = warnings;
       ocrPatient = ocr.patient || null;
+      extractedTests = ocrToExtractedTests(ocr); // ← فهرست کامل، مستقیم از OCR
 
       finalText = hasText ? `${testResults}\n\n--- خوانده‌شده از عکس ---\n${text}` : text;
     }
 
-    // ---- زمینه MedlinePlus (برای عکس هم فعال است) ----
+    // ---- زمینه MedlinePlus ----
     let medlineContext = "";
     try {
       const { context } = await buildMedlineContext(finalText);
@@ -542,7 +570,7 @@ app.post("/api/analyze", async (req, res) => {
       console.error("MedlinePlus context build failed:", e.message);
     }
 
-    // ---- اطلاعات بیمار: ورودی کاربر اولویت دارد ----
+    // ---- اطلاعات بیمار ----
     let patientText = patientInfo || "";
     if (!patientText && ocrPatient) {
       const bits = [];
@@ -563,9 +591,16 @@ app.post("/api/analyze", async (req, res) => {
 
     const parsed = safeParseJson(raw);
     if (!parsed) {
-      return res.status(200).json({ raw, parseError: true, ocr_warnings: ocrWarnings });
+      return res.status(200).json({
+        raw,
+        parseError: true,
+        extracted_tests: extractedTests,
+        ocr_warnings: ocrWarnings,
+      });
     }
 
+    // فهرست تست‌ها را خودمان می‌گذاریم، نه مدل
+    if (extractedTests.length) parsed.extracted_tests = extractedTests;
     if (ocrWarnings.length) parsed.ocr_warnings = ocrWarnings;
 
     res.json(parsed);
@@ -590,6 +625,7 @@ app.get("/health", (_req, res) =>
     visionModel: VISION_MODEL,
     medline: "webservice",
     ocr: "two-stage",
+    extractedTestsSource: "ocr-direct",
     aiTimeoutMs: AI_TIMEOUT_MS,
   })
 );
