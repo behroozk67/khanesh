@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 
 // آدرس سرور واسط (بک‌اند). اگر سرور روی پورت دیگری است، اینجا عوض کن.
-const PROXY_URL = "http://localhost:8787/api/analyze";
+const PROXY_URL = "/api/analyze";
 
 // ============================================================
 // خوانش — نسخه با تفسیر آموزشی غنی
