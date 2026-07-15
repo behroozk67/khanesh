@@ -414,7 +414,7 @@ async function readImage(imageDataUrl) {
   const raw = await callAvalAI({
     model: VISION_MODEL,
     temperature: 0,
-    maxTokens: 4000,
+    maxTokens: 8000,
     messages: [
       { role: "system", content: OCR_PROMPT },
       {
