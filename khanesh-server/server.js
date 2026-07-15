@@ -1,15 +1,16 @@
 // ============================================================
 // سرور واسط «خوانش» — نسخه با غنی‌سازی MedlinePlus
 // ------------------------------------------------------------
-// تغییر مهم نسبت به نسخه قبل:
-//   خواندن عکس و تحلیل، دو مرحله جدا شده‌اند.
-//   مرحله ۱: OCR خالص (فقط خواندن جدول، بدون هیچ تفسیری)
-//   مرحله ۲: تحلیل روی متنِ خوانده‌شده (همان مسیر حالت متنی)
-//   نتیجه: دقت خواندن بالاتر + MedlinePlus برای عکس هم فعال می‌شود.
+// تغییرات این نسخه:
+//   ۱. خواندن عکس و تحلیل، دو مرحله جدا شده‌اند:
+//      مرحله ۱: OCR خالص (فقط خواندن جدول، بدون هیچ تفسیری)
+//      مرحله ۲: تحلیل روی متنِ خوانده‌شده (همان مسیر حالت متنی)
+//   ۲. مهلت زمانی (timeout) بلندتر برای مدل‌های کند مثل Gemini
+//   ۳. سقف توکن بالاتر برای OCR تا خروجی نصفه نماند
+//   ۴. اگر JSON ناقص رسید، تلاش برای بازیابی بخش سالم
 //
 // API:
 //   POST /api/analyze  با بدنه { patientInfo, testResults?, imageDataUrl? }
-//   خروجی: همان JSON ساختاریافته قبلی + فیلد ocr_warnings
 //
 // اجرا:
 //   npm install
@@ -29,6 +30,10 @@ const AVALAI_BASE_URL = "https://api.avalai.ir/v1";
 const TEXT_MODEL = process.env.TEXT_MODEL || "gpt-4o-mini";
 const VISION_MODEL = process.env.VISION_MODEL || "gpt-4o-mini";
 const PORT = process.env.PORT || 8787;
+
+// مهلت زمانی درخواست به سرویس هوش مصنوعی (میلی‌ثانیه)
+// مدل‌های بینایی مثل Gemini برای خواندن جدول کند هستند.
+const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 240000); // ۴ دقیقه
 
 const MEDLINE_BASE = "https://wsearch.nlm.nih.gov/ws/query";
 
@@ -178,7 +183,10 @@ async function fetchMedline(term) {
     const url =
       `${MEDLINE_BASE}?db=healthTopics&rettype=brief&retmax=1` +
       `&tool=khanesh&term=${encodeURIComponent(term)}`;
-    const res = await fetch(url, { headers: { Accept: "application/xml" } });
+    const res = await fetch(url, {
+      headers: { Accept: "application/xml" },
+      signal: AbortSignal.timeout(15000), // MedlinePlus نباید کل درخواست را معطل کند
+    });
     if (!res.ok) return null;
     const xml = await res.text();
     const summary = parseFirstSummary(xml);
@@ -226,8 +234,7 @@ async function buildMedlineContext(testResultsText) {
 // ============================================================
 // [۶] پرامپت مرحله اول — OCR خالص
 // این مدل هیچ تحلیلی نمی‌کند. فقط جدول را می‌خواند.
-// جدا کردن خواندن از تحلیل، خطای جابه‌جایی ردیف/ستون را
-// به‌شدت کم می‌کند (مثلاً خواندن مقدار MCH به‌جای HCT).
+// جدا کردن خواندن از تحلیل، خطای جابه‌جایی ردیف/ستون را کم می‌کند.
 // ============================================================
 const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده از برگهٔ آزمایش پزشکی هستی. وظیفهٔ تو فقط و فقط خواندن است. هیچ تفسیر، تحلیل، نظر پزشکی یا نتیجه‌گیری ارائه نده.
 
@@ -235,27 +242,29 @@ const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده ا
 - جدول را ردیف به ردیف بخوان. هر ردیف یک تست است.
 - ستون‌ها معمولاً به این ترتیب‌اند: نام تست | نتیجه (Result) | واحد (Unit) | محدوده مرجع (Normal Range)
 - ستون‌ها را با دقت دنبال کن. هرگز مقدار یک ردیف را به ردیف دیگر نسبت نده.
-- قبل از ثبت هر عدد، بررسی کن که واقعاً در همان ردیفِ نام تست قرار دارد.
+- ستون «نتیجه» و ستون «محدوده مرجع» را با هم اشتباه نگیر. مقدار بیمار یک عدد تکی است؛ محدوده مرجع معمولاً دو عدد با خط تیره است (مثل 80 - 100). هرگز عدد ابتدای محدوده مرجع را به‌عنوان نتیجه ثبت نکن.
+- قبل از ثبت هر عدد، بررسی کن که واقعاً در همان ردیفِ نام تست و در ستون درست قرار دارد.
+- هیچ ردیفی را جا نینداز. همهٔ ردیف‌های جدول را بخوان.
 
 ## نکات مهم
 - حرف H یا L چسبیده به عدد (مثل «L 2.58» یا «H 104.4») یعنی High/Low. عدد را جدا کن و H/L را در فیلد flag بگذار.
-- محدودهٔ مرجع را دقیقاً از روی همان برگه بخوان. از دانش خودت محدوده نساز.
+- محدودهٔ مرجع را دقیقاً از روی همان برگه بخوان. از دانش خودت محدوده نساز. اگر برگه محدوده‌ای ننوشته، reference را null بگذار.
 - واحد را عیناً همان‌طور که در برگه نوشته شده ثبت کن.
 - تست‌هایی که در برگه نیستند را اضافه نکن.
-- اگر برگه بخش‌های مختلف دارد (Hematology، Biochemistry، Differential و…)، همهٔ ردیف‌ها را بخوان.
+- اگر برگه بخش‌های مختلف دارد (Hematology، Hemostasis، Biochemistry، Differential و…)، همهٔ ردیف‌ها را بخوان.
 - یادداشت‌های کیفی مثل Anisocytosis (+++) را هم ثبت کن؛ value را همان متن بگذار.
 - اگر عددی تار، مبهم یا مخدوش است، confidence را "low" بگذار. اگر اصلاً خوانا نیست، value را null بگذار.
 - اطلاعات شناسایی‌کننده (نام بیمار، کد ملی، تلفن، نام پزشک) را ثبت نکن. فقط سن و جنسیت را در صورت وجود بردار.
 
 ## خروجی
-فقط JSON برگردان، بدون بک‌تیک و بدون متن اضافه:
+فقط JSON برگردان، بدون بک‌تیک و بدون متن اضافه. کوتاه و فشرده بنویس:
 {
-  "patient": { "age": "51 سال یا null", "sex": "مرد|زن|null" },
+  "patient": { "age": "51 سال", "sex": "مرد" },
   "tests": [
     { "name": "WBC", "value": "5.66", "unit": "10*3/µL", "reference": "3.5 - 11", "flag": null, "confidence": "high" },
     { "name": "RBC", "value": "2.58", "unit": "10*6/ul", "reference": "3.6 - 6.1", "flag": "L", "confidence": "high" }
   ],
-  "unreadable_notes": ["توضیح مواردی که خوانا نبودند"]
+  "unreadable_notes": []
 }
 
 flag یکی از "H" | "L" | null است.
@@ -321,40 +330,88 @@ const SYSTEM_PROMPT = `شما یک تحلیلگر مجرب نتایج آزمای
 // [۸] فراخوانی AvalAI — تابع مشترک
 // ============================================================
 async function callAvalAI({ model, messages, maxTokens = 2000, temperature = 0.2 }) {
-  const upstream = await fetch(`${AVALAI_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${AVALAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      response_format: { type: "json_object" },
-      max_tokens: maxTokens,
-    }),
-  });
+  let upstream;
+  try {
+    upstream = await fetch(`${AVALAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${AVALAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        response_format: { type: "json_object" },
+        max_tokens: maxTokens,
+      }),
+    });
+  } catch (err) {
+    // خطای شبکه یا اتمام مهلت
+    console.error("AvalAI fetch failed:", model, err.name, err.message);
+    const e = new Error("upstream_timeout");
+    e.model = model;
+    throw e;
+  }
 
   if (!upstream.ok) {
     const errText = await upstream.text();
-    console.error("AvalAI error:", upstream.status, errText);
-    throw new Error("upstream_error");
+    console.error("AvalAI error:", model, upstream.status, errText.slice(0, 400));
+    const e = new Error("upstream_error");
+    e.status = upstream.status;
+    throw e;
   }
 
   const data = await upstream.json();
-  const raw = data?.choices?.[0]?.message?.content || "{}";
-  return raw;
+
+  // اگر مدل به دلیل رسیدن به سقف توکن متوقف شده باشد، خروجی ناقص است
+  const finishReason = data?.choices?.[0]?.finish_reason;
+  if (finishReason === "length") {
+    console.warn("AvalAI response truncated (max_tokens reached) for model:", model);
+  }
+
+  return data?.choices?.[0]?.message?.content || "{}";
 }
 
 // ============================================================
-// [۹] مرحله اول — خواندن عکس (OCR خالص)
+// [۹] تلاش برای خواندن JSON، حتی اگر کمی ناقص باشد
+// ============================================================
+function safeParseJson(raw) {
+  if (!raw) return null;
+
+  // تلاش اول: مستقیم
+  try {
+    return JSON.parse(raw);
+  } catch { /* ادامه */ }
+
+  // تلاش دوم: حذف بک‌تیک احتمالی
+  const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch { /* ادامه */ }
+
+  // تلاش سوم: اگر خروجی نصفه مانده، تا آخرین شیء کامل را برداریم
+  // (مثلاً وقتی مدل وسط نوشتن tests قطع شده)
+  const lastComplete = cleaned.lastIndexOf("},");
+  if (lastComplete > 0) {
+    const candidate = cleaned.slice(0, lastComplete + 1) + "]}";
+    try {
+      return JSON.parse(candidate);
+    } catch { /* ادامه */ }
+  }
+
+  return null;
+}
+
+// ============================================================
+// [۱۰] مرحله اول — خواندن عکس (OCR خالص)
 // ============================================================
 async function readImage(imageDataUrl) {
   const raw = await callAvalAI({
     model: VISION_MODEL,
-    temperature: 0, // برای خواندن، خلاقیت صفر
-    maxTokens: 2500,
+    temperature: 0,      // برای خواندن، خلاقیت صفر
+    maxTokens: 4000,     // جای کافی برای همه ردیف‌ها
     messages: [
       { role: "system", content: OCR_PROMPT },
       {
@@ -367,16 +424,15 @@ async function readImage(imageDataUrl) {
     ],
   });
 
-  try {
-    return JSON.parse(raw);
-  } catch {
-    console.error("OCR JSON parse failed. Raw:", raw.slice(0, 300));
-    return null;
+  const parsed = safeParseJson(raw);
+  if (!parsed) {
+    console.error("OCR JSON parse failed. Raw head:", raw.slice(0, 300));
   }
+  return parsed;
 }
 
 // ============================================================
-// [۱۰] تبدیل خروجی OCR به متن برای مرحله تحلیل
+// [۱۱] تبدیل خروجی OCR به متن برای مرحله تحلیل
 // ============================================================
 function ocrToText(ocr) {
   if (!ocr || !Array.isArray(ocr.tests)) return { text: "", warnings: [] };
@@ -416,7 +472,7 @@ function ocrToText(ocr) {
 }
 
 // ============================================================
-// [۱۱] ساخت پیام کاربر برای مرحله تحلیل
+// [۱۲] ساخت پیام کاربر برای مرحله تحلیل
 // ============================================================
 function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImage) {
   let text =
@@ -438,7 +494,7 @@ function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImag
 }
 
 // ============================================================
-// [۱۲] نقطه پایانی اصلی
+// [۱۳] نقطه پایانی اصلی
 // ============================================================
 app.post("/api/analyze", async (req, res) => {
   try {
@@ -458,7 +514,9 @@ app.post("/api/analyze", async (req, res) => {
     if (hasImage) {
       const ocr = await readImage(imageDataUrl);
       if (!ocr) {
-        return res.status(502).json({ error: "خواندن عکس ممکن نشد. لطفاً عکس واضح‌تری آپلود کنید یا مقادیر را دستی وارد کنید." });
+        return res.status(502).json({
+          error: "خواندن عکس ممکن نشد. لطفاً عکس واضح‌تری آپلود کنید یا مقادیر را دستی وارد کنید.",
+        });
       }
 
       const { text, warnings } = ocrToText(ocr);
@@ -472,11 +530,10 @@ app.post("/api/analyze", async (req, res) => {
       ocrWarnings = warnings;
       ocrPatient = ocr.patient || null;
 
-      // اگر کاربر هم متن داده و هم عکس، هر دو را می‌فرستیم
       finalText = hasText ? `${testResults}\n\n--- خوانده‌شده از عکس ---\n${text}` : text;
     }
 
-    // ---- زمینه MedlinePlus (حالا برای عکس هم فعال است) ----
+    // ---- زمینه MedlinePlus (برای عکس هم فعال است) ----
     let medlineContext = "";
     try {
       const { context } = await buildMedlineContext(finalText);
@@ -485,7 +542,7 @@ app.post("/api/analyze", async (req, res) => {
       console.error("MedlinePlus context build failed:", e.message);
     }
 
-    // ---- اطلاعات بیمار: ورودی کاربر اولویت دارد، در نبودش از عکس ----
+    // ---- اطلاعات بیمار: ورودی کاربر اولویت دارد ----
     let patientText = patientInfo || "";
     if (!patientText && ocrPatient) {
       const bits = [];
@@ -497,24 +554,27 @@ app.post("/api/analyze", async (req, res) => {
     // ---- مرحله ۲: تحلیل ----
     const raw = await callAvalAI({
       model: TEXT_MODEL,
+      maxTokens: 2500,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         buildAnalysisMessage(patientText, finalText, medlineContext, hasImage),
       ],
     });
 
-    let parsed;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
+    const parsed = safeParseJson(raw);
+    if (!parsed) {
       return res.status(200).json({ raw, parseError: true, ocr_warnings: ocrWarnings });
     }
 
-    // هشدارهای OCR را به خروجی اضافه می‌کنیم تا در رابط کاربری نمایش داده شوند
     if (ocrWarnings.length) parsed.ocr_warnings = ocrWarnings;
 
     res.json(parsed);
   } catch (err) {
+    if (err.message === "upstream_timeout") {
+      return res.status(504).json({
+        error: "پاسخ سرویس هوش مصنوعی خیلی طول کشید. لطفاً دوباره تلاش کنید.",
+      });
+    }
     if (err.message === "upstream_error") {
       return res.status(502).json({ error: "خطا در ارتباط با سرویس هوش مصنوعی." });
     }
@@ -524,10 +584,18 @@ app.post("/api/analyze", async (req, res) => {
 });
 
 app.get("/health", (_req, res) =>
-  res.json({ ok: true, textModel: TEXT_MODEL, visionModel: VISION_MODEL, medline: "webservice", ocr: "two-stage" })
+  res.json({
+    ok: true,
+    textModel: TEXT_MODEL,
+    visionModel: VISION_MODEL,
+    medline: "webservice",
+    ocr: "two-stage",
+    aiTimeoutMs: AI_TIMEOUT_MS,
+  })
 );
 
 app.listen(PORT, () => {
   console.log(`سرور واسط (با MedlinePlus) روی پورت ${PORT} در حال اجراست`);
+  console.log(`مدل متن: ${TEXT_MODEL} | مدل بینایی: ${VISION_MODEL} | مهلت: ${AI_TIMEOUT_MS}ms`);
   if (!AVALAI_API_KEY) console.warn("⚠️  هشدار: AVALAI_API_KEY تنظیم نشده! فایل .env را بساز.");
 });
