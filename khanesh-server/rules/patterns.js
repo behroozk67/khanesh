@@ -1,0 +1,2281 @@
+// ============================================================
+// LabMate — قواعد الگو
+//
+// موتور تصمیم می‌گیرد. AI فقط فارسی می‌نویسد.
+//
+// چرا این فایل لازم شد:
+//   با gpt-4o-mini تفسیر گفت «نوع خاصی از کم‌خونی» — یعنی نفهمید.
+//   با gpt-4o درست گفت ولی ۳۵ برابر گران بود، و باز هم گفت
+//   «رژیم غنی از آهن» برای کم‌خونی ماکروسیتیک — که غلط است.
+//
+//   راه‌حل: الگو را کد تعیین کند، نه مدل.
+// ============================================================
+
+const has = (t, ...ks) => ks.every((k) => t[k] != null);
+
+// آیا یک تست سرولوژی (که نامش با nameRe جور است) واکنش‌گر/مثبت است؟
+// مقادیر کیفی در e.qual با کلیدِ نام خام ذخیره می‌شوند.
+// واژگان مثبت: reactive / واکنش‌گر / positive / مثبت / detected / پازیتیو
+// واژگان منفی که باید رد شوند: non-reactive / غیرواکنش‌گر / negative / منفی
+function serologyReactive(e, nameRe) {
+  if (!e.qual) return false;
+  return Object.entries(e.qual).some(([k, v]) => {
+    if (!nameRe.test(k)) return false;
+    const val = String(v);
+    // اول منفی‌ها و نتایج نامشخص را رد کن (چون "non-reactive" شامل "reactive" است)
+    if (/non[-\s]?reactive|nonreactive|غیرواکنش|negative|منفی|not\s*detected|indeterminate|equivocal|borderline|نامشخص|مرزی/i.test(val)) {
+      return false;
+    }
+    return /reactive|واکنش|positive|مثبت|detected|پازیتیو|reactive/i.test(val);
+  });
+}
+
+// ═══ کمکی‌های ادرار ═══
+// مقادیر ادراری در e.qual با کلید نام خام ذخیره می‌شوند.
+// مقدار می‌تواند باشد: negative/trace/+1/+2/+3، positive/مثبت، یا عدد/بازه («۵-۱۰»).
+
+// آیا یک تست ادراری (نامش با nameRe جور است) «مثبت/غیرطبیعی» است؟
+// negative/trace/منفی را رد می‌کند. +1 به بالا یا positive/مثبت را می‌گیرد.
+function urinePositive(e, nameRe, { traceCounts = false } = {}) {
+  if (!e.qual) return false;
+  return Object.entries(e.qual).some(([k, v]) => {
+    if (!nameRe.test(k)) return false;
+    const s = String(v).trim().toLowerCase();
+    // منفی صریح
+    if (/^(neg|negative|منفی|nil|none|no|clear|-)$/i.test(s)) return false;
+    // trace: بسته به تنظیم
+    if (/trace|کم|رگه/i.test(s)) return traceCounts;
+    // مثبت صریح یا +1..+4 یا ≥1
+    if (/pos|positive|مثبت|\+/i.test(s)) return true;
+    // مقادیر نیمه‌کمی توصیفی: many/moderate/زیاد/متوسط/numerous
+    if (/many|moderate|numerous|زیاد|فراوان|متوسط|زياد/i.test(s)) return true;
+    // مقادیر نواری خون/دیگر: small/large/زیاد (Trace قبلاً بررسی شده)
+    if (/small|large|بزرگ|کوچک/i.test(s)) return true;
+    // عدد (مثل شمارش سلولی) — بزرگ‌تر از صفر یعنی حضور دارد
+    const num = parseFloat(s.replace(/[^\d.]/g, ""));
+    return Number.isFinite(num) && num > 0;
+  });
+}
+
+// حداقلِ یک شمارش سلولی ادراری (مثل WBC/HPF = «۵-۱۰»).
+// برای بازه، سقف بازه را برمی‌گرداند (محتاطانه‌تر: «۵-۱۰» یعنی تا ۱۰).
+// مقدار با «<» (مثل «<5») را کمتر از آستانه در نظر می‌گیرد و صفر برمی‌گرداند.
+function urineCellCount(e, nameRe) {
+  if (!e.qual) return null;
+  for (const [k, v] of Object.entries(e.qual)) {
+    if (!nameRe.test(k)) continue;
+    const s = String(v).trim();
+    // «<5» یا «کمتر از ۵» → زیر آستانه، صفر برگردان
+    if (/^<|کمتر|less\s*than|<\s*\d/i.test(s)) return 0;
+    // همه‌ی اعداد را بگیر و بزرگ‌ترین (سقف بازه) را برگردان
+    const nums = (s.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
+    if (nums.length) return Math.max(...nums);
+  }
+  return null;
+}
+
+// شدت یک تست نیمه‌کمی ادرار را برمی‌گرداند:
+//   0=منفی، 0.5=trace، 1=+1، 2=+2، 3=+3، 4=+4. اگر تست نبود null.
+// معادل‌های توصیفی: many/زیاد→3، moderate/متوسط→2، few/کم→1.
+function urineGrade(e, nameRe) {
+  if (!e.qual) return null;
+  for (const [k, v] of Object.entries(e.qual)) {
+    if (!nameRe.test(k)) continue;
+    const s = String(v).trim().toLowerCase();
+    if (/^(neg|negative|منفی|nil|none|no|clear|-)$/i.test(s)) return 0;
+    if (/trace|رگه|کم‌رنگ/i.test(s)) return 0.5;
+    // تعداد علامت + (مثل +2 یا ++)
+    const plusCount = (s.match(/\+/g) || []).length;
+    if (plusCount > 0) {
+      // «+2» → عدد ۲؛ «++» → شمارش
+      const numMatch = s.match(/\+\s*(\d)/) || s.match(/(\d)\s*\+/);
+      if (numMatch) return Math.min(4, parseInt(numMatch[1], 10));
+      return Math.min(4, plusCount);
+    }
+    // عدد تنها (مثل «۳»)
+    const n = parseInt(s.replace(/[^\d]/g, ""), 10);
+    if (Number.isFinite(n) && /^\d/.test(s.replace(/[^\d]/g, ""))) return Math.min(4, n);
+    // توصیفی
+    if (/many|numerous|زیاد|فراوان|high|large|بزرگ/i.test(s)) return 3;
+    if (/moderate|متوسط/i.test(s)) return 2;
+    if (/few|کم|اندک|low|small|کوچک/i.test(s)) return 1;
+    if (/pos|positive|مثبت/i.test(s)) return 2;  // «مثبت» بدون درجه → متوسط فرض
+  }
+  return null;
+}
+
+// آیا تصویر سندرم نفروتیک هست؟ (پروتئینوری شدید + آلبومین پایین)
+function isNephrotic(e) {
+  const protGrade = urineGrade(e, /protein|پروتئین/i);
+  const heavyProt = protGrade != null && protGrade >= 3;
+  const alb = e.graded.find((g) => g.test === "ALB");
+  const albLow = alb?.abnormal && alb.dir === "low";
+  return heavyProt && albLow;
+}
+
+// آیا تصویر گلومرولونفریت هست؟ (هماچوری + پروتئینوری + درگیری کلیه)
+function isGlomerulonephritis(e) {
+  const bloodUrine = urinePositive(e, /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i);
+  const rbc = urineCellCount(e, /rbc|گلبول\s*قرمز/i);
+  const hematuria = bloodUrine || (rbc != null && rbc > 3);
+  const proteinuria = (urineGrade(e, /protein|پروتئین/i) || 0) >= 1;
+  if (!(hematuria && proteinuria)) return false;
+  const cr = e.graded.find((g) => g.test === "CREAT");
+  const crHigh = cr?.abnormal && cr.dir === "high";
+  const hgb = e.graded.find((g) => g.test === "HGB");
+  const anemic = hgb?.abnormal && hgb.dir === "low";
+  return crHigh || anemic;
+}
+
+// urgency: emergency | this_week | routine
+export const RULES = [
+  // ═══════════ سرولوژی غربالگری (هپاتیت B/C، HIV) ═══════════
+  // اصل CDC: یک نتیجه مثبت غربالگری هرگز تشخیص قطعی نیست.
+  //   نتایج واکنش‌گر گاهی مثبت کاذب‌اند و همه نیاز به تست تأییدی دارند.
+  // طراحی: سرتیتر خنثی (حریم خصوصی)، جزئیات و تست تأییدی در متن.
+  //   نه blocks_others (نباید بقیه یافته‌ها را بپوشاند)، نه emergency (وحشت‌آفرین).
+
+  {
+    id: "hcv_screen_reactive",
+    match: (e) => serologyReactive(e, /hcv|hepatitisc|هپاتیتc|آنتیبادیc/i),
+    build: () => ({
+      pattern: "hcv_ab_reactive",
+      urgency: "this_week",
+      // سرتیتر خنثی — نام بیماری در سرتیتر نمی‌آید
+      headline: "یکی از تست‌های غربالگری شما نیاز به یک آزمایش تکمیلی دارد",
+      must_say:
+        "یکی از تست‌های غربالگری (آنتی‌بادی هپاتیت C) واکنش‌گر شده است. " +
+        "این یک تست غربالگری است، نه تشخیص قطعی — و حتماً باید با یک آزمایش تکمیلی بررسی شود. " +
+        "دو نکته مهم: اول اینکه گاهی این تست می‌تواند «مثبت کاذب» باشد یعنی فرد اصلاً عفونت ندارد. " +
+        "دوم اینکه حتی اگر واقعی باشد، آنتی‌بادی مثبت می‌تواند نشان‌دهنده‌ی عفونت گذشته‌ای باشد که بدن از آن عبور کرده، نه لزوماً عفونت فعال. " +
+        "برای روشن شدن قطعی، آزمایش تکمیلی لازم است.",
+      // تست تأییدی مفصل با توضیح در suggest
+      suggest: [
+        "آزمایش HCV RNA (PCR) — این تست مشخص می‌کند که آیا ویروس همین حالا در خون فعال است یا نه؛ تنها راه تأیید عفونت فعلی همین است",
+        "مراجعه به پزشک برای تفسیر درست و تعیین مراحل بعدی",
+      ],
+      warnings: [
+        "تا وقتی آزمایش تکمیلی انجام نشده، نتیجه را قطعی نگیرید و نگران نشوید. این نتیجه به‌تنهایی تشخیص نیست.",
+      ],
+    }),
+  },
+
+  {
+    id: "hbv_screen_reactive",
+    match: (e) => serologyReactive(e, /hbsag|hbs|hepatitisb|هپاتیتb|استرالیا/i),
+    build: () => ({
+      pattern: "hbsag_reactive",
+      urgency: "this_week",
+      headline: "یکی از تست‌های غربالگری شما نیاز به یک آزمایش تکمیلی دارد",
+      must_say:
+        "یکی از تست‌های غربالگری (آنتی‌ژن سطحی هپاتیت B یا HBsAg) واکنش‌گر شده است. " +
+        "این یک تست غربالگری است، نه تشخیص قطعی. نتایج واکنش‌گر گاهی می‌توانند مثبت کاذب باشند، " +
+        "و برای اطمینان حتماً باید با آزمایش‌های تکمیلی بررسی شوند. " +
+        "این آزمایش‌ها همچنین مشخص می‌کنند که آیا عفونت تازه است یا مزمن، و چقدر فعال است.",
+      suggest: [
+        "تکرار HBsAg همراه با تست تأییدی تخصصی — برای رد کردن احتمال مثبت کاذب",
+        "پنل کامل هپاتیت B (HBeAg، Anti-HBc، Anti-HBs) — برای تعیین مرحله و وضعیت عفونت",
+        "آزمایش HBV DNA — برای اندازه‌گیری میزان فعالیت ویروس",
+        "مراجعه به پزشک یا متخصص گوارش و کبد برای تفسیر و پیگیری",
+      ],
+      warnings: [
+        "تا وقتی آزمایش‌های تکمیلی انجام نشده، نتیجه را قطعی نگیرید. این نتیجه به‌تنهایی تشخیص نیست.",
+      ],
+    }),
+  },
+
+  {
+    id: "hiv_screen_reactive",
+    match: (e) => serologyReactive(e, /hiv|ایدز|ایچآیوی/i),
+    build: () => ({
+      pattern: "hiv_screen_reactive",
+      urgency: "this_week",
+      // حریم خصوصی: سرتیتر کاملاً خنثی، هیچ نامی برده نمی‌شود
+      headline: "یکی از تست‌های غربالگری شما نیاز به یک آزمایش تکمیلی دارد",
+      must_say:
+        "یکی از تست‌های غربالگری واکنش‌گر شده است و نیاز به بررسی تکمیلی دارد. " +
+        "بسیار مهم است بدانید که این یک تست غربالگری است، نه تشخیص — و نتایج غربالگری واکنش‌گر گاهی مثبت کاذب هستند. " +
+        "به همین دلیل، تأیید قطعی نیاز به آزمایش‌های تأییدی جداگانه دارد و هرگز از روی یک نتیجه‌ی مثبت نمی‌توان نتیجه‌گیری قطعی کرد. " +
+        "آرام باشید و مرحله‌ی بعدی را با یک پزشک انجام دهید.",
+      suggest: [
+        "آزمایش تأییدی تخصصی که نوع دقیق را مشخص می‌کند (تست تفکیکی HIV-1/HIV-2) — برای رد کردن مثبت کاذب",
+        "در صورت نیاز، آزمایش HIV RNA (بار ویروسی) — که مستقیماً وجود ویروس را می‌سنجد",
+        "مراجعه به پزشک یا مراکز مشاوره‌ی مخصوص برای انجام تست تأییدی و راهنمایی محرمانه",
+      ],
+      warnings: [
+        "این نتیجه به‌تنهایی تشخیص نیست. تا انجام آزمایش تأییدی، آن را قطعی در نظر نگیرید.",
+      ],
+    }),
+  },
+
+  // ═══════════ تحلیل ادرار (U/A) ═══════════
+  // همه از e.qual خوانده می‌شوند. محتاطانه: الگو «مطرح می‌کند»، نه «تشخیص».
+
+  // ── عفونت ادراری (UTI) ──
+  // لکوسیت‌استراز مثبت + نیتریت مثبت + WBC بالا در ادرار = تصویر کلاسیک.
+  {
+    id: "uti_pattern",
+    match: (e) => {
+      const le = urinePositive(e, /leukocyte|استراز|esterase/i);
+      const nit = urinePositive(e, /nitrite|نیتریت/i);
+      const wbc = urineCellCount(e, /wbc|puscell|پوسسل|leukocyt/i);
+      const wbcHigh = wbc != null && wbc > 5;
+      // حداقل دو نشانه برای احتیاط
+      return [le, nit, wbcHigh].filter(Boolean).length >= 2;
+    },
+    build: (e) => {
+      const nit = urinePositive(e, /nitrite|نیتریت/i);
+      return {
+        pattern: "uti_likely",
+        urgency: "this_week",
+        headline: "الگوی آزمایش ادرار به یک عفونت ادراری اشاره دارد",
+        must_say:
+          "چند نشانه در آزمایش ادرار با هم دیده می‌شوند که معمولاً با عفونت ادراری همراه‌اند. " +
+          (nit ? "مثبت بودن نیتریت اغلب به عفونت باکتریایی اشاره دارد. " : "") +
+          "این نتیجه باید توسط پزشک تأیید شود و گاهی کشت ادرار برای مشخص شدن نوع باکتری لازم است.",
+        action: "این هفته با پزشک مطرح کنید. اگر سوزش ادرار، تب یا درد پهلو دارید، زودتر مراجعه کنید.",
+        suggest: ["کشت ادرار و آنتی‌بیوگرام — برای شناسایی باکتری و انتخاب داروی درست"],
+        warnings: [
+          "خودسرانه آنتی‌بیوتیک شروع نکنید — انتخاب و دوز درست را پزشک تعیین می‌کند.",
+        ],
+      };
+    },
+  },
+
+  // ── باکتری در ادرار بدون نشانه‌ی عفونت ──
+  // باکتری قابل‌توجه (many/moderate) ولی WBC نرمال و بدون لکوسیت‌استراز/نیتریت.
+  // این معمولاً UTI واقعی نیست — اغلب آلودگی نمونه یا باکتریوری بی‌علامت.
+  // فقط وقتی فعال می‌شود که UTI فعال نشده باشد.
+  {
+    id: "bacteriuria_no_inflammation",
+    match: (e) => {
+      // باکتری قابل‌توجه؟ (many یا moderate — few را نمی‌گیریم)
+      const bactSignificant = Object.entries(e.qual || {}).some(
+        ([k, v]) => /bacteria|باکتری/i.test(k) &&
+                    /many|moderate|numerous|زیاد|فراوان|متوسط|\+{2,}/i.test(String(v))
+      );
+      if (!bactSignificant) return false;
+      // نشانه‌های عفونت — اگر باشند، UTI فعال است و این الگو نباید بیاید
+      const le = urinePositive(e, /leukocyte|استراز|esterase/i);
+      const nit = urinePositive(e, /nitrite|نیتریت/i);
+      const wbc = urineCellCount(e, /wbc|puscell|پوسسل|leukocyt/i);
+      const wbcHigh = wbc != null && wbc > 5;
+      const inflammation = [le, nit, wbcHigh].filter(Boolean).length >= 2;
+      return !inflammation;
+    },
+    build: () => ({
+      pattern: "bacteriuria_no_inflammation",
+      urgency: "routine",
+      headline: "در آزمایش ادرار شما باکتری دیده شده است",
+      must_say:
+        "در نمونه‌ی ادرار شما باکتری گزارش شده است. " +
+        "یکی از دلایل شایع این موضوع می‌تواند آلوده شدن نمونه هنگام جمع‌آوری باشد — " +
+        "مثلاً وقتی نمونه وسط ادرار و در ظرف استریل گرفته نشده باشد. " +
+        "برای تفسیر درست، بهتر است با پزشک مطرح شود.",
+      action: "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، یا اگر باردار هستید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است.",
+      suggest: ["تکرار آزمایش ادرار با نمونه‌ی وسط ادرار (midstream) و ظرف استریل"],
+      warnings: [
+        "⚠️ اگر باردار هستید، وجود باکتری در ادرار حتی بدون علامت مهم است و باید حتماً با پزشک زنان مطرح شود.",
+      ],
+    }),
+  },
+
+  // ── پروتئینوری ──
+  {
+    id: "proteinuria_pattern",
+    match: (e) => {
+      const g = urineGrade(e, /protein|پروتئین/i);
+      if (!(g != null && g >= 0.5)) return false;   // trace به بالا
+      // اگر تصویر خاص‌تر (نفروتیک یا گلومرولونفریت) هست، واگذار کن
+      if (isNephrotic(e) || isGlomerulonephritis(e)) return false;
+      return true;
+    },
+    build: (e) => {
+      const g = urineGrade(e, /protein|پروتئین/i);
+      const pregWarn = "اگر باردار هستید، وجود پروتئین در ادرار — به‌خصوص همراه با فشار خون بالا — مهم است و باید بدون تأخیر با پزشک زنان مطرح کنید.";
+
+      if (g <= 0.5) {
+        // trace
+        return {
+          pattern: "proteinuria_trace",
+          urgency: "routine",
+          headline: "در آزمایش ادرار شما مقدار بسیار کمی پروتئین (رگه/trace) دیده شده است",
+          must_say:
+            "مقدار پروتئین در حد «رگه» (خیلی کم) است. این اغلب اهمیت زیادی ندارد و می‌تواند به‌خاطر کم‌آبی، تب، ورزش، یا غلیظ بودن نمونه باشد. " +
+            "معمولاً با یک نمونه‌ی صبحگاهی تکرار می‌شود.",
+          action: "نوبت عادی. اگر تکرار شد یا علامت دارید، با پزشک مطرح کنید.",
+          suggest: ["تکرار آزمایش با نمونه‌ی اول صبح"],
+          warnings: [pregWarn],
+        };
+      }
+
+      if (g === 1) {
+        // +1
+        return {
+          pattern: "proteinuria_1plus",
+          urgency: "routine",
+          headline: "در آزمایش ادرار شما پروتئین خفیف (+۱) دیده شده است",
+          must_say:
+            "مقدار پروتئین کم (حدود +۱) است. این می‌تواند علت‌های موقتی و بی‌خطر داشته باشد (تب، ورزش، کم‌آبی)، " +
+            "ولی بهتر است تکرار و در صورت تداوم بررسی شود. یک نمونه‌ی تکی قطعی نیست.",
+          action: "نوبت عادی. برای اطمینان تکرار و در صورت تداوم با پزشک مطرح کنید.",
+          suggest: ["تکرار آزمایش ادرار", "نسبت آلبومین به کراتینین (ACR) در صورت تداوم"],
+          warnings: [pregWarn],
+        };
+      }
+
+      if (g === 2) {
+        // +2
+        return {
+          pattern: "proteinuria_2plus",
+          urgency: "this_week",
+          headline: "در آزمایش ادرار شما پروتئین متوسط (+۲) دیده شده است",
+          must_say:
+            "مقدار پروتئین متوسط (حدود +۲) است. این باید با یک آزمایش دقیق‌تر تأیید شود تا مشخص شود چقدر پروتئین دفع می‌شود و آیا مربوط به کلیه است یا نه.",
+          action: "این هفته با پزشک مطرح کنید.",
+          suggest: [
+            "نسبت آلبومین به کراتینین ادرار (ACR) — برای اندازه‌گیری دقیق",
+            "بررسی عملکرد کلیه (کراتینین، eGFR)",
+          ],
+          warnings: [pregWarn],
+        };
+      }
+
+      // +3 یا +4
+      return {
+        pattern: "proteinuria_heavy",
+        urgency: "this_week",
+        headline: "در آزمایش ادرار شما پروتئین قابل‌توجه (+۳ یا بیشتر) دیده شده است",
+        must_say:
+          "مقدار پروتئین در ادرار زیاد است. این حتماً باید توسط پزشک بررسی شود، چون می‌تواند نشانه‌ای از کار کلیه باشد. " +
+          "یک آزمایش دقیق‌تر (ACR) و بررسی کلیه لازم است.",
+        action: "این هفته با پزشک مطرح کنید. اگر همراه ورم پا/صورت، خون در ادرار، یا فشار خون بالا هستید، زودتر مراجعه کنید.",
+        suggest: [
+          "نسبت آلبومین به کراتینین ادرار (ACR)",
+          "بررسی عملکرد کلیه (کراتینین، eGFR)",
+          "بررسی توسط پزشک",
+        ],
+        warnings: [pregWarn],
+      };
+    },
+  },
+
+  // ── هماچوری (خون در ادرار) ──
+  {
+    id: "hematuria_pattern",
+    match: (e) => {
+      const blood = urinePositive(e, /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i);
+      const rbc = urineCellCount(e, /rbc|گلبول\s*قرمز/i);
+      const rbcHigh = rbc != null && rbc > 3;
+      if (!(blood || rbcHigh)) return false;
+      // اگر تصویر خاص‌تر (گلومرولونفریت) هست، واگذار کن
+      if (isGlomerulonephritis(e)) return false;
+      // رابدومیولیز: CK خیلی بالا + خون ادرار → آن الگو پوشش می‌دهد
+      const ck = e.graded.find((g) => g.test === "CK");
+      const ckVeryHigh = ck?.abnormal && ck.dir === "high" && ck.value > 1000;
+      if (ckVeryHigh && blood) return false;
+      return true;
+    },
+    build: () => ({
+      pattern: "hematuria",
+      urgency: "this_week",
+      headline: "در آزمایش ادرار شما خون (گلبول قرمز) دیده شده است",
+      must_say:
+        "وجود خون در ادرار می‌تواند علت‌های متعددی داشته باشد — از عفونت و سنگ کلیه تا علل دیگر. " +
+        "گاهی هم موقتی است (مثلاً در دوره‌ی قاعدگی نمونه آلوده می‌شود). یک نمونه به‌تنهایی قطعی نیست، ولی باید پیگیری شود.",
+      action: "این هفته با پزشک مطرح کنید تا علت بررسی شود.",
+      suggest: [
+        "تکرار آزمایش ادرار (در خانم‌ها بهتر است خارج از دوره قاعدگی)",
+        "کشت ادرار",
+        "بررسی تصویربرداری کلیه و مجاری ادرار در صورت صلاحدید پزشک",
+      ],
+      warnings: [],
+    }),
+  },
+
+  // ── گلوکوزوری (قند در ادرار) ──
+  {
+    id: "glycosuria_pattern",
+    match: (e) => urinePositive(e, /urine\s*glucose|u\s*glucose|glucose\s*urine|قند\s*ادرار|گلوکز\s*ادرار|ur\s*glucose/i),
+    build: () => ({
+      pattern: "glycosuria",
+      urgency: "this_week",
+      headline: "در آزمایش ادرار شما قند دیده شده است",
+      must_say:
+        "وجود قند در ادرار معمولاً وقتی رخ می‌دهد که قند خون بالا رفته باشد و کلیه بخشی از آن را دفع کند. " +
+        "این می‌تواند سرنخی از دیابت کنترل‌نشده باشد، ولی گاهی علل دیگری هم دارد. باید با آزمایش قند خون بررسی شود.",
+      action: "این هفته با پزشک مطرح کنید و آزمایش قند خون بدهید.",
+      suggest: [
+        "قند خون ناشتا (FBS)",
+        "HbA1c — میانگین قند سه ماه اخیر",
+        "قند دو ساعته در صورت صلاحدید پزشک",
+      ],
+      warnings: [],
+    }),
+  },
+
+  // ── کتونوری (کتون در ادرار) ──
+  {
+    id: "ketonuria_pattern",
+    match: (e) => {
+      const g = urineGrade(e, /ketone|کتون/i);
+      return g != null && g >= 1;   // +1 به بالا (trace کتون معمولاً نادیده)
+    },
+    build: (e) => {
+      const g = urineGrade(e, /ketone|کتون/i);
+      const glu = urinePositive(e, /urine\s*glucose|u\s*glucose|قند\s*ادرار|گلوکز\s*ادرار/i);
+      const heavy = g >= 3;   // +3
+
+      // پایه‌ی توضیح مشترک
+      const base =
+        "کتون‌ها وقتی در ادرار ظاهر می‌شوند که بدن به‌جای قند از چربی برای انرژی استفاده کند — " +
+        "مثلاً در روزه‌داری، گرسنگی، رژیم کم‌کربوهیدرات، یا استفراغ. ";
+
+      // اگر کتون + قند ادرار → مهم‌تر (احتمال زمینه‌ی دیابتی)
+      if (glu) {
+        return {
+          pattern: "ketonuria_with_glucose",
+          urgency: "this_week",
+          headline: `در آزمایش ادرار شما کتون (${g === 1 ? "+۱" : g === 2 ? "+۲" : "+۳"}) همراه با قند دیده شده است`,
+          must_say:
+            base +
+            "چون قند ادرار هم مثبت است، این ترکیب در افراد دیابتی می‌تواند مهم باشد و نیاز به بررسی دارد.",
+          action: "این هفته با پزشک مطرح کنید، به‌خصوص اگر دیابت دارید.",
+          suggest: ["قند خون", "بررسی وضعیت دیابت با پزشک"],
+          warnings: [
+            "اگر دیابت دارید و علائمی مثل تشنگی شدید، تنفس تند یا تهوع دارید، فوراً به پزشک مراجعه کنید.",
+          ],
+        };
+      }
+
+      if (heavy) {
+        // کتون زیاد بدون قند
+        return {
+          pattern: "ketonuria_heavy",
+          urgency: "this_week",
+          headline: "در آزمایش ادرار شما کتون قابل‌توجه (+۳) دیده شده است",
+          must_say:
+            base +
+            "مقدار کتون زیاد است. اگر به‌خاطر روزه‌داری یا رژیم باشد معمولاً با غذا خوردن برطرف می‌شود، " +
+            "ولی مقدار زیاد بهتر است با پزشک بررسی شود — به‌خصوص اگر دیابت دارید یا حالتان خوب نیست.",
+          action: "این هفته با پزشک مطرح کنید. اگر دیابت دارید یا علائمی مثل تهوع و تنفس تند دارید، زودتر مراجعه کنید.",
+          suggest: ["قند خون", "تکرار آزمایش در حالت عادی"],
+          warnings: [],
+        };
+      }
+
+      // کتون +1 یا +2 بدون قند → معمولاً خفیف
+      return {
+        pattern: "ketonuria",
+        urgency: "routine",
+        headline: `در آزمایش ادرار شما کتون (${g === 1 ? "+۱" : "+۲"}) دیده شده است`,
+        must_say:
+          base +
+          "معمولاً اگر علت آن روزه‌داری یا رژیم باشد، خطرناک نیست.",
+        action: "اگر ناشتا نبوده‌اید یا رژیم خاصی ندارید، با پزشک مطرح کنید.",
+        suggest: ["تکرار آزمایش در حالت عادی (نه ناشتای طولانی)"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ پرچم قرمز ═══════════
+  {
+    id: "troponin_positive",
+    match: (e) => {
+      // کیفی: کلمه‌ی مثبت در qual
+      const qualPos = Object.entries(e.qual).some(
+        ([k, v]) => /troponin|ctn[it]|hs.?ctn|cardiac.?troponin/i.test(k) && /positive|مثبت|reactive|واکنش/i.test(v)
+      );
+      // عددی: TROPONIN_I بالای حد مرجع (از graded)
+      const trop = e.graded.find((g) => g.test === "TROPONIN_I");
+      const numHigh = trop?.abnormal && trop.dir === "high";
+      return qualPos || numHigh;
+    },
+    build: () => ({
+      pattern: "troponin_positive",
+      urgency: "emergency",
+      headline: "یکی از نتایج نیاز به رسیدگی فوری دارد",
+      must_say: "تروپونین مثبت است. این آزمایش وضعیت عضله قلب را نشان می‌دهد.",
+      action: "همین حالا به اورژانس مراجعه کنید. این برگه را همراه ببرید.",
+      suggest: [],
+      blocks_others: true,   // بقیه یافته‌ها زیر این می‌روند
+    }),
+  },
+  {
+    id: "dic_pattern",
+    match: (e) => {
+      const t = val(e);
+      return has(t, "PLT", "PT", "FIB") && t.PLT < 100 && t.PT > 15 && t.FIB < 150;
+    },
+    build: () => ({
+      pattern: "possible_DIC",
+      urgency: "emergency",
+      headline: "چند شاخص لخته شدن خون همزمان غیرطبیعی است",
+      must_say: "این ترکیب نیاز به بررسی فوری دارد.",
+      action: "همین امروز به اورژانس مراجعه کنید.",
+      suggest: [],
+      blocks_others: true,
+    }),
+  },
+
+  // ═══════════ لکوسیتوز شدید — پرچم قرمز ═══════════
+  // 🔴 این قاعده نبود و WBC=258 «طبیعی» گزارش شد.
+  {
+    id: "extreme_leukocytosis",
+    match: (e) => {
+      const w = e.graded.find((g) => g.test === "WBC");
+      return w?.abnormal && w.dir === "high" && w.value >= 50;
+    },
+    build: (e) => {
+      const w = e.graded.find((g) => g.test === "WBC");
+      return {
+        pattern: "extreme_leukocytosis",
+        urgency: "emergency",
+        headline: "تعداد گلبول‌های سفید خون شما بسیار بالاست",
+        must_say:
+          `گلبول سفید ${w.value} است — چندین برابر حد بالای طبیعی (${w.range}). ` +
+          "این عدد نیاز به بررسی فوری توسط پزشک دارد." +
+          (e.diffFailed
+            ? " دستگاه نتوانست انواع گلبول سفید را بشمارد — این خودش نشانه‌ی همان مشکل است و لام دستی لازم دارد."
+            : ""),
+        action: "همین امروز به پزشک یا اورژانس مراجعه کنید. این برگه را همراه ببرید.",
+        suggest: [],
+        warnings: [],
+        blocks_others: true,
+      };
+    },
+  },
+  {
+    id: "leukocytosis",
+    match: (e) => {
+      const w = e.graded.find((g) => g.test === "WBC");
+      return w?.abnormal && w.dir === "high" && w.value < 50;
+    },
+    build: (e) => {
+      const w = e.graded.find((g) => g.test === "WBC");
+      const marked = w.value >= 20;
+      return {
+        pattern: "leukocytosis",
+        urgency: marked ? "this_week" : "routine",
+        headline: "تعداد گلبول‌های سفید خون شما بالاتر از حد طبیعی است",
+        must_say:
+          "گلبول سفید بالا معمولاً نشانه پاسخ بدن به عفونت یا التهاب است. " +
+          "علت‌های دیگری هم دارد که با یک آزمایش مشخص نمی‌شود.",
+        action: marked ? "این هفته با پزشک وقت بگیرید." : "نوبت عادی با پزشک.",
+        suggest: ["CRP", "تکرار CBC"],
+        warnings: [],
+      };
+    },
+  },
+  {
+    id: "leukopenia",
+    match: (e) => {
+      const w = e.graded.find((g) => g.test === "WBC");
+      return w?.abnormal && w.dir === "low";
+    },
+    build: (e) => {
+      const w = e.graded.find((g) => g.test === "WBC");
+      const severe = w.value < 2;
+      return {
+        pattern: "leukopenia",
+        urgency: severe ? "emergency" : "this_week",
+        headline: "تعداد گلبول‌های سفید خون شما کم است",
+        must_say: severe
+          ? "گلبول سفید خیلی کم است. توان بدن برای مقابله با عفونت کاهش یافته."
+          : "گلبول سفید کمتر از حد طبیعی است.",
+        action: severe
+          ? "همین امروز با پزشک تماس بگیرید. اگر تب دارید، فوراً به اورژانس بروید."
+          : "این هفته با پزشک وقت بگیرید.",
+        suggest: ["تکرار CBC", "شمارش افتراقی"],
+        warnings: severe ? ["اگر تب کردید، منتظر نمانید — همان ساعت به اورژانس بروید."] : [],
+        blocks_others: severe,
+      };
+    },
+  },
+  {
+    id: "severe_neutropenia",
+    match: (e) => {
+      const n = e.graded.find((g) => g.test === "NEUT_ABS");
+      return n?.abnormal && n.dir === "low" && n.value < 500;
+    },
+    build: () => ({
+      pattern: "severe_neutropenia",
+      urgency: "emergency",
+      headline: "یکی از انواع گلبول سفید بسیار کم است",
+      must_say:
+        "نوتروفیل — سلولی که با عفونت باکتریایی مقابله می‌کند — بسیار کم است. " +
+        "این وضعیت نیاز به رسیدگی فوری دارد.",
+      action: "همین امروز به پزشک مراجعه کنید. اگر تب دارید، به اورژانس بروید.",
+      suggest: [],
+      warnings: ["از تماس با افراد بیمار و مکان‌های شلوغ پرهیز کنید تا پزشک را ببینید."],
+      blocks_others: true,
+    }),
+  },
+  {
+    id: "severe_thrombocytopenia",
+    match: (e) => {
+      const p = e.graded.find((g) => g.test === "PLT");
+      return p?.abnormal && p.dir === "low" && p.value < 50;
+    },
+    build: (e) => {
+      const p = e.graded.find((g) => g.test === "PLT");
+      return {
+        pattern: "severe_thrombocytopenia",
+        urgency: "emergency",
+        headline: "پلاکت خون شما بسیار کم است",
+        must_say:
+          `پلاکت ${p.value} است. پلاکت سلولی است که جلوی خونریزی را می‌گیرد.`,
+        action: "همین امروز به پزشک یا اورژانس مراجعه کنید.",
+        suggest: [],
+        warnings: [
+          "آسپرین یا مسکن‌های ضدالتهاب مصرف نکنید.",
+          "اگر خونریزی، کبودی بی‌دلیل یا نقطه‌های قرمز روی پوست دیدید، فوراً به اورژانس بروید.",
+        ],
+        blocks_others: true,
+      };
+    },
+  },
+  {
+    id: "thrombocytopenia",
+    match: (e) => {
+      const p = e.graded.find((g) => g.test === "PLT");
+      return p?.abnormal && p.dir === "low" && p.value >= 50;
+    },
+    build: () => ({
+      pattern: "thrombocytopenia",
+      urgency: "this_week",
+      headline: "پلاکت خون شما کمتر از حد طبیعی است",
+      must_say: "پلاکت سلولی است که جلوی خونریزی را می‌گیرد.",
+      action: "این هفته با پزشک وقت بگیرید.",
+      suggest: ["تکرار CBC"],
+      warnings: ["اگر خونریزی یا کبودی بی‌دلیل دیدید، زودتر مراجعه کنید."],
+    }),
+  },
+  {
+    id: "thrombocytosis",
+    match: (e) => {
+      const p = e.graded.find((g) => g.test === "PLT");
+      return p?.abnormal && p.dir === "high";
+    },
+    build: () => ({
+      pattern: "thrombocytosis",
+      urgency: "routine",
+      headline: "پلاکت خون شما بالاتر از حد طبیعی است",
+      must_say: "پلاکت بالا اغلب واکنش موقت بدن به التهاب یا کمبود آهن است.",
+      action: "نوبت عادی با پزشک.",
+      suggest: ["CRP", "فریتین", "تکرار CBC"],
+      warnings: [],
+    }),
+  },
+  {
+    id: "pancytopenia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return (
+        hgb?.abnormal && hgb.dir === "low" &&
+        t.WBC != null && t.WBC < 4 &&
+        t.PLT != null && t.PLT < 150
+      );
+    },
+    build: () => ({
+      pattern: "pancytopenia",
+      urgency: "emergency",
+      headline: "هر سه نوع سلول خونی کمتر از حد طبیعی هستند",
+      must_say:
+        "گلبول قرمز، گلبول سفید و پلاکت — هر سه پایین هستند. " +
+        "این ترکیب نیاز به بررسی فوری دارد.",
+      action: "همین امروز با پزشک تماس بگیرید.",
+      suggest: [],
+      warnings: [],
+      blocks_others: true,
+    }),
+  },
+
+  {
+    id: "sepsis_markers",
+    match: (e) => {
+      const t = val(e);
+      return (t.LACTATE != null && t.LACTATE >= 4) ||
+             (t.PCT_SEPSIS != null && t.PCT_SEPSIS >= 2);
+    },
+    build: (e) => {
+      const t = val(e);
+      return {
+        pattern: "sepsis_markers",
+        urgency: "emergency",
+        headline: "نشانگرهای عفونت شدید در خون شما بالاست",
+        must_say:
+          (t.LACTATE >= 4 ? `لاکتات ${t.LACTATE} است. ` : "") +
+          (t.PCT_SEPSIS >= 2 ? `پروکلسی‌تونین ${t.PCT_SEPSIS} است. ` : "") +
+          "این اعداد نیاز به رسیدگی فوری دارند.",
+        action: "همین حالا به اورژانس مراجعه کنید. این برگه را همراه ببرید.",
+        suggest: [],
+        warnings: [],
+        blocks_others: true,
+      };
+    },
+  },
+  {
+    id: "severe_acidosis",
+    match: (e) => {
+      const t = val(e);
+      const acidotic = (t.HCO3 != null && t.HCO3 < 15) || (t.PH != null && t.PH < 7.25);
+      if (!acidotic) return false;
+      // اگر تصویر کتواسیدوز دیابتی کامل است (گلوکز بالا + کتون)،
+      // به الگوی اختصاصی DKA واگذار کن که پیام دقیق‌تری دارد.
+      const gluHigh = t.GLU_F != null && t.GLU_F >= 250;
+      const ketone = urinePositive(e, /ketone|کتون|hydroxybutyrate|بتاهیدروکسی/i);
+      if (gluHigh && ketone) return false;
+      return true;
+    },
+    build: () => ({
+      pattern: "severe_acidosis",
+      urgency: "emergency",
+      headline: "تعادل اسید و باز خون شما به‌هم خورده است",
+      must_say: "این وضعیت نیاز به رسیدگی فوری دارد.",
+      action: "همین حالا به اورژانس مراجعه کنید.",
+      suggest: [],
+      warnings: [],
+      blocks_others: true,
+    }),
+  },
+
+  // ═══════════ الکترولیت‌ها ═══════════
+
+  // ── پتاسیم (مهم‌ترین: خطر آریتمی قلبی) ──
+  {
+    id: "potassium_critical",
+    match: (e) => {
+      const t = val(e);
+      return t.K != null && (t.K >= 6.0 || t.K <= 2.9);
+    },
+    build: (e) => {
+      const t = val(e);
+      const high = t.K >= 6.0;
+      const veryHigh = t.K >= 6.5;
+      const veryLow = t.K <= 2.5;
+      const critical = veryHigh || veryLow;
+      return {
+        pattern: high ? "hyperkalemia" : "hypokalemia",
+        urgency: critical ? "emergency" : "this_week",
+        blocks_others: critical,
+        headline: high
+          ? "پتاسیم خون شما بالاست"
+          : "پتاسیم خون شما پایین است",
+        must_say:
+          (high
+            ? "پتاسیم خون بالاتر از حد طبیعی است. "
+            : "پتاسیم خون پایین‌تر از حد طبیعی است. ") +
+          "پتاسیم برای کار درست قلب مهم است و مقدار خیلی بالا یا خیلی پایین می‌تواند بر ضربان قلب اثر بگذارد" +
+          (critical ? " و در این حد نیاز به رسیدگی فوری دارد." : ", پس باید بررسی شود."),
+        action: critical
+          ? "همین حالا به اورژانس مراجعه کنید. این برگه را همراه ببرید."
+          : "این هفته با پزشک مطرح کنید. اگر تپش قلب، ضعف شدید یا بی‌حسی دارید، زودتر مراجعه کنید.",
+        suggest: critical ? [] : ["تکرار آزمایش پتاسیم", "نوار قلب در صورت صلاحدید پزشک"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ── سدیم ──
+  {
+    id: "sodium_critical",
+    match: (e) => {
+      const t = val(e);
+      return t.NA != null && (t.NA >= 155 || t.NA <= 125);
+    },
+    build: (e) => {
+      const t = val(e);
+      const high = t.NA >= 155;
+      const critical = t.NA >= 160 || t.NA <= 120;
+      return {
+        pattern: high ? "hypernatremia" : "hyponatremia",
+        urgency: critical ? "emergency" : "this_week",
+        blocks_others: critical,
+        headline: high
+          ? "سدیم خون شما بالاست"
+          : "سدیم خون شما پایین است",
+        must_say:
+          (high
+            ? "سدیم خون بالاتر از حد طبیعی است، که اغلب با کم‌آبی یا مشکل تعادل آب بدن مرتبط است. "
+            : "سدیم خون پایین‌تر از حد طبیعی است، که می‌تواند علت‌های مختلفی داشته باشد. ") +
+          "تغییر شدید سدیم می‌تواند بر مغز اثر بگذارد" +
+          (critical ? " و در این حد نیاز به رسیدگی فوری دارد." : " و باید بررسی شود."),
+        action: critical
+          ? "همین حالا به اورژانس مراجعه کنید. اگر گیجی، سردرد شدید یا تشنج رخ داد، فوری‌تر."
+          : "این هفته با پزشک مطرح کنید.",
+        suggest: critical ? [] : ["تکرار آزمایش سدیم", "بررسی توسط پزشک"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ── کلسیم ──
+  {
+    id: "calcium_critical",
+    match: (e) => {
+      const t = val(e);
+      // کلسیم تام؛ آستانه بحرانی تقریبی
+      return t.CA != null && (t.CA >= 13 || t.CA <= 7.0);
+    },
+    build: (e) => {
+      const t = val(e);
+      const high = t.CA >= 13;
+      const critical = t.CA >= 14 || t.CA <= 6.5;
+      return {
+        pattern: high ? "hypercalcemia" : "hypocalcemia",
+        urgency: critical ? "emergency" : "this_week",
+        blocks_others: critical,
+        headline: high
+          ? "کلسیم خون شما بالاست"
+          : "کلسیم خون شما پایین است",
+        must_say:
+          (high
+            ? "کلسیم خون بالاتر از حد طبیعی است. علت‌های مختلفی دارد و باید بررسی شود. "
+            : "کلسیم خون پایین‌تر از حد طبیعی است. ") +
+          "تغییر زیاد کلسیم می‌تواند بر عضلات، اعصاب و قلب اثر بگذارد" +
+          (critical ? " و در این حد نیاز به رسیدگی فوری دارد." : "."),
+        action: critical
+          ? "همین حالا به اورژانس مراجعه کنید."
+          : "این هفته با پزشک مطرح کنید. اگر گرفتگی عضلانی، بی‌حسی دور دهان یا تشنج دارید، زودتر.",
+        suggest: critical ? [] : ["تکرار کلسیم", "آلبومین (برای تصحیح کلسیم)", "بررسی توسط پزشک"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ── الگوی زنجیره‌ای منیزیم ──
+  // نکته بالینی مهم (کیس Alyssa): منیزیم پایین می‌تواند باعث پتاسیم و
+  //   کلسیم پایینِ مقاوم به درمان شود — تا منیزیم اصلاح نشود بقیه درست نمی‌شوند.
+  {
+    id: "magnesium_depletion",
+    match: (e) => {
+      const t = val(e);
+      const mg = e.graded.find((g) => g.test === "MG");
+      const mgLow = mg?.abnormal && mg.dir === "low";
+      if (!mgLow) return false;
+      // همراه با پتاسیم یا کلسیم پایین
+      const k = e.graded.find((g) => g.test === "K");
+      const ca = e.graded.find((g) => g.test === "CA");
+      const kLow = k?.abnormal && k.dir === "low";
+      const caLow = ca?.abnormal && ca.dir === "low";
+      return kLow || caLow;
+    },
+    build: (e) => {
+      const k = e.graded.find((g) => g.test === "K");
+      const ca = e.graded.find((g) => g.test === "CA");
+      const kLow = k?.abnormal && k.dir === "low";
+      const caLow = ca?.abnormal && ca.dir === "low";
+      const both = [kLow && "پتاسیم", caLow && "کلسیم"].filter(Boolean).join(" و ");
+      return {
+        pattern: "magnesium_depletion_pattern",
+        urgency: "this_week",
+        headline: "منیزیم خون شما پایین است و ممکن است روی سایر املاح اثر گذاشته باشد",
+        must_say:
+          `منیزیم خون پایین است و همراه آن ${both} هم پایین است. ` +
+          "نکته‌ی مهم این است که وقتی منیزیم کم باشد، بدن نمی‌تواند این املاح دیگر را به‌درستی متعادل کند — " +
+          "و معمولاً تا منیزیم اصلاح نشود، بقیه هم درست نمی‌شوند. این نکته برای پزشک مهم است.",
+        action: "این هفته با پزشک مطرح کنید و حتماً به پایین بودن منیزیم اشاره کنید.",
+        suggest: ["اصلاح منیزیم پیش از سایر املاح", "تکرار پنل الکترولیت", "بررسی توسط پزشک"],
+        warnings: [],
+      };
+    },
+  },
+
+  {
+    id: "hyperammonemia",
+    match: (e) => {
+      const t = val(e);
+      return t.NH3 != null && t.NH3 > 100;
+    },
+    build: () => ({
+      pattern: "hyperammonemia",
+      urgency: "emergency",
+      headline: "آمونیاک خون شما بالاست",
+      must_say: "آمونیاک بالا می‌تواند روی هوشیاری اثر بگذارد.",
+      action: "همین امروز به پزشک یا اورژانس مراجعه کنید.",
+      suggest: [],
+      warnings: [],
+      blocks_others: true,
+    }),
+  },
+
+  // ═══════════ تالاسمی مینور — بدون کم‌خونی ═══════════
+  // 🔴 باگ بالینی: قاعده microcytic_anemia فقط وقتی Hb پایین باشد
+  //    فعال می‌شد. ولی تالاسمی مینور اغلب Hb نرمال دارد —
+  //    بدن با ساختن گلبول بیشتر (RBC بالا) جبران می‌کند.
+  //
+  //    نمونه واقعی: RBC 7.13↑ | MCV 67.3↓ | MCH 22.2↓ | HGB 15.8 (نرمال)
+  //    Mentzer = 9.4 → کلاسیک‌ترین تالاسمی مینور. موتور هیچ نگفت.
+  {
+    id: "thal_trait_no_anemia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const anemic = hgb?.abnormal && hgb.dir === "low";
+      // میکروسیتوز + بدون کم‌خونی + RBC بالا یا Mentzer پایین
+      return (
+        !anemic &&
+        t.MCV != null && t.MCV < 80 &&
+        ((t.RBC != null && t.RBC > 5.5) ||
+         (e.indices.mentzer != null && e.indices.mentzer < 13))
+      );
+    },
+    build: (e) => {
+      const t = val(e);
+      const mi = e.indices.mentzer;
+      return {
+        pattern: "thal_trait_likely",
+        urgency: "routine",
+        headline: "گلبول‌های قرمز شما کوچک هستند ولی تعدادشان زیاد است",
+        must_say:
+          "هموگلوبین شما طبیعی است، پس کم‌خونی ندارید. " +
+          "ولی گلبول‌ها کوچک‌ترند و تعدادشان بیشتر از حد معمول است. " +
+          "این الگو معمولاً به یک ویژگی ارثی اشاره دارد که از پدر یا مادر به ارث می‌رسد " +
+          "و خودش معمولاً بی‌خطر است. کمبود آهن هم می‌تواند شبیهش باشد، " +
+          "ولی این الگو بیشتر به حالت ارثی می‌خورد." +
+          (mi != null ? ` (شاخص Mentzer = ${mi})` : ""),
+        action: "نوبت عادی با پزشک. آزمایش الکتروفورز هموگلوبین و فریتین را مطرح کنید.",
+        suggest: ["الکتروفورز هموگلوبین", "فریتین"],
+        warnings: [
+          "بدون تجویز پزشک قرص آهن نخورید. اگر علت آهن نباشد، آهن اضافی به بدن آسیب می‌زند.",
+          "⚠️ اگر قصد بچه‌دار شدن دارید، این نتیجه مهم است — حتماً با پزشک و همسرتان مطرح کنید. " +
+            "اگر هر دو والد این ویژگی را داشته باشند، فرزند ممکن است شکل شدید بیماری را بگیرد.",
+        ],
+      };
+    },
+  },
+  {
+    id: "erythrocytosis",
+    match: (e) => {
+      const t = val(e);
+      const rbc = e.graded.find((g) => g.test === "RBC");
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      // RBC بالا + MCV نرمال یا بالا + Hb بالا → پلی‌سیتمی، نه تالاسمی
+      return (
+        rbc?.abnormal && rbc.dir === "high" &&
+        t.MCV != null && t.MCV >= 80 &&
+        hgb?.abnormal && hgb.dir === "high"
+      );
+    },
+    build: () => ({
+      pattern: "erythrocytosis",
+      urgency: "this_week",
+      headline: "تعداد گلبول‌های قرمز و هموگلوبین شما بالاست",
+      must_say:
+        "خون شما غلیظ‌تر از حد معمول است. " +
+        "کم‌آبی، سیگار، یا زندگی در ارتفاع می‌تواند این را بسازد — علت‌های دیگری هم دارد.",
+      action: "این هفته با پزشک وقت بگیرید.",
+      suggest: ["تکرار CBC", "اریتروپویتین"],
+      warnings: [],
+    }),
+  },
+
+  // ═══════════ کم‌خونی ═══════════
+  {
+    id: "macrocytic_anemia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return hgb?.abnormal && hgb.dir === "low" && t.MCV > 100;
+    },
+    build: (e) => {
+      const t = val(e);
+      const rdwHigh = t.RDW_CV > 15 || t.RDW_SD > 56;
+      return {
+        pattern: "macrocytic_anemia",
+        urgency: "this_week",
+        headline: "گلبول‌های قرمز شما کم و بزرگ‌تر از حد معمول هستند",
+        must_say:
+          "کم‌خونی از نوع ماکروسیتیک (گلبول‌های بزرگ). " +
+          (rdwHigh
+            ? "تفاوت اندازه گلبول‌ها هم زیاد است (RDW بالا) — این سرنخ مهمی است."
+            : ""),
+        action:
+          "این هفته با پزشک عمومی یا داخلی وقت بگیرید و این آزمایش‌ها را بخواهید.",
+        // ⚠️ آهن اینجا نیست — مدل قبلاً اشتباهاً پیشنهاد می‌داد
+        suggest: ["ویتامین B12", "فولات", "رتیکولوسیت", "TSH"],
+        forbid: ["آهن", "فریتین", "iron", "ferritin"],
+        warnings: [
+          "خودتان مکمل B12 شروع نکنید — اگر قبل از آزمایش مصرف کنید، نتیجه گمراه‌کننده می‌شود.",
+        ],
+      };
+    },
+  },
+  {
+    id: "microcytic_anemia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return hgb?.abnormal && hgb.dir === "low" && t.MCV < 80;
+    },
+    build: (e) => {
+      const mi = e.indices.mentzer;
+      const thal = mi != null && mi < 13;
+      return {
+        pattern: thal ? "microcytic_thal_likely" : "microcytic_ida_likely",
+        urgency: thal ? "routine" : "this_week",
+        headline: thal
+          ? "گلبول‌های قرمز شما کوچک هستند ولی تعدادشان زیاد است"
+          : "گلبول‌های قرمز شما کم و کوچک‌تر از حد معمول هستند",
+        must_say: thal
+          ? "کم‌خونی میکروسیتیک. دو حالت شایع این وضعیت را می‌سازد: کمبود آهن، یا یک ویژگی ارثی که معمولاً بی‌خطر است. الگوی این آزمایش بیشتر به حالت دوم شبیه است، ولی از روی این آزمایش قطعی نمی‌شود گفت."
+          : "کم‌خونی میکروسیتیک. این معمولاً یعنی بدن آهن کافی برای ساخت گلبول سالم ندارد.",
+        action: thal
+          ? "نوبت عادی با پزشک. آزمایش فریتین و الکتروفورز هموگلوبین را مطرح کنید."
+          : "این هفته با پزشک وقت بگیرید.",
+        suggest: thal
+          ? ["فریتین", "الکتروفورز هموگلوبین"]
+          : ["فریتین", "آهن سرم", "TIBC"],
+        forbid: ["B12", "فولات"],
+        warnings: [
+          "بدون تجویز پزشک قرص آهن نخورید. اگر علت آهن نباشد، آهن اضافی به بدن آسیب می‌زند.",
+          ...(thal
+            ? ["اگر در خانواده‌تان کسی تالاسمی دارد یا قصد بچه‌دار شدن دارید، حتماً به پزشک بگویید."]
+            : []),
+        ],
+      };
+    },
+  },
+  {
+    id: "normocytic_anemia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return hgb?.abnormal && hgb.dir === "low" && t.MCV >= 80 && t.MCV <= 100;
+    },
+    build: () => ({
+      pattern: "normocytic_anemia",
+      urgency: "this_week",
+      headline: "خون شما کم‌خونی نشان می‌دهد",
+      must_say: "گلبول‌ها اندازه طبیعی دارند ولی تعدادشان کم است. برای پیدا کردن علت چند آزمایش دیگر لازم است.",
+      action: "نوبت با پزشک بگیرید.",
+      suggest: ["رتیکولوسیت", "فریتین", "کراتینین", "CRP"],
+      warnings: [],
+    }),
+  },
+
+  // ═══════════ التهاب ═══════════
+  {
+    id: "crp_pos_esr_normal",
+    match: (e) => {
+      const crpPos = Object.entries(e.qual).some(
+        ([k, v]) => /crp/i.test(k) && /\+|positive|مثبت/i.test(v)
+      );
+      const esr = e.graded.find((g) => g.test === "ESR");
+      return crpPos && esr && !esr.abnormal;
+    },
+    build: () => ({
+      pattern: "acute_inflammation_recent",
+      urgency: "this_week",
+      headline: "نشانه‌ای از التهاب تازه در بدن دیده می‌شود",
+      must_say:
+        "CRP بالا با ESR طبیعی معمولاً یعنی التهاب خیلی تازه است — ESR هنوز وقت نکرده بالا برود.",
+      action: "با پزشک وقت بگیرید.",
+      suggest: [],
+      warnings: [],
+    }),
+  },
+
+  // ═══════════ قند ═══════════
+
+  // ── کتواسیدوز دیابتی (DKA) — الگوی اورژانسی ──
+  // ترکیب: گلوکز خیلی بالا + بی‌کربنات پایین + کتون مثبت.
+  // اعتبارسنجی با کیس‌های فصل: John (گلوکز۶۰۰، HCO3=۶، کتون زیاد)،
+  //   Myra (گلوکز۵۰۰، کتون مثبت). محتاط: نیاز به چند نشانه با هم.
+  {
+    id: "dka_pattern",
+    match: (e) => {
+      const t = val(e);
+      const gluHigh = t.GLU_F != null && t.GLU_F >= 250;
+      // بی‌کربنات پایین (اسیدوز)
+      const hco3 = e.graded.find((g) => g.test === "HCO3");
+      const hco3Low = hco3?.abnormal && hco3.dir === "low";
+      // کتون: ادرار یا سرم
+      const ketone = urinePositive(e, /ketone|کتون|hydroxybutyrate|بتاهیدروکسی/i);
+      // برای احتیاط: گلوکز بالا + حداقل یکی از (بی‌کربنات پایین، کتون)
+      // یا هر دوی بی‌کربنات پایین و کتون (حتی اگر گلوکز ثبت نشده)
+      return (gluHigh && (hco3Low || ketone)) || (hco3Low && ketone);
+    },
+    build: (e) => {
+      const t = val(e);
+      const hco3 = e.graded.find((g) => g.test === "HCO3");
+      const hco3Low = hco3?.abnormal && hco3.dir === "low";
+      const ketone = urinePositive(e, /ketone|کتون|hydroxybutyrate|بتاهیدروکسی/i);
+      // اگر هم بی‌کربنات پایین و هم کتون → تصویر کامل‌تر و جدی‌تر
+      const fullPicture = hco3Low && ketone;
+      return {
+        pattern: "dka_pattern",
+        urgency: "emergency",
+        blocks_others: true,
+        headline: "این نتایج ممکن است نشانه‌ی یک وضعیت جدی و فوری باشند",
+        must_say:
+          "ترکیب قند خون بسیار بالا" +
+          (ketone ? "، وجود کتون" : "") +
+          (hco3Low ? "، و اسیدی شدن خون" : "") +
+          " می‌تواند نشانه‌ی وضعیتی به نام «کتواسیدوز دیابتی» باشد که نیاز به رسیدگی فوری پزشکی دارد. " +
+          "این وضعیت به‌خصوص در افراد دیابتی و هنگام بیماری یا نرسیدن انسولین رخ می‌دهد.",
+        action: "همین حالا به اورژانس مراجعه کنید. این برگه را همراه ببرید. معطل نکنید.",
+        suggest: [],
+        warnings: fullPicture
+          ? ["علائم هشدار: تنفس تند و عمیق، بوی میوه‌ای دهان، تهوع و استفراغ، گیجی — در صورت وجود، فوراً اورژانس."]
+          : [],
+      };
+    },
+  },
+
+  {
+    id: "glycemia",
+    match: (e) => {
+      const t = val(e);
+      return (t.GLU_F != null && t.GLU_F >= 100) ||
+             (t.HBA1C != null && t.HBA1C >= 5.7) ||
+             (t.GLU_2H != null && t.GLU_2H >= 140);
+    },
+    build: (e) => {
+      const t = val(e);
+      // آستانه‌های ADA: ناشتا ≥۱۲۶، دو ساعته ≥۲۰۰، HbA1c ≥۶.۵ → دیابت
+      const dm = (t.GLU_F != null && t.GLU_F >= 126) ||
+                 (t.HBA1C != null && t.HBA1C >= 6.5) ||
+                 (t.GLU_2H != null && t.GLU_2H >= 200);
+      // HbA1c در کم‌خونی نامعتبر است
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const a1cBad = t.HBA1C != null && (hgb?.abnormal || t.MCV < 80 || t.MCV > 100);
+      return {
+        pattern: dm ? "diabetes_range" : "prediabetes_range",
+        urgency: dm ? "this_week" : "routine",
+        headline: dm ? "قند خون شما بالاتر از حد طبیعی است" : "قند خون شما کمی بالاتر از حد طبیعی است",
+        must_say: dm
+          ? "تشخیص قطعی نیاز به تکرار آزمایش دارد — این را نتیجه نهایی در نظر نگیرید، ولی معطل هم نکنید."
+          : "در این مرحله معمولاً تغییر رژیم و تحرک بیشترین اثر را دارد.",
+        action: dm ? "این هفته وقت بگیرید." : "نوبت عادی با پزشک.",
+        suggest: dm ? ["تکرار قند ناشتا", "HbA1c", "ACR ادرار", "eGFR", "پروفایل چربی"] : ["تکرار قند ناشتا", "HbA1c"],
+        warnings: a1cBad
+          ? ["چون شمارش خون شما طبیعی نیست، عدد HbA1c ممکن است دقیق نباشد. حتماً به پزشک بگویید."]
+          : [],
+      };
+    },
+  },
+
+  // ═══════════ هایپوگلیسمی (قند پایین) ═══════════
+  // سطوح از فصل: <۷۰ هشدار، <۵۴ بالینی مهم، <۵۰ علائم معمولاً بارز.
+  // اعتبارسنجی با کیس‌های فصل: Angela (۶۰=خفیف)، نوزاد Martha (۲۵=شدید).
+  {
+    id: "hypoglycemia",
+    match: (e) => {
+      const t = val(e);
+      // فقط قند ناشتا؛ اگر قند تصادفی/دو ساعته پایین بود هم می‌گیریم
+      const g = t.GLU_F != null ? t.GLU_F : (t.GLU_2H != null ? t.GLU_2H : null);
+      return g != null && g < 70;
+    },
+    build: (e) => {
+      const t = val(e);
+      const g = t.GLU_F != null ? t.GLU_F : t.GLU_2H;
+      const severe = g < 54;   // سطح بالینی مهم
+      return {
+        pattern: severe ? "hypoglycemia_significant" : "hypoglycemia_mild",
+        urgency: severe ? "this_week" : "routine",
+        headline: severe
+          ? "قند خون شما پایین‌تر از حد طبیعی است"
+          : "قند خون شما کمی پایین است",
+        must_say: severe
+          ? "قند خون شما به‌طور قابل‌توجهی پایین است. قند پایین می‌تواند علائمی مثل لرزش، تعریق، ضعف و گیجی ایجاد کند. " +
+            "علت‌های مختلفی دارد و باید بررسی شود — به‌خصوص اگر داروی دیابت مصرف می‌کنید."
+          : "قند خون شما کمی پایین‌تر از حد طبیعی است. این می‌تواند به‌خاطر ناشتا بودن طولانی، فاصله از وعده‌ی غذایی، یا علل دیگر باشد. " +
+            "گاهی یک اندازه‌گیری تکی پایین اهمیت زیادی ندارد، ولی بهتر است با پزشک مطرح شود.",
+        action: severe
+          ? "این هفته با پزشک مطرح کنید. اگر همین حالا علائم شدید (گیجی، ضعف شدید، تعریق سرد) دارید، چیزی شیرین بخورید و در صورت ادامه به پزشک مراجعه کنید."
+          : "نوبت عادی. اگر تکرار می‌شود یا همراه با علائم است، با پزشک مطرح کنید.",
+        suggest: severe
+          ? ["تکرار قند خون", "بررسی توسط پزشک", "اگر داروی دیابت مصرف می‌کنید حتماً بگویید"]
+          : ["تکرار قند ناشتا"],
+        warnings: (t.GLU_F != null && t.GLU_F < 40)
+          ? ["⚠️ اگر واقعاً چنین قند پایینی دارید و علامت‌دار هستید، این وضعیت جدی است و نیاز به رسیدگی فوری دارد."]
+          : [],
+      };
+    },
+  },
+
+  // ═══════════ پروفایل چربی (کلسترول/LDL/HDL/تری‌گلیسرید) ═══════════
+  // طبقه‌بندی TG از NCEP: مرزی ۱۵۰–۲۰۰، بالا ۲۰۰–۵۰۰، خیلی بالا >۵۰۰،
+  //   خطر پانکراتیت >۸۸۰. پیام ساده و بدون اصطلاح.
+  {
+    id: "lipid_profile",
+    match: (e) => {
+      const t = val(e);
+      const chol = e.graded.find((g) => g.test === "CHOL");
+      const ldl = e.graded.find((g) => g.test === "LDL");
+      const hdl = e.graded.find((g) => g.test === "HDL");
+      const cholHigh = chol?.abnormal && chol.dir === "high";
+      const ldlHigh = ldl?.abnormal && ldl.dir === "high";
+      const hdlLow = hdl?.abnormal && hdl.dir === "low";
+      const tgHigh = t.TG != null && t.TG >= 150;
+      return cholHigh || ldlHigh || hdlLow || tgHigh;
+    },
+    build: (e) => {
+      const t = val(e);
+      const chol = e.graded.find((g) => g.test === "CHOL");
+      const ldl = e.graded.find((g) => g.test === "LDL");
+      const hdl = e.graded.find((g) => g.test === "HDL");
+      const cholHigh = chol?.abnormal && chol.dir === "high";
+      const ldlHigh = ldl?.abnormal && ldl.dir === "high";
+      const hdlLow = hdl?.abnormal && hdl.dir === "low";
+
+      // طبقه‌بندی تری‌گلیسرید
+      const tg = t.TG;
+      const tgSevere = tg != null && tg > 880;    // خطر پانکراتیت
+      const tgVeryHigh = tg != null && tg > 500;
+      const tgHigh = tg != null && tg >= 200;
+      const tgBorderline = tg != null && tg >= 150;
+
+      // خطر پانکراتیت → جدی‌ترین، اولویت دارد
+      if (tgSevere) {
+        return {
+          pattern: "triglyceride_pancreatitis_risk",
+          urgency: "this_week",
+          headline: "تری‌گلیسرید خون شما بسیار بالاست",
+          must_say:
+            "تری‌گلیسرید (یک نوع چربی خون) خیلی بالاست. در این حد، علاوه بر خطر قلبی، " +
+            "احتمال التهاب لوزالمعده (پانکراتیت) هم وجود دارد که وضعیت جدی‌ای است. باید زود بررسی و درمان شود.",
+          action: "این هفته حتماً با پزشک مطرح کنید. اگر درد شدید شکم همراه تهوع و استفراغ دارید، فوراً به اورژانس بروید.",
+          suggest: ["پروفایل چربی ناشتا (۱۲ ساعت)", "بررسی توسط پزشک", "قند خون"],
+          warnings: [],
+        };
+      }
+
+      // ساخت توضیح ترکیبی بر اساس آنچه غیرطبیعی است
+      const parts = [];
+      if (cholHigh) parts.push("کلسترول تام بالا");
+      if (ldlHigh) parts.push("کلسترول بد (LDL) بالا");
+      if (hdlLow) parts.push("کلسترول خوب (HDL) پایین");
+      if (tgVeryHigh) parts.push("تری‌گلیسرید خیلی بالا");
+      else if (tgHigh) parts.push("تری‌گلیسرید بالا");
+      else if (tgBorderline) parts.push("تری‌گلیسرید مرزی");
+
+      const summary = parts.join("، ");
+      // اگر فقط مرزی و خفیف → routine؛ اگر LDL/کلسترول واضح بالا یا TG بالا → this_week
+      const significant = ldlHigh || cholHigh || tgHigh || tgVeryHigh;
+
+      return {
+        pattern: "dyslipidemia",
+        urgency: significant ? "this_week" : "routine",
+        headline: "چربی خون شما در حد مطلوب نیست",
+        must_say:
+          `در پروفایل چربی شما ${summary} دیده می‌شود. ` +
+          "چربی خون نامطلوب به‌مرور خطر بیماری قلبی و رگ‌ها را بالا می‌برد. " +
+          "خبر خوب اینکه با تغییر رژیم غذایی، ورزش، و در صورت لزوم دارو، قابل کنترل است.",
+        action: significant
+          ? "این هفته با پزشک مطرح کنید تا برنامه‌ی مناسب تعیین شود."
+          : "نوبت عادی با پزشک. تغذیه و تحرک را جدی بگیرید.",
+        suggest: ["پروفایل چربی ناشتا (۱۲ ساعت) برای تأیید", "قند خون", "مشاوره با پزشک درباره‌ی خطر قلبی"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ کبد ═══════════
+  {
+    id: "liver_pattern",
+    match: (e) => {
+      const alt = e.graded.find((g) => g.test === "ALT");
+      const ast = e.graded.find((g) => g.test === "AST");
+      const alp = e.graded.find((g) => g.test === "ALP");
+      const altHigh = alt?.abnormal && alt.dir === "high";
+      const astHigh = ast?.abnormal && ast.dir === "high";
+      const alpHigh = alp?.abnormal && alp.dir === "high";
+      // اگر فقط ALP بالاست و ALT/AST طبیعی‌اند، این حالت را به الگوی
+      // تخصصی ALP واگذار کن (استخوان/بارداری/صفراوی) تا پیام تکراری نشود.
+      if (alpHigh && !altHigh && !astHigh) return false;
+      return altHigh || astHigh || alpHigh;
+    },
+    build: (e) => {
+      const t = val(e);
+      const ck = e.graded.find((g) => g.test === "CK");
+      const ast = e.graded.find((g) => g.test === "AST");
+      const alt = e.graded.find((g) => g.test === "ALT");
+
+      // CK بالا + AST بالا + ALT نرمال → عضله، نه کبد
+      if (ck?.abnormal && ck.dir === "high" && ast?.abnormal && !alt?.abnormal) {
+        return {
+          pattern: "muscle_origin_not_liver",
+          urgency: "routine",
+          headline: "یکی از آنزیم‌ها بالاست، ولی احتمالاً از عضله می‌آید نه کبد",
+          must_say: "ورزش سنگین چند روز اخیر هم می‌تواند این را بسازد.",
+          action: "نوبت عادی. اگر ورزش سنگین کرده‌اید حتماً بگویید.",
+          suggest: ["تکرار CK", "GGT"],
+          warnings: [],
+        };
+      }
+
+      // R (نسبت R) فقط وقتی محاسبه می‌شود که ALT و ALP هر دو باشند.
+      // بدون ALP، R === undefined بود و همیشه «mixed» می‌داد؛ حالا صریحاً
+      // "unspecified" می‌گذاریم تا اشتباهاً cholestatic/hepatocellular نگوییم.
+      const R = e.indices.r_ratio;
+      const kind =
+        R == null ? "unspecified"
+        : R >= 5 ? "hepatocellular"
+        : R <= 2 ? "cholestatic"
+        : "mixed";
+      const maxG = Math.max(alt?.ctcaeGrade || 0, ast?.ctcaeGrade || 0);
+
+      // شدت آنزیم: خیلی بالا (چند برابر) → اشاره به آسیب حاد کبدی (مثل هپاتیت حاد)
+      // کیس Verlita فصل: ALT/AST > ۱۰۰۰. آستانه محتاطانه: >۱۰ برابر سقف مرجع.
+      const altVeryHigh = alt != null && alt.value > 360;   // ~۱۰× سقف ۳۶
+      const astVeryHigh = ast != null && ast.value > 330;   // ~۱۰× سقف ۳۳
+      const marked = altVeryHigh || astVeryHigh;
+
+      return {
+        pattern: `liver_${kind}`,
+        urgency: maxG >= 4 || marked ? "emergency" : "this_week",
+        blocks_others: maxG >= 4,
+        headline: marked
+          ? "شاخص‌های کبد شما بسیار بالا هستند"
+          : "بعضی از شاخص‌های کبد بالاتر از حد طبیعی هستند",
+        must_say:
+          (marked
+            ? "آنزیم‌های کبدی خیلی بالا هستند، که می‌تواند نشانه‌ی یک آسیب فعال و قابل‌توجه کبد باشد (مثلاً التهاب حاد کبد). این حتماً و سریع باید بررسی شود. "
+            : "") +
+          (kind === "cholestatic"
+            ? "این الگو بیشتر به مسیر خروج صفرا مربوط است تا خود سلول‌های کبد."
+            : kind === "unspecified"
+              ? "این اعداد نشان می‌دهند سلول‌های کبد تحریک شده‌اند. برای تعیین دقیق‌تر نوع درگیری، آنزیم ALP هم لازم است."
+              : "این اعداد نشان می‌دهند سلول‌های کبد تحریک شده‌اند. علت‌های زیادی دارد."),
+        action: marked
+          ? "هرچه زودتر (همین چند روز) به پزشک مراجعه کنید. اگر زردی چشم/پوست، گیجی یا استفراغ دارید، به اورژانس بروید."
+          : "این هفته وقت بگیرید. لیست کامل داروها و مکمل‌هایتان را همراه ببرید.",
+        suggest:
+          kind === "cholestatic"
+            ? ["GGT", "بیلی‌روبین مستقیم و غیرمستقیم", "سونوگرافی شکم"]
+            : kind === "unspecified"
+              ? ["ALP", "GGT", "هپاتیت B و C", "سونوگرافی شکم"]
+              : ["AST", "GGT", "هپاتیت B و C", "سونوگرافی شکم"],
+        warnings: ["تا وقتی پزشک نگفته، مکمل گیاهی یا دوز بالای استامینوفن مصرف نکنید."],
+      };
+    },
+  },
+
+  // ═══════════ افتراق یرقان بر اساس نوع بیلی‌روبین ═══════════
+  // غیرمستقیم غالب → پیش‌کبدی (همولیز) یا گیلبرت (خوش‌خیم و شایع).
+  // مستقیم غالب → مشکل دفع/انسداد. متن ساده و بدون ترساندن.
+  {
+    id: "bilirubin_pattern",
+    match: (e) => {
+      const bt = e.graded.find((g) => g.test === "BILI_T");
+      // فقط وقتی بیلی‌روبین تام بالاست و اجزا موجودند
+      const btHigh = bt?.abnormal && bt.dir === "high";
+      const t = val(e);
+      if (!btHigh || (t.BILI_D == null && t.BILI_I == null)) return false;
+      // اگر تصویر همولیز کامل است (LDH بالا + هاپتوگلوبین پایین)، به الگوی
+      // همولیز واگذار کن تا پیام تکراری درباره‌ی بیلی‌روبین غیرمستقیم ندهد.
+      const ldh = e.graded.find((g) => g.test === "LDH");
+      const hapto = e.graded.find((g) => g.test === "HAPTO");
+      const ldhHigh = ldh?.abnormal && ldh.dir === "high";
+      const haptoLow = hapto?.abnormal && hapto.dir === "low";
+      if (ldhHigh && haptoLow) return false;
+      return true;
+    },
+    build: (e) => {
+      const t = val(e);
+      // اگر مستقیم نداریم ولی تام و غیرمستقیم داریم، مستقیم را حساب کن
+      const direct = t.BILI_D != null ? t.BILI_D
+                   : (t.BILI_T != null && t.BILI_I != null ? t.BILI_T - t.BILI_I : null);
+      const total = t.BILI_T;
+      const indirect = t.BILI_I != null ? t.BILI_I
+                     : (total != null && direct != null ? total - direct : null);
+
+      // سهم مستقیم از کل
+      const directDominant = direct != null && total != null && (direct / total) > 0.5;
+      // آیا آنزیم‌های کبدی هم درگیرند؟ (اگر بله، liver_pattern پوشش می‌دهد)
+      const alt = e.graded.find((g) => g.test === "ALT");
+      const ast = e.graded.find((g) => g.test === "AST");
+      const alp = e.graded.find((g) => g.test === "ALP");
+      const enzymesHigh = (alt?.abnormal && alt.dir === "high") ||
+                          (ast?.abnormal && ast.dir === "high") ||
+                          (alp?.abnormal && alp.dir === "high");
+
+      if (directDominant) {
+        // بیلی‌روبین مستقیم غالب → مشکل دفع/انسداد
+        return {
+          pattern: "bilirubin_direct_dominant",
+          urgency: "this_week",
+          headline: "بیلی‌روبین خون شما بالاست (بیشتر از نوع مستقیم)",
+          must_say:
+            "بیلی‌روبین ماده‌ای است که از تجزیه‌ی طبیعی گلبول‌های قرمز ساخته می‌شود و کبد آن را دفع می‌کند. " +
+            "در شما بیشترِ آن از نوع «مستقیم» است، که معمولاً به مشکل در دفع آن از کبد یا مسیر صفرا اشاره دارد. " +
+            "این باید توسط پزشک بررسی شود.",
+          action: "این هفته با پزشک مطرح کنید. اگر زردی چشم/پوست، ادرار تیره یا مدفوع کم‌رنگ دارید، زودتر مراجعه کنید.",
+          suggest: ["سونوگرافی شکم", "آنزیم‌های کبدی", "بیلی‌روبین مستقیم و غیرمستقیم"],
+          warnings: [],
+        };
+      }
+
+      // بیلی‌روبین غیرمستقیم غالب
+      // اگر آنزیم‌ها طبیعی و بیلی‌روبین خیلی بالا نیست → احتمال گیلبرت (خوش‌خیم)
+      const mildIndirect = total != null && total < 5 && !enzymesHigh;
+      return {
+        pattern: "bilirubin_indirect_dominant",
+        urgency: mildIndirect ? "routine" : "this_week",
+        headline: "بیلی‌روبین خون شما بالاست (بیشتر از نوع غیرمستقیم)",
+        must_say:
+          "بیلی‌روبین ماده‌ای است که از تجزیه‌ی طبیعی گلبول‌های قرمز ساخته می‌شود. " +
+          "در شما بیشترِ آن از نوع «غیرمستقیم» است. " +
+          (mildIndirect
+            ? "وقتی آنزیم‌های کبدی طبیعی‌اند و مقدار بالا رفتن کم است، یک علت شایع و بی‌خطر به نام «سندرم ژیلبر» است — یک ویژگی ارثی که در آن بیلی‌روبین گاهی کمی بالا می‌رود (مثلاً هنگام گرسنگی یا استرس) و مشکلی ایجاد نمی‌کند. البته علت‌های دیگر مثل تجزیه‌ی بیش از حد گلبول‌ها هم ممکن است."
+            : "این می‌تواند به تجزیه‌ی بیش از حد گلبول‌های قرمز یا علل دیگر مربوط باشد و بهتر است بررسی شود."),
+        action: mildIndirect
+          ? "نوبت عادی. برای اطمینان با پزشک مطرح کنید."
+          : "این هفته با پزشک مطرح کنید.",
+        suggest: mildIndirect
+          ? ["تکرار بیلی‌روبین", "شمارش خون (CBC) و رتیکولوسیت"]
+          : ["شمارش خون (CBC)", "رتیکولوسیت", "هاپتوگلوبین", "LDH"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ ALP بالای ایزوله (منبع: استخوان/بارداری/صفراوی) ═══════════
+  // فقط وقتی ALP بالاست و ALT/AST طبیعی — liver_pattern این حالت را واگذار کرده.
+  // GGT منبع را روشن می‌کند: بالا → کبدی/صفراوی، طبیعی → استخوان/بارداری.
+  // متن ساده نگه داشته می‌شود؛ بدون واژه‌ی تخصصی.
+  {
+    id: "alp_isolated",
+    match: (e) => {
+      const alp = e.graded.find((g) => g.test === "ALP");
+      const alt = e.graded.find((g) => g.test === "ALT");
+      const ast = e.graded.find((g) => g.test === "AST");
+      const alpHigh = alp?.abnormal && alp.dir === "high";
+      const altHigh = alt?.abnormal && alt.dir === "high";
+      const astHigh = ast?.abnormal && ast.dir === "high";
+      return alpHigh && !altHigh && !astHigh;
+    },
+    build: (e) => {
+      const ggt = e.graded.find((g) => g.test === "GGT");
+      const ggtHigh = ggt?.abnormal && ggt.dir === "high";
+      const ggtKnown = ggt != null;
+
+      if (ggtHigh) {
+        // GGT هم بالا → به سمت کبد/مجاری صفراوی
+        return {
+          pattern: "alp_high_liver_source",
+          urgency: "this_week",
+          headline: "آنزیم ALP شما بالاست",
+          must_say:
+            "آنزیم ALP بالاتر از حد طبیعی است. چون آنزیم دیگری به نام GGT هم بالاست، " +
+            "این حالت بیشتر به کبد یا مجاری صفراوی مربوط می‌شود تا استخوان. برای بررسی بهتر است با پزشک مطرح شود.",
+          action: "این هفته با پزشک مطرح کنید.",
+          suggest: ["سونوگرافی شکم", "بیلی‌روبین"],
+          warnings: [],
+        };
+      }
+
+      // GGT طبیعی یا نامشخص → استخوان/بارداری محتمل‌تر، ولی مطمئن نیستیم
+      return {
+        pattern: "alp_high_nonliver",
+        urgency: "routine",
+        headline: "آنزیم ALP شما بالاست",
+        must_say:
+          "آنزیم ALP بالاتر از حد طبیعی است. این آنزیم فقط از کبد نمی‌آید — " +
+          "در استخوان هم ساخته می‌شود و بالا بودن آن همیشه به معنی مشکل کبد نیست. " +
+          "اگر باردار هستید، بالا بودن ALP در دوران بارداری معمولاً طبیعی است. " +
+          (ggtKnown
+            ? "چون آنزیم GGT شما طبیعی است، احتمال منشأ کبدی کمتر است."
+            : "یک آزمایش ساده به نام GGT می‌تواند مشخص کند منبع آن کبد است یا نه."),
+        action: "نوبت عادی. اگر باردار هستید یا علامت خاصی دارید، با پزشک مطرح کنید.",
+        suggest: ggtKnown ? [] : ["GGT — برای مشخص شدن منبع ALP"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ افتراق پانکراتیت (آمیلاز/لیپاز) ═══════════
+  // هر دو بالا → پانکراس. فقط آمیلاز بالا → می‌تواند منشأ دیگری داشته باشد.
+  {
+    id: "pancreas_pattern",
+    match: (e) => {
+      const amy = e.graded.find((g) => g.test === "AMYLASE");
+      const lps = e.graded.find((g) => g.test === "LIPASE");
+      const amyHigh = amy?.abnormal && amy.dir === "high";
+      const lpsHigh = lps?.abnormal && lps.dir === "high";
+      return amyHigh || lpsHigh;
+    },
+    build: (e) => {
+      const amy = e.graded.find((g) => g.test === "AMYLASE");
+      const lps = e.graded.find((g) => g.test === "LIPASE");
+      const amyHigh = amy?.abnormal && amy.dir === "high";
+      const lpsHigh = lps?.abnormal && lps.dir === "high";
+
+      if (amyHigh && lpsHigh) {
+        // هر دو بالا → قوی‌ترین اشاره به پانکراس
+        return {
+          pattern: "pancreas_both_high",
+          urgency: "this_week",
+          headline: "دو آنزیم مربوط به لوزالمعده (پانکراس) بالا هستند",
+          must_say:
+            "آنزیم‌های آمیلاز و لیپاز هر دو بالاتر از حد طبیعی‌اند. این ترکیب بیشتر به " +
+            "التهاب لوزالمعده اشاره دارد و باید توسط پزشک بررسی شود.",
+          action: "این هفته با پزشک مطرح کنید. اگر درد شدید شکم (به‌خصوص همراه تهوع و استفراغ) دارید، زودتر مراجعه کنید.",
+          suggest: ["سونوگرافی شکم", "بررسی توسط پزشک"],
+          warnings: [],
+        };
+      }
+
+      if (lpsHigh && !amyHigh) {
+        // لیپاز بالا (اختصاصی‌تر برای پانکراس)
+        return {
+          pattern: "lipase_high",
+          urgency: "this_week",
+          headline: "آنزیم لیپاز شما بالاست",
+          must_say:
+            "لیپاز آنزیمی است که بیشتر به لوزالمعده مربوط می‌شود. بالا بودن آن باید بررسی شود.",
+          action: "این هفته با پزشک مطرح کنید.",
+          suggest: ["آمیلاز", "سونوگرافی شکم"],
+          warnings: [],
+        };
+      }
+
+      // فقط آمیلاز بالا → می‌تواند منشأ غیرپانکراسی داشته باشد
+      return {
+        pattern: "amylase_isolated",
+        urgency: "routine",
+        headline: "آنزیم آمیلاز شما بالاست",
+        must_say:
+          "آمیلاز بالاتر از حد طبیعی است. این آنزیم فقط از لوزالمعده نمی‌آید — " +
+          "غدد بزاقی هم آن را می‌سازند (مثلاً در اوریون). چون آنزیم لیپاز " +
+          (lps != null ? "شما طبیعی است، احتمال منشأ لوزالمعده کمتر است." : "می‌تواند به روشن شدن منبع کمک کند."),
+        action: "نوبت عادی، مگر علامت خاصی داشته باشید. با پزشک مطرح کنید.",
+        suggest: lps != null ? [] : ["لیپاز — برای مشخص شدن منبع"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ CK-MB بالا (مارکر قلبی — نسخه ساده و محتاط) ═══════════
+  // فقط بالای مرجعِ همان برگه را چک می‌کند (بدون محاسبه شاخص نسبی،
+  //   چون واحدها متفاوت‌اند و خطر خطا زیاد). پیام محتاط، نه اورژانسِ ترسناک.
+  // اگر تروپونین هم بالا باشد، troponin_positive اورژانس می‌دهد و این زیرش می‌رود.
+  {
+    id: "ckmb_high",
+    match: (e) => {
+      const mb = e.graded.find((g) => g.test === "CK_MB");
+      return mb?.abnormal && mb.dir === "high";
+    },
+    build: (e) => {
+      // اگر CK کل هم خیلی بالاست، احتمال منشأ عضله بیشتر است (نه فقط قلب)
+      const ck = e.graded.find((g) => g.test === "CK");
+      const ckHigh = ck?.abnormal && ck.dir === "high";
+      return {
+        pattern: "ckmb_high",
+        urgency: "this_week",
+        headline: "یکی از آنزیم‌های مرتبط با قلب کمی بالاست",
+        must_say:
+          "آنزیمی به نام CK-MB بالاتر از حد طبیعی است. این آنزیم بیشتر به عضله‌ی قلب مربوط است، " +
+          "ولی بالا بودن آن همیشه به معنی مشکل قلبی نیست و می‌تواند از عضلات بدن هم بیاید" +
+          (ckHigh ? " (به‌خصوص چون آنزیم CK کل شما هم بالاست، که بیشتر به عضله اشاره دارد)" : "") +
+          ". برای تفسیر درست باید با پزشک بررسی شود.",
+        action:
+          "این هفته با پزشک مطرح کنید. اگر همین حالا درد قفسه‌ی سینه، تنگی نفس یا تعریق سرد دارید، فوراً به اورژانس بروید.",
+        suggest: ["تروپونین — دقیق‌ترین آزمایش برای عضله‌ی قلب", "بررسی توسط پزشک"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ کلیه ═══════════
+  {
+    id: "kidney",
+    match: (e) => {
+      const cr = e.graded.find((g) => g.test === "CREAT");
+      if (!(cr?.abnormal && cr.dir === "high")) return false;
+      // اگر تصویر خاص‌تر (رابدومیولیز یا گلومرولونفریت) هست، به آن‌ها واگذار کن
+      // تا پیام عمومی کلیه تکراری نشود.
+      const t = val(e);
+      const ck = e.graded.find((g) => g.test === "CK");
+      const ckVeryHigh = ck?.abnormal && ck.dir === "high" && ck.value > 1000;
+      const bloodUrine = urinePositive(e, /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i);
+      const rbcHigh = urineCellCount(e, /rbc|گلبول\s*قرمز/i);
+      const proteinuria = urineGrade(e, /protein|پروتئین/i) >= 1;
+      // رابدومیولیز: CK خیلی بالا + خون ادرار
+      if (ckVeryHigh && bloodUrine) return false;
+      // گلومرولونفریت: هماچوری + پروتئینوری با هم
+      if ((bloodUrine || (rbcHigh != null && rbcHigh > 3)) && proteinuria) return false;
+      return true;
+    },
+    build: (e) => {
+      const cr = e.graded.find((g) => g.test === "CREAT");
+      const ratio = e.indices.bun_cr;
+      const prerenal = ratio != null && ratio > 20;
+      const crG = cr.ctcaeGrade;
+      return {
+        pattern: prerenal ? "prerenal_pattern" : "kidney_impairment",
+        urgency: crG >= 3 ? "emergency" : "this_week",
+        blocks_others: crG >= 3,
+        headline: "شاخص کار کلیه بالاتر از حد طبیعی است",
+        must_say:
+          "یک آزمایش به‌تنهایی این را قطعی نمی‌کند — گاهی کم‌آبی یا یک داروی موقت هم این عدد را بالا می‌برد." +
+          (prerenal ? " نسبت اوره به کراتینین بالاست که به کم‌آبی اشاره دارد." : ""),
+        action: "با پزشک وقت بگیرید و بخواهید این آزمایش تکرار شود.",
+        suggest: ["تکرار کراتینین", "ACR ادرار", "الکترولیت‌ها"],
+        warnings: ["داروهای مسکن مثل ایبوپروفن و ناپروکسن را بدون مشورت پزشک مصرف نکنید."],
+      };
+    },
+  },
+
+  // ═══════════ رابدومیولیز → آسیب کلیه (کیس George) ═══════════
+  // CK خیلی بالا + خون ادرار (میوگلوبینوری). خطر نارسایی حاد کلیه.
+  {
+    id: "rhabdomyolysis_pattern",
+    match: (e) => {
+      const ck = e.graded.find((g) => g.test === "CK");
+      const ckVeryHigh = ck?.abnormal && ck.dir === "high" && ck.value > 1000;
+      const bloodUrine = urinePositive(e, /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i);
+      return ckVeryHigh && bloodUrine;
+    },
+    build: (e) => {
+      const cr = e.graded.find((g) => g.test === "CREAT");
+      const crHigh = cr?.abnormal && cr.dir === "high";
+      return {
+        pattern: "rhabdomyolysis_pattern",
+        urgency: "emergency",
+        blocks_others: true,
+        headline: "این نتایج می‌توانند نشانه‌ی یک وضعیت جدی عضلانی-کلیوی باشند",
+        must_say:
+          "آنزیم عضلانی (CK) شما بسیار بالاست و در ادرار هم خون دیده شده. " +
+          "این ترکیب می‌تواند نشانه‌ی «تخریب بافت عضلانی» (رابدومیولیز) باشد که موادی آزاد می‌کند که می‌توانند به کلیه آسیب بزنند" +
+          (crHigh ? " — و کراتینین بالای شما نشان می‌دهد ممکن است کلیه‌ها هم درگیر شده باشند" : "") +
+          ". این وضعیت نیاز به رسیدگی فوری دارد.",
+        action: "همین حالا به اورژانس مراجعه کنید. اگر ادرار تیره (رنگ چای)، درد شدید عضلانی یا کاهش ادرار دارید، معطل نکنید.",
+        suggest: [],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ سندرم نفروتیک ═══════════
+  // پروتئینوری شدید (+3/+4) + آلبومین خون پایین (± چربی بالا).
+  {
+    id: "nephrotic_pattern",
+    match: (e) => isNephrotic(e),
+    build: (e) => {
+      const chol = e.graded.find((g) => g.test === "CHOL");
+      const cholHigh = chol?.abnormal && chol.dir === "high";
+      return {
+        pattern: "nephrotic_pattern",
+        urgency: "this_week",
+        headline: "الگوی آزمایش‌های شما به یک مشکل کلیوی به نام سندرم نفروتیک اشاره دارد",
+        must_say:
+          "مقدار زیادی پروتئین از ادرار دفع می‌شود و در نتیجه پروتئین خون (آلبومین) پایین آمده است. " +
+          (cholHigh ? "بالا بودن چربی خون هم اغلب همراه این وضعیت دیده می‌شود. " : "") +
+          "این الگو باید حتماً توسط پزشک بررسی شود.",
+        action: "این هفته با پزشک مطرح کنید. اگر ورم پا، صورت یا دور چشم دارید، حتماً بگویید.",
+        suggest: ["نسبت پروتئین به کراتینین ادرار", "آلبومین خون", "عملکرد کلیه", "بررسی توسط پزشک"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ الگوی گلومرولونفریت (کیس Geraldine) ═══════════
+  // هماچوری + پروتئینوری + (کراتینین بالا یا کم‌خونی) با هم.
+  {
+    id: "glomerulonephritis_pattern",
+    match: (e) => isGlomerulonephritis(e),
+    build: (e) => {
+      const cr = e.graded.find((g) => g.test === "CREAT");
+      const crHigh = cr?.abnormal && cr.dir === "high";
+      return {
+        pattern: "glomerulonephritis_pattern",
+        urgency: "this_week",
+        headline: "ترکیب نتایج ادرار و خون شما به یک التهاب کلیه اشاره دارد",
+        must_say:
+          "هم خون و هم پروتئین در ادرار دیده می‌شود" +
+          (crHigh ? " و شاخص کار کلیه هم بالاست" : "") +
+          ". این ترکیب می‌تواند نشانه‌ی نوعی التهاب در کلیه (گلومرولونفریت) باشد که باید حتماً و به‌زودی بررسی شود.",
+        action: "این هفته با پزشک مطرح کنید. این برگه را همراه ببرید. اگر ورم، کاهش ادرار یا فشار خون بالا دارید، زودتر مراجعه کنید.",
+        suggest: ["بررسی توسط پزشک (احتمالاً نفرولوژی)", "عملکرد کلیه", "آزمایش کامل ادرار با بررسی کست"],
+        warnings: [],
+      };
+    },
+  },
+
+
+  {
+    id: "coagulation_abnormal",
+    match: (e) => {
+      const pt = e.graded.find((g) => g.test === "PT");
+      const aptt = e.graded.find((g) => g.test === "APTT");
+      const fib = e.graded.find((g) => g.test === "FIB");
+      const inr = e.graded.find((g) => g.test === "INR");
+      return (pt?.abnormal && pt.dir === "high") ||
+             (aptt?.abnormal && aptt.dir === "high") ||
+             (fib?.abnormal && fib.dir === "low") ||
+             (inr?.abnormal && inr.dir === "high");
+    },
+    build: (e) => {
+      const pt = e.graded.find((g) => g.test === "PT");
+      const fib = e.graded.find((g) => g.test === "FIB");
+      const inr = e.graded.find((g) => g.test === "INR");
+      // PT>25، فیبرینوژن<100، یا INR>3 → فوری
+      const severe = (pt && pt.value > 25) || (fib && fib.value < 100) ||
+                     (inr && inr.value > 3);
+      return {
+        pattern: "coagulation_abnormal",
+        urgency: severe ? "emergency" : "this_week",
+        headline: "شاخص‌های لخته شدن خون شما غیرطبیعی هستند",
+        must_say:
+          "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
+          "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند.",
+        action: severe
+          ? "همین امروز با پزشک تماس بگیرید."
+          : "این هفته با پزشک وقت بگیرید. حتماً بگویید چه داروهایی مصرف می‌کنید.",
+        suggest: ["تکرار آزمایش انعقاد"],
+        warnings: [
+          "تا مشخص شدن علت، آسپرین یا مسکن‌های ضدالتهاب مصرف نکنید.",
+          "اگر خونریزی غیرعادی یا کبودی بی‌دلیل دیدید، همان روز به پزشک مراجعه کنید.",
+        ],
+        blocks_others: severe,
+      };
+    },
+  },
+
+  // ═══════════ تیروئید ═══════════
+  {
+    id: "thyroid",
+    match: (e) => {
+      const tsh = e.graded.find((g) => g.test === "TSH");
+      const ft4 = e.graded.find((g) => g.test === "FT4");
+      const ft3 = e.graded.find((g) => g.test === "FT3");
+      const t3 = e.graded.find((g) => g.test === "T3");
+      const tpo = e.graded.find((g) => g.test === "ANTI_TPO");
+      return tsh?.abnormal || ft4?.abnormal || ft3?.abnormal || t3?.abnormal || tpo?.abnormal;
+    },
+    build: (e) => {
+      const tsh = e.graded.find((g) => g.test === "TSH");
+      const ft4 = e.graded.find((g) => g.test === "FT4");
+      const ft3 = e.graded.find((g) => g.test === "FT3");
+      const t3 = e.graded.find((g) => g.test === "T3");
+      const tpo = e.graded.find((g) => g.test === "ANTI_TPO");
+      const tshLow = tsh?.abnormal && tsh.dir === "low";
+      const tshHigh = tsh?.abnormal && tsh.dir === "high";
+      const tshNormal = tsh != null && !tsh.abnormal;
+      const ft4Low = ft4?.abnormal && ft4.dir === "low";
+      const ft4High = ft4?.abnormal && ft4.dir === "high";
+      const ft3Low = ft3?.abnormal && ft3.dir === "low";
+      const t3High = (ft3?.abnormal && ft3.dir === "high") || (t3?.abnormal && t3.dir === "high");
+      const t3Low = (ft3?.abnormal && ft3.dir === "low") || (t3?.abnormal && t3.dir === "low");
+      const tpoHigh = tpo?.abnormal && tpo.dir === "high";
+
+      // ── سندرم بیماری غیرتیروئیدی (euthyroid sick) ──
+      // TSH نرمال/پایین + FT4 پایین + T3 پایین → لزوماً کم‌کاری واقعی نیست؛
+      // اغلب در بیماری‌های شدید غیرتیروئیدی دیده می‌شود.
+      if ((tshNormal || tshLow) && (ft4Low || ft3Low) && t3Low && !tshHigh) {
+        return {
+          pattern: "thyroid_nonthyroidal_illness",
+          urgency: "routine",
+          headline: "الگوی هورمون‌های تیروئید شما غیرمعمول است",
+          must_say:
+            "برخی هورمون‌های تیروئید پایین هستند در حالی که TSH طبیعی یا پایین است. " +
+            "این الگو گاهی به‌جای مشکل خود تیروئید، در جریان یک بیماری یا استرس جسمی دیگر دیده می‌شود و ممکن است موقت باشد. " +
+            "برای تفسیر درست بهتر است در زمان مناسب و توسط پزشک بررسی شود.",
+          action: "نوبت عادی. اگر اخیراً بیماری شدیدی داشته‌اید به پزشک بگویید؛ معمولاً آزمایش بعداً تکرار می‌شود.",
+          suggest: ["تکرار پنل تیروئید پس از بهبود", "بررسی توسط پزشک"],
+          warnings: [],
+        };
+      }
+
+      // ── تیروتوکسیکوز T3 (فقط T3 بالا، FT4 نرمال) ──
+      if (t3High && !ft4High && (tshLow || tshNormal)) {
+        return {
+          pattern: "thyroid_t3_toxicosis",
+          urgency: "this_week",
+          headline: "یکی از هورمون‌های تیروئید (T3) شما بالاست",
+          must_say:
+            "هورمون T3 بالاست در حالی که هورمون دیگر (T4) طبیعی است. این می‌تواند نوعی پرکاری تیروئید باشد " +
+            "که باید توسط پزشک بررسی شود.",
+          action: "این هفته با پزشک مطرح کنید.",
+          suggest: ["TSH", "FT4", "بررسی توسط پزشک"],
+          warnings: [],
+        };
+      }
+
+      // ── حالت ثانویه (هیپوفیزی): TSH پایین + FT4 پایین ──
+      // در حالت عادی اگر تیروئید کم‌کار باشد TSH بالا می‌رود؛ اگر TSH هم
+      // پایین باشد یعنی مشکل از هیپوفیز است، نه خود تیروئید. این پرکاری نیست.
+      if (tshLow && ft4Low) {
+        return {
+          pattern: "thyroid_central_hypo",
+          urgency: "this_week",
+          headline: "الگوی تیروئید شما غیرمعمول است و نیاز به بررسی دقیق‌تر دارد",
+          must_say:
+            "هم هورمون تیروئید (FT4) و هم هورمون تنظیم‌کننده‌ی آن (TSH) پایین هستند. " +
+            "این ترکیب غیرمعمول است و می‌تواند نشان‌دهنده‌ی مشکلی در غده‌ی تنظیم‌کننده در مغز (هیپوفیز) باشد، نه خود تیروئید. " +
+            "حتماً باید توسط پزشک بررسی شود.",
+          action: "این هفته با پزشک مطرح کنید و این نکته را بگویید که هر دو هورمون پایین هستند.",
+          suggest: ["بررسی توسط پزشک (احتمالاً غدد)", "سایر هورمون‌های هیپوفیز در صورت صلاحدید"],
+          warnings: [],
+        };
+      }
+
+      // ── کم‌کاری اولیه: TSH بالا ──
+      if (tshHigh) {
+        const overt = ft4Low;
+        return {
+          pattern: `thyroid_hypo_${overt ? "overt" : "subclinical"}`,
+          urgency: overt ? "this_week" : "routine",
+          headline: "غده تیروئید شما کندتر از حد معمول کار می‌کند",
+          must_say:
+            "تیروئید غده‌ای در گردن است که سرعت کار بدن را تنظیم می‌کند. " +
+            (overt
+              ? "نتایج نشان می‌دهند کم‌کاری واضح‌تری وجود دارد."
+              : "در این مرحله کم‌کاری خفیف است و اغلب فقط پیگیری لازم دارد.") +
+            (tpoHigh
+              ? " آنتی‌بادی TPO هم بالاست، که اغلب نشان می‌دهد علت، نوعی التهاب خودایمنی تیروئید (هاشیموتو) است — این شایع‌ترین علت کم‌کاری تیروئید است."
+              : ""),
+          action: overt ? "این هفته وقت بگیرید." : "نوبت عادی. معمولاً این آزمایش چند هفته بعد تکرار می‌شود.",
+          suggest: tpoHigh ? ["FT4"] : ["FT4", "آنتی‌بادی TPO"],
+          warnings: [],
+        };
+      }
+
+      // ── پرکاری: TSH پایین (بدون FT4 پایین) یا FT4 بالا ──
+      if (tshLow || ft4High) {
+        const overt = ft4High;
+        return {
+          pattern: `thyroid_hyper_${overt ? "overt" : "subclinical"}`,
+          urgency: overt ? "this_week" : "routine",
+          headline: "غده تیروئید شما پرکارتر از حد معمول است",
+          must_say:
+            "پرکاری تیروئید می‌تواند باعث تپش قلب، لاغری و بی‌قراری شود. " +
+            (overt ? "نتایج نشان می‌دهند پرکاری واضح‌تری وجود دارد." : "در این مرحله معمولاً خفیف است."),
+          action: overt ? "این هفته وقت بگیرید." : "نوبت عادی. معمولاً این آزمایش چند هفته بعد تکرار می‌شود.",
+          suggest: ["FT4", "FT3"],
+          warnings: [],
+        };
+      }
+
+      // ── anti-TPO بالا با تیروئید ظاهراً طبیعی ──
+      if (tpoHigh && !tshHigh && !tshLow && !ft4Low && !ft4High) {
+        return {
+          pattern: "thyroid_tpo_positive",
+          urgency: "routine",
+          headline: "آنتی‌بادی تیروئید (TPO) شما بالاست",
+          must_say:
+            "آنتی‌بادی TPO بالاست. این نشان می‌دهد سیستم ایمنی بدن با تیروئید تعامل دارد که می‌تواند به نوعی التهاب خودایمنی تیروئید مربوط باشد. " +
+            "در این مرحله اگر بقیه‌ی هورمون‌ها طبیعی باشند، اغلب فقط پیگیری لازم است، چون گاهی با گذر زمان به کم‌کاری تیروئید می‌انجامد.",
+          action: "نوبت عادی با پزشک. معمولاً تیروئید به‌صورت دوره‌ای پایش می‌شود.",
+          suggest: ["پایش دوره‌ای TSH", "بررسی توسط پزشک"],
+          warnings: [],
+        };
+      }
+
+      // ── FT4 پایین با TSH طبیعی (نامعمول) → ارجاع محتاط ──
+      return {
+        pattern: "thyroid_ft4_abnormal",
+        urgency: "routine",
+        headline: "یکی از هورمون‌های تیروئید شما در حد طبیعی نیست",
+        must_say:
+          "یکی از هورمون‌های تیروئید خارج از محدوده‌ی طبیعی است در حالی که TSH طبیعی است. " +
+          "بهتر است برای تفسیر درست با پزشک مطرح شود.",
+        action: "نوبت عادی با پزشک. در صورت لزوم آزمایش تکرار می‌شود.",
+        suggest: ["تکرار پنل تیروئید", "TSH و FT4"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ کم‌کاری تیروئید + چربی بالا (نکته‌ی کیس ابونی) ═══════════
+  // اگر کم‌کاری تیروئید و چربی بالا با هم باشند، ممکن است چربی ثانویه به
+  //   تیروئید باشد و با درمان تیروئید بهتر شود. یک بینش مکمل (نه جایگزین).
+  {
+    id: "hypothyroid_dyslipidemia_link",
+    match: (e) => {
+      const tsh = e.graded.find((g) => g.test === "TSH");
+      const tshHigh = tsh?.abnormal && tsh.dir === "high";
+      if (!tshHigh) return false;
+      // چربی بالا؟ کلسترول یا LDL بالا
+      const chol = e.graded.find((g) => g.test === "CHOL");
+      const ldl = e.graded.find((g) => g.test === "LDL");
+      const cholHigh = chol?.abnormal && chol.dir === "high";
+      const ldlHigh = ldl?.abnormal && ldl.dir === "high";
+      return cholHigh || ldlHigh;
+    },
+    build: () => ({
+      pattern: "hypothyroid_dyslipidemia_link",
+      urgency: "this_week",
+      headline: "کم‌کاری تیروئید و چربی خون بالا ممکن است به هم مربوط باشند",
+      must_say:
+        "هم نشانه‌ی کم‌کاری تیروئید و هم چربی خون بالا در نتایج شما دیده می‌شود. " +
+        "نکته‌ی مهم این است که کم‌کاری تیروئید خودش می‌تواند باعث بالا رفتن چربی خون شود — " +
+        "و در این حالت، با درمان تیروئید اغلب چربی هم بهتر می‌شود. این نکته را حتماً با پزشک در میان بگذارید.",
+      action: "این هفته با پزشک مطرح کنید و به هر دو یافته اشاره کنید.",
+      suggest: ["FT4", "پیگیری تیروئید پیش از تصمیم‌گیری نهایی درباره‌ی داروی چربی"],
+      warnings: [],
+    }),
+  },
+
+  // ═══════════ فقر آهن — با پنل آهن (نه فقط CBC) ═══════════
+  // رویکرد الف: فقط وقتی پنل آهن موجود است فعال می‌شود.
+  // اگر فقط CBC باشد، microcytic_anemia قبلی کار می‌کند.
+  // گایدلاین (Labcorp/AAFP): فقر آهن = فریتین پایین + TIBC بالا + TSAT پایین.
+  {
+    id: "iron_deficiency_panel",
+    match: (e) => {
+      const t = val(e);
+      // حداقل فریتین لازم است — قوی‌ترین نشانگر
+      if (t.FERRITIN == null) return false;
+      const ferr = e.graded.find((g) => g.test === "FERRITIN");
+      const ferrLow = ferr?.abnormal && ferr.dir === "low";
+      // فریتین پایین به‌تنهایی تقریباً قطعیِ فقر آهن است (اگر التهاب نباشد)
+      const tsatLow = t.TSAT != null && t.TSAT < 20;
+      const tibcHigh = (() => {
+        const g = e.graded.find((x) => x.test === "TIBC");
+        return g?.abnormal && g.dir === "high";
+      })();
+      return ferrLow || (tsatLow && tibcHigh);
+    },
+    build: (e) => {
+      const t = val(e);
+      const ferr = e.graded.find((g) => g.test === "FERRITIN");
+      const ferrLow = ferr?.abnormal && ferr.dir === "low";
+      // اگر CRP بالا باشد، فریتین ممکن است کاذب طبیعی باشد — احتیاط
+      const crp = e.graded.find((g) => g.test === "CRP_Q");
+      const inflam = crp?.abnormal && crp.dir === "high";
+      return {
+        pattern: "iron_deficiency",
+        urgency: "this_week",
+        headline: "الگوی آزمایش‌ها به کمبود آهن اشاره دارد",
+        must_say:
+          "ذخیره آهن بدن شما پایین است" +
+          (ferrLow ? " (فریتین پایین، قوی‌ترین نشانه کمبود آهن)" : "") +
+          ". شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است." +
+          (inflam ? " توجه: CRP شما بالاست و ممکن است تصویر آهن را پیچیده کند — پزشک باید تفسیر کند." : ""),
+        action: "این هفته با پزشک وقت بگیرید. اگر خون‌ریزی گوارشی یا قاعدگی سنگین دارید حتماً بگویید.",
+        suggest: ["پنل کامل آهن", "بررسی علت خون‌ریزی"],
+        warnings: [
+          "قبل از تأیید پزشک و مشخص شدن علت، خودتان دوز بالای آهن شروع نکنید.",
+        ],
+      };
+    },
+  },
+
+  // ═══════════ کم‌خونی بیماری مزمن ═══════════
+  // گایدلاین: آهن پایین + TIBC پایین/طبیعی + فریتین طبیعی/بالا + TSAT پایین.
+  // تمایز کلیدی از فقر آهن: در فقر آهن TIBC بالاست، اینجا پایین.
+  {
+    id: "anemia_chronic_disease",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const anemic = hgb?.abnormal && hgb.dir === "low";
+      if (!anemic) return false;
+      // نیاز به پنل آهن برای تمایز
+      if (t.IRON == null || t.FERRITIN == null) return false;
+      const iron = e.graded.find((g) => g.test === "IRON");
+      const ferr = e.graded.find((g) => g.test === "FERRITIN");
+      const ironLow = iron?.abnormal && iron.dir === "low";
+      // فریتین طبیعی یا بالا (نه پایین) — این فقر آهن را رد می‌کند
+      const ferrNotLow = !(ferr?.abnormal && ferr.dir === "low");
+      // TIBC پایین یا طبیعی (نه بالا)
+      const tibc = e.graded.find((g) => g.test === "TIBC");
+      const tibcNotHigh = !(tibc?.abnormal && tibc.dir === "high");
+      return ironLow && ferrNotLow && tibcNotHigh;
+    },
+    build: (e) => {
+      const crp = e.graded.find((g) => g.test === "CRP_Q");
+      const inflam = crp?.abnormal && crp.dir === "high";
+      return {
+        pattern: "anemia_of_chronic_disease",
+        urgency: "this_week",
+        headline: "الگوی کم‌خونی شما بیشتر به التهاب یا بیماری زمینه‌ای می‌خورد تا کمبود آهن",
+        must_say:
+          "برخلاف کمبود آهن، اینجا ذخیره آهن بدن پایین نیست — ولی بدن نمی‌تواند از آهن موجود خوب استفاده کند. " +
+          "این الگو معمولاً همراه یک التهاب یا بیماری مزمن دیده می‌شود." +
+          (inflam ? " CRP شما هم بالاست که با این تصویر همخوانی دارد." : ""),
+        action: "این هفته با پزشک وقت بگیرید تا علت زمینه‌ای بررسی شود.",
+        suggest: ["CRP", "بررسی بیماری زمینه‌ای", "عملکرد کلیه"],
+        // مهم: در این نوع کم‌خونی آهن خوراکی کمکی نمی‌کند و گاهی مضر است
+        forbid: ["آهن خوراکی", "قرص آهن", "iron supplement"],
+        warnings: [
+          "در این نوع کم‌خونی، مصرف خودسرانه قرص آهن معمولاً کمکی نمی‌کند. درمان روی علت اصلی است.",
+        ],
+      };
+    },
+  },
+
+  // ═══════════ همولیز ═══════════
+  // گایدلاین (AAFP/ARUP): LDH بالا + بیلی‌روبین غیرمستقیم بالا +
+  //   هاپتوگلوبین پایین + رتیکولوسیت بالا → همولیز.
+  // تله مهم (منبع): LDH+AST بالا با هاپتوگلوبین طبیعی → عضله، نه همولیز.
+  {
+    id: "hemolysis_pattern",
+    match: (e) => {
+      const t = val(e);
+      // حداقل دو نشانگر از نشانگرهای اصلی همولیز لازم است
+      const ldhHigh = (() => {
+        const g = e.graded.find((x) => x.test === "LDH");
+        return g?.abnormal && g.dir === "high";
+      })();
+      const haptoLow = (() => {
+        const g = e.graded.find((x) => x.test === "HAPTO");
+        return g?.abnormal && g.dir === "low";
+      })();
+      const reticHigh = (() => {
+        const g = e.graded.find((x) => x.test === "RETIC");
+        return g?.abnormal && g.dir === "high";
+      })();
+      // بیلی‌روبین غیرمستقیم بالا = توتال بالا با مستقیم طبیعی
+      const indirectHigh = t.BILI_T != null && t.BILI_D != null &&
+                           (t.BILI_T - t.BILI_D) > 1.0;
+      const markers = [ldhHigh, haptoLow, reticHigh, indirectHigh].filter(Boolean).length;
+
+      // تله عضله: LDH بالا + AST/CK بالا + هاپتوگلوبین طبیعی → عضله، نه همولیز.
+      // این حالت هم باید الگو را فعال کند تا توضیح درست به کاربر برسد
+      // (وگرنه در تور ایمنی عمومی می‌افتد و پیام گمراه‌کننده می‌دهد).
+      const ast = e.graded.find((g) => g.test === "AST");
+      const ck = e.graded.find((g) => g.test === "CK");
+      const muscleTrap = ldhHigh && !haptoLow &&
+                         ck?.abnormal && ck.dir === "high" &&
+                         ast?.abnormal && ast.dir === "high";
+
+      // هاپتوگلوبین پایین قوی‌ترین نشانه است؛ اگر باشد یک نشانه دیگر کافی است
+      return muscleTrap || (haptoLow && markers >= 2) || markers >= 3;
+    },
+    build: (e) => {
+      const t = val(e);
+      // تله عضله: اگر AST و CK بالا و هاپتوگلوبین طبیعی → احتمالاً عضله
+      const ast = e.graded.find((g) => g.test === "AST");
+      const ck = e.graded.find((g) => g.test === "CK");
+      const hapto = e.graded.find((g) => g.test === "HAPTO");
+      const haptoLow = hapto?.abnormal && hapto.dir === "low";
+      const muscleTrap = !haptoLow &&
+                         ck?.abnormal && ck.dir === "high" &&
+                         ast?.abnormal && ast.dir === "high";
+      if (muscleTrap) {
+        return {
+          pattern: "ldh_muscle_not_hemolysis",
+          urgency: "routine",
+          headline: "چند شاخص بالا هستند، ولی الگو بیشتر به عضله می‌خورد تا خون",
+          must_say:
+            "LDH و برخی آنزیم‌ها بالا هستند، ولی هاپتوگلوبین طبیعی است — " +
+            "این به آسیب یا فعالیت عضلانی اشاره دارد نه شکستن گلبول قرمز. ورزش سنگین اخیر هم می‌تواند علت باشد.",
+          action: "نوبت عادی. اگر ورزش سنگین کرده‌اید حتماً به پزشک بگویید.",
+          suggest: ["CK", "تکرار آزمایش پس از استراحت"],
+          warnings: [],
+        };
+      }
+      return {
+        pattern: "hemolysis_likely",
+        urgency: "this_week",
+        headline: "الگوی آزمایش‌ها به شکستن گلبول‌های قرمز (همولیز) اشاره دارد",
+        must_say:
+          "چند شاخص با هم نشان می‌دهند که گلبول‌های قرمز شما ممکن است زودتر از حد معمول تجزیه شوند. " +
+          "علت‌های زیادی دارد — از ارثی تا خودایمنی و دارویی — و برای مشخص شدن باید بررسی شود.",
+        action: "این هفته با پزشک وقت بگیرید. این برگه را همراه ببرید.",
+        suggest: ["هاپتوگلوبین", "رتیکولوسیت", "بیلی‌روبین مستقیم و غیرمستقیم", "اسمیر خون محیطی", "تست کومبس"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ سیروز / نارسایی مزمن کبد ═══════════
+  // الگوی کلاسیک: آلبومین پایین + بیلی‌روبین بالا + پلاکت پایین
+  //   (هایپراسپلنیسم) + INR بالا (اختلال ساخت فاکتورهای انعقادی).
+  {
+    id: "cirrhosis_pattern",
+    match: (e) => {
+      const t = val(e);
+      const alb = e.graded.find((g) => g.test === "ALB");
+      const albLow = alb?.abnormal && alb.dir === "low";
+      const plt = e.graded.find((g) => g.test === "PLT");
+      const pltLow = plt?.abnormal && plt.dir === "low";
+      const biliHigh = (() => {
+        const g = e.graded.find((x) => x.test === "BILI_T");
+        return g?.abnormal && g.dir === "high";
+      })();
+      const inrHigh = t.INR != null && t.INR > 1.3;
+      // نیاز به حداقل ۳ نشانه از ۴ برای احتیاط (این تشخیص سنگینی است)
+      const markers = [albLow, pltLow, biliHigh, inrHigh].filter(Boolean).length;
+      return markers >= 3;
+    },
+    build: () => ({
+      pattern: "chronic_liver_disease_pattern",
+      urgency: "this_week",
+      headline: "چند شاخص با هم به مشکل مزمن کبد اشاره دارند",
+      must_say:
+        "ترکیبی از نتایج (پروتئین سازنده کبد پایین، پلاکت پایین، و شاخص‌های دیگر) " +
+        "می‌تواند نشانه‌ای از کاهش عملکرد کبد در طول زمان باشد. این یک تشخیص قطعی نیست، " +
+        "ولی الگویی است که حتماً باید توسط پزشک بررسی شود.",
+      action: "این هفته با پزشک وقت بگیرید. لیست کامل داروها، مکمل‌ها و سابقه مصرف الکل را همراه ببرید.",
+      suggest: ["سونوگرافی کبد", "آنزیم‌های کبدی", "هپاتیت B و C", "فیبرواسکن"],
+      warnings: [
+        "تا وقتی پزشک بررسی نکرده، از داروهای بدون نسخه (به‌خصوص استامینوفن) و مکمل گیاهی پرهیز کنید.",
+      ],
+    }),
+  },
+
+  // ═══════════ الگوی کبد الکلی ═══════════
+  // نسبت De Ritis: AST/ALT ≥ 2 + GGT بالا + گاهی MCV بالا → منشأ الکلی.
+  {
+    id: "alcoholic_liver_pattern",
+    match: (e) => {
+      const t = val(e);
+      if (t.AST == null || t.ALT == null || t.ALT === 0) return false;
+      const ast = e.graded.find((g) => g.test === "AST");
+      const alt = e.graded.find((g) => g.test === "ALT");
+      // حداقل یکی از آنزیم‌ها باید بالا باشد
+      const anyHigh = (ast?.abnormal && ast.dir === "high") ||
+                      (alt?.abnormal && alt.dir === "high");
+      const deRitis = t.AST / t.ALT >= 2;
+      const ggtHigh = (() => {
+        const g = e.graded.find((x) => x.test === "GGT");
+        return g?.abnormal && g.dir === "high";
+      })();
+      // نسبت ≥۲ به‌تنهایی گمراه‌کننده است؛ GGT بالا هم لازم است
+      return anyHigh && deRitis && ggtHigh;
+    },
+    build: (e) => {
+      const t = val(e);
+      const mcvHigh = t.MCV != null && t.MCV > 100;
+      return {
+        pattern: "alcoholic_liver_pattern",
+        urgency: "this_week",
+        headline: "الگوی آنزیم‌های کبدی شما نوع خاصی دارد که باید بررسی شود",
+        must_say:
+          "نسبت دو آنزیم کبدی (AST به ALT) و بالا بودن GGT الگویی می‌سازد که " +
+          "می‌تواند با مصرف الکل یا برخی علل دیگر آسیب کبد مرتبط باشد." +
+          (mcvHigh ? " بزرگ بودن گلبول‌های قرمز (MCV بالا) هم گاهی همراه این الگو دیده می‌شود." : ""),
+        action: "این هفته با پزشک وقت بگیرید و درباره مصرف الکل صادقانه صحبت کنید — این به تشخیص درست کمک می‌کند.",
+        suggest: ["GGT", "سونوگرافی کبد", "آنزیم‌های کبدی تکراری"],
+        warnings: [
+          "اگر الکل مصرف می‌کنید، قطع ناگهانی در برخی افراد خطرناک است — با پزشک درباره روش ایمن مشورت کنید.",
+        ],
+      };
+    },
+  },
+
+  // ═══════════ عفونت ویروسی — لنفوسیتوز ═══════════
+  {
+    id: "viral_lymphocytosis",
+    match: (e) => {
+      const lymph = e.graded.find((g) => g.test === "LYMPH_ABS");
+      const lymphHigh = lymph?.abnormal && lymph.dir === "high";
+      // نوتروفیل بالا نباشد (که به باکتریایی می‌خورد)
+      const neut = e.graded.find((g) => g.test === "NEUT_ABS");
+      const neutHigh = neut?.abnormal && neut.dir === "high";
+      return lymphHigh && !neutHigh;
+    },
+    build: () => ({
+      pattern: "viral_lymphocytosis",
+      urgency: "routine",
+      headline: "افزایش لنفوسیت‌ها معمولاً به یک عفونت ویروسی اشاره دارد",
+      must_say:
+        "لنفوسیت‌ها نوعی گلبول سفیدند که در عفونت‌های ویروسی بالا می‌روند. " +
+        "این معمولاً موقتی است و پس از بهبود عفونت به حالت عادی برمی‌گردد.",
+      action: "اگر علائم دارید یا این عدد خیلی بالاست، با پزشک مطرح کنید. در غیر این صورت تکرار آزمایش بعد از چند هفته کافی است.",
+      suggest: ["تکرار CBC پس از بهبود", "اسمیر خون محیطی در صورت تداوم"],
+      warnings: [],
+    }),
+  },
+];
+
+// رتبه شدت — برای پیدا کردن بدترین یافته
+const LEVEL_RANK = { critical: 4, marked: 3, moderate: 2, mild: 1 };
+function rankOf(g) {
+  if (g.level && LEVEL_RANK[g.level]) return LEVEL_RANK[g.level];
+  return g.abnormal ? 1 : 0;
+}
+
+// کمکی: مقادیر خام
+function val(e) {
+  const t = {};
+  for (const g of e.graded) t[g.test] = g.value;
+  return t;
+}
+
+/**
+ * اجرای قواعد روی خروجی موتور
+ */
+export function runPatterns(engineOut) {
+  const findings = [];
+  for (const rule of RULES) {
+    try {
+      if (!rule.match(engineOut)) continue;
+      const f = rule.build(engineOut);
+      if (f) findings.push({ rule_id: rule.id, ...f });
+    } catch {
+      /* قاعده خراب نباید موتور را بخواباند */
+    }
+  }
+
+  // ═══ تور ایمنی ═══
+  // 🔴 باگ واقعی: WBC=258 هیچ قاعده‌ای نداشت → findings خالی →
+  //    سرور گفت «نتایج شما طبیعی است».
+  //
+  // هیچ‌وقت نمی‌شود همه‌ی الگوها را از قبل نوشت. پس اگر تستی
+  // غیرطبیعی بود ولی قاعده‌ای نداشت، یک finding عمومی بساز.
+  if (findings.length === 0 && engineOut.abnormal.length > 0) {
+    const worst = [...engineOut.abnormal].sort(
+      (a, b) => (rankOf(b) - rankOf(a))
+    )[0];
+    const hasCritical = engineOut.abnormal.some((a) => a.level === "critical");
+    const hasMarked = engineOut.abnormal.some(
+      (a) => a.level === "marked" || a.ctcaeGrade >= 3
+    );
+    // بحرانی → emergency، شدید → this_week، بقیه → routine
+    const urgency = hasCritical ? "emergency" : hasMarked ? "this_week" : "routine";
+    findings.push({
+      rule_id: "unmatched_abnormal",
+      pattern: "unmatched_abnormal",
+      urgency,
+      blocks_others: hasCritical,
+      headline: "بعضی از نتایج خارج از محدوده طبیعی هستند",
+      must_say:
+        `${engineOut.abnormal.length} مورد خارج از محدوده مرجع است` +
+        (worst ? `، از جمله ${worst.test} با مقدار ${worst.value} (طبیعی ${worst.range})` : "") +
+        ". برای این ترکیب توضیح آماده‌ای نداریم.",
+      action: hasCritical
+        ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
+        : hasMarked
+        ? "این هفته با پزشک وقت بگیرید و این برگه را همراه ببرید."
+        : "نتایج را با پزشک خود در میان بگذارید.",
+      suggest: [],
+      warnings: [],
+    });
+  }
+
+  // ═══ انتخاب یافته‌ها ═══
+  // 🔴 باگ قبلی: .find() فقط اولین blocks_others را برمی‌داشت و
+  //    بقیه را دور می‌ریخت. بیمار با تروپونین مثبت + پلاکت ۳۰ +
+  //    لاکتات ۶ فقط تروپونین را می‌دید — سه اورژانس ناپدید.
+  //
+  //    خطر واقعی: پلاکت ۳۰ یعنی خطر خونریزی. اگر پنهان بماند و
+  //    بیمار برای «مشکل قلبی» آسپرین بگیرد، کشنده است.
+  //
+  // درست: blocks_others یعنی «موارد کم‌اهمیت‌تر را بپوشان»،
+  //       نه «بقیه‌ی اورژانس‌ها را حذف کن».
+  const order = { emergency: 0, this_week: 1, routine: 2 };
+  const rank = (u) => (u in order ? order[u] : 2);  // urgency نامعتبر → routine
+
+  // blocks_others یعنی «موارد کم‌اهمیت‌تر را بپوشان» — یعنی هرچه فوریتش از
+  // خودِ blocker پایین‌تر است. نه هاردکد "emergency": اگر روزی blocker با
+  // فوریت this_week تعریف شود، فیلترِ === "emergency" خودِ blocker را هم
+  // حذف می‌کرد و selected خالی می‌شد → overall_urgency اشتباهاً "none".
+  const blockerRank = Math.min(
+    ...findings.filter((f) => f.blocks_others).map((f) => rank(f.urgency))
+  );
+  const hasBlocker = Number.isFinite(blockerRank);
+
+  const selected = hasBlocker
+    ? findings.filter((f) => rank(f.urgency) <= blockerRank)
+    : findings;
+
+  selected.sort((a, b) => rank(a.urgency) - rank(b.urgency));
+
+  return {
+    findings: selected,
+    overall_urgency: selected[0]?.urgency ?? "none",
+    has_critical: selected.some((f) => f.urgency === "emergency"),
+    // چند مورد کم‌اهمیت‌تر پنهان شد — برای شفافیت
+    suppressed: hasBlocker ? findings.length - selected.length : 0,
+  };
+}

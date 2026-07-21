@@ -1,5 +1,5 @@
 // ============================================================
-// سرور واسط «خوانش» — نسخه با غنی‌سازی MedlinePlus
+// سرور واسط «LabMate» — نسخه با آپلود چند عکس
 // ------------------------------------------------------------
 // تغییرات این نسخه:
 //   ۱. خواندن عکس و تحلیل، دو مرحله جدا:
@@ -24,9 +24,29 @@ import express from "express";
 import cors from "cors";
 import "dotenv/config";
 
+// ---- موتور قواعد ----
+// چرا: gpt-4o-mini تفسیر بالینی نمی‌فهمید («نوع خاصی از کم‌خونی»).
+// gpt-4o می‌فهمید ولی ۳۵ برابر گران بود — و باز هم برای کم‌خونی
+// ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
+// راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
+import { runEngine } from "./rules/adapter.js";
+import { runPatterns } from "./rules/patterns.js";
+import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations } from "./rules/prompt.js";
+import { extractMedlineTerms } from "./rules/medline.js";
+
+// اطلاعات دیباگ موتور — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
+function engineDebug(engineOut, patternOut) {
+  return {
+    patterns: patternOut.findings.map((f) => f.rule_id),
+    urgency: patternOut.overall_urgency,
+    abnormal: engineOut.abnormal.length,
+    indices: engineOut.indices,
+  };
+}
+
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json({ limit: "60mb" }));   // ← Nginx روی 50M است؛ Express نباید تنگ‌تر باشد
 
 const AVALAI_API_KEY = process.env.AVALAI_API_KEY;
 const AVALAI_BASE_URL = "https://api.avalai.ir/v1";
@@ -37,114 +57,31 @@ const PORT = process.env.PORT || 8787;
 // مهلت زمانی درخواست به سرویس هوش مصنوعی (میلی‌ثانیه)
 const AI_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS || 240000); // ۴ دقیقه
 
+// آپلود چند عکس
+const MAX_IMAGES        = Number(process.env.MAX_IMAGES || 5);
+// ⚠️ پیش‌فرض ۱ است چون AvalAI روی Gemini محدودیت نرخ سخت‌گیرانه دارد.
+//    با ۲، هر دو درخواست ۴۲۹ می‌گیرند و هیچ عکسی خوانده نمی‌شود.
+//    اگر حسابت اجازه می‌دهد، در .env بگذار IMAGE_CONCURRENCY=2
+const IMAGE_CONCURRENCY = Number(process.env.IMAGE_CONCURRENCY || 1);
+const OCR_RETRIES       = Number(process.env.OCR_RETRIES || 3);
+
+// سقف توکن OCR.
+// ⚠️ با ۴۰۰۰ روی برگه‌های شلوغ TRUNCATED می‌شد و نصف تست‌ها جا می‌افتاد.
+//    نمونه واقعی: برگه CBC با ۲۰ ردیف → فقط ۲ تست خوانده شد.
+//    این عدد بر اساس لاگ واقعی تنظیم شده، نه حدس.
+const OCR_MAX_TOKENS = Number(process.env.OCR_MAX_TOKENS || 8000);
+
+// موتور قواعد: پیش‌فرض روشن. برای برگشت به روش قدیم: USE_ENGINE=false
+const USE_ENGINE = process.env.USE_ENGINE !== "false";
+
 const MEDLINE_BASE = "https://wsearch.nlm.nih.gov/ws/query";
 
-// ============================================================
-// [۱] نگاشت نام تست‌ها به عبارت جستجوی MedlinePlus
-// ============================================================
-const TEST_MEDLINE_MAP = {
-  // قند و دیابت
-  "قند خون ناشتا": "Blood Glucose",
-  "fbs": "Blood Glucose",
-  "glucose": "Blood Glucose",
-  "hba1c": "A1C Test",
-  // چربی
-  "کلسترول تام": "Cholesterol Levels",
-  "cholesterol": "Cholesterol Levels",
-  "تری‌گلیسیرید": "Triglyceride Levels",
-  "triglyceride": "Triglyceride Levels",
-  "hdl": "HDL Cholesterol",
-  "ldl": "LDL Cholesterol",
-  // کلیه
-  "اوره": "Urea",
-  "urea": "Urea",
-  "bun": "BUN (Blood Urea Nitrogen)",
-  "کراتینین": "Creatinine Test",
-  "creatinine": "Creatinine Test",
-  "اسید اوریک": "Uric Acid Test",
-  "uric": "Uric Acid Test",
-  // کبد
-  "ast": "Liver Function Tests",
-  "sgot": "Liver Function Tests",
-  "alt": "Liver Function Tests",
-  "sgpt": "Liver Function Tests",
-  "alp": "Liver Function Tests",
-  "بیلی‌روبین": "Bilirubin Blood Test",
-  "bilirubin": "Bilirubin Blood Test",
-  "آلبومین": "Albumin Blood Test",
-  "albumin": "Albumin Blood Test",
-  // الکترولیت
-  "سدیم": "Sodium Blood Test",
-  "sodium": "Sodium Blood Test",
-  "پتاسیم": "Potassium Blood Test",
-  "potassium": "Potassium Blood Test",
-  "کلسیم": "Calcium Blood Test",
-  "calcium": "Calcium Blood Test",
-  "منیزیم": "Magnesium Blood Test",
-  "magnesium": "Magnesium Blood Test",
-  // آهن
-  "فریتین": "Ferritin Blood Test",
-  "ferritin": "Ferritin Blood Test",
-  "آهن": "Iron Tests",
-  "iron": "Iron Tests",
-  "tibc": "Iron Tests",
-  // CBC
-  "گلبول سفید": "White Blood Count (WBC)",
-  "wbc": "White Blood Count (WBC)",
-  "گلبول قرمز": "RBC Count",
-  "rbc": "RBC Count",
-  "هموگلوبین": "Hemoglobin Test",
-  "hemoglobin": "Hemoglobin Test",
-  "hgb": "Hemoglobin Test",
-  "هماتوکریت": "Hematocrit Test",
-  "hematocrit": "Hematocrit Test",
-  "hct": "Hematocrit Test",
-  "mcv": "Red Blood Cell (RBC) Indices",
-  "mch": "Red Blood Cell (RBC) Indices",
-  "mchc": "Red Blood Cell (RBC) Indices",
-  "پلاکت": "Platelet Tests",
-  "platelet": "Platelet Tests",
-  "plt": "Platelet Tests",
-  "esr": "ESR (Erythrocyte Sedimentation Rate)",
-  "rdw": "Red Blood Cell (RBC) Indices",
-  // انعقاد
-  "pt": "Prothrombin Time Test and INR",
-  "ptt": "Partial Thromboplastin Time (PTT) Test",
-  // تیروئید
-  "tsh": "TSH (Thyroid-Stimulating Hormone) Test",
-  "t4": "T4 Test",
-  "t3": "T3 Test",
-  // ویتامین
-  "ویتامین d": "Vitamin D Test",
-  "vitamin d": "Vitamin D Test",
-  "vitd": "Vitamin D Test",
-  "ویتامین b12": "Vitamin B12 Level Test",
-  "b12": "Vitamin B12 Level Test",
-  "فولات": "Folate Test",
-  "folate": "Folate Test",
-};
+// شمارش قطع‌شدن پاسخ به‌خاطر سقف توکن.
+// در /health دیده می‌شود — قبل از بالا بردن maxTokens اول این را ببین.
+// اگر صفر است، سقف مشکلی ندارد و بالا بردنش فقط هزینه اضافه می‌کند.
+const TRUNCATION_COUNT = {};
 
-// ============================================================
-// [۲] استخراج نام تست‌ها از متن ورودی
-// ============================================================
-function extractMedlineTerms(testResultsText) {
-  if (!testResultsText) return [];
-  const terms = new Map();
-  const lines = testResultsText.split("\n");
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const namePart = (line.split(":")[0] || "").trim().toLowerCase();
-    if (!namePart) continue;
-    for (const key in TEST_MEDLINE_MAP) {
-      if (namePart.includes(key.toLowerCase())) {
-        const term = TEST_MEDLINE_MAP[key];
-        if (!terms.has(term)) terms.set(term, line.trim());
-        break;
-      }
-    }
-  }
-  return Array.from(terms.entries()).map(([term, sourceLine]) => ({ term, sourceLine }));
-}
+// نگاشت MedlinePlus و استخراج ترم‌ها به rules/medline.js منتقل شد تا خالص و تست‌پذیر باشد.
 
 // ============================================================
 // [۳] کش ساده برای نتایج MedlinePlus
@@ -363,8 +300,21 @@ async function callAvalAI({ model, messages, maxTokens = 2000, temperature = 0.2
   }
 
   if (!upstream.ok) {
-    const errText = await upstream.text();
-    console.error("AvalAI error:", model, upstream.status, errText.slice(0, 400));
+    // ⚠️ حریم خصوصی: پاسخ خطای AvalAI ممکن است بخشی از درخواست
+    //    (یعنی دادهٔ بالینی بیمار) را echo کند. فقط طول و وضعیت را لاگ کن.
+    const errText = await upstream.text().catch(() => "");
+    console.error(`AvalAI error: model=${model} status=${upstream.status} bodyLen=${errText.length}`);
+
+    // ۴۲۹ = محدودیت نرخ. کاربر باید بفهمد «شلوغ است» نه «خراب است».
+    if (upstream.status === 429) {
+      const e = new Error("upstream_rate_limit");
+      e.status = 429;
+      // Retry-After اگر داد، به کاربر بگو چقدر صبر کند
+      const ra = upstream.headers.get("retry-after");
+      e.retryAfter = ra ? Number(ra) : null;
+      throw e;
+    }
+
     const e = new Error("upstream_error");
     e.status = upstream.status;
     throw e;
@@ -374,7 +324,11 @@ async function callAvalAI({ model, messages, maxTokens = 2000, temperature = 0.2
 
   const finishReason = data?.choices?.[0]?.finish_reason;
   if (finishReason === "length") {
-    console.warn("⚠️ AvalAI response TRUNCATED (max_tokens reached) for model:", model);
+    TRUNCATION_COUNT[model] = (TRUNCATION_COUNT[model] || 0) + 1;
+    console.warn(
+      `⚠️ AvalAI TRUNCATED: model=${model} maxTokens=${maxTokens} ` +
+      `usage=${JSON.stringify(data?.usage || {})} — تا حالا ${TRUNCATION_COUNT[model]} بار`
+    );
   }
 
   return data?.choices?.[0]?.message?.content || "{}";
@@ -395,6 +349,12 @@ function safeParseJson(raw) {
     return JSON.parse(cleaned);
   } catch { /* ادامه */ }
 
+  // کامای اضافه — شایع‌ترین خطای مدل‌ها
+  // قبلاً به parseError می‌رفت و کاربر تفسیر نمی‌دید. حالا ترمیم می‌شود.
+  try {
+    return JSON.parse(cleaned.replace(/,(\s*[}\]])/g, "$1"));
+  } catch { /* ادامه */ }
+
   // اگر خروجی نصفه مانده، تا آخرین شیء کامل را برداریم
   const lastComplete = cleaned.lastIndexOf("},");
   if (lastComplete > 0) {
@@ -409,31 +369,173 @@ function safeParseJson(raw) {
 
 // ============================================================
 // [۱۰] مرحله اول — خواندن عکس (OCR خالص)
-// ============================================================
-async function readImage(imageDataUrl) {
-  const raw = await callAvalAI({
-    model: VISION_MODEL,
-    temperature: 0,
-    maxTokens: 8000,
-    messages: [
-      { role: "system", content: OCR_PROMPT },
-      {
-        role: "user",
-        content: [
-          { type: "text", text: "این برگهٔ آزمایش را کامل و ردیف به ردیف بخوان — همهٔ بخش‌ها شامل بیوشیمی. طبق قالب JSON برگردان." },
-          { type: "image_url", image_url: { url: imageDataUrl } },
-        ],
-      },
-    ],
-  });
+async function readImage(imageDataUrl, label = "") {
+  let lastErr;
 
-  const parsed = safeParseJson(raw);
-  if (!parsed) {
-    console.error("OCR JSON parse failed. Raw head:", raw.slice(0, 300));
-    return null;
+  for (let attempt = 1; attempt <= OCR_RETRIES + 1; attempt++) {
+    try {
+      const raw = await callAvalAI({
+        model: VISION_MODEL,
+        temperature: 0,
+        maxTokens: OCR_MAX_TOKENS,
+        messages: [
+          { role: "system", content: OCR_PROMPT },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "این برگهٔ آزمایش را کامل و ردیف به ردیف بخوان — همهٔ بخش‌ها شامل بیوشیمی. طبق قالب JSON برگردان." },
+              { type: "image_url", image_url: { url: imageDataUrl } },
+            ],
+          },
+        ],
+      });
+
+      const parsed = safeParseJson(raw);
+      if (!parsed) throw new Error("ocr_parse_failed");
+
+      const n = Array.isArray(parsed.tests) ? parsed.tests.length : 0;
+      console.log(`OCR ${label} خواند: ${n} تست (تلاش ${attempt})`);
+
+      // ⚠️ اگر خیلی کم خواند، احتمالاً به سقف توکن خورده.
+      //    نمونه واقعی: برگه ۲۰ ردیفی → ۲ تست. کاربر فکر می‌کند بقیه نرمال‌اند.
+      if (n > 0 && n < 5) {
+        console.warn(`⚠️ OCR ${label} فقط ${n} تست خواند — احتمال قطع‌شدن. سقف: ${OCR_MAX_TOKENS}`);
+      }
+      return parsed;
+
+    } catch (e) {
+      lastErr = e;
+      const retryable =
+        e.message === "upstream_timeout" ||
+        e.message === "upstream_error" ||
+        e.message === "upstream_rate_limit" ||
+        e.message === "ocr_parse_failed";
+
+      if (!retryable || attempt > OCR_RETRIES) break;
+
+      // ۴۲۹ صبر بیشتری می‌خواهد — اگر Retry-After داد، همان را احترام بگذار
+      // ۴۲۹ صبر تصاعدی می‌خواهد: 8s → 16s → 32s
+      const wait =
+        e.message === "upstream_rate_limit"
+          ? (e.retryAfter ? e.retryAfter * 1000 : 8000 * Math.pow(2, attempt - 1))
+          : 2000 * attempt;
+      console.warn(`OCR ${label} تلاش ${attempt} شکست (${e.message}) — ${wait}ms صبر و تلاش دوباره`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
   }
-  console.log(`OCR خواند: ${Array.isArray(parsed.tests) ? parsed.tests.length : 0} تست`);
-  return parsed;
+
+  console.error(`OCR ${label} نهایتاً شکست:`, lastErr?.message);
+  // علت شکست را throw می‌کنیم تا فراخواننده (readImages) آن را محلی بگیرد؛
+  // map سراسری قبلی بین درخواست‌های همزمان race داشت.
+  throw lastErr ?? new Error("خوانده نشد");
+}
+
+// ============================================================
+// [۱۰-ب] خواندن چند عکس — همزمانی محدود
+//
+// چرا Promise.all خام نه:
+//   ۱. اگر AvalAI محدودیت نرخ داشته باشد، ۵ درخواست همزمان ۴۲۹ می‌گیرد
+//   ۲. خطای یک صفحه نباید بقیه را دور بریزد
+// ============================================================
+async function readImages(imageDataUrls) {
+  const results = new Array(imageDataUrls.length);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < imageDataUrls.length) {
+      const i = cursor++;
+      const label = `صفحه ${i + 1}`;
+      try {
+        const ocr = await readImage(imageDataUrls[i], label);
+        results[i] = { page: i + 1, ok: true, ocr };
+      } catch (e) {
+        results[i] = { page: i + 1, ok: false, error: e.message || "خوانده نشد" };
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(IMAGE_CONCURRENCY, imageDataUrls.length) }, worker)
+  );
+
+  return results;
+}
+
+// ============================================================
+// [۱۰-ج] ادغام صفحات یک برگه
+//
+// یک برگهٔ آزمایش معمولاً ۲ تا ۳ صفحه است (هماتولوژی/بیوشیمی/ادرار).
+// پس تست تکراری نباید وجود داشته باشد. اگر بود یعنی:
+//   - کاربر عکس تکراری فرستاده، یا
+//   - OCR اشتباه خوانده
+// در هر دو حالت به کاربر هشدار می‌دهیم.
+// ============================================================
+function normName(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/[\s._\-]/g, "")
+    .replace(/[يی]/g, "ی")
+    .replace(/[كک]/g, "ک")
+    .trim();
+}
+
+function mergePages(pageResults) {
+  const ok      = pageResults.filter((p) => p.ok);
+  const failed  = pageResults.filter((p) => !p.ok).map((p) => p.page);
+  const tests   = [];
+  const seen    = new Map();
+  const dupes   = [];
+  const notes   = [];
+  const patients = [];
+
+  for (const p of ok) {
+    const o = p.ocr;
+    if (o.patient) patients.push({ page: p.page, ...o.patient });
+    if (Array.isArray(o.unreadable_notes)) notes.push(...o.unreadable_notes.filter(Boolean));
+    if (!Array.isArray(o.tests)) continue;
+
+    for (const t of o.tests) {
+      if (!t || !t.name) continue;
+      const key = normName(t.name);
+
+      if (seen.has(key)) {
+        const prev = tests[seen.get(key)];
+        if (String(prev.value) !== String(t.value)) {
+          dupes.push({
+            name: t.name,
+            pages: [prev._page, p.page],
+            values: [prev.value, t.value],
+          });
+        }
+        continue; // اولی را نگه می‌داریم
+      }
+
+      seen.set(key, tests.length);
+      tests.push({ ...t, _page: p.page });
+    }
+  }
+
+  // چک ناسازگاری بیمار.
+  // نکته: پرامپت OCR عمداً نام و کد ملی را نمی‌خواند (حریم خصوصی).
+  // پس فقط سن و جنسیت را داریم — همان برای هشدار کافی است.
+  let mismatch = null;
+  const ages = [...new Set(patients.map((p) => String(p.age || "").trim()).filter(Boolean))];
+  const sexes = [...new Set(patients.map((p) => String(p.sex || "").trim()).filter(Boolean))];
+  if (ages.length > 1 || sexes.length > 1) {
+    mismatch = { ages, sexes };
+  }
+
+  const patient = patients.find((p) => p.age || p.sex) || patients[0] || null;
+
+  return {
+    tests,
+    patient,
+    failedPages: failed,
+    duplicates: dupes,
+    unreadableNotes: notes,
+    mismatch,
+    okCount: ok.length,
+  };
 }
 
 // ============================================================
@@ -524,48 +626,115 @@ function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImag
 // ============================================================
 app.post("/api/analyze", async (req, res) => {
   try {
-    const { patientInfo, testResults, imageDataUrl } = req.body || {};
+    const { patientInfo, testResults, imageDataUrl, imageDataUrls } = req.body || {};
+
+    // سازگاری عقب‌رو: فرانت قدیمی imageDataUrl تکی می‌فرستد و هنوز کار می‌کند
+    let images = [];
+    if (Array.isArray(imageDataUrls)) images = imageDataUrls;
+    else if (typeof imageDataUrl === "string") images = [imageDataUrl];
+
+    images = images.filter((u) => typeof u === "string" && u.startsWith("data:image"));
+
+    if (images.length > MAX_IMAGES) {
+      return res.status(400).json({
+        error: `حداکثر ${MAX_IMAGES} عکس در هر بار. شما ${images.length} عکس فرستادید.`,
+      });
+    }
+
     const hasText = testResults && testResults.trim();
-    const hasImage = imageDataUrl && imageDataUrl.startsWith("data:image");
+    const hasImage = images.length > 0;
 
     if (!hasText && !hasImage) {
       return res.status(400).json({ error: "نه متن آزمایش وارد شده و نه عکسی آپلود شده است." });
     }
 
     let finalText = hasText ? testResults : "";
+    let lastMergedOcr = null;   // برای موتور
     let ocrWarnings = [];
     let ocrPatient = null;
     let extractedTests = [];
+    let pageInfo = null;
 
-    // ---- مرحله ۱: اگر عکس هست، اول بخوان ----
+    // ---- مرحله ۱: خواندن عکس‌ها ----
     if (hasImage) {
-      const ocr = await readImage(imageDataUrl);
-      if (!ocr) {
+      console.log(`دریافت ${images.length} عکس — شروع OCR با همزمانی ${IMAGE_CONCURRENCY}`);
+      const pages = await readImages(images);
+      const merged = mergePages(pages);
+
+      if (merged.okCount === 0) {
+        // ⚠️ باگ قبلی: هر شکستی «عکس ناخوانا» گزارش می‌شد.
+        //    اگر علت ۴۲۹ بود، پیام کاملاً گمراه‌کننده بود —
+        //    کاربر عکس بهتر می‌گرفت در حالی که مشکل عکس نبود.
+        const allRateLimited = pages.every((p) => p.error === "upstream_rate_limit");
+        if (allRateLimited) {
+          return res.status(429).json({
+            error: "سرویس هوش مصنوعی در حال حاضر شلوغ است. لطفاً یک دقیقه دیگر دوباره تلاش کنید.",
+            retry_after: 60,
+          });
+        }
         return res.status(502).json({
-          error: "خواندن عکس ممکن نشد. لطفاً عکس واضح‌تری آپلود کنید یا مقادیر را دستی وارد کنید.",
+          error: "هیچ‌کدام از عکس‌ها خوانده نشد. لطفاً عکس واضح‌تری بگیرید یا مقادیر را دستی وارد کنید.",
+          failed_pages: merged.failedPages,
         });
       }
 
-      const { text, warnings } = ocrToText(ocr);
+      if (merged.mismatch) {
+        return res.status(422).json({
+          error:
+            "به‌نظر می‌رسد عکس‌ها مربوط به یک بیمار نیستند. " +
+            "لطفاً فقط صفحات یک برگه آزمایش را با هم آپلود کنید.",
+          detail: merged.mismatch,
+        });
+      }
+
+      const mergedOcr = {
+        tests: merged.tests,
+        patient: merged.patient,
+        unreadable_notes: merged.unreadableNotes,
+      };
+      lastMergedOcr = mergedOcr;
+
+      const { text, warnings } = ocrToText(mergedOcr);
       if (!text) {
         return res.status(422).json({
-          error: "هیچ مقدار خوانایی در عکس پیدا نشد. لطفاً عکس واضح‌تری بگیرید یا مقادیر را دستی وارد کنید.",
+          error: "هیچ مقدار خوانایی در عکس‌ها پیدا نشد. لطفاً عکس واضح‌تری بگیرید یا مقادیر را دستی وارد کنید.",
           ocr_warnings: warnings,
+          failed_pages: merged.failedPages,
         });
       }
 
       ocrWarnings = warnings;
-      ocrPatient = ocr.patient || null;
-      extractedTests = ocrToExtractedTests(ocr); // ← فهرست کامل، مستقیم از OCR
+      ocrPatient = merged.patient;
+      extractedTests = ocrToExtractedTests(mergedOcr);
+
+      // صفحهٔ ناموفق نباید بی‌صدا رد شود — کاربر باید بداند تفسیر ناقص است
+      if (merged.failedPages.length) {
+        ocrWarnings.push(
+          `صفحه ${merged.failedPages.join(" و ")} خوانده نشد. ` +
+          `تفسیر فقط بر اساس ${merged.okCount} صفحه‌ای است که خوانده شد.`
+        );
+      }
+
+      for (const d of merged.duplicates) {
+        ocrWarnings.push(
+          `«${d.name}» در صفحه ${d.pages.join(" و ")} با مقادیر متفاوت (${d.values.join(" و ")}) خوانده شد. ` +
+          `مقدار صفحه ${d.pages[0]} استفاده شد — لطفاً با برگه مقایسه کنید.`
+        );
+      }
+
+      pageInfo = { total: images.length, read: merged.okCount, failed: merged.failedPages };
+      console.log(`OCR تمام: ${merged.okCount}/${images.length} صفحه، ${merged.tests.length} تست`);
 
       finalText = hasText ? `${testResults}\n\n--- خوانده‌شده از عکس ---\n${text}` : text;
     }
 
     // ---- زمینه MedlinePlus ----
     let medlineContext = "";
+    let medlineSources = [];
     try {
-      const { context } = await buildMedlineContext(finalText);
+      const { context, sources } = await buildMedlineContext(finalText);
       medlineContext = context;
+      medlineSources = [...new Set(sources || [])];   // یکتا
     } catch (e) {
       console.error("MedlinePlus context build failed:", e.message);
     }
@@ -580,28 +749,166 @@ app.post("/api/analyze", async (req, res) => {
     }
 
     // ---- مرحله ۲: تحلیل ----
-    const raw = await callAvalAI({
-      model: TEXT_MODEL,
-      maxTokens: 2500,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        buildAnalysisMessage(patientText, finalText, medlineContext, hasImage),
-      ],
-    });
+    let raw, parsed, engineOut = null, patternOut = null;
 
-    const parsed = safeParseJson(raw);
+    if (USE_ENGINE && hasImage && lastMergedOcr) {
+      // ═══ مسیر موتور ═══
+      engineOut = runEngine(lastMergedOcr);
+      patternOut = runPatterns(engineOut);
+
+      console.log(
+        `موتور: ${engineOut.graded.length} تست ارزیابی شد | ` +
+        `${engineOut.abnormal.length} غیرطبیعی | ` +
+        `الگو: ${patternOut.findings.map((f) => f.rule_id).join(", ") || "هیچ"} | ` +
+        `فوریت: ${patternOut.overall_urgency}`
+      );
+      // ⚠️ تست‌هایی که موتور نمی‌شناسد نباید بی‌صدا ناپدید شوند.
+      //    مثال واقعی: Procalcitonin=12 و Lactate=6.2 (نشانگرهای سپسیس)
+      //    در NAME_MAP نبودند → از تفسیر حذف شدند و کاربر هرگز نفهمید.
+      //    حالا: در «مقادیر خوانده‌شده» هست، و صریحاً می‌گوییم تفسیر نشد.
+      if (engineOut.unmapped.length) {
+        console.warn(`موتور: نگاشت نشد → ${engineOut.unmapped.join(", ")}`);
+        ocrWarnings.push(
+          `این تست‌ها از برگه خوانده شدند ولی موتور تفسیرشان نمی‌کند: ` +
+          `${engineOut.unmapped.join("، ")}. ` +
+          `مقادیرشان در فهرست بالا هست — حتماً با پزشک بررسی کنید.`
+        );
+      }
+      if (engineOut.noRef.length) {
+        console.warn(`موتور: محدوده مرجع ندارد → ${engineOut.noRef.join(", ")}`);
+        ocrWarnings.push(
+          `برای این تست‌ها محدوده مرجع نداریم: ${engineOut.noRef.join("، ")}. ` +
+          `تفسیر نشدند.`
+        );
+      }
+
+      // ⚠️ فقط وقتی «طبیعی» بگو که هیچ تست غیرطبیعی نباشد.
+      //    «قاعده‌ای مطابقت نکرد» ≠ «طبیعی است».
+      //    باگ واقعی: WBC=258 هیچ قاعده‌ای نداشت → «نتایج شما طبیعی است».
+      if (patternOut.findings.length === 0 && engineOut.abnormal.length === 0) {
+        // همه‌چیز واقعاً طبیعی — نیازی به AI نیست، رایگان
+        const out = buildNormalResult(engineOut);
+        out.extracted_tests = extractedTests;
+        if (ocrWarnings.length) out.ocr_warnings = ocrWarnings;
+        if (pageInfo) out.pages = pageInfo;
+        if (medlineSources.length) out.sources = medlineSources;
+        out._engine = { patterns: [], urgency: "none", abnormal: 0 };
+        return res.json(out);
+      }
+
+      if (patternOut.findings.length === 0 && engineOut.abnormal.length > 0) {
+        console.warn(
+          `⚠️ ${engineOut.abnormal.length} تست غیرطبیعی ولی هیچ قاعده‌ای مطابقت نکرد: ` +
+          engineOut.abnormal.map((a) => `${a.test}=${a.value}`).join(", ")
+        );
+      }
+
+      raw = await callAvalAI({
+        model: TEXT_MODEL,
+        maxTokens: 2000,
+        messages: [
+          { role: "system", content: ENGINE_SYSTEM_PROMPT },
+          buildEnginePrompt(engineOut, patternOut, medlineContext),
+        ],
+      });
+    } else {
+      // ═══ مسیر قدیم — ورودی متنی یا USE_ENGINE=false ═══
+      raw = await callAvalAI({
+        model: TEXT_MODEL,
+        maxTokens: 2500,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          buildAnalysisMessage(patientText, finalText, medlineContext, hasImage),
+        ],
+      });
+    }
+
+    parsed = safeParseJson(raw);
     if (!parsed) {
+      // ⚠️ در «مسیر موتور» یافته‌ها (از جمله اورژانس‌ها) قبلاً قطعی محاسبه شده‌اند.
+      //    اگر خروجی مدل خراب باشد نباید has_critical/توصیه‌ها دور ریخته شوند.
+      //    یک نتیجهٔ قطعی مستقیم از موتور می‌سازیم؛ فقط مسیر متنی legacy به raw سقوط می‌کند.
+      if (patternOut && engineOut) {
+        console.warn("⚠️ JSON مدل نامعتبر — نتیجه از خروجی قطعی موتور ساخته شد");
+        const fb = buildEngineFallbackResult(engineOut, patternOut);
+        if (extractedTests.length) fb.extracted_tests = extractedTests;
+        if (ocrWarnings.length) fb.ocr_warnings = ocrWarnings;
+        if (pageInfo) fb.pages = pageInfo;
+        if (medlineSources.length) fb.sources = medlineSources;
+        fb.parseErrorRecovered = true;
+        fb._engine = engineDebug(engineOut, patternOut);
+        return res.status(200).json(fb);
+      }
       return res.status(200).json({
         raw,
         parseError: true,
         extracted_tests: extractedTests,
         ocr_warnings: ocrWarnings,
+        pages: pageInfo,
+        sources: medlineSources,
       });
     }
 
     // فهرست تست‌ها را خودمان می‌گذاریم، نه مدل
     if (extractedTests.length) parsed.extracted_tests = extractedTests;
     if (ocrWarnings.length) parsed.ocr_warnings = ocrWarnings;
+    if (pageInfo) parsed.pages = pageInfo;
+    // لینک‌های MedlinePlus قبلاً ساخته و دور ریخته می‌شدند.
+    // نشان دادنشان هم شفافیت است هم اعتبار پاسخ را بالا می‌برد.
+    if (medlineSources.length) parsed.sources = medlineSources;
+
+    // ═══ تور ایمنی ═══
+    // اگر مدل نام فیلد را اشتباه بدهد یا اصلاً ندهد، توصیه‌ها بی‌صدا گم می‌شوند.
+    // این اتفاق افتاد: مدل "recommendations" داد ولی فرانت
+    // "general_recommendations" می‌خواند → بخش توصیه‌ها خالی ماند.
+    // موتور خودش لیست را دارد، پس اگر مدل جا انداخت، از موتور پرش می‌کنیم.
+    if (patternOut && patternOut.findings.length) {
+      const recs = parsed.general_recommendations ?? parsed.recommendations;
+      if (!Array.isArray(recs) || recs.length === 0) {
+        console.warn("مدل general_recommendations نداد — از موتور ساخته شد");
+        parsed.general_recommendations = buildEngineRecommendations(patternOut);
+      } else {
+        parsed.general_recommendations = recs;
+      }
+      delete parsed.recommendations;
+
+      // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
+      //    حضور را با headline (که بین یافته‌ها متمایز است) یا متن کامل must_say
+      //    می‌سنجیم، نه پیشوند کوتاه مشترک که هم false-positive می‌داد هم شکننده بود.
+      const emerg = patternOut.findings.filter((f) => f.urgency === "emergency");
+      if (emerg.length) {
+        const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;
+        const missing = emerg.filter((f) => {
+          const byHeadline = f.headline && text.includes(f.headline);
+          const byMustSay = f.must_say && text.includes(f.must_say);
+          return !byHeadline && !byMustSay;
+        });
+        if (missing.length) {
+          console.warn(`⚠️ ${missing.length} اورژانس در متن مدل نیست — اضافه شد`);
+          parsed.interpretation =
+            (parsed.interpretation || "") +
+            "\n\n" + missing.map((f) => `${f.headline}. ${f.must_say}`).join(" ");
+        }
+      }
+
+      // تست ممنوع اگر از دست مدل در رفت
+      const forbidden = patternOut.findings.flatMap((f) => f.forbid ?? []);
+      if (forbidden.length) {
+        const before = parsed.general_recommendations.length;
+        parsed.general_recommendations = parsed.general_recommendations.filter(
+          (r) => !forbidden.some((w) => String(r).includes(w))
+        );
+        const dropped = before - parsed.general_recommendations.length;
+        if (dropped) console.warn(`${dropped} توصیه حذف شد — تست ممنوع برای این الگو`);
+      }
+    }
+
+    // خروجی موتور — برای دیباگ و شفافیت
+    if (patternOut) {
+      parsed._engine = engineDebug(engineOut, patternOut);
+      // فوریت را موتور تعیین می‌کند، نه مدل
+      parsed.has_critical = patternOut.has_critical;
+    }
 
     res.json(parsed);
   } catch (err) {
@@ -610,10 +917,19 @@ app.post("/api/analyze", async (req, res) => {
         error: "پاسخ سرویس هوش مصنوعی خیلی طول کشید. لطفاً دوباره تلاش کنید.",
       });
     }
+    // ۴۲۹ جدا: کاربر باید بفهمد سرویس شلوغ است، نه خراب
+    if (err.message === "upstream_rate_limit") {
+      const secs = err.retryAfter || 60;
+      return res.status(429).json({
+        error: `سرویس هوش مصنوعی در حال حاضر شلوغ است. لطفاً حدود ${secs} ثانیه دیگر دوباره تلاش کنید.`,
+        retry_after: secs,
+      });
+    }
     if (err.message === "upstream_error") {
       return res.status(502).json({ error: "خطا در ارتباط با سرویس هوش مصنوعی." });
     }
-    console.error(err);
+    // ⚠️ err ممکن است بدنهٔ درخواست (دادهٔ بیمار) را داشته باشد
+    console.error("Unhandled:", err.name, err.message);
     res.status(500).json({ error: "خطای داخلی سرور." });
   }
 });
@@ -627,11 +943,23 @@ app.get("/health", (_req, res) =>
     ocr: "two-stage",
     extractedTestsSource: "ocr-direct",
     aiTimeoutMs: AI_TIMEOUT_MS,
+    maxImages: MAX_IMAGES,
+    imageConcurrency: IMAGE_CONCURRENCY,
+    ocrRetries: OCR_RETRIES,
+    bodyLimit: "60mb",
+    // اگر این اعداد بالا رفت، سقف توکن کم است.
+    // قبل از بالا بردن maxTokens اول اینجا را ببین.
+    engine: USE_ENGINE ? "on" : "off",
+    ocrMaxTokens: OCR_MAX_TOKENS,
+    truncations: TRUNCATION_COUNT,
   })
 );
 
 app.listen(PORT, () => {
   console.log(`سرور واسط (با MedlinePlus) روی پورت ${PORT} در حال اجراست`);
   console.log(`مدل متن: ${TEXT_MODEL} | مدل بینایی: ${VISION_MODEL} | مهلت: ${AI_TIMEOUT_MS}ms`);
+  console.log(`آپلود چند عکس: تا ${MAX_IMAGES} عکس | همزمانی ${IMAGE_CONCURRENCY} | ${OCR_RETRIES} تلاش مجدد`);
+  console.log(`موتور قواعد: ${USE_ENGINE ? "روشن (Henry + RCPCH + CTCAE v5)" : "خاموش"}`);
+  console.log(`سقف توکن OCR: ${OCR_MAX_TOKENS}`);
   if (!AVALAI_API_KEY) console.warn("⚠️  هشدار: AVALAI_API_KEY تنظیم نشده! فایل .env را بساز.");
 });

@@ -1,7 +1,80 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect, Component } from "react";
 
 // آدرس سرور واسط (بک‌اند). اگر سرور روی پورت دیگری است، اینجا عوض کن.
+// مسیر نسبی — Nginx پراکسی می‌کند.
+// ⚠️ باگ قبلی: "http://localhost:8787/..." روی سرور کار نمی‌کند،
+//    چون مرورگرِ کاربر localhost خودش را صدا می‌زند نه سرور را.
 const PROXY_URL = "/api/analyze";
+
+// ---- آپلود چند عکس ----
+const MAX_IMAGES = 5;
+const MAX_WIDTH = 1200;         // برای OCR کافی است
+const MAX_PIXELS = 6_000_000;   // سقف امن مساحت canvas (سافاری/iOS بالای ~۱۶.۷MP بلانک می‌دهد)
+const JPEG_QUALITY = 0.85;
+
+// آیا این فایل عکس است؟
+// بعضی فایل‌پیکرها (به‌خصوص روی آیفون) f.type را خالی می‌دهند،
+// پس فقط به MIME تکیه نکن — پسوند را هم چک کن.
+const IMG_EXT = /\.(jpe?g|png|gif|webp|bmp|heic|heif|tiff?)$/i;
+function looksLikeImage(file) {
+  if (file.type && file.type.startsWith("image/")) return true;
+  if (file.type) return false;              // MIME داد ولی عکس نبود
+  return IMG_EXT.test(file.name || "");     // MIME نداد → پسوند
+}
+
+// دیکود عکس با دو مسیر.
+// createImageBitmap سریع است ولی روی HEIC (عکس پیش‌فرض دوربین آیفون)
+// در خیلی از مرورگرها خطا می‌دهد. سافاری HEIC را با تگ <img> دیکود می‌کند.
+async function decodeImage(file) {
+  try {
+    const bmp = await createImageBitmap(file);
+    return { src: bmp, w: bmp.width, h: bmp.height, close: () => bmp.close() };
+  } catch {
+    // fallback — سافاری/آیفون
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("decode_failed"));
+        el.src = url;
+      });
+      return {
+        src: img,
+        w: img.naturalWidth,
+        h: img.naturalHeight,
+        close: () => URL.revokeObjectURL(url),
+      };
+    } catch (e) {
+      URL.revokeObjectURL(url);
+      throw e;
+    }
+  }
+}
+
+// فشرده‌سازی: عکس موبایل ۸ مگابایتی → ~۴۰۰ کیلوبایت.
+// این هم آپلود را سریع می‌کند، هم AvalAI را، هم از سقف بدنه رد نمی‌شود.
+async function compressImage(file, maxWidth = MAX_WIDTH, quality = JPEG_QUALITY) {
+  const dec = await decodeImage(file);
+  try {
+    if (!dec.w || !dec.h) throw new Error("decode_failed");
+    // هم عرض را محدود می‌کنیم هم مساحت کل را. قبلاً فقط عرض محدود می‌شد؛
+    // یک برگهٔ بلند (مثلاً ۳۰۰۰×۱۲۰۰۰) بعد از مقیاسِ عرض هنوز از سقف پیکسل
+    // مرورگر رد می‌شد و canvas خالی/بریده برمی‌گشت — بی‌آنکه toDataURL خطا دهد.
+    const widthScale = Math.min(1, maxWidth / dec.w);
+    const areaScale = Math.min(1, Math.sqrt(MAX_PIXELS / (dec.w * dec.h)));
+    const scale = Math.min(widthScale, areaScale);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(dec.w * scale));
+    canvas.height = Math.max(1, Math.round(dec.h * scale));
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(dec.src, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", quality);
+  } finally {
+    dec.close();
+  }
+}
 
 // ============================================================
 // خوانش — نسخه با تفسیر آموزشی غنی
@@ -95,6 +168,10 @@ const REF = {
     range: () => ({ low: 30, high: 110 }), crit: [0, 330],
     about: "آنزیم گوارشی؛ بالا بودن با پانکراتیت مرتبط است.",
     high: "بالا (به‌ویژه بیش از ۳ برابر نرمال) می‌تواند نشانه پانکراتیت حاد باشد و نیاز به بررسی فوری دارد." },
+  ldh: { label: "LDH", unit: "U/L", cat: "liver", hard: [50, 5000],
+    range: () => ({ low: 235, high: 470 }),
+    about: "آنزیمی در بیشتر سلول‌های بدن؛ بالا بودن نشانه‌ی آسیب بافتی (کبد، خون، عضله و...) است.",
+    high: "بالا می‌تواند به آسیب کبدی، همولیز (شکستن گلبول قرمز)، آسیب عضلانی یا موارد دیگر مربوط باشد." },
 
   // ---------- الکترولیت ----------
   na: { label: "سدیم (Na)", unit: "mmol/L", cat: "electro", hard: [100, 200],
@@ -324,15 +401,19 @@ const TREND = {
 };
 
 // تفسیر ترکیبی: بررسی الگوهای چند-تستی
-function comboInsights(getVal, sex, age) {
+function comboInsights(getVal, sex, months) {
   const out = [];
   const num = (k) => {
     const v = parseFloat(getVal(k));
     return isNaN(v) ? null : v;
   };
+  // «پایین بودن» هموگلوبین سن/جنس‌محور است (مرد ~۱۳.۵، نوزاد بسیار بالاتر).
+  // قبلاً hb < 12 هاردکد بود و روی مرد و نوزاد کاذب فعال می‌شد؛ حالا از خودِ REF می‌آید.
+  const belowRange = (k, v) => v !== null && v < REF[k].range(sex, months).low;
   const fbs = num("fbs"), tg = num("tg"), hdl = num("hdl"), chol = num("chol");
   const hb = num("hb"), ferritin = num("ferritin"), mcv = num("mcv");
   const tsh = num("tsh"), t4 = num("t4");
+  const hbLow = belowRange("hb", hb);
 
   // مقاومت به انسولین / سندروم متابولیک
   if (fbs !== null && fbs >= 100 && tg !== null && tg >= 150) {
@@ -343,10 +424,10 @@ function comboInsights(getVal, sex, age) {
     out.push("کلسترول تام بالا همراه با HDL پایین، الگوی نامطلوب چربی است و با خطر قلبی-عروقی مرتبط است.");
   }
   // کم‌خونی فقر آهن
-  if (hb !== null && hb < 12 && ferritin !== null && ferritin < 30) {
+  if (hbLow && ferritin !== null && ferritin < 30) {
     out.push("هموگلوبین پایین همراه با فریتین پایین، الگوی شایع کم‌خونی فقر آهن است.");
   }
-  if (hb !== null && hb < 12 && mcv !== null && mcv < 80) {
+  if (hbLow && mcv !== null && mcv < 80) {
     out.push("هموگلوبین پایین همراه با MCV پایین (کم‌خونی میکروسیتیک) اغلب به کمبود آهن مربوط است.");
   }
   // کم‌کاری تیروئید
@@ -358,7 +439,36 @@ function comboInsights(getVal, sex, age) {
 
 const ALL = Object.keys(REF);
 
-export default function App() {
+// ---- رندر امن خروجی مدل ----
+// خروجی JSON مدل ممکن است رشته نباشد (شیء/آرایه). React موقع رندرِ مستقیمِ یک
+// شیء crash می‌کند و چون Error Boundary نبود، کل صفحه سفید می‌شد.
+function asText(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  try { return JSON.stringify(v); } catch { return ""; }
+}
+function asList(v) {
+  if (Array.isArray(v)) return v;
+  if (v == null || v === "") return [];
+  return [v];
+}
+
+// مرز خطای رندر — اگر با وجود کمک‌تابع‌های بالا باز هم رندر شکست، فقط این بخش
+// پیام خطا نشان می‌دهد، نه اینکه کل برنامه بلانک شود.
+class ResultErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err) { console.error("رندر نتایج شکست:", err); }
+  render() {
+    if (this.state.failed) {
+      return <div style={s.errBox}>نمایش این نتیجه با مشکل مواجه شد. لطفاً دوباره تلاش کنید.</div>;
+    }
+    return this.props.children;
+  }
+}
+
+export default function Tafsir() {
   const [sex, setSex] = useState("male");
   const [age, setAge] = useState("");
   const [ageUnit, setAgeUnit] = useState("year"); // year | month | day
@@ -374,9 +484,15 @@ export default function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [aiError, setAiError] = useState("");
-  const [imageDataUrl, setImageDataUrl] = useState("");
-  const [imageName, setImageName] = useState("");
+  const [ioError, setIoError] = useState("");   // خطای واردات/خروجی JSON
+  const [images, setImages] = useState([]);      // [{id, dataUrl, sizeKB, origKB}]
+  const [imgBusy, setImgBusy] = useState(false);
   const fileRef = useRef(null);
+  const abortRef = useRef(null);      // برای لغو fetch در حال اجرا
+  const mountedRef = useRef(true);    // جلوگیری از setState روی کامپوننت unmount‌شده
+
+  // اگر کاربر وسط درخواست از صفحه خارج شود، درخواست را لغو کن.
+  useEffect(() => () => { mountedRef.current = false; abortRef.current?.abort(); }, []);
 
   // سن به ماه (برای تشخیص نوزاد). اگر واحد سال باشد، ماه معادل آن.
   const months = ageInMonths(age, ageUnit);
@@ -401,11 +517,10 @@ export default function App() {
       rows.push({ k, v, status });
     });
     return { rows, errs, criticalCount };
-  }, [vals, sex, age]);
-
-  const byCat = {};
-  Object.keys(CATS).forEach((c) => { byCat[c] = []; });
-  rows.forEach((r) => byCat[REF[r.k].cat].push(r));
+  // months (از age+ageUnit) را مستقیم وابسته می‌کنیم: هم درست است هم warning
+  //    exhaustive-deps را رفع می‌کند. «۵ سال → ۵ ماه» محدوده‌ها را عوض می‌کند و
+  //    باید جدول را دوباره بسازد.
+  }, [vals, sex, months]);
 
   // ساخت متن نتایج برای فرستادن به AI
   function buildTestText() {
@@ -426,40 +541,113 @@ export default function App() {
     return parts.join("، ");
   }
 
-  // فراخوانی سرور برای تفسیر متنی
+  // فراخوانی سرور برای تفسیر
   async function runAI() {
     setAiError(""); setAiResult(null);
-    if (rows.length === 0 && !imageDataUrl) {
+    if (rows.length === 0 && images.length === 0) {
       setAiError("ابتدا مقادیری وارد کنید یا عکس آپلود کنید."); return;
     }
     setAiLoading(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    // سقف امن سمت کلاینت (بک‌اند AI_TIMEOUT_MS ~۴ دقیقه است).
+    const timeout = setTimeout(() => controller.abort(), 300000);
     try {
       const payload = { patientInfo: patientInfo() };
-      if (imageDataUrl) payload.imageDataUrl = imageDataUrl;
+      if (images.length) payload.imageDataUrls = images.map((i) => i.dataUrl);
       else payload.testResults = buildTestText();
+
       const res = await fetch(PROXY_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
-      if (!res.ok) throw new Error("server");
-      setAiResult(await res.json());
-    } catch {
-      setAiError("اتصال به سرور برقرار نشد. مطمئن شو سرور روشن است (node server.js).");
+
+      // ⚠️ باگ قبلی: هر خطا «اتصال برقرار نشد» می‌شد و پیام واقعی
+      //    سرور دور ریخته می‌شد. حالا پیام خود سرور را نشان می‌دهیم.
+      let data = null;
+      try { data = await res.json(); } catch { /* پاسخ JSON نبود */ }
+
+      if (!res.ok) {
+        if (data?.error) throw new Error(data.error);
+        if (res.status === 413) throw new Error("حجم عکس‌ها زیاد است. تعداد کمتری عکس بفرستید.");
+        if (res.status === 429) throw new Error("سرویس شلوغ است. کمی بعد دوباره تلاش کنید.");
+        if (res.status === 504) throw new Error("پاسخ سرویس خیلی طول کشید. دوباره تلاش کنید.");
+        if (res.status === 502) throw new Error("خطا در ارتباط با سرویس هوش مصنوعی.");
+        throw new Error(`خطای سرور (${res.status})`);
+      }
+      if (mountedRef.current) setAiResult(data);
+    } catch (e) {
+      if (!mountedRef.current) return;   // کاربر رفته — setState نکن
+      if (e.name === "AbortError") {
+        setAiError("درخواست خیلی طول کشید یا لغو شد. دوباره تلاش کنید.");
+      } else {
+        // TypeError یعنی واقعاً شبکه قطع است — بقیه پیام سرورند
+        setAiError(
+          e instanceof TypeError
+            ? "اتصال به اینترنت برقرار نشد. اتصال خود را بررسی کنید."
+            : e.message
+        );
+      }
     } finally {
-      setAiLoading(false);
+      clearTimeout(timeout);
+      abortRef.current = null;
+      if (mountedRef.current) setAiLoading(false);
     }
   }
 
-  function onFile(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) { setAiError("لطفاً یک فایل عکس انتخاب کنید."); return; }
-    setImageName(file.name);
-    const reader = new FileReader();
-    reader.onload = () => setImageDataUrl(reader.result);
-    reader.readAsDataURL(file);
+  async function onFile(e) {
+    const picked = Array.from(e.target.files || []);
+    e.target.value = "";   // تا بشود همان فایل را دوباره انتخاب کرد
+    if (!picked.length) return;
+
+    if (images.length + picked.length > MAX_IMAGES) {
+      setAiError(`حداکثر ${MAX_IMAGES} عکس. الان ${images.length} صفحه انتخاب شده.`);
+      return;
+    }
+    setAiError("");
+    setImgBusy(true);
+
+    const out = [], failed = [];
+    try {
+      for (const f of picked) {
+        if (!looksLikeImage(f)) { failed.push(f.name || "بدون نام"); continue; }
+        try {
+          const dataUrl = await compressImage(f);
+          out.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            dataUrl,
+            sizeKB: Math.round((dataUrl.length * 0.75) / 1024),
+            origKB: Math.round(f.size / 1024),
+          });
+        } catch {
+          // یک فایل خراب نباید بقیه را از بین ببرد
+          failed.push(f.name || "بدون نام");
+        }
+      }
+      if (out.length) setImages((prev) => [...prev, ...out]);
+
+      // فایل رد‌شده نباید بی‌صدا ناپدید شود
+      if (failed.length) {
+        setAiError(
+          `${failed.length} فایل خوانده نشد (${failed.join("، ")}). ` +
+          `اگر عکس از آیفون است، در تنظیمات دوربین «سازگارترین» را انتخاب کنید یا اسکرین‌شات بگیرید.`
+        );
+      }
+    } finally {
+      setImgBusy(false);
+    }
   }
+
+  const removeImage = (id) => setImages((p) => p.filter((i) => i.id !== id));
+  const moveImage = (idx, dir) =>
+    setImages((p) => {
+      const n = [...p]; const j = idx + dir;
+      if (j < 0 || j >= n.length) return p;
+      [n[idx], n[j]] = [n[j], n[idx]];
+      return n;
+    });
 
   return (
     <div dir="rtl" style={s.page}>
@@ -591,7 +779,7 @@ export default function App() {
               </div>
             )}
             {(() => {
-              const insights = comboInsights((k) => vals[k], sex, age);
+              const insights = comboInsights((k) => vals[k], sex, months);
               if (insights.length === 0) return null;
               return (
                 <section style={s.card}>
@@ -609,12 +797,14 @@ export default function App() {
                 <h2 style={s.cardTitle}>نتایج و تفسیر</h2>
                 <div style={s.exportBtns}>
                   <button style={s.exportBtn} onClick={() => {
-                    const data = { sex, age, vals, prevVals: compareMode ? prevVals : undefined };
+                    // ⚠️ ageUnit حتماً ذخیره شود: بدون آن، فایلی که با «ماه/روز» ساخته شده
+                    //    هنگام واردات «سال» تفسیر می‌شود و همهٔ محدوده‌های نوزادی غلط می‌شوند.
+                    const data = { sex, age, ageUnit, pregnant, conditions, vals, prevVals: compareMode ? prevVals : undefined };
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.href = url; a.download = "khanesh-results.json"; a.click();
-                    URL.revokeObjectURL(url);
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
                   }}>خروجی JSON</button>
                   <label style={s.exportBtn}>
                     واردات JSON
@@ -626,15 +816,20 @@ export default function App() {
                           const d = JSON.parse(reader.result);
                           if (d.sex) setSex(d.sex);
                           if (d.age) setAge(d.age);
+                          if (d.ageUnit) setAgeUnit(d.ageUnit);
+                          if (typeof d.pregnant === "boolean") setPregnant(d.pregnant);
+                          if (Array.isArray(d.conditions)) setConditions(d.conditions);
                           if (d.vals) setVals(d.vals);
                           if (d.prevVals) { setPrevVals(d.prevVals); setCompareMode(true); }
+                          setIoError("");
                           setShow(true);
-                        } catch { alert("فایل معتبر نیست"); }
+                        } catch { setIoError("فایل معتبر نیست"); }
                       };
                       reader.readAsText(f);
                     }} />
                   </label>
                 </div>
+                {ioError && <div style={s.errBox}>{ioError}</div>}
               </div>
               {rows.map((row) => {
                 const m = REF[row.k], r = m.range(sex, months), st = ST[row.status];
@@ -695,45 +890,145 @@ export default function App() {
 
           <div
             onClick={() => fileRef.current?.click()}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileRef.current?.click(); } }}
+            role="button"
+            tabIndex={0}
+            aria-label="آپلود عکس برگه آزمایش"
             style={s.aiDropzone}
           >
-            {imageDataUrl ? (
-              <div style={s.aiPreviewWrap}>
-                <img src={imageDataUrl} alt="برگه" style={s.aiPreview} />
-                <span style={s.aiFileName}>{imageName} — برای تغییر کلیک کن</span>
+            {images.length === 0 ? (
+              <div style={s.aiDropInner}>
+                <span style={{ fontSize: 28 }}>📄</span>
+                <span style={s.aiDropText}>
+                  {imgBusy ? "در حال آماده‌سازی…" : "عکس برگه آزمایش را آپلود کن (اختیاری)"}
+                </span>
+                <span style={{ ...s.aiDropText, fontSize: 12, opacity: 0.7 }}>
+                  اگر برگه چند صفحه است، همه را با هم انتخاب کنید
+                </span>
               </div>
             ) : (
               <div style={s.aiDropInner}>
-                <span style={{ fontSize: 28 }}>📄</span>
-                <span style={s.aiDropText}>عکس برگه آزمایش را آپلود کن (اختیاری)</span>
+                <span style={s.aiDropText}>
+                  {images.length} صفحه انتخاب شد — برای افزودن کلیک کنید
+                </span>
+                <span style={{ ...s.aiDropText, fontSize: 12, opacity: 0.7 }}>
+                  {(images.reduce((a, b) => a + b.origKB, 0) / 1024).toFixed(1)} مگابایت ←{" "}
+                  {(images.reduce((a, b) => a + b.sizeKB, 0) / 1024).toFixed(1)} مگابایت پس از فشرده‌سازی
+                </span>
               </div>
             )}
           </div>
-          <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ display: "none" }} />
 
-          <button onClick={runAI} disabled={aiLoading} style={{ ...s.aiBtn, opacity: aiLoading ? 0.6 : 1 }}>
-            {aiLoading ? "در حال تحلیل با هوش مصنوعی..." : "✨ تفسیر هوشمند با AI"}
+          {images.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+              {images.map((img, idx) => (
+                <div key={img.id} style={s.aiPageRow}>
+                  <img src={img.dataUrl} alt="" style={s.aiPageThumb} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={s.aiPageLabel}>صفحه {idx + 1}</div>
+                    <div style={s.aiPageSize}>{img.sizeKB} کیلوبایت</div>
+                  </div>
+                  <button type="button" onClick={() => moveImage(idx, -1)} disabled={idx === 0}
+                          style={{ ...s.aiPageBtn, opacity: idx === 0 ? 0.25 : 1 }}>▲</button>
+                  <button type="button" onClick={() => moveImage(idx, +1)} disabled={idx === images.length - 1}
+                          style={{ ...s.aiPageBtn, opacity: idx === images.length - 1 ? 0.25 : 1 }}>▼</button>
+                  <button type="button" onClick={() => removeImage(img.id)} style={s.aiPageDel}>حذف</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input ref={fileRef} type="file" accept="image/*" multiple onChange={onFile} style={{ display: "none" }} />
+
+          <button onClick={runAI} disabled={aiLoading || imgBusy}
+                  style={{ ...s.aiBtn, opacity: aiLoading || imgBusy ? 0.6 : 1 }}>
+            {aiLoading
+              ? `در حال تحلیل${images.length > 1 ? ` ${images.length} صفحه` : ""}… (ممکن است چند دقیقه طول بکشد)`
+              : images.length > 1
+              ? `✨ تفسیر ${images.length} صفحه با AI`
+              : "✨ تفسیر هوشمند با AI"}
           </button>
 
           {aiError && <div style={s.aiErr}>{aiError}</div>}
 
-          {aiResult && !aiResult.error && (
+          {/* سرور موقع شکست parse با وضعیت ۲۰۰ برمی‌گرداند
+              {parseError:true, raw, extracted_tests}.
+              بدون این شاخه، کاربر مقادیر را می‌دید ولی نمی‌فهمید
+              تفسیر اصلاً تولید نشده — سکوت بدتر از خطاست. */}
+          {aiResult?.parseError && (
             <div style={s.aiResultWrap}>
+              <div style={s.aiParseWarn}>
+                ⚠️ مقادیر از عکس خوانده شد، ولی تفسیر کامل تولید نشد.
+                لطفاً دوباره تلاش کنید. مقادیر زیر معتبرند.
+              </div>
+
+              {aiResult.pages?.failed?.length > 0 && (
+                <div style={s.aiPageWarn}>
+                  صفحه {aiResult.pages.failed.join(" و ")} خوانده نشد
+                  ({aiResult.pages.read} از {aiResult.pages.total} صفحه خوانده شد).
+                </div>
+              )}
+
+              {aiResult.extracted_tests?.length > 0 && (
+                <div style={s.aiBlock}>
+                  <div style={s.aiBlockTitle}>مقادیر خوانده‌شده از عکس</div>
+                  {aiResult.extracted_tests.map((t, i) => (
+                    <div key={i} style={s.aiExtract}>
+                      <b>{t.test}</b>: {t.value}{" "}
+                      {t.reference && <span style={{ color: "#a39a88" }}>(مرجع: {t.reference})</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {aiResult.ocr_warnings?.length > 0 && (
+                <div style={s.aiPageWarn}>
+                  {aiResult.ocr_warnings.map((w, i) => <div key={i}>• {w}</div>)}
+                </div>
+              )}
+
+              <button onClick={runAI} disabled={aiLoading} style={{ ...s.aiBtn, marginTop: 10 }}>
+                تلاش دوباره برای تفسیر
+              </button>
+            </div>
+          )}
+
+          {aiResult && !aiResult.error && !aiResult.parseError && (
+            <ResultErrorBoundary>
+            <div style={s.aiResultWrap}>
+              {aiResult.pages?.failed?.length > 0 && (
+                <div style={s.aiPageWarn}>
+                  ⚠️ صفحه {aiResult.pages.failed.join(" و ")} خوانده نشد. تفسیر فقط بر اساس{" "}
+                  {aiResult.pages.read} صفحه از {aiResult.pages.total} صفحه است. برای نتیجهٔ کامل،
+                  از صفحات ناخوانا دوباره عکس بگیرید.
+                </div>
+              )}
+              {aiResult.pages?.total > 1 && !aiResult.pages?.failed?.length && (
+                <div style={s.aiPageOk}>✓ هر {aiResult.pages.total} صفحه خوانده شد</div>
+              )}
+              {asList(aiResult.ocr_warnings).length > 0 && (
+                <div style={s.aiPageWarn}>
+                  {asList(aiResult.ocr_warnings).map((w, i) => <div key={i}>• {asText(w)}</div>)}
+                </div>
+              )}
               {aiResult.has_critical && (
                 <div style={s.aiCritBanner}>🚨 موارد بحرانی شناسایی شد — مراجعه فوری به پزشک توصیه می‌شود.</div>
               )}
               {aiResult.summary && (
                 <div style={s.aiBlock}>
                   <div style={s.aiBlockTitle}>خلاصه</div>
-                  <p style={s.aiText}>{aiResult.summary}</p>
+                  <p style={s.aiText}>{asText(aiResult.summary)}</p>
                 </div>
               )}
-              {aiResult.extracted_tests?.length > 0 && (
+              {asList(aiResult.extracted_tests).length > 0 && (
                 <div style={s.aiBlock}>
-                  <div style={s.aiBlockTitle}>مقادیر خوانده‌شده از عکس</div>
-                  {aiResult.extracted_tests.map((t, i) => (
+                  <div style={s.aiBlockTitle}>
+                    مقادیر خوانده‌شده از عکس
+                    {aiResult.pages?.total > 1 ? ` (${aiResult.pages.total} صفحه)` : ""}
+                  </div>
+                  {asList(aiResult.extracted_tests).map((t, i) => (
                     <div key={i} style={s.aiExtract}>
-                      <b>{t.test}</b>: {t.value} {t.reference && <span style={{ color: "#a39a88" }}>(مرجع: {t.reference})</span>}
+                      <b>{asText(t?.test)}</b>: {asText(t?.value)} {t?.reference && <span style={{ color: "#a39a88" }}>(مرجع: {asText(t.reference)})</span>}
                     </div>
                   ))}
                 </div>
@@ -741,19 +1036,40 @@ export default function App() {
               {aiResult.interpretation && (
                 <div style={s.aiBlock}>
                   <div style={s.aiBlockTitle}>تفسیر</div>
-                  <p style={s.aiText}>{aiResult.interpretation}</p>
+                  <p style={s.aiText}>{asText(aiResult.interpretation)}</p>
                 </div>
               )}
-              {aiResult.general_recommendations?.length > 0 && (
+              {asList(aiResult.general_recommendations).length > 0 && (
                 <div style={s.aiBlock}>
                   <div style={s.aiBlockTitle}>توصیه‌ها</div>
                   <ul style={s.aiRecList}>
-                    {aiResult.general_recommendations.map((r, i) => <li key={i} style={s.aiRecItem}>{r}</li>)}
+                    {asList(aiResult.general_recommendations).map((r, i) => <li key={i} style={s.aiRecItem}>{asText(r)}</li>)}
                   </ul>
                 </div>
               )}
-              {aiResult.disclaimer && <div style={s.aiDisclaimer}>{aiResult.disclaimer}</div>}
+              {asList(aiResult.sources).length > 0 && (
+                <div style={s.aiBlock}>
+                  <div style={s.aiBlockTitle}>منابع</div>
+                  <div style={s.aiSourceNote}>
+                    اطلاعات مرجع این تفسیر از MedlinePlus (کتابخانهٔ ملی پزشکی آمریکا) گرفته شده:
+                  </div>
+                  <ul style={s.aiRecList}>
+                    {asList(aiResult.sources).map((u, i) => {
+                      const href = asText(u);
+                      return (
+                        <li key={i}>
+                          <a href={href} target="_blank" rel="noopener noreferrer" style={s.aiSourceLink}>
+                            {href.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60)}
+                          </a>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {aiResult.disclaimer && <div style={s.aiDisclaimer}>{asText(aiResult.disclaimer)}</div>}
             </div>
+            </ResultErrorBoundary>
           )}
         </section>
 
@@ -814,7 +1130,6 @@ const s = {
   cellLabel: { fontSize: 12, fontWeight: 600, color: "#6f685b" },
   cellInput: { display: "flex", alignItems: "center", gap: 5 },
   smallInput: { width: "100%", padding: "7px", borderRadius: 8, border: "1.5px solid #d8d3c9", fontSize: 13.5, fontFamily: "inherit", outline: "none", textAlign: "center" },
-  unit: { fontSize: 10, color: "#a39a88", whiteSpace: "nowrap" },
   fa: { fontSize: 12 },
   refHint: { fontSize: 10.5, color: "#a39a88" },
   cellErr: { fontSize: 10.5, color: "#dc3545", lineHeight: 1.5 },
@@ -843,9 +1158,37 @@ const s = {
   aiDropzone: { border: "2px dashed #d8d3c9", borderRadius: 12, padding: 16, cursor: "pointer", background: "#fdfbf6", marginBottom: 12 },
   aiDropInner: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, textAlign: "center" },
   aiDropText: { fontSize: 13, color: "#6f685b", fontWeight: 600 },
-  aiPreviewWrap: { display: "flex", flexDirection: "column", alignItems: "center", gap: 8 },
-  aiPreview: { maxWidth: "100%", maxHeight: 200, borderRadius: 10, border: "1px solid #eee6d8" },
-  aiFileName: { fontSize: 12, color: "#8a8272" },
+
+  // ---- چند صفحه ----
+  aiPageRow: {
+    display: "flex", alignItems: "center", gap: 8,
+    border: "1px solid #e6e1d6", borderRadius: 10, padding: 8, background: "#fff",
+  },
+  aiPageThumb: { width: 52, height: 52, borderRadius: 6, objectFit: "cover", flexShrink: 0 },
+  aiPageLabel: { fontSize: 13, fontWeight: 600, color: "#4a4436" },
+  aiPageSize: { fontSize: 11, color: "#a39a88" },
+  aiPageBtn: {
+    border: "none", background: "transparent", cursor: "pointer",
+    padding: "2px 6px", fontSize: 13, color: "#8a8272",
+  },
+  aiPageDel: {
+    border: "none", background: "transparent", cursor: "pointer",
+    padding: "2px 6px", fontSize: 12, color: "#c0392b",
+  },
+  aiSourceNote: { fontSize: 12, color: "#8a8272", marginBottom: 6, lineHeight: 1.7 },
+  aiSourceLink: { fontSize: 12.5, color: "#4a7c59", textDecoration: "none", wordBreak: "break-all" },
+  aiParseWarn: {
+    background: "#fdece8", border: "1px solid #f0c0b4", borderRadius: 10,
+    padding: "10px 12px", fontSize: 13, color: "#8a3b28", lineHeight: 1.8, marginBottom: 10,
+  },
+  aiPageWarn: {
+    background: "#fdf6e3", border: "1px solid #e8d9a8", borderRadius: 10,
+    padding: "10px 12px", fontSize: 13, color: "#7a5c00", lineHeight: 1.8, marginBottom: 10,
+  },
+  aiPageOk: {
+    background: "#f0f7f2", border: "1px solid #cfe4d6", borderRadius: 10,
+    padding: "6px 12px", fontSize: 12, color: "#3d6b4f", marginBottom: 10,
+  },
   aiBtn: { width: "100%", padding: 13, borderRadius: 12, border: "none", background: "linear-gradient(135deg, #2f6f6b, #3d8f89)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
   aiErr: { marginTop: 12, padding: "10px 12px", borderRadius: 10, background: "#f8d7da", color: "#842029", fontSize: 13, lineHeight: 1.7 },
   aiResultWrap: { marginTop: 16, display: "flex", flexDirection: "column", gap: 14 },
