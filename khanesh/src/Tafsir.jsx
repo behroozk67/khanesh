@@ -492,7 +492,13 @@ export default function Tafsir() {
   const mountedRef = useRef(true);    // جلوگیری از setState روی کامپوننت unmount‌شده
 
   // اگر کاربر وسط درخواست از صفحه خارج شود، درخواست را لغو کن.
-  useEffect(() => () => { mountedRef.current = false; abortRef.current?.abort(); }, []);
+  // ⚠️ mountedRef را حتماً موقع mount دوباره true کن — وگرنه در StrictMode (dev)
+  //    چرخهٔ mount→unmount→mount آن را برای همیشه false می‌گذارد و نتیجه/لودینگ
+  //    هرگز ست نمی‌شود (چرخش بی‌پایان).
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; abortRef.current?.abort(); };
+  }, []);
 
   // سن به ماه (برای تشخیص نوزاد). اگر واحد سال باشد، ماه معادل آن.
   const months = ageInMonths(age, ageUnit);
