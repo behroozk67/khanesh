@@ -725,7 +725,8 @@ export const RULES = [
       if (!acidotic) return false;
       // اگر تصویر کتواسیدوز دیابتی کامل است (گلوکز بالا + کتون)،
       // به الگوی اختصاصی DKA واگذار کن که پیام دقیق‌تری دارد.
-      const gluHigh = t.GLU_F != null && t.GLU_F >= 250;
+      const gluHigh = (t.GLU_F != null && t.GLU_F >= 250) ||
+                      (t.GLU_RANDOM != null && t.GLU_RANDOM >= 250);
       const ketone = urinePositive(e, /ketone|کتون|hydroxybutyrate|بتاهیدروکسی/i);
       if (gluHigh && ketone) return false;
       return true;
@@ -742,6 +743,33 @@ export const RULES = [
     }),
   },
 
+  // ═══════════ شکاف آنیونی بالا ═══════════
+  // Na − (Cl + HCO3) > 12. قاعدهٔ افزایشی: اسیدوزِ با آنیون‌گپ بالا را حتی وقتی
+  // HCO3 فقط کمی پایین است می‌گیرد. اگر DKA/اسیدوز شدید (اورژانس، blocks_others)
+  // فعال باشند، این یافتهٔ this_week به‌طور خودکار زیر آن‌ها پنهان می‌شود.
+  {
+    id: "high_anion_gap",
+    match: (e) => {
+      const ag = e.indices.anion_gap_corr ?? e.indices.anion_gap;
+      return ag != null && ag > 12;
+    },
+    build: (e) => {
+      const ag = e.indices.anion_gap_corr ?? e.indices.anion_gap;
+      return {
+        pattern: "high_anion_gap",
+        urgency: "this_week",
+        headline: "شکاف آنیونی خون شما بالاتر از حد معمول است",
+        must_say:
+          `شکاف آنیونی (محاسبه‌ای از روی املاح خون) حدود ${ag} است، بالاتر از حد معمول (~۱۲). ` +
+          "این می‌تواند نشانهٔ تجمع اسید در بدن باشد — از علل شایع آن قند خیلی بالا (کتواسیدوز)، " +
+          "کاهش کار کلیه، یا اسید لاکتیک است. باید توسط پزشک بررسی شود.",
+        action: "این هفته با پزشک مطرح کنید. اگر تنفس تند، گیجی یا حال عمومی بد دارید، زودتر مراجعه کنید.",
+        suggest: ["بررسی توسط پزشک", "قند خون", "عملکرد کلیه", "لاکتات در صورت صلاحدید"],
+        warnings: [],
+      };
+    },
+  },
+
   // ═══════════ الکترولیت‌ها ═══════════
 
   // ── پتاسیم (مهم‌ترین: خطر آریتمی قلبی) ──
@@ -754,7 +782,7 @@ export const RULES = [
     build: (e) => {
       const t = val(e);
       const high = t.K >= 6.0;
-      const veryHigh = t.K >= 6.5;
+      const veryHigh = t.K >= 6.0;   // مقدار بحرانی/پنیک پتاسیم در اغلب آزمایشگاه‌ها ≥ ۶.۰ است
       const veryLow = t.K <= 2.5;
       const critical = veryHigh || veryLow;
       return {
@@ -790,6 +818,9 @@ export const RULES = [
       const t = val(e);
       const high = t.NA >= 155;
       const critical = t.NA >= 160 || t.NA <= 120;
+      const corrNote = e.indices.na_correction_applied
+        ? ` (به‌خاطر قند خیلی بالا تصحیح شده؛ اندازه‌گیری‌شده روی برگه ${e.indices.na_measured}.)`
+        : "";
       return {
         pattern: high ? "hypernatremia" : "hyponatremia",
         urgency: critical ? "emergency" : "this_week",
@@ -802,7 +833,8 @@ export const RULES = [
             ? "سدیم خون بالاتر از حد طبیعی است، که اغلب با کم‌آبی یا مشکل تعادل آب بدن مرتبط است. "
             : "سدیم خون پایین‌تر از حد طبیعی است، که می‌تواند علت‌های مختلفی داشته باشد. ") +
           "تغییر شدید سدیم می‌تواند بر مغز اثر بگذارد" +
-          (critical ? " و در این حد نیاز به رسیدگی فوری دارد." : " و باید بررسی شود."),
+          (critical ? " و در این حد نیاز به رسیدگی فوری دارد." : " و باید بررسی شود.") +
+          corrNote,
         action: critical
           ? "همین حالا به اورژانس مراجعه کنید. اگر گیجی، سردرد شدید یا تشنج رخ داد، فوری‌تر."
           : "این هفته با پزشک مطرح کنید.",
@@ -824,6 +856,9 @@ export const RULES = [
       const t = val(e);
       const high = t.CA >= 13;
       const critical = t.CA >= 14 || t.CA <= 6.5;
+      const corrNote = e.indices.ca_correction_applied
+        ? ` (این مقدار با آلبومین تصحیح شده؛ اندازه‌گیری‌شده روی برگه ${e.indices.ca_measured}.)`
+        : "";
       return {
         pattern: high ? "hypercalcemia" : "hypocalcemia",
         urgency: critical ? "emergency" : "this_week",
@@ -836,7 +871,8 @@ export const RULES = [
             ? "کلسیم خون بالاتر از حد طبیعی است. علت‌های مختلفی دارد و باید بررسی شود. "
             : "کلسیم خون پایین‌تر از حد طبیعی است. ") +
           "تغییر زیاد کلسیم می‌تواند بر عضلات، اعصاب و قلب اثر بگذارد" +
-          (critical ? " و در این حد نیاز به رسیدگی فوری دارد." : "."),
+          (critical ? " و در این حد نیاز به رسیدگی فوری دارد." : ".") +
+          corrNote,
         action: critical
           ? "همین حالا به اورژانس مراجعه کنید."
           : "این هفته با پزشک مطرح کنید. اگر گرفتگی عضلانی، بی‌حسی دور دهان یا تشنج دارید، زودتر.",
@@ -1046,15 +1082,32 @@ export const RULES = [
       const hgb = e.graded.find((g) => g.test === "HGB");
       return hgb?.abnormal && hgb.dir === "low" && t.MCV >= 80 && t.MCV <= 100;
     },
-    build: () => ({
-      pattern: "normocytic_anemia",
-      urgency: "this_week",
-      headline: "خون شما کم‌خونی نشان می‌دهد",
-      must_say: "گلبول‌ها اندازه طبیعی دارند ولی تعدادشان کم است. برای پیدا کردن علت چند آزمایش دیگر لازم است.",
-      action: "نوبت با پزشک بگیرید.",
-      suggest: ["رتیکولوسیت", "فریتین", "کراتینین", "CRP"],
-      warnings: [],
-    }),
+    build: (e) => {
+      // رتیکولوسیت کلید تفکیک کم‌خونیِ کم‌تولید از پرتخریب/خونریزی است.
+      const retic = e.graded.find((g) => g.test === "RETIC");
+      const reticHigh = retic?.abnormal && retic.dir === "high";
+      const reticLow = retic?.abnormal && retic.dir === "low";
+      let extra = "";
+      let suggest = ["رتیکولوسیت", "فریتین", "کراتینین", "CRP"];
+      if (reticHigh) {
+        extra = " شمارش رتیکولوسیت بالاست — یعنی مغز استخوان در حال جبران است؛ این بیشتر به خونریزی یا تجزیهٔ گلبول‌ها (همولیز) می‌خورد.";
+        suggest = ["هاپتوگلوبین", "LDH", "بیلی‌روبین مستقیم و غیرمستقیم", "بررسی منبع خونریزی"];
+      } else if (reticLow) {
+        extra = " شمارش رتیکولوسیت پایین است — یعنی مغز استخوان پاسخ کافی نمی‌دهد؛ علت‌هایی مثل کمبود آهن/ویتامین، کم‌کاری کلیه یا مشکل مغز استخوان مطرح است.";
+        suggest = ["فریتین", "ویتامین B12 و فولات", "کراتینین", "بررسی توسط پزشک"];
+      }
+      return {
+        pattern: "normocytic_anemia",
+        urgency: "this_week",
+        headline: "خون شما کم‌خونی نشان می‌دهد",
+        must_say:
+          "گلبول‌ها اندازه طبیعی دارند ولی تعدادشان کم است." + extra +
+          " برای پیدا کردن علت چند آزمایش دیگر لازم است.",
+        action: "نوبت با پزشک بگیرید.",
+        suggest,
+        warnings: [],
+      };
+    },
   },
 
   // ═══════════ التهاب ═══════════
@@ -1089,7 +1142,10 @@ export const RULES = [
     id: "dka_pattern",
     match: (e) => {
       const t = val(e);
-      const gluHigh = t.GLU_F != null && t.GLU_F >= 250;
+      // قند بالا: ناشتا یا تصادفی — «BS/blood sugar» رایج‌ترین برچسب است و
+      // به GLU_RANDOM نگاشت می‌شود؛ اگر اینجا لحاظ نشود DKA با قند تصادفی جا می‌ماند.
+      const gluHigh = (t.GLU_F != null && t.GLU_F >= 250) ||
+                      (t.GLU_RANDOM != null && t.GLU_RANDOM >= 250);
       // بی‌کربنات پایین (اسیدوز)
       const hco3 = e.graded.find((g) => g.test === "HCO3");
       const hco3Low = hco3?.abnormal && hco3.dir === "low";
@@ -1132,14 +1188,17 @@ export const RULES = [
       const t = val(e);
       return (t.GLU_F != null && t.GLU_F >= 100) ||
              (t.HBA1C != null && t.HBA1C >= 5.7) ||
-             (t.GLU_2H != null && t.GLU_2H >= 140);
+             (t.GLU_2H != null && t.GLU_2H >= 140) ||
+             // قند تصادفی معیار پیش‌دیابت ندارد؛ فقط ≥۲۰۰ (معیار دیابت ADA) لحاظ می‌شود
+             (t.GLU_RANDOM != null && t.GLU_RANDOM >= 200);
     },
     build: (e) => {
       const t = val(e);
-      // آستانه‌های ADA: ناشتا ≥۱۲۶، دو ساعته ≥۲۰۰، HbA1c ≥۶.۵ → دیابت
+      // آستانه‌های ADA: ناشتا ≥۱۲۶، دو ساعته ≥۲۰۰، HbA1c ≥۶.۵، تصادفی ≥۲۰۰ → دیابت
       const dm = (t.GLU_F != null && t.GLU_F >= 126) ||
                  (t.HBA1C != null && t.HBA1C >= 6.5) ||
-                 (t.GLU_2H != null && t.GLU_2H >= 200);
+                 (t.GLU_2H != null && t.GLU_2H >= 200) ||
+                 (t.GLU_RANDOM != null && t.GLU_RANDOM >= 200);
       // HbA1c در کم‌خونی نامعتبر است
       const hgb = e.graded.find((g) => g.test === "HGB");
       const a1cBad = t.HBA1C != null && (hgb?.abnormal || t.MCV < 80 || t.MCV > 100);
@@ -1166,13 +1225,13 @@ export const RULES = [
     id: "hypoglycemia",
     match: (e) => {
       const t = val(e);
-      // فقط قند ناشتا؛ اگر قند تصادفی/دو ساعته پایین بود هم می‌گیریم
-      const g = t.GLU_F != null ? t.GLU_F : (t.GLU_2H != null ? t.GLU_2H : null);
+      // هر قندی که پایین باشد: ناشتا، دو ساعته، یا تصادفی
+      const g = t.GLU_F ?? t.GLU_2H ?? t.GLU_RANDOM ?? null;
       return g != null && g < 70;
     },
     build: (e) => {
       const t = val(e);
-      const g = t.GLU_F != null ? t.GLU_F : t.GLU_2H;
+      const g = t.GLU_F ?? t.GLU_2H ?? t.GLU_RANDOM;
       const severe = g < 54;   // سطح بالینی مهم
       return {
         pattern: severe ? "hypoglycemia_significant" : "hypoglycemia_mild",
@@ -1191,7 +1250,7 @@ export const RULES = [
         suggest: severe
           ? ["تکرار قند خون", "بررسی توسط پزشک", "اگر داروی دیابت مصرف می‌کنید حتماً بگویید"]
           : ["تکرار قند ناشتا"],
-        warnings: (t.GLU_F != null && t.GLU_F < 40)
+        warnings: (g != null && g < 40)
           ? ["⚠️ اگر واقعاً چنین قند پایینی دارید و علامت‌دار هستید، این وضعیت جدی است و نیاز به رسیدگی فوری دارد."]
           : [],
       };
@@ -1587,10 +1646,12 @@ export const RULES = [
     id: "kidney",
     match: (e) => {
       const cr = e.graded.find((g) => g.test === "CREAT");
-      if (!(cr?.abnormal && cr.dir === "high")) return false;
+      const crHigh = cr?.abnormal && cr.dir === "high";
+      const egfr = e.indices.egfr;
+      const egfrLow = egfr != null && egfr < 60;   // کراتینین طبیعی ولی eGFR پایین (سالمند/لاغر)
+      if (!crHigh && !egfrLow) return false;
       // اگر تصویر خاص‌تر (رابدومیولیز یا گلومرولونفریت) هست، به آن‌ها واگذار کن
       // تا پیام عمومی کلیه تکراری نشود.
-      const t = val(e);
       const ck = e.graded.find((g) => g.test === "CK");
       const ckVeryHigh = ck?.abnormal && ck.dir === "high" && ck.value > 1000;
       const bloodUrine = urinePositive(e, /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i);
@@ -1604,18 +1665,30 @@ export const RULES = [
     },
     build: (e) => {
       const cr = e.graded.find((g) => g.test === "CREAT");
+      const crHigh = cr?.abnormal && cr.dir === "high";
+      const egfr = e.indices.egfr;
       const ratio = e.indices.bun_cr;
       const prerenal = ratio != null && ratio > 20;
-      const crG = cr.ctcaeGrade;
+      const crG = cr?.ctcaeGrade ?? 0;
+      // فوریت بر پایهٔ eGFR (مرحله‌بندی CKD) یا شدت CTCAE کراتینین
+      const severe = crG >= 3 || (egfr != null && egfr < 15);          // G5
+      const moderate = crG >= 2 || (egfr != null && egfr < 45);        // G3b/G4
+      const mildEgfrOnly = !crHigh && egfr != null && egfr >= 45 && egfr < 60;  // G3a با کراتینین طبیعی
+      const urgency = severe ? "emergency" : moderate ? "this_week" : mildEgfrOnly ? "routine" : "this_week";
       return {
         pattern: prerenal ? "prerenal_pattern" : "kidney_impairment",
-        urgency: crG >= 3 ? "emergency" : "this_week",
-        blocks_others: crG >= 3,
-        headline: "شاخص کار کلیه بالاتر از حد طبیعی است",
+        urgency,
+        blocks_others: severe,
+        headline: crHigh
+          ? "شاخص کار کلیه بالاتر از حد طبیعی است"
+          : "شاخص تخمینی کار کلیه (eGFR) پایین‌تر از حد مطلوب است",
         must_say:
-          "یک آزمایش به‌تنهایی این را قطعی نمی‌کند — گاهی کم‌آبی یا یک داروی موقت هم این عدد را بالا می‌برد." +
+          (egfr != null ? `شاخص تخمینی کار کلیه (eGFR) حدود ${egfr} است. ` : "") +
+          "یک آزمایش به‌تنهایی این را قطعی نمی‌کند — گاهی کم‌آبی یا یک داروی موقت هم این عدد را جابه‌جا می‌کند." +
           (prerenal ? " نسبت اوره به کراتینین بالاست که به کم‌آبی اشاره دارد." : ""),
-        action: "با پزشک وقت بگیرید و بخواهید این آزمایش تکرار شود.",
+        action: mildEgfrOnly
+          ? "نوبت عادی با پزشک و تکرار آزمایش کلیه پس از چند هفته."
+          : "با پزشک وقت بگیرید و بخواهید این آزمایش تکرار شود.",
         suggest: ["تکرار کراتینین", "ACR ادرار", "الکترولیت‌ها"],
         warnings: ["داروهای مسکن مثل ایبوپروفن و ناپروکسن را بدون مشورت پزشک مصرف نکنید."],
       };

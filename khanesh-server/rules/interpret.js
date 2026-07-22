@@ -91,7 +91,7 @@ export const CLASSIFIERS = {
     label: 'تیروئید',
     bands: [
       { max: 0.5, tag: 'hyperthyroid', fa: 'پرکاری',  patient: 'غده تیروئید شما پرکارتر از حد معمول است' },
-      { max: 5,   tag: 'normal',       fa: 'طبیعی',   patient: null },
+      { max: 4.5, tag: 'normal',       fa: 'طبیعی',   patient: null },  // حد بالا از ۵ به ۴.۵
       { max: Infinity, tag: 'hypothyroid', fa: 'کم‌کاری', patient: 'غده تیروئید شما کندتر از حد معمول کار می‌کند' },
     ],
     note: 'آشکار یا تحت‌بالینی بودن را FT4 مشخص می‌کند، نه شدت TSH',

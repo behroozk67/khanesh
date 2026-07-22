@@ -48,6 +48,10 @@ export const ADULT_REFS = {
   GLU_F:   { both: [70, 110],  unit: 'mg/dL' },
   GLU_2H:  { both: [70, 140],  unit: 'mg/dL' },  // قند دو ساعته (بعد غذا) — طبیعی < 140
   GLU_RANDOM: { both: [70, 140], unit: 'mg/dL' },  // قند تصادفی (غیرناشتا)
+  // HbA1c بزرگسال — ADA: طبیعی < 5.7٪، پیش‌دیابت 5.7–6.4، دیابت ≥ 6.5.
+  // ⚠️ بدون این ردیف، getRef برای بزرگسال null می‌داد و HbA1c هرگز
+  //    درجه‌بندی نمی‌شد؛ در نتیجه الگوی قند برای بزرگسالان آن را نادیده می‌گرفت.
+  HBA1C:   { both: [4, 5.6],    unit: '%' },
   URIC:    { M: [4, 8.5], F: [2.7, 7.3], unit: 'mg/dL' },
   ALB:     { both: [3.2, 4.5], unit: 'g/dL' },
   TP:      { both: [6, 7.8],   unit: 'g/dL' },
@@ -60,7 +64,7 @@ export const ADULT_REFS = {
   TSAT:    { both: [20, 55],   unit: '%' },
   B12:     { both: [160, 950], unit: 'pg/mL' },
   FOLATE:  { both: [3.5, 999], unit: 'ng/mL' },  // ≥3.5
-  TSH:     { both: [0.5, 5],   unit: 'µU/mL' },
+  TSH:     { both: [0.5, 4.5], unit: 'µU/mL' },  // حد بالا از ۵ به ۴.۵ (استاندارد امروزی آزمایشگاه‌ها)
   FT4:     { both: [0.9, 2.3], unit: 'ng/dL' },
   FT3:     { both: [2.8, 4.4], unit: 'pg/mL' },
   T3:      { both: [80, 200],  unit: 'ng/dL' },
@@ -110,6 +114,24 @@ export function esrRef(sex, age) {
 // سن نامعلوم (null) → محدودهٔ بالغ؛ در غیر این صورت `null < 2` به‌اشتباه محدودهٔ نوزادی می‌داد.
 export function creatRef(age) {
   return (age != null && age < 2) ? [0.3, 0.6] : [0.6, 1.2];
+}
+
+// eGFR — CKD-EPI 2021 (بدون ضریب نژاد). فقط بزرگسال (≥ ۱۸).
+// کراتینین تنها سن/جنس/تودهٔ عضلانی را نادیده می‌گیرد؛ eGFR این‌ها را لحاظ می‌کند.
+// scr بر حسب mg/dL. خروجی: mL/min/1.73m² (گرد شده).
+export function ckdEpiEgfr(scr, age, sex) {
+  if (scr == null || age == null || !sex) return null;
+  const female = sex === 'F';
+  const k = female ? 0.7 : 0.9;
+  const a = female ? -0.241 : -0.302;
+  const ratio = scr / k;
+  const egfr =
+    142 *
+    Math.pow(Math.min(ratio, 1), a) *
+    Math.pow(Math.max(ratio, 1), -1.200) *
+    Math.pow(0.9938, age) *
+    (female ? 1.012 : 1);
+  return Math.round(egfr);
 }
 
 import { getPedRef, isPediatricRCPCH } from './refs_ped.js';

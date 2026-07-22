@@ -8,8 +8,14 @@
 //   ۴. استنتاج سن و جنسیت
 // ============================================================
 
-import { getRef, getRefSource } from "./refs.js";
+import { getRef, getRefSource, ckdEpiEgfr } from "./refs.js";
 import { evaluate } from "./grade.js";
+
+// بیشترین مقدار قندِ موجود (ناشتا/تصادفی/دوساعته) — برای تصحیح سدیم
+function maxGlucose(tests) {
+  const vals = [tests.GLU_F, tests.GLU_RANDOM, tests.GLU_2H].filter((v) => v != null);
+  return vals.length ? Math.max(...vals) : null;
+}
 
 // ---------- نرمال‌سازی نام ----------
 function norm(s) {
@@ -379,6 +385,34 @@ export function ocrToEngineInput(ocr) {
 export function runEngine(ocr) {
   const { tests, qual, unmapped, diffFailed, sex, age } = ocrToEngineInput(ocr);
 
+  // ═══ تصحیح‌های مشتق (پیش از درجه‌بندی، تا CTCAE و الگوها روی مقدار درست کار کنند) ═══
+  const derived = {};
+
+  // R1 — کلسیم تصحیح‌شده با آلبومین: Ca_corr = Ca + 0.8×(4.0 − Alb[g/dL]).
+  //   در هیپوآلبومینمی کلسیم توتال کاذب پایین می‌شود؛ CTCAE هم کلسیم تصحیح‌شده می‌خواهد.
+  if (tests.CA != null && tests.ALB != null) {
+    const caCorr = +(tests.CA + 0.8 * (4.0 - tests.ALB)).toFixed(1);
+    derived.ca_measured = tests.CA;
+    derived.ca_corrected = caCorr;
+    if (Math.abs(caCorr - tests.CA) >= 0.3) {
+      tests.CA = caCorr;                    // درجه‌بندی و الگو روی مقدار تصحیح‌شده
+      derived.ca_correction_applied = true;
+    }
+  }
+
+  // R6 — سدیم تصحیح‌شده در هایپرگلیسمی: Na_corr = Na + 0.024×(Glu − 100) (Hillier).
+  //   در قند خیلی بالا سدیم اندازه‌گیری‌شده کاذب پایین می‌شود (pseudohyponatremia).
+  const gluForNa = maxGlucose(tests);
+  if (tests.NA != null && gluForNa != null && gluForNa > 250) {
+    const naCorr = +(tests.NA + 0.024 * (gluForNa - 100)).toFixed(0);
+    derived.na_measured = tests.NA;
+    derived.na_corrected = naCorr;
+    if (Math.abs(naCorr - tests.NA) >= 3) {
+      tests.NA = naCorr;
+      derived.na_correction_applied = true;
+    }
+  }
+
   const graded = [];
   const noRef = [];
 
@@ -407,6 +441,20 @@ export function runEngine(ocr) {
     const ALP_ULN = getRef("ALP", sex, age)?.[1];
     if (ALT_ULN && ALP_ULN) idx.r_ratio = +((tests.ALT / ALT_ULN) / (tests.ALP / ALP_ULN)).toFixed(1);
   }
+  // R2 — آنیون‌گپ: Na − (Cl + HCO3). با سدیمِ اندازه‌گیری‌شده (نه تصحیح‌شده) محاسبه می‌شود.
+  if (tests.NA != null && tests.CL != null && tests.HCO3 != null) {
+    const naForAg = derived.na_measured ?? tests.NA;
+    const ag = naForAg - (tests.CL + tests.HCO3);
+    idx.anion_gap = +ag.toFixed(1);
+    // تصحیح آلبومین (هر ۱ g/dL افت آلبومین ≈ ۲.۵ کاهش کاذب آنیون‌گپ)
+    if (tests.ALB != null) idx.anion_gap_corr = +(ag + 2.5 * (4.0 - tests.ALB)).toFixed(1);
+  }
+  // R3 — eGFR با CKD-EPI 2021 (فقط بزرگسال؛ اطفال فرمول متفاوت دارند)
+  if (tests.CREAT != null && age != null && age >= 18 && sex) {
+    idx.egfr = ckdEpiEgfr(tests.CREAT, age, sex);
+  }
+  // تصحیح‌های مشتق را برای مصرف الگوها در indices بگذار
+  Object.assign(idx, derived);
 
   return {
     sex, age,
