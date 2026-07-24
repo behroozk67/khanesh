@@ -13,7 +13,7 @@ import { evaluate } from "./grade.js";
 import { runEngine } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
 import { buildEngineFallbackResult, buildEngineRecommendations } from "./prompt.js";
-import { extractMedlineTerms, matchesMedlineKey } from "./medline.js";
+import { extractMedlineTerms, matchesMedlineKey, TEST_MEDLINE_MAP } from "./medline.js";
 
 // ---------- A1: کراتینین با سن نامعلوم ----------
 test("A1: creatRef با سن null محدودهٔ بالغ می‌دهد نه نوزادی", () => {
@@ -23,9 +23,11 @@ test("A1: creatRef با سن null محدودهٔ بالغ می‌دهد نه ن�
   assert.deepEqual(creatRef(40), [0.6, 1.2]);
 });
 
-test("A1: getRef('CREAT') با سن null → بالغ", () => {
+test("A1: getRef('CREAT') با سن null → بالغِ جنس‌محور", () => {
+  // کراتینین اکنون جنس‌محور است (زنان تودهٔ عضلانی کمتر → کف پایین‌تر).
   assert.deepEqual(getRef("CREAT", "M", null), [0.6, 1.2]);
-  assert.deepEqual(getRef("CREAT", "F", null), [0.6, 1.2]);
+  assert.deepEqual(getRef("CREAT", "F", null), [0.5, 1.1]);
+  assert.deepEqual(getRef("CREAT", null, null), [0.6, 1.2]);  // جنس نامعلوم → بازهٔ بازتر
 });
 
 test("A1: کراتینین ۱.۰ با سن نامعلوم غیرطبیعی شمرده نمی‌شود", () => {
@@ -294,4 +296,354 @@ test("R8: TSH ۴.۷ اکنون غیرطبیعی (کم‌کاری تحت‌بال
   const e = runEngine({ patient: { age: 35, sex: "F" }, tests: [{ name: "TSH", value: "4.7" }] });
   const tsh = e.graded.find((g) => g.test === "TSH");
   assert.equal(tsh.abnormal, true, "۴.۷ اکنون بالای حد ۴.۵ است");
+});
+
+// ---------- U1: pH ادرار با pH خون اشتباه گرفته می‌شد (اورژانس کاذب) ----------
+// برگهٔ واقعی کاربر: فقط pH نگاشت شد → severe_acidosis → «اورژانس» کاذب.
+const URINE_SHEET = [
+  { name: "Color", value: "Yellow" },
+  { name: "Appearance", value: "Clear" },
+  { name: "Specific Gravity", value: "1.015" },
+  { name: "pH", value: "5" },
+  { name: "Protein", value: "Negative" },
+  { name: "Glucose", value: "Negative" },
+  { name: "Blood/Hgb", value: "Negative" },
+  { name: "Bilirubin", value: "Negative" },
+  { name: "Casts", value: "Negative" },
+  { name: "Crystals", value: "Negative" },
+];
+
+test("U1: pH ادرار ۵ دیگر pH خون خوانده نمی‌شود و اورژانس کاذب نمی‌سازد", () => {
+  const e = runEngine({ patient: { age: 30, sex: "F" }, tests: URINE_SHEET });
+  assert.equal(e.graded.find((g) => g.test === "PH"), undefined, "pH نباید به‌عنوان pH خون درجه‌بندی شود");
+  assert.ok("Urine pH" in e.qual, "pH باید به‌عنوان pH ادرار در qual بنشیند");
+  const p = runPatterns(e);
+  assert.ok(!p.findings.some((f) => f.pattern === "severe_acidosis"), "نباید اسیدوز شدید بدهد");
+  assert.equal(p.has_critical, false, "نباید اورژانس کاذب بسازد");
+});
+
+test("U1: pH واقعی خون (۷.۲) همچنان درست درجه‌بندی می‌شود", () => {
+  const e = runEngine({
+    patient: { age: 60, sex: "M" },
+    tests: [{ name: "pH", value: "7.2" }, { name: "HCO3", value: "14" }],
+  });
+  const ph = e.graded.find((g) => g.test === "PH");
+  assert.ok(ph, "pH در دامنهٔ خون باید به‌عنوان pH خون بماند");
+  assert.equal(ph.abnormal, true);
+  const p = runPatterns(e);
+  assert.ok(p.findings.some((f) => f.pattern === "severe_acidosis"), "اسیدوز واقعی باید تشخیص داده شود");
+});
+
+test("U1: WBC/RBC ادراری با واحد /hpf شمارش خون خوانده نمی‌شوند", () => {
+  const e = runEngine({
+    patient: { age: 30, sex: "F" },
+    tests: [
+      ...URINE_SHEET,
+      { name: "WBC", value: "2", unit: "/hpf" },
+      { name: "RBC", value: "1", unit: "/hpf" },
+    ],
+  });
+  assert.equal(e.graded.find((g) => g.test === "WBC"), undefined, "WBC ادراری نباید WBC خون شود");
+  assert.equal(e.graded.find((g) => g.test === "RBC"), undefined, "RBC ادراری نباید RBC خون شود");
+  const p = runPatterns(e);
+  assert.equal(p.has_critical, false);
+});
+
+test("U1: برگهٔ ترکیبی (CBC + ادرار) تست‌های خون را از دست نمی‌دهد", () => {
+  // اگر یک صفحه هم CBC داشته باشد هم ادرار، نباید WBC/RBC/HGB خون ادراری تلقی شوند.
+  const e = runEngine({
+    patient: { age: 30, sex: "F" },
+    tests: [
+      { name: "Color", value: "Yellow" }, { name: "Specific Gravity", value: "1.015" },
+      { name: "WBC", value: "6.2" }, { name: "RBC", value: "4.7" },
+      { name: "Hgb", value: "13" }, { name: "MCV", value: "88" }, { name: "PLT", value: "250" },
+    ],
+  });
+  assert.ok(e.graded.find((g) => g.test === "WBC"), "WBC خون باید حفظ شود");
+  assert.ok(e.graded.find((g) => g.test === "HGB"), "هموگلوبین خون باید حفظ شود");
+  assert.ok(e.graded.find((g) => g.test === "PLT"), "پلاکت باید حفظ شود");
+});
+
+test("U1: پروتئین/خون ادرار حالا الگوهای ادرار را فعال می‌کنند (قبلاً گم می‌شدند)", () => {
+  const e = runEngine({
+    patient: { age: 30, sex: "F" },
+    tests: [
+      { name: "Color", value: "Yellow" }, { name: "Appearance", value: "Turbid" },
+      { name: "Specific Gravity", value: "1.020" }, { name: "Casts", value: "Negative" },
+      { name: "Protein", value: "+2" },
+    ],
+  });
+  const p = runPatterns(e);
+  assert.ok(p.findings.some((f) => String(f.pattern).startsWith("proteinuria")),
+    "پروتئین ادرار +۲ باید الگوی پروتئینوری بدهد");
+});
+
+// ═══ M1: ورود دستی هم باید از موتور رد شود ═══
+// باگ واقعی: هر درخواست متنی (ورود دستی) از مسیر قدیم LLM-only می‌رفت و موتور
+// اصلاً اجرا نمی‌شد. نتیجه: Hb=9.2 در زن ۳۰ ساله — که موتور آن را CTCAE گرید ۲ و
+// فوریت this_week می‌داند — در UI به‌صورت «موارد بحرانی، مراجعه فوری» نشان داده شد.
+test("M1: پنل فقر آهنِ ورود دستی، فوریت this_week می‌دهد نه بحرانی", () => {
+  const e = runEngine({
+    patient: { age: "30 سال", sex: "زن" },
+    tests: [
+      { name: "Ferritin", value: 5, unit: "ng/mL" },
+      { name: "Iron", value: 28, unit: "µg/dL" },
+      { name: "TIBC", value: 480, unit: "µg/dL" },
+      { name: "Hb", value: 9.2, unit: "g/dL" },
+      { name: "MCV", value: 68, unit: "fl" },
+      { name: "MCH", value: 22, unit: "pg" },
+      { name: "RDW", value: 17, unit: "%" },
+    ],
+  });
+  const hgb = e.graded.find((g) => g.test === "HGB");
+  assert.equal(hgb.ctcaeGrade, 2, "Hb ۹.۲ در زن بالغ باید CTCAE گرید ۲ باشد");
+  const p = runPatterns(e);
+  assert.equal(p.overall_urgency, "this_week", "فقر آهن متوسط فوریت this_week دارد");
+  assert.equal(p.has_critical, false, "این پنل نباید بحرانی علامت بخورد");
+});
+
+// ═══ M2: گاردِ نگاشت نام‌های فرم ورود دستی ═══
+// فرانت label را با پرانتز فارسی می‌سازد («Hb (هموگلوبین)») که NAME_MAP را می‌شکند؛
+// به همین دلیل engineName() پرانتز را حذف می‌کند. اگر کسی label یا NAME_MAP را
+// طوری عوض کند که نگاشت بشکند، تست باید بیفتد — وگرنه تست بی‌صدا از تفسیر حذف می‌شود.
+test("M2: هر تست فرم ورود دستی به کلید موتور نگاشت می‌شود", () => {
+  const strip = (s) => s.replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+  const FORM = [
+    ["FBS (قند خون ناشتا)", 90, "mg/dL"], ["HbA1c", 5, "%"],
+    ["Cholesterol (کلسترول تام)", 180, "mg/dL"], ["TG (تری‌گلیسیرید)", 120, "mg/dL"],
+    ["HDL (کلسترول خوب)", 50, "mg/dL"], ["LDL (کلسترول بد)", 100, "mg/dL"],
+    ["Urea (اوره)", 30, "mg/dL"], ["BUN", 14, "mg/dL"],
+    ["Creatinine (کراتینین)", 0.9, "mg/dL"], ["Uric Acid (اسید اوریک)", 5, "mg/dL"],
+    ["AST (SGOT)", 25, "U/L"], ["ALT (SGPT)", 25, "U/L"],
+    ["ALP (آلکالن فسفاتاز)", 90, "U/L"], ["Bilirubin Total (بیلی‌روبین تام)", 0.8, "mg/dL"],
+    ["Albumin (آلبومین)", 4.2, "g/dL"], ["Amylase (آمیلاز)", 60, "U/L"], ["LDH", 180, "U/L"],
+    ["Na (سدیم)", 140, "mmol/L"], ["K (پتاسیم)", 4, "mmol/L"], ["Ca (کلسیم)", 9.5, "mg/dL"],
+    ["Phosphorus (فسفر)", 3.5, "mg/dL"], ["Mg (منیزیم)", 2, "mg/dL"],
+    ["Ferritin (فریتین)", 60, "ng/mL"], ["Iron (آهن)", 100, "µg/dL"], ["TIBC", 320, "µg/dL"],
+    ["WBC (گلبول سفید)", 7, "×10³/µL"], ["RBC (گلبول قرمز)", 4.6, "×10⁶/µL"],
+    ["Hb (هموگلوبین)", 13.5, "g/dL"], ["HCT (هماتوکریت)", 41, "%"],
+    ["MCV", 90, "fl"], ["MCH", 30, "pg"], ["MCHC", 34, "g/dL"],
+    ["PLT (پلاکت)", 250, "×10³/µL"], ["ESR", 10, "mm/hr"], ["RDW", 13, "%"],
+    ["PT", 12, "sec"], ["INR", 1, ""], ["PTT", 30, "sec"],
+    ["TSH", 2, "µIU/mL"], ["Total T4 (T4 تام)", 8, "µg/dL"],
+    ["Total T3 (ng/dL)", 120, "ng/dL"], ["Total T3 (nmol/L)", 2, "nmol/L"],
+    ["Free T4", 1.2, "ng/dL"], ["Vitamin D (25-OH)", 35, "ng/mL"],
+    ["Vitamin B12", 400, "pg/mL"], ["Folate (فولات)", 10, "ng/mL"],
+  ];
+  // کلید موتورِ موردانتظار برای هر label — تا نگاشتِ *غلط* هم گرفته شود،
+  // نه فقط نگاشت‌نشدن. (باگ واقعی: هر دو فیلد T3 روی کلید T3 می‌افتادند و
+  // مقدار SI طبیعی «پایین» کاذب می‌داد؛ تستِ «graded.length>0» آن را می‌پذیرفت.)
+  const EXPECT = {
+    "FBS": "GLU_F", "HbA1c": "HBA1C", "Cholesterol": "CHOL", "TG": "TG", "HDL": "HDL",
+    "LDL": "LDL", "Urea": "UREA_N", "BUN": "UREA_N", "Creatinine": "CREAT", "Uric Acid": "URIC",
+    "AST": "AST", "ALT": "ALT", "ALP": "ALP", "Bilirubin Total": "BILI_T", "Albumin": "ALB",
+    "Amylase": "AMYLASE", "LDH": "LDH", "Na": "NA", "K": "K", "Ca": "CA", "Phosphorus": "PHOS",
+    "Mg": "MG", "Ferritin": "FERRITIN", "Iron": "IRON", "TIBC": "TIBC", "WBC": "WBC", "RBC": "RBC",
+    "Hb": "HGB", "HCT": "HCT", "MCV": "MCV", "MCH": "MCH", "MCHC": "MCHC", "PLT": "PLT",
+    "ESR": "ESR", "RDW": "RDW_CV", "PT": "PT", "INR": "INR", "PTT": "APTT", "TSH": "TSH",
+    "Total T4": "T4", "Total T3": "T3", "Free T4": "FT4", "Vitamin D": "VIT_D",
+    "Vitamin B12": "B12", "Folate": "FOLATE",
+  };
+  const missed = [], wrong = [];
+  for (const [label, value, unit] of FORM) {
+    const e = runEngine({
+      patient: { age: "30 سال", sex: "زن" },
+      tests: [{ name: strip(label), value, unit }],
+    });
+    if (!e.graded.length) { missed.push(label); continue; }
+    const got = e.graded[0].test;
+    const want = EXPECT[strip(label)];
+    if (want && got !== want) wrong.push(`${label} → ${got} (انتظار ${want})`);
+  }
+  assert.deepEqual(missed, [], `این تست‌ها نگاشت نشدند و بی‌صدا حذف می‌شوند: ${missed.join("، ")}`);
+  assert.deepEqual(wrong, [], `نگاشت غلط: ${wrong.join("، ")}`);
+
+  // دو فیلد T3 (ng/dL و nmol/L) نباید هم‌دیگر را به مقدار غلط بیندازند:
+  // مقدار SI طبیعی باید طبیعی سنجیده شود، نه «پایین».
+  const t3si = runEngine({
+    patient: { age: "30 سال", sex: "زن" },
+    tests: [{ name: "Total T3", value: 2.2, unit: "nmol/L" }],
+  }).graded[0];
+  assert.equal(t3si.test, "T3");
+  assert.equal(t3si.abnormal, false, "T3 = 2.2 nmol/L طبیعی است، نباید «پایین» شود");
+});
+
+// ═══ M3: ویتامین D — آستانه‌های Endocrine Society 2011 ═══
+// «کافی» نباید غیرطبیعی علامت بخورد. قبلاً grade.js فقط تگ‌های
+// normal/normocytic/normochromic را طبیعی می‌شناخت، پس هر طبقه‌بند جدید
+// با تگ دیگر (مثل sufficient) بی‌صدا غیرطبیعی می‌شد.
+test("M3: ویتامین D کافی غیرطبیعی علامت نمی‌خورد، کمبود می‌خورد", () => {
+  const grade = (v) => {
+    const e = runEngine({
+      patient: { age: "30 سال", sex: "زن" },
+      tests: [{ name: "Vitamin D", value: v, unit: "ng/mL" }],
+    });
+    return e.graded[0];
+  };
+  assert.equal(grade(15).tag, "deficiency");
+  assert.equal(grade(25).tag, "insufficiency");
+  assert.equal(grade(55).tag, "sufficient");
+  assert.equal(grade(55).abnormal, false, "ویتامین D کافی نباید غیرطبیعی باشد");
+  assert.equal(grade(15).abnormal, true, "کمبود ویتامین D باید غیرطبیعی باشد");
+});
+
+// ═══ M4: سن باید از patient.age خوانده شود ═══
+// اگر فرانت سن را در سطح بالا بفرستد، موتور آن را null می‌گیرد و محدودهٔ
+// بزرگسال روی کودک اعمال می‌شود — یعنی Hb یک کودک ۶ ساله با مرجع بزرگسال سنجیده می‌شود.
+test("M4: سن کودک از patient.age خوانده می‌شود و محدودهٔ کودکان اعمال می‌شود", () => {
+  const child = runEngine({
+    patient: { age: "6 سال", sex: "زن" },
+    tests: [{ name: "Hb", value: 11.0, unit: "g/dL" }],
+  });
+  assert.equal(child.age, 6, "سن باید از patient.age خوانده شود");
+  const adult = runEngine({
+    patient: { age: "30 سال", sex: "زن" },
+    tests: [{ name: "Hb", value: 11.0, unit: "g/dL" }],
+  });
+  assert.notEqual(child.graded[0].range, adult.graded[0].range,
+    "محدودهٔ کودک و بزرگسال نباید یکی باشد");
+});
+
+// ═══ M5: آزمایشی که همین حالا داده شده دوباره پیشنهاد نمی‌شود ═══
+// باگ واقعی: در پنل فقر آهن با فریتین=۵، آهن=۲۸، TIBC=۴۸۰، توصیه‌ها شامل
+// «درخواست آزمایش فریتین از پزشک» بود — یعنی آزمایشی که در همان برگه هست.
+test("M5: پیشنهادِ آزمایشِ موجود حذف می‌شود ولی «تکرار» می‌ماند", () => {
+  const e = runEngine({
+    patient: { age: "30 سال", sex: "زن" },
+    tests: [
+      { name: "Ferritin", value: 5, unit: "ng/mL" },
+      { name: "Iron", value: 28, unit: "µg/dL" },
+      { name: "TIBC", value: 480, unit: "µg/dL" },
+      { name: "Hb", value: 9.2, unit: "g/dL" },
+      { name: "MCV", value: 68, unit: "fl" },
+    ],
+  });
+  const p = runPatterns(e);
+  const recs = buildEngineRecommendations(p, e);
+  for (const gone of ["درخواست آزمایش فریتین از پزشک",
+                      "درخواست آزمایش آهن سرم از پزشک",
+                      "درخواست آزمایش TIBC از پزشک"]) {
+    assert.ok(!recs.includes(gone), `نباید پیشنهاد شود چون موجود است: ${gone}`);
+  }
+  // تطبیق دقیق است، پس پیشنهادهای «تکرار …» نباید قربانی شوند
+  const repeats = buildEngineRecommendations(
+    { findings: [{ suggest: ["تکرار CBC", "پایش دوره‌ای TSH", "فریتین"] }] },
+    { graded: [{ test: "FERRITIN" }, { test: "TSH" }] }
+  );
+  assert.ok(repeats.includes("درخواست آزمایش تکرار CBC از پزشک"), "«تکرار CBC» باید بماند");
+  assert.ok(repeats.includes("درخواست آزمایش پایش دوره‌ای TSH از پزشک"), "«پایش دوره‌ای TSH» باید بماند");
+  assert.ok(!repeats.includes("درخواست آزمایش فریتین از پزشک"), "فریتینِ موجود باید حذف شود");
+});
+
+// ═══ M6: نگاشت MedlinePlus سند نامربوط نمی‌دهد ═══
+// باگ واقعی: ترم «Hemoglobin Test» در MedlinePlus وجود ندارد و جست‌وجو سند
+// «A1C» (پایش دیابت) را برمی‌گرداند — هم لینک بی‌ربط به کاربر نشان داده می‌شد،
+// هم خلاصهٔ A1C به‌عنوان مرجعِ هموگلوبین وارد پرامپت می‌شد.
+test("M6: هموگلوبین به A1C نگاشت نمی‌شود و LDH نگاشت نامربوط ندارد", () => {
+  assert.notEqual(TEST_MEDLINE_MAP["hemoglobin"], "Hemoglobin Test",
+    "ترمی که به سند A1C می‌رسید نباید بماند");
+  assert.equal(TEST_MEDLINE_MAP["hemoglobin"], "Blood Count Tests");
+  assert.equal(TEST_MEDLINE_MAP["هموگلوبین"], "Blood Count Tests");
+  assert.equal(TEST_MEDLINE_MAP["ldh"], undefined,
+    "LDH موضوع متناظر درستی در MedlinePlus ندارد — بی‌نگاشت می‌ماند");
+  // هیچ ترمی نباید به A1C برسد مگر خودِ HbA1c
+  for (const [k, term] of Object.entries(TEST_MEDLINE_MAP)) {
+    if (term === "A1C Test") assert.ok(/a1c|هموگلوبین a1c/i.test(k), `«${k}» نباید به A1C برود`);
+  }
+});
+
+// ═══ M7: قاعدهٔ الگوی ویتامین D ═══
+// باگ واقعی: ویتامین D به refs/interpret/NAME_MAP اضافه شد ولی نه به patterns.js،
+// پس کمبود D (شایع‌ترین اختلال این جمعیت) به unmatched_abnormal می‌افتاد و
+// به بیمار می‌گفت «برای این ترکیب توضیح آماده‌ای نداریم».
+test("M7: کمبود ویتامین D قاعدهٔ اختصاصی دارد، نه پیام «توضیح نداریم»", () => {
+  const e = runEngine({ patient: { age: "30 سال", sex: "زن" },
+    tests: [{ name: "Vitamin D", value: 12, unit: "ng/mL" }] });
+  const p = runPatterns(e);
+  assert.equal(p.findings[0]?.pattern, "vitamin_d_deficiency");
+  assert.equal(p.overall_urgency, "routine");
+  assert.ok(!/توضیح آماده/.test(p.findings[0]?.must_say || ""), "نباید پیام fallback بدهد");
+  // بالای ۱۵۰ سمّیت است، نه «کافی»؛ و باز هم قاعده دارد نه unmatched
+  const hi = runPatterns(runEngine({ patient: { age: "30 سال", sex: "زن" },
+    tests: [{ name: "Vitamin D", value: 200, unit: "ng/mL" }] }));
+  assert.equal(hi.findings[0]?.pattern, "vitamin_d_high");
+  // مقدار کافی هیچ یافته‌ای نمی‌سازد
+  const ok = runPatterns(runEngine({ patient: { age: "30 سال", sex: "زن" },
+    tests: [{ name: "Vitamin D", value: 45, unit: "ng/mL" }] }));
+  assert.equal(ok.findings.length, 0, "ویتامین D کافی نباید یافته بسازد");
+});
+
+// ═══ M8: برگهٔ بیوشیمی+ادرار، قندِ خون را به «قند ادرار» منحرف نمی‌کند ═══
+// باگ واقعی: صفحه‌ای با بیوشیمی و U/A ولی بدون CBC، «ادرارِ خالص» شناخته می‌شد و
+// Glucose=320 به qual (قند ادرار) می‌رفت — نه گرید می‌شد، نه در unmapped بود.
+test("M8: قندِ برگهٔ ترکیبی بیوشیمی+ادرار گرید می‌شود، نه قند ادرار", () => {
+  const e = runEngine({ patient: { age: 50, sex: "M" }, tests: [
+    { name: "Glucose", value: 320, unit: "mg/dL" },
+    { name: "Urea", value: 40 }, { name: "Creatinine", value: 1.1 },
+    { name: "Color", value: "Yellow" }, { name: "Specific Gravity", value: 1.02 },
+    { name: "Nitrite", value: "Negative" }, { name: "pH", value: 5.5 },
+  ]});
+  const glu = e.graded.find((g) => /GLU/.test(g.test));
+  assert.ok(glu && glu.value === 320, "قند ۳۲۰ باید گرید شود");
+  assert.ok(!Object.keys(e.qual).some((k) => /Urine Glucose|قند ادرار/i.test(k)),
+    "قند نباید به قند ادرار منحرف شود");
+});
+
+// ═══ M9: pH فقط با پنل گاز خون (ABG)، pH خون است ═══
+// باگ واقعی: pH ادرارِ ۷.۰ روی برگهٔ بدون ABG به‌عنوان pH خون سنجیده می‌شد و
+// الگوی severe_acidosis یک «🚨 اورژانس» کاذب می‌ساخت.
+test("M9: pH بدون ABG اورژانس اسیدوز کاذب نمی‌سازد، با ABG می‌سازد", () => {
+  const noAbg = runPatterns(runEngine({ patient: { age: 30, sex: "F" }, tests: [
+    { name: "pH", value: 7.0 }, { name: "Protein", value: "Negative" },
+    { name: "Glucose", value: "Negative" },
+  ]}));
+  assert.notEqual(noAbg.overall_urgency, "emergency", "pH تنها نباید اورژانس بسازد");
+  assert.ok(!noAbg.has_critical, "نباید بحرانی شود");
+
+  const withAbg = runPatterns(runEngine({ patient: { age: 60, sex: "M" }, tests: [
+    { name: "pH", value: 7.0 }, { name: "HCO3", value: 14 }, { name: "pCO2", value: 30 },
+  ]}));
+  assert.ok(withAbg.findings.some((f) => f.pattern === "severe_acidosis"),
+    "با ABG، اسیدوز واقعی باید تشخیص داده شود");
+});
+
+// ═══ M10: آشتی محدوده‌ها (ریسرچ منبع‌محور ۲۰۲۶-۰۷) ═══
+// هر assert یک موردی است که قبلاً حکمِ نرمال/غیرطبیعی را برعکس می‌کرد
+// (فرانت و بک‌اند مخالف بودند). منابع در REF_DIFF.md.
+test("M10: منیزیم ۱.۵ اکنون «پایین» است (نه نرمال)", () => {
+  const g = runEngine({ patient: { age: 30, sex: "F" },
+    tests: [{ name: "Mg", value: 1.5, unit: "mg/dL" }] }).graded[0];
+  assert.equal(g.test, "MG");
+  assert.equal(g.abnormal, true, "Mg 1.5 با محدودهٔ 1.7–2.2 پایین است");
+});
+test("M10: کلسیم ۹.۰ نرمال است (نه «پایین» کاذب)", () => {
+  const g = runEngine({ patient: { age: 30, sex: "M" },
+    tests: [{ name: "Calcium", value: 9.0, unit: "mg/dL" }] }).graded[0];
+  assert.equal(g.abnormal, false, "Ca 9.0 با محدودهٔ 8.5–10.2 نرمال است");
+});
+test("M10: آلبومین ۴.۸ نرمال است (نه «بالا» کاذب)", () => {
+  const g = runEngine({ patient: { age: 30, sex: "F" },
+    tests: [{ name: "Albumin", value: 4.8, unit: "g/dL" }] }).graded[0];
+  assert.equal(g.abnormal, false, "Alb 4.8 با محدودهٔ 3.5–5.0 نرمال است");
+});
+test("M10: کلسترول ۲۴۰ «بالا» است، ولی کلسترولِ پایین علامت نمی‌خورد", () => {
+  const hi = runEngine({ patient: { age: 40, sex: "M" },
+    tests: [{ name: "Cholesterol", value: 240, unit: "mg/dL" }] }).graded[0];
+  assert.equal(hi.abnormal, true, "کلسترول ۲۴۰ باید بالا باشد (آستانهٔ <۲۰۰)");
+  const lo = runEngine({ patient: { age: 40, sex: "M" },
+    tests: [{ name: "Cholesterol", value: 120, unit: "mg/dL" }] }).graded[0];
+  assert.equal(lo.abnormal, false, "کلسترولِ پایین نباید علامت بخورد (آستانه است نه بازه)");
+});
+test("M10: TG ۱۶۰ «بالا» است (مرزیِ ATP III دیگر جا نمی‌افتد)", () => {
+  const g = runEngine({ patient: { age: 40, sex: "M" },
+    tests: [{ name: "Triglyceride", value: 160, unit: "mg/dL" }] }).graded[0];
+  assert.equal(g.abnormal, true, "TG 160 با آستانهٔ <۱۵۰ باید بالا باشد");
+});
+test("M10: کراتینین ۰.۵۵ برای زن نرمال است، برای مرد پایین", () => {
+  const f = runEngine({ patient: { age: 30, sex: "F" },
+    tests: [{ name: "Creatinine", value: 0.55, unit: "mg/dL" }] }).graded[0];
+  assert.equal(f.abnormal, false, "زن: 0.55 با کف 0.5 نرمال");
+  const m = runEngine({ patient: { age: 30, sex: "M" },
+    tests: [{ name: "Creatinine", value: 0.55, unit: "mg/dL" }] }).graded[0];
+  assert.equal(m.abnormal, true, "مرد: 0.55 با کف 0.6 پایین");
 });

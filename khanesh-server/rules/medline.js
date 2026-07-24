@@ -35,8 +35,10 @@ export const TEST_MEDLINE_MAP = {
   "alt": "Liver Function Tests",
   "sgpt": "Liver Function Tests",
   "alp": "Liver Function Tests",
-  "ldh": "Lactate Dehydrogenase (LDH) Test",
-  "ال دی اچ": "Lactate Dehydrogenase (LDH) Test",
+  // LDH عمداً نگاشت ندارد: MedlinePlus موضوعی متناظر LDH ندارد و همهٔ ترم‌های
+  // آزموده‌شده سند نامربوط می‌دادند («Lactate Dehydrogenase (LDH) Test» →
+  // Pancreatic Diseases، «LDH»/«Lactate Dehydrogenase» → Anemia). LDH نشانگر
+  // عمومی آسیب بافتی است؛ هیچ‌کدام درست نیست. «بدون منبع» بهتر از «منبع غلط» است.
   "بیلی‌روبین": "Bilirubin Blood Test",
   "bilirubin": "Bilirubin Blood Test",
   "آلبومین": "Albumin Blood Test",
@@ -61,9 +63,12 @@ export const TEST_MEDLINE_MAP = {
   "wbc": "White Blood Count (WBC)",
   "گلبول قرمز": "RBC Count",
   "rbc": "RBC Count",
-  "هموگلوبین": "Hemoglobin Test",
-  "hemoglobin": "Hemoglobin Test",
-  "hgb": "Hemoglobin Test",
+  // ⚠️ ترم «Hemoglobin Test» در MedlinePlus وجود ندارد و جست‌وجو سند «A1C» را
+  //    برمی‌گرداند — یعنی خلاصهٔ پایش دیابت به‌عنوان مرجع هموگلوبین وارد پرامپت می‌شد.
+  //    MedlinePlus هموگلوبین را زیر «Blood Count Tests» پوشش می‌دهد (مثل WBC/RBC/HCT).
+  "هموگلوبین": "Blood Count Tests",
+  "hemoglobin": "Blood Count Tests",
+  "hgb": "Blood Count Tests",
   "هماتوکریت": "Hematocrit Test",
   "hematocrit": "Hematocrit Test",
   "hct": "Hematocrit Test",

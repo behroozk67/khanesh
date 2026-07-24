@@ -2249,6 +2249,55 @@ export const RULES = [
       warnings: [],
     }),
   },
+
+  // ═══════════ ویتامین D ═══════════
+  // تک‌تست، ولی بدون این قاعده کمبود ویتامین D (شایع‌ترین اختلال این جمعیت)
+  // به unmatched_abnormal می‌افتاد و به بیمار می‌گفت «توضیح آماده‌ای نداریم».
+  // آستانه‌ها Endocrine Society 2011 (در interpret.js/refs.js مستند شده).
+  {
+    id: "vitamin_d_abnormal",
+    match: (e) => {
+      const d = e.graded.find((g) => g.test === "VIT_D");
+      return ["deficiency", "insufficiency", "above_target", "possible_toxicity"].includes(d?.tag);
+    },
+    build: (e) => {
+      const d = e.graded.find((g) => g.test === "VIT_D");
+      const high = d.tag === "above_target" || d.tag === "possible_toxicity";
+      if (high) {
+        const toxic = d.tag === "possible_toxicity";
+        return {
+          pattern: "vitamin_d_high",
+          urgency: "routine",
+          headline: "ویتامین D خون شما بالاتر از حد مطلوب است",
+          must_say: toxic
+            ? "سطح ویتامین D شما خیلی بالاست. این معمولاً ناشی از مصرف زیاد مکمل است، نه بیماری. " +
+              "ویتامین D خیلی زیاد می‌تواند باعث بالا رفتن کلسیم خون شود، پس بهتر است بررسی شود."
+            : "سطح ویتامین D شما کمی بالاتر از حد مطلوب است. این معمولاً از مصرف مکمل است و نگران‌کننده نیست.",
+          action: "مصرف مکمل ویتامین D و دوز آن را با پزشک در میان بگذارید.",
+          suggest: [],
+          warnings: [],
+        };
+      }
+      const deficient = d.tag === "deficiency";
+      return {
+        pattern: "vitamin_d_deficiency",
+        urgency: "routine",
+        headline: deficient
+          ? "ویتامین D خون شما کم است"
+          : "ویتامین D خون شما کمی کمتر از حد مطلوب است",
+        must_say: deficient
+          ? "سطح ویتامین D شما پایین است. کمبود ویتامین D بسیار شایع است و معمولاً با " +
+            "قرار گرفتن کم در معرض آفتاب و دریافت ناکافی از غذا ارتباط دارد. این وضعیت " +
+            "معمولاً جدی نیست ولی بهتر است اصلاح شود، چون ویتامین D برای سلامت استخوان و عضله لازم است."
+          : "سطح ویتامین D شما کمی کمتر از حد مطلوب است. این یافتهٔ رایجی است و معمولاً " +
+            "با اصلاح تغذیه و نور آفتاب یا مکمل قابل بهبود است.",
+        action:
+          "دربارهٔ مصرف مکمل ویتامین D و دوز مناسب با پزشک مشورت کنید — دوز خودسرانه‌ی بالا لازم نیست و می‌تواند مضر باشد.",
+        suggest: [],
+        warnings: [],
+      };
+    },
+  },
 ];
 
 // رتبه شدت — برای پیدا کردن بدترین یافته
@@ -2268,6 +2317,53 @@ function val(e) {
 /**
  * اجرای قواعد روی خروجی موتور
  */
+// پیشنهادهایی که «نام خالص یک آزمایش»‌اند → کلید(های) موتور.
+// ⚠️ فقط تطبیق دقیق. عمداً هیچ تطبیق فازی/زیررشته‌ای نیست، چون بخش بزرگی از
+//    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ
+//    آزمایشی هستند که همین حالا داریم و باید بمانند. تطبیق دقیق تضمین می‌کند
+//    فقط پیشنهادِ «آزمایشی بده که همین الان دستت هست» حذف شود.
+//    ورودی چندتستی فقط وقتی حذف می‌شود که همهٔ اجزایش موجود باشد.
+export const SUGGEST_TESTS = {
+  "فریتین": ["FERRITIN"],
+  "آهن سرم": ["IRON"],
+  "TIBC": ["TIBC"],
+  "پنل کامل آهن": ["FERRITIN", "IRON", "TIBC"],
+  "TSH": ["TSH"],
+  "FT4": ["FT4"],
+  "FT3": ["FT3"],
+  "TSH و FT4": ["TSH", "FT4"],
+  "PLT": ["PLT"],
+  "WBC": ["WBC"],
+  "CRP": ["CRP_Q"],
+  "ALP": ["ALP"],
+  "AST": ["AST"],
+  "GGT": ["GGT"],
+  "PT": ["PT"],
+  "FIB": ["FIB"],
+  "CK": ["CK"],
+  "HbA1c": ["HBA1C"],
+  "بیلی‌روبین": ["BILI_T"],
+  "آلبومین خون": ["ALB"],
+  "آلبومین (برای تصحیح کلسیم)": ["ALB"],
+  "ویتامین B12": ["B12"],
+  "فولات": ["FOLATE"],
+  "آمیلاز": ["AMYLASE"],
+  "رتیکولوسیت": ["RETIC"],
+  "هاپتوگلوبین": ["HAPTO"],
+  "قند خون ناشتا (FBS)": ["GLU_F"],
+  "شمارش خون (CBC)": ["HGB", "WBC", "PLT"],
+  // ⚠️ Na+K تنها، الکترولیت‌ها را «کامل» نمی‌کند. در نارسایی کلیه، Ca/فسفات/
+  //    بی‌کربناتِ غایب همان‌هایی‌اند که پیشنهاد باید بخواهد. مجموعهٔ کامل را شرط می‌کنیم
+  //    تا پیشنهاد فقط وقتی حذف شود که واقعاً همه‌شان موجود باشند.
+  "الکترولیت‌ها": ["NA", "K", "CA", "PHOS", "HCO3"],
+};
+
+/** آیا این پیشنهاد، آزمایشی است که همین حالا اندازه‌گیری شده؟ */
+export function alreadyMeasured(suggestion, measuredKeys) {
+  const keys = SUGGEST_TESTS[suggestion];
+  return !!keys && keys.every((k) => measuredKeys.has(k));
+}
+
 export function runPatterns(engineOut) {
   const findings = [];
   for (const rule of RULES) {
@@ -2277,6 +2373,17 @@ export function runPatterns(engineOut) {
       if (f) findings.push({ rule_id: rule.id, ...f });
     } catch {
       /* قاعده خراب نباید موتور را بخواباند */
+    }
+  }
+
+  // ⚠️ باگ واقعی: در پنل فقر آهن که فریتین/آهن/TIBC هر سه وارد شده بودند،
+  //    به کاربر گفته می‌شد «درخواست آزمایش فریتین از پزشک».
+  //    اینجا فیلتر می‌شود — نه در ساخت توصیه‌ها — چون suggest از طریق پرامپت
+  //    به LLM هم می‌رود و مدل صادقانه بازگویش می‌کند. سرِ منبع باید پاک باشد.
+  const measured = new Set((engineOut?.graded ?? []).map((g) => g.test));
+  for (const f of findings) {
+    if (f.suggest?.length) {
+      f.suggest = f.suggest.filter((s) => !alreadyMeasured(s, measured));
     }
   }
 

@@ -96,13 +96,16 @@ const NAME_MAP = {
   tibc: "TIBC",
   transferrinsaturation: "TSAT", tsat: "TSAT",
   b12: "B12", vitaminb12: "B12", serumvitaminb12: "B12",
-  folate: "FOLATE", folicacid: "FOLATE",
+  folate: "FOLATE", folicacid: "FOLATE", فولات: "FOLATE",
+  vitd: "VIT_D", vitamind: "VIT_D", "vitamind3": "VIT_D",
+  "25ohd": "VIT_D", "25ohvitamind": "VIT_D", "25hydroxyvitamind": "VIT_D",
+  vitamind25oh: "VIT_D", "ویتامیند": "VIT_D",
   tsh: "TSH",
   ft4: "FT4", freet4: "FT4",
   ft3: "FT3", freet3: "FT3",
   t3: "T3", totalt3: "T3", tt3: "T3",
   antitpo: "ANTI_TPO", tpoab: "ANTI_TPO", tpoantibody: "ANTI_TPO", "anti-tpo": "ANTI_TPO", thyroidperoxidaseantibody: "ANTI_TPO",
-  t4: "T4",
+  t4: "T4", totalt4: "T4", tt4: "T4",
   chol: "CHOL", cholesterol: "CHOL", totalcholesterol: "CHOL",
   hdl: "HDL", hdlc: "HDL", hdlcholesterol: "HDL", "hdl-c": "HDL",
   ldl: "LDL", ldlc: "LDL", ldlcholesterol: "LDL", "ldl-c": "LDL",
@@ -152,6 +155,92 @@ const QUALITATIVE = new Set([
   // موارد تکمیلی
   "urobilinogen", "urinebilirubin",
 ]);
+
+// ═══════════ تفکیک زمینهٔ ادرار از خون ═══════════
+// 🔴 باگ واقعی: روی برگهٔ ادرار، «pH = ۵» با محدودهٔ pH خون (۷.۳۵–۷.۴۵) سنجیده شد
+//    و الگوی severe_acidosis یک «اورژانس» کاذب ساخت. همچنین Protein/Blood/WBC/RBC
+//    ادراری unmapped می‌شدند و الگوهای ادرار هرگز فعال نمی‌شدند.
+//
+// سه لایهٔ محافظت (به ترتیب قطعیت):
+//   ۱. واحد /hpf یا /lpf  → قطعاً میکروسکوپی ادرار است، نه شمارش خون.
+//   ۲. pH خارج از دامنهٔ سازگار با حیات → قطعاً pH ادرار است.
+//   ۳. صفحه‌ای که فقط نشانگر ادرار دارد و هیچ نشانگر CBC ندارد → کلیدهای مبهم ادراری‌اند.
+
+// نشانگرهایی که فقط روی برگهٔ ادرار می‌آیند
+const URINE_ONLY_MARKERS = new Set([
+  "specificgravity", "sg", "color", "appearance", "turbidity",
+  "nitrite", "nitrites", "leukocyteesterase", "urobilinogen",
+  "casts", "crystals", "yeasts", "epithelialcells", "epithelial",
+  "mucus", "puscell", "puscells", "bacteria", "urinalysis", "ua",
+]);
+
+// نشانگرهایی که فقط روی برگهٔ خون (CBC) می‌آیند — برای محافظت از برگهٔ ترکیبی
+const BLOOD_ONLY_MARKERS = new Set([
+  "mcv", "mch", "mchc", "plt", "platelet", "hct", "hematocrit", "pcv",
+  "neut", "neu", "lymph", "lym", "mono", "eos", "baso",
+  "rdw", "rdwcv", "rdwsd", "mpv", "esr",
+]);
+
+// نشانگرهای بیوشیمیِ سرمی که روی میکروسکوپی/دیپ‌استیک ادرار نمی‌آیند.
+// ⚠️ باگ واقعی: برگهٔ «بیوشیمی + ادرار» (بدون CBC) به‌عنوان «ادرارِ خالص» شناخته می‌شد
+//    و قند/هموگلوبینِ خونِ همان برگه به «قند/هموگلوبین ادرار» منحرف می‌شد — بی‌هیچ هشدار.
+//    این‌ها شاهدِ «این صفحه ادرارِ خالص نیست» هستند.
+//    عمداً کلیدهای مبهم (na/k/ca/creatinine که در پنل ادرار هم می‌آیند) را نمی‌گذاریم.
+const BLOOD_BIOCHEM_MARKERS = new Set([
+  "urea", "bun", "cholesterol", "chol", "tg", "triglyceride", "triglycerides",
+  "ast", "sgot", "alt", "sgpt", "alp", "ggt", "ldh", "hba1c", "a1c",
+  "ferritin", "iron", "tibc", "tsh", "ft4", "ft3", "t3", "t4",
+  "uricacid", "amylase", "lipase", "hdl", "ldl", "b12", "vitd", "vitamind",
+]);
+
+// نشانگرهای گاز خون شریانی (ABG) — تنها زمینه‌ای که pH خون معنا دارد.
+const ABG_MARKERS = new Set([
+  "hco3", "bicarbonate", "pco2", "paco2", "po2", "pao2",
+  "baseexcess", "be", "abg", "so2", "sao2", "o2sat",
+]);
+
+// کلیدهایی که هم روی برگهٔ خون و هم روی برگهٔ ادرار دیده می‌شوند
+const AMBIGUOUS_URINE_KEYS = new Set([
+  "ph", "wbc", "rbc", "glucose", "hgb", "hb", "protein", "bilirubin", "blood", "ketone",
+]);
+
+// pH خون فقط در این دامنه با حیات سازگار است؛ خارج از آن یعنی pH ادرار.
+const BLOOD_PH_MIN = 6.5;
+const BLOOD_PH_MAX = 7.9;
+
+/**
+ * کدام صفحه‌ها «برگهٔ ادرارِ خالص»‌اند؟
+ * شرط محافظه‌کارانه: حداقل ۲ نشانگر ادرار و هیچ نشانگر خون (CBC یا بیوشیمی).
+ * (اگر صفحه‌ای شاهد خون داشته باشد، دست نمی‌زنیم تا تستِ خون از بین نرود.)
+ */
+function detectUrineOnlyPages(ocrTests) {
+  const urineCount = new Map();
+  const bloodCount = new Map();
+  for (const t of ocrTests) {
+    if (!t?.name) continue;
+    const p = t._page ?? 0;
+    const k = norm(t.name);
+    if (URINE_ONLY_MARKERS.has(k)) urineCount.set(p, (urineCount.get(p) ?? 0) + 1);
+    if (BLOOD_ONLY_MARKERS.has(k) || BLOOD_BIOCHEM_MARKERS.has(k)) {
+      bloodCount.set(p, (bloodCount.get(p) ?? 0) + 1);
+    }
+  }
+  const pages = new Set();
+  for (const [p, n] of urineCount) {
+    if (n >= 2 && !(bloodCount.get(p) > 0)) pages.add(p);
+  }
+  return pages;
+}
+
+/** کدام صفحه‌ها پنل گاز خون (ABG) دارند؟ فقط این صفحه‌ها pH خون معنا دارند. */
+function detectAbgPages(ocrTests) {
+  const pages = new Set();
+  for (const t of ocrTests) {
+    if (!t?.name) continue;
+    if (ABG_MARKERS.has(norm(t.name))) pages.add(t._page ?? 0);
+  }
+  return pages;
+}
 
 // آیا این کلید (نرمال‌شده) کیفی است؟
 // هم تطبیق دقیق با Set، هم چند الگوی امن برای نام‌های ترکیبی.
@@ -238,10 +327,43 @@ export function ocrToEngineInput(ocr) {
   const tests = {};
   const qual = {};
   const unmapped = [];
+  const urineOnlyPages = detectUrineOnlyPages(ocr?.tests || []);
+  const abgPages = detectAbgPages(ocr?.tests || []);
 
   for (const t of ocr?.tests || []) {
     if (!t?.name) continue;
     const key = norm(t.name);
+    const onUrinePage = urineOnlyPages.has(t._page ?? 0);
+    const onAbgPage = abgPages.has(t._page ?? 0);
+
+    // ═══ لایه ۱: واحد /hpf یا /lpf → میکروسکوپی ادرار، نه شمارش خون ═══
+    if (/\/?\s*[hl]pf/i.test(String(t.unit || ""))) {
+      qual[/urine|ادرار|^u/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value);
+      continue;
+    }
+
+    // ═══ لایه ۲: pH فقط با شاهدِ گاز خون، pH خون است ═══
+    // ⚠️ باگ واقعی: روی برگهٔ بدون ABG، pH ادرارِ ۷.۰ به‌عنوان pH خون سنجیده می‌شد و
+    //    الگوی severe_acidosis یک «🚨 اورژانس» کاذب می‌ساخت. pH خون فقط با پنل گاز خون
+    //    (HCO3/pCO2/…) اندازه‌گیری می‌شود؛ pH تنها روی یک برگه تقریباً همیشه pH ادرار است.
+    //    pH خارج از دامنهٔ حیات (۵) هم که قطعاً ادرار است.
+    if (key === "ph") {
+      const v = toNum(t.value);
+      const isBloodPh = onAbgPage && !onUrinePage &&
+        v != null && v >= BLOOD_PH_MIN && v <= BLOOD_PH_MAX;
+      if (!isBloodPh) {
+        qual["Urine pH"] = String(t.value);
+        continue;
+      }
+    }
+
+    // ═══ لایه ۳: کلید مبهم روی برگهٔ ادرارِ خالص → ادراری تلقی شود ═══
+    // این هم اورژانس کاذب را می‌بندد و هم الگوهای ادرار را فعال می‌کند
+    // (قبلاً این‌ها unmapped می‌شدند و کلاً از دست می‌رفتند).
+    if (onUrinePage && AMBIGUOUS_URINE_KEYS.has(key)) {
+      qual[/urine|ادرار/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value);
+      continue;
+    }
 
     // ⚠️ تروپونین حیاتی است: امروزه اغلب عددی گزارش می‌شود (hs-cTnI = 0.5).
     //    اشکال رایج: Troponin، cTnI، cTnT، hs-cTnI، TnI، TnT.
@@ -299,6 +421,16 @@ export function ocrToEngineInput(ocr) {
     if (engineKey === "UREA") {
       tests.UREA_N = +ureaToBUN(v).toFixed(1);
       tests._urea_raw = v;
+      continue;
+    }
+
+    // T3 با واحد SI (nmol/L) → ng/dL که موتور می‌فهمد.
+    // ⚠️ باگ واقعی: فرم دستی دو فیلد T3 دارد («Total T3 (ng/dL)» و «(nmol/L)»)
+    //    که پس از حذف پرانتز هر دو به کلید T3 می‌رسند. بدون تبدیل، مقدار SI طبیعی
+    //    مثل ۲.۲ با محدودهٔ ng/dL [80–200] سنجیده می‌شد و «پایین» کاذب می‌داد.
+    //    ۱ nmol/L ≈ ۶۵.۱ ng/dL (وزن مولکولی T3 = ۶۵۱).
+    if (engineKey === "T3" && /nmol/i.test(String(t.unit || ""))) {
+      tests.T3 = Math.round(v * 65.1);
       continue;
     }
 

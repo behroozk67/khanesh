@@ -626,7 +626,7 @@ function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImag
 // ============================================================
 app.post("/api/analyze", async (req, res) => {
   try {
-    const { patientInfo, testResults, imageDataUrl, imageDataUrls } = req.body || {};
+    const { patientInfo, testResults, imageDataUrl, imageDataUrls, tests, patient } = req.body || {};
 
     // سازگاری عقب‌رو: فرانت قدیمی imageDataUrl تکی می‌فرستد و هنوز کار می‌کند
     let images = [];
@@ -728,6 +728,31 @@ app.post("/api/analyze", async (req, res) => {
       finalText = hasText ? `${testResults}\n\n--- خوانده‌شده از عکس ---\n${text}` : text;
     }
 
+    // ---- ورود دستی: ساخت ورودی موتور از مقادیر ساختاریافتهٔ فرانت ----
+    // ⚠️ قبلاً هر درخواست متنی مستقیم به LLM می‌رفت و موتور قواعد اصلاً اجرا نمی‌شد؛
+    //    یعنی شدت و has_critical را خود مدل قضاوت می‌کرد. مثال واقعی: Hb=9.2 در زن
+    //    (CTCAE گرید ۲، فوریت this_week) به‌صورت «بحرانی — مراجعه فوری» نمایش داده شد.
+    //    رشتهٔ نمایشی فارسی عمداً دوباره parse نمی‌شود؛ فرانت ساختار را می‌فرستد.
+    if (!hasImage && Array.isArray(tests) && tests.length) {
+      const manualTests = tests
+        .map((t) => ({
+          name: String(t?.name ?? t?.key ?? "").trim(),
+          value: typeof t?.value === "number" ? t.value : parseFloat(t?.value),
+          unit: t?.unit ?? "",
+        }))
+        .filter((t) => t.name && Number.isFinite(t.value));
+
+      if (manualTests.length) {
+        lastMergedOcr = {
+          tests: manualTests,
+          // موتور سن را فقط از patient.age می‌خواند — سطح بالا نادیده گرفته می‌شود
+          // و سن null باعث اعمال محدودهٔ بزرگسال روی کودک می‌شود.
+          patient: { age: patient?.age ?? null, sex: patient?.sex ?? null },
+          unreadable_notes: [],
+        };
+      }
+    }
+
     // ---- زمینه MedlinePlus ----
     let medlineContext = "";
     let medlineSources = [];
@@ -751,9 +776,24 @@ app.post("/api/analyze", async (req, res) => {
     // ---- مرحله ۲: تحلیل ----
     let raw, parsed, engineOut = null, patternOut = null;
 
-    if (USE_ENGINE && hasImage && lastMergedOcr) {
+    // مسیر موتور برای هر دو ورودی: عکس (از OCR) و ورود دستی (ساختاریافته).
+    // اگر موتور هیچ‌کدام از تست‌ها را نشناخت، به مسیر قدیمی برمی‌گردیم تا
+    // کاربر به‌جای تفسیر، دست خالی نماند.
+    let engineCandidate = null;
+    if (USE_ENGINE && lastMergedOcr) {
+      engineCandidate = runEngine(lastMergedOcr);
+      if (engineCandidate.graded.length === 0) {
+        console.warn(
+          "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
+          `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
+        );
+        engineCandidate = null;
+      }
+    }
+
+    if (engineCandidate) {
       // ═══ مسیر موتور ═══
-      engineOut = runEngine(lastMergedOcr);
+      engineOut = engineCandidate;
       patternOut = runPatterns(engineOut);
 
       console.log(
@@ -769,9 +809,14 @@ app.post("/api/analyze", async (req, res) => {
       if (engineOut.unmapped.length) {
         console.warn(`موتور: نگاشت نشد → ${engineOut.unmapped.join(", ")}`);
         ocrWarnings.push(
-          `این تست‌ها از برگه خوانده شدند ولی موتور تفسیرشان نمی‌کند: ` +
+          (hasImage
+            ? `این تست‌ها از برگه خوانده شدند ولی موتور تفسیرشان نمی‌کند: `
+            : `این تست‌ها را وارد کردید ولی موتور تفسیرشان نمی‌کند: `) +
           `${engineOut.unmapped.join("، ")}. ` +
-          `مقادیرشان در فهرست بالا هست — حتماً با پزشک بررسی کنید.`
+          // ورود دستی فهرست «مقادیر خوانده‌شده» ندارد؛ فقط عکس آن فهرست را می‌سازد.
+          (hasImage
+            ? `مقادیرشان در فهرست بالا هست — حتماً با پزشک بررسی کنید.`
+            : `حتماً این مقادیر را با پزشک بررسی کنید.`)
         );
       }
       if (engineOut.noRef.length) {
@@ -808,7 +853,9 @@ app.post("/api/analyze", async (req, res) => {
         maxTokens: 2000,
         messages: [
           { role: "system", content: ENGINE_SYSTEM_PROMPT },
-          buildEnginePrompt(engineOut, patternOut, medlineContext),
+          // ورود دستی بارداری/بیماری زمینه‌ای را در patient می‌فرستد؛ فقط زمینهٔ لحن،
+          // نه ورودیِ گرید. مسیر عکس این‌ها را ندارد و null می‌ماند.
+          buildEnginePrompt(engineOut, patternOut, medlineContext, patient),
         ],
       });
     } else {
@@ -866,7 +913,7 @@ app.post("/api/analyze", async (req, res) => {
       const recs = parsed.general_recommendations ?? parsed.recommendations;
       if (!Array.isArray(recs) || recs.length === 0) {
         console.warn("مدل general_recommendations نداد — از موتور ساخته شد");
-        parsed.general_recommendations = buildEngineRecommendations(patternOut);
+        parsed.general_recommendations = buildEngineRecommendations(patternOut, engineOut);
       } else {
         parsed.general_recommendations = recs;
       }

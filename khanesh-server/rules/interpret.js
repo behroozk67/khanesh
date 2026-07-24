@@ -72,6 +72,25 @@ export const CLASSIFIERS = {
     note: 'با آهن و TIBC با هم تفسیر شود',
   },
 
+  // ---- ویتامین D — دسته، نه شدت CTCAE ----
+  // آستانه‌ها: Endocrine Society 2011 (کمبود <20، ناکافی 21–29، کافی ≥30).
+  // این انتخاب آگاهانه است — IOM/NAM آستانه کفایت را ۲۰ می‌داند و
+  // خود Endocrine Society در ۲۰۲۴ از هدف ۳۰ عقب نشست. جزئیات در refs.js.
+  VIT_D: {
+    kind: 'classifier',
+    label: 'ویتامین D',
+    bands: [
+      { max: 20,  tag: 'deficiency',    fa: 'کمبود ویتامین D',  patient: 'ویتامین D خون شما کم است' },
+      { max: 30,  tag: 'insufficiency', fa: 'ویتامین D ناکافی', patient: 'ویتامین D خون شما کمی کمتر از حد مطلوب است' },
+      { max: 100, tag: 'sufficient',    fa: 'کافی',             patient: null, normal: true },
+      // ۱۰۰–۱۵۰: بالاتر از حد مطلوب ولی سمّی نیست (معمولاً از مکمل).
+      { max: 150, tag: 'above_target',  fa: 'بالاتر از حد مطلوب', patient: 'ویتامین D خون شما بالاتر از حد مطلوب است — مصرف مکمل را با پزشک بررسی کنید' },
+      // سمّیت ویتامین D قراردادی >۱۵۰ ng/mL است و معمولاً با کلسیم بالا همراه است.
+      { max: Infinity, tag: 'possible_toxicity', fa: 'احتمال زیاده‌روی در مکمل', patient: 'ویتامین D خون شما خیلی بالاست — حتماً مصرف مکمل را با پزشک در میان بگذارید' },
+    ],
+    note: 'ویتامین D بالا معمولاً ناشی از مکمل است، نه بیماری',
+  },
+
   // ---- انعقاد — باینری، الگو تصمیم می‌گیرد ----
   PT:     { kind: 'binary', label: 'زمان پروترومبین', note: 'الگوی PT/aPTT مسیر را مشخص می‌کند' },
   APTT:   { kind: 'binary', label: 'زمان ترومبوپلاستین', note: 'همان' },
@@ -153,6 +172,10 @@ export function classify(testKey, value, lln, uln) {
         kind: 'classifier',
         tag: b.tag,
         fa: b.fa,
+        // باند می‌تواند صریحاً بگوید «این طبیعی است».
+        // بدون این، grade.js فقط نام‌های normal/normocytic/normochromic را
+        // طبیعی می‌شناسد و هر طبقه‌بند جدید با تگ دیگر، بی‌صدا غیرطبیعی می‌شود.
+        normal: b.normal === true,
         patient: b.patient,
         label: c.label,
         note: c.note ?? null,

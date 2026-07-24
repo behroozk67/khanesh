@@ -32,13 +32,16 @@ export const ADULT_REFS = {
   BAND_ABS:  { both: [0, 700],     unit: '/µL' },
 
   // ---- بیوشیمی (Table A5-4) ----
-  UREA_N:  { both: [8, 23],    unit: 'mg/dL' },  // Urea nitrogen (BUN)
-  CREAT:   { both: [0.6, 1.2], unit: 'mg/dL' },
-  NA:      { both: [136, 142], unit: 'mEq/L' },
-  K:       { both: [3.8, 5],   unit: 'mEq/L' },
+  // ⚠️ محدوده‌های الکترولیت/کبد در ۲۰۲۶-۰۷ با فرانت‌اند آشتی داده شدند (ریسرچ منبع‌محور،
+  //    جزئیات و منابع در REF_DIFF.md). چند مقدارِ قبلی «هنری» با متن منتشرشده نمی‌خواند
+  //    و مقادیر طبیعی را غیرطبیعی می‌زد (مثلاً Ca 8.5–9.1 → «پایین»).
+  UREA_N:  { both: [7, 20],    unit: 'mg/dL' },  // BUN — MedlinePlus 6–20 (بود 8–23، ازوتمی خفیف را نرمال می‌گرفت)
+  CREAT:   { both: [0.6, 1.2], unit: 'mg/dL' },  // بزرگسال؛ جنس‌محور در creatRef() اعمال می‌شود
+  NA:      { both: [135, 145], unit: 'mEq/L' },  // MedlinePlus 135–145 (بود 136–142، سقف را کوتاه می‌کرد)
+  K:       { both: [3.5, 5],   unit: 'mEq/L' },  // 3.5–5.0 استاندارد (بود 3.8–5.0)
   CL:      { both: [95, 103],  unit: 'mEq/L' },
-  AST:     { both: [8, 33],    unit: 'U/L' },
-  ALT:     { both: [4, 36],    unit: 'U/L' },
+  AST:     { both: [0, 40],    unit: 'U/L' },    // ULN ~۴۰، عملاً بدون تفاوت جنسی (بود 8–33)
+  ALT:     { M: [0, 41], F: [0, 33], unit: 'U/L' },  // ALT خفیف جنس‌محور؛ ULN امروزی (بود 4–36 یکسان)
   ALP:     { both: [20, 130],  unit: 'U/L' },
   GGT:     { both: [5, 40],    unit: 'U/L' },
   CK:      { M: [55, 170], F: [30, 135], unit: 'U/L' },
@@ -53,30 +56,39 @@ export const ADULT_REFS = {
   //    درجه‌بندی نمی‌شد؛ در نتیجه الگوی قند برای بزرگسالان آن را نادیده می‌گرفت.
   HBA1C:   { both: [4, 5.6],    unit: '%' },
   URIC:    { M: [4, 8.5], F: [2.7, 7.3], unit: 'mg/dL' },
-  ALB:     { both: [3.2, 4.5], unit: 'g/dL' },
+  ALB:     { both: [3.5, 5.0], unit: 'g/dL' },  // 3.5–5.0 (بود 3.2–4.5، نرمالِ 4.6–5.0 را «بالا» می‌زد)
   TP:      { both: [6, 7.8],   unit: 'g/dL' },
   BILI_T:  { both: [0.1, 1.2], unit: 'mg/dL' },
   BILI_D:  { both: [0, 0.3],   unit: 'mg/dL' },
   BILI_I:  { both: [0.1, 1],   unit: 'mg/dL' },
-  FERRITIN:{ M: [15, 200], F: [12, 150], unit: 'ng/mL' },
+  FERRITIN:{ M: [30, 300], F: [15, 150], unit: 'ng/mL' },  // متن کلاسیک/LabCorp (بود M15–200/F12–150). کفِ کمبود مهم‌تر از سقف است
   IRON:    { both: [60, 150],  unit: 'µg/dL' },
   TIBC:    { both: [250, 400], unit: 'µg/dL' },
   TSAT:    { both: [20, 55],   unit: '%' },
-  B12:     { both: [160, 950], unit: 'pg/mL' },
+  B12:     { both: [200, 900], unit: 'pg/mL' },  // کفِ کمبود ۲۰۰ (بود 160، مرزیِ کمبود را نرمال می‌گرفت)
   FOLATE:  { both: [3.5, 999], unit: 'ng/mL' },  // ≥3.5
+  // ویتامین D (25-OH): آستانه‌ها محل اختلاف واقعی است.
+  //   Endocrine Society 2011 → کمبود <20، ناکافی 21–29، کافی ≥30  ← انتخاب‌شده (رایج در ایران)
+  //   IOM/NAM 2011          → کمبود <12، کافی ≥20
+  //   ⚠️ خود Endocrine Society در بازنگری ۲۰۲۴ از هدف ۳۰ عقب نشست و آستانه عددی مشخصی تایید نمی‌کند.
+  //   حد بالا ۱۰۰: بالای آن احتمال مسمومیت مطرح است.
+  VIT_D:   { both: [30, 100],  unit: 'ng/mL' },
   TSH:     { both: [0.5, 4.5], unit: 'µU/mL' },  // حد بالا از ۵ به ۴.۵ (استاندارد امروزی آزمایشگاه‌ها)
   FT4:     { both: [0.9, 2.3], unit: 'ng/dL' },
   FT3:     { both: [2.8, 4.4], unit: 'pg/mL' },
   T3:      { both: [80, 200],  unit: 'ng/dL' },
-  T4:      { both: [5.5, 12.5],unit: 'µg/dL' },
+  T4:      { both: [5, 12],    unit: 'µg/dL' },  // بزرگسال، بدون تفاوت جنسی (بود 5.5–12.5)
   ANTI_TPO: { both: [0, 9],    unit: 'IU/mL' },  // بالای ۹ = تیروئیدیت خودایمنی
-  CHOL:    { both: [150, 250], unit: 'mg/dL' },
+  // کلسترول و TG «بازهٔ مرجع» نیستند، بلکه آستانهٔ ریسک‌اند (NCEP ATP III).
+  //   حد پایین ۰ می‌گذاریم تا فقط سمت «بالا» علامت بخورد (کلسترول/TGِ پایین بیمار را نمی‌ترساند).
+  //   CTCAE هم برای این دو فقط قاعدهٔ _HIGH دارد، پس رفتار آستانه‌ای سازگار است.
+  CHOL:    { both: [0, 200],   unit: 'mg/dL' },  // «مطلوب» <۲۰۰ (بود 150–250، ۲۴۰ را نرمال می‌گرفت)
   HDL:     { both: [40, 100],  unit: 'mg/dL' },  // پایین بودن نامطلوب است
   LDL:     { both: [0, 130],   unit: 'mg/dL' },  // بالا بودن نامطلوب است
-  TG:      { both: [10, 190],  unit: 'mg/dL' },
-  MG:      { both: [1.8, 3],   unit: 'mg/dL' },
-  PHOS:    { both: [2.3, 4.7], unit: 'mg/dL' },
-  CA:      { both: [9.2, 11],  unit: 'mg/dL' },
+  TG:      { both: [0, 150],   unit: 'mg/dL' },  // «طبیعی» <۱۵۰ (بود 10–190، مرزیِ 150–199 را جا می‌انداخت)
+  MG:      { both: [1.7, 2.2], unit: 'mg/dL' },  // 🔴 بیشترین اصلاح: 1.5 حالا درست «پایین» است (بود 1.8–3.0؛ فرانت 1.3–2.5 آن را نرمال می‌زد)
+  PHOS:    { both: [2.5, 4.5], unit: 'mg/dL' },  // (بود 2.3–4.7)
+  CA:      { both: [8.5, 10.2],unit: 'mg/dL' },  // MedlinePlus/Henry (بود 9.2–11، نرمالِ 8.5–9.1 را «پایین» می‌زد)
   HAPTO:   { both: [60, 270],  unit: 'mg/dL' },
   LDH:     { both: [235, 470], unit: 'U/L' },
 
@@ -112,8 +124,12 @@ export function esrRef(sex, age) {
 
 // کراتینین سن‌محور (تنها مورد اطفال در جدول)
 // سن نامعلوم (null) → محدودهٔ بالغ؛ در غیر این صورت `null < 2` به‌اشتباه محدودهٔ نوزادی می‌داد.
-export function creatRef(age) {
-  return (age != null && age < 2) ? [0.3, 0.6] : [0.6, 1.2];
+export function creatRef(age, sex) {
+  if (age != null && age < 2) return [0.3, 0.6];   // نوزاد — جنس هنوز مهم نیست
+  // بزرگسال جنس‌محور: زنان تودهٔ عضلانی کمتر → کفِ طبیعی پایین‌تر.
+  // بدون این، کراتینین طبیعیِ یک زن (۰.۵) با کف یکسانِ ۰.۶ «پایین» علامت می‌خورد.
+  // sex نامعلوم → پیش‌فرض بازهٔ بازتر [0.6,1.2] تا هشدار کاذب ندهد.
+  return sex === 'F' ? [0.5, 1.1] : [0.6, 1.2];
 }
 
 // eGFR — CKD-EPI 2021 (بدون ضریب نژاد). فقط بزرگسال (≥ ۱۸).
@@ -145,7 +161,7 @@ export function getRef(testKey, sex, age) {
     // RCPCH: "If there is no age-specific paediatric range, use the adult range."
   }
   if (testKey === 'ESR')   return esrRef(sex, age);
-  if (testKey === 'CREAT') return creatRef(age);
+  if (testKey === 'CREAT') return creatRef(age, sex);
   const r = ADULT_REFS[testKey];
   if (!r) return null;
   if (r.both) return r.both;

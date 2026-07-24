@@ -95,7 +95,7 @@ function ageInMonths(age, ageUnit) {
 
 const REF = {
   // ---------- قند و دیابت ----------
-  fbs: { label: "قند خون ناشتا", unit: "mg/dL", cat: "diabetes", hard: [20, 800],
+  fbs: { label: "FBS (قند خون ناشتا)", unit: "mg/dL", cat: "diabetes", hard: [20, 800],
     range: () => ({ low: 70, high: 99 }), crit: [40, 500],
     about: "قند خون ناشتا سطح گلوکز پس از حداقل ۸ ساعت ناشتایی را می‌سنجد.",
     high: "۱۰۰ تا ۱۲۵ پیش‌دیابت و ۱۲۶ به بالا می‌تواند نشانه‌ای از دیابت باشد.",
@@ -107,12 +107,12 @@ const REF = {
     low: "مقادیر پایین معمولاً نگران‌کننده نیست." },
 
   // ---------- چربی ----------
-  chol: { label: "کلسترول تام", unit: "mg/dL", cat: "heart", hard: [50, 600],
+  chol: { label: "Cholesterol (کلسترول تام)", unit: "mg/dL", cat: "heart", hard: [50, 600],
     range: () => ({ low: 0, high: 200 }),
     about: "مجموع کلسترول خون؛ شاخصی از سلامت قلب و عروق.",
     high: "۲۰۰ تا ۲۳۹ مرزی و ۲۴۰ به بالا بالا؛ با خطر بیماری قلبی مرتبط است." },
-  tg: { label: "تری‌گلیسیرید", unit: "mg/dL", cat: "heart", hard: [20, 2000],
-    range: () => ({ low: 35, high: 149 }),
+  tg: { label: "TG (تری‌گلیسیرید)", unit: "mg/dL", cat: "heart", hard: [20, 2000],
+    range: () => ({ low: 0, high: 150 }),
     about: "نوعی چربی خون که با مصرف قند و نشاسته بالا می‌رود.",
     high: "۱۵۰ تا ۱۹۹ مرزی، ۲۰۰ تا ۴۹۹ بالا و ۵۰۰ به بالا بسیار بالا." },
   hdl: { label: "HDL (کلسترول خوب)", unit: "mg/dL", cat: "heart", hard: [10, 150],
@@ -125,30 +125,30 @@ const REF = {
     high: "بالای ۱۰۰ مطلوب نیست؛ هدف بسته به عوامل خطر فردی متفاوت است." },
 
   // ---------- کلیه ----------
-  urea: { label: "اوره", unit: "mg/dL", cat: "kidney", hard: [3, 300],
+  urea: { label: "Urea (اوره)", unit: "mg/dL", cat: "kidney", hard: [3, 300],
     range: () => ({ low: 15, high: 45 }), crit: [0, 214],
     about: "محصول فرعی متابولیسم پروتئین؛ شاخص عملکرد کلیه.",
     high: "بالا می‌تواند به عملکرد کلیه یا کم‌آبی مربوط باشد." },
   bun: { label: "BUN", unit: "mg/dL", cat: "kidney", hard: [2, 150],
-    range: () => ({ low: 6, high: 21 }), crit: [0, 70],
+    range: () => ({ low: 7, high: 20 }), crit: [0, 70],
     about: "نیتروژن اوره خون؛ شاخص عملکرد کلیه.",
     high: "بالا می‌تواند به کاهش عملکرد کلیه یا کم‌آبی مربوط باشد." },
-  cr: { label: "کراتینین", unit: "mg/dL", cat: "kidney", hard: [0.1, 20],
-    range: (s) => s === "female" ? { low: 0.4, high: 1.1 } : { low: 0.5, high: 1.2 }, crit: [0, 5],
+  cr: { label: "Creatinine (کراتینین)", unit: "mg/dL", cat: "kidney", hard: [0.1, 20],
+    range: (s) => s === "female" ? { low: 0.5, high: 1.1 } : { low: 0.6, high: 1.2 }, crit: [0, 5],
     about: "از توده عضلانی تولید می‌شود؛ شاخص مهم عملکرد کلیه.",
     high: "بالا می‌تواند نشانه کاهش عملکرد کلیه باشد و نیاز به بررسی دارد." },
-  uric: { label: "اسید اوریک", unit: "mg/dL", cat: "kidney", hard: [0.5, 20],
+  uric: { label: "Uric Acid (اسید اوریک)", unit: "mg/dL", cat: "kidney", hard: [0.5, 20],
     range: (s) => s === "female" ? { low: 2.5, high: 6.2 } : { low: 3.5, high: 7.2 },
     about: "محصول متابولیسم پورین؛ بالا بودن با نقرس مرتبط است.",
     high: "بالا می‌تواند با نقرس یا سنگ کلیه مرتبط باشد." },
 
   // ---------- کبد ----------
   ast: { label: "AST (SGOT)", unit: "U/L", cat: "liver", hard: [0, 2000],
-    range: (s) => s === "female" ? { low: 0, high: 35 } : { low: 0, high: 50 },
+    range: () => ({ low: 0, high: 40 }),
     about: "آنزیم کبد، قلب و عضلات؛ بالا بودن نشانه آسیب بافتی.",
     high: "بالا می‌تواند به آسیب کبدی، عضلانی یا قلبی مربوط باشد." },
   alt: { label: "ALT (SGPT)", unit: "U/L", cat: "liver", hard: [0, 2000],
-    range: (s) => s === "female" ? { low: 0, high: 35 } : { low: 0, high: 50 },
+    range: (s) => s === "female" ? { low: 0, high: 33 } : { low: 0, high: 41 },
     about: "آنزیم کبدی و شاخص اختصاصی‌تر آسیب کبد.",
     high: "بالا اغلب نشانه التهاب یا آسیب کبد است." },
   alp: { label: "ALP (آلکالن فسفاتاز)", unit: "U/L", cat: "liver", hard: [0, 2000],
@@ -156,15 +156,15 @@ const REF = {
     about: "آنزیم کبد، استخوان و روده.",
     high: "بالا می‌تواند به مشکلات کبدی، صفراوی یا استخوانی مربوط باشد.",
     low: "پایین معمولاً اهمیت بالینی کمی دارد." },
-  bili: { label: "بیلی‌روبین تام", unit: "mg/dL", cat: "liver", hard: [0, 40],
+  bili: { label: "Bilirubin Total (بیلی‌روبین تام)", unit: "mg/dL", cat: "liver", hard: [0, 40],
     range: () => ({ low: 0, high: 1.4 }), critFn: (v, sex, m) => { if (m != null && m < 6 && v > 15) return true; return false; },
     about: "محصول تجزیه گلبول قرمز؛ بالا بودن باعث زردی می‌شود.",
     high: "بالا می‌تواند به مشکلات کبدی، صفراوی یا همولیز مربوط باشد." },
-  albumin: { label: "آلبومین", unit: "g/dL", cat: "liver", hard: [1, 8],
-    range: () => ({ low: 3.5, high: 5.2 }),
+  albumin: { label: "Albumin (آلبومین)", unit: "g/dL", cat: "liver", hard: [1, 8],
+    range: () => ({ low: 3.5, high: 5.0 }),
     about: "پروتئین اصلی خون که کبد می‌سازد.",
     low: "پایین می‌تواند نشانه مشکل کبد، کلیه یا تغذیه باشد." },
-  amylase: { label: "آمیلاز", unit: "U/L", cat: "liver", hard: [5, 5000],
+  amylase: { label: "Amylase (آمیلاز)", unit: "U/L", cat: "liver", hard: [5, 5000],
     range: () => ({ low: 30, high: 110 }), crit: [0, 330],
     about: "آنزیم گوارشی؛ بالا بودن با پانکراتیت مرتبط است.",
     high: "بالا (به‌ویژه بیش از ۳ برابر نرمال) می‌تواند نشانه پانکراتیت حاد باشد و نیاز به بررسی فوری دارد." },
@@ -174,38 +174,38 @@ const REF = {
     high: "بالا می‌تواند به آسیب کبدی، همولیز (شکستن گلبول قرمز)، آسیب عضلانی یا موارد دیگر مربوط باشد." },
 
   // ---------- الکترولیت ----------
-  na: { label: "سدیم (Na)", unit: "mmol/L", cat: "electro", hard: [100, 200],
-    range: () => ({ low: 133, high: 145 }), crit: [120, 160],
+  na: { label: "Na (سدیم)", unit: "mmol/L", cat: "electro", hard: [100, 200],
+    range: () => ({ low: 135, high: 145 }), crit: [120, 160],
     about: "مهم‌ترین یون خارج سلولی؛ در تعادل آب نقش دارد.",
     high: "بالا اغلب به کم‌آبی مربوط است.", low: "پایین می‌تواند به احتباس آب یا از دست دادن سدیم مربوط باشد." },
-  k: { label: "پتاسیم (K)", unit: "mmol/L", cat: "electro", hard: [1, 10],
-    range: () => ({ low: 3.4, high: 5.4 }), crit: [3.0, 6.5],
+  k: { label: "K (پتاسیم)", unit: "mmol/L", cat: "electro", hard: [1, 10],
+    range: () => ({ low: 3.5, high: 5.0 }), crit: [3.0, 6.5],
     about: "یون حیاتی برای عملکرد قلب و عضلات.",
     high: "بالا (هایپرکالمی) می‌تواند خطر آریتمی قلبی ایجاد کند و نیاز به بررسی فوری دارد.",
     low: "پایین (هایپوکالمی) می‌تواند به اسهال، استفراغ یا دارو مربوط باشد." },
-  ca: { label: "کلسیم (Ca)", unit: "mg/dL", cat: "electro", hard: [4, 16],
-    range: () => ({ low: 8.4, high: 10.6 }), crit: [6.9, 12.6],
+  ca: { label: "Ca (کلسیم)", unit: "mg/dL", cat: "electro", hard: [4, 16],
+    range: () => ({ low: 8.5, high: 10.2 }), crit: [6.9, 12.6],
     about: "برای استخوان، عضله و انعقاد خون ضروری است.",
     high: "بالا می‌تواند به مشکلات پاراتیروئید یا موارد دیگر مربوط باشد.",
     low: "پایین می‌تواند به کمبود ویتامین D یا پاراتیروئید مربوط باشد." },
-  phos: { label: "فسفر", unit: "mg/dL", cat: "electro", hard: [0.5, 12],
-    range: () => ({ low: 2.6, high: 4.5 }),
+  phos: { label: "Phosphorus (فسفر)", unit: "mg/dL", cat: "electro", hard: [0.5, 12],
+    range: () => ({ low: 2.5, high: 4.5 }),
     about: "برای استخوان و انرژی سلولی لازم است؛ در کنار کلسیم تفسیر می‌شود.",
     high: "بالا می‌تواند به مشکل کلیه مربوط باشد.",
     low: "پایین می‌تواند به سوءتغذیه یا اختلال جذب مربوط باشد." },
-  mg: { label: "منیزیم (Mg)", unit: "mg/dL", cat: "electro", hard: [0.5, 6],
-    range: () => ({ low: 1.3, high: 2.5 }), crit: [0.9, 3.5],
+  mg: { label: "Mg (منیزیم)", unit: "mg/dL", cat: "electro", hard: [0.5, 6],
+    range: () => ({ low: 1.7, high: 2.2 }), crit: [0.9, 3.5],
     about: "در عملکرد عضله و قلب نقش دارد.",
     high: "بالا می‌تواند به مشکل کلیه یا مصرف مکمل مربوط باشد.",
     low: "پایین می‌تواند به مشکلات عضلانی و قلبی منجر شود." },
 
   // ---------- آهن ----------
-  ferritin: { label: "فریتین", unit: "ng/mL", cat: "iron", hard: [1, 3000],
+  ferritin: { label: "Ferritin (فریتین)", unit: "ng/mL", cat: "iron", hard: [1, 3000],
     range: (s) => s === "female" ? { low: 15, high: 150 } : { low: 30, high: 300 },
     about: "ذخیره آهن بدن را نشان می‌دهد.",
     low: "پایین نشانه کاهش ذخایر آهن است و می‌تواند به کم‌خونی منجر شود.",
     high: "بالا می‌تواند به التهاب یا اضافه‌بار آهن مربوط باشد." },
-  iron: { label: "آهن (Fe)", unit: "µg/dL", cat: "iron", hard: [10, 400],
+  iron: { label: "Iron (آهن)", unit: "µg/dL", cat: "iron", hard: [10, 400],
     range: () => ({ low: 60, high: 170 }),
     about: "آهن سرم؛ در ساخت هموگلوبین نقش دارد.",
     low: "پایین می‌تواند نشانه کم‌خونی فقر آهن باشد." },
@@ -215,12 +215,12 @@ const REF = {
     high: "بالا اغلب همراه با کمبود آهن دیده می‌شود." },
 
   // ---------- CBC ----------
-  wbc: { label: "گلبول سفید (WBC)", unit: "×10³/µL", cat: "cbc", hard: [0.5, 100],
+  wbc: { label: "WBC (گلبول سفید)", unit: "×10³/µL", cat: "cbc", hard: [0.5, 100],
     range: () => ({ low: 4.5, high: 11 }), crit: [2.0, 30],
     about: "سلول‌های دفاعی بدن که با عفونت مبارزه می‌کنند.",
     high: "بالا اغلب نشانه عفونت، التهاب یا استرس است.",
     low: "پایین می‌تواند به مشکل مغز استخوان، عفونت شدید یا دارو مربوط باشد." },
-  rbc: { label: "گلبول قرمز (RBC)", unit: "×10⁶/µL", cat: "cbc", hard: [1, 10],
+  rbc: { label: "RBC (گلبول قرمز)", unit: "×10⁶/µL", cat: "cbc", hard: [1, 10],
     range: (s, m) => {
       if (m != null && m < 1) return { low: 4.0, high: 6.1 };
       if (m != null && m < 6) return { low: 3.8, high: 5.5 };
@@ -229,7 +229,7 @@ const REF = {
     about: "سلول‌های حامل اکسیژن.",
     low: "پایین می‌تواند به کم‌خونی، فقر آهن یا کمبود B12 مربوط باشد.",
     high: "بالا می‌تواند به کم‌آبی، زندگی در ارتفاع یا موارد دیگر مربوط باشد." },
-  hb: { label: "هموگلوبین", unit: "g/dL", cat: "cbc", hard: [3, 25],
+  hb: { label: "Hb (هموگلوبین)", unit: "g/dL", cat: "cbc", hard: [3, 25],
     range: (s, m) => {
       if (m != null && m < 1) return { low: 11, high: 24 };
       if (m != null && m < 6) return { low: 9.5, high: 18 };
@@ -238,7 +238,7 @@ const REF = {
     about: "رنگدانه حامل اکسیژن در گلبول قرمز.",
     low: "پایین نشانه کم‌خونی است و نیاز به بررسی دارد.",
     high: "بالا می‌تواند به کم‌آبی یا موارد دیگر مربوط باشد." },
-  hct: { label: "هماتوکریت (HCT)", unit: "%", cat: "cbc", hard: [10, 70],
+  hct: { label: "HCT (هماتوکریت)", unit: "%", cat: "cbc", hard: [10, 70],
     range: (s, m) => {
       if (m != null && m < 1) return { low: 35, high: 70 };
       if (m != null && m < 6) return { low: 29, high: 42 };
@@ -260,7 +260,7 @@ const REF = {
     range: () => ({ low: 32, high: 36 }),
     about: "غلظت متوسط هموگلوبین در گلبول قرمز.",
     low: "پایین با کم‌خونی هیپوکروم مرتبط است." },
-  plt: { label: "پلاکت", unit: "×10³/µL", cat: "cbc", hard: [10, 1500],
+  plt: { label: "PLT (پلاکت)", unit: "×10³/µL", cat: "cbc", hard: [10, 1500],
     range: () => ({ low: 150, high: 400 }), crit: [50, 1000],
     about: "در انعقاد خون و جلوگیری از خونریزی نقش دارند.",
     low: "پایین می‌تواند خطر خونریزی را افزایش دهد و نیاز به بررسی دارد.",
@@ -294,17 +294,17 @@ const REF = {
     about: "هورمون محرک تیروئید؛ اصلی‌ترین آزمایش عملکرد تیروئید.",
     high: "بالا (با T4 طبیعی) می‌تواند نشانه کم‌کاری تیروئید باشد.",
     low: "پایین می‌تواند نشانه پرکاری تیروئید باشد." },
-  t4: { label: "T4 تام", unit: "µg/dL", cat: "thyroid", hard: [1, 30],
-    range: (s) => s === "female" ? { low: 5, high: 12 } : { low: 4, high: 12 },
+  t4: { label: "Total T4 (T4 تام)", unit: "µg/dL", cat: "thyroid", hard: [1, 30],
+    range: () => ({ low: 5, high: 12 }),
     about: "هورمون تیروکسین؛ در کنار TSH تفسیر می‌شود.",
     high: "بالا می‌تواند به پرکاری تیروئید مربوط باشد.",
     low: "پایین می‌تواند به کم‌کاری تیروئید مربوط باشد." },
-  t3_ngdl: { label: "T3 تام (ng/dL)", unit: "ng/dL", cat: "thyroid", hard: [20, 600],
+  t3_ngdl: { label: "Total T3 (ng/dL)", unit: "ng/dL", cat: "thyroid", hard: [20, 600],
     range: () => ({ low: 80, high: 180 }),
     about: "هورمون تری‌یدوتیرونین (واحد متعارف)؛ در کنار TSH و T4 تفسیر می‌شود.",
     high: "بالا می‌تواند به پرکاری تیروئید مربوط باشد.",
     low: "پایین در کنار سایر هورمون‌ها تفسیر می‌شود." },
-  t3_nmol: { label: "T3 تام (nmol/L)", unit: "nmol/L", cat: "thyroid", hard: [0.3, 10],
+  t3_nmol: { label: "Total T3 (nmol/L)", unit: "nmol/L", cat: "thyroid", hard: [0.3, 10],
     range: () => ({ low: 1.6, high: 3.1 }),
     about: "هورمون تری‌یدوتیرونین (واحد SI)؛ در کنار TSH و T4 تفسیر می‌شود.",
     high: "بالا می‌تواند به پرکاری تیروئید مربوط باشد.",
@@ -316,15 +316,15 @@ const REF = {
     low: "پایین می‌تواند به کم‌کاری تیروئید مربوط باشد." },
 
   // ---------- ویتامین ----------
-  vitd: { label: "ویتامین D (25-OH)", unit: "ng/mL", cat: "vitamin", hard: [3, 200],
+  vitd: { label: "Vitamin D (25-OH)", unit: "ng/mL", cat: "vitamin", hard: [3, 200],
     range: () => ({ low: 30, high: 100 }),
     about: "برای جذب کلسیم و سلامت استخوان ضروری است.",
     low: "کمتر از ۲۰ کمبود و ۲۰ تا ۲۹ ناکافی؛ کمبود بسیار شایع است." },
-  b12: { label: "ویتامین B12", unit: "pg/mL", cat: "vitamin", hard: [50, 2000],
-    range: () => ({ low: 200, high: 800 }),
+  b12: { label: "Vitamin B12", unit: "pg/mL", cat: "vitamin", hard: [50, 2000],
+    range: () => ({ low: 200, high: 900 }),
     about: "برای سلول‌های عصبی و ساخت گلبول قرمز لازم است.",
     low: "پایین می‌تواند به مشکلات عصبی و کم‌خونی منجر شود." },
-  folate: { label: "فولات", unit: "ng/mL", cat: "vitamin", hard: [1, 40],
+  folate: { label: "Folate (فولات)", unit: "ng/mL", cat: "vitamin", hard: [1, 40],
     range: () => ({ low: 5, high: 25 }),
     about: "برای ساخت گلبول قرمز و سلامت سلول لازم است.",
     low: "پایین می‌تواند به کم‌خونی مربوط باشد." },
@@ -535,6 +535,36 @@ export default function Tafsir() {
       return `${m.label}: ${r.v} ${m.unit} (محدوده طبیعی: ${ref.low}-${ref.high})`;
     }).join("\n");
   }
+
+  // نام تمیز برای موتور قواعد سمت سرور.
+  // ⚠️ پرانتز فارسیِ داخل label (مثل «Hb (هموگلوبین)») جست‌وجوی NAME_MAP را
+  //    می‌شکند و تست بی‌صدا از تفسیر حذف می‌شود. با حذف پرانتز هر ۴۶ تست نگاشت می‌شود.
+  //    تست رگرسیون این را در khanesh-server/rules/engine.test.js قفل کرده.
+  function engineName(label) {
+    return label.replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  // مقادیر ساختاریافته برای موتور — سرور نباید رشتهٔ نمایشی فارسی را دوباره parse کند
+  function buildStructuredTests() {
+    return rows.map((r) => {
+      const m = REF[r.k];
+      return { key: r.k, name: engineName(m.label), value: parseFloat(r.v), unit: m.unit };
+    });
+  }
+
+  // ⚠️ موتور سن را فقط از patient.age می‌خواند (نه از سطح بالا).
+  //    اگر جای اشتباه برود، سن null می‌شود و محدودهٔ بزرگسال روی کودک اعمال می‌شود.
+  function buildStructuredPatient() {
+    const unitFa = ageUnit === "day" ? "روز" : ageUnit === "month" ? "ماه" : "سال";
+    return {
+      age: age ? `${age} ${unitFa}` : null,
+      sex: sex === "female" ? "زن" : "مرد",
+      // فقط زمینه برای لحنِ متن، نه ورودیِ گرید. موتور با این‌ها تصمیم نمی‌گیرد،
+      // ولی بدون ارسالشان مسیر موتور بارداری/بیماری زمینه‌ای را کاملاً دور می‌ریخت.
+      pregnant: sex === "female" && pregnant ? true : undefined,
+      conditions: conditions.length ? conditions : undefined,
+    };
+  }
   function patientInfo() {
     const unitFa = ageUnit === "day" ? "روز" : ageUnit === "month" ? "ماه" : "سال";
     const parts = [
@@ -560,8 +590,15 @@ export default function Tafsir() {
     const timeout = setTimeout(() => controller.abort(), 300000);
     try {
       const payload = { patientInfo: patientInfo() };
-      if (images.length) payload.imageDataUrls = images.map((i) => i.dataUrl);
-      else payload.testResults = buildTestText();
+      if (images.length) {
+        payload.imageDataUrls = images.map((i) => i.dataUrl);
+      } else {
+        // testResults همچنان می‌رود: هم زمینهٔ MedlinePlus از آن ساخته می‌شود،
+        // هم اگر موتور هیچ تستی را نشناخت سرور به مسیر قدیمی برمی‌گردد.
+        payload.testResults = buildTestText();
+        payload.tests = buildStructuredTests();
+        payload.patient = buildStructuredPatient();
+      }
 
       const res = await fetch(PROXY_URL, {
         method: "POST",

@@ -10,6 +10,8 @@
 //         → gpt-4o-mini کافی است.
 // ============================================================
 
+import { alreadyMeasured } from "./patterns.js";
+
 export const ENGINE_SYSTEM_PROMPT = `
 تو دستیار «LabMate» هستی و برای بیماری می‌نویسی که هیچ سواد پزشکی ندارد.
 
@@ -68,7 +70,7 @@ const URGENCY_FA = {
 /**
  * ساخت پیام کاربر از خروجی موتور
  */
-export function buildEnginePrompt(engineOut, patterns, medlineContext = "") {
+export function buildEnginePrompt(engineOut, patterns, medlineContext = "", patientContext = null) {
   const abnormal = engineOut.graded
     .filter((g) => g.abnormal)
     .map((g) => ({
@@ -89,6 +91,10 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "") {
     patient: {
       age: engineOut.age,
       sex: engineOut.sex === "M" ? "مرد" : engineOut.sex === "F" ? "زن" : null,
+      // زمینهٔ بیمار فقط برای لحن است — یافته‌ها و فوریت را عوض نمی‌کند.
+      // (مثلاً می‌توانی بگویی «چون باردار هستید حتماً با پزشک مطرح کنید».)
+      ...(patientContext?.pregnant ? { باردار: true } : {}),
+      ...(patientContext?.conditions?.length ? { بیماری_زمینه‌ای: patientContext.conditions } : {}),
     },
     overall_urgency: patterns.overall_urgency,
     overall_urgency_fa: URGENCY_FA[patterns.overall_urgency],
@@ -122,11 +128,17 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "") {
  * توصیه‌های قطعی از یافته‌های موتور — منبع واحد برای هم «تور ایمنی» و هم مسیر جایگزین.
  * ترتیب: action، سپس تست‌های suggest، سپس warnings. تست‌های forbid حذف می‌شوند.
  */
-export function buildEngineRecommendations(patterns) {
+export function buildEngineRecommendations(patterns, engineOut) {
+  // لایهٔ دوم: runPatterns پیشنهادهای تکراری را از قبل حذف کرده،
+  // ولی این مسیر ممکن است با findings دست‌ساز هم صدا زده شود.
+  const measured = new Set((engineOut?.graded ?? []).map((g) => g.test));
   const built = [];
   for (const f of patterns.findings) {
     if (f.action) built.push(f.action);
-    for (const t of f.suggest ?? []) built.push(`درخواست آزمایش ${t} از پزشک`);
+    for (const t of f.suggest ?? []) {
+      if (alreadyMeasured(t, measured)) continue;
+      built.push(`درخواست آزمایش ${t} از پزشک`);
+    }
     for (const w of f.warnings ?? []) built.push(w);
   }
   const forbidden = patterns.findings.flatMap((f) => f.forbid ?? []);
@@ -148,7 +160,7 @@ export function buildEngineFallbackResult(engineOut, patterns) {
   const abnormalText = engineOut.abnormal
     .map((a) => `${a.test}: ${a.value} (${a.fa})`)
     .join("، ");
-  const recs = buildEngineRecommendations(patterns);
+  const recs = buildEngineRecommendations(patterns, engineOut);
   return {
     summary: headlines.length
       ? headlines.join("؛ ")

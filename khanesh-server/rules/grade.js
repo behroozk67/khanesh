@@ -91,7 +91,9 @@ export function evaluate(testKey, value, lln, uln) {
   if (cl) {
     return {
       mode: cl.kind === 'classifier' ? MODE.CLASSIFIER : MODE.BINARY,
-      abnormal: !['normal','normocytic','normochromic'].includes(cl.tag),
+      // باند صریحاً طبیعی (cl.normal) یا یکی از تگ‌های طبیعیِ قدیمی.
+      // فهرست تگ‌ها برای سازگاری عقب‌رو می‌ماند؛ طبقه‌بندهای جدید normal:true بگذارند.
+      abnormal: !(cl.normal === true || ['normal','normocytic','normochromic'].includes(cl.tag)),
       dir: cl.dir ?? dir,
       fa: cl.fa,
       tag: cl.tag,
