@@ -823,3 +823,57 @@ test("M15: D-dimer زیر اورژانس با نسخهٔ کوتاه نمایش �
   assert.ok(/غیراختصاصی/.test(d.must_say), "باید نسخهٔ کوتاهِ اطمینان‌بخش باشد");
   assert.equal(d.warnings.length, 0, "نسخهٔ کوتاه هشدارِ بلند ندارد تا پیام اورژانس شلوغ نشود");
 });
+
+// ═══ M16: تفسیرهای شایع باید بزرگی‌محور باشند (عدد + محدوده)، نه فقط جهت ═══
+// باگ واقعی: کم‌خونی/چربی/الکترولیت فقط می‌گفتند «بالا/پایین» بدون آوردن عددِ
+// خودِ بیمار و محدودهٔ مرجع — تفسیرِ «ابتدایی». حالا مقدار و بستر عددی می‌آید.
+
+test("M16: کم‌خونی میکروسیتیک مقدار Hb و MCV و شدت را می‌آورد + key_number", () => {
+  const e = runEngine({ patient: { age: 30, sex: "F" },
+    tests: [{ name: "Hemoglobin", value: 9 }, { name: "MCV", value: 70 }, { name: "RBC", value: 4 }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "microcytic_ida_likely");
+  assert.ok(f, "باید کم‌خونیِ فقر آهن فعال شود (منتزر ۱۷.۵ > ۱۳)");
+  assert.ok(f.must_say.includes("هموگلوبین شما 9"), "باید مقدار هموگلوبین را بیاورد");
+  assert.ok(f.must_say.includes("70"), "باید مقدار MCV را بیاورد");
+  assert.ok(/کم‌خونیِ متوسط/.test(f.must_say), "Hb ۹ باید «متوسط» طبقه‌بندی شود");
+  assert.ok(/فریتین زیر ۳۰/.test(f.must_say), "باید معیار تأیید (فریتین زیر ۳۰) را بگوید");
+  assert.equal(f.key_number, 9, "key_number باید هموگلوبین باشد");
+});
+
+test("M16: پروفایل چربی عددِ LDL و هدف درمانی و قید ناشتا را می‌آورد + key_number", () => {
+  const e = runEngine({ patient: { age: 50, sex: "M" }, tests: [{ name: "LDL", value: 190 }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "dyslipidemia");
+  assert.ok(f, "باید دیس‌لیپیدمی فعال شود");
+  assert.ok(f.must_say.includes("190"), "باید مقدار LDL را بیاورد");
+  assert.ok(/مطلوب زیر ۱۰۰/.test(f.must_say), "باید هدف مطلوب LDL را بگوید");
+  assert.ok(/رسوب|پلاک/.test(f.must_say), "باید مکانیسم آترواسکلروز را بگوید");
+  assert.ok(f.warnings.some((w) => /ناشتا/.test(w)), "باید قید ناشتا بودن نمونه را بدهد");
+  assert.equal(f.key_number, 190, "key_number باید LDL باشد");
+});
+
+test("M16: پتاسیم بحرانی مقدار و محدوده و مکانیسم قلبی را می‌آورد + key_number", () => {
+  const e = runEngine({ tests: [{ name: "Potassium", value: 6.5 }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "hyperkalemia");
+  assert.ok(f, "باید هایپرکالمی فعال شود");
+  assert.equal(f.urgency, "emergency", "پتاسیم ۶.۵ باید اورژانس باشد");
+  assert.ok(f.must_say.includes("پتاسیم خون شما 6.5"), "باید مقدار پتاسیم را بیاورد");
+  assert.ok(/حد طبیعی/.test(f.must_say), "باید محدودهٔ طبیعی را بیاورد");
+  assert.equal(f.key_number, 6.5, "key_number باید پتاسیم باشد");
+});
+
+test("M16: سدیم و کلسیمِ غیرطبیعی مقدار خود بیمار را می‌آورند + key_number", () => {
+  const na = runEngine({ tests: [{ name: "Sodium", value: 118 }] });
+  const naF = runPatterns(na).findings.find((x) => x.pattern === "hyponatremia");
+  assert.ok(naF, "باید هیپوناترمی فعال شود");
+  assert.ok(naF.must_say.includes("سدیم خون شما 118"), "باید مقدار سدیم را بیاورد");
+  assert.equal(naF.key_number, 118);
+
+  const ca = runEngine({ tests: [{ name: "Calcium", value: 12.5 }] });
+  const caF = runPatterns(ca).findings.find((x) => x.pattern === "hypercalcemia");
+  assert.ok(caF, "باید هایپرکلسمی فعال شود");
+  assert.ok(caF.must_say.includes("کلسیم خون شما 12.5"), "باید مقدار کلسیم را بیاورد");
+  assert.equal(caF.key_number, 12.5);
+});
