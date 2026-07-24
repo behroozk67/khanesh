@@ -939,6 +939,26 @@ app.post("/api/analyze", async (req, res) => {
         }
       }
 
+      // ── تضمین اعدادِ کلیدیِ بزرگی (eGFR، میانگین قند/eAG، آنیون‌گپ) ──
+      // مدل ارزان گاهی جملهٔ حاویِ یک عددِ مشتق‌شده را حذف می‌کند — مثلاً eGFR را
+      // «تکراری با کراتینین» می‌بیند و می‌اندازد. این اعداد بخشِ حرفه‌ایِ تشخیص‌اند
+      // (بزرگیِ اختلال) و نباید گم شوند. اگر عددِ key_number در متن نبود، جملهٔ اولِ
+      // must_say (که همان عدد را دارد) به ابتدای تفسیر برمی‌گردد.
+      const toLatinDigits = (s) =>
+        String(s).replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+      const interpText = toLatinDigits(`${parsed.summary || ""} ${parsed.interpretation || ""}`);
+      const missingFacts = [];
+      for (const f of patternOut.findings) {
+        if (f.key_number == null) continue;
+        if (interpText.includes(toLatinDigits(f.key_number))) continue;
+        const sent = String(f.must_say || "").split(/(?<=[.؟!])\s/)[0].trim();
+        if (sent && !missingFacts.includes(sent)) missingFacts.push(sent);
+      }
+      if (missingFacts.length) {
+        console.warn(`⚠️ ${missingFacts.length} عددِ کلیدی در متن مدل نبود — به تفسیر اضافه شد`);
+        parsed.interpretation = `${missingFacts.join(" ")} ${parsed.interpretation || ""}`.trim();
+      }
+
       // تست ممنوع اگر از دست مدل در رفت
       const forbidden = patternOut.findings.flatMap((f) => f.forbid ?? []);
       if (forbidden.length) {

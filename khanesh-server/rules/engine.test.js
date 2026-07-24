@@ -693,3 +693,55 @@ test("M12: پرامپت و must_say نام فارسی می‌دهند، نه ک�
   const ms = p.findings.find((f) => f.rule_id === "unmatched_abnormal")?.must_say || "";
   assert.ok(!/\bHGB\b|\bBILI_T\b/.test(ms), "must_say نباید کلید خام داشته باشد");
 });
+
+// ═══ M13: تفسیر دیابت باید بزرگی‌محور و از نظر تشخیص دقیق باشد ═══
+// باگ واقعی: برای FBS ۴۰۰ + HbA1c ۱۲٪ موتور می‌گفت «تشخیص قطعی نیاز به تکرار دارد» —
+// طبق ADA دو آزمایشِ متفاوتِ غیرطبیعی روی یک نمونه تشخیص را قطعی می‌کند، پس تکرار لازم نیست.
+// همچنین تفسیر «ابتدایی» بود: نه eAG می‌گفت، نه هشدار علائم بحران هایپرگلیسمی.
+test("M13: دیابتِ دو-آزمایشی قطعی است (نه «تکرار کن») + eAG + هشدار علائم", () => {
+  const e = runEngine({ patient: { age: 45, sex: "M" },
+    tests: [{ name: "FBS", value: 400 }, { name: "HbA1c", value: 12 }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "diabetes_range");
+  assert.ok(f, "باید الگوی دیابت فعال شود");
+  // تشخیص قطعی: نباید بگوید «تکرار شود»؛ باید بگوید نیازی به تکرار نیست
+  assert.ok(!/یک بار دیگر تکرار/.test(f.must_say), "برای دو آزمایش نباید «تکرار» بگوید");
+  assert.ok(/کافی است|نیازی به تکرار/.test(f.must_say), "باید تشخیص را قطعی اعلام کند");
+  // eAG: HbA1c ۱۲٪ → میانگین قند ~۲۹۸
+  assert.ok(f.must_say.includes("298"), "باید eAG (~۲۹۸) را بیاورد");
+  // suggest نباید «تکرار قند ناشتا» داشته باشد (چون قطعی است)
+  assert.ok(!f.suggest.some((s) => /تکرار قند/.test(s)), "قطعی: تکرار قند نباید پیشنهاد شود");
+  // هایپرگلیسمی شدید → هشدار علائم بحران
+  assert.ok(f.warnings.some((w) => /اورژانس|همین امروز/.test(w)), "باید هشدار علائم شدید بدهد");
+});
+
+// تک‌آزمایشِ منفرد همچنان باید تکرار بخواهد (تشخیص هنوز قطعی نیست)
+test("M13: قند ناشتای منفرد ۱۳۰ هنوز نیاز به تکرار دارد", () => {
+  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "FBS", value: 130 }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "diabetes_range");
+  assert.ok(f, "باید الگوی دیابت فعال شود");
+  assert.ok(/یک بار دیگر تکرار/.test(f.must_say), "یک آزمایش منفرد باید تکرار بخواهد");
+  assert.ok(f.suggest.some((s) => /تکرار قند/.test(s)), "باید تکرار قند پیشنهاد شود");
+});
+
+// ═══ M14: قاعده‌های بزرگی‌محور عددِ کلیدی را به‌عنوان key_number علامت می‌زنند ═══
+// باگ واقعی: LLM ارزان جملهٔ eGFR را از تفسیر حذف می‌کرد (آن را «تکراری با
+// کراتینین» می‌دید). تور ایمنی سرور به key_number تکیه می‌کند تا عدد را برگرداند؛
+// پس قاعده‌ها باید این عدد را در finding بگذارند و اولین جملهٔ must_say همان را داشته باشد.
+test("M14: قاعدهٔ کلیه eGFR را به‌عنوان key_number و در جملهٔ اول must_say می‌آورد", () => {
+  const e = runEngine({ patient: { age: 68, sex: "M" }, tests: [{ name: "Creatinine", value: 1.9 }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "kidney_impairment");
+  assert.ok(f, "باید الگوی کلیه فعال شود");
+  assert.equal(f.key_number, e.indices.egfr, "key_number باید همان eGFR باشد");
+  const firstSent = String(f.must_say).split(/(?<=[.؟!])\s/)[0];
+  assert.ok(firstSent.includes(String(e.indices.egfr)), "جملهٔ اول must_say باید eGFR را داشته باشد");
+});
+
+test("M14: دیابتِ قطعی eAG را به‌عنوان key_number می‌آورد", () => {
+  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "FBS", value: 400 }, { name: "HbA1c", value: 12 }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "diabetes_range");
+  assert.equal(f.key_number, 298, "key_number باید eAG (~۲۹۸) باشد");
+});

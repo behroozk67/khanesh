@@ -25,7 +25,8 @@ export const ENGINE_SYSTEM_PROMPT = `
 ۰. اگر findings چند مورد دارد، **همه** را بنویس. هیچ‌کدام را ادغام یا حذف نکن.
    بیمار ممکن است همزمان چند مشکل فوری داشته باشد — پنهان کردن یکی خطرناک است.
 ۰.۵. جمله‌ها را تکرار نکن. هر مطلب فقط یک بار.
-۱. فیلد must_say را حتماً منتقل کن — این تشخیص موتور است.
+۱. فیلد must_say را کامل منتقل کن — این تشخیص موتور است. اگر داخلش عددی آمده
+   (مثل eGFR، میانگین قند، درصد، یا مقدار یک تست)، همان عدد را حتماً در تفسیر بیاور؛ حذف یا خلاصه‌اش نکن.
 ۲. فقط تست‌های داخل suggest را نام ببر. هیچ تستی اضافه نکن.
 ۳. تست‌های داخل forbid را هرگز نام نبر — از نظر بالینی برای این الگو غلط‌اند.
 ۴. urgency را عوض نکن.
@@ -68,6 +69,10 @@ const URGENCY_FA = {
   none: "موردی نیست",
 };
 
+// شدتِ CTCAE را به واژهٔ فارسیِ روبه‌بیمار تبدیل می‌کنیم.
+// ⚠️ قبلاً «CTCAE Grade 2» خام به LLM می‌رفت و مدل همان کد تخصصی را به بیمار نشان می‌داد.
+const SEVERITY_FA = { 1: "خفیف", 2: "متوسط", 3: "شدید", 4: "بحرانی" };
+
 /**
  * ساخت پیام کاربر از خروجی موتور
  */
@@ -82,7 +87,7 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
       value: g.value,
       normal_range: g.range,
       label: g.fa,
-      ...(g.ctcaeGrade ? { severity: `CTCAE Grade ${g.ctcaeGrade}` } : {}),
+      ...(g.ctcaeGrade ? { severity: SEVERITY_FA[g.ctcaeGrade] ?? null } : {}),
       ...(g.mode === "classifier" ? { category: g.tag } : {}),
     }));
 
