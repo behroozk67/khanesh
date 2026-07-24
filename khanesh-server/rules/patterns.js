@@ -11,6 +11,8 @@
 //   راه‌حل: الگو را کد تعیین کند، نه مدل.
 // ============================================================
 
+import { faName } from "./names.js";
+
 const has = (t, ...ks) => ks.every((k) => t[k] != null);
 
 // آیا یک تست سرولوژی (که نامش با nameRe جور است) واکنش‌گر/مثبت است؟
@@ -845,37 +847,44 @@ export const RULES = [
   },
 
   // ── کلسیم ──
+  // ⚠️ قبلاً فقط CA≥13 یا ≤7.0 قاعده داشت؛ هایپر/هایپوکلسمیِ متوسط (گرید ۱–۲)
+  //    به unmatched_abnormal می‌افتاد و «توضیح آماده نداریم» + urgency پایین می‌داد.
+  //    حالا هر کلسیمِ غیرطبیعی پوشش دارد، با فوریتِ متناسبِ گرید CTCAE.
   {
-    id: "calcium_critical",
+    id: "calcium_abnormal",
     match: (e) => {
-      const t = val(e);
-      // کلسیم تام؛ آستانه بحرانی تقریبی
-      return t.CA != null && (t.CA >= 13 || t.CA <= 7.0);
+      const ca = e.graded.find((g) => g.test === "CA");
+      return ca?.abnormal === true;
     },
     build: (e) => {
-      const t = val(e);
-      const high = t.CA >= 13;
-      const critical = t.CA >= 14 || t.CA <= 6.5;
+      const ca = e.graded.find((g) => g.test === "CA");
+      const v = ca.value;
+      const high = ca.dir === "high";
+      const grade = ca.ctcaeGrade ?? 0;
+      const critical = v >= 14 || v <= 6.5;      // نیاز به اورژانس
       const corrNote = e.indices.ca_correction_applied
         ? ` (این مقدار با آلبومین تصحیح شده؛ اندازه‌گیری‌شده روی برگه ${e.indices.ca_measured}.)`
         : "";
+      // فوریت: بحرانی→اورژانس، متوسط/شدید (گرید ۲+)→این هفته، خفیف (گرید ۱)→عادی
+      const urgency = critical ? "emergency" : (grade >= 2 ? "this_week" : "routine");
+      const mild = urgency === "routine";
       return {
         pattern: high ? "hypercalcemia" : "hypocalcemia",
-        urgency: critical ? "emergency" : "this_week",
+        urgency,
         blocks_others: critical,
-        headline: high
-          ? "کلسیم خون شما بالاست"
-          : "کلسیم خون شما پایین است",
+        headline: high ? "کلسیم خون شما بالاست" : "کلسیم خون شما پایین است",
         must_say:
           (high
-            ? "کلسیم خون بالاتر از حد طبیعی است. علت‌های مختلفی دارد و باید بررسی شود. "
+            ? "کلسیم خون بالاتر از حد طبیعی است. علت‌های مختلفی دارد (از جمله غده پاراتیروئید) و باید بررسی شود. "
             : "کلسیم خون پایین‌تر از حد طبیعی است. ") +
           "تغییر زیاد کلسیم می‌تواند بر عضلات، اعصاب و قلب اثر بگذارد" +
           (critical ? " و در این حد نیاز به رسیدگی فوری دارد." : ".") +
           corrNote,
         action: critical
           ? "همین حالا به اورژانس مراجعه کنید."
-          : "این هفته با پزشک مطرح کنید. اگر گرفتگی عضلانی، بی‌حسی دور دهان یا تشنج دارید، زودتر.",
+          : mild
+            ? "با پزشک مطرح کنید تا علت بررسی شود."
+            : "این هفته با پزشک مطرح کنید. اگر گرفتگی عضلانی، بی‌حسی دور دهان یا تشنج دارید، زودتر.",
         suggest: critical ? [] : ["تکرار کلسیم", "آلبومین (برای تصحیح کلسیم)", "بررسی توسط پزشک"],
         warnings: [],
       };
@@ -2411,7 +2420,7 @@ export function runPatterns(engineOut) {
       headline: "بعضی از نتایج خارج از محدوده طبیعی هستند",
       must_say:
         `${engineOut.abnormal.length} مورد خارج از محدوده مرجع است` +
-        (worst ? `، از جمله ${worst.test} با مقدار ${worst.value} (طبیعی ${worst.range})` : "") +
+        (worst ? `، از جمله ${faName(worst.test)} با مقدار ${worst.value} (طبیعی ${worst.range})` : "") +
         ". برای این ترکیب توضیح آماده‌ای نداریم.",
       action: hasCritical
         ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."

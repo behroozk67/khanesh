@@ -11,6 +11,7 @@
 // ============================================================
 
 import { alreadyMeasured } from "./patterns.js";
+import { faName } from "./names.js";
 
 export const ENGINE_SYSTEM_PROMPT = `
 تو دستیار «LabMate» هستی و برای بیماری می‌نویسی که هیچ سواد پزشکی ندارد.
@@ -71,10 +72,13 @@ const URGENCY_FA = {
  * ساخت پیام کاربر از خروجی موتور
  */
 export function buildEnginePrompt(engineOut, patterns, medlineContext = "", patientContext = null) {
+  // ⚠️ test را با نام فارسی می‌فرستیم، نه کلید خام. اگر finding هیچ suggestِ
+  //    فارسی نداشته باشد (unmatched_abnormal)، مدل از همین‌جا نام می‌سازد؛
+  //    کلید خام مثل HGB/BILI_T هرگز نباید به بیمار برسد.
   const abnormal = engineOut.graded
     .filter((g) => g.abnormal)
     .map((g) => ({
-      test: g.test,
+      test: faName(g.test),
       value: g.value,
       normal_range: g.range,
       label: g.fa,
@@ -84,7 +88,7 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
 
   const borderline = engineOut.graded
     .filter((g) => !g.abnormal && g.nearLimit)
-    .map((g) => ({ test: g.test, value: g.value, normal_range: g.range, label: g.fa }));
+    .map((g) => ({ test: faName(g.test), value: g.value, normal_range: g.range, label: g.fa }));
 
   const payload = {
     instruction: "این تحلیل قطعی است. فقط بازنویسی کن — تحلیل نکن.",
@@ -142,9 +146,11 @@ export function buildEngineRecommendations(patterns, engineOut) {
     for (const w of f.warnings ?? []) built.push(w);
   }
   const forbidden = patterns.findings.flatMap((f) => f.forbid ?? []);
-  return forbidden.length
+  const filtered = forbidden.length
     ? built.filter((r) => !forbidden.some((w) => String(r).includes(w)))
     : built;
+  // حذف تکراری‌ها: دو finding ممکن است یک آزمایش/اقدام را پیشنهاد دهند.
+  return [...new Set(filtered.map((r) => String(r).trim()))];
 }
 
 /**

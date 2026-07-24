@@ -911,12 +911,13 @@ app.post("/api/analyze", async (req, res) => {
     // موتور خودش لیست را دارد، پس اگر مدل جا انداخت، از موتور پرش می‌کنیم.
     if (patternOut && patternOut.findings.length) {
       const recs = parsed.general_recommendations ?? parsed.recommendations;
-      if (!Array.isArray(recs) || recs.length === 0) {
-        console.warn("مدل general_recommendations نداد — از موتور ساخته شد");
-        parsed.general_recommendations = buildEngineRecommendations(patternOut, engineOut);
-      } else {
-        parsed.general_recommendations = recs;
-      }
+      const chosen = (!Array.isArray(recs) || recs.length === 0)
+        ? (console.warn("مدل general_recommendations نداد — از موتور ساخته شد"),
+           buildEngineRecommendations(patternOut, engineOut))
+        : recs;
+      // حذف تکراری‌ها: دو finding ممکن است یک آزمایش را پیشنهاد دهند (مثلاً
+      // کم‌خونی + همولیز هر دو «بیلی‌روبین»)، یا مدل یک سطر را دوبار بنویسد.
+      parsed.general_recommendations = [...new Set(chosen.map((r) => String(r).trim()))];
       delete parsed.recommendations;
 
       // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.

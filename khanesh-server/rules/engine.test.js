@@ -647,3 +647,49 @@ test("M10: کراتینین ۰.۵۵ برای زن نرمال است، برای �
     tests: [{ name: "Creatinine", value: 0.55, unit: "mg/dL" }] }).graded[0];
   assert.equal(m.abnormal, true, "مرد: 0.55 با کف 0.6 پایین");
 });
+
+// ═══ M11: هایپرکلسمی/هایپوکلسمیِ متوسط قاعده دارد (نه unmatched_abnormal) ═══
+// باگ واقعی (تست ۲۰-سناریویی): Ca 12.5 (گرید ۲) هیچ قاعده‌ای نداشت →
+// به unmatched_abnormal می‌افتاد، «توضیح آماده نداریم» می‌گفت و urgency را
+// routine می‌گذاشت. قاعدهٔ calcium فقط CA≥13/≤7.0 را می‌گرفت.
+test("M11: کلسیم ۱۲.۵ هایپرکلسمی this_week است، نه unmatched routine", () => {
+  const e = runEngine({ patient: { age: 60, sex: "F" },
+    tests: [{ name: "Ca", value: 12.5 }, { name: "Albumin", value: 4.0 }] });
+  const p = runPatterns(e);
+  assert.equal(p.findings[0]?.pattern, "hypercalcemia");
+  assert.equal(p.overall_urgency, "this_week");
+  assert.ok(!p.findings.some((f) => f.rule_id === "unmatched_abnormal"),
+    "نباید به تور ایمنی عمومی بیفتد");
+  // بحرانی همچنان اورژانس
+  const crit = runPatterns(runEngine({ patient: { age: 60, sex: "F" },
+    tests: [{ name: "Ca", value: 14.5 }, { name: "Albumin", value: 4.0 }] }));
+  assert.equal(crit.overall_urgency, "emergency");
+  assert.equal(crit.has_critical, true);
+  // خفیف عادی
+  const mild = runPatterns(runEngine({ patient: { age: 60, sex: "F" },
+    tests: [{ name: "Ca", value: 10.8 }, { name: "Albumin", value: 4.0 }] }));
+  assert.equal(mild.findings[0]?.pattern, "hypercalcemia");
+  assert.equal(mild.overall_urgency, "routine");
+});
+
+// ═══ M12: کلیدِ خامِ موتور هرگز به متنِ روبه‌کاربر نمی‌رسد ═══
+// باگ واقعی (تست ۲۰-سناریویی، مسیر API): وقتی unmatched_abnormal فعال می‌شد،
+// abnormal_tests با کلید خام (HGB، LDH، BILI_T) به LLM می‌رفت و مدل همان را
+// به بیمار نشان می‌داد: «درخواست آزمایش HGB از پزشک». also must_say کلید خام داشت.
+test("M12: پرامپت و must_say نام فارسی می‌دهند، نه کلید خام", async () => {
+  const { buildEnginePrompt } = await import("./prompt.js");
+  const { faName } = await import("./names.js");
+  assert.equal(faName("HGB"), "هموگلوبین");
+  assert.equal(faName("BILI_T"), "بیلی‌روبین تام");
+  const e = runEngine({ patient: { age: 25, sex: "M" },
+    tests: [{ name: "Hb", value: 8.5 }, { name: "LDH", value: 600 }, { name: "Bilirubin Total", value: 3.2 }] });
+  const p = runPatterns(e);
+  // پرامپت نباید کلید خام داشته باشد
+  const pl = JSON.parse(buildEnginePrompt(e, p, "").content);
+  const names = pl.abnormal_tests.map((a) => a.test);
+  assert.ok(names.includes("هموگلوبین"), "باید نام فارسی باشد");
+  assert.ok(!names.includes("HGB") && !names.includes("BILI_T"), "نباید کلید خام باشد");
+  // must_say هم نباید کلید خام لو بدهد
+  const ms = p.findings.find((f) => f.rule_id === "unmatched_abnormal")?.must_say || "";
+  assert.ok(!/\bHGB\b|\bBILI_T\b/.test(ms), "must_say نباید کلید خام داشته باشد");
+});
