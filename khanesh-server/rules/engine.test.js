@@ -435,7 +435,7 @@ test("M2: هر تست فرم ورود دستی به کلید موتور نگاش
   // مقدار SI طبیعی «پایین» کاذب می‌داد؛ تستِ «graded.length>0» آن را می‌پذیرفت.)
   const EXPECT = {
     "FBS": "GLU_F", "HbA1c": "HBA1C", "Cholesterol": "CHOL", "TG": "TG", "HDL": "HDL",
-    "LDL": "LDL", "Urea": "UREA_N", "BUN": "UREA_N", "Creatinine": "CREAT", "Uric Acid": "URIC",
+    "LDL": "LDL", "Urea": "UREA", "BUN": "UREA_N", "Creatinine": "CREAT", "Uric Acid": "URIC",
     "AST": "AST", "ALT": "ALT", "ALP": "ALP", "Bilirubin Total": "BILI_T", "Albumin": "ALB",
     "Amylase": "AMYLASE", "LDH": "LDH", "Na": "NA", "K": "K", "Ca": "CA", "Phosphorus": "PHOS",
     "Mg": "MG", "Ferritin": "FERRITIN", "Iron": "IRON", "TIBC": "TIBC", "WBC": "WBC", "RBC": "RBC",
@@ -876,4 +876,115 @@ test("M16: سدیم و کلسیمِ غیرطبیعی مقدار خود بیما�
   assert.ok(caF, "باید هایپرکلسمی فعال شود");
   assert.ok(caF.must_say.includes("کلسیم خون شما 12.5"), "باید مقدار کلسیم را بیاورد");
   assert.equal(caF.key_number, 12.5);
+});
+
+// ═══ M17: ACR (نسبت آلبومین به کراتینین) — طبقه‌بندی KDIGO A1/A2/A3 ═══
+// افزوده از فصل کلیهٔ «اصول بیوشیمی بالینی» + KDIGO 2024. پیش از این موتور
+// ACR را می‌شناخت (در suggest می‌آمد) ولی اگر مقدارش می‌آمد هیچ تفسیری نداشت.
+// KDIGO: A1<30، A2 30–300، A3 ≥300 mg/g.
+
+test("M17: ACR ۴۵ → A2 (میکروآلبومینوری)، تفسیر نفروپاتی زودرس + key_number", () => {
+  const e = runEngine({ patient: { age: 60, sex: "M" }, tests: [{ name: "ACR", value: 45 }] });
+  const g = e.graded.find((x) => x.test === "ACR");
+  assert.equal(g.tag, "A2", "۴۵ mg/g باید A2 باشد");
+  assert.ok(g.abnormal, "A2 باید غیرطبیعی باشد");
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "albuminuria_A2");
+  assert.ok(f, "باید الگوی آلبومینوری فعال شود");
+  assert.equal(f.key_number, 45, "key_number باید ACR باشد");
+  assert.ok(f.must_say.includes("45"), "باید مقدار ACR را بیاورد");
+  assert.ok(/زودترین نشانه|زودرس|پیش از آنکه کراتینین/.test(f.must_say), "باید بگوید نشانهٔ زودرس آسیب کلیه است");
+  assert.ok(/جلوگیری|کنترل/.test(f.must_say), "باید پیام امیدوارکنندهٔ کنترل زودهنگام را بدهد");
+});
+
+test("M17: ACR ۳۵۰ → A3 (افزایش شدید)؛ ACR ۲۰ → A1 (طبیعی، بدون یافته)", () => {
+  const a3 = runEngine({ tests: [{ name: "UACR", value: 350 }] });
+  assert.equal(a3.graded.find((x) => x.test === "ACR").tag, "A3", "۳۵۰ باید A3 باشد");
+  assert.ok(runPatterns(a3).findings.some((x) => x.pattern === "albuminuria_A3"));
+
+  const a1 = runEngine({ tests: [{ name: "ACR", value: 20 }] });
+  assert.equal(a1.graded.find((x) => x.test === "ACR").tag, "A1", "۲۰ باید A1 باشد");
+  assert.ok(a1.graded.find((x) => x.test === "ACR").abnormal === false, "A1 نباید غیرطبیعی باشد");
+  assert.ok(!runPatterns(a1).findings.some((x) => /albuminuria/.test(x.pattern)), "A1 نباید یافته بسازد");
+});
+
+test("M17: ACR واحدِ SI (mg/mmol) به mg/g تبدیل می‌شود", () => {
+  // ۸ mg/mmol × ۸.۸۴ ≈ ۷۰.۷ mg/g → A2 (نه A1ِ کاذب)
+  const e = runEngine({ tests: [{ name: "ACR", value: 8, unit: "mg/mmol" }] });
+  const g = e.graded.find((x) => x.test === "ACR");
+  assert.ok(g.value > 60 && g.value < 80, "۸ mg/mmol باید ~۷۰ mg/g شود");
+  assert.equal(g.tag, "A2", "پس از تبدیل باید A2 باشد، نه A1ِ کاذب");
+});
+
+test("M17: «albumin» تنها به ALB سرم می‌رود، نه ACR (جلوگیری از خطای واحد)", () => {
+  const e = runEngine({ tests: [{ name: "Albumin", value: 4.2 }] });
+  assert.ok(!e.graded.some((x) => x.test === "ACR"), "«albumin» نباید به ACR نگاشت شود");
+});
+
+// ═══ M18: تفسیر بیلی‌روبین/کبد — بزرگی‌محور از فصل کبدِ بیوشیمی بالینی ═══
+// بزرگی (عدد + محدوده)، آستانهٔ زردیِ قابل‌مشاهده (~۲.۵)، اطمینان‌بخشیِ ژیلبر،
+// پرچمِ سه‌گانهٔ شارکو در انسداد، و نسبت De Ritis عددی در الگوی الکلی.
+
+test("M18: بیلی‌روبین غیرمستقیمِ خفیف با آنزیم طبیعی → ژیلبر (خوش‌خیم) + عدد", () => {
+  const e = runEngine({ patient: { age: 22, sex: "M" },
+    tests: [{ name: "Total Bilirubin", value: 2.4 }, { name: "Direct Bilirubin", value: 0.3 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "bilirubin_indirect_dominant");
+  assert.ok(f, "باید الگوی غیرمستقیم فعال شود");
+  assert.equal(f.urgency, "routine", "ژیلبرِ خفیف باید routine باشد");
+  assert.equal(f.key_number, 2.4, "key_number باید بیلی‌روبین تام باشد");
+  assert.ok(f.must_say.includes("2.4"), "باید مقدار بیلی‌روبین را بیاورد");
+  assert.ok(/ژیلبر/.test(f.must_say), "باید سندرم ژیلبر را نام ببرد");
+  assert.ok(/درمانی لازم ندارد|بی‌خطر|هیچ آسیبی/.test(f.must_say), "باید پیام اطمینان‌بخش بدهد");
+});
+
+test("M18: بیلی‌روبینِ مستقیم‌غالبِ بالا → عدد + آستانهٔ زردی + پرچمِ کلانژیت", () => {
+  const e = runEngine({ patient: { age: 58, sex: "F" },
+    tests: [{ name: "Total Bilirubin", value: 8 }, { name: "Direct Bilirubin", value: 6 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "bilirubin_direct_dominant");
+  assert.ok(f, "باید الگوی مستقیم فعال شود");
+  assert.equal(f.key_number, 8);
+  assert.ok(/زردی/.test(f.must_say), "بیلی‌روبین ۸ باید به زردیِ قابل‌مشاهده اشاره کند");
+  assert.ok(f.warnings.some((w) => /اورژانس/.test(w) && /تب/.test(w)),
+    "باید پرچمِ سه‌گانهٔ شارکو (تب+درد+زردی → اورژانس) بدهد");
+});
+
+test("M18: الگوی کبدِ الکلی نسبت De Ritis را عددی می‌آورد + هشدارِ «زیر ۳۰۰»", () => {
+  const e = runEngine({ patient: { age: 50, sex: "M" },
+    tests: [{ name: "AST", value: 180 }, { name: "ALT", value: 70 }, { name: "GGT", value: 300 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "alcoholic_liver_pattern");
+  assert.ok(f, "باید الگوی الکلی فعال شود");
+  assert.equal(f.key_number, 2.6, "key_number باید نسبت AST/ALT باشد");
+  assert.ok(f.must_say.includes("180") && f.must_say.includes("70"), "باید مقادیر AST و ALT را بیاورد");
+  assert.ok(/زیر ۳۰۰/.test(f.must_say), "باید نکتهٔ «الکلی معمولاً زیر ۳۰۰» را بدهد");
+});
+
+// ═══ M19: اوره دیگر به BUN تبدیل نمی‌شود — هرکدام با محدودهٔ خودش ═══
+// درخواست کاربر: عددِ اوره در تفسیر نصف نشود؛ اوره به‌عنوان اوره و BUN به‌عنوان BUN.
+// تبدیل ÷۲.۱۴ فقط داخلی برای شاخصِ BUN/Cr می‌ماند.
+
+test("M19: اورهٔ واردشده نصف نمی‌شود و با محدودهٔ اوره سنجیده می‌شود", () => {
+  const e = runEngine({ tests: [{ name: "Urea", value: 90 }] });
+  const u = e.graded.find((x) => x.test === "UREA");
+  assert.ok(u, "اوره باید کلید UREA بگیرد، نه UREA_N");
+  assert.equal(u.value, 90, "مقدار اوره باید ۹۰ بماند (نه ۴۲ِ نصف‌شده)");
+  assert.ok(u.abnormal && u.dir === "high", "۹۰ بالای محدودهٔ اوره (۱۵–۴۳) است");
+  assert.ok(!e.graded.some((x) => x.test === "UREA_N"), "نباید UREA_Nِ کاذب ساخته شود");
+  // اوره ۳۰ در محدودهٔ اوره طبیعی است (قبلاً ۳۰÷۲.۱۴=۱۴ می‌شد که هنوز نرمال بود، ولی عددش گمراه‌کننده)
+  const norm = runEngine({ tests: [{ name: "اوره", value: 30 }] }).graded.find((x) => x.test === "UREA");
+  assert.ok(norm && norm.value === 30 && norm.abnormal === false, "اوره ۳۰ باید نرمال و بدون تغییر باشد (نامِ فارسی هم نگاشت شود)");
+});
+
+test("M19: BUN همچنان به‌عنوان BUN تفسیر می‌شود (بدون دو برابر شدن)", () => {
+  const e = runEngine({ tests: [{ name: "BUN", value: 40 }] });
+  const b = e.graded.find((x) => x.test === "UREA_N");
+  assert.ok(b && b.value === 40, "BUN باید ۴۰ بماند");
+  assert.ok(b.abnormal && b.dir === "high", "BUN ۴۰ بالای محدودهٔ ۷–۲۰ است");
+});
+
+test("M19: شاخصِ BUN/Cr وقتی فقط اوره داریم از اوره÷۲.۱۴ ساخته می‌شود", () => {
+  // اوره ۱۲۰ → BUNِ داخلی ~۵۶؛ با کراتینین ۲.۵ نسبت ~۲۲ (>۲۰ = پیش‌کلیوی)
+  const e = runEngine({ tests: [{ name: "Urea", value: 120 }, { name: "Creatinine", value: 2.5 }] });
+  assert.equal(e.indices.bun_cr, 22, "BUN/Cr باید از اورهٔ ÷۲.۱۴ محاسبه شود، نه از خودِ اوره");
+  const f = runPatterns(e).findings.find((x) => x.pattern === "prerenal_pattern");
+  assert.ok(f, "نسبت BUN/Cr بالای ۲۰ باید الگوی پیش‌کلیوی را همچنان فعال کند");
 });

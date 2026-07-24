@@ -15,7 +15,7 @@ export const FA_NAMES = {
   RETIC: "رتیکولوسیت", RDW_CV: "RDW", RDW_SD: "RDW", MPV: "MPV", ESR: "ESR (سرعت رسوب)",
   NEUT_ABS: "نوتروفیل", LYMPH_ABS: "لنفوسیت", MONO_ABS: "مونوسیت",
   EOS_ABS: "ائوزینوفیل", BASO_ABS: "بازوفیل", BAND_ABS: "باند",
-  UREA_N: "اوره (BUN)", CREAT: "کراتینین", NA: "سدیم", K: "پتاسیم", CL: "کلر",
+  UREA: "اوره", UREA_N: "BUN (نیتروژن اورهٔ خون)", CREAT: "کراتینین", NA: "سدیم", K: "پتاسیم", CL: "کلر",
   CA: "کلسیم", MG: "منیزیم", PHOS: "فسفر",
   AST: "AST (آنزیم کبدی)", ALT: "ALT (آنزیم کبدی)", ALP: "آلکالن فسفاتاز",
   GGT: "GGT", CK: "CK (کراتین کیناز)", CK_MB: "CK-MB", AMYLASE: "آمیلاز", LIPASE: "لیپاز",

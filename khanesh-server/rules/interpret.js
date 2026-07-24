@@ -117,6 +117,23 @@ export const CLASSIFIERS = {
   },
   FT4: { kind: 'binary', label: 'FT4', note: 'با TSH تفسیر شود' },
 
+  // ---- آلبومین ادرار (ACR) — طبقه‌بندی KDIGO ----
+  // A1 <30، A2 30–300، A3 ≥300 mg/g (منبع: KDIGO 2024؛ فصل کلیه بیوشیمی بالینی).
+  // با `<` سختِ classify: <30→A1، 30–<300→A2، ≥300→A3 (منطبق بر «A3 ≥300»).
+  ACR: {
+    kind: 'classifier',
+    label: 'نسبت آلبومین به کراتینین ادرار',
+    bands: [
+      { max: 30,  tag: 'A1', fa: 'طبیعی تا افزایش خفیف', patient: null, normal: true },
+      { max: 300, tag: 'A2', fa: 'افزایش متوسط آلبومین ادرار (میکروآلبومینوری)',
+        patient: 'مقدار کمی آلبومین در ادرار شما دفع می‌شود' },
+      { max: Infinity, tag: 'A3', fa: 'افزایش شدید آلبومین ادرار',
+        patient: 'آلبومین قابل‌توجهی در ادرار شما دفع می‌شود' },
+    ],
+    note: 'نشانگر زودرس آسیب کلیه در دیابت/فشارخون — پیش از تغییر کراتینین/eGFR',
+    source: 'KDIGO 2024',
+  },
+
   // ---- بقیه: باینری ----
   HCT:      { kind: 'binary', label: 'هماتوکریت', note: 'شدت را Hb می‌گوید' },
   RBC:      { kind: 'binary', label: 'شمارش گلبول قرمز', note: 'RBC>5 با MCV پایین → تالاسمی مطرح' },
@@ -127,7 +144,8 @@ export const CLASSIFIERS = {
   RETIC:    { kind: 'binary', label: 'رتیکولوسیت', note: 'بالا=همولیز/خونریزی، پایین=نارسایی مغز استخوان' },
   MONO_ABS: { kind: 'binary', label: 'مونوسیت' },
   BASO_ABS: { kind: 'binary', label: 'بازوفیل' },
-  UREA_N:   { kind: 'binary', label: 'اوره', note: 'نسبت BUN/Cr مهم‌تر از عدد تنهاست' },
+  UREA_N:   { kind: 'binary', label: 'BUN (نیتروژن اورهٔ خون)', note: 'نسبت BUN/Cr مهم‌تر از عدد تنهاست' },
+  UREA:     { kind: 'binary', label: 'اوره', note: 'با محدودهٔ خودِ اوره تفسیر می‌شود، نه BUN' },
   CL:       { kind: 'binary', label: 'کلر', note: 'برای anion gap لازم است' },
   URIC:     { kind: 'binary', label: 'اسید اوریک' },
   TP:       { kind: 'binary', label: 'پروتئین توتال' },

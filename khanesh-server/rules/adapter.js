@@ -65,7 +65,7 @@ const NAME_MAP = {
   postprandial: "GLU_2H", postprandialbloodsugar: "GLU_2H",
   "2hourpostprandial": "GLU_2H", قندخوندوساعته: "GLU_2H", قنددوساعته: "GLU_2H",
   hba1c: "HBA1C", a1c: "HBA1C",
-  urea: "UREA", bun: "UREA_N", bloodureanitrogen: "UREA_N", ureanitrogen: "UREA_N",
+  urea: "UREA", اوره: "UREA", bun: "UREA_N", bloodureanitrogen: "UREA_N", ureanitrogen: "UREA_N",
   creatinine: "CREAT", cr: "CREAT", کراتینین: "CREAT",
   na: "NA", serumna: "NA", sodium: "NA",
   k: "K", serumk: "K", potassium: "K",
@@ -82,6 +82,13 @@ const NAME_MAP = {
   amylase: "AMYLASE", lipase: "LIPASE",
   uricacid: "URIC", uric: "URIC",
   alb: "ALB", albumin: "ALB",
+  // ACR — فقط نام‌های صریحِ «نسبت آلبومین به کراتینین». «albumin»/«microalbumin»
+  // تنها (غلظت mg/L) عمداً نگاشت نمی‌شود چون نقاط برشِ KDIGO فقط برای نسبت (mg/g) معتبرند.
+  acr: "ACR", uacr: "ACR", albumincreatinineratio: "ACR",
+  albumintocreatinineratio: "ACR", urinealbumincreatinineratio: "ACR",
+  microalbumincreatinineratio: "ACR", malbcr: "ACR",
+  نسبتآلبومینبهکراتینین: "ACR", آلبومینبهکراتینین: "ACR",
+  میکروآلبومینبهکراتینین: "ACR",
   tp: "TP", totalprotein: "TP",
   bili: "BILI_T", bilirubintotal: "BILI_T", totalbilirubin: "BILI_T", tbil: "BILI_T",
   tbili: "BILI_T", بیلیروبینتام: "BILI_T", بیلیروبینکل: "BILI_T",
@@ -417,10 +424,10 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
-    // اوره → BUN
+    // اوره را همان‌طور که هست نگه می‌داریم و با محدودهٔ مرجعِ خودِ اوره تفسیر می‌کنیم
+    // (نه تبدیل به BUN). تبدیل ÷۲.۱۴ فقط داخلی و صرفاً برای شاخصِ BUN/Cr می‌ماند.
     if (engineKey === "UREA") {
-      tests.UREA_N = +ureaToBUN(v).toFixed(1);
-      tests._urea_raw = v;
+      tests.UREA = v;
       continue;
     }
 
@@ -457,6 +464,18 @@ export function ocrToEngineInput(ocr) {
         tests.DDIMER = Math.round(v * 1000);          // بدون واحد، عددِ کوچک ≈ mg/L
       } else {
         tests.DDIMER = v;                            // بدون واحد، عددِ بزرگ ≈ ng/mL
+      }
+      continue;
+    }
+
+    // ⚠️ ACR: نقاط برشِ KDIGO بر حسب mg/g است. برگه‌های SI گاهی mg/mmol می‌دهند
+    //    (۱ mg/mmol ≈ ۸.۸۴ mg/g). µg/mg با mg/g عددی برابر است.
+    if (engineKey === "ACR") {
+      const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
+      if (/mg\/mmol|mmol/.test(u)) {
+        tests.ACR = +(v * 8.84).toFixed(1);          // mg/mmol → mg/g
+      } else {
+        tests.ACR = v;                               // mg/g یا µg/mg (معادل)
       }
       continue;
     }
@@ -587,7 +606,10 @@ export function runEngine(ocr) {
   const idx = {};
   if (tests.MCV && tests.RBC) idx.mentzer = +(tests.MCV / tests.RBC).toFixed(1);
   if (tests.NEUT_PCT && tests.LYMPH_PCT) idx.nlr = +(tests.NEUT_PCT / tests.LYMPH_PCT).toFixed(1);
-  if (tests.UREA_N && tests.CREAT) idx.bun_cr = +(tests.UREA_N / tests.CREAT).toFixed(0);
+  // BUN/Cr: از BUNِ اندازه‌گیری‌شده؛ اگر فقط اوره داریم، BUN را داخلی (اوره÷۲.۱۴) برای همین شاخص می‌سازیم.
+  const bunForRatio = tests.UREA_N != null ? tests.UREA_N
+                    : (tests.UREA != null ? ureaToBUN(tests.UREA) : null);
+  if (bunForRatio != null && tests.CREAT) idx.bun_cr = +(bunForRatio / tests.CREAT).toFixed(0);
   if (tests.ALT && tests.ALP) {
     const ALT_ULN = getRef("ALT", sex, age)?.[1];
     const ALP_ULN = getRef("ALP", sex, age)?.[1];
