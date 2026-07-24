@@ -745,3 +745,81 @@ test("M14: دیابتِ قطعی eAG را به‌عنوان key_number می‌آ
   const f = p.findings.find((x) => x.pattern === "diabetes_range");
   assert.equal(f.key_number, 298, "key_number باید eAG (~۲۹۸) باشد");
 });
+
+// ═══ M15: D-dimer باینری بود و هیچ الگویی برنمی‌داشتش ═══
+// باگ واقعی: روی برگهٔ واقعی D-dimer خوانده و به‌عنوان «خارج از محدوده» علامت
+// می‌خورد، ولی چون binary است و هیچ الگویی به آن اشاره نمی‌کرد، هیچ finding
+// تولید نمی‌شد → «خوانده شد ولی تفسیر نداد». حالا قاعدهٔ اختصاصی دارد.
+test("M15: D-dimerِ بالای تنها یافتهٔ this_week می‌سازد، نه سکوت", () => {
+  const e = runEngine({ tests: [{ name: "D-Dimer", value: 600 }] });   // نرمال 0–500 ng/mL (FEU)
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "d_dimer_elevated");
+  assert.ok(f, "D-dimerِ بالا باید یافته بسازد");
+  assert.equal(f.urgency, "this_week");
+  assert.ok(/غیراختصاصی/.test(f.must_say), "باید بگوید غیراختصاصی است (اطمینان‌بخش)");
+  assert.ok(f.warnings.some((w) => /اورژانس/.test(w)), "باید هشدار علائم لخته بدهد");
+});
+
+test("M15: D-dimerِ نرمال هیچ یافتهٔ D-dimer نمی‌سازد", () => {
+  const e = runEngine({ tests: [{ name: "D-Dimer", value: 100 }] });
+  const p = runPatterns(e);
+  assert.ok(!p.findings.some((x) => x.pattern === "d_dimer_elevated"), "D-dimer نرمال نباید یافته بسازد");
+});
+
+// ISTH: پلاکت پایین + D-dimerِ شدیداً بالا + یک اختلال انعقادی = DIC،
+// حتی وقتی فیبرینوژن نرمال است (قاعدهٔ قبلی هر سهِ PLT/PT/FIB را لازم داشت).
+test("M15: DIC با تریگر ISTH (D-dimer شدید + PLT پایین + PT بالا) اورژانس می‌شود", () => {
+  const e = runEngine({ tests: [
+    { name: "PLT", value: 60 }, { name: "PT", value: 20 }, { name: "D-Dimer", value: 5000 },
+  ] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "possible_DIC");
+  assert.ok(f, "باید DIC فعال شود");
+  assert.equal(f.urgency, "emergency");
+  assert.ok(/D-dimer/.test(f.must_say), "متن DIC باید D-dimer را نام ببرد");
+  // نباید همزمان یافتهٔ d_dimer_elevated هم بیاید (دوباره‌گویی)
+  assert.ok(!p.findings.some((x) => x.pattern === "d_dimer_elevated"), "DIC فعال است، d_dimer_elevated نباید بیاید");
+});
+
+// اختصاصی بودن: D-dimerِ شدید ولی پلاکت نرمال نباید اورژانسِ DIC کاذب بسازد.
+test("M15: D-dimerِ شدید با پلاکت نرمال، DIC کاذب نمی‌سازد", () => {
+  const e = runEngine({ tests: [{ name: "PLT", value: 250 }, { name: "D-Dimer", value: 5000 }] });
+  const p = runPatterns(e);
+  assert.ok(!p.findings.some((x) => x.pattern === "possible_DIC"), "بدون پلاکت پایین نباید DIC شود");
+  const f = p.findings.find((x) => x.pattern === "d_dimer_elevated");
+  assert.ok(f && f.urgency === "this_week", "باید فقط یافتهٔ this_week دی‌دایمر باشد");
+});
+
+// واحد: برگه‌های ایرانی اغلب D-dimer را mg/L / µg/mL FEU می‌دهند. بدون تبدیل،
+// «۱.۵ mg/L» (= ۱۵۰۰ ng/mL، واضحاً بالا) با محدودهٔ ng/mL «نرمال» گزارش می‌شد.
+test("M15: D-dimerِ mg/L به ng/mL تبدیل می‌شود (۱.۵ mg/L → بالا، نه نرمالِ کاذب)", () => {
+  const e = runEngine({ tests: [{ name: "D-Dimer", value: 1.5, unit: "mg/L" }] });
+  const g = e.graded.find((x) => x.test === "DDIMER");
+  assert.equal(g.value, 1500, "۱.۵ mg/L باید ۱۵۰۰ ng/mL شود");
+  assert.ok(g.abnormal && g.dir === "high", "باید «بالا» باشد، نه نرمال");
+});
+
+test("M15: D-dimerِ µg/mL هم تبدیل می‌شود و بدون واحد با بزرگیِ عدد حدس زده می‌شود", () => {
+  const mgml = runEngine({ tests: [{ name: "D-Dimer", value: 2, unit: "µg/mL" }] });
+  assert.equal(mgml.graded.find((x) => x.test === "DDIMER").value, 2000);
+  // بدون واحد، عددِ کوچک ≈ mg/L → ×۱۰۰۰
+  const smallNoUnit = runEngine({ tests: [{ name: "D-Dimer", value: 0.3 }] });
+  assert.equal(smallNoUnit.graded.find((x) => x.test === "DDIMER").value, 300);
+  // ۰.۳ mg/L = ۳۰۰ ng/mL < ۵۰۰ → با آستانهٔ درست، نرمال است (نه بالای کاذب)
+  assert.equal(smallNoUnit.graded.find((x) => x.test === "DDIMER").abnormal, false);
+});
+
+// always_show: زیر یک اورژانسِ blocks_others (پان‌سیتوپنی)، دی‌دایمر کاملاً پنهان
+// نمی‌شود بلکه نسخهٔ کوتاهش نمایش داده می‌شود؛ فوریت کلی همچنان emergency می‌ماند.
+test("M15: D-dimer زیر اورژانس با نسخهٔ کوتاه نمایش داده می‌شود، نه پنهان", () => {
+  const e = runEngine({ tests: [
+    { name: "WBC", value: 2.0 }, { name: "Hemoglobin", value: 7 }, { name: "PLT", value: 40 },
+    { name: "D-Dimer", value: 600 },
+  ] });
+  const p = runPatterns(e);
+  assert.equal(p.overall_urgency, "emergency", "پیام اورژانس باید اول بماند");
+  const d = p.findings.find((x) => x.pattern === "d_dimer_elevated");
+  assert.ok(d, "دی‌دایمر نباید کاملاً پنهان شود");
+  assert.ok(/غیراختصاصی/.test(d.must_say), "باید نسخهٔ کوتاهِ اطمینان‌بخش باشد");
+  assert.equal(d.warnings.length, 0, "نسخهٔ کوتاه هشدارِ بلند ندارد تا پیام اورژانس شلوغ نشود");
+});

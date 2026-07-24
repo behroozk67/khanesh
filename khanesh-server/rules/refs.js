@@ -96,7 +96,7 @@ export const ADULT_REFS = {
   PT:      { both: [10, 13],   unit: 'sec' },
   APTT:    { both: [25, 35],   unit: 'sec' },
   FIB:     { both: [200, 400], unit: 'mg/dL' },
-  DDIMER:  { both: [0, 200],   unit: 'ng/mL' },
+  DDIMER:  { both: [0, 500],   unit: 'ng/mL' },   // ۵۰۰ ng/mL = ۰.۵ mg/L FEU؛ حد ردِ VTE (سازگار با refs_ped)
   INR:     { both: [0.8, 1.2], unit: '' },
   LACTATE: { both: [0.5, 2.2], unit: 'mmol/L' },
   PCT_SEPSIS: { both: [0, 0.5], unit: 'ng/mL' },

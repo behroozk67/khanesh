@@ -129,6 +129,22 @@ function isGlomerulonephritis(e) {
   return crHigh || anemic;
 }
 
+// آیا تصویر DIC (انعقاد منتشر داخل عروقی) هست؟
+// معیارِ اصلیِ قبلی: پلاکت پایین + PT طولانی + فیبرینوژن پایین (هر سه با هم).
+// معیارِ افزوده بر پایهٔ امتیاز ISTH: پلاکت پایین + D-dimerِ شدیداً بالا +
+//   حداقل یک اختلال انعقادی (PT طولانی یا فیبرینوژن پایین). این معیارِ دوم
+//   موارد DIC ای را می‌گیرد که قاعدهٔ قبلی به‌خاطر نبودِ همهٔ سه شرط از دست می‌داد.
+function isDIC(e) {
+  const t = val(e);
+  const pltLow = t.PLT != null && t.PLT < 100;
+  const ptLong = t.PT != null && t.PT > 15;
+  const fibLow = t.FIB != null && t.FIB < 150;
+  if (pltLow && ptLong && fibLow) return true;   // تریگرِ اصلی — بدون تغییر
+  const d = e.graded.find((g) => g.test === "DDIMER");
+  const dStrong = d?.abnormal && d.dir === "high" && d.value >= 5000;  // ≈۱۰ برابرِ حد بالا (۵۰۰) = «افزایش شدید» ISTH
+  return Boolean(dStrong && pltLow && (ptLong || fibLow));
+}
+
 // urgency: emergency | this_week | routine
 export const RULES = [
   // ═══════════ سرولوژی غربالگری (هپاتیت B/C، HIV) ═══════════
@@ -506,20 +522,64 @@ export const RULES = [
   },
   {
     id: "dic_pattern",
-    match: (e) => {
+    match: (e) => isDIC(e),
+    build: (e) => {
       const t = val(e);
-      return has(t, "PLT", "PT", "FIB") && t.PLT < 100 && t.PT > 15 && t.FIB < 150;
+      const d = e.graded.find((g) => g.test === "DDIMER");
+      // فقط شاخص‌هایی را نام ببر که واقعاً غیرطبیعی‌اند (چون تریگرِ ISTH ممکن است
+      // بدون پایین بودنِ فیبرینوژن هم فعال شود).
+      const parts = [];
+      if (t.PLT != null && t.PLT < 100) parts.push("پلاکت پایین");
+      if (t.PT != null && t.PT > 15) parts.push("طولانی شدن زمان انعقاد (PT)");
+      if (t.FIB != null && t.FIB < 150) parts.push("فیبرینوژن پایین");
+      if (d?.abnormal && d.dir === "high") parts.push("D-dimer بالا");
+      return {
+        pattern: "possible_DIC",
+        urgency: "emergency",
+        headline: "چند شاخص لخته شدن خون همزمان غیرطبیعی است",
+        must_say:
+          `${parts.join("، ")} با هم می‌توانند نشانهٔ یک اختلال جدی انعقاد باشند که همزمان لخته و خونریزی ایجاد می‌کند. این ترکیب نیاز به بررسی فوری دارد.`,
+        action: "همین امروز به اورژانس مراجعه کنید.",
+        suggest: [],
+        blocks_others: true,
+      };
     },
-    build: () => ({
-      pattern: "possible_DIC",
-      urgency: "emergency",
-      headline: "چند شاخص لخته شدن خون همزمان غیرطبیعی است",
-      must_say:
-        "پلاکت پایین، طولانی شدن زمان انعقاد، و فیبرینوژن پایین با هم می‌توانند نشانهٔ یک اختلال جدی انعقاد باشند که همزمان لخته و خونریزی ایجاد می‌کند. این ترکیب نیاز به بررسی فوری دارد.",
-      action: "همین امروز به اورژانس مراجعه کنید.",
-      suggest: [],
-      blocks_others: true,
-    }),
+  },
+  // دی‌دایمرِ بالای تنها — وقتی تصویر DIC نباشد. باینری است و هیچ الگویی
+  // برنمی‌داشتش، پس «خوانده می‌شد ولی تفسیر نداشت». D-dimer غیراختصاصی است:
+  // فوریت this_week با لحن اطمینان‌بخش + هشدارِ علائم لخته.
+  {
+    id: "d_dimer_elevated",
+    match: (e) => {
+      const d = e.graded.find((g) => g.test === "DDIMER");
+      if (!(d?.abnormal && d.dir === "high")) return false;
+      return !isDIC(e);   // اگر DIC فعال است، آن الگوی اورژانسی پوشش می‌دهد
+    },
+    build: (e) => {
+      const d = e.graded.find((g) => g.test === "DDIMER");
+      return {
+        pattern: "d_dimer_elevated",
+        urgency: "this_week",
+        // حتی وقتی یک یافتهٔ اورژانسیِ دیگر (blocks_others) فعال است، دی‌دایمر
+        // نباید کاملاً پنهان شود — زیر اورژانس نسخهٔ کوتاه (brief) نمایش داده می‌شود.
+        always_show: true,
+        headline: "شاخص D-dimer خون شما بالاتر از حد طبیعی است",
+        must_say:
+          `مقدار D-dimer شما ${d.value} است (حد طبیعی ${d.range}). ` +
+          "D-dimer وقتی بالا می‌رود که در بدن لخته‌ای ساخته و سپس تجزیه شده باشد. " +
+          "اما این شاخص «غیراختصاصی» است و به دلایل بی‌خطر بسیاری هم بالا می‌رود — مانند بارداری، سن بالا، التهاب یا عفونت، و جراحی یا آسیب اخیر. " +
+          "بنابراین D-dimer بالا به‌تنهایی به معنای وجود لختهٔ خطرناک نیست و باید در کنار علائم شما و نظر پزشک تفسیر شود. ارزش اصلی این تست وقتی است که نتیجه‌اش طبیعی باشد و لخته را کنار بگذارد.",
+        // نسخهٔ کوتاه برای وقتی زیر یک اورژانسِ مهم‌تر نمایش داده می‌شود.
+        brief:
+          `شاخص D-dimer شما هم بالاتر از حد طبیعی است (${d.value}، حد طبیعی ${d.range}). ` +
+          "این یک شاخص غیراختصاصی است و باید در کنار موارد فوریِ بالا توسط پزشک بررسی شود.",
+        action: "این هفته با پزشک مطرح کنید تا در کنار شرح‌حال شما بررسی شود.",
+        suggest: ["بررسی توسط پزشک برای تفسیر در کنار علائم بالینی"],
+        warnings: [
+          "اگر همین حالا نشانه‌های احتمالِ لخته دارید — تورم، درد یا قرمزیِ یک‌طرفهٔ ساق پا، یا تنگی نفس ناگهانی، درد قفسهٔ سینه و سرفهٔ خونی — منتظر نمانید و فوراً به اورژانس مراجعه کنید.",
+        ],
+      };
+    },
   },
 
   // ═══════════ لکوسیتوز شدید — پرچم قرمز ═══════════
@@ -2542,17 +2602,28 @@ export function runPatterns(engineOut) {
   );
   const hasBlocker = Number.isFinite(blockerRank);
 
+  // always_show: یافته‌ای که حتی زیر یک blockerِ مهم‌تر هم نباید پنهان شود
+  //   (مثل D-dimer که همیشه باید دست‌کم یک اشارهٔ کوتاه داشته باشد). بقیهٔ
+  //   موارد کم‌اهمیت‌تر طبق روال پنهان می‌شوند تا پیام اورژانس رقیق نشود.
   const selected = hasBlocker
-    ? findings.filter((f) => rank(f.urgency) <= blockerRank)
+    ? findings.filter((f) => rank(f.urgency) <= blockerRank || f.always_show)
     : findings;
 
-  selected.sort((a, b) => rank(a.urgency) - rank(b.urgency));
+  // یافتهٔ always_show که فقط به‌خاطر همین استثنا زیر یک blocker مانده،
+  //   نسخهٔ کوتاهش (brief) را می‌گیرد تا پیام اورژانس را شلوغ نکند.
+  const shown = selected.map((f) =>
+    hasBlocker && f.always_show && rank(f.urgency) > blockerRank && f.brief
+      ? { ...f, must_say: f.brief, warnings: [], suggest: [] }
+      : f
+  );
+
+  shown.sort((a, b) => rank(a.urgency) - rank(b.urgency));
 
   return {
-    findings: selected,
-    overall_urgency: selected[0]?.urgency ?? "none",
-    has_critical: selected.some((f) => f.urgency === "emergency"),
+    findings: shown,
+    overall_urgency: shown[0]?.urgency ?? "none",
+    has_critical: shown.some((f) => f.urgency === "emergency"),
     // چند مورد کم‌اهمیت‌تر پنهان شد — برای شفافیت
-    suppressed: hasBlocker ? findings.length - selected.length : 0,
+    suppressed: hasBlocker ? findings.length - shown.length : 0,
   };
 }

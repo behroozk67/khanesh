@@ -441,6 +441,26 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
+    // ⚠️ D-dimer: واحدها بدنام‌اند و برگه‌های ایرانی اغلب mg/L یا µg/mL می‌دهند
+    //    (مثل «۱.۵، مرجع <۰.۵»). موتور ng/mL می‌خواهد (refs.js). بدون تبدیل،
+    //    ۱.۵ mg/L (= ۱۵۰۰ ng/mL، واضحاً بالا) با [0,200] «نرمال» گزارش می‌شد و
+    //    حتی DIC از دست می‌رفت. تبدیلِ حجمی مستقل از قرارداد FEU/DDU است.
+    //    ۱ mg/L = ۱ µg/mL = ۱۰۰۰ ng/mL ؛ ۱ µg/L = ۱ ng/mL.
+    if (engineKey === "DDIMER") {
+      const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
+      tests._ddimer_raw = v;
+      if (/(mg\/l|µg\/ml|μg\/ml|ug\/ml)/.test(u)) {
+        tests.DDIMER = Math.round(v * 1000);          // mg/L یا µg/mL → ng/mL
+      } else if (/(ng\/ml|µg\/l|μg\/l|ug\/l)/.test(u)) {
+        tests.DDIMER = v;                             // ng/mL یا µg/L (معادل)
+      } else if (v < 50) {
+        tests.DDIMER = Math.round(v * 1000);          // بدون واحد، عددِ کوچک ≈ mg/L
+      } else {
+        tests.DDIMER = v;                            // بدون واحد، عددِ بزرگ ≈ ng/mL
+      }
+      continue;
+    }
+
     tests[engineKey] = v;
   }
 
