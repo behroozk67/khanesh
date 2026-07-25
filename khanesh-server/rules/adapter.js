@@ -627,6 +627,12 @@ export function runEngine(ocr) {
   if (tests.CREAT != null && age != null && age >= 18 && sex) {
     idx.egfr = ckdEpiEgfr(tests.CREAT, age, sex);
   }
+  // non-HDL کلسترول = کلسترول تام − HDL (Kenwright, «Lipids and Lipoproteins»).
+  //   همهٔ ذرات آتروژنِ حاوی ApoB را پوشش می‌دهد، در حالت غیرناشتا هم معتبر است،
+  //   و برخلاف LDLِ فریدوالد با تری‌گلیسریدِ بالا خراب نمی‌شود. هدف ≈ هدفِ LDL + ۳۰.
+  if (tests.CHOL != null && tests.HDL != null) {
+    idx.non_hdl = +(tests.CHOL - tests.HDL).toFixed(0);
+  }
   // تصحیح‌های مشتق را برای مصرف الگوها در indices بگذار
   Object.assign(idx, derived);
 

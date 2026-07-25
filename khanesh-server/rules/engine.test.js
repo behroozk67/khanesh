@@ -988,3 +988,202 @@ test("M19: شاخصِ BUN/Cr وقتی فقط اوره داریم از اوره÷
   const f = runPatterns(e).findings.find((x) => x.pattern === "prerenal_pattern");
   assert.ok(f, "نسبت BUN/Cr بالای ۲۰ باید الگوی پیش‌کلیوی را همچنان فعال کند");
 });
+
+// ═══ M20: تفسیر تیروئید — بزرگی‌محور از فصل «Thyroid Function» (Nishizawa-Brennen) ═══
+// بزرگیِ TSH/FT4 با محدوده، key_number، علائمِ همراه، پرچمِ طوفان تیروئیدی،
+// و رفعِ یک نقص: FT4ِ بالا با TSHِ طبیعی «پرکاریِ واضح» نیست (Table 14.1).
+
+test("M20: کم‌کاریِ واضح (TSH بالا + FT4 پایین) عدد هر دو را می‌آورد + key_number + علائم", () => {
+  const e = runEngine({ patient: { age: 45, sex: "F" },
+    tests: [{ name: "TSH", value: 12 }, { name: "FT4", value: 0.5 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "thyroid_hypo_overt");
+  assert.ok(f, "باید کم‌کاریِ واضح فعال شود");
+  assert.equal(f.key_number, 12, "key_number باید TSH باشد");
+  assert.ok(f.must_say.includes("12"), "باید مقدار TSH را بیاورد");
+  assert.ok(f.must_say.includes("0.5"), "باید مقدار FT4 را هم بیاورد (بزرگیِ هر دو هورمون)");
+  assert.ok(/خستگی|یبوست|سرمایی/.test(f.must_say), "باید علائمِ کم‌کاری را ذکر کند (Box 14.1)");
+});
+
+test("M20: کم‌کاری تیروئید همراه هیپوناترمی/کم‌خونی، نکتهٔ علتِ ثانویه را می‌دهد", () => {
+  // فصل ص.۲۳: کم‌کاری تیروئید خودش می‌تواند سدیم پایین و کم‌خونی بسازد.
+  const e = runEngine({ patient: { age: 50, sex: "M" },
+    tests: [{ name: "TSH", value: 12 }, { name: "FT4", value: 0.5 },
+            { name: "Sodium", value: 128 }, { name: "Hemoglobin", value: 10 }] });
+  const f = runPatterns(e).findings.find((x) => /thyroid_hypo/.test(x.pattern));
+  assert.ok(f, "باید کم‌کاری تیروئید فعال شود");
+  assert.ok(/سدیم پایین/.test(f.must_say) && /کم‌خونی/.test(f.must_say),
+    "باید یافته‌های همراه را نام ببرد");
+  assert.ok(/می‌تواند خودش عاملِ این‌ها/.test(f.must_say),
+    "باید بگوید تیروئید می‌تواند علتِ ثانویهٔ آن‌ها باشد");
+});
+
+test("M20: پرکاریِ واضح (TSH پایین + FT4 بالا) پرچمِ طوفان تیروئیدی + TRAb می‌دهد", () => {
+  const e = runEngine({ patient: { age: 35, sex: "F" },
+    tests: [{ name: "TSH", value: 0.05 }, { name: "FT4", value: 3.0 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "thyroid_hyper_overt");
+  assert.ok(f, "باید پرکاریِ واضح فعال شود");
+  assert.equal(f.key_number, 0.05, "key_number باید TSH باشد");
+  assert.ok(f.must_say.includes("3"), "باید مقدار FT4 را بیاورد");
+  assert.ok(f.warnings.some((w) => /طوفان تیروئیدی/.test(w) && /اورژانس/.test(w)),
+    "باید پرچمِ اورژانسیِ طوفان تیروئیدی بدهد");
+  assert.ok(f.suggest.some((s) => /TRAb/.test(s)), "باید TRAb را پیشنهاد دهد");
+});
+
+test("M20: نقصِ رفع‌شده — FT4ِ بالا با TSHِ طبیعی «پرکاریِ واضح» نیست (Table 14.1)", () => {
+  // در پرکاریِ اولیهٔ واقعی TSH سرکوب می‌شود؛ FT4ِ بالا با TSHِ طبیعی اغلب
+  // خطای پیش‌تحلیلی/بیوتین است — نباید بیمار را با «پرکاری واضح» بترساند.
+  const e = runEngine({ patient: { age: 40, sex: "M" },
+    tests: [{ name: "TSH", value: 2.0 }, { name: "FT4", value: 3.0 }] });
+  const finds = runPatterns(e).findings;
+  assert.ok(!finds.some((x) => x.pattern === "thyroid_hyper_overt"),
+    "TSHِ طبیعی نباید «پرکاریِ واضح» بسازد");
+  const f = finds.find((x) => x.pattern === "thyroid_discordant_ft4_high");
+  assert.ok(f, "باید الگوی ناهماهنگِ محتاط فعال شود");
+  assert.equal(f.urgency, "routine", "چون احتمالاً خطای آزمایشگاهی است، routine بماند");
+  assert.equal(f.key_number, 3.0, "key_number باید FT4 باشد");
+  assert.ok(/بیوتین|خطای آزمایشگاهی|پیش‌تحلیلی|لووتیروکسین/.test(f.must_say),
+    "باید احتمالِ خطای پیش‌تحلیلی/تداخل را توضیح دهد");
+});
+
+// ═══ M21: نقصِ ترتیبِ شاخه — TSH بالا + FT4 بالا «کم‌کاری» نیست ═══
+// از فصل «Basic Endocrinology» (Moore) Table 13.3: T4↑/TSH↑ = پرکاریِ ثانویه
+// (تومورِ ترشح‌کنندهٔ TSH) یا مقاومت به هورمون. قبلاً چون شاخهٔ tshHigh زودتر
+// چک می‌شد، این حالت اشتباهاً «کم‌کاریِ تحت‌بالینی» با جملهٔ غلطِ «FT4 طبیعی است»
+// برچسب می‌خورد.
+
+test("M21: TSH بالا + FT4 بالا → پرکاریِ ثانویه، نه کم‌کاریِ تحت‌بالینیِ کاذب", () => {
+  const e = runEngine({ patient: { age: 38, sex: "F" },
+    tests: [{ name: "TSH", value: 8 }, { name: "FT4", value: 3.0 }] });
+  const finds = runPatterns(e).findings;
+  assert.ok(!finds.some((x) => /thyroid_hypo/.test(x.pattern)),
+    "نباید کم‌کاری (تحت‌بالینی یا واضح) برچسب بخورد");
+  const f = finds.find((x) => x.pattern === "thyroid_secondary_hyper");
+  assert.ok(f, "باید الگوی پرکاریِ ثانویه فعال شود");
+  assert.equal(f.key_number, 3.0, "key_number باید FT4 باشد");
+  assert.ok(f.must_say.includes("8") && f.must_say.includes("3"),
+    "باید مقادیرِ TSH و FT4 هر دو را بیاورد");
+  assert.ok(/هیپوفیز|مقاومت|ثانویه/.test(f.must_say),
+    "باید تومورِ هیپوفیز/مقاومت به هورمون را به‌عنوان علت مطرح کند");
+  assert.ok(!/FT4 هنوز طبیعی|FT4 طبیعی است/.test(f.must_say),
+    "نباید جملهٔ غلطِ «FT4 طبیعی است» را بگوید");
+});
+
+// ═══ M23: الگوی زنجیره‌ای منیزیم — بزرگی‌محور + پرچمِ آریتمی/دیگوکسین ═══
+// از فصل «Electrolytes» (Mistler) Table 11.15: منیزیمِ پایین با پتاسیمِ پایین
+// خطرِ آریتمی و مسمومیتِ دیجیتال را بالا می‌برد؛ اصلاحِ منیزیم مقدم است.
+
+test("M23: منیزیمِ پایین + پتاسیمِ پایین عددِ Mg و پرچمِ آریتمی/دیگوکسین را می‌آورد", () => {
+  const e = runEngine({ patient: { age: 55, sex: "F" },
+    tests: [{ name: "Magnesium", value: 1.2 }, { name: "Potassium", value: 3.0 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "magnesium_depletion_pattern");
+  assert.ok(f, "باید الگوی زنجیره‌ای منیزیم فعال شود");
+  assert.equal(f.key_number, 1.2, "key_number باید منیزیم باشد");
+  assert.ok(f.must_say.includes("1.2"), "باید مقدار منیزیم را بیاورد");
+  assert.ok(/تا منیزیم اصلاح نشود/.test(f.must_say), "باید نکتهٔ مقاومت به درمان را بدهد");
+  assert.ok(f.warnings.some((w) => /ضربان|آریتمی|نامنظم/.test(w)),
+    "با پتاسیمِ پایین باید پرچمِ آریتمی بدهد");
+  assert.ok(f.warnings.some((w) => /دیگوکسین|دیجیتال/.test(w)),
+    "باید هشدارِ سمّیتِ دیگوکسین بدهد");
+});
+
+// ═══ M24: چربی — non-HDL و تلهٔ فریدوالد (فصل «Lipids and Lipoproteins», Kenwright) ═══
+// non-HDL = کلسترول تام − HDL؛ پیش‌بینی‌کنندهٔ مستقلِ خطر و در غیرناشتا معتبر.
+// با TG>۴۰۰ محاسبهٔ LDL به روش فریدوالد نامعتبر است — باید به کاربر گفته شود.
+
+test("M24: non-HDL محاسبه و در تفسیر با هدفِ زیر ۱۳۰ آورده می‌شود", () => {
+  // کلسترول ۲۹۵، HDL ۳۵ → non-HDL = ۲۶۰
+  const e = runEngine({ patient: { age: 47, sex: "F" },
+    tests: [{ name: "Cholesterol", value: 295 }, { name: "HDL", value: 35 },
+            { name: "Triglycerides", value: 200 }] });
+  assert.equal(e.indices.non_hdl, 260, "non-HDL باید ۲۹۵−۳۵ باشد");
+  const f = runPatterns(e).findings.find((x) => x.pattern === "dyslipidemia");
+  assert.ok(f, "باید الگوی چربی فعال شود");
+  assert.ok(f.must_say.includes("260"), "باید عددِ non-HDL را بیاورد");
+  assert.ok(/زیر ۱۳۰/.test(f.must_say), "باید هدفِ زیر ۱۳۰ را بگوید");
+});
+
+test("M24: با TG>۴۰۰ هشدارِ نامعتبر بودنِ LDLِ محاسبه‌ای داده می‌شود", () => {
+  const e = runEngine({ patient: { age: 50, sex: "M" },
+    tests: [{ name: "Triglycerides", value: 450 }, { name: "LDL", value: 120 },
+            { name: "Cholesterol", value: 260 }, { name: "HDL", value: 40 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "dyslipidemia");
+  assert.ok(f, "باید الگوی چربی فعال شود");
+  assert.ok(f.warnings.some((w) => /قابل اعتماد نیست|محاسبه‌ای/.test(w) && /۴۰۰/.test(w)),
+    "باید بگوید LDLِ محاسبه‌ای با TG>۴۰۰ نامعتبر است");
+});
+
+test("M24: با TG طبیعی هشدارِ فریدوالد داده نمی‌شود (هشدار کاذب)", () => {
+  const e = runEngine({ patient: { age: 50, sex: "M" },
+    tests: [{ name: "Triglycerides", value: 180 }, { name: "LDL", value: 160 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "dyslipidemia");
+  assert.ok(f, "باید الگوی چربی فعال شود");
+  assert.ok(!f.warnings.some((w) => /قابل اعتماد نیست/.test(w)),
+    "با TG زیر ۴۰۰ نباید هشدارِ فریدوالد بدهد");
+});
+
+// ── M25: HHS (فصل ۹، Freeman) — قندِ >۶۰۰ بدونِ کتواسیدوز یک اورژانس است ──
+// باگ: قندِ ۹۵۰ با کتونِ منفی هیچ قاعدهٔ اورژانسی را فعال نمی‌کرد و فقط
+// «diabetes_range / این هفته وقت بگیرید» می‌گرفت — برای وضعیتی با مرگ‌ومیرِ بالا.
+test("M25: قندِ ۹۵۰ بدونِ کتون/اسیدوز → اورژانسِ هایپراسمولار، نه «این هفته»", () => {
+  const e = runEngine({ patient: { age: 58, sex: "M" },
+    tests: [{ name: "Glucose", value: 950 }, { name: "BUN", value: 48 },
+            { name: "Creatinine", value: 1.6 }] });
+  const out = runPatterns(e);
+  assert.equal(out.overall_urgency, "emergency", "قندِ ۹۵۰ باید اورژانس باشد");
+  assert.equal(out.has_critical, true);
+  const f = out.findings.find((x) => x.pattern === "hhs_pattern");
+  assert.ok(f, "باید الگوی HHS فعال شود");
+  assert.equal(f.key_number, 950, "عددِ محوری باید خودِ قند باشد");
+  assert.ok(f.must_say.includes("950"), "عدد باید در جملهٔ اول بیاید");
+  assert.ok(/هایپراسمولار/.test(f.must_say));
+  assert.ok(/اوره\/کراتینین/.test(f.must_say), "کم‌آبیِ همراه باید ذکر شود");
+  assert.ok(/اورژانس/.test(f.action), "اقدام باید اورژانس باشد نه نوبتِ مطب");
+});
+
+test("M25: قندِ بالا + کتونِ مثبت → DKA می‌ماند، HHS دوباره‌گویی نمی‌کند", () => {
+  const e = runEngine({ patient: { age: 18, sex: "M" },
+    tests: [{ name: "Urine Ketone", value: "Positive" }, { name: "Glucose", value: 700 }] });
+  const finds = runPatterns(e).findings;
+  assert.ok(finds.some((x) => x.pattern === "dka_pattern"), "باید DKA بگیرد");
+  assert.ok(!finds.some((x) => x.pattern === "hhs_pattern"),
+    "با کتونِ مثبت نباید HHS هم بدهد");
+});
+
+test("M25: قندِ ۵۲۰ (زیرِ آستانهٔ ۶۰۰) نباید HHS بگیرد — هشدارِ کاذب", () => {
+  const e = runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "Glucose", value: 520 }] });
+  const finds = runPatterns(e).findings;
+  assert.ok(!finds.some((x) => x.pattern === "hhs_pattern"));
+  assert.ok(finds.some((x) => x.pattern === "diabetes_range"));
+});
+
+// نوارِ کتونِ ادرار (نیتروپروساید) استواستات را می‌سنجد نه بتاهیدروکسی‌بوتیرات
+// را که ~۷۸٪ کتون‌هاست؛ پس کتونِ منفی کتواسیدوز را رد نمی‌کند (فصل ۹، Ketones).
+test("M25: کتونِ منفیِ اندازه‌گیری‌شده → هشدارِ محدودیتِ نوارِ ادرار", () => {
+  const e = runEngine({ patient: { age: 62, sex: "F" },
+    tests: [{ name: "Urine Ketone", value: "Negative" }, { name: "Glucose", value: 820 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "hhs_pattern");
+  assert.ok(f, "باید HHS فعال شود");
+  // عمداً در must_say است نه warnings — چون فقط must_sayِ اورژانسی ضامنِ سرور دارد
+  assert.ok(/۷۸٪/.test(f.must_say) && /بتاهیدروکسی/.test(f.must_say),
+    "باید در must_say بگوید نوارِ ادرار بتاهیدروکسی‌بوتیرات را نمی‌بیند");
+});
+
+test("M25: بدونِ اندازه‌گیریِ کتون، هشدارِ نوارِ کتون داده نمی‌شود", () => {
+  const e = runEngine({ patient: { age: 62, sex: "F" }, tests: [{ name: "Glucose", value: 820 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "hhs_pattern");
+  assert.ok(f);
+  assert.ok(!/بتاهیدروکسی/.test(f.must_say),
+    "وقتی کتون اصلاً اندازه‌گیری نشده، این قید بی‌ربط است");
+});
+
+// ── M25: کلیدِ GLU_RANDOM در الگوی آلبومینوری (پیش‌تر GLU_R بود و هرگز وجود نداشت) ──
+test("M25: قندِ تصادفیِ ۳۲۰ + ACR → زمینهٔ دیابت تشخیص داده می‌شود", () => {
+  const e = runEngine({ patient: { age: 55, sex: "M" },
+    tests: [{ name: "ACR", value: 150 }, { name: "BS", value: 320 }] });
+  const f = runPatterns(e).findings.find((x) => /albuminuria/.test(x.pattern));
+  assert.ok(f, "باید الگوی آلبومینوری فعال شود");
+  assert.ok(/قند شما هم بالاست/.test(f.action),
+    "با قندِ تصادفیِ بالا باید قالبِ درگیریِ کلیه در دیابت را بگوید");
+  assert.ok(!f.suggest.includes("قند خون و HbA1c"),
+    "وقتی قند همین حالا بالاست، پیشنهادِ «قند خون» تکراری است");
+});
