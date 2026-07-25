@@ -12,7 +12,7 @@ import { creatRef, getRef, esrRef, ckdEpiEgfr } from "./refs.js";
 import { evaluate } from "./grade.js";
 import { runEngine } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
-import { buildEngineFallbackResult, buildEngineRecommendations } from "./prompt.js";
+import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT } from "./prompt.js";
 import { extractMedlineTerms, matchesMedlineKey, TEST_MEDLINE_MAP } from "./medline.js";
 
 // ---------- A1: کراتینین با سن نامعلوم ----------
@@ -1293,6 +1293,31 @@ test("M26: کلسیمِ پایین بدونِ عددِ تصحیح‌شده گف�
   assert.ok(!f.must_say.includes(String(ca.value)),
     "نباید عددِ تصحیح‌شده را بی‌توضیح چاپ کند (روی برگهٔ بیمار نیست)");
   assert.ok(/مکملِ خودسرانه/.test(f.must_say), "باید از مکملِ خودسرانهٔ کلسیم پرهیز بدهد");
+});
+
+// ── M26: بلندترین must_say نباید از سقفِ جملهٔ پرامپت رد شود ──
+// دو فیلد در تضادند: قاعدهٔ ۱ می‌گوید must_say را کامل منتقل کن، و
+// interpretation سقفِ «حداکثر N جمله» دارد. اگر must_say بلندتر شود، مدل یا
+// دُمِ متن را می‌اندازد یا خلاصه می‌کند — و خلاصه‌کردن تطبیقِ زیررشته‌ایِ تورِ
+// ایمنیِ server.js را می‌شکند و کلِ بلوک دوباره append می‌شود (متنِ تکراری).
+// این تست هر دو سرِ تضاد را به هم قفل می‌کند.
+test("M26: بلندترین must_say از سقفِ جملهٔ ENGINE_SYSTEM_PROMPT بیشتر نیست", () => {
+  const faDigits = (s) => s.replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+  const capMatch = ENGINE_SYSTEM_PROMPT.match(/حداکثر\s+([۰-۹\d]+)\s+جمله/);
+  assert.ok(capMatch, "پرامپت باید سقفِ جمله برای interpretation داشته باشد");
+  const cap = Number(faDigits(capMatch[1]));
+
+  // بدترین حالت: همهٔ شاخه‌های شرطیِ رابدومیولیز فعال
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
+            { name: "Potassium", value: 6.4 }, { name: "Creatinine", value: 2.4 },
+            { name: "Calcium", value: 6.2 }, { name: "Albumin", value: 2.6 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.ok(f, "باید الگوی رابدومیولیز فعال شود");
+  // همان تقسیم‌بندیِ جمله که server.js برای تورِ ایمنی استفاده می‌کند
+  const sentences = f.must_say.split(/(?<=[.؟!])\s+/).filter((s) => s.trim());
+  assert.ok(sentences.length <= cap,
+    `must_say ${sentences.length} جمله دارد ولی سقفِ پرامپت ${cap} است`);
 });
 
 // ── M26: eGFR در آسیبِ حاد نباید نقل شود (CKD-EPI کراتینینِ پایدار می‌خواهد) ──
