@@ -14,6 +14,7 @@ import { runEngine } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
 import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT } from "./prompt.js";
 import { extractMedlineTerms, matchesMedlineKey, TEST_MEDLINE_MAP } from "./medline.js";
+import { missingSentences, missingFindingText, normalizeFa, splitSentences, distinctiveTokens } from "./coverage.js";
 
 // ---------- A1: کراتینین با سن نامعلوم ----------
 test("A1: creatRef با سن null محدودهٔ بالغ می‌دهد نه نوزادی", () => {
@@ -1318,6 +1319,73 @@ test("M26: بلندترین must_say از سقفِ جملهٔ ENGINE_SYSTEM_PROM
   const sentences = f.must_say.split(/(?<=[.؟!])\s+/).filter((s) => s.trim());
   assert.ok(sentences.length <= cap,
     `must_say ${sentences.length} جمله دارد ولی سقفِ پرامپت ${cap} است`);
+});
+
+// ═══ M27: تورِ ایمنیِ اورژانس، بازنویسیِ مدل را «غایب» نمی‌بیند ═══
+// 🔴 باگ واقعی، با فراخوانیِ زندهٔ gpt-4o-mini تأیید شد: حضورِ یافته با
+//    «زیررشتهٔ عینیِ کلِ must_say» سنجیده می‌شد. مدل یافتهٔ رابدومیولیز را
+//    خلاصه نوشت → تطبیق شکست خورد → کلِ بلوکِ ۱۰ جمله‌ای دوباره append شد و
+//    تفسیر ۱۹ جمله شد با ۴ جملهٔ عیناً تکراری.
+// متنِ زیر عیناً همان چیزی است که مدل در آن اجرا برگرداند.
+
+const MODEL_TEXT_RHABDO =
+  "پتاسیم خون شما 6.4 (حد طبیعی 3.5–5) است و بالاتر از حد طبیعی قرار دارد. " +
+  "پتاسیم جریان برقی‌ای را که ضربان قلب را تنظیم می‌کند کنترل می‌کند؛ پتاسیمِ خیلی بالا می‌تواند ضربان قلب را کند یا بی‌نظم کند و در حد بحرانی خطر ایست قلبی دارد — و در این حد نیاز به رسیدگی فوری دارد. " +
+  "آنزیم عضلانی CK شما 12000 است (حد طبیعی 55–170) و در آزمایش ادرار هم «خون» گزارش شده. " +
+  "این ترکیب می‌تواند نشانهٔ تخریب بافت عضلانی (رابدومیولیز) باشد. " +
+  "مقدار CK شما در محدوده‌ای است که خطر درگیری کلیه در آن به‌طور مشخص بیشتر است. " +
+  "کراتینین شما 2.4 است (حد طبیعی 0.6–1.2)، یعنی احتمالاً کلیه‌ها هم درگیر شده‌اند. " +
+  "کلسیم شما هم پایین است، که در این وضعیت شایع و قابل‌انتظار است. " +
+  "این وضعیت نیاز به رسیدگی فوری دارد.";
+
+test("M27: جمله‌ای که مدل بازنویسی کرده دوباره append نمی‌شود", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
+            { name: "Potassium", value: 6.4 }, { name: "Creatinine", value: 2.4 },
+            { name: "Calcium", value: 6.2 }, { name: "Albumin", value: 2.6 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+
+  const missing = missingSentences(f.must_say, MODEL_TEXT_RHABDO);
+  const total = splitSentences(f.must_say).length;
+  assert.ok(missing.length < total,
+    "مدل بخشِ زیادی را منتقل کرده؛ نباید همهٔ جمله‌ها غایب حساب شوند");
+  // جمله‌هایی که مدل واقعاً نوشته نباید دوباره برگردند
+  assert.ok(!missing.some((s) => /آنزیم عضلانی CK شما/.test(s)),
+    "جملهٔ CK عیناً در متنِ مدل هست — نباید تکرار شود");
+  assert.ok(!missing.some((s) => /کراتینین شما/.test(s)),
+    "جملهٔ کراتینین در متنِ مدل هست — نباید تکرار شود");
+  // ولی چیزی که مدل انداخته باید برگردد
+  assert.ok(missing.some((s) => /میکروسکوپ|هموگلوبین/.test(s)),
+    "تلهٔ نوارِ ادرار را مدل انداخته بود — باید برگردد");
+  assert.ok(missing.some((s) => /۲۴ تا ۷۲ ساعت/.test(s)),
+    "نکتهٔ اوجِ ۲۴–۷۲ ساعت را مدل انداخته بود — باید برگردد");
+});
+
+test("M27: وقتی مدل یافته را کامل انداخته، سرتیتر + کلِ متن برمی‌گردد", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  const added = missingFindingText(f, "نتایج شما بررسی شد و مشکلی ندارد.");
+  assert.ok(added.startsWith(f.headline), "یافتهٔ کاملاً غایب باید با سرتیتر بیاید");
+  assert.ok(added.includes("میوگلوبین"), "کلِ must_say باید برگردد");
+});
+
+test("M27: متنِ عیناً کپی‌شده هیچ افزوده‌ای تولید نمی‌کند", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.equal(missingFindingText(f, `خلاصه. ${f.must_say}`), "",
+    "وقتی متن عیناً آمده نباید چیزی append شود");
+});
+
+test("M27: نرمال‌سازی — ارقام فارسی و نیم‌فاصله مانعِ تطبیق نمی‌شوند", () => {
+  assert.equal(normalizeFa("۱۲۴۰۰"), "12400");
+  assert.equal(normalizeFa("می‌تواند"), "میتواند");
+  assert.equal(normalizeFa("كلیه"), "کلیه");   // کافِ عربی
+  const sent = "پتاسیم شما 6.4 است (حد طبیعی 3.5–5).";
+  assert.ok(missingSentences(sent, "پتاسیمِ ۶.۴ بالاست").length === 0 ||
+            distinctiveTokens(sent).includes("پتاسیم"),
+    "توکنِ متمایز باید واژه‌های معنادار را نگه دارد");
 });
 
 // ── M26: eGFR در آسیبِ حاد نباید نقل شود (CKD-EPI کراتینینِ پایدار می‌خواهد) ──

@@ -33,6 +33,7 @@ import { runEngine } from "./rules/adapter.js";
 import { runPatterns } from "./rules/patterns.js";
 import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations } from "./rules/prompt.js";
 import { extractMedlineTerms } from "./rules/medline.js";
+import { missingFindingText } from "./rules/coverage.js";
 
 // اطلاعات دیباگ موتور — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
 function engineDebug(engineOut, patternOut) {
@@ -921,21 +922,24 @@ app.post("/api/analyze", async (req, res) => {
       delete parsed.recommendations;
 
       // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
-      //    حضور را با headline (که بین یافته‌ها متمایز است) یا متن کامل must_say
-      //    می‌سنجیم، نه پیشوند کوتاه مشترک که هم false-positive می‌داد هم شکننده بود.
+      //
+      // 🔴 باگ واقعی (با فراخوانیِ زندهٔ gpt-4o-mini تأیید شد): قبلاً حضور را با
+      //    «زیررشتهٔ عینیِ headline یا کلِ must_say» می‌سنجیدیم. مدل یافتهٔ
+      //    رابدومیولیز (۱۰ جمله) را خلاصه نوشت → تطبیقِ عینی شکست خورد → کلِ
+      //    بلوک دوباره append شد و بیمار توضیح را دو بار دید. هرچه must_say
+      //    غنی‌تر، کپیِ کلمه‌به‌کلمه بعیدتر؛ یعنی این تور با هدفِ «تفسیر حرفه‌ای»
+      //    در تضاد بود. حالا جمله‌به‌جمله سنجیده می‌شود (rules/coverage.js) و
+      //    فقط جمله‌های واقعاً افتاده برمی‌گردند.
       const emerg = patternOut.findings.filter((f) => f.urgency === "emergency");
       if (emerg.length) {
         const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;
-        const missing = emerg.filter((f) => {
-          const byHeadline = f.headline && text.includes(f.headline);
-          const byMustSay = f.must_say && text.includes(f.must_say);
-          return !byHeadline && !byMustSay;
-        });
-        if (missing.length) {
-          console.warn(`⚠️ ${missing.length} اورژانس در متن مدل نیست — اضافه شد`);
+        const additions = emerg
+          .map((f) => missingFindingText(f, text))
+          .filter(Boolean);
+        if (additions.length) {
+          console.warn(`⚠️ ${additions.length} یافتهٔ اورژانسی ناقص منتقل شد — بخشِ افتاده اضافه شد`);
           parsed.interpretation =
-            (parsed.interpretation || "") +
-            "\n\n" + missing.map((f) => `${f.headline}. ${f.must_say}`).join(" ");
+            (parsed.interpretation || "") + "\n\n" + additions.join(" ");
         }
       }
 
