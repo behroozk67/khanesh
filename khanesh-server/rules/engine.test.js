@@ -1187,3 +1187,53 @@ test("M25: قندِ تصادفیِ ۳۲۰ + ACR → زمینهٔ دیابت تش
   assert.ok(!f.suggest.includes("قند خون و HbA1c"),
     "وقتی قند همین حالا بالاست، پیشنهادِ «قند خون» تکراری است");
 });
+
+// ═══ M26: رابدومیولیز — تفسیرِ سطحی بود: «CK بسیار بالاست» بدون عدد ═══
+// یافته‌ای با blocks_others و اورژانس، تنها متنی است که بیمار می‌بیند؛ پس
+// نبودِ عدد، مکانیسم و پرچمِ پتاسیم در آن پرهزینه‌ترین حالت است.
+// نکتهٔ کلیدیِ بالینی: نوارِ ادرار میوگلوبین را از هموگلوبین جدا نمی‌کند،
+// پس «خونِ» ادرار در رابدومیولیز لزوماً خونریزی نیست.
+
+test("M26: رابدومیولیز عددِ CK + محدوده + key_number می‌دهد (نه فقط «بسیار بالا»)", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 8200 }, { name: "Urine Blood", value: "+2" }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.ok(f, "باید الگوی رابدومیولیز فعال شود");
+  assert.equal(f.key_number, 8200, "key_number باید عددِ CK باشد");
+  assert.ok(f.must_say.includes("8200"), "باید عددِ CK را بیاورد");
+  assert.ok(/حد طبیعی/.test(f.must_say), "باید محدودهٔ مرجعِ CK را هم بیاورد");
+  assert.ok(/میوگلوبین/.test(f.must_say), "باید مکانیسمِ میوگلوبین → کلیه را بگوید");
+  assert.ok(/گلبول قرمزی دیده نمی‌شود|خونریزی نیست/.test(f.must_say),
+    "باید تلهٔ «خونِ ادرارِ» نوار را توضیح دهد");
+  assert.ok(/۲۴ تا ۷۲ ساعت/.test(f.must_say),
+    "باید بگوید یک‌بار اندازه‌گیریِ CK کافی نیست (اوجِ ۲۴–۷۲ ساعت)");
+  assert.ok(f.warnings.some((w) => /استاتین/.test(w)), "باید هشدارِ استاتین بدهد");
+  assert.ok(f.warnings.some((w) => /ایبوپروفن|ضدالتهاب/.test(w)),
+    "باید از مسکّنِ ضدالتهاب (فشار بر کلیه) پرهیز بدهد");
+});
+
+test("M26: با پتاسیمِ بالا، عددِ پتاسیم و پرچمِ آریتمی در متن می‌آید", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
+            { name: "Potassium", value: 6.4 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.ok(f, "باید الگوی رابدومیولیز فعال شود");
+  assert.ok(f.must_say.includes("6.4"), "باید عددِ پتاسیم را بیاورد");
+  assert.ok(f.warnings.some((w) => /ضربان|نامنظم/.test(w)), "باید پرچمِ آریتمی بدهد");
+  // نامِ خالیِ تستی که همین حالا اندازه‌گیری شده نباید پیشنهاد شود؛ فقط «تکرارِ …»
+  assert.ok(!f.suggest.includes("پتاسیم") && !f.suggest.includes("کراتینین"),
+    "تستِ اندازه‌گیری‌شده نباید به‌شکلِ درخواستِ تستِ جدید پیشنهاد شود");
+  assert.ok(f.suggest.some((s) => /^تکرار/.test(s)), "پایشِ سریالی باید با قالبِ «تکرار» بیاید");
+});
+
+test("M26: با کراتینینِ طبیعی، ادعای درگیریِ کلیه نمی‌کند ولی هشدارِ تأخیر می‌دهد", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 6000 }, { name: "Urine Blood", value: "+2" },
+            { name: "Creatinine", value: 0.9 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.ok(f, "باید الگوی رابدومیولیز فعال شود");
+  assert.ok(!/کلیه‌ها هم درگیر شده‌اند/.test(f.must_say),
+    "با کراتینینِ طبیعی نباید درگیریِ کلیه را قطعی بگوید");
+  assert.ok(/با تأخیر/.test(f.must_say),
+    "اما باید بگوید آسیبِ کلیه می‌تواند بعداً ظاهر شود");
+});
