@@ -88,7 +88,22 @@ Read one before writing — they are the style target, not just examples.
 1. `cd khanesh-server && npm test` — all regression tests pass. The `.githooks/pre-commit`
    gate runs this automatically on any staged `khanesh-server/**.js`, so a shallow-to-rich
    edit that breaks an old assertion blocks the commit. Fix the rule or update the test —
-   don't reach for `SKIP_HOOKS=1`.
+   don't reach for `SKIP_HOOKS=1`. (The gate depends on `core.hooksPath=.githooks`, which is
+   local config and *not* committed — a fresh clone silently has no gate, so run `npm test`
+   yourself rather than trusting the hook to exist.)
+
+### The trap this rule keeps hitting: an absent test is not a normal test
+
+Enrichment means writing branches per finding, and the tempting shape is
+`abnormalHigh ? "…بالاست…" : "…طبیعی است…"`. That `else` also catches **abnormal-low** and
+**never measured**, so the engine tells the patient a result they never had. This has now
+happened for real (rhabdomyolysis: «شاخص کلیه (کراتینین) هنوز طبیعی است» on a sheet with no
+creatinine). Inside an `emergency` + `blocks_others` finding it is the only text the patient
+sees, and no safety net downstream can catch it — `must_say` is carried through verbatim.
+
+Always branch three ways: abnormal / measured-but-not-abnormal / **not measured at all**
+(`const measured = g != null`). And write the missing-test case as a *gap to close*
+(«اندازه‌گیری نشده؛ بررسی‌اش فوری است»), never as reassurance.
 2. **Add a regression test** in `rules/engine.test.js` for the specific improvement (one test
    per fixed bug, commented in Persian; it must fail against the old shallow output). E.g. M13
    asserts eAG=298 + confirmed-no-repeat; M14 asserts `key_number === e.indices.egfr`.

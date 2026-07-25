@@ -1237,3 +1237,72 @@ test("M26: با کراتینینِ طبیعی، ادعای درگیریِ کلی
   assert.ok(/با تأخیر/.test(f.must_say),
     "اما باید بگوید آسیبِ کلیه می‌تواند بعداً ظاهر شود");
 });
+
+// ── M26: نتیجهٔ اندازه‌گیری‌نشده نباید «طبیعی» اعلام شود ──
+// 🔴 باگ واقعی: شرطِ «!crHigh» هر سه حالتِ طبیعی/پایین/غایب را یکی می‌گرفت و
+//    روی برگهٔ بدونِ کراتینین می‌گفت «شاخص کلیه هنوز طبیعی است» — ساختنِ نتیجه.
+test("M26: بدونِ کراتینین روی برگه، نباید بگوید کراتینین طبیعی است", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 8200 }, { name: "Urine Blood", value: "+2" }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.ok(f, "باید الگوی رابدومیولیز فعال شود");
+  assert.ok(!/طبیعی است|خارج از محدوده نیست/.test(f.must_say),
+    "وقتی کراتینین اندازه‌گیری نشده، هیچ ادعایی دربارهٔ طبیعی بودنش نباید بشود");
+  assert.ok(/اندازه‌گیری نشده/.test(f.must_say),
+    "باید صریح بگوید کراتینین روی برگه نیست و بررسی‌اش فوری است");
+});
+
+test("M26: کراتینینِ پایین هم «طبیعی» اعلام نمی‌شود", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 8200 }, { name: "Urine Blood", value: "+2" },
+            { name: "Creatinine", value: 0.35 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.ok(!/اندازه‌گیری نشده/.test(f.must_say), "کراتینین داده شده، پس «نداریم» غلط است");
+  assert.ok(/خارج از محدوده نیست/.test(f.must_say),
+    "برای کراتینینِ غیرِبالا باید قالبِ محتاطانه بیاید، نه ادعای «طبیعی»");
+});
+
+// ── M26: پتاسیمِ خفیف نباید «فوری‌ترین بخش» خوانده شود (آستانهٔ ۶.۰) ──
+test("M26: پتاسیمِ ۵.۱ «فوری‌ترین بخش» نیست ولی ۶.۴ هست", () => {
+  const mild = runPatterns(runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 2000 }, { name: "Urine Blood", value: "+2" },
+            { name: "Potassium", value: 5.1 }] })).findings
+    .find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.ok(mild.must_say.includes("5.1"), "عدد پتاسیم باید بیاید");
+  assert.ok(!/فوری‌ترین بخش/.test(mild.must_say),
+    "پتاسیمِ ۵.۱ نباید فوری‌ترین بخش اعلام شود");
+
+  const crit = runPatterns(runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 2000 }, { name: "Urine Blood", value: "+2" },
+            { name: "Potassium", value: 6.4 }] })).findings
+    .find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.ok(/فوری‌ترین بخش/.test(crit.must_say), "پتاسیمِ ۶.۴ باید فوری‌ترین بخش باشد");
+});
+
+// ── M26: عددِ کلسیمِ تصحیح‌شده نباید بی‌توضیح چاپ شود ──
+// کلسیمِ e.graded با آلبومین تصحیح شده؛ چاپِ خامِ آن عددی را نشان می‌داد که
+// روی برگهٔ بیمار وجود ندارد (۷.۳ در برابرِ ۶.۲) و قاعدهٔ calcium_abnormal که
+// توضیحِ تصحیح را دارد، زیرِ این یافتهٔ اورژانسی سرکوب می‌شود.
+test("M26: کلسیمِ پایین بدونِ عددِ تصحیح‌شده گفته می‌شود + هشدارِ مکملِ خودسرانه", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
+            { name: "Calcium", value: 6.2 }, { name: "Albumin", value: 2.6 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  const ca = e.graded.find((g) => g.test === "CA");
+  assert.ok(/کلسیم شما هم پایین است/.test(f.must_say), "باید کلسیمِ پایین را بگوید");
+  assert.ok(!f.must_say.includes(String(ca.value)),
+    "نباید عددِ تصحیح‌شده را بی‌توضیح چاپ کند (روی برگهٔ بیمار نیست)");
+  assert.ok(/مکملِ خودسرانه/.test(f.must_say), "باید از مکملِ خودسرانهٔ کلسیم پرهیز بدهد");
+});
+
+// ── M26: eGFR در آسیبِ حاد نباید نقل شود (CKD-EPI کراتینینِ پایدار می‌خواهد) ──
+test("M26: در رابدومیولیز عددِ eGFR در متن نمی‌آید", () => {
+  const e = runEngine({ patient: { age: 34, sex: "M" },
+    tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
+            { name: "Creatinine", value: 2.4 }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
+  assert.ok(/کراتینین شما 2.4/.test(f.must_say), "کراتینینِ بالا باید با عدد بیاید");
+  assert.ok(!/برآوردِ کارِ کلیه/.test(f.must_say),
+    "eGFR در حالتِ ناپایدارِ حاد گمراه‌کننده است و نباید نقل شود");
+  assert.ok(e.indices?.egfr != null, "eGFR محاسبه می‌شود ولی عمداً استفاده نمی‌شود");
+});
