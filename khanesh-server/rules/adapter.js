@@ -67,6 +67,7 @@ const NAME_MAP = {
   hba1c: "HBA1C", a1c: "HBA1C",
   urea: "UREA", اوره: "UREA", bun: "UREA_N", bloodureanitrogen: "UREA_N", ureanitrogen: "UREA_N",
   creatinine: "CREAT", cr: "CREAT", کراتینین: "CREAT",
+  creatinin: "CREAT", creatnine: "CREAT", cretinine: "CREAT", serumcreatinine: "CREAT",
   na: "NA", serumna: "NA", sodium: "NA",
   k: "K", serumk: "K", potassium: "K",
   cl: "CL", chloride: "CL",
@@ -113,10 +114,16 @@ const NAME_MAP = {
   t3: "T3", totalt3: "T3", tt3: "T3",
   antitpo: "ANTI_TPO", tpoab: "ANTI_TPO", tpoantibody: "ANTI_TPO", "anti-tpo": "ANTI_TPO", thyroidperoxidaseantibody: "ANTI_TPO",
   t4: "T4", totalt4: "T4", tt4: "T4",
+  // ⚠️ املاهای واقعیِ برگه‌های ایرانی. این‌ها تایپیِ ما نیستند — عیناً روی
+  //    برگه چاپ شده‌اند و بدونشان تست «خوانده ولی تفسیرنشده» می‌ماند.
   chol: "CHOL", cholesterol: "CHOL", totalcholesterol: "CHOL",
-  hdl: "HDL", hdlc: "HDL", hdlcholesterol: "HDL", "hdl-c": "HDL",
-  ldl: "LDL", ldlc: "LDL", ldlcholesterol: "LDL", "ldl-c": "LDL",
+  cholestrol: "CHOL", cholestrole: "CHOL", colesterol: "CHOL",
+  cholesterole: "CHOL", cholestérol: "CHOL", کلسترول: "CHOL",
+  hdl: "HDL", hdlc: "HDL", hdlcholesterol: "HDL", "hdl-c": "HDL", hdlcholestrol: "HDL",
+  ldl: "LDL", ldlc: "LDL", ldlcholesterol: "LDL", "ldl-c": "LDL", ldlcholestrol: "LDL",
   tg: "TG", triglyceride: "TG", triglycerides: "TG",
+  triglicerde: "TG", triglicerid: "TG", triglicerides: "TG", trigliserid: "TG",
+  triglycerid: "TG", تریگلیسیرید: "TG", تریگلیسرید: "TG",
   ldh: "LDH",
   haptoglobin: "HAPTO",
   pt: "PT", prothrombintime: "PT",
@@ -163,6 +170,27 @@ const NAME_MAP = {
 
   crplatex: "CRP_Q", creactiveprotein: "CRP_Q", crpqualitative: "CRP_Q",
 };
+
+// ---------- نگاشتِ پشتیبان برای املاهای دیده‌نشده ----------
+// ⚠️ NAME_MAP تطبیقِ دقیق می‌خواهد، پس هر املای تازه‌ای که روی برگه ظاهر شود
+//    تست را unmapped می‌کند و از تفسیر می‌اندازد. نمونهٔ واقعی: «ESR 1hrs»
+//    خوانده شد ولی تفسیر نشد، در حالی که مقدارش ۸۵ بود (مرجع تا ۲۲).
+//
+// اینجا فقط قاعده‌هایی می‌آیند که *مبهم نیستند* — حدسِ فازی عمداً نداریم،
+// چون نگاشتِ اشتباه در متنِ بالینی از نگاشت‌نشدن بدتر است.
+function resolveAlias(key) {
+  // هیچ تستِ دیگری با esr شروع نمی‌شود؛ «ESR 1hrs»، «ESR 1st hour»، «ESR 2hrs»
+  if (/^esr/.test(key)) return "ESR";
+  // جمعِ انگلیسی و «e» پایانیِ اختیاری: cholesterols → cholesterol
+  if (key.endsWith("s") && NAME_MAP[key.slice(0, -1)]) return NAME_MAP[key.slice(0, -1)];
+  if (NAME_MAP[key + "e"]) return NAME_MAP[key + "e"];
+  return undefined;
+}
+
+/** کلیدِ برگه → کلیدِ موتور (با پشتیبانِ املایی) */
+function mapKey(key) {
+  return NAME_MAP[key] ?? resolveAlias(key);
+}
 
 // ---------- پارسِ تیتر ----------
 // ⚠️ toNum() هر چیزِ غیر رقم را دور می‌ریزد، پس toNum("1/160") = ۱۱۶۰ می‌دهد.
@@ -445,9 +473,8 @@ export function ocrToEngineInput(ocr) {
     // مخرجِ تیتر ذخیره می‌شود («۱/۱۶۰» → ۱۶۰، منفی → ۰) تا با آستانه‌های
     // راهنمای کشوری در refs.js سنجیده شود. «مثبتِ بدون تیتر» عدد ندارد و
     // نباید عددی ساخته شود — کیفی می‌ماند تا الگو خودش تصمیم بگیرد.
-    if (key === "wright" || NAME_MAP[key] === "WRIGHT" ||
-        NAME_MAP[key] === "ME2" || NAME_MAP[key] === "COOMBS_WRIGHT") {
-      const ek = NAME_MAP[key];
+    if (["WRIGHT", "ME2", "COOMBS_WRIGHT"].includes(mapKey(key))) {
+      const ek = mapKey(key);
       const titre = parseTitre(t.value);
       if (titre != null) tests[ek] = titre;
       else qual[t.name] = String(t.value);
@@ -458,9 +485,8 @@ export function ocrToEngineInput(ocr) {
     //    بودند، پس حتی وقتی برگه عددِ واقعی می‌داد («CRP 24 mg/L»، «RF 42 IU/mL»)
     //    مقدار به qual می‌رفت و هرگز با مرجعِ خودش سنجیده نمی‌شد.
     //    حالا مثل تروپونین: عدد → کلیدِ عددی، کلمه/پلاس → کیفی.
-    if (NAME_MAP[key] === "CRP_Q" || NAME_MAP[key] === "RF" ||
-        key === "crp" || key === "rf") {
-      const ek = NAME_MAP[key] ?? (key === "crp" ? "CRP_Q" : "RF");
+    if (["CRP_Q", "RF"].includes(mapKey(key)) || key === "crp" || key === "rf") {
+      const ek = mapKey(key) ?? (key === "crp" ? "CRP_Q" : "RF");
       const nv = toNum(t.value);
       // «3+» و «+++» عدد نیستند حتی اگر toNum رقمی از آن‌ها دربیاورد.
       const looksGraded = /\+/.test(String(t.value));
@@ -485,7 +511,7 @@ export function ocrToEngineInput(ocr) {
     const isAbs = raw.includes("#");
     const isPct = raw.includes("%");
 
-    let engineKey = NAME_MAP[key];
+    let engineKey = mapKey(key);
     if (engineKey && isAbs && engineKey.endsWith("_PCT")) {
       engineKey = engineKey.replace("_PCT", "_ABS");
     }

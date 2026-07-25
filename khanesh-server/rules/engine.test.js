@@ -1461,6 +1461,69 @@ test("M30: تستی که همین حالا روی برگه است دوباره �
     "قند همین حالا اندازه‌گیری شده — درخواستش همان باگِ فریتین است");
 });
 
+// ═══ M31: املاهای واقعیِ برگه + تفسیرِ ESR ═══
+// 🔴 باگ واقعی (از یک برگهٔ واقعیِ کاربر): چهار تست «خوانده شدند ولی موتور
+//    تفسیرشان نکرد» چون NAME_MAP تطبیقِ دقیق می‌خواهد و برگه این‌ها را
+//    این‌طور چاپ کرده بود: Creatinin، cholestrol، Triglicerde، ESR 1hrs.
+//    مهم‌ترینشان ESR=۸۵ بود (مرجع ۰–۲۰) که کاملاً از تفسیر افتاد.
+
+test("M31: املاهای واقعیِ برگه unmapped نمی‌مانند", () => {
+  const e = runEngine({ patient: { age: 32, sex: "F" }, tests: [
+    { name: "Creatinin", value: "1.0" },
+    { name: "cholestrol", value: "107" },
+    { name: "Triglicerde", value: "70" },
+    { name: "ESR 1hrs", value: "85" },
+  ]});
+  assert.deepEqual(e.unmapped, [], "هیچ‌کدام نباید unmapped بماند");
+  const key = (k) => e.graded.find((g) => g.test === k)?.value;
+  assert.equal(key("CREAT"), 1);
+  assert.equal(key("CHOL"), 107);
+  assert.equal(key("TG"), 70);
+  assert.equal(key("ESR"), 85);
+});
+
+test("M31: هر شکلی از ESR به ESR نگاشت می‌شود", () => {
+  for (const name of ["ESR", "ESR 1hrs", "ESR 1st hour", "E.S.R", "ESR-1hr", "esr 2hrs"]) {
+    const e = runEngine({ patient: { age: 32, sex: "F" }, tests: [{ name, value: "85" }] });
+    assert.ok(e.graded.some((g) => g.test === "ESR"), `«${name}» باید ESR شود`);
+  }
+});
+
+test("M31: ESRِ بالا تفسیر می‌گیرد، نه «توضیح آماده‌ای نداریم»", () => {
+  const e = runEngine({ patient: { age: 32, sex: "F" },
+    tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "13.2" }] });
+  const fs = runPatterns(e).findings;
+  assert.ok(!fs.some((f) => f.pattern === "unmatched_abnormal"),
+    "نباید به تورِ «توضیح نداریم» بیفتد");
+  const f = fs.find((x) => x.pattern === "esr_elevated");
+  assert.ok(f, "باید الگوی ESR فعال شود");
+  assert.equal(f.key_number, 85);
+  assert.ok(f.must_say.includes("85") && /0–20|0-20/.test(f.must_say), "عدد + محدوده");
+});
+
+test("M31: در بیمارِ کم‌خون، نکتهٔ «کم‌خونی خودش ESR را بالا می‌برد» گفته می‌شود", () => {
+  const anemic = runPatterns(runEngine({ patient: { age: 32, sex: "F" },
+    tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "7.4" },
+            { name: "M.C.V", value: "74.1" }] })).findings
+    .find((x) => x.pattern === "esr_elevated");
+  assert.ok(/کم‌خونی ESR را بالا می‌برد/.test(anemic.must_say),
+    "بدون این نکته بیمار دنبال علتِ دومی می‌گردد که وجود ندارد");
+
+  const notAnemic = runPatterns(runEngine({ patient: { age: 32, sex: "F" },
+    tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "13.2" }] })).findings
+    .find((x) => x.pattern === "esr_elevated");
+  assert.ok(!/کم‌خونی ESR را بالا می‌برد/.test(notAnemic.must_say),
+    "بدون کم‌خونی نباید این نکته بیاید (هشدارِ کاذب)");
+});
+
+test("M31: ESR بالای ۱۰۰ فوریتِ بالاتر و پرچمِ علائم می‌گیرد", () => {
+  const f = runPatterns(runEngine({ patient: { age: 32, sex: "F" },
+    tests: [{ name: "ESR", value: "120" }] })).findings
+    .find((x) => x.pattern === "esr_elevated");
+  assert.equal(f.urgency, "this_week");
+  assert.ok(/کاهش وزن|تعریق شبانه/.test(f.action), "باید علائمِ هشدار را بپرسد");
+});
+
 // ═══ M28: شمارشِ خامِ CBC نباید اورژانسِ کاذب بسازد ═══
 // 🔴 باگ واقعی: refs.js برای WBC/PLT واحدِ K/µL و برای RBC واحدِ M/µL می‌خواهد،
 //    ولی برگه‌ها اغلب خامِ شمارش می‌دهند (WBC 7000، PLT 250000، RBC 4800000).
