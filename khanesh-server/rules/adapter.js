@@ -133,7 +133,62 @@ const NAME_MAP = {
   ph: "PH",
   inr: "INR",
   esrfirsthour: "ESR",
+
+  // ═══ سرولوژی — بلوکِ ثابتِ برگه‌های ایرانی ═══
+  // 🔴 باگ واقعی: رایت/2ME/کومبس رایت اصلاً در NAME_MAP نبودند → unmapped →
+  //    و چون هیچ‌کدام به abnormal نمی‌رسیدند، برگه‌ای که تنها ایرادش «رایت ۱/۳۲۰»
+  //    بود پاسخِ آمادهٔ «نتایج شما طبیعی است» می‌گرفت.
+  wright: "WRIGHT", wrighttest: "WRIGHT", wrighttube: "WRIGHT",
+  wrightagglutination: "WRIGHT", standardtubeagglutination: "WRIGHT",
+  brucellaagglutination: "WRIGHT", brucellawright: "WRIGHT",
+  tubeagglutinationtest: "WRIGHT", رایت: "WRIGHT", تسترایت: "WRIGHT",
+  آزمایشرایت: "WRIGHT", آگلوتیناسیون: "WRIGHT",
+
+  // ⚠️ norm() رقم را نگه می‌دارد، پس کلید واقعاً «2me» است.
+  "2me": "ME2", "2mercaptoethanol": "ME2", "2mercaptoetanol": "ME2",
+  mercaptoethanol: "ME2", me2: "ME2", "2mewright": "ME2", wright2me: "ME2",
+  مرکاپتواتانول: "ME2", دومرکاپتواتانل: "ME2", "۲امای": "ME2",
+
+  // ⚠️ هرگز روی «coombs» تنها تطبیق نده: کومبس مستقیم/غیرمستقیم (DAT/IAT)
+  //    آزمایشِ کاملاً دیگری‌اند و روی همان بلوکِ سرولوژی می‌نشینند.
+  coombswright: "COOMBS_WRIGHT", combswright: "COOMBS_WRIGHT",
+  coombswrighttest: "COOMBS_WRIGHT", coombsbrucella: "COOMBS_WRIGHT",
+  brucellacoombs: "COOMBS_WRIGHT", کومبسرایت: "COOMBS_WRIGHT",
+  کمبسرایت: "COOMBS_WRIGHT",
+
+  // فاکتور روماتوئید — هم شکل کمی (IU/mL) هم تیتر/کیفی
+  rheumatoidfactor: "RF", rafactor: "RF", ralatex: "RF", rflatex: "RF",
+  rfquantitative: "RF", rfquant: "RF", rhfactor: "RF",
+  فاکتورروماتوئید: "RF", فاکتورروماتیسمی: "RF", رومافاکتور: "RF", آرافاکتور: "RF",
+
+  crplatex: "CRP_Q", creactiveprotein: "CRP_Q", crpqualitative: "CRP_Q",
 };
+
+// ---------- پارسِ تیتر ----------
+// ⚠️ toNum() هر چیزِ غیر رقم را دور می‌ریزد، پس toNum("1/160") = ۱۱۶۰ می‌دهد.
+//    تیتر باید پارسرِ خودش را داشته باشد وگرنه «۱/۱۶۰» به عددِ چهاررقمی
+//    تبدیل و با محدودهٔ مرجع مقایسه می‌شود.
+//
+// برمی‌گرداند: مخرجِ تیتر (۱/۱۶۰ → ۱۶۰)، ۰ برای منفی، یا null اگر نفهمید.
+export function parseTitre(raw) {
+  if (raw == null) return null;
+  let s = String(raw).trim();
+  // ارقام فارسی/عربی → لاتین
+  s = s.replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d))
+       .replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+  // منفیِ صریح — پیش از هر عددخوانی، چون «1/20 Negative» هم عدد دارد
+  if (/neg|منفی|not\s*detected|^nr$|بدون\s*واکنش/i.test(s)) return 0;
+  // «<1/20» یا «کمتر از ۱/۲۰» → زیرِ آستانه، عملاً منفی
+  if (/^\s*(<|≤|کمتر)/.test(s)) return 0;
+  // شکل‌های ۱/۱۶۰ و ۱:۱۶۰
+  const m = s.match(/\b1\s*[:/]\s*(\d+)/);
+  if (m) return Number(m[1]);
+  // عددِ تنها (برگه گاهی فقط «160» می‌نویسد)
+  const n = s.match(/^\s*(\d+)\s*$/);
+  if (n) return Number(n[1]);
+  if (/pos|مثبت/i.test(s)) return null;   // مثبتِ بدون تیتر — تیتر نداریم
+  return null;
+}
 
 // تست‌هایی که کیفی‌اند — عدد نیستند
 const QUALITATIVE = new Set([
@@ -386,6 +441,40 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
+    // ═══ سرولوژی بروسلوز: مقدار، تیتر است نه غلظت ═══
+    // مخرجِ تیتر ذخیره می‌شود («۱/۱۶۰» → ۱۶۰، منفی → ۰) تا با آستانه‌های
+    // راهنمای کشوری در refs.js سنجیده شود. «مثبتِ بدون تیتر» عدد ندارد و
+    // نباید عددی ساخته شود — کیفی می‌ماند تا الگو خودش تصمیم بگیرد.
+    if (key === "wright" || NAME_MAP[key] === "WRIGHT" ||
+        NAME_MAP[key] === "ME2" || NAME_MAP[key] === "COOMBS_WRIGHT") {
+      const ek = NAME_MAP[key];
+      const titre = parseTitre(t.value);
+      if (titre != null) tests[ek] = titre;
+      else qual[t.name] = String(t.value);
+      continue;
+    }
+
+    // ⚠️ باگ واقعی (هم‌خانوادهٔ تروپونین): «crp» و «rf» در فهرست QUALITATIVE
+    //    بودند، پس حتی وقتی برگه عددِ واقعی می‌داد («CRP 24 mg/L»، «RF 42 IU/mL»)
+    //    مقدار به qual می‌رفت و هرگز با مرجعِ خودش سنجیده نمی‌شد.
+    //    حالا مثل تروپونین: عدد → کلیدِ عددی، کلمه/پلاس → کیفی.
+    if (NAME_MAP[key] === "CRP_Q" || NAME_MAP[key] === "RF" ||
+        key === "crp" || key === "rf") {
+      const ek = NAME_MAP[key] ?? (key === "crp" ? "CRP_Q" : "RF");
+      const nv = toNum(t.value);
+      // «3+» و «+++» عدد نیستند حتی اگر toNum رقمی از آن‌ها دربیاورد.
+      const looksGraded = /\+/.test(String(t.value));
+      if (nv != null && !looksGraded) {
+        // mg/dL → mg/L برای CRP (برگه‌های ایرانی هر دو را می‌دهند)
+        tests[ek] = (ek === "CRP_Q" && /mg\/dl/i.test(String(t.unit || "")))
+          ? +(nv * 10).toFixed(1)
+          : nv;
+      } else {
+        qual[t.name] = String(t.value);
+      }
+      continue;
+    }
+
     if (isQualitative(key)) {
       qual[t.name] = String(t.value);
       continue;
@@ -445,6 +534,33 @@ export function ocrToEngineInput(ocr) {
     //    موتور /µL می‌خواهد. اگر عدد کوچک بود، ضرب در 1000.
     if (engineKey.endsWith("_ABS") && v < 100) {
       tests[engineKey] = Math.round(v * 1000);
+      continue;
+    }
+
+    // ⚠️ 🔴 باگ واقعی: WBC/PLT/RBC روی برگه گاهی خامِ شمارش‌اند (WBC 7000،
+    //    پلاکت 250000، RBC 4800000) ولی refs.js واحدِ K/µL و M/µL می‌خواهد
+    //    (WBC 4.4–11، PLT 150–450، RBC 4.5–5.9). بدون نرمال‌سازی، یک CBC کاملاً
+    //    طبیعی «لکوسیتوز شدید — بررسی فوری» می‌گرفت؛ یعنی اورژانسِ کاذب روی
+    //    شایع‌ترین آزمایشِ ممکن. برخلافِ _ABS و D-dimer و ACR، اینجا هیچ
+    //    محافظی نبود.
+    //
+    //    آستانه‌ها با فاصلهٔ ایمن از بیشترین مقدارِ بالینیِ ممکن انتخاب شده‌اند،
+    //    تا مقدارِ واقعاً بحرانی (که همان واحدِ درست را دارد) نصفه نشود:
+    //      • WBC: بالاترین گزارش‌های لوسمی ≈ ۵۰۰ K/µL → آستانهٔ ۱۰۰۰
+    //      • PLT: ترومبوسیتوزِ شدید تا ≈ ۲۰۰۰ K/µL → آستانهٔ ۳۰۰۰
+    //      • RBC: پلی‌سیتمی تا ≈ ۱۰ M/µL → آستانهٔ ۱۰۰
+    if (engineKey === "WBC" || engineKey === "PLT" || engineKey === "RBC") {
+      const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
+      // واحدِ صریحِ خام: /µL یا /mm³ بدون هیچ نشانهٔ 10^3
+      const rawUnit = /(\/ul|\/µl|\/μl|\/mm3|\/mm³|cells)/.test(u) && !/(10\^?3|10\*3|k\/|10\^?6|10\*6|m\/)/.test(u);
+      const RAW_MIN = { WBC: 1000, PLT: 3000, RBC: 100 }[engineKey];
+      const DIVISOR = engineKey === "RBC" ? 1e6 : 1000;
+      if (v >= RAW_MIN || (rawUnit && v >= RAW_MIN)) {
+        const scaled = v / DIVISOR;
+        tests[engineKey] = engineKey === "RBC" ? +scaled.toFixed(2) : +scaled.toFixed(1);
+        continue;
+      }
+      tests[engineKey] = v;
       continue;
     }
 

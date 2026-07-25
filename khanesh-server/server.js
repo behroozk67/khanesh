@@ -31,7 +31,7 @@ import "dotenv/config";
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
 import { runEngine } from "./rules/adapter.js";
 import { runPatterns } from "./rules/patterns.js";
-import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations } from "./rules/prompt.js";
 import { extractMedlineTerms } from "./rules/medline.js";
 import { missingFindingText } from "./rules/coverage.js";
 
@@ -185,8 +185,9 @@ const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده ا
 
 ## کامل بودن (بسیار مهم)
 - هیچ ردیفی را جا نینداز. همهٔ ردیف‌های همهٔ بخش‌ها را بخوان.
-- برگه معمولاً چند بخش دارد: Hematology (CBC)، Differential، Hemostasis (ESR)، Blood Biochemistry و…
+- برگه معمولاً چند بخش دارد: Hematology (CBC)، Differential، Hemostasis (ESR)، Blood Biochemistry، Serology و…
 - بخش بیوشیمی (قند، اوره، کراتینین، چربی، آنزیم‌های کبدی، کلسیم و…) را حتماً کامل بخوان — این بخش را فراموش نکن.
+- بخش Serology / ایمونولوژی را هم کامل بخوان: Wright (رایت)، 2ME، Coombs Wright (کومبس رایت)، Widal، CRP، RF، ASO، VDRL. این بخش قبلاً جا می‌افتاد.
 - در انتها تعداد ردیف‌هایی که خوانده‌ای را با تعداد ردیف‌های برگه مقایسه کن.
 
 ## نکات مهم
@@ -196,6 +197,8 @@ const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده ا
 - تست‌هایی که در برگه نیستند را اضافه نکن.
 - درصدهای Differential (Neutrophils، Lymphocytes و…) را هم به‌عنوان تست ثبت کن.
 - یادداشت‌های کیفی مثل Anisocytosis (+++) را هم ثبت کن؛ value را همان متن بگذار.
+- مقادیر تیتری (رایت، 2ME، کومبس رایت، ویدال) را عیناً با همان شکل ثبت کن: "1/160" یا "1:160". آن را به عدد تبدیل نکن و ساده‌اش نکن. اگر منفی است، همان "Negative" یا "منفی" را بنویس.
+- مقادیر پلاسی (CRP، RF) را هم عیناً بنویس: "3+" یا "Positive" یا "منفی". اگر عدد و واحد دارد (مثل "24 mg/L")، عدد را در value و واحد را در unit بگذار.
 - اگر عددی تار، مبهم یا مخدوش است، confidence را "low" بگذار. اگر اصلاً خوانا نیست، value را null بگذار.
 - اطلاعات شناسایی‌کننده (نام بیمار، کد ملی، تلفن، نام پزشک) را ثبت نکن. فقط سن و جنسیت را در صورت وجود بردار.
 
@@ -918,7 +921,10 @@ app.post("/api/analyze", async (req, res) => {
         : recs;
       // حذف تکراری‌ها: دو finding ممکن است یک آزمایش را پیشنهاد دهند (مثلاً
       // کم‌خونی + همولیز هر دو «بیلی‌روبین»)، یا مدل یک سطر را دوبار بنویسد.
-      parsed.general_recommendations = [...new Set(chosen.map((r) => String(r).trim()))];
+      // ⚠️ تمیزکاری باید روی فهرستِ مدل هم اجرا شود نه فقط مسیرِ موتور: مدل
+      //    همان یافته‌ها را می‌بیند و همان «نوبت عادی…»های نزدیک‌به‌هم را بازتولید
+      //    می‌کند. اینجا فقط new Set بود، پس تکرارِ نزدیک رد می‌شد.
+      parsed.general_recommendations = tidyRecommendations(chosen);
       delete parsed.recommendations;
 
       // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.

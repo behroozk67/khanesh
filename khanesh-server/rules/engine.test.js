@@ -10,9 +10,10 @@ import assert from "node:assert/strict";
 
 import { creatRef, getRef, esrRef, ckdEpiEgfr } from "./refs.js";
 import { evaluate } from "./grade.js";
-import { runEngine } from "./adapter.js";
+import { runEngine, parseTitre } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
-import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT } from "./prompt.js";
+import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT,
+         tidyRecommendations, phraseSuggestion } from "./prompt.js";
 import { extractMedlineTerms, matchesMedlineKey, TEST_MEDLINE_MAP } from "./medline.js";
 import { missingSentences, missingFindingText, normalizeFa, splitSentences, distinctiveTokens } from "./coverage.js";
 
@@ -1319,6 +1320,193 @@ test("M26: بلندترین must_say از سقفِ جملهٔ ENGINE_SYSTEM_PROM
   const sentences = f.must_say.split(/(?<=[.؟!])\s+/).filter((s) => s.trim());
   assert.ok(sentences.length <= cap,
     `must_say ${sentences.length} جمله دارد ولی سقفِ پرامپت ${cap} است`);
+});
+
+// ═══ M29: سرولوژی — رایت / 2ME / کومبس رایت / RF / CRPِ کیفی ═══
+// 🔴 باگ واقعی: هیچ‌کدام در NAME_MAP نبودند → unmapped → و چون به abnormal
+//    نمی‌رسیدند، برگه‌ای که تنها ایرادش «رایت ۱/۳۲۰» بود پاسخِ آمادهٔ
+//    «نتایج شما طبیعی است» می‌گرفت.
+// آستانه‌ها: راهنمای کشوری بروسلوز، وزارت بهداشت، ص ۴۰ (رایت ≥۱/۸۰، 2ME و
+//    کومبس ≥۱/۴۰) — عمداً از عددِ CDC پایین‌تر، چون آنتی‌ژنِ تست B. abortus
+//    است ولی گونهٔ غالبِ ایران B. melitensis و عیار ≈ نصفِ رقمِ حقیقی.
+
+test("M29: parseTitre شکل‌های واقعیِ برگه را می‌فهمد (نه toNum)", () => {
+  assert.equal(parseTitre("1/160"), 160);
+  assert.equal(parseTitre("1:80"), 80);
+  assert.equal(parseTitre("۱/۳۲۰"), 320, "ارقام فارسی");
+  assert.equal(parseTitre("160"), 160, "عددِ تنها");
+  assert.equal(parseTitre("Negative"), 0);
+  assert.equal(parseTitre("منفی"), 0);
+  assert.equal(parseTitre("<1/20"), 0, "کمتر از آستانه = منفی");
+  assert.equal(parseTitre("1/20 Negative"), 0, "کلمهٔ منفی بر عدد مقدم است");
+  assert.equal(parseTitre("Positive"), null, "مثبتِ بدون تیتر عدد ندارد");
+  // ⚠️ همان چیزی که toNum اشتباه می‌کرد
+  assert.notEqual(parseTitre("1/160"), 1160);
+});
+
+test("M29: رایت ۱/۳۲۰ + 2ME ۱/۸۰ → تب مالتِ فعال (نه «نتایج طبیعی است»)", () => {
+  const e = runEngine({ patient: { age: 35, sex: "M" },
+    tests: [{ name: "Wright", value: "1/320" }, { name: "2ME", value: "1/80" }] });
+  assert.deepEqual(e.unmapped, [], "هیچ‌کدام نباید unmapped بمانند");
+  assert.equal(e.graded.find((g) => g.test === "WRIGHT").value, 320);
+  assert.equal(e.graded.find((g) => g.test === "ME2").value, 80);
+  const f = runPatterns(e).findings.find((x) => x.pattern === "brucella_active");
+  assert.ok(f, "باید تب مالتِ فعال تشخیص داده شود");
+  assert.equal(f.urgency, "this_week", "سرولوژیِ تنها اورژانس نیست");
+  assert.ok(/1\/320/.test(f.must_say), "تیتر باید در متن بیاید");
+  assert.ok(/چهاربرابری/.test(f.must_say), "باید بگوید تیترِ منفرد کافی نیست");
+});
+
+test("M29: رایتِ زیرِ آستانه + کومبسِ مثبت هم تب مالتِ فعال است (آنتی‌بادی بلوک‌کننده)", () => {
+  const e = runEngine({ patient: { age: 35, sex: "M" },
+    tests: [{ name: "Wright", value: "1/40" }, { name: "Coombs Wright", value: "1/160" }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "brucella_active");
+  assert.ok(f, "کومبسِ باارزش با رایتِ زیرِ آستانه نباید از دست برود");
+  assert.ok(/بلوک‌کننده/.test(f.must_say), "باید مکانیزمِ آنتی‌بادیِ بلوک‌کننده را بگوید");
+});
+
+test("M29: رایتِ باارزش با 2ME منفی → «قطعی نیست»، نه تشخیصِ تب مالت", () => {
+  const e = runEngine({ patient: { age: 35, sex: "M" },
+    tests: [{ name: "Wright", value: "1/160" }, { name: "2ME", value: "Negative" }] });
+  const fs = runPatterns(e).findings;
+  assert.ok(!fs.some((x) => x.pattern === "brucella_active"), "نباید موردِ فعال اعلام شود");
+  const f = fs.find((x) => x.pattern === "brucella_wright_only");
+  assert.ok(f, "باید قاعدهٔ «رایتِ تنها» فعال شود");
+  assert.ok(/منفی/.test(f.must_say) && !/۱\/منفی|1\/0/.test(f.must_say),
+    "تیترِ منفی باید «منفی» نوشته شود نه «۱/۰»");
+});
+
+test("M29: سرولوژیِ کاملاً منفی هیچ یافته‌ای نمی‌سازد (هشدارِ کاذب)", () => {
+  const e = runEngine({ patient: { age: 35, sex: "M" },
+    tests: [{ name: "Wright", value: "Negative" }, { name: "2ME", value: "منفی" },
+            { name: "Coombs Wright", value: "منفی" }] });
+  assert.equal(runPatterns(e).findings.length, 0);
+  // رایت ۱/۴۰ هم زیرِ آستانهٔ کشوری است
+  const e2 = runEngine({ patient: { age: 35, sex: "M" }, tests: [{ name: "رایت", value: "۱/۴۰" }] });
+  assert.equal(runPatterns(e2).findings.length, 0, "۱/۴۰ زیر آستانهٔ ۱/۸۰ است");
+});
+
+test("M29: CRPِ کیفی «3+» دیگر بی‌صدا نمی‌افتد", () => {
+  const e = runEngine({ patient: { age: 32, sex: "F" },
+    tests: [{ name: "Hemoglobin", value: 13.5 }, { name: "CRP", value: "3+" }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "crp_elevated");
+  assert.ok(f, "CRPِ کیفیِ مثبت باید یافته بسازد");
+  assert.ok(f.must_say.includes("3+"), "همان چیزی که برگه نوشته باید نقل شود");
+  // ⚠️ ترجمهٔ «3+» به mg/L کیت‌وابسته است — نباید عددی ساخته شود
+  assert.ok(!/mg\/L\s*\d|\d+\s*mg\/L/.test(f.must_say.replace(/کمی \(mg\/L\)/g, "")),
+    "نباید «3+» را به عددِ mg/L ترجمه کند");
+});
+
+test("M29: CRP و RFِ عددی دیگر به qual نمی‌افتند (هم‌خانوادهٔ باگِ تروپونین)", () => {
+  const e = runEngine({ patient: { age: 32, sex: "F" },
+    tests: [{ name: "CRP", value: "24", unit: "mg/L" }, { name: "RF", value: "82", unit: "IU/mL" }] });
+  assert.equal(e.graded.find((g) => g.test === "CRP_Q")?.value, 24, "CRPِ عددی باید graded شود");
+  assert.equal(e.graded.find((g) => g.test === "RF")?.value, 82, "RFِ عددی باید graded شود");
+  assert.deepEqual(e.qual, {}, "هیچ‌کدام نباید کیفی بمانند");
+});
+
+test("M29: RFِ کیفیِ «RA factor: Positive» تطبیق می‌خورد و ادعای روماتیسم نمی‌کند", () => {
+  const e = runEngine({ patient: { age: 60, sex: "F" },
+    tests: [{ name: "RA factor", value: "Positive" }] });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "rf_positive");
+  assert.ok(f, "نامِ فاصله‌دار هم باید تطبیق بخورد");
+  assert.equal(f.urgency, "routine");
+  assert.ok(/به‌تنهایی به‌معنای روماتیسم مفصلی نیست/.test(f.must_say),
+    "باید صریح بگوید RF مثبت تشخیصِ روماتیسم نیست");
+  assert.ok(f.suggest.includes("Anti-CCP"), "باید تستِ اختصاصی‌تر را پیشنهاد دهد");
+});
+
+// ═══ M30: توصیه‌ها — تکرارِ نزدیک و قالبِ شکسته ═══
+// باگ واقعی: تنها فیلتر `new Set` بود، پس یک پنلِ معمولی ۱۹ توصیه می‌داد که
+// سه‌تایش «نوبت عادی…» و دوتایش «این هفته…» بود، و قالبِ «درخواست آزمایش X
+// از پزشک» روی چیزی که نامِ آزمایش نبود هم می‌نشست.
+
+test("M30: قالبِ «درخواست آزمایش» روی دستورِ غیرآزمایشی نمی‌نشیند", () => {
+  assert.equal(phraseSuggestion("فریتین"), "درخواست آزمایش فریتین از پزشک");
+  assert.equal(phraseSuggestion("مشاوره با پزشک دربارهٔ خطر قلبی‌عروقی"),
+    "مشاوره با پزشک دربارهٔ خطر قلبی‌عروقی", "خودش پزشک را نام برده — قالب نمی‌خواهد");
+  assert.equal(phraseSuggestion("GGT — برای مشخص شدن منبع ALP"),
+    "درخواست آزمایش GGT از پزشک — برای مشخص شدن منبع ALP",
+    "«از پزشک» باید بعدِ نامِ آزمایش بیاید نه آخرِ جمله");
+});
+
+test("M30: توصیه‌های هم‌سرآغاز ادغام می‌شوند بدون گم‌شدنِ جزئیات", () => {
+  const out = tidyRecommendations([
+    "نوبت عادی با پزشک.",
+    "نوبت عادی با پزشک. تغذیه و تحرک را جدی بگیرید.",
+    "نوبت عادی. اگر باردار هستید یا علامت خاصی دارید، با پزشک مطرح کنید.",
+  ]);
+  assert.equal(out.length, 1, "هر سه یک تصمیم‌اند");
+  assert.ok(/تغذیه و تحرک/.test(out[0]), "جزئیاتِ اول نباید گم شود");
+  assert.ok(/باردار/.test(out[0]), "جزئیاتِ دوم هم نباید گم شود");
+});
+
+test("M30: پیشنهادِ زیرمجموعه حذف می‌شود («پنل کامل آهن» ⊃ «آهن سرم»)", () => {
+  const e = runEngine({ patient: { age: 32, sex: "F" },
+    tests: [{ name: "Hemoglobin", value: 8.1 }, { name: "MCV", value: 68 },
+            { name: "Ferritin", value: 6 }] });
+  const recs = buildEngineRecommendations(runPatterns(e), e);
+  const has = (s) => recs.some((r) => r.includes(s));
+  assert.ok(has("پنل کامل آهن"), "پیشنهادِ فراگیر باید بماند");
+  assert.ok(!has("درخواست آزمایش آهن سرم"), "زیرمجموعه باید حذف شود");
+  assert.ok(!has("درخواست آزمایش TIBC"), "زیرمجموعه باید حذف شود");
+});
+
+test("M30: تستی که همین حالا روی برگه است دوباره درخواست نمی‌شود", () => {
+  const e = runEngine({ patient: { age: 32, sex: "F" },
+    tests: [{ name: "FBS", value: 108 }, { name: "HDL", value: 35 },
+            { name: "Cholesterol", value: 240 }] });
+  const recs = buildEngineRecommendations(runPatterns(e), e);
+  assert.ok(!recs.some((r) => r === "درخواست آزمایش قند خون از پزشک"),
+    "قند همین حالا اندازه‌گیری شده — درخواستش همان باگِ فریتین است");
+});
+
+// ═══ M28: شمارشِ خامِ CBC نباید اورژانسِ کاذب بسازد ═══
+// 🔴 باگ واقعی: refs.js برای WBC/PLT واحدِ K/µL و برای RBC واحدِ M/µL می‌خواهد،
+//    ولی برگه‌ها اغلب خامِ شمارش می‌دهند (WBC 7000، PLT 250000، RBC 4800000).
+//    نتیجه: یک CBC کاملاً طبیعی «لکوسیتوز شدید — بررسی فوری» می‌گرفت.
+//    برخلافِ _ABS و D-dimer و ACR، اینجا هیچ نرمال‌سازی‌ای وجود نداشت.
+
+test("M28: CBCِ طبیعیِ خام (WBC 7000/PLT 250000/RBC 4.8M) هیچ یافته‌ای نمی‌سازد", () => {
+  const e = runEngine({ patient: { age: 40, sex: "M" },
+    tests: [{ name: "WBC", value: 7000 }, { name: "Platelet", value: 250000 },
+            { name: "RBC", value: 4800000 }] });
+  assert.equal(e.graded.find((g) => g.test === "WBC").value, 7, "WBC باید به K/µL تبدیل شود");
+  assert.equal(e.graded.find((g) => g.test === "PLT").value, 250, "PLT باید به K/µL تبدیل شود");
+  assert.equal(e.graded.find((g) => g.test === "RBC").value, 4.8, "RBC باید به M/µL تبدیل شود");
+  assert.equal(e.abnormal.length, 0, "این CBC طبیعی است — نباید چیزی غیرطبیعی شود");
+  assert.equal(runPatterns(e).findings.length, 0, "و نباید هیچ الگویی فعال شود");
+});
+
+test("M28: واحدِ استاندارد دست‌نخورده می‌ماند (نصفه نمی‌شود)", () => {
+  const e = runEngine({ patient: { age: 40, sex: "M" },
+    tests: [{ name: "WBC", value: 7 }, { name: "Platelet", value: 250 }, { name: "RBC", value: 4.8 }] });
+  assert.equal(e.graded.find((g) => g.test === "WBC").value, 7);
+  assert.equal(e.graded.find((g) => g.test === "PLT").value, 250);
+  assert.equal(e.graded.find((g) => g.test === "RBC").value, 4.8);
+});
+
+test("M28: اورژانسِ واقعی در هر دو واحد حفظ می‌شود", () => {
+  // لوسمی: چه 258 (K/µL) چه 258000 (خام)
+  for (const v of [258, 258000]) {
+    const e = runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name: "WBC", value: v }] });
+    assert.equal(e.graded.find((g) => g.test === "WBC").value, 258, `WBC=${v} باید ۲۵۸ شود`);
+    assert.ok(runPatterns(e).findings.some((f) => f.pattern === "extreme_leukocytosis"),
+      `WBC=${v} باید لکوسیتوزِ شدید بدهد`);
+  }
+  // ترومبوسیتوپنیِ شدید: چه 30 چه 30000
+  for (const v of [30, 30000]) {
+    const e = runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name: "Platelet", value: v }] });
+    assert.equal(e.graded.find((g) => g.test === "PLT").value, 30);
+    assert.ok(runPatterns(e).findings.some((f) => f.pattern === "severe_thrombocytopenia"),
+      `PLT=${v} باید ترومبوسیتوپنیِ شدید بدهد`);
+  }
+});
+
+test("M28: ترومبوسیتوزِ واقعی (۹۰۰ K/µL) خام تلقی و نصفه نمی‌شود", () => {
+  const e = runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name: "Platelet", value: 900 }] });
+  assert.equal(e.graded.find((g) => g.test === "PLT").value, 900, "زیرِ آستانهٔ ۳۰۰۰ است — دست‌نخورده");
+  assert.ok(runPatterns(e).findings.some((f) => f.pattern === "thrombocytosis"));
 });
 
 // ═══ M27: تورِ ایمنیِ اورژانس، بازنویسیِ مدل را «غایب» نمی‌بیند ═══

@@ -100,6 +100,47 @@ export const CLASSIFIERS = {
   LACTATE: { kind: 'binary', label: 'لاکتات', note: '>4 mmol/L → شوک/سپسیس' },
   PCT_SEPSIS: { kind: 'binary', label: 'پروکلسی‌تونین', note: '>2 → عفونت باکتریایی شدید' },
   CRP_Q:   { kind: 'binary', label: 'CRP کمی' },
+
+  // ---- سرولوژی بروسلوز — مقدار، مخرجِ تیتر است ----
+  // آستانه‌ها: راهنمای کشوری بروسلوز، وزارت بهداشت، ص ۴۰
+  //   (رایت ≥۱/۸۰، 2ME ≥۱/۴۰، کومبس رایت ≥۱/۴۰).
+  // ⚠️ تیتر «شدت» نیست، پس severity/CTCAE اینجا بی‌معناست — طبقه‌بند است.
+  WRIGHT: {
+    kind: 'classifier',
+    label: 'رایت (آگلوتیناسیون بروسلا)',
+    bands: [
+      { max: 80,  tag: 'below_threshold', fa: 'زیر آستانهٔ تشخیصی', patient: null, normal: true },
+      { max: 160, tag: 'significant',     fa: 'در آستانهٔ باارزش',
+        patient: 'تیتر رایت شما در حدی است که باید بررسی شود' },
+      { max: Infinity, tag: 'high_titre', fa: 'تیتر بالا',
+        patient: 'تیتر رایت شما بالاست و باید حتماً بررسی شود' },
+    ],
+    note: 'تیترِ منفرد، عفونتِ فعال را از تماسِ قبلی جدا نمی‌کند؛ افزایشِ ۴برابری در دو هفته ملاک است',
+  },
+  ME2: {
+    kind: 'classifier',
+    label: '2ME',
+    bands: [
+      { max: 40, tag: 'below_threshold', fa: 'زیر آستانهٔ تشخیصی', patient: null, normal: true },
+      { max: Infinity, tag: 'significant', fa: 'باارزش',
+        patient: 'تست 2ME شما مثبتِ باارزش است' },
+    ],
+    note: '2ME فقط IgG را می‌سنجد؛ در تب مالت IgG با بیماریِ فعال و علامت‌دار همراهی بیشتری دارد تا IgM',
+  },
+  COOMBS_WRIGHT: {
+    kind: 'classifier',
+    label: 'کومبس رایت',
+    bands: [
+      { max: 40, tag: 'below_threshold', fa: 'زیر آستانهٔ تشخیصی', patient: null, normal: true },
+      { max: Infinity, tag: 'significant', fa: 'باارزش',
+        patient: 'تست کومبس رایت شما مثبتِ باارزش است' },
+    ],
+    note: 'آنتی‌بادیِ بلوک‌کننده را می‌گیرد که رایتِ ساده را منفیِ کاذب می‌کند — به‌ویژه در موارد مزمن',
+  },
+
+  // فاکتور روماتوئید — «مثبت بودن» تشخیص نیست؛ نسبت به ULN مهم است.
+  RF: { kind: 'binary', label: 'فاکتور روماتوئید',
+        note: 'غیراختصاصی: ۵٪ بزرگسالانِ سالم و ۱۰–۲۵٪ سالمندانِ سالم مثبت‌اند' },
   NH3:     { kind: 'binary', label: 'آمونیاک', note: 'بالا → انسفالوپاتی کبدی' },
   HCO3:    { kind: 'binary', label: 'بی‌کربنات', note: 'برای anion gap لازم است' },
   PH:      { kind: 'binary', label: 'pH خون' },

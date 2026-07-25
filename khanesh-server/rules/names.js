@@ -30,6 +30,8 @@ export const FA_NAMES = {
   DDIMER: "D-dimer", INR: "INR", LACTATE: "لاکتات", PCT_SEPSIS: "پروکلسی‌تونین",
   CRP_Q: "CRP", NH3: "آمونیاک", HCO3: "بی‌کربنات", PH: "pH خون",
   ATIII: "آنتی‌ترومبین III", TROPONIN_I: "تروپونین",
+  WRIGHT: "رایت", ME2: "۲ام‌ای (2ME)", COOMBS_WRIGHT: "کومبس رایت",
+  RF: "فاکتور روماتوئید (RF)",
 };
 
 /** کلید موتور → نام فارسی؛ اگر نگاشت نداشت، خود کلید (بهتر از هیچ). */

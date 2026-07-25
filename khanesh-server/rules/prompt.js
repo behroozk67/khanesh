@@ -10,7 +10,7 @@
 //         → gpt-4o-mini کافی است.
 // ============================================================
 
-import { alreadyMeasured } from "./patterns.js";
+import { alreadyMeasured, SUGGEST_TESTS } from "./patterns.js";
 import { faName } from "./names.js";
 
 // ⚠️ سقفِ «حداکثر N جمله» در interpretation با قاعدهٔ ۱ («must_say را کامل
@@ -146,16 +146,131 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
  * توصیه‌های قطعی از یافته‌های موتور — منبع واحد برای هم «تور ایمنی» و هم مسیر جایگزین.
  * ترتیب: action، سپس تست‌های suggest، سپس warnings. تست‌های forbid حذف می‌شوند.
  */
+// ---------- تمیزکاریِ فهرست توصیه‌ها ----------
+// ⚠️ باگ واقعی: تنها فیلترِ تکراری‌ها `new Set` بود، یعنی فقط رشته‌های *دقیقاً*
+//    یکسان حذف می‌شدند. یک پنلِ معمولی (کم‌خونی + چربی + قند + ALP) ۱۹ توصیه
+//    می‌داد که سه‌تایش «نوبت عادی…»، دوتایش «این هفته…»، و «آهن سرم» و «TIBC»
+//    کنارِ «پنل کامل آهن» بود که خودش هر دو را در بر می‌گیرد.
+
+/** نرمال‌سازی برای مقایسه: نیم‌فاصله، ی/ک عربی، نشانه‌گذاری، فاصلهٔ اضافه */
+function normRec(s) {
+  return String(s)
+    .replace(/‌/g, "")
+    .replace(/[ىي]/g, "ی").replace(/ك/g, "ک")
+    .replace(/[.،؛!؟]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * دو توصیه وقتی «هم‌پوشان»‌اند که یکی ادامهٔ دیگری باشد:
+ *   «نوبت عادی با پزشک» ⊂ «نوبت عادی با پزشک تغذیه و تحرک را جدی بگیرید»
+ * در این حالت کاملـ‌تر می‌ماند و کوتاه‌تر حذف می‌شود.
+ */
+function dropSubsumedText(list) {
+  const kept = [];
+  for (const item of list) {
+    const n = normRec(item);
+    const supersededBy = list.find((o) => {
+      const m = normRec(o);
+      return m !== n && m.startsWith(n);
+    });
+    if (!supersededBy) kept.push(item);
+  }
+  return kept;
+}
+
+/**
+ * پیشنهادِ آزمایشی که مجموعهٔ تست‌هایش زیرمجموعهٔ پیشنهادِ دیگری است حذف شود:
+ *   «پنل کامل آهن» = {FERRITIN, IRON, TIBC} ⊃ «آهن سرم» = {IRON}
+ * داده‌محور است، نه فهرستِ دستی — از همان SUGGEST_TESTS خوانده می‌شود.
+ */
+function dropSubsumedTests(suggestions) {
+  return suggestions.filter((s) => {
+    const mine = SUGGEST_TESTS[s];
+    if (!mine?.length) return true;
+    return !suggestions.some((o) => {
+      if (o === s) return false;
+      const theirs = SUGGEST_TESTS[o];
+      return theirs?.length > mine.length && mine.every((k) => theirs.includes(k));
+    });
+  });
+}
+
+/**
+ * قالبِ «درخواست آزمایش X از پزشک» فقط برای چیزی که واقعاً نامِ آزمایش است.
+ * ⚠️ باگ واقعی: روی هر رشته‌ای اعمال می‌شد و فارسیِ شکسته می‌ساخت —
+ *    «درخواست آزمایش مشاوره با پزشک دربارهٔ خطر قلبی‌عروقی از پزشک».
+ */
+export function phraseSuggestion(s) {
+  const text = String(s).trim();
+  // اگر خودش پزشک را نام برده، یک دستورِ کامل است نه نامِ آزمایش
+  if (/پزشک|مراجعه|مشاوره/.test(text)) return text;
+  // «GGT — برای مشخص شدن منبع ALP» → «درخواست آزمایش GGT از پزشک — برای …»
+  const dash = text.match(/^(.+?)\s+[—–-]\s+(.+)$/);
+  if (dash) return `درخواست آزمایش ${dash[1].trim()} از پزشک — ${dash[2].trim()}`;
+  return `درخواست آزمایش ${text} از پزشک`;
+}
+
+/**
+ * توصیه‌هایی که با یک جملهٔ اولِ مشترک شروع می‌شوند یکی می‌شوند.
+ *
+ * «کی به پزشک مراجعه کنم» یک تصمیم است، نه N تصمیم — ولی هر finding نسخهٔ
+ * خودش را می‌سازد، پس بیمار سه بار «نوبت عادی…» و دو بار «این هفته…» می‌دید.
+ * اینجا جملهٔ اول یک‌بار می‌آید و ادامه‌های *متفاوت* پشتش سوار می‌شوند، تا
+ * ادغام باعث گم‌شدنِ جزئیاتِ بالینی نشود.
+ */
+function mergeByLeadSentence(list) {
+  const sentences = (s) => String(s).split(/(?<=[.؟!؛])\s+/).map((x) => x.trim()).filter(Boolean);
+  const groups = [];
+  for (const item of list) {
+    const parts = sentences(item);
+    const lead = normRec(parts[0] ?? item);
+    // گروهی که جملهٔ اولش پیشوندِ این است (یا برعکس) — «نوبت عادی» و «نوبت عادی با پزشک»
+    const g = groups.find((x) => x.lead.startsWith(lead) || lead.startsWith(x.lead));
+    if (g) {
+      if (lead.length > g.lead.length) { g.lead = lead; g.head = parts[0]; }
+      g.tails.push(...parts.slice(1));
+    } else {
+      groups.push({ lead, head: parts[0] ?? item, tails: parts.slice(1) });
+    }
+  }
+  return groups.map((g) => {
+    const seen = new Set([normRec(g.head)]);
+    const tails = g.tails.filter((t) => {
+      const n = normRec(t);
+      if (seen.has(n)) return false;
+      seen.add(n);
+      return true;
+    });
+    return [g.head, ...tails].join(" ");
+  });
+}
+
+/** فهرستِ نهایی: حذفِ دقیق، حذفِ هم‌پوشان، ادغامِ هم‌سرآغاز، و حفظِ ترتیب. */
+export function tidyRecommendations(list) {
+  const exact = [...new Set((list ?? []).map((r) => String(r).trim()).filter(Boolean))];
+  return mergeByLeadSentence(dropSubsumedText(exact));
+}
+
 export function buildEngineRecommendations(patterns, engineOut) {
   // لایهٔ دوم: runPatterns پیشنهادهای تکراری را از قبل حذف کرده،
   // ولی این مسیر ممکن است با findings دست‌ساز هم صدا زده شود.
   const measured = new Set((engineOut?.graded ?? []).map((g) => g.test));
+  // پیشنهادهای همهٔ یافته‌ها یک‌جا جمع می‌شوند تا «پنل کامل آهن» بتواند
+  // «آهن سرم»ِ یافتهٔ دیگر را هم پوشش بدهد (زیرمجموعه‌ها بین یافته‌ها رخ می‌دهند).
+  const allSuggest = dropSubsumedTests([
+    ...new Set(patterns.findings.flatMap((f) => f.suggest ?? [])
+      .filter((t) => !alreadyMeasured(t, measured))),
+  ]);
+  const suggestOk = new Set(allSuggest);
+
   const built = [];
   for (const f of patterns.findings) {
     if (f.action) built.push(f.action);
     for (const t of f.suggest ?? []) {
-      if (alreadyMeasured(t, measured)) continue;
-      built.push(`درخواست آزمایش ${t} از پزشک`);
+      if (!suggestOk.has(t)) continue;
+      built.push(phraseSuggestion(t));
     }
     for (const w of f.warnings ?? []) built.push(w);
   }
@@ -163,8 +278,9 @@ export function buildEngineRecommendations(patterns, engineOut) {
   const filtered = forbidden.length
     ? built.filter((r) => !forbidden.some((w) => String(r).includes(w)))
     : built;
-  // حذف تکراری‌ها: دو finding ممکن است یک آزمایش/اقدام را پیشنهاد دهند.
-  return [...new Set(filtered.map((r) => String(r).trim()))];
+  // حذف تکراری‌ها: دو finding ممکن است یک آزمایش/اقدام را پیشنهاد دهند —
+  // هم دقیقاً یکسان، هم یکی ادامهٔ دیگری («نوبت عادی…» در سه شکل).
+  return tidyRecommendations(filtered);
 }
 
 /**
