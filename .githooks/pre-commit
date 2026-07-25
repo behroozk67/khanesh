@@ -1,0 +1,49 @@
+#!/bin/sh
+# Khanesh / LabMate — pre-commit gate
+#
+# بک‌اند: npm test (رگرسیون موتور قوانین)  |  فرانت‌اند: npm run lint
+# فقط برای زیرپروژه‌ای اجرا می‌شود که فایلی از آن stage شده باشد.
+#
+# رد کردن موقت:  SKIP_HOOKS=1 git commit ...
+
+set -u
+
+if [ "${SKIP_HOOKS:-0}" = "1" ]; then
+  echo "pre-commit: skipped (SKIP_HOOKS=1)"
+  exit 0
+fi
+
+ROOT=$(git rev-parse --show-toplevel)
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+
+[ -z "$STAGED" ] && exit 0
+
+FAILED=""
+
+run_check() {
+  # run_check <label> <dir> <command...>
+  label=$1; dir=$2; shift 2
+  printf '\n\033[36m▶ %s\033[0m  (%s)\n' "$label" "$*"
+  if ( cd "$ROOT/$dir" && "$@" ); then
+    printf '\033[32m✔ %s\033[0m\n' "$label"
+  else
+    printf '\033[31m✘ %s\033[0m\n' "$label"
+    FAILED="$FAILED\n  - $label"
+  fi
+}
+
+if echo "$STAGED" | grep -q '^khanesh-server/.*\.\(js\|mjs\|json\)$'; then
+  run_check "backend tests" "khanesh-server" npm test --silent
+fi
+
+if echo "$STAGED" | grep -q '^khanesh/.*\.\(js\|jsx\|mjs\|json\)$'; then
+  run_check "frontend lint" "khanesh" npm run lint --silent
+fi
+
+if [ -n "$FAILED" ]; then
+  printf '\n\033[31mcommit blocked:\033[0m%b\n' "$FAILED"
+  printf 'اصلاح کن و دوباره commit بزن — یا با SKIP_HOOKS=1 رد کن.\n\n'
+  exit 1
+fi
+
+exit 0
