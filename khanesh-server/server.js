@@ -32,6 +32,7 @@ import "dotenv/config";
 import { runEngine } from "./rules/adapter.js";
 import { runPatterns } from "./rules/patterns.js";
 import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations } from "./rules/prompt.js";
+import rateLimit from "express-rate-limit";
 import { extractMedlineTerms } from "./rules/medline.js";
 import { missingFindingText } from "./rules/coverage.js";
 
@@ -46,7 +47,42 @@ function engineDebug(engineOut, patternOut) {
 }
 
 const app = express();
-app.use(cors());
+
+// ── CORS ──
+// ALLOWED_ORIGINS خالی = هر مبدأ (رفتار قبلی، برای توسعه). در پرودکشن ست کن.
+// ⚠️ CORS فقط جلوی سوءاستفادهٔ مرورگری از یک سایت دیگر را می‌گیرد؛ curl و اسکریپت
+//    را نمی‌گیرد. محافظِ واقعیِ هزینه، rate limit پایین‌تر است، نه این.
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+function originAllowed(origin) {
+  // بدون Origin = same-origin یا curl؛ اجازه بده (rate limit مهارش می‌کند).
+  return !origin || ALLOWED_ORIGINS.length === 0 || ALLOWED_ORIGINS.includes(origin);
+}
+app.use(cors(
+  ALLOWED_ORIGINS.length === 0 ? undefined : {
+    // false، نه Error: خطا دادن اینجا به error handlerِ پیش‌فرض می‌افتد و
+    // ۵۰۰ برمی‌گرداند که هم گمراه‌کننده است هم لاگ را آلوده می‌کند.
+    origin: (origin, cb) => cb(null, originAllowed(origin)),
+  }
+));
+
+// نگهبانِ مبدأ برای اندپوینتِ پولی.
+// نبودنِ هدرِ CORS جلوی *خواندنِ* پاسخ توسط صفحهٔ مهاجم را می‌گیرد، ولی درخواست
+// روی سرور اجرا شده و پولش را داده. پس مبدأِ غیرمجاز را صریح رد می‌کنیم.
+// قبل از rate limit می‌نشیند تا سهمیهٔ کاربرِ واقعی را مصرف نکند.
+function requireAllowedOrigin(req, res, next) {
+  if (originAllowed(req.headers.origin)) return next();
+  res.status(403).json({ error: "این مبدأ اجازهٔ دسترسی ندارد." });
+}
+
+// ── trust proxy ──
+// ⚠️ مهم: پشت Nginx، req.ip آی‌پیِ پروکسی است نه بیمار. اگر TRUST_PROXY ست نشود،
+//    rate limit همهٔ ترافیک را «یک کاربر» می‌بیند و اولین کاربرِ پرمصرف بقیهٔ
+//    بیماران را هم بلاک می‌کند. اگر ست شود ولی پروکسی‌ای نباشد، X-Forwarded-For
+//    جعل‌شدنی است و limiter دور می‌خورد. پس عدد را مطابق تعداد hopِ واقعی بگذار.
+const TRUST_PROXY = process.env.TRUST_PROXY;
+if (TRUST_PROXY) app.set("trust proxy", /^\d+$/.test(TRUST_PROXY) ? Number(TRUST_PROXY) : TRUST_PROXY);
+
 app.use(express.json({ limit: "60mb" }));   // ← Nginx روی 50M است؛ Express نباید تنگ‌تر باشد
 
 const AVALAI_API_KEY = process.env.AVALAI_API_KEY;
@@ -74,6 +110,28 @@ const OCR_MAX_TOKENS = Number(process.env.OCR_MAX_TOKENS || 8000);
 
 // موتور قواعد: پیش‌فرض روشن. برای برگشت به روش قدیم: USE_ENGINE=false
 const USE_ENGINE = process.env.USE_ENGINE !== "false";
+
+// محدودیت نرخ روی /api/analyze.
+// این اندپوینت هر بار یک تا چند فراخوانِ پولیِ AvalAI می‌زند (OCR + تحلیل) و هیچ
+// احراز هویتی ندارد؛ بدون سقف، هر کسی که آدرس را پیدا کند می‌تواند حساب را خالی کند.
+const RATE_LIMIT_WINDOW_MIN = Number(process.env.RATE_LIMIT_WINDOW_MIN || 15);
+const RATE_LIMIT_MAX        = Number(process.env.RATE_LIMIT_MAX || 20);
+
+const analyzeLimiter = rateLimit({
+  windowMs: RATE_LIMIT_WINDOW_MIN * 60 * 1000,
+  limit: RATE_LIMIT_MAX,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: {
+    error: `تعداد درخواست‌های شما بیش از حد مجاز است. لطفاً ${RATE_LIMIT_WINDOW_MIN} دقیقه دیگر دوباره تلاش کنید.`,
+  },
+  handler(req, res, _next, options) {
+    // لاگِ متمایز: اگر این زیاد دیده شد و کاربران واقعی شکایت کردند،
+    // احتمالاً TRUST_PROXY ست نشده و همه یک کلید شمرده می‌شوند.
+    console.warn(`⚠️ rate limit خورد (key=${req.ip}) — اگر پشت پروکسی هستی TRUST_PROXY را ببین`);
+    res.status(options.statusCode).json(options.message);
+  },
+});
 
 const MEDLINE_BASE = "https://wsearch.nlm.nih.gov/ws/query";
 
@@ -152,16 +210,22 @@ async function buildMedlineContext(testResultsText) {
   const parts = [];
   const sources = [];
   const results = await Promise.all(
-    items.map(async ({ term, sourceLine }) => ({
-      term, sourceLine, data: await fetchMedline(term),
-    }))
+    items.map(async ({ term }) => ({ term, data: await fetchMedline(term) }))
   );
 
-  for (const { term, sourceLine, data } of results) {
+  // ⚠️ sourceLine (خطِ خامِ برگه) عمداً اینجا درج نمی‌شود.
+  //    آن خط از OCRِ عکسی می‌آید که مهاجم می‌تواند محتوایش را انتخاب کند، و
+  //    مستقیم داخل <medline_context> پرامپت می‌نشست — یعنی متنِ دلخواهِ او در
+  //    دستورهای مدل. تورهای ایمنی (server.js پایین‌تر) فقط must_sayِ افتاده را
+  //    اضافه و توصیهٔ forbid را حذف می‌کنند؛ هیچ‌کدام summary/interpretation را
+  //    که متنِ آزادِ مدل است پاک‌سازی نمی‌کنند.
+  //    مقدارِ واقعیِ بیمار از قبل در payloadِ موتور هست، گریدشده و ساخت‌یافته —
+  //    پس این echo هیچ اطلاعاتی اضافه نمی‌کرد، فقط سطحِ حمله بود.
+  //    این بلوک فقط «زمینهٔ آموزشیِ» عمومیِ MedlinePlus است.
+  for (const { term, data } of results) {
     if (!data) continue;
     parts.push(
       `تست: ${term}\n` +
-      `مقدار بیمار (از ورودی): ${sourceLine}\n` +
       `اطلاعات مرجع MedlinePlus: ${data.summary}`
     );
     if (data.url) sources.push(data.url);
@@ -628,7 +692,7 @@ function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImag
 // ============================================================
 // [۱۴] نقطه پایانی اصلی
 // ============================================================
-app.post("/api/analyze", async (req, res) => {
+app.post("/api/analyze", requireAllowedOrigin, analyzeLimiter, async (req, res) => {
   try {
     const { patientInfo, testResults, imageDataUrl, imageDataUrls, tests, patient } = req.body || {};
 
@@ -1035,6 +1099,9 @@ app.get("/health", (_req, res) =>
     engine: USE_ENGINE ? "on" : "off",
     ocrMaxTokens: OCR_MAX_TOKENS,
     truncations: TRUNCATION_COUNT,
+    rateLimit: `${RATE_LIMIT_MAX}/${RATE_LIMIT_WINDOW_MIN}min`,
+    corsOrigins: ALLOWED_ORIGINS.length === 0 ? "any (⚠️ در پرودکشن ست کن)" : ALLOWED_ORIGINS,
+    trustProxy: TRUST_PROXY || "off",
   })
 );
 
@@ -1044,5 +1111,15 @@ app.listen(PORT, () => {
   console.log(`آپلود چند عکس: تا ${MAX_IMAGES} عکس | همزمانی ${IMAGE_CONCURRENCY} | ${OCR_RETRIES} تلاش مجدد`);
   console.log(`موتور قواعد: ${USE_ENGINE ? "روشن (Henry + RCPCH + CTCAE v5)" : "خاموش"}`);
   console.log(`سقف توکن OCR: ${OCR_MAX_TOKENS}`);
+  console.log(`محدودیت نرخ: ${RATE_LIMIT_MAX} درخواست در ${RATE_LIMIT_WINDOW_MIN} دقیقه`);
+  if (ALLOWED_ORIGINS.length === 0) {
+    console.warn("⚠️ ALLOWED_ORIGINS ست نشده — CORS به هر مبدأیی باز است. در پرودکشن ست کن.");
+  } else {
+    console.log(`مبدأهای مجاز: ${ALLOWED_ORIGINS.join(", ")}`);
+  }
+  if (!TRUST_PROXY) {
+    console.warn("⚠️ TRUST_PROXY ست نشده — اگر پشت Nginx هستی، rate limit همهٔ کاربران را " +
+                 "یک آی‌پی می‌بیند و با یک کاربرِ پرمصرف همه بلاک می‌شوند. مقدار = تعداد hop.");
+  }
   if (!AVALAI_API_KEY) console.warn("⚠️  هشدار: AVALAI_API_KEY تنظیم نشده! فایل .env را بساز.");
 });
