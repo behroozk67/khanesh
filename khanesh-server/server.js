@@ -846,15 +846,20 @@ app.post("/api/analyze", async (req, res) => {
       }
 
       if (patternOut.findings.length === 0 && engineOut.abnormal.length > 0) {
+        // فقط نامِ تست، بی مقدار: برای پیدا کردن شکافِ patterns.js همین کافی است،
+        // و مقدارِ بالینیِ بیمار در لاگ سرور نمی‌نشیند.
         console.warn(
           `⚠️ ${engineOut.abnormal.length} تست غیرطبیعی ولی هیچ قاعده‌ای مطابقت نکرد: ` +
-          engineOut.abnormal.map((a) => `${a.test}=${a.value}`).join(", ")
+          engineOut.abnormal.map((a) => a.test).join(", ")
         );
       }
 
       raw = await callAvalAI({
         model: TEXT_MODEL,
         maxTokens: 2000,
+        // کارِ این فراخوان بازنویسیِ یافته‌های موتور به فارسی است، نه قضاوت —
+        // پس دمای صفر. مسیر قدیم عمداً روی ۰.۲ می‌ماند چون خودش قضاوت می‌کند.
+        temperature: 0,
         messages: [
           { role: "system", content: ENGINE_SYSTEM_PROMPT },
           // ورود دستی بارداری/بیماری زمینه‌ای را در patient می‌فرستد؛ فقط زمینهٔ لحن،

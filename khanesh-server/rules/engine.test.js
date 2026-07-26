@@ -8,7 +8,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { creatRef, getRef, esrRef, ckdEpiEgfr } from "./refs.js";
+import { creatRef, getRef, esrRef, ckdEpiEgfr, ADULT_REFS } from "./refs.js";
+import { CLASSIFIERS } from "./interpret.js";
+import { CTCAE_MAP } from "./ctcae.js";
+import { FA_NAMES, faName } from "./names.js";
 import { evaluate } from "./grade.js";
 import { runEngine, parseTitre } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
@@ -1649,4 +1652,25 @@ test("M26: در رابدومیولیز عددِ eGFR در متن نمی‌آید
   assert.ok(!/برآوردِ کارِ کلیه/.test(f.must_say),
     "eGFR در حالتِ ناپایدارِ حاد گمراه‌کننده است و نباید نقل شود");
   assert.ok(e.indices?.egfr != null, "eGFR محاسبه می‌شود ولی عمداً استفاده نمی‌شود");
+});
+
+// ── M28: هیچ کلیدِ گریدشدنی بی‌نامِ فارسی نماند (کلاسِ N8) ──
+// ACR رنج و طبقه‌بندیِ KDIGO و قاعده داشت ولی در FA_NAMES نبود؛ فقط به این دلیل
+// به بیمار نرسید که متنِ albuminuria_pattern نامش را دستی هجی کرده بود. اما
+// faName() روی کلیدِ نانگاشته خودِ کلید را برمی‌گرداند، و تورِ unmatched_abnormal
+// همان را به متنِ روبه‌کاربر می‌دهد — یعنی «ACR» خام روی صفحهٔ بیمار.
+// این تست به‌جای یک کلید، تمامِ کلاس را قفل می‌کند.
+test("M28: هر کلیدِ رنج/طبقه‌بندی/CTCAE نامِ فارسی دارد", () => {
+  const graded = new Set([
+    ...Object.keys(ADULT_REFS),
+    ...Object.keys(CLASSIFIERS),
+    ...Object.keys(CTCAE_MAP),
+  ]);
+  const missing = [...graded].filter((k) => !(k in FA_NAMES));
+  assert.deepEqual(missing, [],
+    `این کلیدها خام به بیمار می‌رسند — به FA_NAMES اضافه شوند: ${missing.join(", ")}`);
+  // نکته: شرط «faName(k) !== k» عمداً چک نمی‌شود — برای MCH، MCHC، HDL، LDL،
+  // INR و TIBC نامِ فارسیِ درست خودِ مخفف است. چیزی که محافظت می‌کند حضورِ
+  // آگاهانهٔ کلید در جدول است، نه متفاوت بودنِ مقدارش.
+  assert.equal(faName("ACR"), FA_NAMES.ACR);
 });

@@ -17,6 +17,7 @@ export const FA_NAMES = {
   EOS_ABS: "ائوزینوفیل", BASO_ABS: "بازوفیل", BAND_ABS: "باند",
   UREA: "اوره", UREA_N: "BUN (نیتروژن اورهٔ خون)", CREAT: "کراتینین", NA: "سدیم", K: "پتاسیم", CL: "کلر",
   CA: "کلسیم", MG: "منیزیم", PHOS: "فسفر",
+  ACR: "نسبت آلبومین به کراتینین ادرار (ACR)",
   AST: "AST (آنزیم کبدی)", ALT: "ALT (آنزیم کبدی)", ALP: "آلکالن فسفاتاز",
   GGT: "GGT", CK: "CK (کراتین کیناز)", CK_MB: "CK-MB", AMYLASE: "آمیلاز", LIPASE: "لیپاز",
   LDH: "LDH", GLU_F: "قند ناشتا", GLU_2H: "قند دو ساعته", GLU_RANDOM: "قند خون",

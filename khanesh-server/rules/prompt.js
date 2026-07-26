@@ -134,7 +134,8 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
       : {}),
   };
 
-  let text = JSON.stringify(payload, null, 1);
+  // فشرده، بدون تودرتوییِ چشمی: مدل به فاصله‌گذاری نیازی ندارد و ~۱۳٪ توکن کمتر.
+  let text = JSON.stringify(payload);
   if (medlineContext) {
     text += `\n\n<medline_context>\n${medlineContext}\n</medline_context>\n` +
             `(زمینه‌ی آموزشی — فقط برای زبان ساده‌تر. تحلیل از موتور می‌آید نه از اینجا.)`;

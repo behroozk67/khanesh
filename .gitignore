@@ -1,0 +1,3 @@
+# اسکرین‌شات‌های موقتِ توسعه/دیباگ (Playwright، بررسی چشمی UI)
+*.png
+.playwright-mcp/
