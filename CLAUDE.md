@@ -166,7 +166,7 @@ second one; a recurring entry is the strongest signal in the file.
   checking that `unmatched_abnormal` is absent — not by checking that the test was extracted.
 
 ### N2 — An unmapped test doesn't fail loudly; it turns into "you're healthy"
-`ed5788d`, `3d5e1ce`
+`ed5788d`, `3d5e1ce`, `3d9fbd9`
 
 - **Tried:** assume `NAME_MAP` already covers the spellings a lab sheet uses.
 - **Broke:** real sheets print `Creatinin` (no e), `cholestrol`, `Triglicerde`, `ESR 1hrs`,
@@ -177,6 +177,19 @@ second one; a recurring entry is the strongest signal in the file.
   the test is spelled. But do **not** add fuzzy matching to compensate: `resolveAlias()` only does
   unambiguous prefix/plural/trailing-e aliases, because a *wrong* mapping in clinical text is worse
   than no mapping. When you touch the adapter, count `unmapped` before and after.
+- **`NAME_MAP` is not the only gate a name has to pass** (`3d9fbd9`). A qualitative test must also
+  be in `adapter.js`'s `QUALITATIVE` set/patterns, and then the *pattern's own* name regex has to
+  match. All three failed at once for the HIV/HCV/HBV screens: the allowlist held bare `hiv`, but
+  sheets write `HIV Ab` / `Anti-HIV`, so the value never reached `qual`; and `serologyReactive`
+  tested the raw key against space-free patterns like `/hepatitisc/`, the same defect already
+  fixed in `qualPositive` for «RA factor» and never carried across. Net effect: three screening
+  rules that could not fire on any realistic sheet, and a reactive HIV screen answered with
+  `buildNormalResult()`. Coverage tests are what surfaced it — the rules looked fine when read.
+- **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
+  anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
+  *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When
+  you widen a matcher, enumerate what else the wider pattern now catches, and check each one is
+  clinically the same thing. Antigen ≠ antibody.
 
 ### N3 — Grading a sheet's number against a unit the sheet doesn't use
 `ed5788d`, `4de8ca4`, `ecea2ca`
