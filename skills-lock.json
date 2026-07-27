@@ -1,11 +1,41 @@
 {
   "version": 1,
   "skills": {
+    "do-competitively": {
+      "source": "neolabhq/context-engineering-kit",
+      "sourceType": "github",
+      "skillPath": "plugins/sadd/skills/do-competitively/SKILL.md",
+      "computedHash": "a5c6c171599b078a431645177f19334ac8c4d1e6b5f01dcb54ffc6954b3722ef"
+    },
+    "do-in-parallel": {
+      "source": "neolabhq/context-engineering-kit",
+      "sourceType": "github",
+      "skillPath": "plugins/sadd/skills/do-in-parallel/SKILL.md",
+      "computedHash": "0f02f94745670f31d5a8725deeece394338586a38036ab7ceeffc656e7adc001"
+    },
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",
       "skillPath": "skills/find-skills/SKILL.md",
       "computedHash": "b146008599c31057cef1c145774cea5d5afb30e8f43fa802e47a4b461419aaaf"
+    },
+    "judge": {
+      "source": "neolabhq/context-engineering-kit",
+      "sourceType": "github",
+      "skillPath": "plugins/sadd/skills/judge/SKILL.md",
+      "computedHash": "383141b2275d7f274118e0e7e2488280f3e76adc22417642fa38b28329ced820"
+    },
+    "judge-with-debate": {
+      "source": "neolabhq/context-engineering-kit",
+      "sourceType": "github",
+      "skillPath": "plugins/sadd/skills/judge-with-debate/SKILL.md",
+      "computedHash": "9e28155bacb76494db16e3ab10c033a91fd5f6eeeb450363cf9bb0118d3d3e93"
+    },
+    "multi-agent-patterns": {
+      "source": "neolabhq/context-engineering-kit",
+      "sourceType": "github",
+      "skillPath": "plugins/sadd/skills/multi-agent-patterns/SKILL.md",
+      "computedHash": "40a17100f0a1edcc64bfd9fe53ad8a846d0241c628cba0dd7bd345a9925bc04c"
     },
     "parallel-deep-research": {
       "source": "parallel-web/parallel-agent-skills",

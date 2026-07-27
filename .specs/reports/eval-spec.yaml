@@ -1,0 +1,818 @@
+# =============================================================================
+# EVALUATION SPECIFICATION — Khanesh / LabMate  `/app` (Tafsir) redesign
+# SADD consensus pipeline · meta-judge output · judges MUST follow this verbatim
+# =============================================================================
+
+meta:
+  spec_id: khanesh-tafsir-redesign-eval-v1
+  artifact_type: >-
+    Working frontend application code (React 19 + Vite, no CSS framework,
+    embedded/inline CSS + index.css) AND the rendered UX it produces.
+  solutions_under_review: 3
+  scale: "1.0 – 5.0, one decimal place. Half-steps (X.5) are expected and normal."
+  baseline_repo: "c:/Users/surface/Desktop/khanesh-project"
+  worktrees:
+    Solution A: "C:/Users/surface/AppData/Local/Temp/claude/consensus/wt-a"
+    Solution B: "C:/Users/surface/AppData/Local/Temp/claude/consensus/wt-b"
+    Solution C: "C:/Users/surface/AppData/Local/Temp/claude/consensus/wt-c"
+  app_under_test: "http://127.0.0.1:4200/app  (the Tafsir page)"
+  product_constraints:
+    - "Persian / Farsi only in all user-facing copy. RTL. Mobile-first. Light mode only."
+    - "Patient-facing medical software. A confused patient is a clinical outcome, not a UX metric."
+    - "Design inspiration: siphoxhealth.com, functionhealth.com — the calm-clinical
+       information density, NOT their marketing, upsell, membership, or growth patterns."
+
+# -----------------------------------------------------------------------------
+# 0. WHAT THE JUDGE MUST DO BEFORE SCORING ANYTHING
+# -----------------------------------------------------------------------------
+required_preparation:
+  read_first:
+    - path: "CLAUDE.md"
+      why: >-
+        Sections "Lab Notebook — Things Not To Try Again" (N1–N11) and the engine
+        boundary rule. Each notebook entry is a real bug that reached, or nearly
+        reached, a patient. N4, N5, N8, N9, N11 are the frontend-relevant ones.
+    - path: ".claude/rules/frontend.md"
+      why: >-
+        The `_engine` response contract: `patterns[]`, `urgency`, `abnormal`,
+        `indices{}`, `tests[]` with `{key,name,value,range,refSource,abnormal,dir,
+        fa,level,ctcaeGrade,nearLimit,source}`. Also: `name` is already
+        faName()-resolved, `fa` is already a Persian worded status, `value` for CA
+        and NA may be the CORRECTED value (use `indices.ca_measured` /
+        `indices.na_measured` for the as-printed number), and absence of `_engine`
+        means the legacy model-judged path.
+    - path: ".claude/rules/notes.md"
+      why: "Persian-only strings; the privacy caveat that must not be over-claimed."
+  read_baseline_before_reading_any_solution:
+    - "khanesh/src/Tafsir.jsx        (1262 lines, single component, inline `s` style object)"
+    - "khanesh/src/ResultView.jsx    (465 lines, inline `S` style object)"
+    - "khanesh/src/index.css         (94 lines, token :root block, .num isolate rule)"
+    - "khanesh/src/resultStates.js   (six result states: word + shape + colour)"
+    - "khanesh/src/digits.js         (Persian/Arabic digit normalisation)"
+    - "khanesh/src/testCategories.js (body-system grouping, engine-key keyed)"
+    - "khanesh/index.html            (lang=fa dir=rtl, Vazirmatn preload)"
+    - "khanesh/package.json          (react 19.2, react-router-dom 7, oxlint, vite 8)"
+  baseline_facts_you_are_expected_to_know:
+    - "The baseline ALREADY does many things right. This is a redesign of a
+       thoughtful page, not of a blank template. Removing an existing safeguard is
+       a regression even if the replacement is prettier."
+    - "index.css already ships light-mode-locked tokens with contrast ratios noted
+       in comments (--text 16.4:1, --text-muted 5.8:1, six --st-* status pairs at
+       4.8:1–7.2:1), a self-hosted Vazirmatn @font-face, `.num/.unit/.range` with
+       `unicode-bidi: isolate; direction: ltr; tabular-nums`, and a 16px minimum
+       input font-size with a comment explaining the iOS zoom trap."
+    - "resultStates.js encodes six states, each carrying a Persian word AND a shape
+       AND a colour, with red reserved exclusively for emergency. `stateOf()` reads
+       the engine's urgency; it never infers urgency from a value."
+    - "ResultView.jsx deliberately renders NO green 'all clear' banner — absence of
+       the urgency banner IS the normal state. It orders: urgency banner → 'did we
+       read your numbers right?' → summary/interpretation → per-system rows →
+       derived values (always labelled as not-on-your-sheet) → sources → provenance
+       → a hard-coded client-side legal disclaimer."
+    - "The MANUAL-ENTRY path in Tafsir.jsx contains PRE-EXISTING client-side
+       clinical logic: the `REF` object (a deliberate separate copy, see
+       REF_DIFF.md), `statusOf()`, `trendOf()`, `comboInsights()`. This is a local
+       preview of typed values, not the interpretation. See scoring note C1.4."
+    - "Two competing status palettes currently coexist: the modern tokens in
+       resultStates.js/index.css and the older bootstrap-ish `ST` object in
+       Tafsir.jsx (#dc3545, #d1e7dd, emoji circles). Unifying them is an
+       improvement; forking a third is a regression."
+    - "Persian register is currently inconsistent — «مقادیر را وارد کن» /
+       «آپلود کن» (informal imperative) sits next to «کلیک کنید» / «مشورت کنید»
+       (formal). Fixing this is real work; ignoring it is a real miss."
+    - "Dev server: vite.config.js has no `port`, so 4200 comes from a CLI flag.
+       `/api` proxies to localhost:8787. The backend may or may not be running —
+       do NOT penalise a solution for a failed network call; judge the UI states."
+
+  commands_you_must_actually_run:
+    note: >-
+      Run these yourself, per worktree, and paste the real terminal tail into your
+      evidence. "Should pass" / "presumably builds" is not a result and will be
+      treated as an unverified claim.
+    per_solution:
+      - "cd <worktree>/khanesh; npm install   # only if node_modules is absent"
+      - "cd <worktree>/khanesh; npm run lint"
+      - "cd <worktree>/khanesh; npm run build"
+      - "record: build exit code, wall time, and the emitted JS+CSS gzip sizes"
+    optional_but_valuable:
+      - "npm run dev -- --port 4200 and inspect the real page at 3 widths:
+         375px, 414px, 1024px. Screenshot or DOM-snapshot what you claim."
+      - "If you cannot run the dev server, say so explicitly in your reasoning and
+         score rendered-UX claims from the code only. Do not invent screenshots."
+
+# -----------------------------------------------------------------------------
+# 1. AUTOMATIC DISQUALIFIERS  (patient-harm class)
+# -----------------------------------------------------------------------------
+automatic_disqualifiers:
+  effect: >-
+    A solution that triggers ANY item below cannot receive an overall score above
+    2.5, no matter how beautiful, how complete, or how well-engineered the rest of
+    it is. Aesthetics never buy back a patient-safety defect. If you apply a
+    disqualifier you MUST quote file:line and the offending code or string, and you
+    MUST state which disqualifier id fired.
+  you_must_search_for_these_explicitly: true
+  items:
+    - id: DQ1
+      title: "Emergency content hidden, collapsed, truncated, or de-emphasised"
+      detail: >-
+        `has_critical` / `urgency === "emergency"` content placed inside a
+        <details>, an accordion, a "read more" clamp, a tab that is not the default
+        tab, a carousel slide, a toast that auto-dismisses, a line-clamped
+        paragraph, a modal the user can dismiss without reading, or below a
+        collapsed fold on a 375px viewport. Also fires if emergency styling is
+        softened to the point that it no longer outranks every other element on
+        the page (e.g. emergency rendered in the same weight/colour as a routine
+        chip).
+      how_to_check: >-
+        grep the solution for `details`, `summary`, `accordion`, `collapse`,
+        `-webkit-line-clamp`, `expanded`, `showMore`, `truncate`, `maxHeight`, then
+        trace which of them can ever wrap the critical banner, an emergency-state
+        row, or `interpretation`/`summary` when urgency is emergency.
+    - id: DQ2
+      title: "A raw engine key reaches visible text"
+      detail: >-
+        Any of HGB, LDH, BILI_T, GLU_F, NEUT_ABS, RDW_CV, ACR, CRP_Q, ANTI_TPO,
+        UREA_N … rendered to the user instead of the already-resolved
+        `tests[].name`. Includes rendering `t.key` as a fallback when `t.name` is
+        missing, using the key as a heading, tooltip, aria-label, alt text, chart
+        axis label, or search placeholder. (Legitimate exception: abbreviations
+        that ARE the correct Persian patient-facing name — MCH, MCHC, HDL, LDL,
+        INR, TIBC, eGFR, TSH — and only when they arrive via `name`/`faName`.)
+      how_to_check: "grep -n 't\\.key' and any template literal interpolating a key."
+    - id: DQ3
+      title: "Contrast below 4.5:1 on clinical status text, values, ranges, or body copy"
+      detail: >-
+        Any new or changed colour token used for a status label, a test value, a
+        reference range, a warning, an urgency banner, or paragraph text that
+        computes below 4.5:1 against its actual rendered background (3:1 permitted
+        only for text ≥ 24px or ≥ 19px bold, and for non-text UI boundaries).
+      how_to_check: >-
+        Extract every changed --st-*/colour literal, pair it with the background it
+        is actually painted on (not the page background — the CARD background), and
+        COMPUTE the ratio using the WCAG relative-luminance formula. Show the
+        arithmetic for at least the four worst pairs. Do not eyeball it.
+    - id: DQ4
+      title: "A missing test rendered as a normal test  (Lab Notebook N4)"
+      detail: >-
+        A test absent from `_engine.tests` shown with a normal/green/in-range
+        treatment, an em dash styled identically to a value, a 0 substituted for
+        absent, a placeholder row that reads as measured, or any 'all your kidney
+        markers are fine' summary computed over tests that were never on the sheet.
+        `!abnormal` collapsing absent + normal into one branch is the exact defect.
+      how_to_check: "Look for two-way branches on `abnormal` / `!t` / `t == null`."
+    - id: DQ5
+      title: "A derived value presented as if printed on the patient's sheet  (N5)"
+      detail: >-
+        `indices.ca_corrected` / `na_corrected` / `egfr` / `anion_gap` / `non_hdl`
+        / `mentzer` / `nlr` / `bun_cr` / `r_ratio` shown without an explicit
+        Persian statement that it is calculated and not on the lab sheet; or the
+        corrected CA/NA in `tests[].value` shown without `indices.ca_measured` /
+        `na_measured` alongside. A tiny grey «محاسبه‌شده» chip that a plotted
+        marker or a big number visually overwhelms also fires this.
+    - id: DQ6
+      title: "Clinical judgment moved into, or newly expanded in, the frontend"
+      detail: >-
+        Client-side code that decides severity, urgency, abnormality, or a
+        multi-test pattern FOR AN ENGINE RESPONSE. Concretely: recomputing
+        `has_critical` from values; deriving urgency by comparing value to range;
+        thresholding a value to pick a banner; a new client-side pattern list; a
+        client-side "risk score", "health score", "biological age", or 0–100 gauge
+        synthesised from the numbers; client-side text that names a diagnosis the
+        engine did not return. See scoring note C1.4 for the manual-entry preview,
+        which is pre-existing and is NOT this.
+    - id: DQ7
+      title: "Non-Persian user-facing copy, or fabricated clinical content"
+      detail: >-
+        English (or Lorem ipsum, or an untranslated library string) visible to the
+        patient in a label, button, empty state, error, aria-label, or alt text.
+        Also: invented reference ranges, invented units, invented recommendations,
+        invented source citations, or a hard-coded fake result used as a demo that
+        a real user can reach.
+    - id: DQ8
+      title: "The 'deterministic rules' claim shown on the legacy path"
+      detail: >-
+        Provenance/trust copy asserting that conclusions come from fixed clinical
+        rules WITHOUT gating on `_engine` being present. Without `_engine` the model
+        judged severity itself and that claim is false. Baseline ResultView.jsx
+        gates this correctly; losing the gate is a fresh defect.
+    - id: DQ9
+      title: "Privacy over-claim"
+      detail: >-
+        New copy promising that the photo, patient name, national ID, or the image
+        itself is never sent anywhere / stays on device / is processed locally. The
+        image IS uploaded to a third-party gateway; only the extracted text is
+        identifier-free. Repeating the short version without the caveat fires this.
+    - id: DQ10
+      title: "iOS zoom trap or zoom suppression"
+      detail: >-
+        Any input/select/textarea whose computed font-size is below 16px, OR a
+        viewport meta gaining `user-scalable=no` / `maximum-scale=1`. Both are in
+        the baseline's comments as deliberate decisions; reversing either fires.
+
+# -----------------------------------------------------------------------------
+# 2. CRITERIA
+# -----------------------------------------------------------------------------
+criteria:
+
+  - id: C1
+    name: "Patient safety & clinical integrity"
+    weight: 26
+    what_it_measures: >-
+      Whether the redesign preserves the architecture's central promise: the
+      frontend renders the engine's verdict faithfully and never manufactures,
+      softens, hides, or invents clinical meaning.
+    rubric:
+      "1.0": >-
+        Fires one or more automatic disqualifiers, or moves clinical decisions
+        client-side, or renders engine keys, or presents an absent test as normal.
+        The prettier it is, the more dangerous, because the confidence is unearned.
+      "3.0": >-
+        No disqualifier fires and the engine contract is respected in the common
+        path, but there are real soft failures: the urgency banner competes visually
+        with decorative elements; derived values are labelled but the label is easy
+        to miss; `t.fa` is re-derived client-side into a slightly different wording;
+        the unmatched-abnormal third state is flattened into "abnormal"; the
+        as-printed vs corrected distinction survives only in a footnote.
+      "5.0": >-
+        Every engine field is rendered as the contract intends and the safety
+        properties are visibly STRONGER than baseline, with evidence: emergency
+        content is the first and most prominent thing at 375px and is unreachable by
+        any collapse/clamp path; the six result states keep word + shape + colour;
+        the third state (`unmatched_abnormal`) keeps its own distinct, non-alarming
+        treatment; `missing` keeps an action-coloured, not-grey, treatment; derived
+        values sit visually SUBORDINATE to their measured parent with the measured
+        number adjacent; `has_critical` and `urgency` are read, never computed; the
+        legal disclaimer stays hard-coded client-side rather than being read from
+        model output; the provenance block is still gated on `_engine`.
+    evidence_required:
+      - "file:line for where `has_critical` and `_engine.urgency` are consumed"
+      - "file:line for every render path that can wrap or clamp clinical text"
+      - "the exact Persian string used for the derived-values disclaimer, quoted"
+      - "file:line proving `tests[].name` (not `key`) is what reaches the DOM"
+      - "the three-way (high / normal / not-measured) branch, or its absence"
+    checklist:
+      - "[ ] Emergency banner renders before any tab, accordion, or fold at 375px"
+      - "[ ] No <details>/accordion/clamp can ever contain emergency text"
+      - "[ ] `has_critical` taken verbatim from the response; grep finds no recompute"
+      - "[ ] Six states from resultStates.js survive (or are replaced 1:1 with word
+             + shape + colour intact); red is still exclusive to emergency"
+      - "[ ] `unmatched_abnormal` still gets its own copy, not merged into 'abnormal'"
+      - "[ ] `missing` state is not plain neutral grey (N4 reasoning preserved)"
+      - "[ ] `indices.ca_measured` / `na_measured` rendered beside the corrected value"
+      - "[ ] Every derived index carries visible Persian 'not on your sheet' framing"
+      - "[ ] Provenance/trust copy gated on `_engine` truthiness"
+      - "[ ] Disclaimer is a client-side constant, not model output"
+      - "[ ] `extracted_tests` confirmation step ('did we read this right?') survives
+             and still precedes the interpretation"
+      - "[ ] `pages.failed` / `ocr_warnings` partial-read warnings still rendered"
+      - "[ ] `refSource` still shown next to the range it justifies, not hidden in a
+             global 'about our sources' page"
+      - "[ ] No new client-side score, gauge, grade, or age synthesised from values"
+    scoring_notes:
+      C1.1: >-
+        A visualisation that positions a value inside its reference range is
+        DISPLAY, not judgment — allowed and encouraged — provided the abnormal/normal
+        verdict, the colour, and the wording still come from `abnormal`/`level`/`fa`
+        and the marker position is the only thing computed. If the component picks a
+        colour by comparing value to range bounds itself, that is DQ6.
+      C1.2: >-
+        Ranges arrive as an opaque string (e.g. "4.4–11", "<200", "1/320"). Parsing
+        it to place a marker is acceptable engineering; SILENTLY DROPPING the row
+        when the parse fails is not — the row must still render with its number.
+        Check the fallback path explicitly.
+      C1.3: >-
+        Progressive disclosure is a legitimate IA tool for NORMAL and ROUTINE
+        content and should not be penalised there. It is forbidden only for
+        emergency/critical content (DQ1) and for the partial-read warnings.
+      C1.4: >-
+        The manual-entry preview (`REF`, `statusOf`, `trendOf`, `comboInsights` in
+        Tafsir.jsx) is PRE-EXISTING client-side logic over values the user typed,
+        before any server call. Do NOT score a solution down merely for keeping it.
+        Score UP a solution that makes its status as a local preview clearer to the
+        patient (e.g. explicit Persian framing that the real interpretation comes
+        after analysis). Score DOWN a solution that blurs the preview and the engine
+        result into one indistinguishable surface, and score DOWN hard (DQ6) a
+        solution that extends that logic onto the engine's own response.
+      C1.5: >-
+        Deleting a safety behaviour is worse than never adding one. Diff against the
+        baseline and list removals before you list additions.
+
+  - id: C2
+    name: "Persian / RTL correctness"
+    weight: 14
+    what_it_measures: >-
+      Whether the page is genuinely Persian-native rather than an LTR design with
+      `dir="rtl"` bolted on, and whether clinical numerals survive bidirectional
+      text intact.
+    rubric:
+      "1.0": >-
+        English leaks into user-facing copy; mirroring is broken (physical
+        left/right in place of logical start/end); numbers or ranges display
+        reversed; Vazirmatn is declared but not actually loading; Persian digits
+        typed into an input are silently dropped.
+      "3.0": >-
+        Direction and font are correct and copy is Persian, but there are seams:
+        some new components use `margin-left`/`padding-right` instead of logical
+        properties; a new number or titre or unit lacks bidi isolation; line-height
+        drops toward Latin norms in a new component; register is inconsistent
+        («وارد کن» beside «وارد کنید»); a new icon or chevron does not mirror; a
+        stray English word survives in an aria-label or empty state.
+      "5.0": >-
+        Consistently logical-property CSS throughout; every clinical numeral,
+        range, unit, ratio, and titre carries `unicode-bidi: isolate; direction:
+        ltr` and tabular-nums; Persian/Arabic digit input still normalises through
+        digits.js AND the value inputs stay `type="text" + inputMode="decimal"`
+        (a `type="number"` regression destroys non-Latin digits at DOM level —
+        this is documented in digits.js and is a real, previously-shipped bug);
+        Vazirmatn preloaded and verified in the build output; Persian line-height
+        ≥ ~1.7 for body copy; a single consistent politeness register; all copy
+        idiomatic Persian, not translated-English word order.
+    evidence_required:
+      - "grep count of physical vs logical CSS properties in changed files"
+      - "the @font-face / preload lines, plus the font file present in the build"
+      - "file:line where digit normalisation is applied to every value input"
+      - "the input `type` and `inputMode` attributes, quoted"
+      - "at least three quoted Persian strings judged for register and idiom"
+    checklist:
+      - "[ ] index.html still `lang=\"fa\" dir=\"rtl\"`"
+      - "[ ] Vazirmatn @font-face + preload present; woff2 emitted into dist/"
+      - "[ ] `.num/.unit/.range` (or equivalent) keep isolate + ltr + tabular-nums"
+      - "[ ] New numeric surfaces (charts, meters, deltas, axis ticks) use it too"
+      - "[ ] Value inputs remain text/decimal, not number"
+      - "[ ] `normalizeDigits`/`toNumber` still applied on change AND on JSON import"
+      - "[ ] Counts inside Persian sentences use Persian digits; lab values Latin"
+      - "[ ] `margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `text-align:
+             start` — grep finds no new `margin-left`/`right` in RTL layout code"
+      - "[ ] Directional icons (arrows, chevrons, back, progress) mirror correctly"
+      - "[ ] Zero English in visible text, placeholders, alt, aria-label, title"
+      - "[ ] Body line-height suited to Persian ascenders/descenders"
+      - "[ ] Consistent formal register across buttons, hints, errors, empty states"
+
+  - id: C3
+    name: "Accessibility (WCAG 2.2 AA)"
+    weight: 14
+    what_it_measures: >-
+      Whether an anxious patient on a phone — possibly older, possibly
+      colour-vision-deficient, possibly using a screen reader — can operate and
+      understand the page.
+    rubric:
+      "1.0": >-
+        Colour is the sole carrier of a clinical state; contrast fails on status or
+        value text; focus outlines removed; the async analyze produces no
+        announcement; inputs unlabelled; div-as-button with no keyboard path.
+      "3.0": >-
+        Semantics are mostly right and contrast mostly passes, but: focus visibility
+        is the browser default fighting a custom background; `aria-live` exists but
+        on the wrong politeness or attached to a node that unmounts; heading order
+        skips a level; touch targets under 44×44 in one or two places;
+        `prefers-reduced-motion` unhandled for a new animation; decorative emoji not
+        `aria-hidden`.
+      "5.0": >-
+        Every changed colour pair computed and passing (ratios shown); state
+        conveyed by word + shape + colour together; a visible, high-contrast,
+        custom focus ring with correct DOM/tab order and no traps; every control
+        labelled (visible label preferred over placeholder-only); the analyze
+        lifecycle announced through a stable `aria-live="polite"` region with errors
+        via `role="alert"`; ≥44×44 CSS px interactive targets with adequate spacing;
+        16px minimum input font preserved; `@media (prefers-reduced-motion: reduce)`
+        neutralising every transition/animation added; images have meaningful or
+        explicitly empty alt; `<details>`/native disclosure or correct ARIA for any
+        custom disclosure; the page still usable at 200% zoom / 320px reflow.
+    evidence_required:
+      - "A table of every changed/added colour pair with the COMPUTED ratio and the
+         WCAG rule applied. Show the relative-luminance math for the worst four."
+      - "file:line for the aria-live region and for the focus-visible style"
+      - "file:line for the reduced-motion media query, or a statement that no
+         animation was added"
+      - "measured or code-derived touch target dimensions for the primary CTA,
+         category tabs/chips, and the image remove/reorder buttons"
+    checklist:
+      - "[ ] All clinical text ≥ 4.5:1 on its ACTUAL background (cards, not page)"
+      - "[ ] Large text ≥ 3:1; non-text UI boundaries ≥ 3:1"
+      - "[ ] No state distinguishable by hue alone (WCAG 1.4.1)"
+      - "[ ] Palette survives deuteranopia/protanopia — check red vs green vs amber
+             status pairs specifically"
+      - "[ ] `:focus-visible` styled, visible against every surface it lands on"
+      - "[ ] Logical tab order; no keyboard trap in modals/dropzones/carousels"
+      - "[ ] Dropzone remains keyboard-operable (baseline: role/tabIndex/Enter/Space)"
+      - "[ ] Every input has a programmatic label; errors linked via aria-describedby"
+      - "[ ] `aria-live` region persists across the loading→result transition"
+      - "[ ] Errors announced (role=\"alert\" or aria-live=\"assertive\")"
+      - "[ ] Interactive targets ≥ 44×44 CSS px (WCAG 2.2 target size)"
+      - "[ ] Input font-size ≥ 16px; viewport allows pinch zoom"
+      - "[ ] prefers-reduced-motion honoured for every new transition"
+      - "[ ] Decorative emoji/icons aria-hidden; meaningful ones labelled"
+      - "[ ] Heading hierarchy h1→h2→h3 without skips; landmarks present"
+      - "[ ] Skeletons/spinners do not leave the screen reader silent"
+    scoring_notes:
+      C3.1: >-
+        A judge who writes "contrast looks fine" without a computed number has not
+        evaluated this criterion and must cap C3 accordingly for that solution.
+      C3.2: >-
+        Baseline already documents its ratios in index.css comments. A solution that
+        REPLACES those tokens without re-verifying is making an unverified claim;
+        recompute rather than trusting a copied comment.
+
+  - id: C4
+    name: "Visual design quality & design-system coherence"
+    weight: 16
+    what_it_measures: >-
+      Whether this reads as a designed medical product with a real system behind it,
+      or as a themed template — and whether the siphox/function reference was
+      understood rather than copied.
+    rubric:
+      "1.0": >-
+        Scattered inline styles with magic numbers; no shared scale; typography is
+        default sizes and weights; the page reads as a generic dashboard, a bootstrap
+        card stack, or an AI-template gradient/glassmorphism pastiche; or the visual
+        language actively fights the clinical content (playful, gamified, or
+        marketing-toned around an emergency result).
+      "3.0": >-
+        A coherent look with a token layer that is real but partial: colour tokens
+        exist while spacing/radius/shadow/type remain ad-hoc; two type scales
+        coexist; the old `ST` palette and the new `--st-*` tokens both survive;
+        card/section rhythm is inconsistent between the entry view and the result
+        view; it looks tidy but not authored.
+      "5.0": >-
+        A single, legible design system: named tokens for colour, spacing, radius,
+        elevation, and type, defined once and referenced everywhere; a deliberate,
+        restrained type scale with clear hierarchy tuned to Persian; consistent
+        vertical rhythm; the calm-clinical restraint of the reference sites
+        (generous whitespace, quiet neutrals, one accent, data as the hero)
+        expressed in an original visual voice rather than as a colour-swap of
+        siphox; status colour used sparingly enough that red still means emergency;
+        the entry view and the result view read as one product.
+    evidence_required:
+      - "Where tokens are defined (file:line) and a count of remaining hard-coded
+         hex/px values in changed components"
+      - "The type scale as actually implemented, listed"
+      - "Named specific design decisions, each with the file:line that implements it"
+    checklist:
+      - "[ ] Tokens defined once (CSS custom properties or a single JS module)"
+      - "[ ] Spacing follows a scale, not arbitrary 7/13/17px"
+      - "[ ] Type scale bounded (roughly ≤ 6 sizes) with intentional weights"
+      - "[ ] Only ONE status palette in the codebase after the change"
+      - "[ ] Inline styles substantially reduced vs the baseline `s`/`S` objects"
+      - "[ ] Light-mode only preserved; `color-scheme: light` still locked"
+      - "[ ] No imported marketing patterns: no pricing, membership, upsell, referral,
+             social proof, testimonial, countdown, streak, badge, or gamified score"
+      - "[ ] Emoji usage is deliberate and consistent (baseline uses them as category
+             glyphs — either commit to them systematically or replace them
+             systematically; a half-migration is a visible seam)"
+      - "[ ] Visual weight tracks clinical importance, not decorative opportunity"
+    scoring_notes:
+      C4.1: >-
+        Reward restraint. A flourish that costs clinical clarity — an animated
+        gauge that delays the number, a gradient that drops contrast, a hero image
+        that pushes the emergency banner below the fold — is a DEFECT, and score it
+        as one, even when it is the most impressive thing in the diff.
+      C4.2: >-
+        Do not reward density of features or novelty of interaction for their own
+        sake. The reference sites are calm. Calm is the target.
+
+  - id: C5
+    name: "Information architecture & UX"
+    weight: 16
+    what_it_measures: >-
+      Whether the patient can move from "what does this mean overall" to "where does
+      MY number sit" without getting lost, on a phone, in every state the app can
+      actually be in.
+    rubric:
+      "1.0": >-
+        A flat wall of rows or an undifferentiated card dump; no summary layer; no
+        way to find one test; states (loading, error, empty, partial) are missing or
+        generic; the two input paths are confusingly interleaved.
+      "3.0": >-
+        A workable summary → body-system → biomarker path exists and mobile layout
+        holds, but the drill-down loses context, or range visualisation is decorative
+        rather than informative, or several states are inherited unchanged from
+        baseline with no thought, or the manual/photo choice is still ambiguous at
+        first load.
+      "5.0": >-
+        A clear three-level path with the patient's first question answered first;
+        a range visualisation that makes "where does my value sit relative to
+        normal" legible at a glance without implying precision the data lacks
+        (open-ended ranges like "<200" and qualitative/titre results handled
+        gracefully, not forced into a bar); every state designed — first load,
+        empty form, typing, compressing images, uploading, analyzing with real
+        progress, weak connection/degraded, resumed job from a previous visit,
+        partial OCR (`pages.failed`), unmatched-abnormal, engine-absent legacy
+        response, and hard error; the two input paths clearly distinct and each
+        complete; mobile-first with thumb-reachable primary actions and no
+        horizontal scroll at 375px.
+    evidence_required:
+      - "The IA as implemented, with the file:line of each level"
+      - "How the range visualisation degrades for open-ended and qualitative values"
+      - "file:line for each of the named states, or an explicit note that a state
+         was dropped"
+    checklist:
+      - "[ ] Summary layer exists and answers 'what should I do' before 'what is X'"
+      - "[ ] Body-system grouping preserved (testCategories.js) or improved"
+      - "[ ] Per-biomarker detail reachable, and returnable-from, without state loss"
+      - "[ ] Range visual handles: two-sided, one-sided (<200, >40), qualitative
+             (مثبت/منفی), and titre (1/320) — check all four"
+      - "[ ] Category counts / at-a-glance scanning survive ('۳ طبیعی · ۱ خارج…')"
+      - "[ ] Real per-page progress retained (analyzeJob.js `progressText`), not a
+             fake percentage bar"
+      - "[ ] Resume-after-lock-screen flow (`pendingJob` / `lastResult`) intact"
+      - "[ ] Image compression feedback (orig → compressed size) retained"
+      - "[ ] Multi-page reorder/remove still usable at 375px"
+      - "[ ] Error copy is actionable Persian, not a status code"
+      - "[ ] No horizontal scroll at 375px; wide tables scroll in their own container"
+      - "[ ] Primary CTA reachable without scrolling past the fold on a phone"
+    scoring_notes:
+      C5.1: >-
+        The "did we read your numbers right?" confirmation exists because OCR is
+        fallible. Moving it AFTER the interpretation, or behind a collapse, weakens
+        it; deleting it is a serious IA regression even though it is not a DQ.
+      C5.2: >-
+        Do not reward added features (PDF export, sharing, history, accounts,
+        trends over time) unless they are complete, safe, and Persian. An incomplete
+        extra feature is worth less than a finished core.
+
+  - id: C6
+    name: "Code quality & maintainability"
+    weight: 8
+    what_it_measures: >-
+      Whether the next engineer can change this safely — in a repo whose frontend
+      has NO tests, so readability is the only safety net.
+    rubric:
+      "1.0": >-
+        A larger single component than the 1262-line baseline; duplicated style
+        objects; dead code left behind; StrictMode-unsafe effects; unjustified new
+        dependencies; lint or build broken.
+      "3.0": >-
+        Reasonable decomposition and clean lint, but with residue: partial inline
+        style removal; a helper duplicated in two components; a `useEffect` that
+        could be derived state; unused exports or an orphaned baseline file; one
+        dependency added with a thin rationale.
+      "5.0": >-
+        Coherent components with single responsibilities and clear boundaries;
+        styling consolidated (CSS file / CSS modules / a token module) rather than
+        re-scattered; no dead code, no orphaned files, no commented-out blocks;
+        effects correct under React 19 StrictMode double-mount with proper cleanup
+        and abort (see N11 — a `mountedRef` bug once hung the spinner forever in
+        dev, and the fix depends on resetting the ref on mount AND keeping the
+        resume effect separate); zero or well-justified new dependencies with the
+        bundle cost stated; the dense Persian comments explaining WHY a safeguard
+        exists are carried forward, not deleted along with the code they guard.
+    evidence_required:
+      - "Component/file inventory with line counts, baseline vs solution"
+      - "The lint output tail, verbatim"
+      - "Build output: JS and CSS gzip sizes, baseline vs solution"
+      - "package.json diff; each added dependency named with its justification"
+      - "file:line for every useEffect, with a one-line StrictMode verdict each"
+    checklist:
+      - "[ ] No file materially larger and more tangled than baseline Tafsir.jsx"
+      - "[ ] Style definitions consolidated, not merely relocated"
+      - "[ ] All effects idempotent under double-mount; every subscription/timer/
+             fetch/AbortController cleaned up"
+      - "[ ] `mountedRef` (or equivalent) reset on mount, not only on unmount"
+      - "[ ] AbortController still cancels the in-flight analyze on unmount"
+      - "[ ] localStorage access still wrapped against private-mode/quota throwing"
+      - "[ ] Error boundary around result rendering retained"
+      - "[ ] `asText`/`asList` defensive rendering of model output retained
+             (model JSON is not guaranteed to be strings)"
+      - "[ ] Dead code, unused files, and stale imports removed"
+      - "[ ] Explanatory Persian comments on safeguards preserved"
+      - "[ ] No new dependency, or a stated one with a real reason and size cost"
+
+  - id: C7
+    name: "Verified working"
+    weight: 6
+    what_it_measures: "Does it actually run. Judged by execution, never by inspection."
+    rubric:
+      "1.0": "`npm run build` fails, or the app crashes/blank-screens on load."
+      "3.0": >-
+        Build succeeds and lint passes, but with warnings, or a console error at
+        runtime, or one flow visibly broken (e.g. image reorder throws, a state
+        renders undefined, a route 404s).
+      "5.0": >-
+        `npm run lint` clean and `npm run build` green (both run by YOU, output
+        pasted); the page loads at 4200 with no console errors; both input paths
+        exercise end-to-end as far as the environment permits; no unhandled promise
+        rejections; no React key/hydration/act warnings.
+    evidence_required:
+      - "Verbatim tail of `npm run lint` for each worktree"
+      - "Verbatim tail of `npm run build` for each worktree, including exit status"
+      - "Browser console output if the dev server was run, or an explicit statement
+         that it was not"
+    checklist:
+      - "[ ] npm run lint — run, output pasted"
+      - "[ ] npm run build — run, output pasted, dist/ produced"
+      - "[ ] Vazirmatn woff2 present in the build output"
+      - "[ ] App renders /app without a blank screen"
+      - "[ ] No console errors or React warnings on first paint"
+      - "[ ] No backend required to render the entry view"
+    scoring_notes:
+      C7.1: >-
+        A missing/unreachable backend is an environment condition, not a solution
+        defect. Judge the loading and error UI it produces, not the network failure.
+
+# -----------------------------------------------------------------------------
+# 3. COMPARATIVE PROTOCOL — how to decide BETWEEN the three
+# -----------------------------------------------------------------------------
+comparative_protocol:
+  order_of_operations:
+    - "1. Read the baseline in full first. Everything is scored as a DELTA from it."
+    - "2. Run lint + build for all three worktrees before reading any of their code,
+          so a build failure cannot be rationalised away after you have fallen for a
+          solution's aesthetics."
+    - "3. Sweep all three for automatic disqualifiers, criterion-blind, before
+          forming any overall impression. Record hits with file:line."
+    - "4. Score criterion by criterion ACROSS all three at once — score C1 for A, B,
+          C together, then C2 for A, B, C — never solution by solution. Per-criterion
+          comparison is what makes the scores commensurable."
+    - "5. Compute weighted totals last. Do not back-fill criterion scores to justify
+          a total you already picked."
+  per_criterion_tie_breaks:
+    C1: >-
+      Prefer the solution with fewer removed baseline safeguards. If safeguard
+      parity holds, prefer the one whose emergency path is most visually
+      unavoidable at 375px. Never trade a safety property for visual polish.
+    C2: >-
+      Prefer the one whose numeric/bidi handling covers MORE surfaces (charts,
+      deltas, axis labels, tooltips — not just the main value). Breadth beats
+      elegance here; a single un-isolated titre corrupts a real reading.
+    C3: >-
+      Prefer computed-and-passing over asserted-and-plausible. If two pass, prefer
+      the one whose non-colour redundancy (word + shape) is more systematic.
+    C4: >-
+      Prefer coherence over ambition. Given a systematic solution and a more
+      striking but seam-ridden one, the systematic one wins — this is a medical
+      product, and consistency IS the aesthetic. Explicitly ask whether each
+      striking element helps a patient read their result.
+    C5: >-
+      Prefer the one that designed MORE of the real states (degraded connection,
+      resumed job, partial OCR, legacy no-`_engine`, qualitative results) over the
+      one with a slicker happy path. Edge states are where patients get hurt.
+    C6: >-
+      Prefer the one that would be easier to modify six months from now. Line count
+      is not the metric; boundary clarity is.
+    C7: "Binary-ish. Green outranks green-with-warnings outranks red."
+  when_two_are_close:
+    - "State the single concrete difference that decided it, with file:line."
+    - "If a criterion is genuinely equal, give the same score. Manufactured spread is
+       noise; identical scores on a criterion are an acceptable, honest outcome."
+    - "The VOTE must be the highest weighted total. If two totals tie exactly, break
+       the tie on C1, then C5, then C3. Say which tie-break you used."
+  mandatory_dissent_check: >-
+    Before writing your vote, argue for 60 seconds against it: name the single
+    strongest thing each NON-chosen solution does better than your pick, with
+    file:line. If you cannot name one for either, you have not read them closely
+    enough — go back.
+
+# -----------------------------------------------------------------------------
+# 4. BIAS WARNINGS — read immediately before scoring
+# -----------------------------------------------------------------------------
+bias_warnings:
+  - id: B1
+    name: "Length bias"
+    warning: >-
+      More lines, more files, and more components are NOT more quality. A 400-line
+      solution that solves the problem cleanly beats a 2000-line one that solves it
+      plus four things nobody asked for. Never let diff size stand in for effort.
+  - id: B2
+    name: "Verbosity / narration bias"
+    warning: >-
+      Judge the code and the rendered UX, not the solution's self-description. A
+      confident README, an elaborate comment header, or a claim of "WCAG AA
+      compliant" is worth exactly zero until you verify it. Where a claim and the
+      code disagree, the code wins and the claim itself becomes a negative signal.
+  - id: B3
+    name: "Novelty bias"
+    warning: >-
+      Unusual interactions, animated reveals, 3D/parallax, custom cursors,
+      scroll-jacking, and AI-generated illustration are not achievements here.
+      Ask: does an anxious 55-year-old on a mid-range Android phone read their
+      potassium level faster because of this? If not, it is cost, not value.
+  - id: B4
+    name: "Flourish-over-clarity bias"
+    warning: >-
+      Explicitly penalise beauty that reduces clinical clarity: low-contrast
+      "elegant" greys, animations that delay the number, gradients behind data,
+      icon-only controls without text, oversized hero space that pushes the result
+      down, and gauge widgets that imply precision the range does not have.
+  - id: B5
+    name: "Anchoring on the first solution read"
+    warning: >-
+      Whichever you read first sets your baseline for 'normal'. Counteract it by
+      scoring criterion-across-solutions (protocol step 4), and by re-checking the
+      first-read solution against your final rubric interpretation.
+  - id: B6
+    name: "Familiarity / template bias"
+    warning: >-
+      A layout resembling a well-known LTR SaaS dashboard can feel 'professional'
+      while being wrong for a Persian, RTL, mobile, single-session, patient-facing
+      tool. Resemblance to siphox/function is not itself a score.
+  - id: B7
+    name: "Perfectionism about the baseline"
+    warning: >-
+      The task is to improve, not to be flawless. Do not penalise a solution for
+      pre-existing conditions it did not touch (the REF duplication, TSH 5.0 vs 4.5
+      drift, the two-copy design). Do penalise it for making them worse.
+  - id: B8
+    name: "Safety theatre"
+    warning: >-
+      Copy that TALKS about safety («ما دقیق هستیم») is not a safety property.
+      Credit only mechanisms: gated claims, three-way branches, non-collapsible
+      emergency paths, computed contrast.
+  - id: B9
+    name: "Screenshot bias"
+    warning: >-
+      If you rendered the page, remember that a screenshot shows the happy path
+      only. The emergency state, the partial-OCR state, and the legacy no-`_engine`
+      state are usually unreachable without a backend — read those code paths.
+  - id: B10
+    name: "Reciprocity to effort"
+    warning: >-
+      A solution that clearly worked hard is not owed a score. Effort is invisible
+      to the patient.
+
+# -----------------------------------------------------------------------------
+# 5. EVIDENCE STANDARD
+# -----------------------------------------------------------------------------
+evidence_standard:
+  rule: >-
+    Every claim in your evaluation must be backed by ONE of: (a) an absolute or
+    repo-relative file path WITH a line number; (b) a verbatim quoted string from
+    the code or the rendered page; (c) a computed number you show the arithmetic
+    for (contrast ratio, gzip size, element dimension, line count); (d) verbatim
+    terminal output from a command you ran.
+  not_evidence:
+    - "'feels polished' / 'looks professional' / 'clean and modern'"
+    - "'appears accessible' / 'contrast seems fine' / 'should meet AA'"
+    - "'follows best practices' / 'well structured'"
+    - "restating the solution's own README, comments, or summary as a finding"
+    - "'the build should pass' — you were told to run it"
+  minimum_per_criterion: >-
+    At least two concrete pieces of evidence per criterion per solution. A criterion
+    scored with no evidence is not a score; go find the evidence or say plainly that
+    you could not verify it and score on what you could verify.
+  handling_uncertainty: >-
+    If you cannot verify something (no dev server, no backend, an unreadable
+    binary), say so explicitly in that criterion's reasoning. An honest
+    "unverified" is worth more to this pipeline than a confident guess, and a
+    confident guess later found wrong is the most expensive thing you can produce.
+
+# -----------------------------------------------------------------------------
+# 6. SCORING MECHANICS
+# -----------------------------------------------------------------------------
+scoring_mechanics:
+  weights:
+    C1_patient_safety_clinical_integrity: 26
+    C2_persian_rtl_correctness: 14
+    C3_accessibility_wcag22aa: 14
+    C4_visual_design_system_coherence: 16
+    C5_information_architecture_ux: 16
+    C6_code_quality_maintainability: 8
+    C7_verified_working: 6
+    total: 100
+  method: >-
+    Overall = Σ (criterion score × weight) / 100, rounded to one decimal.
+    Intermediate values between the anchored 1/3/5 levels are expected: use 2.0 for
+    "closer to 1 than 3", 4.0 for "closer to 5 than 3", and X.5 freely.
+  cap: >-
+    If any automatic disqualifier fires for a solution, its OVERALL score is capped
+    at 2.5 regardless of the weighted sum. Report both the uncapped weighted sum and
+    the capped overall, and name the disqualifier id.
+  independence: >-
+    Score each criterion on its own terms. A brilliant C4 does not lift C1, and a
+    weak C6 does not drag C5. Halo effects are the main failure mode of a single
+    judge, and this pipeline runs three of you precisely to detect them.
+  no_thresholds: >-
+    This specification deliberately contains no pass mark and no statement of what
+    score is 'good'. Do not invent one, do not describe a score as passing or
+    failing, and do not calibrate toward an imagined bar. Score what you observe.
+
+# -----------------------------------------------------------------------------
+# 7. REQUIRED OUTPUT FORMAT
+# -----------------------------------------------------------------------------
+output_format:
+  instructions: >-
+    Write your full reasoning FIRST — per criterion, per solution, with evidence —
+    then the disqualifier findings, then the mandatory dissent check, and end your
+    reply with the header block below, reproduced EXACTLY, including the two `---`
+    fences. One CRITERIA line per criterion, in C1–C7 order, using the criterion
+    names given. Numbers to one decimal place.
+  template: |
+    ---
+    VOTE: [Solution A/B/C]
+    SCORES:
+      Solution A: [X.X]/5.0
+      Solution B: [X.X]/5.0
+      Solution C: [X.X]/5.0
+    CRITERIA:
+     - {criterion}: A=[X.X] B=[X.X] C=[X.X]
+    ---
+  criteria_lines_expected:
+    - "Patient safety & clinical integrity"
+    - "Persian / RTL correctness"
+    - "Accessibility (WCAG 2.2 AA)"
+    - "Visual design quality & design-system coherence"
+    - "Information architecture & UX"
+    - "Code quality & maintainability"
+    - "Verified working"
+  also_required_before_the_header:
+    - "DISQUALIFIERS: per solution, either 'none' or the id(s) with file:line evidence."
+    - "One sentence naming the single decisive difference behind your VOTE."
