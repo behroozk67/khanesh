@@ -1,0 +1,50 @@
+# دروازهٔ تأییدِ مستقل از ماشینِ توسعه‌دهنده.
+#
+# چرا لازم است: تنها دروازهٔ قبلی .githooks/pre-commit بود که (الف) با
+# SKIP_HOOKS=1 دور می‌خورد، (ب) روی کلونِ تازه تا وقتی کسی
+# `git config core.hooksPath .githooks` نزند اصلاً فعال نیست، و (ج) یک‌بار
+# بدون بیتِ اجرا کامیت شد و روی لینوکس/مک بی‌صدا نادیده گرفته می‌شد
+# (N11 در CLAUDE.md). این فایل هیچ‌کدام از آن سه را ندارد.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: موتور قواعد (تست + پوشش)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: khanesh-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: khanesh-server/package-lock.json
+      - run: npm ci
+      # پوشش، نه فقط تست: آستانه‌ها کمی زیرِ عددِ فعلی‌اند تا افتِ پوشش
+      # (مثلاً افزودن قاعدهٔ بالینیِ بی‌تست) قابل‌دیدن باشد، بدون نویز.
+      - run: npm run test:coverage
+
+  frontend:
+    name: فرانت‌اند (لینت + بیلد)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: khanesh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: khanesh/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      # بیلد در هوکِ pre-commit نیست، پس تا امروز یک بیلدِ شکسته
+      # می‌توانست کامیت شود. فرانت‌اند تست ندارد و این نزدیک‌ترین چیز به آن است.
+      - run: npm run build

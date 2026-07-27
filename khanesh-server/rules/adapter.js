@@ -339,6 +339,19 @@ const QUALITATIVE_PATTERNS = [
   // تروپونین جداگانه و بالاتر مدیریت می‌شود (عددی یا کیفی)
   /^hbsag/,      // hbsagquant, ...
   /^hcvab/,      // hcvabscreen, ...
+
+  // ⚠️ باگ واقعی (هم‌خانوادهٔ N2): قبلاً فقط کلیدهای دقیقِ hbsag/hcvab/hiv
+  //    کیفی شمرده می‌شدند. برگه‌ها تقریباً هیچ‌وقت «HIV» تنها نمی‌نویسند —
+  //    «HIV Ab»، «HIV 1/2 Ab»، «Anti-HIV» می‌نویسند. آن نام‌ها نه به qual
+  //    می‌رفتند نه به tests، پس قاعدهٔ hiv_screen_reactive هرگز فعال نمی‌شد و
+  //    یک غربالگریِ واکنش‌گر پاسخِ buildNormalResult() («طبیعی است») می‌گرفت.
+  /^(anti)?hiv/,          // hiv, hivab, hiv12ab, antihiv, hivantibody
+  /^(anti)?hcv/,          // hcv, hcvantibody, antihcv
+  /^hepatitisc/,          // hepatitiscantibody, hepatitiscab
+  /^hepatitisbsurface/,   // hepatitisbsurfaceantigen (= HBsAg)
+  /^(anti)?hbs$|^antihbs/,// Anti-HBs — کیفی است، ولی نشانهٔ ایمنی/واکسن، نه عفونت
+  /^antihbc/,             // Anti-HBc — عفونتِ گذشته/فعلی، تفسیرش با HBsAg فرق دارد
+  /^هپاتیت/, /^ایدز/, /^اچآیوی/,
 ];
 function isQualitative(key) {
   if (QUALITATIVE.has(key)) return true;

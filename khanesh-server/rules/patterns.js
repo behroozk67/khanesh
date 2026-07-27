@@ -19,9 +19,17 @@ const has = (t, ...ks) => ks.every((k) => t[k] != null);
 // مقادیر کیفی در e.qual با کلیدِ نام خام ذخیره می‌شوند.
 // واژگان مثبت: reactive / واکنش‌گر / positive / مثبت / detected / پازیتیو
 // واژگان منفی که باید رد شوند: non-reactive / غیرواکنش‌گر / negative / منفی
-function serologyReactive(e, nameRe) {
+// ⚠️ نام باید مثل adapter نرمال شود. قبلاً کلیدِ خام تست می‌شد در حالی که
+//    الگوها بی‌فاصله بودند (hepatitisc)، پس «Hepatitis C Antibody» جور نمی‌شد —
+//    همان باگی که برای «RA factor» رخ داد و در qualPositive رفع شده بود.
+// excludeRe: نامی که نباید این قاعده را فعال کند حتی اگر nameRe جور شود
+//    (Anti-HBs نشانهٔ ایمنی/واکسن است، نه عفونت — نباید HBsAg تلقی شود).
+function serologyReactive(e, nameRe, excludeRe) {
   if (!e.qual) return false;
-  return Object.entries(e.qual).some(([k, v]) => {
+  const norm = (s) => String(s).toLowerCase().replace(/[\s.\-_()/%#:]/g, "");
+  return Object.entries(e.qual).some(([rawK, v]) => {
+    const k = norm(rawK);
+    if (excludeRe && excludeRe.test(k)) return false;
     if (!nameRe.test(k)) return false;
     const val = String(v);
     // اول منفی‌ها و نتایج نامشخص را رد کن (چون "non-reactive" شامل "reactive" است)
@@ -211,7 +219,15 @@ export const RULES = [
 
   {
     id: "hbv_screen_reactive",
-    match: (e) => serologyReactive(e, /hbsag|hbs|hepatitisb|هپاتیتb|استرالیا/i),
+    // ⚠️ «hbs» تنها عمداً حذف شد: Anti-HBs (ایمنیِ واکسن) هم آن را جور می‌کرد و
+    //    به فردِ واکسینه گفته می‌شد ممکن است هپاتیت B داشته باشد. فقط آنتی‌ژنِ
+    //    سطحی — که نشانهٔ عفونت است — این قاعده را فعال می‌کند. Anti-HBc هم
+    //    خارج است: تفسیرش با HBsAg یکی نیست.
+    match: (e) => serologyReactive(
+      e,
+      /hbsag|hepatitisbsurface|هپاتیتb|استرالیا/i,
+      /^anti|آنتیبادی/i,
+    ),
     build: () => ({
       pattern: "hbsag_reactive",
       urgency: "this_week",

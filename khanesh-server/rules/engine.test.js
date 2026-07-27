@@ -1654,6 +1654,119 @@ test("M26: در رابدومیولیز عددِ eGFR در متن نمی‌آید
   assert.ok(e.indices?.egfr != null, "eGFR محاسبه می‌شود ولی عمداً استفاده نمی‌شود");
 });
 
+// ═══════════════════════════════════════════════════════════
+// M33: غربالگریِ HIV/HCV/HBV با املای واقعیِ برگه بی‌صدا می‌افتاد (کلاسِ N2)
+//
+// QUALITATIVE فقط کلیدهای دقیقِ hbsag/hcvab/hiv را داشت. هیچ برگه‌ای «HIV»
+// تنها نمی‌نویسد — «HIV Ab»، «HIV 1/2 Ab»، «Anti-HIV» می‌نویسد. آن نام‌ها نه
+// به qual می‌رفتند نه به tests، پس هر سه قاعدهٔ غربالگری خاموش می‌ماندند و
+// برگه‌ای که تنها یافته‌اش یک غربالگریِ واکنش‌گر بود، پاسخِ «نتایج طبیعی است»
+// می‌گرفت. serologyReactive هم نامِ خام را با الگویِ بی‌فاصله می‌سنجید.
+// ═══════════════════════════════════════════════════════════
+const serologyRule = (name, value) => {
+  const e = runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name, value }] });
+  return runPatterns(e).findings;
+};
+
+test("M33: املاهای واقعیِ غربالگریِ سرولوژی قاعده را فعال می‌کنند", () => {
+  const expected = [
+    ["HCV Ab", "Reactive", "hcv_screen_reactive"],
+    ["Anti-HCV", "Positive", "hcv_screen_reactive"],
+    ["Hepatitis C Antibody", "Reactive", "hcv_screen_reactive"],
+    ["HBsAg", "Positive", "hbv_screen_reactive"],
+    ["Hepatitis B Surface Antigen", "Positive", "hbv_screen_reactive"],
+    ["HIV Ab", "Reactive", "hiv_screen_reactive"],
+    ["HIV 1/2 Antibody", "Reactive", "hiv_screen_reactive"],
+    ["Anti-HIV", "Positive", "hiv_screen_reactive"],
+  ];
+  for (const [name, value, ruleId] of expected) {
+    const ids = serologyRule(name, value).map((f) => f.rule_id);
+    assert.ok(ids.includes(ruleId), `«${name}: ${value}» باید ${ruleId} را فعال کند، شد: ${ids.join(",") || "هیچ"}`);
+  }
+});
+
+test("M33: Anti-HBs مثبت (ایمنیِ واکسن) ادعای هپاتیت B نمی‌کند", () => {
+  // Anti-HBs یعنی بدن ایمن است — آنتی‌ژنِ سطحی نیست. اگر این قاعده را فعال کند،
+  // به فردِ واکسینه گفته می‌شود ممکن است هپاتیت B داشته باشد.
+  for (const name of ["Anti-HBs", "Anti HBs", "Anti-HBc"]) {
+    const ids = serologyRule(name, "Positive").map((f) => f.rule_id);
+    assert.ok(!ids.includes("hbv_screen_reactive"),
+      `«${name}» نباید غربالگریِ هپاتیت B را فعال کند، شد: ${ids.join(",")}`);
+  }
+});
+
+test("M33: نتیجهٔ منفی/غیرواکنش‌گر هیچ یافتهٔ سرولوژی نمی‌سازد", () => {
+  for (const [name, value] of [["HIV Ab", "Non-Reactive"], ["HCV Ab", "Negative"],
+                               ["HBsAg", "Negative"], ["HIV Ab", "منفی"]]) {
+    assert.deepEqual(serologyRule(name, value).map((f) => f.rule_id), [],
+      `«${name}: ${value}» نباید هیچ یافته‌ای بسازد`);
+  }
+});
+
+test("M33: سرتیتر نامِ بیماری را فاش نمی‌کند؛ در HIV متن هم نامی نمی‌برد", () => {
+  // حریم خصوصی: بیمار ممکن است صفحه را جایی باز کند که دیگران ببینند.
+  const disease = /HIV|ایدز|هپاتیت|hepatitis/i;
+  for (const [name, value] of [["HCV Ab", "Reactive"], ["HBsAg", "Positive"], ["HIV Ab", "Reactive"]]) {
+    const f = serologyRule(name, value)[0];
+    assert.ok(f, `${name} باید یافته بسازد`);
+    assert.ok(!disease.test(f.headline), `سرتیتر نباید نام بیماری بدهد: «${f.headline}»`);
+  }
+  const hiv = serologyRule("HIV Ab", "Reactive")[0];
+  assert.ok(!/HIV|ایدز/i.test(hiv.must_say), "متنِ HIV عمداً نام بیماری را نمی‌برد");
+});
+
+test("M33: غربالگریِ واکنش‌گر this_week است، نه اورژانس، و بقیه را نمی‌پوشاند", () => {
+  for (const [name, value] of [["HCV Ab", "Reactive"], ["HBsAg", "Positive"], ["HIV Ab", "Reactive"]]) {
+    const f = serologyRule(name, value)[0];
+    assert.equal(f.urgency, "this_week", `${name}: غربالگری اورژانس نیست (وحشت‌آفرین است)`);
+    assert.ok(!f.blocks_others, `${name}: نباید بقیهٔ یافته‌ها را بپوشاند`);
+    assert.ok(/غربالگری/.test(f.must_say) && /(قطعی نیست|تشخیص قطعی|مثبت کاذب)/.test(f.must_say),
+      `${name}: باید صریح بگوید غربالگری تشخیص قطعی نیست`);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// پوشش (نه رگرسیون): قواعدِ قلبی تست نداشتند ولی درست کار می‌کردند.
+// این‌ها روی کدِ قبل هم پاس می‌شوند — عمداً، چون باگی رفع نشده. کارشان قفل
+// کردنِ رفتارِ فعلی است تا تغییرِ بعدی بی‌صدا آن را نشکند. با M-هایی که
+// N10 توصیف می‌کند (باید روی کدِ قبل بشکنند) اشتباه گرفته نشوند.
+// ═══════════════════════════════════════════════════════════
+test("پوشش/قلبی: تروپونینِ مثبت (کیفی و عددی) اورژانس است و بقیه را می‌پوشاند", () => {
+  for (const t of [{ name: "Troponin I", value: "Positive" }, { name: "hs-cTnI", value: 2.5 }]) {
+    const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" }, tests: [t] }));
+    const f = p.findings.find((x) => x.rule_id === "troponin_positive");
+    assert.ok(f, `${t.name} باید troponin_positive بدهد`);
+    assert.equal(f.urgency, "emergency");
+    assert.ok(f.blocks_others, "باید بقیه را بپوشاند");
+    assert.equal(p.overall_urgency, "emergency");
+    assert.ok(p.has_critical, "has_critical باید از موتور بیاید");
+    assert.ok(/اورژانس/.test(f.action), "باید مراجعهٔ فوری بخواهد");
+  }
+});
+
+test("پوشش/قلبی: CK-MB بالا this_week است و تروپونین را پیشنهاد می‌دهد", () => {
+  const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "CK-MB", value: 45 }] }));
+  const f = p.findings.find((x) => x.rule_id === "ckmb_high");
+  assert.ok(f, "CK-MB بالا باید قاعده داشته باشد، نه unmatched_abnormal");
+  assert.equal(f.urgency, "this_week");
+  assert.ok(f.suggest.some((s) => /تروپونین/.test(s)), "باید تروپونین را پیشنهاد کند");
+  assert.ok(/همیشه به معنی مشکل قلبی نیست/.test(f.must_say), "پیامِ محتاط، نه ترساننده");
+
+  // با CKِ کل بالا، منشأ عضلانی را هم ذکر می‌کند
+  const withCk = runPatterns(runEngine({ patient: { age: 58, sex: "M" },
+    tests: [{ name: "CK-MB", value: 45 }, { name: "CK", value: 900 }] }))
+    .findings.find((x) => x.rule_id === "ckmb_high");
+  assert.ok(/CK کل شما هم بالاست/.test(withCk.must_say), "باید به منشأ عضلانی اشاره کند");
+});
+
+test("پوشش/قلبی: با تروپونینِ مثبت، CK-MB زیرِ اورژانس می‌رود", () => {
+  const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" },
+    tests: [{ name: "Troponin I", value: "Positive" }, { name: "CK-MB", value: 45 }] }));
+  assert.deepEqual(p.findings.map((f) => f.rule_id), ["troponin_positive"],
+    "فقط اورژانس نمایش داده می‌شود");
+  assert.equal(p.overall_urgency, "emergency");
+});
+
 // ── M32: هیچ کلیدِ گریدشدنی بی‌نامِ فارسی نماند (کلاسِ N8) ──
 // ACR رنج و طبقه‌بندیِ KDIGO و قاعده داشت ولی در FA_NAMES نبود؛ فقط به این دلیل
 // به بیمار نرسید که متنِ albuminuria_pattern نامش را دستی هجی کرده بود. اما
