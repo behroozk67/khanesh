@@ -294,8 +294,10 @@ export function buildEngineFallbackResult(engineOut, patterns) {
   const findings = patterns.findings;
   const headlines = findings.map((f) => f.headline).filter(Boolean);
   const mustSay = findings.map((f) => f.must_say).filter(Boolean);
+  // N8: این متن مستقیم به بیمار می‌رسد (هیچ LLM‌ای در این مسیر نیست)،
+  // پس کلید موتور باید از faName() رد شود وگرنه «HGB: 9.2» روی صفحه می‌نشیند.
   const abnormalText = engineOut.abnormal
-    .map((a) => `${a.test}: ${a.value} (${a.fa})`)
+    .map((a) => `${faName(a.test)}: ${a.value} (${a.fa})`)
     .join("، ");
   const recs = buildEngineRecommendations(patterns, engineOut);
   return {
@@ -324,7 +326,7 @@ export function buildNormalResult(engineOut) {
     interpretation:
       "هیچ‌کدام از مقادیر خارج از محدوده مرجع نیست." +
       (borderline.length
-        ? ` چند مورد نزدیک حد محدوده هستند: ${borderline.map((b) => b.test).join("، ")}. این به‌خودی‌خود معنایی ندارد، ولی اگر نتیجه قبلی دارید مقایسه کنید.`
+        ? ` چند مورد نزدیک حد محدوده هستند: ${borderline.map((b) => faName(b.test)).join("، ")}. این به‌خودی‌خود معنایی ندارد، ولی اگر نتیجه قبلی دارید مقایسه کنید.`
         : ""),
     general_recommendations: ["نتایج را در پرونده خود نگه دارید."],
     warnings: [],

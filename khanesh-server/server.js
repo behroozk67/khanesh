@@ -33,7 +33,8 @@ import { runEngine } from "./rules/adapter.js";
 import { runPatterns } from "./rules/patterns.js";
 import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations } from "./rules/prompt.js";
 import rateLimit from "express-rate-limit";
-import { extractMedlineTerms } from "./rules/medline.js";
+import { createAvalAIClient, safeParseJson } from "./avalaiClient.js";
+import { extractMedlineTerms, formatMedlineContext } from "./rules/medline.js";
 import { missingFindingText } from "./rules/coverage.js";
 
 // اطلاعات دیباگ موتور — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
@@ -138,7 +139,13 @@ const MEDLINE_BASE = "https://wsearch.nlm.nih.gov/ws/query";
 // شمارش قطع‌شدن پاسخ به‌خاطر سقف توکن.
 // در /health دیده می‌شود — قبل از بالا بردن maxTokens اول این را ببین.
 // اگر صفر است، سقف مشکلی ندارد و بالا بردنش فقط هزینه اضافه می‌کند.
-const TRUNCATION_COUNT = {};
+// مرزِ HTTP در avalaiClient.js است تا بشود بدون شبکه تستش کرد.
+const avalai = createAvalAIClient({
+  apiKey: AVALAI_API_KEY,
+  baseUrl: AVALAI_BASE_URL,
+  timeoutMs: AI_TIMEOUT_MS,
+});
+const callAvalAI = avalai.call;
 
 // نگاشت MedlinePlus و استخراج ترم‌ها به rules/medline.js منتقل شد تا خالص و تست‌پذیر باشد.
 
@@ -207,32 +214,14 @@ async function buildMedlineContext(testResultsText) {
   const items = extractMedlineTerms(testResultsText);
   if (items.length === 0) return { context: "", sources: [] };
 
-  const parts = [];
-  const sources = [];
+  // واکشی اینجا می‌ماند (شبکه)، چیدنِ متن در rules/medline.js است (خالص).
+  // ⚠️ آن تابع عمداً sourceLine — خطِ خامِ برگه — را درج نمی‌کند؛ دلیلِ کاملش
+  //    بالای formatMedlineContext نوشته شده. اگر آن echo برگردد، مسیرِ تزریقِ
+  //    پرامپت از متنِ انتخابیِ مهاجم برگشته است.
   const results = await Promise.all(
     items.map(async ({ term }) => ({ term, data: await fetchMedline(term) }))
   );
-
-  // ⚠️ sourceLine (خطِ خامِ برگه) عمداً اینجا درج نمی‌شود.
-  //    آن خط از OCRِ عکسی می‌آید که مهاجم می‌تواند محتوایش را انتخاب کند، و
-  //    مستقیم داخل <medline_context> پرامپت می‌نشست — یعنی متنِ دلخواهِ او در
-  //    دستورهای مدل. تورهای ایمنی (server.js پایین‌تر) فقط must_sayِ افتاده را
-  //    اضافه و توصیهٔ forbid را حذف می‌کنند؛ هیچ‌کدام summary/interpretation را
-  //    که متنِ آزادِ مدل است پاک‌سازی نمی‌کنند.
-  //    مقدارِ واقعیِ بیمار از قبل در payloadِ موتور هست، گریدشده و ساخت‌یافته —
-  //    پس این echo هیچ اطلاعاتی اضافه نمی‌کرد، فقط سطحِ حمله بود.
-  //    این بلوک فقط «زمینهٔ آموزشیِ» عمومیِ MedlinePlus است.
-  for (const { term, data } of results) {
-    if (!data) continue;
-    parts.push(
-      `تست: ${term}\n` +
-      `اطلاعات مرجع MedlinePlus: ${data.summary}`
-    );
-    if (data.url) sources.push(data.url);
-  }
-
-  if (parts.length === 0) return { context: "", sources: [] };
-  return { context: parts.join("\n\n---\n\n"), sources };
+  return formatMedlineContext(results);
 }
 
 // ============================================================
@@ -339,101 +328,6 @@ const SYSTEM_PROMPT = `شما یک تحلیلگر مجرب نتایج آزمای
 مهم: فهرست کامل تست‌ها را در خروجی تکرار نکن — آن فهرست جداگانه به کاربر نشان داده می‌شود. فقط روی تحلیل تمرکز کن.
 در abnormal_results فقط تست‌هایی را بیاور که واقعاً خارج از محدودهٔ ارائه‌شده هستند. انحرافات بسیار جزئی را می‌توانی با severity «خفیف» و لحن اطمینان‌بخش بیاوری. has_critical فقط وقتی true است که حداقل یک مقدار در محدودهٔ بحرانی واقعی باشد.`;
 
-// ============================================================
-// [۸] فراخوانی AvalAI — تابع مشترک
-// ============================================================
-async function callAvalAI({ model, messages, maxTokens = 2000, temperature = 0.2 }) {
-  let upstream;
-  try {
-    upstream = await fetch(`${AVALAI_BASE_URL}/chat/completions`, {
-      method: "POST",
-      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${AVALAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        response_format: { type: "json_object" },
-        max_tokens: maxTokens,
-      }),
-    });
-  } catch (err) {
-    console.error("AvalAI fetch failed:", model, err.name, err.message);
-    const e = new Error("upstream_timeout");
-    e.model = model;
-    throw e;
-  }
-
-  if (!upstream.ok) {
-    // ⚠️ حریم خصوصی: پاسخ خطای AvalAI ممکن است بخشی از درخواست
-    //    (یعنی دادهٔ بالینی بیمار) را echo کند. فقط طول و وضعیت را لاگ کن.
-    const errText = await upstream.text().catch(() => "");
-    console.error(`AvalAI error: model=${model} status=${upstream.status} bodyLen=${errText.length}`);
-
-    // ۴۲۹ = محدودیت نرخ. کاربر باید بفهمد «شلوغ است» نه «خراب است».
-    if (upstream.status === 429) {
-      const e = new Error("upstream_rate_limit");
-      e.status = 429;
-      // Retry-After اگر داد، به کاربر بگو چقدر صبر کند
-      const ra = upstream.headers.get("retry-after");
-      e.retryAfter = ra ? Number(ra) : null;
-      throw e;
-    }
-
-    const e = new Error("upstream_error");
-    e.status = upstream.status;
-    throw e;
-  }
-
-  const data = await upstream.json();
-
-  const finishReason = data?.choices?.[0]?.finish_reason;
-  if (finishReason === "length") {
-    TRUNCATION_COUNT[model] = (TRUNCATION_COUNT[model] || 0) + 1;
-    console.warn(
-      `⚠️ AvalAI TRUNCATED: model=${model} maxTokens=${maxTokens} ` +
-      `usage=${JSON.stringify(data?.usage || {})} — تا حالا ${TRUNCATION_COUNT[model]} بار`
-    );
-  }
-
-  return data?.choices?.[0]?.message?.content || "{}";
-}
-
-// ============================================================
-// [۹] تلاش برای خواندن JSON، حتی اگر کمی ناقص باشد
-// ============================================================
-function safeParseJson(raw) {
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw);
-  } catch { /* ادامه */ }
-
-  const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch { /* ادامه */ }
-
-  // کامای اضافه — شایع‌ترین خطای مدل‌ها
-  // قبلاً به parseError می‌رفت و کاربر تفسیر نمی‌دید. حالا ترمیم می‌شود.
-  try {
-    return JSON.parse(cleaned.replace(/,(\s*[}\]])/g, "$1"));
-  } catch { /* ادامه */ }
-
-  // اگر خروجی نصفه مانده، تا آخرین شیء کامل را برداریم
-  const lastComplete = cleaned.lastIndexOf("},");
-  if (lastComplete > 0) {
-    const candidate = cleaned.slice(0, lastComplete + 1) + "]}";
-    try {
-      return JSON.parse(candidate);
-    } catch { /* ادامه */ }
-  }
-
-  return null;
-}
 
 // ============================================================
 // [۱۰] مرحله اول — خواندن عکس (OCR خالص)
@@ -1098,7 +992,7 @@ app.get("/health", (_req, res) =>
     // قبل از بالا بردن maxTokens اول اینجا را ببین.
     engine: USE_ENGINE ? "on" : "off",
     ocrMaxTokens: OCR_MAX_TOKENS,
-    truncations: TRUNCATION_COUNT,
+    truncations: avalai.truncations,
     rateLimit: `${RATE_LIMIT_MAX}/${RATE_LIMIT_WINDOW_MIN}min`,
     corsOrigins: ALLOWED_ORIGINS.length === 0 ? "any (⚠️ در پرودکشن ست کن)" : ALLOWED_ORIGINS,
     trustProxy: TRUST_PROXY || "off",

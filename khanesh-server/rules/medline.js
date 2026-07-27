@@ -130,3 +130,30 @@ export function extractMedlineTerms(testResultsText) {
   }
   return Array.from(terms.entries()).map(([term, sourceLine]) => ({ term, sourceLine }));
 }
+
+/**
+ * چیدنِ بلوکِ <medline_context> از نتایجِ واکشی‌شده. خالص و بی‌شبکه — واکشی
+ * در server.js می‌ماند (همان تفکیکی که بالای این فایل توضیح داده شده).
+ *
+ * ⚠️ این تابع عمداً هیچ چیزی از ورودیِ کاربر/OCR را echo نمی‌کند. قبلاً
+ *    server.js خطِ خامِ برگه (sourceLine) را داخل همین بلوک می‌گذاشت، و آن
+ *    خط از عکسی می‌آمد که مهاجم محتوایش را انتخاب می‌کند — یعنی متنِ دلخواهِ
+ *    او مستقیم در دستورهای مدل. تورهای ایمنی فقط must_sayِ افتاده را اضافه
+ *    می‌کنند؛ summary/interpretation را که متنِ آزادِ مدل است پاک‌سازی
+ *    نمی‌کنند. مقدارِ واقعیِ بیمار از قبل ساخت‌یافته در payloadِ موتور هست.
+ *    اینجا فقط term (از TEST_MEDLINE_MAP، ثابتِ خودمان) و summary (از NLM)
+ *    می‌آید. اگر روزی sourceLine برگشت، آن آسیب‌پذیری برگشته.
+ *
+ * @param {Array<{term: string, data: ?{summary: string, url: ?string}}>} results
+ */
+export function formatMedlineContext(results) {
+  const parts = [];
+  const sources = [];
+  for (const { term, data } of results ?? []) {
+    if (!data?.summary) continue;
+    parts.push(`تست: ${term}\nاطلاعات مرجع MedlinePlus: ${data.summary}`);
+    if (data.url) sources.push(data.url);
+  }
+  if (parts.length === 0) return { context: "", sources: [] };
+  return { context: parts.join("\n\n---\n\n"), sources };
+}

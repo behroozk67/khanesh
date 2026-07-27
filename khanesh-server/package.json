@@ -20,7 +20,8 @@
     ],
     "ext": "js,json",
     "ignore": [
-      "rules/*.test.js"
+      "rules/*.test.js",
+      "*.test.js"
     ],
     "delay": "300"
   },
