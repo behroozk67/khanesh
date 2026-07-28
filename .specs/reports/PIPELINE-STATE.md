@@ -186,6 +186,64 @@ Get-ChildItem "c:\Users\surface\Desktop\khanesh-project\.specs\reports\tafsir-re
    `npm test` در `khanesh-server/`) و ایجنت `code-reviewer` (مرز موتور، رشته‌های فارسی،
    دریفت قرارداد فرانت/بک).
 
+## ▶ نقطهٔ دقیقِ ادامه — فاز ۳ و ۴
+
+### وضعیت در لحظهٔ نوشتن
+- **همهٔ کارِ خطِ‌لوله کامیت شده.** تنها چیزِ کامیت‌نشده در مخزن، کارِ خودِ کاربر است
+  (`khanesh-server/rules/*`, `khanesh/src/Tafsir.jsx`, `App.jsx`, `index.css`, …).
+  **به آن دست نزنید و کامیتش نکنید.** یک بار قبلاً یک کامیتِ بدون pathspec حذفِ
+  stage‌شدهٔ `Landing.jsx` را که کارِ کاربر بود با خودش برد؛ همیشه pathspec بدهید.
+- ایجنتِ polishِ فاز ۳ در `wt-a` فرستاده شده. شاخهٔ `consensus/variant-a` هنوز روی
+  `bfc70fa` است، یعنی هنوز چیزی کامیت نکرده بود.
+- پشتیبانِ کارِ کاربر: `…/scratchpad/backup-worktree/` (۱۴ فایل، `src/` + `index.html`).
+
+### گام ۱ — ببینید ایجنتِ polish چه‌قدر پیش رفته
+```powershell
+git -C "C:/Users/surface/AppData/Local/Temp/claude/consensus/wt-a" log --oneline -5
+git -C "C:/Users/surface/AppData/Local/Temp/claude/consensus/wt-a" status --porcelain
+```
+اگر جلوتر از `bfc70fa` است، کارش را انجام داده. اگر کارِ کامیت‌نشده دارد، همان ایجنت را با
+`SendMessage` ادامه دهید؛ اگر در دسترس نیست، ایجنتِ تازه‌ای با همان مأموریت بفرستید:
+**فقط C4 — انتقالِ نظمِ توکنیِ B روی A**، بدون دست‌زدن به چیزهایی که A در آن‌ها برنده شد
+(C1 ایمنی ۴.۵، C3 دسترس‌پذیری ۴.۵، C6 کیفیت کد ۴.۵)، بدون ویرایشِ `.oxlintrc.json` و
+`package.json`، و بدون نزدیک‌شدن به `khanesh-server/`.
+
+اگر polish اصلاً انجام نشد، **A همان‌طور که هست قابل‌قبول است** — با ۴.۲ اجماعی برنده شده.
+polish بهبود است نه شرط.
+
+### گام ۲ — گیت‌های فاز ۴ (پیش از اعمال در درختِ کاری)
+```powershell
+cd "C:/Users/surface/AppData/Local/Temp/claude/consensus/wt-a/khanesh"; npm run lint; npm run build
+cd "c:/Users/surface/Desktop/khanesh-project/khanesh-server"; npm test
+```
+هر سه باید سبز باشند و **خروجی واقعی نقل شود**، نه «باید کار کند».
+سپس ایجنتِ `code-reviewer` روی diff (مرزِ موتور، رشته‌های فارسی، دریفتِ قراردادِ فرانت/بک).
+
+**گیتِ بالینیِ اجباری:** تأیید کنید متنِ توضیح از روی *جهت* انتخاب می‌شود نه با تا کردنِ
+`crit` داخل `above`. در A این اصلاح هست (`LocalPreview.jsx:106-108`)؛ اگر polish آن را
+خراب کرده باشد، قبل از هر کامیتی برگردانید.
+
+### گام ۳ — اعمال در درختِ کاری
+تفاوت **فقط در `src/` است** — این را با `diff -rq` راستی‌آزمایی کردم:
+`index.html`، `public/fonts/`، `package.json`، `.oxlintrc.json`، `.gitignore` همه یکسان‌اند
+(تفاوتِ ظاهریِ diff فقط CRLF در برابر LF بود، تعداد وابستگی هر دو ۷۷).
+
+A نسبت به درختِ کاری **فقط افزودنی و تغییری است، هیچ فایلی را حذف نمی‌کند** — در خروجیِ
+`diff -rq` هیچ خطِ `Only in <WT>` نبود. پس اعمالش امن است:
+```powershell
+Copy-Item -Recurse -Force "C:/Users/surface/AppData/Local/Temp/claude/consensus/wt-a/khanesh/src/*" `
+                          "c:/Users/surface/Desktop/khanesh-project/khanesh/src/"
+```
+بعد از کپی، دوباره `npm run lint` و `npm run build` در `khanesh/` خودِ درختِ کاری.
+
+**کامیتِ نتیجه را از کاربر بپرسید.** قاعدهٔ ثابتِ پروژه: بدون درخواست کامیت نکنید. و اگر
+کامیت کردید، pathspec بدهید (`-- khanesh/src`) تا کارِ کامیت‌نشدهٔ کاربر داخلش نیفتد.
+
+### گام ۴ — دفترچهٔ آزمایشگاه
+بعد از اینکه اصلاحِ جهتِ `crit` کامیت شد و هش گرفت، مدخلش را به بخشِ
+«Lab Notebook» در `CLAUDE.md` اضافه کنید. جدولِ آنالیت‌های آسیب‌دیده بالاتر در همین فایل است.
+این را قاعدهٔ خودِ پروژه واجب می‌کند: هر خطایی که به خروجیِ غلط رسیده باشد باید ثبت شود.
+
 ## یادداشت‌های محیطی
 - قفلِ کهنهٔ Playwright مانع اسکرین‌شات زنده شد. برای بررسی بصری نهایی باید دوباره تلاش شود.
 - سرور dev روی `127.0.0.1:4200` و بک‌اند روی `8787` هنگام شروع بالا بودند.
