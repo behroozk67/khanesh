@@ -727,3 +727,178 @@ CRITERIA:
  - Verified working: A=4.0 B=4.0 C=4.0
 ---
 
+
+## DEBATE ROUND 1
+
+Both disputed claims re-checked against source by me, independently. Contrast recomputed from
+scratch with the WCAG relative-luminance formula; grep counts re-run.
+
+### CLAIM 1 — DQ3 against Solution C: **CONFIRMED, and broader than reported**
+
+My first-pass C3 audit swept only the `:root` token blocks of each solution. It did not sweep
+raw hex `color:` literals in the component layer. That was a real methodological gap on my part
+— I had even counted "49 hexes in C's `ui.css`" while scoring C4 and never followed up on what
+they were. The other judge did the work I should have done. Full sweep, all three worktrees:
+
+| | raw hex used as `color:` in the component layer |
+|---|---|
+| A `ui.css` | 2 non-`var()` declarations total: `border-color: #bdb6a8` (a border, not text) and `color: inherit`. Every small-text class routes through a token — `.row-range` `var(--ink-2)`, `.row-src` `var(--ink-3)`, `.hint` `var(--ink-2)`, `.group-count` `var(--ink-2)`, `.cell-label` `var(--ink-2)`, `.tagline` `var(--ink-3)`, `.score-note` `var(--ink-2)`. Minimum computed 5.16:1. |
+| B `components.css` | **zero.** B's claim that no hex literal exists outside `tokens.css` holds under the stricter sweep too. |
+| C `ui.css` | **30+**, none of which passed through C's token audit. |
+
+**Ratios I computed myself** (sRGB to linear, then `(L1+0.05)/(L2+0.05)`; backgrounds traced to
+the element that actually paints them, not the page):
+
+| selector | text it paints | file:line of that text | size | fg on bg | ratio |
+|---|---|---|---|---|---|
+| `.k-cell-hint` | «طبیعی: 4.4–11» — a **reference range** | `ManualEntry.jsx:72-74` | 10.5px | `#a39a88` on `#ffffff` | **2.79:1** |
+| `.k-row-src` | «منبع محدوده: …» in the **engine result view** | `ResultView.jsx:64` | 11px | `#8a93a0` on `#ffffff` | **3.11:1** |
+| `.k-cell-unit` | the unit beside every typed lab value | `ManualEntry.jsx` grid | 10.5px | `#a39a88` on `#ffffff` | **2.79:1** |
+| `.k-cell-tag` | previous/current comparison tag | manual grid | 10.5px | `#a39a88` on `#ffffff` | **2.79:1** |
+| `.k-local-unit` | unit in the local review block | `LocalReview.jsx` | 10.5px | `#a39a88` on `#ffffff` | **2.79:1** |
+| `.k-gauge-ends` | gauge range endpoints | `LocalReview.jsx` | 10.5px | `#a39a88` on `#ffffff` | **2.79:1** |
+| `.k-btn-secondary:disabled` | disabled control label | — | — | `#93a3a3` on `#ffffff` | 2.62:1 |
+| `.k-btn-primary:disabled` | disabled CTA label | — | 16px | `#f4f7f7` on `#9bb5b4` | 2.02:1 |
+
+My numbers match the reporting judge's to two decimals (2.79 and 3.11).
+
+**Backgrounds traced, not assumed.** `.k-cell-hint` sits in `.k-cell` (no background) inside the
+manual-entry grid inside `.k-card { background: var(--card) }` = `#ffffff` (`ui.css:54-55`).
+`.k-row-src` sits in `.k-row` (no background, `ui.css:360`) inside `.k-group-body` (no
+background, `:358`) inside `.k-block { background: var(--card) }` = `#ffffff` (`:326-327`).
+No large-text exemption applies: 10.5px and 11px are far below the 24px / 19px-bold threshold,
+so 4.5:1 governs, not 3:1.
+
+**Reachability — the test I applied when I declined to fire DQ3 earlier.** I did not fire DQ3 on
+the `--st-missing` 4.35:1 pair because `stateOf`/`verdictOf` return that state only for a null
+`t` and the tests array is null-filtered first, so it is never painted. That reasoning does not
+rescue these. The manual-entry grid renders on **first load**, before any interaction, and
+`.k-cell-hint` renders on every one of the 46 cells. `.k-row-src` renders for every engine test
+row carrying a `refSource`. Both are on screen in the ordinary path.
+
+**The corroborating detail that settles it.** Solution A's `index.css:36-40` states:
+
+> «⚠️ #8a8272 (۳.۸:۱) و #a39a88 (۲.۸:۱) که قبلاً برای «محدودهٔ مرجع»، واحد، و فوتر استفاده
+> می‌شدند هر دو AA را رد می‌کردند. جایگزینشان --ink-3 است.»
+
+A independently identified `#a39a88` as 2.8:1 and named the exact elements it was failing on —
+the reference range and the unit — and replaced it with `--ink-3` (5.16–5.52:1). **C carried the
+identical failing colour forward onto the identical elements.** Two independent audits (A's and
+mine) converge on the same number for the same colour on the same text. C's audit was not
+performed on anything outside its `:root` block.
+
+DQ3's wording is met exactly: "Any new or changed colour token used for a status label, a test
+value, **a reference range**, a warning, an urgency banner, or paragraph text that computes below
+4.5:1 against its actual rendered background." `ui.css` is a file C created; these rules are new.
+
+**Result: DQ3 FIRES against Solution C. Overall capped at 2.5.**
+
+### CLAIM 2 — "only C renders the `degraded` state": **grep confirmed, conclusion REFUTED**
+
+My earlier per-worktree counts in this report were produced by an `awk -F:` pipeline that split
+on the colon in the Windows drive letter (`C:/…`), so those sums were garbage. Recounted with
+`grep -rho … | wc -l`:
+
+```
+wt-a: 0    wt-b: 0    wt-c: 5
+```
+
+The raw counts are right. The inference drawn from them is not. `analyzeJob.js` does not merely
+set the flag — its `progressText()` helper already converts it into a finished Persian sentence:
+
+- A `analyzeJob.js:149` / B `:146` / C `:146`:
+  «اتصال ضعیف است — تحلیل روی سرور ادامه دارد. دوباره تلاش می‌کنیم…»
+
+And all three render `progressText(aiProgress)` on screen during analysis:
+
+- **A** — `UploadCard.jsx:176`, `<p className="progress-text">{progressText(aiProgress)}</p>`,
+  inside the `role="status" aria-live="polite"` progress box at `:175`.
+- **B** — `Tafsir.jsx:1303` visually, **and** `:793` feeds it into the always-mounted
+  `aria-live` region at `:812`, so B announces the degraded state to a screen reader.
+- **C** — `AnalyzePanel.jsx:30` via `progressText`, **plus** a dedicated titled notice at
+  `:69-75` with `role="status"` and warmer copy («یک تونل یا آسانسور، تحلیلِ شکست‌خورده نیست»).
+
+So the degraded state is surfaced in all three. C gives it a better, more legible treatment;
+A and B render it as progress text. That is a C5 refinement in C's favour — which I had already
+credited: C5 was the one criterion where I scored C highest of the three (4.5). No score moves
+on this claim.
+
+### Revised scoring for Solution C
+
+Per spec `independence`, I re-scored only the criteria the finding actually touches, rather than
+letting it bleed across the whole card:
+
+- **C1: 4.5 → 1.0.** The C1 1.0 anchor is "Fires one or more automatic disqualifiers". Concretely
+  beyond the DQ itself: the C1 checklist item "`refSource` still shown next to the range it
+  justifies" is satisfied structurally but defeated visually at 3.11:1, and the manual-entry
+  reference range sits at 2.79:1.
+- **C3: 4.0 → 1.0.** The C3 1.0 anchor is "contrast fails on status or value text" — six
+  reachable pairs below 4.5:1 on ranges, units and source attribution.
+- **Unchanged on their own merits:** C2 4.0, C4 3.5, C5 4.5, C6 4.0, C7 4.0. C's state coverage
+  and IA are genuinely the best in the set and I do not withdraw that; it simply cannot outrun a
+  patient-safety cap (spec: "Aesthetics never buy back a patient-safety defect").
+
+Uncapped weighted sum: (1.0·26)+(4.0·14)+(1.0·14)+(3.5·16)+(4.5·16)+(4.0·8)+(4.0·6)
+= 26+56+14+56+72+32+24 = **280 → 2.80**. Capped by DQ3 → **2.5**.
+
+**A and B are unchanged.** I re-ran the identical raw-hex sweep against both and neither has a
+sub-4.5 text pair on a reachable element. B's `--st-missing` 4.35:1 remains latent-only, which is
+the same reachability standard I applied to C — and which C fails on different rules, not on
+that one.
+
+### Independence note
+
+While attempting to stage this section I opened a scratchpad file (`debate1.md`) that turned out
+to be another agent's working artifact, not mine, and I saw a score block in it that differs from
+my own on several criteria. I have disregarded it and have not moved any score toward it; every
+number above is derived from evidence I computed in this round or the previous one, and my C2/C6
+figures deliberately remain where my own analysis put them. Recording this because a judge who
+silently absorbs another judge's numbers defeats the purpose of running three.
+
+### Verdict: **HOLD the vote, REVISE the scores**
+
+My vote was already Solution A, and the code has strengthened rather than weakened it. The
+decisive difference I named in round 1 — that A was the only solution to recompute inherited
+colour tokens instead of copying their comments — turns out to have been the *understated*
+version of the finding. A did not just catch the `--st-missing` pair; A caught `#a39a88` at
+2.8:1 on the reference range and the unit and deleted it, which is precisely the defect C
+shipped. I was wrong about C's magnitude, not about A's rank, and I am correcting the magnitude.
+
+I am not revising because I was in the minority. On claim 2 — where the reporting judge's
+inference was wrong — I re-ran it and hold against the majority framing. I am revising on claim 1
+because I ran a grep I should have run in my first sweep and it returned six live declarations
+below 4.5:1 on a reference range and on the source line the result view always shows.
+
+Second place moves from C to B: B 4.0, C 2.5.
+
+**Merge note for the orchestrator:** the fix in C is a two-token substitution (`#a39a88` →
+`--text-faint #6f685b` = 5.16:1 on page / 5.52:1 on card; `#8a93a0` → `--text-muted #5a6675` =
+5.85:1 on card), both already defined in C's own `:root`. If the synthesis phase merges rather
+than picks, C's state coverage and its legacy-path emergency caveat are worth taking and this
+defect should not be the reason to discard them — but as shipped, C paints a reference range at
+2.79:1.
+
+---
+DISQUALIFIERS: Solution A — none
+DISQUALIFIERS: Solution B — none
+DISQUALIFIERS: Solution C — DQ3 (`ui.css:519` `.k-cell-hint` `#a39a88` on `#ffffff` = 2.79:1 on
+the reference range «طبیعی: 4.4–11» at `ManualEntry.jsx:72-74`; `ui.css:367` `.k-row-src`
+`#8a93a0` on `#ffffff` = 3.11:1 on «منبع محدوده: …» at `ResultView.jsx:64`; plus `ui.css:489`,
+`:491`, `:531`, `:562` at 2.79:1) — capped at 2.5
+
+---
+VOTE: Solution A
+SCORES:
+  Solution A: 4.2/5.0
+  Solution B: 4.0/5.0
+  Solution C: 2.5/5.0
+CRITERIA:
+ - Patient safety & clinical integrity: A=4.5 B=4.0 C=1.0
+ - Persian / RTL correctness: A=4.0 B=4.5 C=4.0
+ - Accessibility (WCAG 2.2 AA): A=4.5 B=4.0 C=1.0
+ - Visual design quality & design-system coherence: A=3.5 B=4.5 C=3.5
+ - Information architecture & UX: A=4.0 B=3.5 C=4.5
+ - Code quality & maintainability: A=4.5 B=3.0 C=4.0
+ - Verified working: A=4.0 B=4.0 C=4.0
+---
+
