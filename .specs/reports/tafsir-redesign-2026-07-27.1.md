@@ -1,4 +1,4 @@
-# Judge 1 — Khanesh `/` (Tafsir) redesign evaluation
+﻿# Judge 1 — Khanesh `/` (Tafsir) redesign evaluation
 
 Spec: `.specs/reports/eval-spec.yaml` (khanesh-tafsir-redesign-eval-v1)
 Baseline: `c:/Users/surface/Desktop/khanesh-project/khanesh/` (working tree)
@@ -282,3 +282,448 @@ baseline's dense Persian safety comments. The separation between them is therefo
 decided on degree, not on category.
 
 ---
+
+## 2. CRITERIA — scored across all three at once (protocol step 4)
+
+### C1 — Patient safety & clinical integrity (weight 26) — A 4.5 · B 4.0 · C 4.5
+
+**Shared baseline parity (all three, verified):** `has_critical` read verbatim, never
+recomputed (grep for any recompute returns nothing in all three); six-state word+shape+colour
+encoding preserved; `unmatched_abnormal` keeps its own non-alarming copy; `missing` keeps a
+dashed action treatment; derived indices carry the «این عددها روی برگهٔ آزمایشگاه نیستند»
+framing with `MEASURED_OF` pairing; disclaimer is a client-side literal; provenance gated on
+`_engine`; `extracted_tests` confirmation survives; `pages.failed` / `ocr_warnings` still
+rendered; `refSource` still sits on the row it justifies (A `:113`, B `:79`, C `:64`); no new
+client-side score/gauge/grade/age. No solution removed a baseline safeguard (C1.5 diff: zero
+removals in all three).
+
+All three implement code-recon's named "highest-value fix" — per-test verdict from
+`fa`/`level`/`ctcaeGrade`/`nearLimit` instead of stamping panel `urgency` on every row.
+
+**A — 4.5.** The only solution that fixes N5 *at the row*: `MeasuredNote`
+(`ResultView.jsx:73-81`, mounted at `:104`) renders «روی برگهٔ شما: X — عددِ بالا با
+آلبومینِ شما تصحیح شده» inside the CA/NA row, gated on `indices.ca_correction_applied`.
+Since `tests[].value` for CA/NA *may already be the corrected number*, this is the exact place
+the N5 confusion occurs, and B/C leave it to the derived-values block far below (baseline
+behaviour). `GradeMeter` (`:47-61`) surfaces `ctcaeGrade` as pips **plus** the words «شدت بر
+پایهٔ CTCAE v5: درجهٔ ۳ از ۴», so severity is not colour-only. `RangeBand` colour is passed in
+as `stateCls` (`:107`), never derived from bounds — satisfies C1.1.
+Deduction: `unmatchedRows = tests.filter(t => t.abnormal)` (`:331`) plus `stateOf`'s
+`if (ctx?.unmatched) return STATES.unmatched` (`resultStates.js:115`) paints *every* abnormal
+row in an unmatched panel as «نیازمند بررسی», flattening matched and unmatched abnormals
+together — the C1 3.0 anchor's "third state flattened" defect running in the other direction.
+
+**B — 4.0.** Cleanest engine boundary of the three: `stateOf(t, unmatched)`
+(`resultStates.js:84-100`) does not even accept `urgency` as a parameter (documented `:81-82`),
+so panel-level fact cannot leak onto a row by construction. It is also the only one whose
+unmatched fallback is correctly *narrow* — `return unmatched ? STATES.unmatched :
+STATES.out_of_range` fires only after every severity tier missed (`:99`), so a row the engine
+did grade keeps its real severity. `evidenceOf` (`:147-159`) reads `t.source` to name which of
+the engine's three grading modes produced the verdict, with a `<dl>` in Provenance
+(`ResultView.jsx:260-275`) explaining the three — genuinely new honest information.
+Deductions: no new safety mechanism beyond parity, and `components.css:777`
+`.k-status--critical { background: var(--st-emergency) }` paints **filled red on a row**
+whenever `level === "critical"` or `ctcaeGrade === 4`, *independent of panel urgency* — so red
+can appear on a panel the engine graded `this_week`. Constraint 11 reserves red for emergency.
+The direction is over-alarm rather than under-read, so it is dilution, not danger, but it is a
+divergence A and C both avoid by gating red on `urgency === "emergency"`.
+
+**C — 4.5.** Two safety properties no one else has.
+(1) `ResultView.jsx:374-379`: when `_engine` is absent, the caveat «این هشدار را مدل زبانی
+نوشته و قاعده‌های بالینی ما روی آن اجرا نشده. جدی بگیریدش، ولی حتماً با پزشک بررسی کنید.»
+renders **inside the emergency banner itself** — the only element a patient in the emergency
+state actually reads. A and B put the equivalent honesty only in a collapsed `<details>`
+Provenance block. Backed by a standalone `!hasEngine` notice at `:396-402`.
+(2) `CategoryGroup` (`:79, 92-96`) removes the disclosure control *entirely* for any group
+holding an emergency row — the group cannot be collapsed even by deliberate user action, which
+is strictly stronger than A's `<details>`-only-when-fully-normal gate (`A ResultView.jsx:162`).
+`verdictOf` (`resultStates.js:114`) demotes a row out of emergency only when the engine
+explicitly said `mild`/`moderate`, documented as the conservative direction (`:98-101`).
+Emergency banner carries `<a href="tel:115">` (`:381`).
+Deduction: same `unmatched` flattening as A (`:336`, `verdictOf:119`), and no row-level
+as-printed CA/NA.
+
+---
+
+### C2 — Persian / RTL correctness (weight 14) — A 4.0 · B 4.5 · C 4.0
+
+**Measured, all three worktrees, `src` CSS + JSX:**
+
+| | `margin-left/right` | `padding-left/right` | bare `left:`/`right:` | `*-inline` logical | `text-align:left/right` |
+|---|---|---|---|---|---|
+| A | 0 | 0 | 0 | 9 | 0 |
+| B | 0 | 2 | 0 | 15 | 0 |
+| C | 0 | 0 | 0 | 17 | 0 |
+
+Zero physical direction properties in RTL layout code in all three — a clean sweep, and a real
+improvement over a baseline built on inline style objects that could not express `@media` at all.
+
+All three keep the non-negotiables: `index.html` `lang="fa" dir="rtl"`; `@font-face` Vazirmatn
++ `/fonts/Vazirmatn-VF.woff2` emitted into `dist/` (verified in the build artifacts above);
+`.num` with `unicode-bidi: isolate; direction: ltr; font-variant-numeric: tabular-nums`;
+`line-height: 1.8` with the Persian-leading comment; value inputs `type="text"` +
+`inputMode="decimal"` with `normalizeDigits` in `onChange` (A `EntryGrid.jsx:97,111` +
+`ProfileCard.jsx:33`; B `Tafsir.jsx:826,960,972`; C `ManualEntry.jsx:49,67` +
+`ProfileCard.jsx:52`), each carrying the explanatory comment that `type="number"` destroys
+Persian digits at DOM level. Persian digits for in-sentence counts, Latin for lab values, is
+respected everywhere I checked.
+
+**B — 4.5, the only one that fixed a real bidi defect.** `ResultView.jsx:100-113`:
+
+> «🔴 جداکنندهٔ «·» بی‌فاصله به رقمِ فارسی می‌چسبید و «۰ طبیعی · ۱ خارج» روی صفحه «۱۰» خوانده می‌شد.»
+
+The category count separator abutting a Persian digit made «۰ طبیعی · ۱ خارج» render as «۱۰».
+B split each count into its own `<span>` and moved the spacing to flex. **A (`ResultView.jsx:
+126-127`) and C (`ResultView.jsx:87`) both still ship the raw «·» inline in the text flow** —
+the identical construction. Per the C2 tie-break ("breadth beats elegance; a single
+un-isolated numeral corrupts a real reading"), this is the separator. B also derives its
+`Segmented` arrow-key direction from RTL rather than hardcoding it (`Segmented.jsx:44-51`).
+
+**A — 4.0.** More numeric surfaces than the others (RangeBand, CTCAE pips, ring count, per-system
+counts) and all of them route through `<Num>` or `toFaDigits`; `RangeBand` renders no text at
+all so there is nothing to invert. Loses the «·» point.
+
+**C — 4.0.** `insetInlineStart` used for the local gauge geometry (`LocalReview.jsx:60-61`) —
+correct logical positioning where a physical `left` would have mirrored wrongly. Loses the
+«·» point. Register is consistent and formal across all three (spot-checked buttons, hints,
+errors, empty states); the baseline's «وارد کن» / «کلیک کنید» inconsistency is resolved in all
+three.
+
+---
+
+### C3 — Accessibility WCAG 2.2 AA (weight 14) — A 4.5 · B 4.0 · C 4.0
+
+**Computed contrast** (I ran the WCAG relative-luminance formula in `node` on every changed
+token paired with its actual card/chip background — not the page background — and not the
+comments):
+
+| pair | ratio | verdict |
+|---|---|---|
+| A `--ink-3 #6f685b` on `--page #faf7f0` | **5.16** | pass (A's worst) |
+| A `--st-normal #1f6b45` on `#eaf4ee` | 5.75 | pass |
+| A `--st-near #0f6e6e` on `#e6f4f3` | 5.35 | pass |
+| A `--st-out #7a4408` on `#fff3e5` | 7.23 | pass |
+| A `--st-unmatched #55508c` on `#eeeef8` | 6.26 | pass |
+| A emergency `#ffffff` on `#b3261e` | 6.54 | pass |
+| A emergency ink `#b3261e` on `#fdecea` | 5.72 | pass |
+| **A `--st-missing #4a5568` on `#eef1f4`** | **6.64** | **pass — A's fix** |
+| A brand `#ffffff` on `#2f6f6b` | 5.82 | pass |
+| B `--text-03 #667085` on `--fill-01 #ffffff` | 4.97 | pass |
+| B `--text-03` on `--fill-02 #faf7f0` | 4.65 | pass |
+| B `--text-03` on `--fill-03 #f5f1e7` | **4.41** | **fail** (composition unconfirmed) |
+| B `--text-02 #4a5563` on `#ffffff` | 7.58 | pass |
+| B `#ffffff` on `--fill-05 #0f5f5b` | 7.48 | pass |
+| **B/C `--st-missing #6b7280` on `#f1f3f5`** | **4.35** | **fail — comment claims 4.8:1** |
+| B/C `--st-week #8a5300` on `#fdf3e2` | 5.76 | pass |
+| B/C `--st-emergency #b3261e` on `#fdecea` | 5.72 | pass |
+| C `--text-faint #6f685b` on `--sunken #f5f0e6` | 4.86 | pass |
+| C brand `#0f6e6e` on `#ffffff` / reversed | 6.04 | pass |
+
+Worked arithmetic for the decisive pair, `#6b7280` on `#f1f3f5`:
+sRGB `#6b7280` → (0.4196, 0.4471, 0.5020) → linear (0.1466, 0.1683, 0.2158) → L1 = 0.2126·0.1466
++ 0.7152·0.1683 + 0.0722·0.2158 = **0.1673**.
+`#f1f3f5` → (0.9451, 0.9529, 0.9608) → linear (0.8796, 0.8963, 0.9130) → L2 = **0.8949**.
+Ratio = (0.8949+0.05)/(0.1673+0.05) = 0.9449/0.2173 = **4.35:1** — below 4.5.
+
+**This is a baseline defect**: `khanesh/src/index.css:39` ships that pair with the comment
+`/* 4.8:1 */`. A is the only solution that recomputed rather than copying, caught it, and fixed
+it — `index.css:64-67` states «(جفتِ قبلی #6b7280 روی #f1f3f5 برابر ۴.۴:۱ بود — مردود.)» and
+changes the pair to `#4a5568`/`#eef1f4` = 6.64:1. B (`tokens.css:69`) and C (`index.css:60`)
+both re-declared the token in a brand-new stylesheet and carried the wrong "۴.۸:۱" comment
+across verbatim. That is precisely scoring note C3.2. It is not a DQ because the `missing`
+state is currently unreachable (`stateOf`/`verdictOf` return it only for a null `t`, and the
+tests array is null-filtered first), but the claim is false in both B's and C's own docs.
+
+**Other mechanics, counted:**
+
+| | tap-target rules (44px/`--tap`) | `@media` | `:focus-visible` | `prefers-reduced-motion` | `aria-label` | `htmlFor` | `overflow-x:auto` |
+|---|---|---|---|---|---|---|---|
+| A | 4 | 5 | 3 | 2 | 12 | 8 | 0 |
+| B | 5 | 9 | 6 | 2 | 12 | 6 | 0 |
+| C | 8 | 11 | 7 | 1 | 25 | 7 | 1 |
+
+A's low focus-rule count understates it: `index.css:146-150` is a single global
+`:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px }` that covers every
+control, replacing the baseline's three bare `outline:none` declarations (documented at
+`index.css:140-145` as a WCAG 2.4.7 break caused mechanically by inline styles being unable to
+express a pseudo-class). All three add `prefers-reduced-motion: reduce` (A `index.css:172-178`
+neutralises `*` transitions/animations/scroll-behavior globally).
+
+**Async announcement** — all three solve the baseline's silent two-minute wait, differently:
+
+- **B** is the only one with a *stable* live region: `Tafsir.jsx:812`
+  `<div className="k-sr" role="status" aria-live="polite">{liveMsg}</div>`, always mounted with
+  the comment «ناحیهٔ زنده — همیشه در DOM هست تا تغییرش اعلام شود». This is the C3 checklist
+  item verbatim ("`aria-live` region persists across the loading→result transition").
+- **A** moves focus to the result container (`Tafsir.jsx:103`, `UploadCard.jsx:206/246`
+  `tabIndex={-1}`) plus `role="status" aria-live="polite"` on the progress box (`:175`).
+- **C** moves focus to the result `<h2>` (`ResultView.jsx:350` `tabIndex={-1} ref={headingRef}`)
+  plus `aria-live="polite"` on the progress text (`AnalyzePanel.jsx:46`).
+
+All three use `role="alert"` for errors and for the emergency banner.
+
+**Scores.** A 4.5 — the C3 tie-break is explicit ("Prefer computed-and-passing over
+asserted-and-plausible"), and A is the only solution that both passes everywhere and
+demonstrably did the arithmetic. B 4.0 and C 4.0 — both ship an unverified, wrong contrast
+claim; C's substantially broader mechanics (8 tap rules, 25 aria-labels, `radiogroup`/
+`aria-pressed`, native `<label>` dropzone, an `overflow-x` container) offset B's stable live
+region and higher focus/media coverage.
+
+---
+
+### C4 — Visual design quality & design-system coherence (weight 16) — A 3.5 · B 4.5 · C 3.5
+
+This is where the three separate most sharply, and the evidence is countable.
+
+**Type scale as actually implemented** (distinct `font-size` values in the component layer):
+
+| | distinct sizes | expressed as | half-pixel values |
+|---|---|---|---|
+| A `ui.css` | **15** | raw px, every one | 10.5, 11.5, 12.5, 13.5, 14.5 |
+| B `components.css` | **9** | `var(--t-*)` tokens (2 raw escapes: `1rem`, `1.75rem`) | none |
+| C `ui.css` | **17** | raw px, every one | 10.5, 11.5, 12.5, 13.5, 14.5 |
+
+**Spacing scale adherence** (padding/margin/gap declarations):
+
+| | raw-px declarations | token-based declarations |
+|---|---|---|
+| A | **126** | **0** |
+| B | 14 | **101** |
+| C | 34 | 111 |
+
+**Residual inline styles in JSX:**
+
+| | `style={{` sites | nature |
+|---|---|---|
+| A | 4 | all CSS-custom-property data bridges (`--band-start`, `--ring-pct`) |
+| B | 3 | all data bridges — matches B's own claim exactly |
+| C | **30** | ~25 are ad-hoc magic numbers: `marginBottom: 12`, `marginTop: 12`, `width: "100%"`, `minHeight: 32` (`AnalyzePanel.jsx:39,70,80,149,153`; `LocalReview.jsx:122,153,158`; `Tafsir.jsx:414,432,456,460,479,483`) |
+
+**A — 3.5.** A's colour system is the best of the three (audited, recomputed, single source,
+`resultStates.js` stripped of all hex). Its visual voice is also the most distinctive and the
+most disciplined about restraint: the Scorecard ring ships a *count* not a score with the
+reasoning written out (`Scorecard.jsx:8-12`), and it renders statically because an animated
+sweep in front of a clinical count is a defect. But `:root` (`index.css:27-97`) defines
+colour, radius, shadow, motion and a page gutter — **and no spacing scale and no type scale at
+all**, which is why the component layer carries 126 raw spacing values and 15 ad-hoc font
+sizes including five half-pixels. That is C4's 3.0 anchor almost word for word: "a token layer
+that is real but partial: colour tokens exist while spacing/radius/shadow/type remain ad-hoc".
+Per tie-break C4 ("Prefer coherence over ambition… the systematic one wins — this is a medical
+product, and consistency IS the aesthetic"), A's greater ambition does not buy this back.
+
+**B — 4.5.** `styles/tokens.css` is the C4 5.0 description implemented: semantically numbered
+colour (`--fill-01..06`, `--text-01..05`, `--stroke-01..06`), a 10-step spacing scale
+(`:74-76`), a radius scale (`:84`), a three-step elevation scale (`:88-90`), a bounded
+9-step type scale explicitly tuned for Persian (`:92-103`, with the reasoning that weight 300
+destroys Persian letter teeth at small sizes and nothing at or below 1rem is fluid), motion
+tokens, a `--tap: 44px` target token, and `env(safe-area-inset-*)` with a documented
+explanation of why those three names are deliberately *physical* (`:120-127`). I verified B's
+claim that no hex literal exists outside `tokens.css`: the four hex matches in
+`components.css` (lines 775, 777, 886, 917) are all inside comments recording contrast ratios
+or naming the removed bootstrap `#dc3545` — none is a declared value. Claim holds. The three
+status vocabularies (`ST`, `TREND`, `STATES`) are collapsed onto the one audited palette
+(`components.css:882-887`) with deliberately distinct class prefixes so the local preview
+never looks like an engine verdict. Weakness: with no range visual, the result page is chips
+and prose — less "data as the hero" than the reference sites.
+
+**C — 3.5.** Spacing is genuinely systematic (111 token uses), and `ui.css` has zero physical
+direction properties. But 17 raw font sizes with no type token, plus ~25 ad-hoc inline spacing
+magic numbers scattered across five components, is exactly the "tidy but not authored" seam.
+Its own SOLUTION-C.md frames "~220 lines of inline style objects became two stylesheets" as
+complete; the 30 remaining `style={{` sites are not mentioned (B2: mild).
+
+All three: light-mode lock preserved (`color-scheme: light` with the native-control rationale),
+emoji retained systematically as category glyphs, and **no imported marketing patterns** — I
+grepped for pricing/membership/referral/testimonial/streak/badge/score constructs and found
+none in any of the three.
+
+---
+
+### C5 — Information architecture & UX (weight 16) — A 4.0 · B 3.5 · C 4.5
+
+**Range visualisation** — the C5 5.0 anchor's signature element:
+
+- **A is the only solution that ships one on the engine's own rows.** `RangeBand.jsx` mounted
+  at `ResultView.jsx:106-108`. Its degrade path is correct and deliberate: `parseRange`
+  (`rangeMath.js:19-28`) returns `null` for anything that is not two finite bounds — titre
+  («1/320»), qualitative («مثبت»), one-sided («<200») — and the row still renders its number
+  and range text, satisfying C1.2 ("silently dropping the row when the parse fails is not
+  [acceptable]"). The comment cites N6 by name. `bandGeometry` (`:38-55`) widens the window to
+  contain an extreme value rather than pinning the marker to the edge, with the reason written
+  out: pinning lied about position.
+- **B and C ship no range visual on engine rows at all.** B's band exists only in the local
+  manual preview (`Tafsir.jsx:1161-1163`); C's gauge only in `LocalReview.jsx:60-61`. Neither
+  answers "where does my value sit" on the surface that carries the engine's verdict.
+
+**Designed states** — C5's tie-break ("Prefer the one that designed MORE of the real states…
+Edge states are where patients get hurt"):
+
+| state | A | B | C |
+|---|---|---|---|
+| resumed job from previous visit | `UploadCard.jsx` resume banner | inherited | **`ResumeOffer` + confirm-before-clear** (`Tafsir.jsx:404-412`) |
+| analyzing, real per-page progress | `UploadCard.jsx:175` | `Tafsir.jsx:1266` | `ProgressBox` **+ `ResultSkeleton`** (`:440-449`) |
+| hard error | `warn--strong` `role=alert` | `role=alert` note | **`ErrorBox` with working retry** (`:451-453`) |
+| empty / not-yet-analyzed | — | — | **`EmptyResult`** (`:455-457`) |
+| model JSON unparseable | inherited branch | inherited branch | **`ParseErrorView` reusing the shared `ExtractedTests`** (`:462-466`) |
+| render crash | `ResultErrorBoundary` | inherited | **`ResultBoundary` with retry** (`:461`) |
+| legacy no-`_engine` | Provenance only | Provenance only | **banner caveat + standalone notice** |
+| local preview vs engine conflict | **silently suppressed** (`Tafsir.jsx:376`) | both shown, reframed | **suppressed + explained + override button** (`:478-488`) |
+| thumb-reachable CTA on phone | — | — | **sticky `k-dock`, gated on the CTA leaving the viewport** (`:511-523`) |
+
+C5.1 (the "did we read your numbers right?" confirmation): **B and C keep it before summary and
+interpretation** (B `ResultView.jsx:364`, C `:421`). **A moved it below the Scorecard**
+(`ResultView.jsx:352` then `:375`) — still before interpretation, not behind a collapse, and
+mitigated by an explicit in-scorecard link «یک نگاه به آن‌ها بیندازید» pointing at
+`#numbers-check` (`Scorecard.jsx:123-129`), with the trade recorded in a comment at
+`ResultView.jsx:8-13` so it can be reversed knowingly. A defensible but real weakening.
+
+Body-system grouping preserved in all three via `testCategories.js`, unknown keys still falling
+to «سایر». Category counts survive in all three. `analyzeJob.js` `progressText` (real per-page
+progress, not a fake percentage) retained unchanged in all three.
+
+**A 4.0** — best three-level IA (Scorecard → body-system card with anchor link → row) and the
+only real range visual, offset by the confirmation reorder and thinner state coverage.
+**B 3.5** — keeps the correct order and adds the evidence-strength ramp, but no range visual,
+fewest designed states, and the entry view is still the same flat 46-input wall in the same
+monolith. **C 4.5** — wins C5's own stated tie-break decisively on state coverage and is the
+only one to design for the phone thumb; loses ground for having no engine-row range visual.
+
+---
+
+### C6 — Code quality & maintainability (weight 8) — A 4.5 · B 3.0 · C 4.0
+
+| | largest JSX | src files | style location | inline `style={{` |
+|---|---|---|---|---|
+| baseline | `Tafsir.jsx` **1262** | 10 | inline `s`/`S` objects | many |
+| A | `ResultView.jsx` 473 / `Tafsir.jsx` **416** | 26 | `ui.css` 515 | 4 (data bridges) |
+| B | `Tafsir.jsx` **1382** | 14 | `tokens/base/components.css` | 3 (data bridges) |
+| C | `Tafsir.jsx` **526** / `ResultView.jsx` 492 | 21 | `ui.css` 601 | 30 (25 magic numbers) |
+
+**StrictMode / effects** — all three are correct and identical on the N11 fix:
+`mountedRef.current = true` **on mount** with `abortRef.current?.abort()` in cleanup (A
+`Tafsir.jsx:62-64`, B `:545-547`, C `:73-75`), and the resume effect kept deliberately separate
+and touching neither ref (A `:68-71`, B `:551-554`, C `:79-82`), each carrying the Persian
+comment explaining why. `AbortController` still cancels the in-flight analyze (A `:205-206`, B
+`:683-684`, C `:224-225`). No client-side timeout reintroduced. `localStorage` access still
+wrapped. `asText`/`asList` + error boundary retained in all three. Zero new dependencies in all
+three (`package.json` unchanged — react 19.2, react-router-dom 7, oxlint, vite 8).
+
+**A 4.5** — the only solution that genuinely decomposed: `Tafsir.jsx` 1262 → 416, the 46-test
+`REF` table lifted verbatim into `labRefs.js`, `rangeMath.js` split from `RangeBand.jsx`
+specifically so a file does not export both a component and a helper (`rangeMath.js:1-5`), and
+`imageIntake.js` carrying its failure-origin comments across. Boundaries are the clearest of
+the three.
+
+**B 3.0** — `Tafsir.jsx` **grew from 1262 to 1382 lines**, which is the C6 1.0 anchor stated
+literally ("A larger single component than the 1262-line baseline"). `REF`, `CATS`, `ST`,
+`statusOf`, `trendOf`, `comboInsights`, `asText`/`asList` and the whole render all still live
+in one file. B's style boundary is the best of the three and its stylesheet is excellent, but
+C6's tie-break is "which would be easier to modify six months from now… boundary clarity is
+[the metric]" — and B improved exactly one of the two boundaries. Not scored below 3.0 because
+the growth is genuinely comments and `aria-*`, the 134-line `s` object is gone, and lint/build
+are clean.
+
+**C 4.0** — good decomposition (526-line `Tafsir.jsx`, ten focused components including
+`ParseErrorView` and `ResultBoundary`), but the ~25 ad-hoc inline spacing styles are "partial
+inline style removal", the C6 3.0 residue, applied on top of otherwise clean work.
+
+---
+
+### C7 — Verified working (weight 6) — A 4.0 · B 4.0 · C 4.0
+
+All three: `npm run lint` exit 0 with zero oxlint diagnostics; `npm run build` exit 0 in
+under 700 ms; `dist/` produced; `dist/fonts/Vazirmatn-VF.woff2` emitted. Verbatim output in §0.
+Bundle deltas vs baseline are negligible (JS gzip: A −0.72 kB, B −1.70 kB, C +0.37 kB).
+
+**I did not run a dev server.** Per spec §0 `optional_but_valuable` I state this explicitly
+rather than inventing screenshots: no solution's runtime console output, first-paint React
+warnings, or 375/414/1024 px rendering was observed. Consequently none of the three can be
+credited with the 5.0 anchor's "page loads with no console errors" clause, and all rendered-UX
+claims above are scored from the code. All three are scored 4.0 identically — a manufactured
+spread here would be noise (spec: "identical scores on a criterion are an acceptable, honest
+outcome").
+
+---
+
+## 3. Weighted totals
+
+| criterion | w | A | B | C |
+|---|---|---|---|---|
+| C1 Patient safety & clinical integrity | 26 | 4.5 | 4.0 | 4.5 |
+| C2 Persian / RTL correctness | 14 | 4.0 | 4.5 | 4.0 |
+| C3 Accessibility (WCAG 2.2 AA) | 14 | 4.5 | 4.0 | 4.0 |
+| C4 Visual design & design-system coherence | 16 | 3.5 | 4.5 | 3.5 |
+| C5 Information architecture & UX | 16 | 4.0 | 3.5 | 4.5 |
+| C6 Code quality & maintainability | 8 | 4.5 | 3.0 | 4.0 |
+| C7 Verified working | 6 | 4.0 | 4.0 | 4.0 |
+| **weighted sum /100** | | **416** | **399** | **413** |
+| **overall** | | **4.2** | **4.0** | **4.1** |
+
+No disqualifier fired, so no cap applies; uncapped sum = capped overall for all three.
+
+**VOTE: Solution A** — by 0.03 on the raw weighted sum (416 vs 413). This is genuinely close
+and I record it as such rather than inflating the gap.
+
+**The single decisive difference:** A is the only solution whose every changed colour pair I
+computed as passing, *and* the only one that caught the failure the other two copied — baseline
+`index.css:39` ships `--st-missing #6b7280` on `#f1f3f5` labelled "4.8:1" when it is actually
+**4.35:1**; A recomputed it, fixed it to `#4a5568`/`#eef1f4` = 6.64:1, and documented the old
+failure at `index.css:64-67`, while B (`tokens.css:69`) and C (`index.css:60`) each rewrote the
+token block in a brand-new file and carried the wrong ratio comment across verbatim. Against
+otherwise near-equal C1, that 0.5 on a 14-weight criterion is the entire margin.
+
+---
+
+## 4. Mandatory dissent check
+
+**Strongest thing B does better than A:** `styles/tokens.css:92-103` is the only bounded,
+named, Persian-tuned type scale among the three; A's `ui.css` carries **15** distinct raw-px
+font sizes including 10.5/11.5/12.5/13.5/14.5px and **zero** spacing tokens against 126 raw-px
+spacing declarations. B also fixed a real Persian bidi defect that A and C both still ship —
+`ResultView.jsx:100-113`, where the «·» separator abutting a Persian digit made «۰ طبیعی · ۱
+خارج» read as «۱۰» (A `ResultView.jsx:126-127`, C `ResultView.jsx:87` are the unfixed
+construction). If C4 carried C1's weight, B would win this evaluation.
+
+**Strongest thing C does better than A:** `ResultView.jsx:374-379` renders the legacy-path
+caveat — «این هشدار را مدل زبانی نوشته و قاعده‌های بالینی ما روی آن اجرا نشده» — *inside the
+emergency banner*, the one element a patient in the emergency state is guaranteed to read; A's
+equivalent honesty lives only inside a collapsed `<details>` Provenance block
+(`ResultView.jsx:291-301`), which a frightened patient will never open. C also removes the
+disclosure control entirely from any group holding an emergency row (`:79, 92-96`) rather than
+merely defaulting it open, and where A silently suppresses the local preview once an engine
+result exists (`Tafsir.jsx:376`), C explains the suppression and offers an override
+(`Tafsir.jsx:478-488`). C's state coverage is the best in the set by a clear margin.
+
+Both are real. Neither displaces the contrast finding, which is a mechanism rather than a
+claim (bias warning B8) and which sits on the criterion whose own tie-break names exactly this
+distinction.
+
+---
+
+## 5. Final header block
+
+DISQUALIFIERS: Solution A — none
+DISQUALIFIERS: Solution B — none
+DISQUALIFIERS: Solution C — none
+
+Decisive difference: A is the only solution that recomputed the inherited colour tokens instead
+of copying their comments, catching and fixing the baseline's genuinely failing
+`--st-missing` pair (4.35:1, labelled "4.8:1") that B (`tokens.css:69`) and C (`index.css:60`)
+both carried forward verbatim into brand-new stylesheets.
+
+---
+VOTE: Solution A
+SCORES:
+  Solution A: 4.2/5.0
+  Solution B: 4.0/5.0
+  Solution C: 4.1/5.0
+CRITERIA:
+ - Patient safety & clinical integrity: A=4.5 B=4.0 C=4.5
+ - Persian / RTL correctness: A=4.0 B=4.5 C=4.0
+ - Accessibility (WCAG 2.2 AA): A=4.5 B=4.0 C=4.0
+ - Visual design quality & design-system coherence: A=3.5 B=4.5 C=3.5
+ - Information architecture & UX: A=4.0 B=3.5 C=4.5
+ - Code quality & maintainability: A=4.5 B=3.0 C=4.0
+ - Verified working: A=4.0 B=4.0 C=4.0
+---
+
