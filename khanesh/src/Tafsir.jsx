@@ -1,471 +1,33 @@
-import { useState, useMemo, useRef, useEffect, Component } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { toNumber, toFaDigits } from "./digits.js";
+import { REF, ALL, ageInMonths, statusOf } from "./labRefs.js";
+import { MAX_IMAGES, looksLikeImage, compressImage } from "./imageIntake.js";
+import { BRAND_FA } from "./Logo.jsx";
+import ProfileCard from "./ProfileCard.jsx";
+import EntryGrid from "./EntryGrid.jsx";
+import LocalPreview from "./LocalPreview.jsx";
+import UploadCard from "./UploadCard.jsx";
+import {
+  startJob, pollJob, storeJob, pendingJob,
+  lastResult, clearResult,
+} from "./analyzeJob.js";
 
-// آدرس سرور واسط (بک‌اند). اگر سرور روی پورت دیگری است، اینجا عوض کن.
-// مسیر نسبی — Nginx پراکسی می‌کند.
-// ⚠️ باگ قبلی: "http://localhost:8787/..." روی سرور کار نمی‌کند،
+// آدرس‌های بک‌اند در analyzeJob.js هستند (مسیرهای نسبی — Nginx پراکسی می‌کند).
+// ⚠️ باگ قبلی که نباید برگردد: "http://localhost:8787/..." روی سرور کار نمی‌کند،
 //    چون مرورگرِ کاربر localhost خودش را صدا می‌زند نه سرور را.
-const PROXY_URL = "/api/analyze";
+//
+// این فایل بعد از بازطراحی فقط «حالت + هندلر + ترکیب» است. جدولِ مرجع در
+// labRefs.js، دریافتِ عکس در imageIntake.js، و هر ناحیهٔ صفحه در کامپوننتِ
+// خودش نشسته — قبلاً همه‌شان یک فایلِ ۱۲۶۲ خطی بودند که ۱۸٪‌اش شیءِ استایل
+// بود، و همان مکانیزم بود که :focus-visible و مدیا-کوئری را غیرممکن می‌کرد.
 
-// ---- آپلود چند عکس ----
-const MAX_IMAGES = 5;
-const MAX_WIDTH = 1200;         // برای OCR کافی است
-const MAX_PIXELS = 6_000_000;   // سقف امن مساحت canvas (سافاری/iOS بالای ~۱۶.۷MP بلانک می‌دهد)
-const JPEG_QUALITY = 0.85;
-
-// آیا این فایل عکس است؟
-// بعضی فایل‌پیکرها (به‌خصوص روی آیفون) f.type را خالی می‌دهند،
-// پس فقط به MIME تکیه نکن — پسوند را هم چک کن.
-const IMG_EXT = /\.(jpe?g|png|gif|webp|bmp|heic|heif|tiff?)$/i;
-function looksLikeImage(file) {
-  if (file.type && file.type.startsWith("image/")) return true;
-  if (file.type) return false;              // MIME داد ولی عکس نبود
-  return IMG_EXT.test(file.name || "");     // MIME نداد → پسوند
-}
-
-// دیکود عکس با دو مسیر.
-// createImageBitmap سریع است ولی روی HEIC (عکس پیش‌فرض دوربین آیفون)
-// در خیلی از مرورگرها خطا می‌دهد. سافاری HEIC را با تگ <img> دیکود می‌کند.
-async function decodeImage(file) {
-  try {
-    const bmp = await createImageBitmap(file);
-    return { src: bmp, w: bmp.width, h: bmp.height, close: () => bmp.close() };
-  } catch {
-    // fallback — سافاری/آیفون
-    const url = URL.createObjectURL(file);
-    try {
-      const img = await new Promise((resolve, reject) => {
-        const el = new Image();
-        el.onload = () => resolve(el);
-        el.onerror = () => reject(new Error("decode_failed"));
-        el.src = url;
-      });
-      return {
-        src: img,
-        w: img.naturalWidth,
-        h: img.naturalHeight,
-        close: () => URL.revokeObjectURL(url),
-      };
-    } catch (e) {
-      URL.revokeObjectURL(url);
-      throw e;
-    }
-  }
-}
-
-// فشرده‌سازی: عکس موبایل ۸ مگابایتی → ~۴۰۰ کیلوبایت.
-// این هم آپلود را سریع می‌کند، هم AvalAI را، هم از سقف بدنه رد نمی‌شود.
-async function compressImage(file, maxWidth = MAX_WIDTH, quality = JPEG_QUALITY) {
-  const dec = await decodeImage(file);
-  try {
-    if (!dec.w || !dec.h) throw new Error("decode_failed");
-    // هم عرض را محدود می‌کنیم هم مساحت کل را. قبلاً فقط عرض محدود می‌شد؛
-    // یک برگهٔ بلند (مثلاً ۳۰۰۰×۱۲۰۰۰) بعد از مقیاسِ عرض هنوز از سقف پیکسل
-    // مرورگر رد می‌شد و canvas خالی/بریده برمی‌گشت — بی‌آنکه toDataURL خطا دهد.
-    const widthScale = Math.min(1, maxWidth / dec.w);
-    const areaScale = Math.min(1, Math.sqrt(MAX_PIXELS / (dec.w * dec.h)));
-    const scale = Math.min(widthScale, areaScale);
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(dec.w * scale));
-    canvas.height = Math.max(1, Math.round(dec.h * scale));
-    const ctx = canvas.getContext("2d");
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(dec.src, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", quality);
-  } finally {
-    dec.close();
-  }
-}
-
-// ============================================================
-// خوانش — نسخه با تفسیر آموزشی غنی
-// محدوده‌ها: استاندارد بین‌المللی
-// متن‌های تفسیری و آستانه‌های بحرانی: برگرفته از منابع فارسی
-// crit: [low, high] آستانه بحرانی (خارج از آن = هشدار فوری)
-// ============================================================
-
-// تبدیل سن به ماه، بر اساس واحد (year/month/day)
-// خروجی: تعداد ماه (برای تشخیص نوزاد). اگر نامعتبر، null.
-function ageInMonths(age, ageUnit) {
-  const a = parseFloat(age);
-  if (isNaN(a)) return null;
-  if (ageUnit === "day") return a / 30;
-  if (ageUnit === "month") return a;
-  return a * 12; // سال (پیش‌فرض)
-}
-
-const REF = {
-  // ---------- قند و دیابت ----------
-  fbs: { label: "FBS (قند خون ناشتا)", unit: "mg/dL", cat: "diabetes", hard: [20, 800],
-    range: () => ({ low: 70, high: 99 }), crit: [40, 500],
-    about: "قند خون ناشتا سطح گلوکز پس از حداقل ۸ ساعت ناشتایی را می‌سنجد.",
-    high: "۱۰۰ تا ۱۲۵ پیش‌دیابت و ۱۲۶ به بالا می‌تواند نشانه‌ای از دیابت باشد.",
-    low: "قند پایین؛ می‌تواند به ناشتایی طولانی، دارو یا موارد دیگر مربوط باشد." },
-  hba1c: { label: "HbA1c", unit: "%", cat: "diabetes", hard: [3, 20],
-    range: () => ({ low: 4, high: 5.6 }),
-    about: "میانگین قند خون طی دو تا سه ماه گذشته را نشان می‌دهد.",
-    high: "۵.۷ تا ۶.۴ پیش‌دیابت و ۶.۵ به بالا می‌تواند نشانه دیابت باشد.",
-    low: "مقادیر پایین معمولاً نگران‌کننده نیست." },
-
-  // ---------- چربی ----------
-  chol: { label: "Cholesterol (کلسترول تام)", unit: "mg/dL", cat: "heart", hard: [50, 600],
-    range: () => ({ low: 0, high: 200 }),
-    about: "مجموع کلسترول خون؛ شاخصی از سلامت قلب و عروق.",
-    high: "۲۰۰ تا ۲۳۹ مرزی و ۲۴۰ به بالا بالا؛ با خطر بیماری قلبی مرتبط است." },
-  tg: { label: "TG (تری‌گلیسیرید)", unit: "mg/dL", cat: "heart", hard: [20, 2000],
-    range: () => ({ low: 0, high: 150 }),
-    about: "نوعی چربی خون که با مصرف قند و نشاسته بالا می‌رود.",
-    high: "۱۵۰ تا ۱۹۹ مرزی، ۲۰۰ تا ۴۹۹ بالا و ۵۰۰ به بالا بسیار بالا." },
-  hdl: { label: "HDL (کلسترول خوب)", unit: "mg/dL", cat: "heart", hard: [10, 150],
-    range: (s) => s === "female" ? { low: 50, high: 100 } : { low: 40, high: 100 },
-    about: "کلسترول «خوب» که نقش محافظتی در برابر بیماری قلبی دارد.",
-    low: "زیر ۴۰ ریسک قلبی، ۴۰ تا ۶۰ متوسط و بالای ۶۰ مطلوب است." },
-  ldl: { label: "LDL (کلسترول بد)", unit: "mg/dL", cat: "heart", hard: [20, 400],
-    range: () => ({ low: 0, high: 129 }),
-    about: "کلسترول «بد» که با رسوب در عروق مرتبط است.",
-    high: "بالای ۱۰۰ مطلوب نیست؛ هدف بسته به عوامل خطر فردی متفاوت است." },
-
-  // ---------- کلیه ----------
-  urea: { label: "Urea (اوره)", unit: "mg/dL", cat: "kidney", hard: [3, 300],
-    range: () => ({ low: 15, high: 45 }), crit: [0, 214],
-    about: "محصول فرعی متابولیسم پروتئین؛ شاخص عملکرد کلیه.",
-    high: "بالا می‌تواند به عملکرد کلیه یا کم‌آبی مربوط باشد." },
-  bun: { label: "BUN", unit: "mg/dL", cat: "kidney", hard: [2, 150],
-    range: () => ({ low: 7, high: 20 }), crit: [0, 70],
-    about: "نیتروژن اوره خون؛ شاخص عملکرد کلیه.",
-    high: "بالا می‌تواند به کاهش عملکرد کلیه یا کم‌آبی مربوط باشد." },
-  cr: { label: "Creatinine (کراتینین)", unit: "mg/dL", cat: "kidney", hard: [0.1, 20],
-    range: (s) => s === "female" ? { low: 0.5, high: 1.1 } : { low: 0.6, high: 1.2 }, crit: [0, 5],
-    about: "از توده عضلانی تولید می‌شود؛ شاخص مهم عملکرد کلیه.",
-    high: "بالا می‌تواند نشانه کاهش عملکرد کلیه باشد و نیاز به بررسی دارد." },
-  uric: { label: "Uric Acid (اسید اوریک)", unit: "mg/dL", cat: "kidney", hard: [0.5, 20],
-    range: (s) => s === "female" ? { low: 2.5, high: 6.2 } : { low: 3.5, high: 7.2 },
-    about: "محصول متابولیسم پورین؛ بالا بودن با نقرس مرتبط است.",
-    high: "بالا می‌تواند با نقرس یا سنگ کلیه مرتبط باشد." },
-
-  // ---------- کبد ----------
-  ast: { label: "AST (SGOT)", unit: "U/L", cat: "liver", hard: [0, 2000],
-    range: () => ({ low: 0, high: 40 }),
-    about: "آنزیم کبد، قلب و عضلات؛ بالا بودن نشانه آسیب بافتی.",
-    high: "بالا می‌تواند به آسیب کبدی، عضلانی یا قلبی مربوط باشد." },
-  alt: { label: "ALT (SGPT)", unit: "U/L", cat: "liver", hard: [0, 2000],
-    range: (s) => s === "female" ? { low: 0, high: 33 } : { low: 0, high: 41 },
-    about: "آنزیم کبدی و شاخص اختصاصی‌تر آسیب کبد.",
-    high: "بالا اغلب نشانه التهاب یا آسیب کبد است." },
-  alp: { label: "ALP (آلکالن فسفاتاز)", unit: "U/L", cat: "liver", hard: [0, 2000],
-    range: (s) => s === "female" ? { low: 35, high: 104 } : { low: 40, high: 129 },
-    about: "آنزیم کبد، استخوان و روده.",
-    high: "بالا می‌تواند به مشکلات کبدی، صفراوی یا استخوانی مربوط باشد.",
-    low: "پایین معمولاً اهمیت بالینی کمی دارد." },
-  bili: { label: "Bilirubin Total (بیلی‌روبین تام)", unit: "mg/dL", cat: "liver", hard: [0, 40],
-    range: () => ({ low: 0, high: 1.4 }), critFn: (v, sex, m) => { if (m != null && m < 6 && v > 15) return true; return false; },
-    about: "محصول تجزیه گلبول قرمز؛ بالا بودن باعث زردی می‌شود.",
-    high: "بالا می‌تواند به مشکلات کبدی، صفراوی یا همولیز مربوط باشد." },
-  albumin: { label: "Albumin (آلبومین)", unit: "g/dL", cat: "liver", hard: [1, 8],
-    range: () => ({ low: 3.5, high: 5.0 }),
-    about: "پروتئین اصلی خون که کبد می‌سازد.",
-    low: "پایین می‌تواند نشانه مشکل کبد، کلیه یا تغذیه باشد." },
-  amylase: { label: "Amylase (آمیلاز)", unit: "U/L", cat: "liver", hard: [5, 5000],
-    range: () => ({ low: 30, high: 110 }), crit: [0, 330],
-    about: "آنزیم گوارشی؛ بالا بودن با پانکراتیت مرتبط است.",
-    high: "بالا (به‌ویژه بیش از ۳ برابر نرمال) می‌تواند نشانه پانکراتیت حاد باشد و نیاز به بررسی فوری دارد." },
-  ldh: { label: "LDH", unit: "U/L", cat: "liver", hard: [50, 5000],
-    range: () => ({ low: 235, high: 470 }),
-    about: "آنزیمی در بیشتر سلول‌های بدن؛ بالا بودن نشانه‌ی آسیب بافتی (کبد، خون، عضله و...) است.",
-    high: "بالا می‌تواند به آسیب کبدی، همولیز (شکستن گلبول قرمز)، آسیب عضلانی یا موارد دیگر مربوط باشد." },
-
-  // ---------- الکترولیت ----------
-  na: { label: "Na (سدیم)", unit: "mmol/L", cat: "electro", hard: [100, 200],
-    range: () => ({ low: 135, high: 145 }), crit: [120, 160],
-    about: "مهم‌ترین یون خارج سلولی؛ در تعادل آب نقش دارد.",
-    high: "بالا اغلب به کم‌آبی مربوط است.", low: "پایین می‌تواند به احتباس آب یا از دست دادن سدیم مربوط باشد." },
-  k: { label: "K (پتاسیم)", unit: "mmol/L", cat: "electro", hard: [1, 10],
-    range: () => ({ low: 3.5, high: 5.0 }), crit: [3.0, 6.5],
-    about: "یون حیاتی برای عملکرد قلب و عضلات.",
-    high: "بالا (هایپرکالمی) می‌تواند خطر آریتمی قلبی ایجاد کند و نیاز به بررسی فوری دارد.",
-    low: "پایین (هایپوکالمی) می‌تواند به اسهال، استفراغ یا دارو مربوط باشد." },
-  ca: { label: "Ca (کلسیم)", unit: "mg/dL", cat: "electro", hard: [4, 16],
-    range: () => ({ low: 8.5, high: 10.2 }), crit: [6.9, 12.6],
-    about: "برای استخوان، عضله و انعقاد خون ضروری است.",
-    high: "بالا می‌تواند به مشکلات پاراتیروئید یا موارد دیگر مربوط باشد.",
-    low: "پایین می‌تواند به کمبود ویتامین D یا پاراتیروئید مربوط باشد." },
-  phos: { label: "Phosphorus (فسفر)", unit: "mg/dL", cat: "electro", hard: [0.5, 12],
-    range: () => ({ low: 2.5, high: 4.5 }),
-    about: "برای استخوان و انرژی سلولی لازم است؛ در کنار کلسیم تفسیر می‌شود.",
-    high: "بالا می‌تواند به مشکل کلیه مربوط باشد.",
-    low: "پایین می‌تواند به سوءتغذیه یا اختلال جذب مربوط باشد." },
-  mg: { label: "Mg (منیزیم)", unit: "mg/dL", cat: "electro", hard: [0.5, 6],
-    range: () => ({ low: 1.7, high: 2.2 }), crit: [0.9, 3.5],
-    about: "در عملکرد عضله و قلب نقش دارد.",
-    high: "بالا می‌تواند به مشکل کلیه یا مصرف مکمل مربوط باشد.",
-    low: "پایین می‌تواند به مشکلات عضلانی و قلبی منجر شود." },
-
-  // ---------- آهن ----------
-  ferritin: { label: "Ferritin (فریتین)", unit: "ng/mL", cat: "iron", hard: [1, 3000],
-    range: (s) => s === "female" ? { low: 15, high: 150 } : { low: 30, high: 300 },
-    about: "ذخیره آهن بدن را نشان می‌دهد.",
-    low: "پایین نشانه کاهش ذخایر آهن است و می‌تواند به کم‌خونی منجر شود.",
-    high: "بالا می‌تواند به التهاب یا اضافه‌بار آهن مربوط باشد." },
-  iron: { label: "Iron (آهن)", unit: "µg/dL", cat: "iron", hard: [10, 400],
-    range: () => ({ low: 60, high: 170 }),
-    about: "آهن سرم؛ در ساخت هموگلوبین نقش دارد.",
-    low: "پایین می‌تواند نشانه کم‌خونی فقر آهن باشد." },
-  tibc: { label: "TIBC", unit: "µg/dL", cat: "iron", hard: [100, 700],
-    range: () => ({ low: 240, high: 450 }),
-    about: "ظرفیت اتصال آهن؛ در کم‌خونی فقر آهن بالا می‌رود.",
-    high: "بالا اغلب همراه با کمبود آهن دیده می‌شود." },
-
-  // ---------- CBC ----------
-  wbc: { label: "WBC (گلبول سفید)", unit: "×10³/µL", cat: "cbc", hard: [0.5, 100],
-    range: () => ({ low: 4.5, high: 11 }), crit: [2.0, 30],
-    about: "سلول‌های دفاعی بدن که با عفونت مبارزه می‌کنند.",
-    high: "بالا اغلب نشانه عفونت، التهاب یا استرس است.",
-    low: "پایین می‌تواند به مشکل مغز استخوان، عفونت شدید یا دارو مربوط باشد." },
-  rbc: { label: "RBC (گلبول قرمز)", unit: "×10⁶/µL", cat: "cbc", hard: [1, 10],
-    range: (s, m) => {
-      if (m != null && m < 1) return { low: 4.0, high: 6.1 };
-      if (m != null && m < 6) return { low: 3.8, high: 5.5 };
-      return s === "female" ? { low: 4.0, high: 5.2 } : { low: 4.5, high: 5.9 };
-    },
-    about: "سلول‌های حامل اکسیژن.",
-    low: "پایین می‌تواند به کم‌خونی، فقر آهن یا کمبود B12 مربوط باشد.",
-    high: "بالا می‌تواند به کم‌آبی، زندگی در ارتفاع یا موارد دیگر مربوط باشد." },
-  hb: { label: "Hb (هموگلوبین)", unit: "g/dL", cat: "cbc", hard: [3, 25],
-    range: (s, m) => {
-      if (m != null && m < 1) return { low: 11, high: 24 };
-      if (m != null && m < 6) return { low: 9.5, high: 18 };
-      return s === "female" ? { low: 12.0, high: 16.0 } : { low: 13.5, high: 17.5 };
-    }, crit: [7, 20],
-    about: "رنگدانه حامل اکسیژن در گلبول قرمز.",
-    low: "پایین نشانه کم‌خونی است و نیاز به بررسی دارد.",
-    high: "بالا می‌تواند به کم‌آبی یا موارد دیگر مربوط باشد." },
-  hct: { label: "HCT (هماتوکریت)", unit: "%", cat: "cbc", hard: [10, 70],
-    range: (s, m) => {
-      if (m != null && m < 1) return { low: 35, high: 70 };
-      if (m != null && m < 6) return { low: 29, high: 42 };
-      return s === "female" ? { low: 36.0, high: 46.0 } : { low: 41.0, high: 53.0 };
-    },
-    about: "نسبت حجم گلبول قرمز به کل خون.",
-    low: "پایین اغلب همراه با کم‌خونی است.",
-    high: "بالا می‌تواند به کم‌آبی یا تولید بیش از حد گلبول قرمز مربوط باشد." },
-  mcv: { label: "MCV", unit: "fl", cat: "cbc", hard: [40, 130],
-    range: () => ({ low: 80, high: 100 }),
-    about: "میانگین حجم گلبول قرمز؛ در تشخیص نوع کم‌خونی کمک می‌کند.",
-    low: "پایین می‌تواند نشانه کم‌خونی فقر آهن باشد.",
-    high: "بالا می‌تواند به کمبود B12 یا فولات مربوط باشد." },
-  mch: { label: "MCH", unit: "pg", cat: "cbc", hard: [10, 50],
-    range: () => ({ low: 27, high: 33 }),
-    about: "میانگین مقدار هموگلوبین در هر گلبول قرمز.",
-    low: "پایین می‌تواند نشانه کم‌خونی فقر آهن باشد." },
-  mchc: { label: "MCHC", unit: "g/dL", cat: "cbc", hard: [25, 40],
-    range: () => ({ low: 32, high: 36 }),
-    about: "غلظت متوسط هموگلوبین در گلبول قرمز.",
-    low: "پایین با کم‌خونی هیپوکروم مرتبط است." },
-  plt: { label: "PLT (پلاکت)", unit: "×10³/µL", cat: "cbc", hard: [10, 1500],
-    range: () => ({ low: 150, high: 400 }), crit: [50, 1000],
-    about: "در انعقاد خون و جلوگیری از خونریزی نقش دارند.",
-    low: "پایین می‌تواند خطر خونریزی را افزایش دهد و نیاز به بررسی دارد.",
-    high: "بالا می‌تواند واکنشی یا نیازمند بررسی باشد." },
-  esr: { label: "ESR", unit: "mm/hr", cat: "cbc", hard: [0, 150],
-    range: (s) => s === "female" ? { low: 0, high: 20 } : { low: 0, high: 15 },
-    about: "سرعت رسوب گلبول قرمز؛ شاخص غیراختصاصی التهاب.",
-    high: "بالا می‌تواند نشانه التهاب، عفونت یا بیماری روماتیسمی باشد." },
-  rdw: { label: "RDW", unit: "%", cat: "cbc", hard: [5, 30],
-    range: () => ({ low: 11.5, high: 14.5 }),
-    about: "میزان یکنواختی اندازه گلبول‌های قرمز.",
-    high: "بالا می‌تواند به کم‌خونی فقر آهن یا کمبود ویتامین مربوط باشد." },
-
-  // ---------- انعقاد ----------
-  pt: { label: "PT", unit: "sec", cat: "coag", hard: [5, 60],
-    range: () => ({ low: 11, high: 13.5 }),
-    about: "زمان پروترومبین؛ مسیر انعقاد خون را می‌سنجد.",
-    high: "بالا می‌تواند به دارو (وارفارین)، مشکل کبد یا کمبود ویتامین K مربوط باشد." },
-  inr: { label: "INR", unit: "", cat: "coag", hard: [0.3, 12],
-    range: () => ({ low: 0.9, high: 1.1 }), crit: [0, 6.0],
-    about: "نسبت نرمال‌شده PT؛ برای پایش داروی ضدانعقاد استفاده می‌شود.",
-    high: "بالای ۵ خطر خونریزی جدی دارد و نیاز به بررسی فوری است." },
-  ptt: { label: "PTT", unit: "sec", cat: "coag", hard: [10, 120],
-    range: () => ({ low: 24, high: 35 }), crit: [0, 120],
-    about: "زمان ترومبوپلاستین نسبی؛ مسیر دیگر انعقاد را می‌سنجد.",
-    high: "بالا می‌تواند به دارو (هپارین) یا اختلالات انعقادی مربوط باشد." },
-
-  // ---------- تیروئید ----------
-  tsh: { label: "TSH", unit: "µIU/mL", cat: "thyroid", hard: [0.01, 100],
-    range: () => ({ low: 0.5, high: 4.5 }),
-    about: "هورمون محرک تیروئید؛ اصلی‌ترین آزمایش عملکرد تیروئید.",
-    high: "بالا (با T4 طبیعی) می‌تواند نشانه کم‌کاری تیروئید باشد.",
-    low: "پایین می‌تواند نشانه پرکاری تیروئید باشد." },
-  t4: { label: "Total T4 (T4 تام)", unit: "µg/dL", cat: "thyroid", hard: [1, 30],
-    range: () => ({ low: 5, high: 12 }),
-    about: "هورمون تیروکسین؛ در کنار TSH تفسیر می‌شود.",
-    high: "بالا می‌تواند به پرکاری تیروئید مربوط باشد.",
-    low: "پایین می‌تواند به کم‌کاری تیروئید مربوط باشد." },
-  t3_ngdl: { label: "Total T3 (ng/dL)", unit: "ng/dL", cat: "thyroid", hard: [20, 600],
-    range: () => ({ low: 80, high: 180 }),
-    about: "هورمون تری‌یدوتیرونین (واحد متعارف)؛ در کنار TSH و T4 تفسیر می‌شود.",
-    high: "بالا می‌تواند به پرکاری تیروئید مربوط باشد.",
-    low: "پایین در کنار سایر هورمون‌ها تفسیر می‌شود." },
-  t3_nmol: { label: "Total T3 (nmol/L)", unit: "nmol/L", cat: "thyroid", hard: [0.3, 10],
-    range: () => ({ low: 1.6, high: 3.1 }),
-    about: "هورمون تری‌یدوتیرونین (واحد SI)؛ در کنار TSH و T4 تفسیر می‌شود.",
-    high: "بالا می‌تواند به پرکاری تیروئید مربوط باشد.",
-    low: "پایین در کنار سایر هورمون‌ها تفسیر می‌شود." },
-  ft4: { label: "Free T4", unit: "ng/dL", cat: "thyroid", hard: [0.1, 8],
-    range: () => ({ low: 0.7, high: 2.0 }),
-    about: "تیروکسین آزاد؛ شکل فعال هورمون.",
-    high: "بالا می‌تواند به پرکاری تیروئید مربوط باشد.",
-    low: "پایین می‌تواند به کم‌کاری تیروئید مربوط باشد." },
-
-  // ---------- ویتامین ----------
-  vitd: { label: "Vitamin D (25-OH)", unit: "ng/mL", cat: "vitamin", hard: [3, 200],
-    range: () => ({ low: 30, high: 100 }),
-    about: "برای جذب کلسیم و سلامت استخوان ضروری است.",
-    low: "کمتر از ۲۰ کمبود و ۲۰ تا ۲۹ ناکافی؛ کمبود بسیار شایع است." },
-  b12: { label: "Vitamin B12", unit: "pg/mL", cat: "vitamin", hard: [50, 2000],
-    range: () => ({ low: 200, high: 900 }),
-    about: "برای سلول‌های عصبی و ساخت گلبول قرمز لازم است.",
-    low: "پایین می‌تواند به مشکلات عصبی و کم‌خونی منجر شود." },
-  folate: { label: "Folate (فولات)", unit: "ng/mL", cat: "vitamin", hard: [1, 40],
-    range: () => ({ low: 5, high: 25 }),
-    about: "برای ساخت گلبول قرمز و سلامت سلول لازم است.",
-    low: "پایین می‌تواند به کم‌خونی مربوط باشد." },
-};
-
-const CATS = {
-  diabetes: { label: "قند و دیابت", icon: "🩸" },
-  heart: { label: "چربی خون", icon: "❤️" },
-  kidney: { label: "کلیه", icon: "🧪" },
-  liver: { label: "کبد", icon: "🫀" },
-  electro: { label: "الکترولیت", icon: "⚡" },
-  iron: { label: "آهن", icon: "🔩" },
-  cbc: { label: "شمارش خون (CBC)", icon: "🩺" },
-  coag: { label: "انعقاد", icon: "🩹" },
-  thyroid: { label: "تیروئید", icon: "🧬" },
-  vitamin: { label: "ویتامین", icon: "🦴" },
-};
-
-const ST = {
-  ok:   { fa: "🟢", label: "طبیعی", fg: "#0f5132", bg: "#d1e7dd", bar: "#198754" },
-  watch:{ fa: "🔵", label: "نیاز به پیگیری", fg: "#0a4b78", bg: "#cfe8f5", bar: "#3d8fc0" },
-  below:{ fa: "🟡", label: "پایین", fg: "#664d03", bg: "#fff3cd", bar: "#e0a800" },
-  above:{ fa: "🔴", label: "بالا",  fg: "#842029", bg: "#f8d7da", bar: "#dc3545" },
-  crit: { fa: "🚨", label: "بحرانی", fg: "#fff", bg: "#dc3545", bar: "#b02a37" },
-};
-
-function statusOf(key, v, sex, months) {
-  const m = REF[key];
-  const r = m.range(sex, months);
-  // بررسی بحرانی:
-  // اول critFn: منطق سفارشی مثل بیلی‌روبین نوزاد
-  if (m.critFn && m.critFn(v, sex, months)) return "crit";
-  // سپس crit: بازه ثابت، خارج از آن = بحرانی
-  if (m.crit) {
-    if (v < m.crit[0] || v > m.crit[1]) return "crit";
-  }
-  // تست‌هایی که crit یا critFn ندارند، هرگز بحرانی نمی‌شوند (فقط بالا/پایین)
-  if (v < r.low) return "below";
-  if (v > r.high) return "above";
-  // نیاز به پیگیری: در محدوده طبیعی ولی نزدیک مرز (۱۰٪ لبه‌ها)
-  const width = (r.high - r.low) || 1;
-  const margin = width * 0.1;
-  if (v <= r.low + margin || v >= r.high - margin) return "watch";
-  return "ok";
-}
-
-// جهت مطلوب هر تست: آیا نزدیک شدن به محدوده = بهبود؟
-// برای همه تست‌ها، حرکت به سمت محدوده طبیعی = بهبود در نظر گرفته می‌شود.
-function trendOf(key, prev, curr, sex, months) {
-  if (prev === undefined || prev === "" || curr === undefined || curr === "") return null;
-  const p = parseFloat(prev), c = parseFloat(curr);
-  if (isNaN(p) || isNaN(c)) return null;
-  if (p === c) return { dir: "same", delta: 0 };
-  const r = REF[key].range(sex, months);
-  const mid = (r.low + r.high) / 2;
-  // فاصله از مرکز محدوده طبیعی
-  const distPrev = Math.abs(p - mid);
-  const distCurr = Math.abs(c - mid);
-  // اگر هر دو در محدوده طبیعی‌اند، تغییر کوچک را خنثی در نظر بگیر
-  const prevOk = p >= r.low && p <= r.high;
-  const currOk = c >= r.low && c <= r.high;
-  const delta = c - p;
-  let dir;
-  if (prevOk && currOk) dir = "same";      // هر دو طبیعی
-  else if (distCurr < distPrev) dir = "better"; // به محدوده نزدیک‌تر شد
-  else dir = "worse";                        // از محدوده دورتر شد
-  return { dir, delta };
-}
-
-const TREND = {
-  better: { icon: "⬇", label: "بهبود", fg: "#0f5132", bg: "#d1e7dd" },
-  worse:  { icon: "⬆", label: "بدتر", fg: "#842029", bg: "#f8d7da" },
-  same:   { icon: "＝", label: "بدون تغییر", fg: "#6f685b", bg: "#f0ebe0" },
-};
-
-// تفسیر ترکیبی: بررسی الگوهای چند-تستی
-function comboInsights(getVal, sex, months) {
-  const out = [];
-  const num = (k) => {
-    const v = parseFloat(getVal(k));
-    return isNaN(v) ? null : v;
-  };
-  // «پایین بودن» هموگلوبین سن/جنس‌محور است (مرد ~۱۳.۵، نوزاد بسیار بالاتر).
-  // قبلاً hb < 12 هاردکد بود و روی مرد و نوزاد کاذب فعال می‌شد؛ حالا از خودِ REF می‌آید.
-  const belowRange = (k, v) => v !== null && v < REF[k].range(sex, months).low;
-  const fbs = num("fbs"), tg = num("tg"), hdl = num("hdl"), chol = num("chol");
-  const hb = num("hb"), ferritin = num("ferritin"), mcv = num("mcv");
-  const tsh = num("tsh"), t4 = num("t4");
-  const hbLow = belowRange("hb", hb);
-
-  // مقاومت به انسولین / سندروم متابولیک
-  if (fbs !== null && fbs >= 100 && tg !== null && tg >= 150) {
-    out.push("قند ناشتای بالا همراه با تری‌گلیسیرید بالا می‌تواند نشانه‌ای از مقاومت به انسولین یا سندروم متابولیک باشد. بررسی توسط پزشک توصیه می‌شود.");
-  }
-  // چربی نامطلوب
-  if (hdl !== null && chol !== null && chol >= 200 && hdl < 40) {
-    out.push("کلسترول تام بالا همراه با HDL پایین، الگوی نامطلوب چربی است و با خطر قلبی-عروقی مرتبط است.");
-  }
-  // کم‌خونی فقر آهن
-  if (hbLow && ferritin !== null && ferritin < 30) {
-    out.push("هموگلوبین پایین همراه با فریتین پایین، الگوی شایع کم‌خونی فقر آهن است.");
-  }
-  if (hbLow && mcv !== null && mcv < 80) {
-    out.push("هموگلوبین پایین همراه با MCV پایین (کم‌خونی میکروسیتیک) اغلب به کمبود آهن مربوط است.");
-  }
-  // کم‌کاری تیروئید
-  if (tsh !== null && tsh > 4.5 && t4 !== null && t4 < 5) {
-    out.push("TSH بالا همراه با T4 پایین می‌تواند نشانه‌ای از کم‌کاری تیروئید باشد.");
-  }
-  return out;
-}
-
-const ALL = Object.keys(REF);
-
-// ---- رندر امن خروجی مدل ----
-// خروجی JSON مدل ممکن است رشته نباشد (شیء/آرایه). React موقع رندرِ مستقیمِ یک
-// شیء crash می‌کند و چون Error Boundary نبود، کل صفحه سفید می‌شد.
-function asText(v) {
-  if (v == null) return "";
-  if (typeof v === "string") return v;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
-  try { return JSON.stringify(v); } catch { return ""; }
-}
-function asList(v) {
-  if (Array.isArray(v)) return v;
-  if (v == null || v === "") return [];
-  return [v];
-}
-
-// مرز خطای رندر — اگر با وجود کمک‌تابع‌های بالا باز هم رندر شکست، فقط این بخش
-// پیام خطا نشان می‌دهد، نه اینکه کل برنامه بلانک شود.
-class ResultErrorBoundary extends Component {
-  constructor(props) { super(props); this.state = { failed: false }; }
-  static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(err) { console.error("رندر نتایج شکست:", err); }
-  render() {
-    if (this.state.failed) {
-      return <div style={s.errBox}>نمایش این نتیجه با مشکل مواجه شد. لطفاً دوباره تلاش کنید.</div>;
-    }
-    return this.props.children;
-  }
+function BrandMark() {
+  return (
+    <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="2.5" />
+      <path d="M16 2 A14 14 0 0 0 16 30 Z" fill="currentColor" />
+    </svg>
+  );
 }
 
 export default function Tafsir() {
@@ -475,7 +37,7 @@ export default function Tafsir() {
   const [pregnant, setPregnant] = useState(false);
   const [conditions, setConditions] = useState([]); // آرایه بیماری‌های زمینه‌ای
   const [vals, setVals] = useState({});
-  const [activeCat, setActiveCat] = useState("diabetes");
+  const [activeCat, setActiveCat] = useState("cbc");
   const [show, setShow] = useState(false);
   const [expanded, setExpanded] = useState({});
   const [compareMode, setCompareMode] = useState(false);
@@ -487,9 +49,11 @@ export default function Tafsir() {
   const [ioError, setIoError] = useState("");   // خطای واردات/خروجی JSON
   const [images, setImages] = useState([]);      // [{id, dataUrl, sizeKB, origKB}]
   const [imgBusy, setImgBusy] = useState(false);
-  const fileRef = useRef(null);
+  const [aiProgress, setAiProgress] = useState(null);   // پیشرفتِ واقعیِ صفحه‌به‌صفحه
+  const [resumed, setResumed] = useState(null);         // نتیجهٔ ذخیره‌شدهٔ بازدید قبلی
   const abortRef = useRef(null);      // برای لغو fetch در حال اجرا
   const mountedRef = useRef(true);    // جلوگیری از setState روی کامپوننت unmount‌شده
+  const resultRef = useRef(null);     // برای بردنِ فوکوس به نتیجه
 
   // اگر کاربر وسط درخواست از صفحه خارج شود، درخواست را لغو کن.
   // ⚠️ mountedRef را حتماً موقع mount دوباره true کن — وگرنه در StrictMode (dev)
@@ -500,13 +64,57 @@ export default function Tafsir() {
     return () => { mountedRef.current = false; abortRef.current?.abort(); };
   }, []);
 
+  // بازیابی پس از قفل شدن گوشی / بستن تب / رفتن به اپ دیگر.
+  // ⚠️ عمداً افکتِ جداگانه‌ای است و به mountedRef/abortRef دست نمی‌زند —
+  //    جدا کردنِ آن رف‌ها از افکتِ بالا دقیقاً همان کاری است که باگِ
+  //    چرخشِ بی‌پایانِ StrictMode را ساخت.
+  useEffect(() => {
+    const job = pendingJob();
+    if (job) {
+      // کارِ ناتمام: دوباره وصل شو، انگار هیچ‌وقت قطع نشده بود
+      setAiLoading(true);
+      setAiProgress({ pagesTotal: job.pagesTotal ?? 0, pagesDone: 0 });
+      const controller = new AbortController();
+      abortRef.current = controller;
+      pollJob(job.id, {
+        signal: controller.signal,
+        // merge، نه جایگزینی: فراخوانیِ degraded فقط همان یک کلید را دارد
+        //                     و نباید pagesDone/pagesTotal را پاک کند.
+        onProgress: (p) => {
+          if (mountedRef.current) setAiProgress((prev) => ({ ...prev, ...p }));
+        },
+      })
+        .then((result) => { if (mountedRef.current) { setAiResult(result); setShow(true); } })
+        .catch((e) => {
+          if (!mountedRef.current || e.name === "AbortError") return;
+          setAiError(e.message);
+        })
+        .finally(() => { if (mountedRef.current) { setAiLoading(false); setAiProgress(null); } });
+      return;
+    }
+    // کارِ ناتمامی نیست، ولی نتیجهٔ اخیری هست — پیشنهادش بده، تحمیلش نکن
+    const last = lastResult();
+    if (last) setResumed(last);
+  }, []);
+
+  // وقتی نتیجه آمد، فوکوس و اسکرول برود سرِ نتیجه.
+  // قبلاً فوکوس روی دکمه می‌ماند و نتیجه چند صفحه پایین‌تر رندر می‌شد؛ برای
+  // کاربرِ کیبورد و اسکرین‌ریدر یعنی «هیچ اتفاقی نیفتاد».
+  // ⚠️ افکتِ سومِ مستقل است و عمداً نه mountedRef را لمس می‌کند نه abortRef —
+  //    قاطی کردنشان همان باگِ چرخشِ بی‌پایان را برمی‌گرداند.
+  useEffect(() => {
+    if (!aiResult) return;
+    const el = resultRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({ block: "start" });
+  }, [aiResult]);
+
   // سن به ماه (برای تشخیص نوزاد). اگر واحد سال باشد، ماه معادل آن.
   const months = ageInMonths(age, ageUnit);
 
-  function set(k, v) { setVals((s) => ({ ...s, [k]: v })); }
-  const catKeys = search.trim()
-    ? ALL.filter((k) => REF[k].label.includes(search.trim()) || k.includes(search.trim().toLowerCase()))
-    : ALL.filter((k) => REF[k].cat === activeCat);
+  const setVal = (k, v) => setVals((s) => ({ ...s, [k]: v }));
+  const setPrevVal = (k, v) => setPrevVals((s) => ({ ...s, [k]: v }));
 
   const { rows, errs, criticalCount } = useMemo(() => {
     const rows = [], errs = [];
@@ -514,10 +122,19 @@ export default function Tafsir() {
     ALL.forEach((k) => {
       const raw = vals[k];
       if (raw === undefined || raw === "") return;
-      const v = parseFloat(raw);
+      // toNumber به‌جای parseFloat: مقدارِ واردشده از «بارگذاری JSON» از
+      // onChange رد نشده، پس ممکن است هنوز رقم فارسی داشته باشد. با
+      // parseFloat خام NaN می‌شد و ردیف بی‌صدا از تحلیل می‌افتاد بیرون.
+      const v = toNumber(raw);
       if (isNaN(v)) return;
       const [mn, mx] = REF[k].hard;
-      if (v < mn || v > mx) { errs.push(`${REF[k].label}: مقدار ${v} غیرواقعی است (بازه ${mn}–${mx})`); return; }
+      if (v < mn || v > mx) {
+        // ⚠️ ساختاریافته، نه رشتهٔ آماده: عدد و بازه باید هنگام رندر داخلِ
+        //    .num بنشینند. با درون‌ریزیِ مستقیم در یک جملهٔ فارسی، بازه‌ای
+        //    مثل «4.4–11» در متنِ RTL می‌تواند وارونه دیده شود.
+        errs.push({ key: k, label: REF[k].label, value: v, min: mn, max: mx });
+        return;
+      }
       const status = statusOf(k, v, sex, months);
       if (status === "crit") criticalCount++;
       rows.push({ k, v, status });
@@ -548,7 +165,9 @@ export default function Tafsir() {
   function buildStructuredTests() {
     return rows.map((r) => {
       const m = REF[r.k];
-      return { key: r.k, name: engineName(m.label), value: parseFloat(r.v), unit: m.unit };
+      // این همان چیزی است که به سرور می‌رود — با parseFloat خام، مقدارِ
+      // فارسی‌تایپ‌شده اینجا NaN و در JSON برابر null می‌شد.
+      return { key: r.k, name: engineName(m.label), value: toNumber(r.v), unit: m.unit };
     });
   }
 
@@ -565,6 +184,7 @@ export default function Tafsir() {
       conditions: conditions.length ? conditions : undefined,
     };
   }
+
   function patientInfo() {
     const unitFa = ageUnit === "day" ? "روز" : ageUnit === "month" ? "ماه" : "سال";
     const parts = [
@@ -584,10 +204,14 @@ export default function Tafsir() {
       setAiError("ابتدا مقادیری وارد کنید یا عکس آپلود کنید."); return;
     }
     setAiLoading(true);
+    setAiProgress(null);
+    setResumed(null);
     const controller = new AbortController();
     abortRef.current = controller;
-    // سقف امن سمت کلاینت (بک‌اند AI_TIMEOUT_MS ~۴ دقیقه است).
-    const timeout = setTimeout(() => controller.abort(), 300000);
+    // ⚠️ سقفِ ۳۰۰ ثانیه‌ایِ قبلی عمداً حذف شد. آن موقع abort کردنِ کلاینت
+    //    یعنی از دست رفتنِ کلِ کار؛ حالا کار روی سرور مستقل از اتصال ادامه
+    //    دارد و کرانش TTL سی‌دقیقه‌ایِ انبارِ کار است — بعد از آن poll به
+    //    ۴۰۴ می‌خورد و پیامِ «منقضی شده» می‌گیرد.
     try {
       const payload = { patientInfo: patientInfo() };
       if (images.length) {
@@ -600,31 +224,28 @@ export default function Tafsir() {
         payload.patient = buildStructuredPatient();
       }
 
-      const res = await fetch(PROXY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      // مسیرِ ناهمگام: سرور فوراً شناسهٔ کار می‌دهد و پردازش را در پس‌زمینه
+      // ادامه می‌دهد. شناسه در localStorage می‌نشیند، پس اگر گوشی قفل شود یا
+      // کاربر تب را ببندد، کار از بین نمی‌رود و موقع برگشتن ادامه پیدا می‌کند.
+      const started = await startJob(payload, controller.signal);
+      storeJob(started.job_id, started.pages_total ?? images.length);
+      setAiProgress({ pagesTotal: started.pages_total ?? images.length, pagesDone: 0 });
+
+      const data = await pollJob(started.job_id, {
         signal: controller.signal,
+        // merge، نه جایگزینی: فراخوانیِ degraded فقط همان یک کلید را دارد
+        //                     و نباید pagesDone/pagesTotal را پاک کند.
+        onProgress: (p) => {
+          if (mountedRef.current) setAiProgress((prev) => ({ ...prev, ...p }));
+        },
       });
-
-      // ⚠️ باگ قبلی: هر خطا «اتصال برقرار نشد» می‌شد و پیام واقعی
-      //    سرور دور ریخته می‌شد. حالا پیام خود سرور را نشان می‌دهیم.
-      let data = null;
-      try { data = await res.json(); } catch { /* پاسخ JSON نبود */ }
-
-      if (!res.ok) {
-        if (data?.error) throw new Error(data.error);
-        if (res.status === 413) throw new Error("حجم عکس‌ها زیاد است. تعداد کمتری عکس بفرستید.");
-        if (res.status === 429) throw new Error("سرویس شلوغ است. کمی بعد دوباره تلاش کنید.");
-        if (res.status === 504) throw new Error("پاسخ سرویس خیلی طول کشید. دوباره تلاش کنید.");
-        if (res.status === 502) throw new Error("خطا در ارتباط با سرویس هوش مصنوعی.");
-        throw new Error(`خطای سرور (${res.status})`);
-      }
       if (mountedRef.current) setAiResult(data);
     } catch (e) {
       if (!mountedRef.current) return;   // کاربر رفته — setState نکن
       if (e.name === "AbortError") {
-        setAiError("درخواست خیلی طول کشید یا لغو شد. دوباره تلاش کنید.");
+        // لغو دستی. کار روی سرور ادامه دارد و شناسه‌اش ذخیره است، پس
+        // با بازکردن دوبارهٔ صفحه برمی‌گردد — این را صریح می‌گوییم.
+        setAiError("تحلیل لغو شد. اگر دوباره این صفحه را باز کنید، نتیجه بازیابی می‌شود.");
       } else {
         // TypeError یعنی واقعاً شبکه قطع است — بقیه پیام سرورند
         setAiError(
@@ -634,9 +255,8 @@ export default function Tafsir() {
         );
       }
     } finally {
-      clearTimeout(timeout);
       abortRef.current = null;
-      if (mountedRef.current) setAiLoading(false);
+      if (mountedRef.current) { setAiLoading(false); setAiProgress(null); }
     }
   }
 
@@ -646,7 +266,8 @@ export default function Tafsir() {
     if (!picked.length) return;
 
     if (images.length + picked.length > MAX_IMAGES) {
-      setAiError(`حداکثر ${MAX_IMAGES} عکس. الان ${images.length} صفحه انتخاب شده.`);
+      // شمارشِ داخلِ جملهٔ فارسی با رقم فارسی — سیاستِ دو دستگاهِ عددی.
+      setAiError(`حداکثر ${toFaDigits(MAX_IMAGES)} عکس. الان ${toFaDigits(images.length)} صفحه انتخاب شده.`);
       return;
     }
     setAiError("");
@@ -674,7 +295,7 @@ export default function Tafsir() {
       // فایل رد‌شده نباید بی‌صدا ناپدید شود
       if (failed.length) {
         setAiError(
-          `${failed.length} فایل خوانده نشد (${failed.join("، ")}). ` +
+          `${toFaDigits(failed.length)} فایل خوانده نشد (${failed.join("، ")}). ` +
           `اگر عکس از آیفون است، در تنظیمات دوربین «سازگارترین» را انتخاب کنید یا اسکرین‌شات بگیرید.`
         );
       }
@@ -692,555 +313,118 @@ export default function Tafsir() {
       return n;
     });
 
+  function onExport() {
+    // ⚠️ ageUnit حتماً ذخیره شود: بدون آن، فایلی که با «ماه/روز» ساخته شده
+    //    هنگام واردات «سال» تفسیر می‌شود و همهٔ محدوده‌های نوزادی غلط می‌شوند.
+    const data = { sex, age, ageUnit, pregnant, conditions, vals, prevVals: compareMode ? prevVals : undefined };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "khanesh-results.json"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function onImport(e) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const d = JSON.parse(reader.result);
+        if (d.sex) setSex(d.sex);
+        if (d.age) setAge(d.age);
+        if (d.ageUnit) setAgeUnit(d.ageUnit);
+        if (typeof d.pregnant === "boolean") setPregnant(d.pregnant);
+        if (Array.isArray(d.conditions)) setConditions(d.conditions);
+        if (d.vals) setVals(d.vals);
+        if (d.prevVals) { setPrevVals(d.prevVals); setCompareMode(true); }
+        setIoError("");
+        setShow(true);
+      } catch { setIoError("فایل معتبر نیست."); }
+    };
+    reader.readAsText(f);
+  }
+
   return (
-    <div dir="rtl" style={s.page}>
-      <div style={s.shell}>
-        <header style={s.header}>
-          <div style={s.logo}><span style={s.mark}>◐</span><span style={s.brand}>خوانش</span></div>
-          <p style={s.tag}>تفسیر آموزشی نتایج آزمایش خون</p>
+    <div className="page">
+      <div className="shell">
+        <header className="site-header">
+          {/* نامِ برند از Logo.jsx می‌آید، نه هاردکد — تا «خوانش» در هدر و
+              «LABMATE» داخلِ نشان دوباره از هم جدا نیفتند. */}
+          <p className="logo"><BrandMark /><span className="brand">{BRAND_FA}</span></p>
+          <p className="tagline">تفسیر آموزشی نتایج آزمایش خون</p>
         </header>
 
-        <section style={s.card}>
-          <div style={s.profRow}>
-            <div style={s.field}>
-              <label style={s.label}>سن</label>
-              <div style={s.ageRow}>
-                <input type="number" value={age} onChange={(e) => setAge(e.target.value)} placeholder="مقدار" style={{ ...s.input, flex: 1 }} />
-                <div style={s.unitSeg}>
-                  <button onClick={() => setAgeUnit("year")} style={{ ...s.unitBtn, ...(ageUnit === "year" ? s.unitOn : {}) }}>سال</button>
-                  <button onClick={() => setAgeUnit("month")} style={{ ...s.unitBtn, ...(ageUnit === "month" ? s.unitOn : {}) }}>ماه</button>
-                  <button onClick={() => setAgeUnit("day")} style={{ ...s.unitBtn, ...(ageUnit === "day" ? s.unitOn : {}) }}>روز</button>
-                </div>
-              </div>
-            </div>
-            <div style={s.field}>
-              <label style={s.label}>جنسیت</label>
-              <div style={s.segment}>
-                <button onClick={() => setSex("male")} style={{ ...s.seg, ...(sex === "male" ? s.segOn : {}) }}>مرد</button>
-                <button onClick={() => setSex("female")} style={{ ...s.seg, ...(sex === "female" ? s.segOn : {}) }}>زن</button>
-              </div>
-            </div>
-          </div>
+        <ProfileCard
+          sex={sex} setSex={setSex}
+          age={age} setAge={setAge}
+          ageUnit={ageUnit} setAgeUnit={setAgeUnit}
+          pregnant={pregnant} setPregnant={setPregnant}
+          conditions={conditions} setConditions={setConditions}
+          compareMode={compareMode} setCompareMode={setCompareMode}
+          months={months}
+        />
 
-          {months != null && months < 6 && (
-            <div style={s.neonateBadge}>👶 حالت نوزاد فعال است — محدوده‌های مرجع نوزادی برای هموگلوبین، هماتوکریت، RBC و پلاکت اعمال می‌شود.</div>
-          )}
+        <EntryGrid
+          vals={vals} setVal={setVal}
+          prevVals={prevVals} setPrevVal={setPrevVal}
+          sex={sex} months={months} compareMode={compareMode}
+          search={search} setSearch={setSearch}
+          activeCat={activeCat} setActiveCat={setActiveCat}
+          errs={errs}
+          previewOpen={show}
+          onPreview={() => setShow((v) => !v)}
+        />
 
-          {sex === "female" && (
-            <label style={s.checkRow}>
-              <input type="checkbox" checked={pregnant} onChange={(e) => setPregnant(e.target.checked)} style={{ width: 16, height: 16 }} />
-              <span>باردار هستم</span>
-            </label>
-          )}
-
-          <div style={s.condSection}>
-            <label style={s.label}>بیماری‌های زمینه‌ای</label>
-            <div style={s.condGrid}>
-              {["دیابت", "فشار خون", "بیماری کلیوی", "بیماری کبدی"].map((c) => {
-                const on = conditions.includes(c);
-                return (
-                  <button key={c} onClick={() => setConditions((arr) => on ? arr.filter((x) => x !== c) : [...arr, c])}
-                    style={{ ...s.condChip, ...(on ? s.condOn : {}) }}>
-                    {on ? "✓ " : ""}{c}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <label style={s.compareToggle}>
-            <input type="checkbox" checked={compareMode} onChange={(e) => setCompareMode(e.target.checked)} style={{ width: 16, height: 16 }} />
-            <span>مقایسه با آزمایش قبلی (وارد کردن دو نوبت)</span>
-          </label>
-        </section>
-
-        <section style={s.card}>
-          <input
-            type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍 جستجوی تست (مثلاً قند، TSH، هموگلوبین)..."
-            style={s.searchBox}
+        {/* ⚠️ پیش‌نمایشِ محلی وقتی نتیجهٔ موتور روی صفحه است رندر نمی‌شود.
+            قبلاً هر دو هم‌زمان بودند و می‌توانستند دربارهٔ یک عدد اختلاف داشته
+            باشند (TSH: ۵.۰ فرانت / ۴.۵ بک‌اند) — بیمار از «طبیعی» اسکرول
+            می‌کرد به «بالا»، برای یک عدد. */}
+        {show && rows.length > 0 && !aiResult && (
+          <LocalPreview
+            rows={rows} vals={vals} prevVals={prevVals}
+            sex={sex} months={months} compareMode={compareMode}
+            criticalCount={criticalCount}
+            expanded={expanded} setExpanded={setExpanded}
+            onExport={onExport} onImport={onImport} ioError={ioError}
+            onClose={() => setShow(false)}
           />
-          {!search.trim() && <div style={s.catBar}>
-            {Object.keys(CATS).map((c) => {
-              const n = ALL.filter((k) => REF[k].cat === c && vals[k] && vals[k] !== "").length;
-              return (
-                <button key={c} onClick={() => setActiveCat(c)}
-                  style={{ ...s.catBtn, ...(activeCat === c ? s.catOn : {}) }}>
-                  {CATS[c].icon} {CATS[c].label}{n > 0 && <span style={s.catN}>{n}</span>}
-                </button>
-              );
-            })}
-          </div>}
-          <div style={s.fieldsGrid}>
-            {catKeys.map((k) => {
-              const m = REF[k];
-              const raw = vals[k] ?? "";
-              const rawPrev = prevVals[k] ?? "";
-              const v = parseFloat(raw);
-              const [mn, mx] = m.hard;
-              const bad = raw !== "" && !isNaN(v) && (v < mn || v > mx);
-              const st = raw !== "" && !isNaN(v) && !bad ? statusOf(k, v, sex, months) : null;
-              const r = m.range(sex, months);
-              return (
-                <div key={k} style={s.cell}>
-                  <label style={s.cellLabel}>{m.label} <span style={s.unitInline}>{m.unit}</span></label>
-                  {compareMode && (
-                    <div style={s.cellInput}>
-                      <span style={s.prevTag}>قبلی</span>
-                      <input type="number" inputMode="decimal" value={rawPrev}
-                        onChange={(e) => setPrevVals((s) => ({ ...s, [k]: e.target.value }))} placeholder="—"
-                        style={{ ...s.smallInput, background: "#faf7f0" }} />
-                    </div>
-                  )}
-                  <div style={s.cellInput}>
-                    {compareMode && <span style={s.currTag}>فعلی</span>}
-                    <input type="number" inputMode="decimal" value={raw}
-                      onChange={(e) => set(k, e.target.value)} placeholder="—"
-                      style={{ ...s.smallInput, borderColor: bad ? "#dc3545" : st ? ST[st].bar : "#d8d3c9" }} />
-                    {st && <span style={s.fa}>{ST[st].fa}</span>}
-                  </div>
-                  <span style={s.refHint}>طبیعی: {r.low}–{r.high}</span>
-                  {bad && <span style={s.cellErr}>غیرواقعی ({mn}–{mx})</span>}
-                </div>
-              );
-            })}
-          </div>
-          <button onClick={() => setShow(true)} style={s.primary}>تحلیل و تفسیر</button>
-          {errs.length > 0 && (
-            <div style={s.errBox}>
-              <div style={s.errTitle}>⚠️ بررسی شوند:</div>
-              {errs.map((e, i) => <div key={i} style={s.errItem}>• {e}</div>)}
-            </div>
-          )}
-        </section>
-
-        {show && rows.length > 0 && (
-          <>
-            {criticalCount > 0 && (
-              <div style={s.critBanner}>
-                🚨 {criticalCount} مورد در محدوده بحرانی است. توصیه می‌شود در اسرع وقت به پزشک یا اورژانس مراجعه کنید.
-              </div>
-            )}
-            {(() => {
-              const insights = comboInsights((k) => vals[k], sex, months);
-              if (insights.length === 0) return null;
-              return (
-                <section style={s.card}>
-                  <h2 style={s.cardTitle}>💡 تفسیر ترکیبی</h2>
-                  <div style={s.comboList}>
-                    {insights.map((ins, i) => (
-                      <div key={i} style={s.comboItem}>{ins}</div>
-                    ))}
-                  </div>
-                </section>
-              );
-            })()}
-            <section style={s.card}>
-              <div style={s.resultHeader}>
-                <h2 style={s.cardTitle}>نتایج و تفسیر</h2>
-                <div style={s.exportBtns}>
-                  <button style={s.exportBtn} onClick={() => {
-                    // ⚠️ ageUnit حتماً ذخیره شود: بدون آن، فایلی که با «ماه/روز» ساخته شده
-                    //    هنگام واردات «سال» تفسیر می‌شود و همهٔ محدوده‌های نوزادی غلط می‌شوند.
-                    const data = { sex, age, ageUnit, pregnant, conditions, vals, prevVals: compareMode ? prevVals : undefined };
-                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url; a.download = "khanesh-results.json"; a.click();
-                    setTimeout(() => URL.revokeObjectURL(url), 1000);
-                  }}>خروجی JSON</button>
-                  <label style={s.exportBtn}>
-                    واردات JSON
-                    <input type="file" accept=".json" style={{ display: "none" }} onChange={(e) => {
-                      const f = e.target.files?.[0]; if (!f) return;
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        try {
-                          const d = JSON.parse(reader.result);
-                          if (d.sex) setSex(d.sex);
-                          if (d.age) setAge(d.age);
-                          if (d.ageUnit) setAgeUnit(d.ageUnit);
-                          if (typeof d.pregnant === "boolean") setPregnant(d.pregnant);
-                          if (Array.isArray(d.conditions)) setConditions(d.conditions);
-                          if (d.vals) setVals(d.vals);
-                          if (d.prevVals) { setPrevVals(d.prevVals); setCompareMode(true); }
-                          setIoError("");
-                          setShow(true);
-                        } catch { setIoError("فایل معتبر نیست"); }
-                      };
-                      reader.readAsText(f);
-                    }} />
-                  </label>
-                </div>
-                {ioError && <div style={s.errBox}>{ioError}</div>}
-              </div>
-              {rows.map((row) => {
-                const m = REF[row.k], r = m.range(sex, months), st = ST[row.status];
-                const span = (r.high - r.low) || 1;
-                const lo = Math.max(m.hard[0], r.low - span * 0.6);
-                const hi = Math.min(m.hard[1], r.high + span * 0.6);
-                const pct = (x) => ((Math.max(lo, Math.min(hi, x)) - lo) / (hi - lo)) * 100;
-                const nl = pct(r.low), nw = pct(r.high) - nl, mk = pct(row.v);
-                const note = row.status === "above" || row.status === "crit"
-                  ? (m.high || m.about)
-                  : row.status === "below" ? (m.low || m.about) : m.about;
-                const isOpen = expanded[row.k];
-                return (
-                  <div key={row.k} style={s.resRow}>
-                    <div style={s.resTop}>
-                      <span style={s.resName}>{m.label}</span>
-                      <span style={s.resVal}>{row.v} <span style={s.resUnit}>{m.unit}</span></span>
-                      <span style={s.resRange}>{r.low}–{r.high}</span>
-                      <span style={{ ...s.badge, color: st.fg, background: st.bg }}>{st.fa} {st.label}</span>
-                      {(() => {
-                        if (!compareMode) return null;
-                        const t = trendOf(row.k, prevVals[row.k], vals[row.k], sex, months);
-                        if (!t) return null;
-                        const tr = TREND[t.dir];
-                        return (
-                          <span style={{ ...s.trendPill, color: tr.fg, background: tr.bg }}>
-                            {tr.icon} {tr.label} {t.delta !== 0 && `(${prevVals[row.k]} ← ${vals[row.k]})`}
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    <div style={s.track}>
-                      <div style={{ ...s.normal, left: nl + "%", width: nw + "%" }} />
-                      <div style={{ ...s.marker, left: mk + "%", background: st.bar }} />
-                    </div>
-                    <div style={s.noteRow}>
-                      <span style={s.note}>{note}</span>
-                      {m.about && note !== m.about && (
-                        <button style={s.moreBtn} onClick={() => setExpanded((e) => ({ ...e, [row.k]: !e[row.k] }))}>
-                          {isOpen ? "بستن" : "این تست چیست؟"}
-                        </button>
-                      )}
-                    </div>
-                    {isOpen && <div style={s.aboutBox}>{m.about}</div>}
-                  </div>
-                );
-              })}
-            </section>
-          </>
         )}
 
-        {/* بخش تفسیر هوشمند با AI + آپلود عکس */}
-        <section style={s.card}>
-          <h2 style={s.cardTitle}>🤖 تفسیر هوشمند با هوش مصنوعی</h2>
-          <p style={s.aiIntro}>
-            برای تحلیل عمیق‌تر و توصیه‌های شخصی، مقادیر را وارد کن (یا عکس برگه آزمایش را آپلود کن) و دکمه زیر را بزن.
+        {/* ⚠️ typedCount: وقتی عکس هست، runAI عمداً فقط عکس‌ها را می‌فرستد
+            (بدنهٔ درخواست یا imageDataUrls است یا testResults، نه هر دو). تا
+            امروز این کار بی‌صدا انجام می‌شد — کسی که ۹ مقدار تایپ کرده و بعد
+            عکس هم گرفته، تفسیری می‌گرفت که آن ۹ عدد در آن نبودند و هیچ‌جا
+            نمی‌گفت چرا. کم‌خوانیِ خاموش بدترین حالتِ شکستِ این اپ است. */}
+        <UploadCard
+          images={images} imgBusy={imgBusy} onFile={onFile}
+          removeImage={removeImage} moveImage={moveImage}
+          resumed={resumed}
+          onResume={() => { setAiResult(resumed.result); setResumed(null); }}
+          onClearResumed={() => { clearResult(); setResumed(null); }}
+          aiLoading={aiLoading} aiProgress={aiProgress}
+          aiError={aiError} aiResult={aiResult}
+          typedCount={images.length > 0 ? rows.length : 0}
+          runAI={runAI}
+          onCancel={() => abortRef.current?.abort()}
+          resultRef={resultRef}
+        />
+
+        <footer className="site-footer">
+          <p>
+            محدوده‌ها بر اساس مراجع استاندارد است و ممکن است با کیت آزمایشگاه شما اندکی فرق کند.
+            این ابزار آموزشی است و جایگزین پزشک نیست.
           </p>
-
-          <div
-            onClick={() => fileRef.current?.click()}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileRef.current?.click(); } }}
-            role="button"
-            tabIndex={0}
-            aria-label="آپلود عکس برگه آزمایش"
-            style={s.aiDropzone}
-          >
-            {images.length === 0 ? (
-              <div style={s.aiDropInner}>
-                <span style={{ fontSize: 28 }}>📄</span>
-                <span style={s.aiDropText}>
-                  {imgBusy ? "در حال آماده‌سازی…" : "عکس برگه آزمایش را آپلود کن (اختیاری)"}
-                </span>
-                <span style={{ ...s.aiDropText, fontSize: 12, opacity: 0.7 }}>
-                  اگر برگه چند صفحه است، همه را با هم انتخاب کنید
-                </span>
-              </div>
-            ) : (
-              <div style={s.aiDropInner}>
-                <span style={s.aiDropText}>
-                  {images.length} صفحه انتخاب شد — برای افزودن کلیک کنید
-                </span>
-                <span style={{ ...s.aiDropText, fontSize: 12, opacity: 0.7 }}>
-                  {(images.reduce((a, b) => a + b.origKB, 0) / 1024).toFixed(1)} مگابایت ←{" "}
-                  {(images.reduce((a, b) => a + b.sizeKB, 0) / 1024).toFixed(1)} مگابایت پس از فشرده‌سازی
-                </span>
-              </div>
-            )}
-          </div>
-
-          {images.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-              {images.map((img, idx) => (
-                <div key={img.id} style={s.aiPageRow}>
-                  <img src={img.dataUrl} alt="" style={s.aiPageThumb} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={s.aiPageLabel}>صفحه {idx + 1}</div>
-                    <div style={s.aiPageSize}>{img.sizeKB} کیلوبایت</div>
-                  </div>
-                  <button type="button" onClick={() => moveImage(idx, -1)} disabled={idx === 0}
-                          style={{ ...s.aiPageBtn, opacity: idx === 0 ? 0.25 : 1 }}>▲</button>
-                  <button type="button" onClick={() => moveImage(idx, +1)} disabled={idx === images.length - 1}
-                          style={{ ...s.aiPageBtn, opacity: idx === images.length - 1 ? 0.25 : 1 }}>▼</button>
-                  <button type="button" onClick={() => removeImage(img.id)} style={s.aiPageDel}>حذف</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <input ref={fileRef} type="file" accept="image/*" multiple onChange={onFile} style={{ display: "none" }} />
-
-          <button onClick={runAI} disabled={aiLoading || imgBusy}
-                  style={{ ...s.aiBtn, opacity: aiLoading || imgBusy ? 0.6 : 1 }}>
-            {aiLoading
-              ? `در حال تحلیل${images.length > 1 ? ` ${images.length} صفحه` : ""}… (ممکن است چند دقیقه طول بکشد)`
-              : images.length > 1
-              ? `✨ تفسیر ${images.length} صفحه با AI`
-              : "✨ تفسیر هوشمند با AI"}
-          </button>
-
-          {aiError && <div style={s.aiErr}>{aiError}</div>}
-
-          {/* سرور موقع شکست parse با وضعیت ۲۰۰ برمی‌گرداند
-              {parseError:true, raw, extracted_tests}.
-              بدون این شاخه، کاربر مقادیر را می‌دید ولی نمی‌فهمید
-              تفسیر اصلاً تولید نشده — سکوت بدتر از خطاست. */}
-          {aiResult?.parseError && (
-            <div style={s.aiResultWrap}>
-              <div style={s.aiParseWarn}>
-                ⚠️ مقادیر از عکس خوانده شد، ولی تفسیر کامل تولید نشد.
-                لطفاً دوباره تلاش کنید. مقادیر زیر معتبرند.
-              </div>
-
-              {aiResult.pages?.failed?.length > 0 && (
-                <div style={s.aiPageWarn}>
-                  صفحه {aiResult.pages.failed.join(" و ")} خوانده نشد
-                  ({aiResult.pages.read} از {aiResult.pages.total} صفحه خوانده شد).
-                </div>
-              )}
-
-              {aiResult.extracted_tests?.length > 0 && (
-                <div style={s.aiBlock}>
-                  <div style={s.aiBlockTitle}>مقادیر خوانده‌شده از عکس</div>
-                  {aiResult.extracted_tests.map((t, i) => (
-                    <div key={i} style={s.aiExtract}>
-                      <b>{t.test}</b>: {t.value}{" "}
-                      {t.reference && <span style={{ color: "#a39a88" }}>(مرجع: {t.reference})</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {aiResult.ocr_warnings?.length > 0 && (
-                <div style={s.aiPageWarn}>
-                  {aiResult.ocr_warnings.map((w, i) => <div key={i}>• {w}</div>)}
-                </div>
-              )}
-
-              <button onClick={runAI} disabled={aiLoading} style={{ ...s.aiBtn, marginTop: 10 }}>
-                تلاش دوباره برای تفسیر
-              </button>
-            </div>
-          )}
-
-          {aiResult && !aiResult.error && !aiResult.parseError && (
-            <ResultErrorBoundary>
-            <div style={s.aiResultWrap}>
-              {aiResult.pages?.failed?.length > 0 && (
-                <div style={s.aiPageWarn}>
-                  ⚠️ صفحه {aiResult.pages.failed.join(" و ")} خوانده نشد. تفسیر فقط بر اساس{" "}
-                  {aiResult.pages.read} صفحه از {aiResult.pages.total} صفحه است. برای نتیجهٔ کامل،
-                  از صفحات ناخوانا دوباره عکس بگیرید.
-                </div>
-              )}
-              {aiResult.pages?.total > 1 && !aiResult.pages?.failed?.length && (
-                <div style={s.aiPageOk}>✓ هر {aiResult.pages.total} صفحه خوانده شد</div>
-              )}
-              {asList(aiResult.ocr_warnings).length > 0 && (
-                <div style={s.aiPageWarn}>
-                  {asList(aiResult.ocr_warnings).map((w, i) => <div key={i}>• {asText(w)}</div>)}
-                </div>
-              )}
-              {aiResult.has_critical && (
-                <div style={s.aiCritBanner}>🚨 موارد بحرانی شناسایی شد — مراجعه فوری به پزشک توصیه می‌شود.</div>
-              )}
-              {aiResult.summary && (
-                <div style={s.aiBlock}>
-                  <div style={s.aiBlockTitle}>خلاصه</div>
-                  <p style={s.aiText}>{asText(aiResult.summary)}</p>
-                </div>
-              )}
-              {asList(aiResult.extracted_tests).length > 0 && (
-                <div style={s.aiBlock}>
-                  <div style={s.aiBlockTitle}>
-                    مقادیر خوانده‌شده از عکس
-                    {aiResult.pages?.total > 1 ? ` (${aiResult.pages.total} صفحه)` : ""}
-                  </div>
-                  {asList(aiResult.extracted_tests).map((t, i) => (
-                    <div key={i} style={s.aiExtract}>
-                      <b>{asText(t?.test)}</b>: {asText(t?.value)} {t?.reference && <span style={{ color: "#a39a88" }}>(مرجع: {asText(t.reference)})</span>}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {aiResult.interpretation && (
-                <div style={s.aiBlock}>
-                  <div style={s.aiBlockTitle}>تفسیر</div>
-                  <p style={s.aiText}>{asText(aiResult.interpretation)}</p>
-                </div>
-              )}
-              {asList(aiResult.general_recommendations).length > 0 && (
-                <div style={s.aiBlock}>
-                  <div style={s.aiBlockTitle}>توصیه‌ها</div>
-                  <ul style={s.aiRecList}>
-                    {asList(aiResult.general_recommendations).map((r, i) => <li key={i} style={s.aiRecItem}>{asText(r)}</li>)}
-                  </ul>
-                </div>
-              )}
-              {asList(aiResult.sources).length > 0 && (
-                <div style={s.aiBlock}>
-                  <div style={s.aiBlockTitle}>منابع</div>
-                  <div style={s.aiSourceNote}>
-                    اطلاعات مرجع این تفسیر از MedlinePlus (کتابخانهٔ ملی پزشکی آمریکا) گرفته شده:
-                  </div>
-                  <ul style={s.aiRecList}>
-                    {asList(aiResult.sources).map((u, i) => {
-                      const href = asText(u);
-                      return (
-                        <li key={i}>
-                          <a href={href} target="_blank" rel="noopener noreferrer" style={s.aiSourceLink}>
-                            {href.replace(/^https?:\/\/(www\.)?/, "").slice(0, 60)}
-                          </a>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
-              {aiResult.disclaimer && <div style={s.aiDisclaimer}>{asText(aiResult.disclaimer)}</div>}
-            </div>
-            </ResultErrorBoundary>
-          )}
-        </section>
-
-        <footer style={s.footer}>
-          محدوده‌ها بر اساس مراجع استاندارد است و ممکن است با کیت آزمایشگاه شما اندکی فرق کند. این ابزار آموزشی است و جایگزین پزشک نیست.
-          <br />
-          بخشی از اطلاعات تفسیر هوشمند از <a href="https://medlineplus.gov" target="_blank" rel="noopener noreferrer" style={s.footerLink}>MedlinePlus.gov</a> (کتابخانه ملی پزشکی آمریکا) تأمین می‌شود.
+          <p>
+            بخشی از اطلاعات تفسیر هوشمند از{" "}
+            <a href="https://medlineplus.gov" target="_blank" rel="noopener noreferrer" className="link">
+              MedlinePlus.gov
+            </a>{" "}
+            (کتابخانهٔ ملی پزشکی آمریکا) تأمین می‌شود.
+          </p>
         </footer>
       </div>
     </div>
   );
 }
-
-const s = {
-  page: { minHeight: "100vh", background: "#faf7f0", fontFamily: "'Vazirmatn', system-ui, sans-serif", color: "#2b2b28", padding: "20px 14px" },
-  shell: { maxWidth: 960, margin: "0 auto" },
-  header: { textAlign: "center", marginBottom: 18 },
-  logo: { display: "inline-flex", alignItems: "center", gap: 8 },
-  mark: { fontSize: 28, color: "#2f6f6b" },
-  brand: { fontSize: 26, fontWeight: 800 },
-  tag: { margin: "6px 0 0", color: "#8a8272", fontSize: 13.5 },
-  card: { background: "#fff", borderRadius: 18, border: "1px solid #eee6d8", padding: 16, marginBottom: 14, boxShadow: "0 1px 2px rgba(0,0,0,.03)" },
-  cardTitle: { margin: "0 0 14px", fontSize: 16, fontWeight: 700 },
-  profRow: { display: "flex", gap: 12 },
-  field: { display: "flex", flexDirection: "column", gap: 6, flex: 1 },
-  label: { fontSize: 13, fontWeight: 600, color: "#6f685b" },
-  input: { padding: "9px 11px", borderRadius: 10, border: "1.5px solid #d8d3c9", fontSize: 14, fontFamily: "inherit", outline: "none" },
-  segment: { display: "flex", background: "#f5f0e6", borderRadius: 10, padding: 3 },
-  seg: { flex: 1, padding: "8px 0", border: "none", background: "transparent", borderRadius: 8, fontSize: 13.5, fontWeight: 600, color: "#8a8272", fontFamily: "inherit" },
-  segOn: { background: "#2f6f6b", color: "#fff" },
-  compareToggle: { display: "flex", alignItems: "center", gap: 8, marginTop: 14, fontSize: 13, fontWeight: 600, color: "#4a463d", cursor: "pointer" },
-  ageRow: { display: "flex", gap: 8, alignItems: "center" },
-  unitSeg: { display: "flex", background: "#f5f0e6", borderRadius: 8, padding: 2 },
-  unitBtn: { padding: "6px 10px", border: "none", background: "transparent", borderRadius: 6, fontSize: 12, fontWeight: 600, color: "#8a8272", cursor: "pointer", fontFamily: "inherit" },
-  unitOn: { background: "#2f6f6b", color: "#fff" },
-  neonateBadge: { marginTop: 12, padding: "10px 12px", borderRadius: 10, background: "#e7f3ff", border: "1px solid #b8ddf5", color: "#0a4b78", fontSize: 12.5, lineHeight: 1.7 },
-  checkRow: { display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 13, fontWeight: 600, color: "#4a463d", cursor: "pointer" },
-  condSection: { marginTop: 14 },
-  condGrid: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 },
-  condChip: { padding: "7px 12px", borderRadius: 999, border: "1px solid #eee6d8", background: "#fff", color: "#6f685b", fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" },
-  condOn: { background: "#2f6f6b", color: "#fff", borderColor: "#2f6f6b" },
-  searchBox: { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1.5px solid #d8d3c9", fontSize: 14, fontFamily: "inherit", outline: "none", marginBottom: 14, background: "#fdfbf6" },
-  comboList: { display: "flex", flexDirection: "column", gap: 10 },
-  comboItem: { fontSize: 13, lineHeight: 1.9, color: "#4a463d", background: "#fff8e6", border: "1px solid #ffe69c", borderRadius: 10, padding: "10px 12px" },
-  resultHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 },
-  exportBtns: { display: "flex", gap: 8 },
-  exportBtn: { fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 9, border: "1px solid #2f6f6b", background: "#fff", color: "#2f6f6b", cursor: "pointer", fontFamily: "inherit" },
-  unitInline: { fontSize: 10, color: "#a39a88", fontWeight: 400 },
-  prevTag: { fontSize: 10, color: "#a39a88", minWidth: 26 },
-  currTag: { fontSize: 10, color: "#2f6f6b", fontWeight: 700, minWidth: 26 },
-  trendPill: { fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999 },
-  catBar: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 },
-  catBtn: { padding: "6px 10px", borderRadius: 999, border: "1px solid #eee6d8", background: "#fff", color: "#6f685b", fontSize: 12, fontWeight: 600, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 5 },
-  catOn: { background: "#2f6f6b", color: "#fff", borderColor: "#2f6f6b" },
-  catN: { background: "rgba(255,255,255,.25)", borderRadius: 999, padding: "0 6px", fontSize: 10.5, fontWeight: 700 },
-  fieldsGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 11, marginBottom: 16 },
-  cell: { display: "flex", flexDirection: "column", gap: 3 },
-  cellLabel: { fontSize: 12, fontWeight: 600, color: "#6f685b" },
-  cellInput: { display: "flex", alignItems: "center", gap: 5 },
-  smallInput: { width: "100%", padding: "7px", borderRadius: 8, border: "1.5px solid #d8d3c9", fontSize: 13.5, fontFamily: "inherit", outline: "none", textAlign: "center" },
-  fa: { fontSize: 12 },
-  refHint: { fontSize: 10.5, color: "#a39a88" },
-  cellErr: { fontSize: 10.5, color: "#dc3545", lineHeight: 1.5 },
-  primary: { width: "100%", padding: 12, borderRadius: 12, border: "none", background: "#2f6f6b", color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: "inherit" },
-  errBox: { marginTop: 12, padding: 12, background: "#fff3cd", border: "1px solid #ffe69c", borderRadius: 10 },
-  errTitle: { fontSize: 12.5, fontWeight: 700, color: "#664d03", marginBottom: 5 },
-  errItem: { fontSize: 12, color: "#664d03", lineHeight: 1.8 },
-  critBanner: { padding: "14px 16px", borderRadius: 14, background: "#dc3545", color: "#fff", fontSize: 14, fontWeight: 700, lineHeight: 1.8, marginBottom: 14 },
-  resRow: { paddingBottom: 16, borderBottom: "1px solid #f5f0e6", marginBottom: 16 },
-  resTop: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 },
-  resName: { fontSize: 13.5, fontWeight: 700, minWidth: 90 },
-  resVal: { fontSize: 13, color: "#2f6f6b", fontWeight: 600 },
-  resUnit: { fontSize: 10, color: "#a39a88", fontWeight: 400 },
-  resRange: { fontSize: 11.5, color: "#8a8272" },
-  badge: { fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999 },
-  track: { position: "relative", height: 8, background: "#f0ebe0", borderRadius: 999, marginBottom: 8 },
-  normal: { position: "absolute", height: "100%", background: "#c6e6d3", borderRadius: 999 },
-  marker: { position: "absolute", top: "50%", width: 14, height: 14, borderRadius: "50%", transform: "translate(-50%,-50%)", border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,.25)" },
-  noteRow: { display: "flex", alignItems: "flex-start", gap: 8, justifyContent: "space-between" },
-  note: { fontSize: 12.5, color: "#6f685b", lineHeight: 1.8, flex: 1 },
-  moreBtn: { fontSize: 11, color: "#2f6f6b", background: "none", border: "none", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" },
-  aboutBox: { marginTop: 8, padding: "10px 12px", background: "#f5f0e6", borderRadius: 10, fontSize: 12.5, color: "#6f685b", lineHeight: 1.8 },
-  footer: { textAlign: "center", color: "#a39a88", fontSize: 11.5, marginTop: 8, lineHeight: 1.8 },
-  footerLink: { color: "#2f6f6b", fontWeight: 600, textDecoration: "none" },
-  aiIntro: { fontSize: 13, color: "#6f685b", lineHeight: 1.9, marginBottom: 14 },
-  aiDropzone: { border: "2px dashed #d8d3c9", borderRadius: 12, padding: 16, cursor: "pointer", background: "#fdfbf6", marginBottom: 12 },
-  aiDropInner: { display: "flex", flexDirection: "column", alignItems: "center", gap: 6, textAlign: "center" },
-  aiDropText: { fontSize: 13, color: "#6f685b", fontWeight: 600 },
-
-  // ---- چند صفحه ----
-  aiPageRow: {
-    display: "flex", alignItems: "center", gap: 8,
-    border: "1px solid #e6e1d6", borderRadius: 10, padding: 8, background: "#fff",
-  },
-  aiPageThumb: { width: 52, height: 52, borderRadius: 6, objectFit: "cover", flexShrink: 0 },
-  aiPageLabel: { fontSize: 13, fontWeight: 600, color: "#4a4436" },
-  aiPageSize: { fontSize: 11, color: "#a39a88" },
-  aiPageBtn: {
-    border: "none", background: "transparent", cursor: "pointer",
-    padding: "2px 6px", fontSize: 13, color: "#8a8272",
-  },
-  aiPageDel: {
-    border: "none", background: "transparent", cursor: "pointer",
-    padding: "2px 6px", fontSize: 12, color: "#c0392b",
-  },
-  aiSourceNote: { fontSize: 12, color: "#8a8272", marginBottom: 6, lineHeight: 1.7 },
-  aiSourceLink: { fontSize: 12.5, color: "#4a7c59", textDecoration: "none", wordBreak: "break-all" },
-  aiParseWarn: {
-    background: "#fdece8", border: "1px solid #f0c0b4", borderRadius: 10,
-    padding: "10px 12px", fontSize: 13, color: "#8a3b28", lineHeight: 1.8, marginBottom: 10,
-  },
-  aiPageWarn: {
-    background: "#fdf6e3", border: "1px solid #e8d9a8", borderRadius: 10,
-    padding: "10px 12px", fontSize: 13, color: "#7a5c00", lineHeight: 1.8, marginBottom: 10,
-  },
-  aiPageOk: {
-    background: "#f0f7f2", border: "1px solid #cfe4d6", borderRadius: 10,
-    padding: "6px 12px", fontSize: 12, color: "#3d6b4f", marginBottom: 10,
-  },
-  aiBtn: { width: "100%", padding: 13, borderRadius: 12, border: "none", background: "linear-gradient(135deg, #2f6f6b, #3d8f89)", color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" },
-  aiErr: { marginTop: 12, padding: "10px 12px", borderRadius: 10, background: "#f8d7da", color: "#842029", fontSize: 13, lineHeight: 1.7 },
-  aiResultWrap: { marginTop: 16, display: "flex", flexDirection: "column", gap: 14 },
-  aiCritBanner: { padding: "12px 14px", borderRadius: 12, background: "#dc3545", color: "#fff", fontSize: 14, fontWeight: 700, lineHeight: 1.7 },
-  aiBlock: {},
-  aiBlockTitle: { fontSize: 13, fontWeight: 700, color: "#2f6f6b", marginBottom: 6 },
-  aiText: { margin: 0, fontSize: 13.5, lineHeight: 1.9, color: "#4a463d" },
-  aiExtract: { fontSize: 13, lineHeight: 1.9, color: "#4a463d" },
-  aiRecList: { margin: 0, paddingRight: 18, display: "flex", flexDirection: "column", gap: 5 },
-  aiRecItem: { fontSize: 13.5, lineHeight: 1.8, color: "#4a463d" },
-  aiDisclaimer: { padding: "10px 12px", borderRadius: 10, background: "#f5f0e6", color: "#8a8272", fontSize: 12, lineHeight: 1.8 },
-};

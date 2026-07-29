@@ -1,0 +1,548 @@
+/* ============================================================
+   Khanesh / LabMate — لایهٔ کامپوننت‌ها
+   قبلاً هیچ CSSِ کامپوننتی وجود نداشت: ~۲۲۰ خط شیءِ استایلِ inline در دو
+   فایل، با ~۱۹۰ نقطهٔ style={{…}}. نتیجهٔ مستقیمش این بود که نه :hover
+   داشتیم، نه :focus-visible، نه :disabled، و نه حتی **یک** مدیا-کوئری در
+   کلِ پروژه. این فایل همان لایه است.
+
+   قرارداد رنگ: هر کلاسِ حالت فقط --fg/--bg/--dot را ست می‌کند و کامپوننت‌ها
+   از همان‌ها می‌خوانند. یعنی چیپ، پیپ، نشانگرِ نوار و حاشیهٔ ورودی همه از یک
+   منبع رنگ می‌گیرند و نمی‌توانند از هم جدا بیفتند.
+
+   قراردادِ توکن (نسخهٔ دوم): این فایل هیچ رنگ، اندازهٔ فونت، لیدینگ، وزن یا
+   فاصلهٔ خامی ندارد — همه از index.css می‌آید. تنها اعدادِ خامِ باقی‌مانده
+   **ابعادِ فیزیکیِ** عناصرند (قطر، ضخامت، عرضِ بندانگشتی، ۱ پیکسلِ خط)، که
+   طبقِ قاعدهٔ ۳ی لایهٔ توکن عمداً از مقیاسِ فاصله بیرون‌اند و هرکدام کامنتِ
+   هندسیِ خودش را دارد.
+   ============================================================ */
+
+.st-normal    { --fg: var(--st-normal-fg);    --bg: var(--st-normal-bg);    --dot: var(--st-normal-fg); }
+.st-near      { --fg: var(--st-near-fg);      --bg: var(--st-near-bg);      --dot: var(--st-near-fg); }
+.st-out       { --fg: var(--st-out-fg);       --bg: var(--st-out-bg);       --dot: var(--st-out-fg); }
+.st-unmatched { --fg: var(--st-unmatched-fg); --bg: var(--st-unmatched-bg); --dot: var(--st-unmatched-fg); }
+.st-emergency { --fg: var(--st-emergency-fg); --bg: var(--st-emergency-bg); --dot: var(--st-emergency-bg); }
+.st-missing   { --fg: var(--st-missing-fg);   --bg: var(--st-missing-bg);   --dot: var(--st-missing-fg); }
+
+/* ---------- چیدمانِ صفحه ---------- */
+
+.page {
+  min-height: 100dvh;
+  background: var(--page);
+  color: var(--ink);
+  /* viewport-fit=cover در index.html فعال است ولی env(safe-area-*) هیچ‌جا
+     استفاده نمی‌شد: روی آیفونِ ناچ‌دار فوتر زیرِ نوارِ خانه می‌رفت. */
+  padding: var(--s9) var(--gutter) calc(var(--s11) + var(--safe-b));
+}
+
+.shell {
+  max-width: 640px;      /* بُعد: سقفِ طولِ سطر */
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s7);
+}
+
+.site-header { text-align: center; margin-bottom: var(--s2); }
+.logo {
+  display: inline-flex; align-items: center; gap: var(--s4);
+  color: var(--brand);
+}
+.brand-mark { width: 28px; height: 28px; flex-shrink: 0; }   /* بُعد: نشان */
+.brand { font-size: var(--t-2xl); font-weight: var(--w-bold); color: var(--ink); }
+.tagline { margin-top: var(--s2); color: var(--ink-3); font-size: var(--t-xs); }
+
+.site-footer {
+  text-align: center; color: var(--ink-3); font-size: var(--t-2xs);
+  line-height: var(--lh-body); margin-top: var(--s3);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+
+/* ---------- کارت ---------- */
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-lg);
+  padding: var(--s8);
+  box-shadow: var(--sh-xs);
+}
+.card--sunken { background: var(--sunken); border-color: var(--line); }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s5); }
+
+.card-title { font-size: var(--t-lg); font-weight: var(--w-bold); margin-bottom: var(--s6); }
+.card-head .card-title { margin-bottom: 0; }
+.block-title { font-size: var(--t-sm); font-weight: var(--w-bold); color: var(--ink); margin-bottom: var(--s4); }
+
+.text { font-size: var(--t-lg); line-height: var(--lh-prose); color: var(--ink); }
+.hint { font-size: var(--t-xs); line-height: var(--lh-body); color: var(--ink-2); margin-bottom: var(--s5); }
+.label { display: block; font-size: var(--t-xs); font-weight: var(--w-semibold); color: var(--ink-2); margin-bottom: var(--s3); }
+.link { color: var(--brand); font-weight: var(--w-semibold); }
+
+.bullet-list {
+  margin: 0; padding-inline-start: 1.25em;   /* نسبی به فونتِ خودِ فهرست */
+  font-size: var(--t-md); line-height: var(--lh-prose);
+}
+.bullet-list li { margin-bottom: var(--s2); }
+
+.disclaimer {
+  font-size: var(--t-2xs); line-height: var(--lh-body); color: var(--ink-2);
+  text-align: center; padding: var(--s2) var(--s4);
+}
+
+.note {
+  border-radius: var(--r-md); padding: var(--s5) var(--s6);
+  font-size: var(--t-xs); line-height: var(--lh-body); margin-top: var(--s6);
+}
+.note--info { background: var(--brand-soft); border: 1px solid var(--brand-line); color: var(--brand-ink); }
+.note--soft { background: var(--sunken); border: 1px solid var(--line); color: var(--ink); }
+.note-title { font-weight: var(--w-bold); margin-bottom: var(--s3); }
+.note .hint { margin: var(--s3) 0 0; }
+
+/* هشدارِ غیربالینی — پالتِ جدا از حالت‌های نتیجه */
+.warn {
+  background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn-fg);
+  border-radius: var(--r-md); padding: var(--s5) var(--s6);
+  font-size: var(--t-xs); line-height: var(--lh-body); margin-top: var(--s6);
+}
+.warn--strong { font-weight: var(--w-semibold); }
+.warn-title { font-weight: var(--w-bold); margin-bottom: var(--s2); }
+.warn .bullet-list { font-size: var(--t-xs); }
+
+/* ---------- بنر اورژانس ----------
+   تنها جایی که قرمزِ پُر مصرف می‌شود. هرگز داخل <details>/آکاردئون نمی‌رود
+   و همیشه اولین چیزِ ناحیهٔ نتیجه است. */
+.crit-banner {
+  background: var(--st-emergency-bg); color: var(--st-emergency-fg);
+  border-radius: var(--r-md); padding: var(--s7) var(--s8);
+}
+.crit-title { font-size: var(--t-xl); font-weight: var(--w-bold); margin-bottom: var(--s3); }
+.crit-body { font-size: var(--t-sm); line-height: var(--lh-prose); }
+
+/* ---------- دکمه‌ها ---------- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s3);
+  border: 1px solid transparent; border-radius: var(--r-sm);
+  padding: var(--s4) var(--s8); min-height: var(--tap);
+  font-size: var(--t-sm); font-weight: var(--w-semibold); font-family: inherit;
+  cursor: pointer; background: transparent; color: var(--ink);
+  transition: background var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.btn:hover { background: var(--sunken); }
+.btn:disabled { cursor: not-allowed; opacity: .5; }
+
+.btn--primary { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
+.btn--primary:hover:not(:disabled) { background: var(--brand-deep); }
+.btn--secondary { background: var(--card); color: var(--brand); border-color: var(--brand); }
+.btn--secondary:hover:not(:disabled) { background: var(--brand-soft); }
+.btn--ghost { border-color: var(--line); color: var(--ink-2); background: var(--card); }
+.btn--block { width: 100%; }
+/* ارتفاع‌ها از --tap مشتق می‌شوند تا اگر هدفِ لمس عوض شد، همه با هم عوض شود */
+.btn--lg { min-height: calc(var(--tap) + var(--s4)); font-size: var(--t-md); border-radius: var(--r-md); }
+.btn--sm { min-height: calc(var(--tap) - var(--s2)); padding: var(--s3) var(--s6); font-size: var(--t-xs); }
+.btn--icon { min-width: var(--tap); padding: 0; color: var(--ink-2); }
+.btn--file { position: relative; }
+.btn--link {
+  min-height: 0; padding: var(--s1) var(--s2); background: none; border: none;
+  color: var(--brand); font-size: var(--t-2xs); white-space: nowrap;
+}
+
+/* ---------- کنترلِ بخش‌بخش ---------- */
+
+.seg-group { display: flex; background: var(--track-warm); border-radius: var(--r-sm); padding: var(--s1); gap: var(--s1); }
+.seg {
+  flex: 1; border: none; background: transparent; border-radius: var(--r-xs);
+  padding: var(--s4) var(--s5); min-height: calc(var(--tap) - var(--s1));
+  font-size: var(--t-xs); font-weight: var(--w-semibold); color: var(--ink-2);
+  font-family: inherit; cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+.seg-group--sm .seg { font-size: var(--t-2xs); padding: var(--s3) var(--s4); min-height: calc(var(--tap) - var(--s3)); }
+.seg:hover { background: var(--veil-ink); }
+/* انتخاب فقط با رنگ منتقل نمی‌شود: aria-checked برای فناوریِ کمکی، و
+   وزنِ فونت + زیرخط برای کسی که رنگ را تفکیک نمی‌کند. */
+.seg.is-on {
+  background: var(--brand); color: var(--on-brand); font-weight: var(--w-bold);
+  box-shadow: var(--sh-xs);
+}
+
+/* ---------- چیپ‌ها ---------- */
+
+.chip {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  font-size: var(--t-2xs); font-weight: var(--w-semibold); line-height: var(--lh-snug);
+  border-radius: var(--r-pill); padding: var(--s2) var(--s5); white-space: nowrap;
+  color: var(--fg); background: var(--bg);
+}
+.chip.st-missing { border: 1px dashed var(--fg); }
+
+.mini-chip {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  font-size: var(--t-micro); font-weight: var(--w-semibold); line-height: var(--lh-snug);
+  border-radius: var(--r-pill); padding: var(--s1) var(--s4); white-space: nowrap;
+  color: var(--fg); background: var(--bg);
+}
+.mini-chip.st-missing { border: 1px dashed var(--fg); }
+
+/* دکمه‌چیپِ قابل‌انتخاب (دسته‌ها، بیماری‌های زمینه‌ای) */
+.chip-row { display: flex; flex-wrap: wrap; gap: var(--s3); }
+.cat-bar { margin-bottom: var(--s7); }
+.chip-btn {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  padding: var(--s4) var(--s6); min-height: calc(var(--tap) - var(--s2));
+  border-radius: var(--r-pill); border: 1px solid var(--border-card);
+  background: var(--card); color: var(--ink-2);
+  font-size: var(--t-2xs); font-weight: var(--w-semibold); font-family: inherit; cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.chip-btn:hover { background: var(--sunken); }
+.chip-btn.is-on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); font-weight: var(--w-bold); }
+.chip-n {
+  background: var(--veil-light); border-radius: var(--r-pill);
+  padding: 0 var(--s3); font-size: var(--t-micro); font-weight: var(--w-bold);
+}
+.chip-btn:not(.is-on) .chip-n { background: var(--track); color: var(--ink-2); }
+
+/* چیپِ «جهتِ تغییر» — عمداً واژگانِ رنگیِ جداگانه از داخل/خارجِ محدوده.
+   بالا/پایین رفتنِ عدد همان «بهتر/بدتر» نیست و نباید سبز/قرمز شود. */
+.delta-chip {
+  display: inline-flex; align-items: center; gap: var(--s2);
+  font-size: var(--t-micro); font-weight: var(--w-semibold);
+  border-radius: var(--r-pill); padding: var(--s1) var(--s4);
+  background: var(--track); color: var(--ink-2);
+}
+
+/* ---------- فرم ---------- */
+
+.prof-row { display: flex; flex-wrap: wrap; gap: var(--s6); }
+.field { display: flex; flex-direction: column; flex: 1 1 200px; min-width: 0; }
+.age-row { display: flex; gap: var(--s4); align-items: center; }
+.input--age { flex: 1 1 70px; min-width: 0; }
+
+.input {
+  padding: var(--s5) var(--s6); border-radius: var(--r-sm);
+  border: 1.5px solid var(--line-input); background: var(--card);
+  /* --t-lg = ۱rem = ۱۶ پیکسل: کفِ ضدِ زومِ سافاریِ iOS، از داخلِ مقیاس */
+  font-size: var(--t-lg); font-family: inherit; color: var(--ink);
+  min-height: var(--tap); width: 100%;
+  transition: border-color var(--dur) var(--ease);
+}
+.input:hover { border-color: var(--ink-3); }
+/* مقدارِ آزمایش: لاتین، LTR و تابولار تا ستون هم‌عرض بماند (خطای خواندن). */
+.input--num {
+  text-align: center; direction: ltr;
+  font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1;
+  padding: var(--s4);
+}
+.input--num.st-out, .input--num.st-emergency, .input--num.st-near, .input--num.st-normal {
+  border-color: var(--dot);
+}
+.input--prev { background: var(--page); }
+.search-box { background: var(--page); margin-bottom: var(--s7); }
+
+.check-row {
+  display: flex; align-items: center; gap: var(--s4); margin-top: var(--s7);
+  font-size: var(--t-xs); font-weight: var(--w-semibold); color: var(--ink); cursor: pointer;
+  min-height: var(--tap);
+}
+.check-row input { width: 18px; height: 18px; accent-color: var(--brand); }   /* بُعد: چک‌باکس */
+.cond-section { margin-top: var(--s7); }
+
+.fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 176px), 1fr));
+  gap: var(--s7); margin-bottom: var(--s8);
+}
+.cell { display: flex; flex-direction: column; gap: var(--s2); align-items: start; }
+.cell-label { font-size: var(--t-2xs); font-weight: var(--w-semibold); color: var(--ink-2); }
+.cell-input { display: flex; align-items: center; gap: var(--s3); width: 100%; }
+.tag { font-size: var(--t-micro); color: var(--ink-3); min-width: 26px; }
+.tag--curr { color: var(--brand); font-weight: var(--w-bold); }
+.ref-hint { font-size: var(--t-micro); color: var(--ink-3); }
+/* ⚠️ متنِ خطای خانه یک پله بزرگ‌تر از بقیهٔ برچسب‌های کمکی است و این عمدی
+   است: بقیه اختیاری‌اند، این یکی چیزی است که باید خوانده شود. */
+.cell-err {
+  font-size: var(--t-2xs); line-height: var(--lh-body); color: var(--warn-fg);
+  background: var(--warn-bg); border-radius: var(--r-xs); padding: var(--s1) var(--s3);
+}
+.io-row { display: flex; gap: var(--s4); flex-wrap: wrap; margin: var(--s6) 0; }
+
+/* ---------- نوارِ محدودهٔ مرجع ----------
+   ⚠️ هیچ خاصیتِ فیزیکیِ چپ/راستی اینجا نیست. inset-inline-start در RTL به
+      «راست» تبدیل می‌شود، یعنی محور خودبه‌خود کم→زیاد در جهتِ خواندن می‌رود.
+      نسخهٔ قبلی left فیزیکی داشت و داخل dir=rtl آینه می‌شد. */
+.band { margin-top: var(--s4); }
+.band-track {
+  position: relative; height: 10px;    /* بُعد: ضخامتِ ریل */
+  background: var(--track); border-radius: var(--r-pill);
+  overflow: hidden;    /* کلاهکِ متقارن؛ شعاعِ نامتقارن در RTL می‌شکند */
+}
+.band-normal {
+  position: absolute; inset-block: 0;
+  inset-inline-start: var(--band-start);
+  width: var(--band-width);
+  background: var(--st-normal-bg);
+  border-radius: var(--r-pill);
+}
+/* مرکز کردن با «افستِ منطقی منهای نصفِ عرض» — نه با translateX که جهت‌دار است */
+.band-marker {
+  /* ⚠️ border-box لازم است: بدون آن حاشیهٔ ۲ پیکسلیِ سفید به عرض اضافه
+     می‌شود، جعبه ۱۸ پیکسل می‌شود و افستِ ۷ پیکسلی دقیقاً مرکز نمی‌کند
+     (اندازه‌گیریِ واقعی در مرورگر: ۲ پیکسل خطا). با border-box عرضِ واقعی
+     ۱۴ است و «افستِ منطقی منهای نصفِ عرض» در هر دو جهت دقیق می‌شود.
+     ⚠️ چهار عددِ زیر (۱۴ و نصفش ۷ و ۲ پیکسلِ حلقه) هندسه‌اند نه ریتم، و
+        عمداً از مقیاسِ فاصله بیرون‌اند: با گرد شدن به پلهٔ مقیاس، مرکزِ
+        نشانگر روی عدد نمی‌افتد و نوار دربارهٔ جای عدد دروغ می‌گوید. */
+  box-sizing: border-box;
+  position: absolute; top: 50%; margin-top: -7px;
+  inset-inline-start: calc(var(--band-pos) - 7px);
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--dot); border: 2px solid var(--card);
+  box-shadow: var(--sh-dot);
+}
+.band-scale {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: var(--s4); margin-top: var(--s2); font-size: var(--t-micro); color: var(--ink-3);
+}
+/* برچسبِ وسط قبلاً نیم‌پیکسل کوچک‌تر بود. حالا هم‌اندازهٔ دو عدد است و
+   تفاوتش با وزن بیان می‌شود — محورِ وزن از قبل در مقیاس هست، اندازهٔ ۱۰.۵ نبود. */
+.band-scale-mid { font-weight: var(--w-semibold); }
+
+/* ---------- کارنامهٔ وضعیت ---------- */
+
+.scorecard {
+  background: var(--card); border: 1px solid var(--border-card);
+  border-radius: var(--r-lg); padding: var(--s8); box-shadow: var(--sh-md);
+}
+.score-hero { display: flex; align-items: center; gap: var(--s8); flex-wrap: wrap; }
+.score-lines { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: var(--s4); }
+.score-headline { font-size: var(--t-lg); font-weight: var(--w-semibold); line-height: var(--lh-body); }
+.score-urgency { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
+.score-urgency-note { font-size: var(--t-2xs); color: var(--ink-3); }
+.score-note { font-size: var(--t-2xs); line-height: var(--lh-body); color: var(--ink-2); }
+
+/* حلقه — conic-gradient، بدون SVG و بدون انیمیشن.
+   ⚠️ انیمیشنِ جاروبِ حلقه عمداً حذف شده: نمایشی که عدد را عقب بیندازد
+      نقص است نه ویژگی، و اینجا عدد تنها چیزی است که اهمیت دارد.
+   ⚠️ گرادیانِ مخروطی همیشه ساعتگرد است؛ در RTL با scaleX آینه می‌شود و
+      محتوای مرکز با scaleX دوم برمی‌گردد سرِ جایش. */
+.ring {
+  position: relative; flex-shrink: 0;
+  width: 116px; height: 116px; border-radius: 50%;    /* بُعد: قطرِ حلقه */
+  background: conic-gradient(var(--ring-color) calc(var(--ring-pct) * 1%), var(--track) 0);
+  transform: scaleX(-1);
+}
+.ring[data-tone="normal"]    { --ring-color: var(--st-normal-fg); }
+.ring[data-tone="near"]      { --ring-color: var(--st-near-fg); }
+.ring[data-tone="out"]       { --ring-color: var(--st-out-fg); }
+.ring[data-tone="unmatched"] { --ring-color: var(--st-unmatched-fg); }
+.ring[data-tone="emergency"] { --ring-color: var(--st-emergency-bg); }
+.ring-hole {
+  position: absolute; inset: 13px;    /* بُعد: ضخامتِ خودِ حلقه */
+  background: var(--card); border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; transform: scaleX(-1);
+}
+.ring-value { font-size: var(--t-display); font-weight: var(--w-regular); line-height: var(--lh-flat); }
+.ring-label { font-size: var(--t-micro); font-weight: var(--w-semibold); color: var(--ink-2); line-height: var(--lh-tight); }
+
+.sys-grid {
+  list-style: none; padding: 0; margin: var(--s8) 0 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
+  gap: var(--s5);
+}
+.sys-card {
+  display: flex; flex-direction: column; gap: var(--s3);
+  padding: var(--s5) var(--s6); border-radius: var(--r-md);
+  border: 1px solid var(--line); background: var(--sunken);
+  color: inherit; text-decoration: none;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.sys-card:hover { background: var(--card); border-color: var(--brand); }
+.sys-card[data-tone="emergency"] { border-color: var(--st-emergency-bg); }
+.sys-head { display: flex; align-items: center; gap: var(--s3); }
+.sys-name { font-size: var(--t-sm); font-weight: var(--w-bold); }
+.sys-counts { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.sys-pips { display: flex; flex-wrap: wrap; gap: var(--s1); align-items: center; }
+.pip { width: 9px; height: 9px; border-radius: 50%; background: var(--dot); }   /* بُعد: قطرِ پیپ */
+.pip-more { font-size: var(--t-micro); color: var(--ink-3); font-style: normal; }
+
+/* ---------- ناحیهٔ نتیجه ---------- */
+
+.result { display: flex; flex-direction: column; gap: var(--s7); margin-top: var(--s8); }
+.result-anchor { display: block; }
+.result-anchor:focus { outline: none; }
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: var(--s2);
+  padding-bottom: var(--s5); margin-bottom: var(--s2);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.group { margin-bottom: var(--s7); }
+.group--collapsible > .group-head { cursor: pointer; }
+.group--collapsible[open] > .group-head { margin-bottom: var(--s3); }
+.group:focus { outline: none; }
+.group-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: var(--s4); flex-wrap: wrap;
+  border-bottom: 1.5px solid var(--line);
+  padding-bottom: var(--s3); margin-bottom: var(--s3);
+  font-size: var(--t-sm); font-weight: var(--w-bold);
+}
+.group-title { font-size: var(--t-sm); font-weight: var(--w-bold); }
+.group-count { font-size: var(--t-2xs); font-weight: var(--w-regular); color: var(--ink-2); }
+.group-count b { color: var(--st-out-fg); }
+
+.row-list { list-style: none; padding: 0; margin: 0; }
+.row { padding: var(--s4) 0; border-bottom: 1px solid var(--line-soft); }
+.row:last-child { border-bottom: none; }
+.row-main { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap; }
+.row-name { font-size: var(--t-sm); font-weight: var(--w-semibold); }
+.row-nums {
+  display: flex; gap: var(--s5); align-items: baseline; flex-wrap: wrap; margin-top: var(--s1);
+  font-size: var(--t-md);
+}
+.row-range { font-size: var(--t-2xs); color: var(--ink-2); }
+.row-src { font-size: var(--t-micro); color: var(--ink-3); margin-top: var(--s1); }
+.row-measured {
+  font-size: var(--t-2xs); color: var(--ink-2); margin-top: var(--s1);
+  background: var(--sunken); border-radius: var(--r-xs); padding: var(--s1) var(--s4);
+  display: inline-block;
+}
+.row-note { font-size: var(--t-2xs); color: var(--ink-2); line-height: var(--lh-body); flex: 1; }
+.note-row { display: flex; align-items: flex-start; gap: var(--s4); justify-content: space-between; margin-top: var(--s3); }
+.about-box {
+  margin-top: var(--s4); padding: var(--s5) var(--s6); background: var(--sunken);
+  border-radius: var(--r-sm); font-size: var(--t-2xs); color: var(--ink-2); line-height: var(--lh-body);
+}
+
+/* شدتِ CTCAE — عددِ خودِ موتور، با پله‌های دیداری در کنارِ واژه */
+.grade { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s2); }
+.grade-pips { display: inline-flex; gap: var(--s1); }
+.gp { width: 14px; height: 5px; border-radius: 2px; background: var(--track); }   /* بُعد: پلهٔ شدت */
+.gp.on { background: var(--dot); }
+.grade-text { font-size: var(--t-micro); color: var(--ink-2); }
+
+.unmatched-box {
+  background: var(--st-unmatched-bg);
+  border: 1px solid var(--st-unmatched-fg);
+  color: var(--ink);
+}
+.unmatched-box .block-title { color: var(--st-unmatched-fg); font-size: var(--t-md); }
+
+.derived-list { list-style: none; padding: 0; margin: 0; }
+.derived-row { padding: var(--s3) 0; border-bottom: 1px solid var(--line-soft); }
+.derived-row:last-child { border-bottom: none; }
+.derived-parent { display: block; font-size: var(--t-xs); color: var(--ink-2); }
+.derived-child {
+  display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap;
+  font-size: var(--t-sm); padding-inline-start: var(--s7); margin-top: var(--s1);
+}
+
+.extract-list { list-style: none; padding: 0; margin: 0; }
+.extract-row {
+  font-size: var(--t-sm); line-height: var(--lh-prose);
+  border-bottom: 1px solid var(--line-soft); padding: var(--s1) 0;
+  display: flex; flex-wrap: wrap; gap: var(--s3); align-items: baseline;
+}
+.extract-row:last-child { border-bottom: none; }
+.extract-name { font-weight: var(--w-bold); }
+.printed-ref { color: var(--ink-2); font-size: var(--t-2xs); }
+
+.prov summary { cursor: pointer; margin-bottom: 0; }
+.prov[open] summary { margin-bottom: var(--s5); }
+.prov-body { display: flex; flex-direction: column; gap: var(--s4); }
+.prov-body .text { font-size: var(--t-xs); line-height: var(--lh-prose); color: var(--ink); }
+
+/* ---------- آپلود و انتظار ---------- */
+
+.dropzone {
+  display: flex; flex-direction: column; align-items: center; gap: var(--s3);
+  text-align: center; cursor: pointer;
+  border: 2px dashed var(--line-input); border-radius: var(--r-md);
+  padding: var(--s9) var(--s7); background: var(--page); margin-bottom: var(--s6);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.dropzone:hover { border-color: var(--brand); background: var(--brand-soft); }
+/* input داخلِ .sr-only است و همچنان فوکوس‌پذیر؛ حلقه را برچسب نشان می‌دهد */
+.dropzone:focus-within { outline: 3px solid var(--brand); outline-offset: var(--s1); }
+.dropzone-icon { font-size: var(--t-2xl); }
+.dropzone-main { font-size: var(--t-xs); color: var(--ink); font-weight: var(--w-semibold); }
+.dropzone-sub { font-size: var(--t-2xs); color: var(--ink-3); }
+
+.page-list { list-style: none; padding: 0; margin: 0 0 var(--s6); display: flex; flex-direction: column; gap: var(--s4); }
+.page-row {
+  display: flex; align-items: center; gap: var(--s4);
+  border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--s4); background: var(--card);
+}
+.page-thumb { width: 52px; height: 52px; border-radius: var(--r-xs); object-fit: cover; flex-shrink: 0; }  /* بُعد: بندانگشتی */
+.page-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.page-label { font-size: var(--t-xs); font-weight: var(--w-semibold); }
+.page-size { font-size: var(--t-micro); color: var(--ink-3); }
+
+.resume-box {
+  margin: var(--s6) 0; padding: var(--s5) var(--s6); border-radius: var(--r-md);
+  background: var(--brand-soft); border: 1px solid var(--brand-line); color: var(--brand-ink);
+  font-size: var(--t-xs); display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s5); flex-wrap: wrap;
+}
+.resume-btns { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; }
+.resume-confirm { font-weight: var(--w-bold); }
+
+.progress-box {
+  margin-top: var(--s6); padding: var(--s6) var(--s7); border-radius: var(--r-md);
+  background: var(--sunken); border: 1px solid var(--line);
+}
+.progress-text { font-size: var(--t-sm); font-weight: var(--w-semibold); line-height: var(--lh-body); }
+.progress-track {
+  height: 6px; border-radius: var(--r-pill); background: var(--track);   /* بُعد: ضخامتِ ریل */
+  overflow: hidden; margin: var(--s5) 0 var(--s4);
+}
+/* در RTL نوار از راست پر می‌شود — پیشرفت جهتِ خواندن را دنبال می‌کند.
+   inset-inline-start + width به‌طور طبیعی از لبهٔ «شروع» رشد می‌کند. */
+.progress-fill {
+  height: 100%; background: var(--brand); border-radius: var(--r-pill);
+  transition: width var(--dur-lg) var(--ease); margin-inline-start: auto;
+}
+.progress-box .hint { margin: 0 0 var(--s4); }
+
+/* ---------- اتصالِ ضعیف ----------
+   حالتی که analyzeJob.js با degraded=true اعلام می‌کند و تا امروز هیچ
+   نمایشی نداشت: کاربرِ داخلِ تونل یک جعبهٔ پیشرفت می‌دید که فقط از حرکت
+   می‌ایستاد — از «هنگ کردن» غیرقابل‌تشخیص.
+
+   ⚠️ عمداً پالتِ --warn-* را نمی‌گیرد. آن پالت برای «چیزی خراب شد» است و
+      اینجا هیچ‌چیز خراب نشده؛ رنگِ هشدار اینجا فقط اضطرابِ بی‌مورد تولید
+      می‌کند. حاشیهٔ خط‌چین همان واژگانِ st-missing است — «موقتاً در دسترس
+      نیست»، نه «اشتباه است». */
+.degraded {
+  display: flex; flex-direction: column; gap: var(--s1);
+  margin-bottom: var(--s4); padding: var(--s5) var(--s6);
+  border-radius: var(--r-sm);
+  background: var(--card); border: 1px dashed var(--line-input);
+  font-size: var(--t-xs); line-height: var(--lh-body); color: var(--ink-2);
+}
+.degraded-title { font-weight: var(--w-bold); color: var(--ink); }
+
+/* ---------- واکنش‌گرایی ----------
+   قبلاً در کلِ پروژه **یک** مدیا-کوئری هم وجود نداشت. */
+
+@media (max-width: 380px) {
+  .prof-row { flex-direction: column; gap: var(--s5); }
+  .fields-grid { grid-template-columns: 1fr 1fr; gap: var(--s5); }
+  .ring { width: 96px; height: 96px; }
+  .ring-value { font-size: var(--t-2xl); }
+  .card { padding: var(--s7); border-radius: var(--r-md); }
+}
+
+@media (min-width: 760px) {
+  .shell { max-width: 720px; gap: var(--s8); }
+  .card { padding: var(--s9); }
+  .fields-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }
+}
+
+@media (min-width: 1080px) {
+  .shell { max-width: 860px; }
+  .score-hero { gap: var(--s10); }
+}

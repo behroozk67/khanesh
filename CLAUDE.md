@@ -43,11 +43,16 @@ Before you start a clinical change, read [Lab Notebook](#lab-notebook--things-no
 khanesh-project/
 ├── khanesh/                    # React + Vite frontend
 │   ├── src/
-│   │   ├── App.jsx             # routes: "/" -> Landing, "/app" -> Tafsir
-│   │   ├── Landing.jsx         # marketing page
+│   │   ├── App.jsx             # routes: "/" -> Tafsir; "/app" and "*" redirect to "/"
 │   │   ├── Tafsir.jsx          # the actual tool (manual entry + photo upload)
+│   │   ├── ResultView.jsx      # result screen: six states, category groups, derived values
+│   │   ├── resultStates.js     # the six result states (word + shape + colour)
+│   │   ├── testCategories.js   # engine key -> body-system category (presentation only)
+│   │   ├── digits.js           # Persian/Arabic digit normalisation
+│   │   ├── Logo.jsx            # circular badge (rescued from the deleted Landing.jsx)
 │   │   ├── main.jsx
 │   │   └── index.css / App.css
+│   ├── public/fonts/           # self-hosted Vazirmatn variable woff2 + OFL licence
 │   ├── public/
 │   ├── vite.config.js          # dev-only proxy: /api -> http://localhost:8787
 │   └── package.json
@@ -55,6 +60,10 @@ khanesh-project/
 │   ├── server.js                # POST /api/analyze, GET /health
 │   ├── rules/
 │   │   ├── adapter.js           # OCR text -> engine keys (NAME_MAP, unit conversion)
+│   │   ├── guidelines.js        # citation registry (CLSI/IFCC/EFLM/WHO/KDIGO/ADA/ESC/ACG/…)
+│   │   ├── units.js             # IFCC SI -> conventional units (HbA1c mmol/mol, mmol/L, µmol/L)
+│   │   ├── preanalytical.js     # CLSI sample-quality caveats (hemolysis, fasting, EDTA, stasis)
+│   │   ├── biovar.js            # EFLM biological variation -> reference change value
 │   │   ├── refs.js              # adult reference ranges (Henry's Clinical Diagnosis)
 │   │   ├── refs_ped.js          # pediatric ranges <16y (RCPCH 2016)
 │   │   ├── grade.js             # picks severity/classifier/binary mode per test
@@ -203,6 +212,12 @@ second one; a recurring entry is the strongest signal in the file.
   analyte. Normalize in `adapter.js` with a threshold set far above the highest clinically possible
   value (WBC 1000, PLT 3000, RBC 100) so a genuinely critical result is never halved. And never
   reintroduce the urea→BUN conversion — see [architecture.md](.claude/rules/architecture.md) step 4.
+- **The per-test whack-a-mole was itself the bug** (2026-07-27, `rules/units.js`). Five analytes had
+  a unit guard, each added after its own incident; every other analyte had none. The unguarded one
+  that mattered most was HbA1c: IFCC units are mmol/mol, so a sheet printing `48` — exactly the ADA
+  diabetes threshold, 6.5% — was graded against `[4, 5.6]`. `units.js` now covers the whole SI
+  table, still refusing to convert unless the sheet states the unit. Adding a numeric test without
+  asking "which unit systems print this analyte?" is the same mistake in a new place.
 
 ### N4 — Telling the patient about a test they didn't have
 `9c93319`
@@ -261,6 +276,12 @@ second one; a recurring entry is the strongest signal in the file.
   something that wasn't a test name, giving «درخواست آزمایش مشاوره با پزشک … از پزشک»; and tests
   already present on the sheet were "requested" again («درخواست آزمایش فریتین» when ferritin was
   measured).
+- **Recurred again on a brand-new surface** (2026-07-27, `ResultView.jsx` `UnitConversions`). The
+  IFCC unit-conversion block was written to render `row.test` — the raw engine key — so a patient
+  whose sheet used SI units would have read «HBA1C» in the one block whose whole job is to reassure
+  them the numbers match. Every *new* patient-facing surface re-opens this hole; the fix is that the
+  server attaches a `faName()`-resolved `name` alongside the key, and test `G7` asserts every
+  convertible key exists in `FA_NAMES`.
 - **Rule:** every key goes through `faName()`. For a test that was already measured, the phrasing is
   «تکرارِ …», not a fresh request. Deduplicate recommendations by first sentence and drop
   data-driven subsets (سرم آهن + TIBC under «پنل کامل آهن») — a plain `new Set` left 19 near-identical
@@ -305,6 +326,37 @@ Convention in `rules/engine.test.js`.
 - **Rule:** frontend has no tests — trace the code path by reading it, in StrictMode terms. Check
   `git update-index --chmod=+x` on anything executable. When a range changes, decide explicitly
   whether `REF` follows, and record the answer in `REF_DIFF.md`.
+
+### N12 — A severity state that swallowed the direction
+`bfc70fa` (fix). Found by a generator agent on platelets, confirmed by the orchestrator to be
+five analytes wider.
+
+- **Tried:** in the manual-entry local preview, pick the explanatory sentence with
+  `row.status === "above" || row.status === "crit" ? m.high : row.status === "below" ? m.low : m.about`.
+- **Broke:** `statusOf()` returns a single `"crit"` for *either* end of the critical range, so
+  folding `crit` into the `above` branch explained every critically **low** value with the
+  **high** text. Not a near-miss — the sentences are clinically opposite:
+
+  | value | what it is | what the patient read |
+  |---|---|---|
+  | K 2.5 | hypokalemia | «بالا (هایپرکالمی) می‌تواند خطر آریتمی قلبی ایجاد کند» |
+  | Na 115 | severe hyponatremia | «بالا اغلب به کم‌آبی مربوط است» |
+  | WBC 1.5 | severe neutropenia | «بالا اغلب نشانه عفونت، التهاب یا استرس است» |
+  | PLT 40 | bleeding risk | «بالا می‌تواند واکنشی … باشد» |
+  | Glucose 30 | hypoglycemia | «۱۰۰ تا ۱۲۵ پیش‌دیابت و ۱۲۶ به بالا … دیابت» |
+
+  Every analyte with a lower `crit` bound was affected. The badge was right and the sentence
+  under it was inverted, which is worse than no sentence: it reads as confirmation.
+- **Rule:** **severity and direction are two axes, never one.** A state that means "far out of
+  range" says nothing about *which* end, so never branch explanatory text on it. Derive
+  direction from the value against the range and branch on that
+  (`LocalPreview.jsx:106-108`: `row.v > r.high ? "high" : row.v < r.low ? "low" : null`).
+  The same shape hides anywhere a `crit`/`critical`/`emergency` state sits in a conditional
+  beside `above`/`high` — grep for it before adding a state, not after.
+- **Why it survived so long:** the local preview is the *only* screen with no engine behind it,
+  so no `must_say`, no coverage check, and no backend test ever saw this text. Frontend-only
+  clinical strings have no safety net — they need the same scrutiny as `patterns.js`, and they
+  don't get it automatically.
 
 ---
 
