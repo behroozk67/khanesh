@@ -57,6 +57,17 @@
   display: flex; flex-direction: column; gap: var(--s2);
 }
 
+/* ---------- انتظارِ بینِ دو صفحه (Suspense) ----------
+   ⚠️ عمداً اینجاست و نه در site.css: دقیقاً وقتی دیده می‌شود که چانکِ صفحهٔ
+      محتوایی — و با آن، site.css — هنوز نرسیده است. استایلی که همراهِ همان
+      چانک بیاید، در تنها لحظه‌ای که به آن نیاز است وجود ندارد.
+   قبلاً یک شیءِ استایلِ inline با هگزِ خام و نامِ فونتِ تکراری بود. */
+.page-loading {
+  min-height: 60vh;
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--t-lg); color: var(--ink-2);
+}
+
 /* ---------- کارت ---------- */
 
 .card {
@@ -141,6 +152,9 @@
 .btn--lg { min-height: calc(var(--tap) + var(--s4)); font-size: var(--t-md); border-radius: var(--r-md); }
 .btn--sm { min-height: calc(var(--tap) - var(--s2)); padding: var(--s3) var(--s6); font-size: var(--t-xs); }
 .btn--icon { min-width: var(--tap); padding: 0; color: var(--ink-2); }
+/* شکلِ حبّه‌ای — فقط صفحه‌های محتوایی. ابزار عمداً گوشهٔ --r-sm دارد: آنجا
+   دکمه کنارِ ورودی می‌نشیند و باید هم‌خانوادهٔ خانه‌های فرم باشد، نه یک قرص. */
+.btn--pill { border-radius: var(--r-pill); padding-inline: var(--s10); }
 .btn--file { position: relative; }
 .btn--link {
   min-height: 0; padding: var(--s1) var(--s2); background: none; border: none;

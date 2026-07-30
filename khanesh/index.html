@@ -1,10 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>khanesh</title>
+    <!-- viewport-fit=cover لازمهٔ env(safe-area-inset-*) روی گوشی‌های ناچ‌دار است -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/Vazirmatn-VF.woff2"
+      crossorigin
+    />
+    <!-- نامِ برند اینجا هاردکد است چون <title> پیش از بوت‌شدنِ React خوانده
+         می‌شود. تنها جای دیگرِ نامِ برند src/Logo.jsx است — هر دو با هم. -->
+    <title>LabMate — تفسیر آزمایش</title>
   </head>
   <body>
     <div id="root"></div>

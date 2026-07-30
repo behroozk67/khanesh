@@ -12,6 +12,8 @@
 // ============================================================
 
 import { faName } from "./names.js";
+import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
+import { repeatDeltaFa } from "./biovar.js";
 
 const has = (t, ...ks) => ks.every((k) => t[k] != null);
 
@@ -69,6 +71,37 @@ function titreFa(v) {
 // نام‌های کیفیِ CRP و RF (پس از نرمال‌سازی). یک‌جا تعریف می‌شوند تا بین
 // الگوها drift نکنند.
 const CRP_RE = /^crp$|crpqual|crplatex|creactive|سیآرپی|پروتئینواکنشی/;
+
+// ═══ WHO — فریتین در حضورِ التهاب ═══
+// فریتین واکنش‌گرِ فاز حاد است. WHO 2020 برای همین دو آستانه دارد:
+//   فردِ سالم        → کمبود آهن: فریتین < ۱۵ µg/L (کودکِ زیر ۵ سال < ۱۲)
+//   با عفونت/التهاب  → کمبود آهن: فریتین < ۷۰ µg/L در بزرگسال (کودک < ۳۰)
+// آستانهٔ دوم بالاتر است چون التهاب عددِ فریتین را بالا می‌کشد و آستانهٔ
+// معمولی در آن وضعیت، کمبودِ واقعی را رد می‌کند — کم‌خوانیِ خاموش.
+
+/** آیا نشانهٔ التهابِ فعال روی همین برگه هست؟ (CRP کمی/کیفی یا ESR) */
+function hasInflammation(e) {
+  const crp = e.graded?.find((g) => g.test === "CRP_Q");
+  if (crp?.abnormal && crp.dir === "high") return true;
+  const esr = e.graded?.find((g) => g.test === "ESR");
+  if (esr?.abnormal && esr.dir === "high") return true;
+  return qualPositive(e, CRP_RE);
+}
+
+/** آستانهٔ WHO برای کمبودِ آهن، متناسب با وجودِ التهاب و سن. */
+function whoFerritinThreshold(e) {
+  const child = e.age != null && e.age < 5;
+  if (hasInflammation(e)) return child ? 30 : 70;
+  return child ? 12 : 15;
+}
+
+/** فریتینِ «طبیعیِ» آزمایشگاه که با معیارِ التهابیِ WHO کمبود است. */
+function whoInflamIronDeficiency(e) {
+  const f = e.graded?.find((g) => g.test === "FERRITIN");
+  if (!f || f.value == null) return false;
+  if (!hasInflammation(e)) return false;
+  return f.value < whoFerritinThreshold(e);
+}
 const RF_RE  = /^rf$|rheumatoid|rafactor|ralatex|rflatex|فاکتورروماتوئید|فاکتورروماتیسمی|رومافاکتور|آرافاکتور/;
 
 // ═══ کمکی‌های ادرار ═══
@@ -2295,7 +2328,14 @@ export const RULES = [
           ? "نوبت عادی با پزشک و تکرار آزمایش کلیه پس از چند هفته."
           : "با پزشک وقت بگیرید و بخواهید این آزمایش تکرار شود.",
         suggest: ["تکرار کراتینین", "ACR ادرار", "الکترولیت‌ها"],
-        warnings: ["داروهای مسکن مثل ایبوپروفن و ناپروکسن را بدون مشورت پزشک مصرف نکنید."],
+        warnings: [
+          "داروهای مسکن مثل ایبوپروفن و ناپروکسن را بدون مشورت پزشک مصرف نکنید.",
+          // EFLM — «تکرار کن» بدون عدد بی‌فایده است. RCVِ کراتینین می‌گوید
+          // چه تغییری واقعی است و چه تغییری فقط نوسانِ طبیعیِ بدن و دستگاه.
+          // اگر روزی دادهٔ کراتینین از biovar حذف شود، این جمله خودبه‌خود
+          // می‌افتد (null) و متنِ ناقص تولید نمی‌شود.
+          ...(repeatDeltaFa("CREAT", "کراتینین") ? [repeatDeltaFa("CREAT", "کراتینین")] : []),
+        ],
       };
     },
   },
@@ -2777,26 +2817,41 @@ export const RULES = [
         const g = e.graded.find((x) => x.test === "TIBC");
         return g?.abnormal && g.dir === "high";
       })();
-      return ferrLow || (tsatLow && tibcHigh);
+      // ⚠️ شکافِ واقعی (کلاسِ N2 — کم‌خوانیِ خاموش):
+      //    فریتین واکنش‌گرِ فاز حاد است و در التهاب بالا می‌رود. پس در بیمارِ
+      //    ملتهب، فریتینِ «طبیعی» کمبودِ آهن را رد نمی‌کند. WHO 2020 دقیقاً
+      //    برای همین آستانهٔ جداگانه دارد: در حضورِ عفونت/التهاب، فریتینِ
+      //    زیر ۷۰ µg/L در بزرگسال کمبودِ آهن را مطرح می‌کند (به‌جای ۱۵).
+      //    بدون این شاخه، بیمارِ CRPِ ۴۰ با فریتینِ ۴۵ هیچ پیامی نمی‌گرفت.
+      return ferrLow || (tsatLow && tibcHigh) || whoInflamIronDeficiency(e);
     },
     build: (e) => {
       const t = val(e);
       const ferr = e.graded.find((g) => g.test === "FERRITIN");
       const ferrLow = ferr?.abnormal && ferr.dir === "low";
-      // اگر CRP بالا باشد، فریتین ممکن است کاذب طبیعی باشد — احتیاط
-      const crp = e.graded.find((g) => g.test === "CRP_Q");
-      const inflam = crp?.abnormal && crp.dir === "high";
+      const inflam = hasInflammation(e);
+      // شاخهٔ WHO: فریتین طبق آزمایشگاه «طبیعی» است ولی با التهاب زیر ۷۰.
+      const whoOnly = !ferrLow && whoInflamIronDeficiency(e);
       return {
-        pattern: "iron_deficiency",
+        pattern: whoOnly ? "iron_deficiency_masked_by_inflammation" : "iron_deficiency",
         urgency: "this_week",
-        headline: "الگوی آزمایش‌ها به کمبود آهن اشاره دارد",
-        must_say:
-          "ذخیره آهن بدن شما پایین است" +
-          (ferrLow ? " (فریتین پایین، قوی‌ترین نشانه کمبود آهن)" : "") +
-          ". شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است." +
-          (inflam ? " توجه: CRP شما بالاست و ممکن است تصویر آهن را پیچیده کند — پزشک باید تفسیر کند." : ""),
+        sources: ["WHO_FERRITIN"],
+        headline: whoOnly
+          ? "فریتین شما «طبیعی» گزارش شده، ولی با توجه به التهاب می‌تواند کمبود آهن را پنهان کند"
+          : "الگوی آزمایش‌ها به کمبود آهن اشاره دارد",
+        must_say: whoOnly
+          ? `فریتین شما ${t.FERRITIN} است که در محدودهٔ چاپ‌شدهٔ آزمایشگاه «طبیعی» به حساب می‌آید — ولی ` +
+            "فریتین یک پروتئینِ التهابی هم هست و هر التهاب یا عفونتی آن را بالا می‌برد، حتی وقتی ذخیرهٔ آهن ته کشیده باشد. " +
+            "چون نشانه‌های التهاب در همین برگه بالاست، سازمان جهانی بهداشت در این وضعیت آستانهٔ بالاتری (فریتین زیر ۷۰) را " +
+            "برای مطرح کردنِ کمبود آهن به کار می‌برد، نه آستانهٔ معمولِ ۱۵. یعنی این عدد کمبود آهن را رد نمی‌کند و باید بررسی شود."
+          : "ذخیره آهن بدن شما پایین است" +
+            (ferrLow ? " (فریتین پایین، قوی‌ترین نشانه کمبود آهن)" : "") +
+            ". شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است." +
+            (inflam ? " توجه: نشانه‌های التهاب هم بالاست و ممکن است تصویر آهن را پیچیده کند — پزشک باید تفسیر کند." : ""),
         action: "این هفته با پزشک وقت بگیرید. اگر خون‌ریزی گوارشی یا قاعدگی سنگین دارید حتماً بگویید.",
-        suggest: ["پنل کامل آهن", "بررسی علت خون‌ریزی"],
+        suggest: whoOnly
+          ? ["اشباع ترانسفرین (TSAT)", "گیرندهٔ محلول ترانسفرین (sTfR)", "بررسی علت التهاب"]
+          : ["پنل کامل آهن", "بررسی علت خون‌ریزی"],
         warnings: [
           "قبل از تأیید پزشک و مشخص شدن علت، خودتان دوز بالای آهن شروع نکنید.",
         ],
@@ -3147,6 +3202,58 @@ export function alreadyMeasured(suggestion, measuredKeys) {
   return !!keys && keys.every((k) => measuredKeys.has(k));
 }
 
+/**
+ * منبعِ گایدلاینیِ هر قاعده — شناسه‌ها از guidelines.js.
+ *
+ * چرا جدولِ جداگانه و نه فیلد داخلِ خودِ قاعده: قاعده‌ها ۶۸ تا هستند و
+ * دست‌زدن به همه‌شان یعنی ۶۸ فرصتِ خراب‌کاری در متنی که به بیمار می‌رسد.
+ * هر قاعده می‌تواند در build خودش هم `sources` بدهد؛ آن با این ادغام می‌شود.
+ *
+ * ⚠️ قاعده‌ای که اینجا نیست، منبعِ گایدلاینیِ *اختصاصی* ندارد و صرفاً روی
+ *    محدودهٔ مرجع + CTCAE می‌ایستد — که خودشان در getRefSource ثبت‌اند.
+ *    منبعِ بی‌ربط اضافه نکن تا فهرست پر شود؛ فهرست به بیمار نشان داده می‌شود.
+ */
+export const RULE_SOURCES = {
+  // کلیه — مرحله‌بندی G1–G5، باندهای ACR، و شرطِ دوامِ ۳ ماه، همه KDIGO است.
+  kidney:               ["KDIGO_CKD"],
+  albuminuria_pattern:  ["KDIGO_CKD"],
+  // قند — آستانه‌های تشخیصی و DKA/HHS از ADA.
+  glycemia:             ["ADA_SOC"],
+  dka_pattern:          ["ADA_SOC"],
+  hhs_pattern:          ["ADA_SOC"],
+  hypoglycemia:         ["ADA_SOC"],
+  // ⚠️ لیپید عمداً اینجا نیست: آستانه‌های LDL/کلسترول/TG در refs.js از
+  //    NCEP ATP III می‌آیند، نه از ESC/EAS. تا وقتی اهدافِ ریسک‌محورِ ESC
+  //    (<۵۵/<۷۰/<۱۰۰/<۱۱۶) واقعاً پیاده نشده‌اند، برچسبِ ESC یعنی ادعای
+  //    منبعی که موتور از آن استفاده نمی‌کند. ورودیِ ESC_EAS_LIPID در
+  //    guidelines.js برای همان کارِ آینده نگه داشته شده.
+  // کبد — نسبت R و آستانه‌های آنزیمی از گایدلاینِ آنزیم‌های کبدیِ ACG.
+  liver_pattern:        ["ACG_LIVER"],
+  bilirubin_pattern:    ["ACG_LIVER"],
+  alp_isolated:         ["ACG_LIVER"],
+  cirrhosis_pattern:    ["ACG_LIVER"],
+  alcoholic_liver_pattern: ["ACG_LIVER"],
+  // ⚠️ پانکراس اینجا نیست: آستانهٔ «لیپاز > ۳×ULN» از گایدلاینِ پانکراتیتِ
+  //    حادِ ACG است، نه از سندِ آنزیم‌های کبدی که در دفترِ منابع ثبت شده.
+  //    ارجاع به سندِ اشتباهِ همان سازمان، باز هم ارجاعِ اشتباه است.
+  // خون و آهن — باندهای شدتِ کم‌خونی (<۸ شدید، <۱۱ متوسط) از WHO.
+  microcytic_anemia:    ["WHO_ANAEMIA"],
+  iron_deficiency_panel:["WHO_FERRITIN"],
+  // ⚠️ anemia_chronic_disease اینجا نیست: روی الگوی آهن/TIBC/فریتین می‌ایستد،
+  //    نه روی آستانه‌های WHO.
+  // انعقاد
+  dic_pattern:          ["ISTH"],
+  // سرولوژی
+  hcv_screen_reactive:  ["CDC_SEROLOGY", "AASLD"],
+  hbv_screen_reactive:  ["CDC_SEROLOGY", "AASLD"],
+  hiv_screen_reactive:  ["CDC_SEROLOGY"],
+  brucella_active:      ["IR_BRUCELLOSIS"],
+  brucella_wright_only: ["IR_BRUCELLOSIS"],
+  // روماتولوژی و ویتامین
+  rf_positive:          ["ACR_EULAR"],
+  vitamin_d_abnormal:   ["ENDO_VIT_D"],
+};
+
 export function runPatterns(engineOut) {
   const findings = [];
   for (const rule of RULES) {
@@ -3157,6 +3264,12 @@ export function runPatterns(engineOut) {
     } catch {
       /* قاعده خراب نباید موتور را بخواباند */
     }
+  }
+
+  // منبعِ گایدلاینی را به یافته بچسبان (ادغام با آنچه خودِ build داده).
+  for (const f of findings) {
+    const merged = [...(RULE_SOURCES[f.rule_id] ?? []), ...(f.sources ?? [])];
+    if (merged.length) f.sources = [...new Set(merged)];
   }
 
   // ⚠️ باگ واقعی: در پنل فقر آهن که فریتین/آهن/TIBC هر سه وارد شده بودند،
@@ -3245,11 +3358,20 @@ export function runPatterns(engineOut) {
 
   shown.sort((a, b) => rank(a.urgency) - rank(b.urgency));
 
+  // ═══ CLSI — هشدارهای پیش‌تحلیلی ═══
+  // بعد از انتخابِ یافته‌ها اجرا می‌شود، نه قبلش: هشداری که به یافتهٔ
+  // پنهان‌شده بچسبد، با آن پنهان می‌شود. این‌طور اگر هدفش سرکوب شده باشد،
+  // به‌عنوان هشدارِ عمومی برمی‌گردد و گم نمی‌شود.
+  // ⚠️ هیچ‌کدام از این‌ها فوریت را تغییر نمی‌دهند — فقط متن اضافه می‌کنند.
+  const preanalytical = attachPreanalytical(shown, preanalyticalCaveats(engineOut));
+
   return {
     findings: shown,
     overall_urgency: shown[0]?.urgency ?? "none",
     has_critical: shown.some((f) => f.urgency === "emergency"),
     // چند مورد کم‌اهمیت‌تر پنهان شد — برای شفافیت
     suppressed: hasBlocker ? findings.length - shown.length : 0,
+    // هشدارهای پیش‌تحلیلیِ بی‌صاحب (هدفشان در این پنل یافته‌ای نداشت)
+    preanalytical,
   };
 }

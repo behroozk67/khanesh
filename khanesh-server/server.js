@@ -32,19 +32,74 @@ import "dotenv/config";
 import { runEngine } from "./rules/adapter.js";
 import { runPatterns } from "./rules/patterns.js";
 import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations } from "./rules/prompt.js";
+import { faName } from "./rules/names.js";
+import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
 import { createAvalAIClient, safeParseJson } from "./avalaiClient.js";
 import { extractMedlineTerms, formatMedlineContext } from "./rules/medline.js";
 import { missingFindingText } from "./rules/coverage.js";
+import { createJob, reportPage, finishJob, getJob, jobView, jobCount } from "./jobStore.js";
 
-// اطلاعات دیباگ موتور — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
+// اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
+//
+// ⚠️ تا قبل از این، تنها چیزی که از حکمِ موتور به کلاینت می‌رسید عددِ
+//    `abnormal: engineOut.abnormal.length` بود. یعنی رابط کاربری می‌فهمید
+//    «چندتا» غیرطبیعی است ولی هرگز نمی‌فهمید «کدام‌ها» — در حالی که
+//    evaluate() برای هر تست وضعیت کامل (و حتی برچسبِ فارسیِ آمادهٔ `fa`)
+//    محاسبه کرده بود و یک خط قبل از res.json دور ریخته می‌شد. بدون این،
+//    گروه‌بندی بر اساس دستگاه بدن و «وضعیت واژه‌ای به‌جای رنگ» از سمت
+//    کلاینت غیرممکن بود، نه سخت.
+//
+//    این یک تغییرِ سریالایز است، نه بالینی: هیچ قضاوتی اینجا انجام نمی‌شود
+//    و `rules/` دست نخورده است.
 function engineDebug(engineOut, patternOut) {
   return {
     patterns: patternOut.findings.map((f) => f.rule_id),
     urgency: patternOut.overall_urgency,
+    // ⚠️ قرارداد قبلی: عدد. عمداً حفظ شده تا کلاینت قدیمی نشکند.
     abnormal: engineOut.abnormal.length,
     indices: engineOut.indices,
+    tests: serializeGraded(engineOut),
+    // ── منابعِ گایدلاینیِ یافته‌ها (شفافیت) ──
+    // فقط شناسه‌هایی که واقعاً روی یافته‌های نمایش‌داده‌شده نشسته‌اند.
+    // sourceList نامِ منبعِ پولی را با معادلِ آزادش جایگزین می‌کند تا
+    // به بیمار نگوییم عددی از UpToDate آمده در حالی که نیامده.
+    guidelines: sourceList(
+      patternOut.findings.flatMap((f) => f.sources ?? [])
+    ),
+    // ── CLSI: هشدارهای پیش‌تحلیلیِ بی‌صاحب ──
+    // آن‌هایی که یافتهٔ متناظرشان در این پنل نبود یا سرکوب شد.
+    preanalytical: patternOut.preanalytical ?? [],
+    // ── IFCC: تبدیل‌های واحدِ انجام‌شده ──
+    // «۴۸ mmol/mol → ۶.۵٪» باید دیده شود، وگرنه عددِ برگه با عددِ تفسیر
+    //  نمی‌خواند و بیمار حق دارد فکر کند اشتباهی رخ داده.
+    // ⚠️ `test` کلیدِ خامِ موتور است و هرگز نباید رندر شود (کلاسِ N8) —
+    //    `name` را همین‌جا می‌سازیم تا کلاینت مجبور به حدس‌زدن نباشد.
+    unitConversions: (engineOut.unitConversions ?? []).map((c) => ({
+      ...c,
+      name: faName(c.test),
+    })),
   };
+}
+
+// حکمِ تک‌تک تست‌ها. `name` از faName() رد می‌شود تا کلید خام (HGB, BILI_T)
+// هرگز به متنِ روبه‌بیمار نرسد — همان کلاسی که N8 است.
+function serializeGraded(engineOut) {
+  if (!Array.isArray(engineOut?.graded)) return [];
+  return engineOut.graded.map((g) => ({
+    key: g.test,
+    name: faName(g.test),
+    value: g.value,
+    range: g.range,
+    refSource: g.refSource ?? null,
+    abnormal: !!g.abnormal,
+    dir: g.dir ?? null,
+    fa: g.fa ?? null,          // برچسبِ فارسیِ آماده — کلاینت دوباره نسازدش
+    level: g.level ?? null,
+    ctcaeGrade: g.ctcaeGrade ?? null,
+    nearLimit: !!g.nearLimit,
+    source: g.source ?? null,
+  }));
 }
 
 const app = express();
@@ -399,7 +454,10 @@ async function readImage(imageDataUrl, label = "") {
 //   ۱. اگر AvalAI محدودیت نرخ داشته باشد، ۵ درخواست همزمان ۴۲۹ می‌گیرد
 //   ۲. خطای یک صفحه نباید بقیه را دور بریزد
 // ============================================================
-async function readImages(imageDataUrls) {
+// onPage(pageNumber, testCount) — اختیاری. چون IMAGE_CONCURRENCY=1 است،
+// صفحات واقعاً یکی‌یکی و با فاصلهٔ تقریباً یکنواخت تمام می‌شوند؛ پس این
+// یک سیگنالِ پیشرفتِ صادق و یکنواخت است، نه نوارِ ساختگی.
+async function readImages(imageDataUrls, onPage) {
   const results = new Array(imageDataUrls.length);
   let cursor = 0;
 
@@ -410,8 +468,10 @@ async function readImages(imageDataUrls) {
       try {
         const ocr = await readImage(imageDataUrls[i], label);
         results[i] = { page: i + 1, ok: true, ocr };
+        onPage?.(i + 1, Array.isArray(ocr?.tests) ? ocr.tests.length : null);
       } catch (e) {
         results[i] = { page: i + 1, ok: false, error: e.message || "خوانده نشد" };
+        onPage?.(i + 1, null);
       }
     }
   }
@@ -586,7 +646,7 @@ function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImag
 // ============================================================
 // [۱۴] نقطه پایانی اصلی
 // ============================================================
-app.post("/api/analyze", requireAllowedOrigin, analyzeLimiter, async (req, res) => {
+const analyzeHandler = async (req, res) => {
   try {
     const { patientInfo, testResults, imageDataUrl, imageDataUrls, tests, patient } = req.body || {};
 
@@ -620,7 +680,9 @@ app.post("/api/analyze", requireAllowedOrigin, analyzeLimiter, async (req, res) 
     // ---- مرحله ۱: خواندن عکس‌ها ----
     if (hasImage) {
       console.log(`دریافت ${images.length} عکس — شروع OCR با همزمانی ${IMAGE_CONCURRENCY}`);
-      const pages = await readImages(images);
+      // req._onPage را فقط مسیرِ ناهمگام (job) ست می‌کند؛ مسیر همگام undefined است.
+      // روی req نشسته نه در سطحِ ماژول، تا با چند درخواستِ همزمان قاطی نشود.
+      const pages = await readImages(images, req._onPage);
       const merged = mergePages(pages);
 
       if (merged.okCount === 0) {
@@ -799,7 +861,11 @@ app.post("/api/analyze", requireAllowedOrigin, analyzeLimiter, async (req, res) 
         if (ocrWarnings.length) out.ocr_warnings = ocrWarnings;
         if (pageInfo) out.pages = pageInfo;
         if (medlineSources.length) out.sources = medlineSources;
-        out._engine = { patterns: [], urgency: "none", abnormal: 0 };
+        // ⚠️ قبلاً اینجا دستی ساخته می‌شد و نه `indices` داشت نه `tests` —
+        //    یعنی پرتکرارترین مسیرِ اپ (پنلِ کاملاً طبیعی) تنها مسیری بود
+        //    که رابط کاربری هیچ داده‌ای برای رندرِ ردیف‌ها نداشت. همان
+        //    drift‌ای که کامنتِ engineDebug ادعای جلوگیری‌اش را می‌کرد.
+        out._engine = engineDebug(engineOut, patternOut);
         return res.json(out);
       }
 
@@ -973,6 +1039,55 @@ app.post("/api/analyze", requireAllowedOrigin, analyzeLimiter, async (req, res) 
     console.error("Unhandled:", err.name, err.message);
     res.status(500).json({ error: "خطای داخلی سرور." });
   }
+};
+
+// مسیرِ همگامِ قدیمی — دست‌نخورده، برای سازگاری عقب‌رو
+app.post("/api/analyze", requireAllowedOrigin, analyzeLimiter, analyzeHandler);
+
+// ============================================================
+// [۱۴-ب] مسیرِ ناهمگام: شناسهٔ کار + پرسشِ دوره‌ای
+//
+// همان تحلیل، ولی پاسخ بلافاصله برمی‌گردد و کار در پس‌زمینه ادامه پیدا
+// می‌کند. ارزشِ اصلی این نیست که سریع‌تر است — نیست — بلکه این است که
+// کار دیگر به زنده ماندنِ اتصالِ مرورگر گره نخورده. کاربری که وسط OCR
+// گوشی‌اش قفل می‌شود یا به تلگرام می‌رود، موقع برگشتن نتیجه را می‌بیند.
+//
+// ⚠️ محدودیتِ نرخ عمداً روی /start است، نه روی /job/:id — وگرنه کاربری
+//    که هر ۲ ثانیه poll می‌کند خودش را بلاک می‌کند. چیزی که هزینهٔ AvalAI
+//    را می‌سازد شروعِ کار است، نه پرسیدنِ وضعیت.
+// ============================================================
+app.post("/api/analyze/start", requireAllowedOrigin, analyzeLimiter, (req, res) => {
+  const imgs = Array.isArray(req.body?.imageDataUrls)
+    ? req.body.imageDataUrls
+    : (typeof req.body?.imageDataUrl === "string" ? [req.body.imageDataUrl] : []);
+
+  const jobId = createJob({ pagesTotal: imgs.length });
+  res.status(202).json({ job_id: jobId, pages_total: imgs.length });
+
+  // از اینجا به بعد پاسخ رفته؛ نتیجه فقط در انبارِ کار می‌نشیند.
+  req._onPage = (page, tests) => reportPage(jobId, page, tests);
+
+  const captured = { code: 200 };
+  const shim = {
+    status(c) { captured.code = c; return shim; },
+    json(body) { finishJob(jobId, captured.code, body); return shim; },
+    setHeader() { return shim; },
+  };
+
+  analyzeHandler(req, shim).catch((err) => {
+    console.error("Job failed:", err.name, err.message);
+    finishJob(jobId, 500, { error: "خطای داخلی سرور." });
+  });
+});
+
+app.get("/api/analyze/job/:id", requireAllowedOrigin, (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) {
+    return res.status(404).json({
+      error: "این تحلیل پیدا نشد یا منقضی شده. لطفاً دوباره شروع کنید.",
+    });
+  }
+  res.json(jobView(job));
 });
 
 app.get("/health", (_req, res) =>
@@ -996,6 +1111,8 @@ app.get("/health", (_req, res) =>
     rateLimit: `${RATE_LIMIT_MAX}/${RATE_LIMIT_WINDOW_MIN}min`,
     corsOrigins: ALLOWED_ORIGINS.length === 0 ? "any (⚠️ در پرودکشن ست کن)" : ALLOWED_ORIGINS,
     trustProxy: TRUST_PROXY || "off",
+    // کارهای در حافظه. اگر مدام نزدیک سقف بود، یعنی TTL یا سقف کم است.
+    jobsInMemory: jobCount(),
   })
 );
 

@@ -82,10 +82,13 @@ khanesh-project/
 ├── .claude/
 │   ├── agents/                  # subagents, see below
 │   ├── rules/                   # detailed rules, see below
-│   └── skills/                  # project skills, see below
+│   ├── skills/                  # project skills, see below
+│   └── settings.local.json      # MCP allowlist + the impeccable design hooks
 ├── .githooks/pre-commit         # test/lint gate (core.hooksPath = .githooks)
 ├── .mcp.json                    # Playwright MCP server
-├── .agents/skills/              # vendored third-party skills (see skills-lock.json)
+├── .agents/skills/              # vendored third-party skills, see below
+├── .codex/hooks.json            # impeccable hooks for Codex (reads .agents/skills/)
+├── .github/hooks/impeccable.json # impeccable hooks for GitHub (reads .github/skills/)
 └── CLAUDE.md                    # this file
 ```
 
@@ -143,7 +146,21 @@ Typical clinical change: `research` (what should the range be, where does it liv
 ## Skills
 
 - `professional-interpretation` (`.claude/skills/`) — when the user says an interpretation is too shallow/basic («ابتدایی») or asks for «تفسیر حرفه‌ای‌تر». Depth comes from richer `must_say`/`warnings`/`suggest` in `rules/patterns.js`, **never** from a model upgrade or a smarter prompt — that would break the engine boundary.
-- `.agents/skills/` holds third-party skills vendored from GitHub (`find-skills`, `parallel-web-search`, `parallel-deep-research`), pinned by hash in `skills-lock.json`. Don't hand-edit them; they're regenerated from source.
+- `impeccable` (`.claude/skills/`, v4.0.2) — frontend design and UX work: `audit`, `critique`,
+  `polish`, `bolder`, `quieter`, `harden`, `animate`, `shape`, and friends. It is installed three
+  times over, once per tool that reads a different directory — `.claude/skills/impeccable/`
+  (Claude Code), `.agents/skills/impeccable/` (Codex, plus four `agents/*.toml` + `openai.yaml`
+  files the others don't have), `.github/skills/impeccable/` (GitHub) — and each has its own
+  copy of `scripts/`, so **updating one does not update the others**. A `PostToolUse` + `Stop`
+  design detector is wired to `scripts/hook.mjs` in `.claude/settings.local.json`,
+  `.codex/hooks.json`, and `.github/hooks/impeccable.json`. To check an install for drift:
+  `node .claude/skills/impeccable/scripts/doctor.mjs`.
+- `.agents/skills/` holds third-party skills vendored from GitHub in the cross-tool `.agents/`
+  layout, which Claude Code also reads: `do-competitively`, `do-in-parallel`, `find-skills`,
+  `impeccable`, `judge`, `judge-with-debate`, `multi-agent-patterns`, `parallel-deep-research`,
+  `parallel-web-search`. Don't hand-edit them; re-vendor from source. There is **no**
+  `skills-lock.json` and never has been — nothing here is version-pinned, so read a skill's own
+  `SKILL.md` frontmatter to find out which version you actually have.
 
 ---
 
@@ -326,6 +343,17 @@ Convention in `rules/engine.test.js`.
 - **Rule:** frontend has no tests — trace the code path by reading it, in StrictMode terms. Check
   `git update-index --chmod=+x` on anything executable. When a range changes, decide explicitly
   whether `REF` follows, and record the answer in `REF_DIFF.md`.
+- **`overflow-x: hidden` on a wrapper silently kills `position: sticky` for everything inside it**
+  (2026-07-29, `site.css`). The content pages' fluid `clamp(…vw…)` headings can overflow by a pixel,
+  so the `.site` wrapper got `overflow-x: hidden` as a guard. That makes the wrapper a scroll
+  container, and a sticky descendant sticks to *it* rather than the viewport — so the sticky header
+  and the sticky table-of-contents both just scrolled away. Nothing errored; lint and build were
+  green; it looked correct in a top-of-page screenshot. Measured in the browser at scroll 4100:
+  the header's `bottom` was `-4025`. Fix is `overflow-x: clip`, which clips without creating a
+  scroll container.
+- **Rule:** a screenshot of the top of the page proves nothing about scroll behaviour. Assert the
+  post-scroll geometry (`getBoundingClientRect().top` after `scrollTo`) — and prefer `clip` to
+  `hidden` on any wrapper that has, or might later contain, a sticky child.
 
 ### N12 — A severity state that swallowed the direction
 `bfc70fa` (fix). Found by a generator agent on platelets, confirmed by the orchestrator to be

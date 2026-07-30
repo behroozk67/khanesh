@@ -19,6 +19,11 @@ import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PR
          tidyRecommendations, phraseSuggestion, buildNormalResult } from "./prompt.js";
 import { extractMedlineTerms, matchesMedlineKey, TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
 import { missingSentences, missingFindingText, normalizeFa, splitSentences, distinctiveTokens } from "./coverage.js";
+import { runPatterns as _rp, RULE_SOURCES } from "./patterns.js";
+import { GUIDELINE_IDS, sourceList } from "./guidelines.js";
+import { PREANALYTICAL_RULES } from "./preanalytical.js";
+import { rcv, hasLowIndividuality } from "./biovar.js";
+import { toConventional, ifccToNgsp, SI_CONVERSIONS } from "./units.js";
 
 // ---------- A1: کراتینین با سن نامعلوم ----------
 test("A1: creatRef با سن null محدودهٔ بالغ می‌دهد نه نوزادی", () => {
@@ -1876,5 +1881,198 @@ test("M34: buildNormalResult و fallback کلیدِ خامِ موتور را ب�
       !new RegExp(`\b${a.test}\b`).test(text),
       `کلیدِ خامِ «${a.test}» در متنِ fallback دیده می‌شود: ${text}`
     );
+  }
+});
+
+// ============================================================
+// G — گایدلاین‌ها: IFCC (واحد)، CLSI (پیش‌تحلیلی)، EFLM (تغییرپذیری زیستی)،
+//     WHO (فریتین در التهاب)، و دفترِ منابع.
+// هر تست علیه رفتارِ *قبل از* این تغییرها قرمز می‌شود.
+// ============================================================
+
+// ---------- G1: IFCC — HbA1c با واحدِ mmol/mol ----------
+test("G1: HbA1c ۴۸ mmol/mol همان ۶.۵٪ است، نه عددی فاجعه‌بار", () => {
+  const e = runEngine({
+    tests: [{ name: "HbA1c", value: "48", unit: "mmol/mol" }, { name: "Age", value: "45" }],
+  });
+  const a1c = e.graded.find((g) => g.test === "HBA1C");
+  assert.ok(a1c, "HbA1c باید درجه‌بندی شود");
+  // قبل از units.js: مقدار ۴۸ با محدودهٔ [۴، ۵.۶] سنجیده می‌شد.
+  // معادلهٔ master ‏IFCC/NGSP: ۰.۰۹۱۴۸×۴۸ + ۲.۱۵۲ = ۶.۵۴ — یعنی درست بالای
+  // آستانهٔ تشخیصیِ دیابتِ ADA (۶.۵٪)، نه یک عددِ بی‌معنا.
+  assert.equal(a1c.value, 6.54);
+  assert.equal(ifccToNgsp(48), 6.54);
+  assert.ok(
+    e.unitConversions.some((c) => c.test === "HBA1C" && c.from === "mmol/mol"),
+    "تبدیل باید برای شفافیت ثبت شود"
+  );
+});
+
+test("G1: HbA1c ۶.۵٪ دست‌نخورده می‌ماند (تبدیلِ دوباره ممنوع)", () => {
+  const e = runEngine({ tests: [{ name: "HbA1c", value: "6.5", unit: "%" }] });
+  assert.equal(e.graded.find((g) => g.test === "HBA1C").value, 6.5);
+  assert.equal(e.unitConversions.length, 0);
+});
+
+// ---------- G1b: IFCC — کراتینینِ SI ----------
+test("G1b: کراتینین ۱۰۶ µmol/L طبیعی است، نه نارساییِ کلیه", () => {
+  const e = runEngine({
+    tests: [{ name: "Creatinine", value: "106", unit: "µmol/L" }],
+  });
+  const cr = e.graded.find((g) => g.test === "CREAT");
+  // ۱۰۶ ÷ ۸۸.۴ = ۱.۲ mg/dL — درست روی سقفِ طبیعی.
+  assert.equal(cr.value, 1.2);
+  assert.equal(cr.abnormal, false, "قبل از units.js عددِ ۱۰۶ «بحرانی» می‌شد");
+});
+
+test("G1b: بدونِ واحدِ صریحِ SI هیچ تبدیلی انجام نمی‌شود", () => {
+  // «تبدیلِ غلط بدتر از نبودِ تبدیل است» — همان قاعدهٔ N2.
+  const e = runEngine({ tests: [{ name: "Creatinine", value: "1.1" }] });
+  assert.equal(e.graded.find((g) => g.test === "CREAT").value, 1.1);
+  assert.equal(e.unitConversions.length, 0);
+});
+
+// ---------- G2: WHO — فریتینِ «طبیعی» که التهاب پنهانش کرده ----------
+test("G2: فریتین ۴۵ با CRP بالا، کمبودِ آهن را مطرح می‌کند نه سکوت", () => {
+  const e = runEngine({
+    tests: [
+      { name: "Ferritin", value: "45", unit: "ng/mL" },
+      { name: "CRP", value: "40", unit: "mg/L" },
+      { name: "Age", value: "35" },
+      { name: "Sex", value: "female" },
+    ],
+  });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.rule_id === "iron_deficiency_panel");
+  // قبل از این تغییر: فریتین ۴۵ داخلِ محدودهٔ [۱۵،۱۵۰] بود → هیچ یافته‌ای.
+  assert.ok(f, "آستانهٔ التهابیِ WHO (<۷۰) باید قاعده را فعال کند");
+  assert.equal(f.pattern, "iron_deficiency_masked_by_inflammation");
+  assert.ok(f.sources.includes("WHO_FERRITIN"), "منبع باید ثبت شود");
+});
+
+test("G2: فریتین ۴۵ بدونِ التهاب همچنان طبیعی است", () => {
+  // آستانهٔ ۷۰ فقط در التهاب معنا دارد؛ وگرنه هر فریتینِ متوسطی آلارم می‌شد.
+  const e = runEngine({
+    tests: [
+      { name: "Ferritin", value: "45", unit: "ng/mL" },
+      { name: "Age", value: "35" },
+      { name: "Sex", value: "female" },
+    ],
+  });
+  const p = runPatterns(e);
+  assert.ok(!p.findings.some((x) => x.rule_id === "iron_deficiency_panel"));
+});
+
+// ---------- G3: CLSI — همولیز و پتاسیم (بستنِ R5) ----------
+test("G3: هیپرکالمیِ غیرشدید هشدارِ همولیزِ نمونه می‌گیرد", () => {
+  const e = runEngine({
+    tests: [{ name: "Potassium", value: "5.6", unit: "mEq/L" }, { name: "Age", value: "40" }],
+  });
+  const p = runPatterns(e);
+  // ⚠️ باندِ ۵.۱–۵.۹ قاعدهٔ اختصاصی ندارد و به تورِ ایمنی می‌افتد — همان
+  //    باندی که R5 دربارهٔ آن نوشته شده بود.
+  const k = p.findings.find(
+    (x) => x.rule_id === "potassium_critical" || x.rule_id === "unmatched_abnormal"
+  );
+  assert.ok(k, "یافته‌ای برای پتاسیمِ بالا باید وجود داشته باشد");
+  assert.ok(
+    k.warnings.some((w) => w.includes("همولیز")),
+    "R5: هشدارِ همولیز باید به یافتهٔ پتاسیم بچسبد"
+  );
+  assert.ok(k.sources.includes("CLSI"));
+});
+
+test("G3: پتاسیمِ خطرناک با «شاید همولیز بوده» رقیق نمی‌شود", () => {
+  const e = runEngine({
+    tests: [{ name: "Potassium", value: "7.1", unit: "mEq/L" }, { name: "Age", value: "40" }],
+  });
+  const p = runPatterns(e);
+  const k = p.findings.find((x) => x.rule_id === "potassium_critical");
+  assert.ok(k);
+  assert.ok(
+    !k.warnings.some((w) => w.includes("همولیز")),
+    "بالای ۶.۵ عمداً هشدارِ همولیز نمی‌گیرد — نباید فوریت را رقیق کند"
+  );
+  assert.equal(k.urgency, "emergency", "فوریتِ پتاسیمِ بحرانی نباید عوض شود");
+});
+
+// ---------- G4: CLSI — پلاکتِ کاذب‌پایینِ EDTA ----------
+test("G4: پلاکتِ پایینِ منفرد، احتمالِ لختهٔ EDTA را ذکر می‌کند", () => {
+  const e = runEngine({
+    tests: [
+      { name: "PLT", value: "95", unit: "K/uL" },
+      { name: "HGB", value: "14.0", unit: "g/dL" },
+      { name: "WBC", value: "7.2", unit: "K/uL" },
+      { name: "Age", value: "30" },
+      { name: "Sex", value: "male" },
+    ],
+  });
+  const p = runPatterns(e);
+  const t = p.findings.find((x) => x.rule_id === "thrombocytopenia");
+  assert.ok(t, "قاعدهٔ ترومبوسیتوپنی باید فعال باشد");
+  assert.ok(t.warnings.some((w) => w.includes("EDTA")));
+});
+
+// ---------- G5: EFLM — RCV و شاخصِ فردیت ----------
+test("G5: RCVِ کراتینین عددِ معناداری می‌دهد و در متنِ کلیه می‌آید", () => {
+  const r = rcv("CREAT");
+  assert.ok(Number.isFinite(r) && r > 10 && r < 40, `RCV غیرمنتظره: ${r}`);
+  assert.equal(rcv("NOT_A_TEST"), null, "تستِ بی‌داده باید null بدهد نه عددِ حدسی");
+
+  const e = runEngine({
+    tests: [
+      { name: "Creatinine", value: "1.9", unit: "mg/dL" },
+      { name: "Age", value: "60" },
+      { name: "Sex", value: "male" },
+    ],
+  });
+  const p = runPatterns(e);
+  const k = p.findings.find((x) => x.rule_id === "kidney");
+  assert.ok(k);
+  assert.ok(
+    k.warnings.some((w) => w.includes(`${r}٪`)),
+    "«تکرار کن» باید عددِ RCV را همراه داشته باشد"
+  );
+});
+
+test("G5: شاخصِ فردیتِ کراتینین پایین است (بازهٔ جمعیتی کم‌فایده)", () => {
+  assert.ok(hasLowIndividuality("CREAT"), "CVi/CVg کراتینین باید زیر ۰.۶ باشد");
+  assert.ok(!hasLowIndividuality("IRON"), "آهن فردیتِ بالا دارد");
+});
+
+// ---------- G6: دفترِ منابع ----------
+test("G6: هر شناسهٔ منبعی که موتور به کار می‌برد در دفترِ منابع هست", () => {
+  const used = new Set();
+  for (const ids of Object.values(RULE_SOURCES)) ids.forEach((i) => used.add(i));
+  for (const r of PREANALYTICAL_RULES) used.add("CLSI");
+  for (const id of used) {
+    assert.ok(GUIDELINE_IDS.has(id), `شناسهٔ بی‌مرجع در موتور: ${id}`);
+  }
+});
+
+test("G6: منبعِ پولی نامِ خودش را به بیمار نمی‌دهد، معادلِ آزادش را می‌دهد", () => {
+  // نگفتن مهم‌تر از گفتن است: ما UpToDate را نخوانده‌ایم و نباید وانمود کنیم.
+  const [ut] = sourceList(["UPTODATE"]);
+  assert.ok(ut.substituted, "باید صریحاً بگوید جایگزین شده");
+  assert.ok(!/uptodate\.com/.test(String(ut.url)), "URLِ پولی نباید به بیمار برود");
+});
+
+test("G6: sourceList تکراری‌ها و شناسه‌های ناشناس را می‌اندازد", () => {
+  const out = sourceList(["KDIGO_CKD", "KDIGO_CKD", "NOPE"]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].id, "KDIGO_CKD");
+});
+
+// ---------- G7: هر تستِ قابلِ تبدیل، نامِ فارسی دارد ----------
+test("G7: هیچ کلیدِ خامی از راهِ تبدیلِ واحد به بیمار نمی‌رسد", () => {
+  // بلوکِ «واحدها را تبدیل کردیم» در ResultView نامِ تست را نشان می‌دهد.
+  // اگر کلیدی در FA_NAMES نباشد، faName خودِ کلید را برمی‌گرداند و بیمار
+  // «HBA1C» می‌بیند — دقیقاً کلاسِ N8. این تست همان گیت را ماشینی می‌کند،
+  // هم‌خانوادهٔ M32 که همین را برای رنج/طبقه‌بند/CTCAE چک می‌کند.
+  // مثل M32، *حضور* در FA_NAMES بررسی می‌شود نه متفاوت‌بودن از کلید:
+  // برای HDL/LDL/TIBC خودِ مخفف نامِ درستِ روبه‌بیمار است (رجوع به N8).
+  const convertible = [...Object.keys(SI_CONVERSIONS), "HBA1C"];
+  for (const k of convertible) {
+    assert.ok(k in FA_NAMES, `کلیدِ قابلِ تبدیلِ «${k}» در FA_NAMES نیست`);
   }
 });

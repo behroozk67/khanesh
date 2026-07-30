@@ -97,6 +97,27 @@ export default function Tafsir() {
     if (last) setResumed(last);
   }, []);
 
+  // ورود از فهرستِ «راهنمای آزمایش‌ها» (/tests): «/?test=hb» یعنی کاربر روی
+  // نامِ یک آزمایش زده و انتظار دارد همان خانه جلویش باز باشد. دستهٔ آن
+  // آزمایش انتخاب و خودِ ورودی فوکوس می‌شود.
+  // ⚠️ کلید حتماً باید در REF باشد: پارامترِ آدرس را کاربر می‌نویسد و
+  //    setActiveCat با یک دستهٔ ناموجود، شبکهٔ ورود را خالی نشان می‌دهد.
+  // ⚠️ افکتِ مستقل است و به mountedRef/abortRef دست نمی‌زند — قاطی کردنشان
+  //    همان باگِ چرخشِ بی‌پایانِ StrictMode را برمی‌گرداند.
+  useEffect(() => {
+    const key = new URLSearchParams(window.location.search).get("test");
+    if (!key || !REF[key]) return;
+    setActiveCat(REF[key].cat);
+    // یک فریم صبر تا EntryGrid با دستهٔ تازه رندر شود و خانه وجود داشته باشد
+    const id = requestAnimationFrame(() => {
+      const el = document.getElementById(`v-${key}`);
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      el.scrollIntoView({ block: "center" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   // وقتی نتیجه آمد، فوکوس و اسکرول برود سرِ نتیجه.
   // قبلاً فوکوس روی دکمه می‌ماند و نتیجه چند صفحه پایین‌تر رندر می‌شد؛ برای
   // کاربرِ کیبورد و اسکرین‌ریدر یعنی «هیچ اتفاقی نیفتاد».

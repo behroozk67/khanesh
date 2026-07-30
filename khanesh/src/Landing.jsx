@@ -202,9 +202,9 @@ function Hero() {
                بریده شده‌اند، پس این عددها با aspect-ratio در site.css یکی‌اند. */}
         <div className="site-figure site-figure--hero">
           <img
-            src="/lab/hero.jpg"
+            src="/lab/hero.png"
             alt="دو کارشناس آزمایشگاه با روپوش سفید، پشت دستگاه‌های آنالایزر و رایانهٔ آزمایشگاه"
-            width="900" height="900" decoding="async"
+            width="1024" height="1024" decoding="async"
           />
         </div>
       </div>
@@ -267,8 +267,8 @@ function HowItWorks() {
 // قابِ تصویریِ عریض میانِ بخش‌ها. عکس‌ها واقعی‌اند و از Unsplash با پروانهٔ
 // آزاد؛ اعتبارِ هر عکس در public/lab/CREDITS.md ثبت شده است.
 const BANDS = {
-  warm: { src: "/lab/band-1.jpg", alt: "کارشناس آزمایشگاه در حال پیپت‌کردن نمونه روی میز کار یک آزمایشگاه مدرن" },
-  cool: { src: "/lab/band-2.jpg", alt: "کارشناس آزمایشگاه پشت ردیف دستگاه‌ها در سالن روشن یک آزمایشگاه مدرن" },
+  warm: { src: "/lab/band-1.png", alt: "طراحی سه‌بعدی انتزاعی تجهیزات آزمایشگاهی" },
+  cool: { src: "/lab/band-2.png", alt: "طراحی مینیمال از ابزارهای آزمایشگاهی و داده‌های پزشکی" },
 };
 
 function Band({ tone }) {
@@ -310,16 +310,19 @@ function FeaturedGuides() {
       tone: "deep", kicker: "تیروئید", kicker2: "آزمایش",
       t: "آزمایش عملکرد تیروئید",
       d: "TSH و T4 نشان می‌دهند تیروئید چقدر فعال است. این راهنما توضیح می‌دهد هر عدد چه چیزی را می‌سنجد و چرا معمولاً TSH اولین آزمایشی است که پزشک درخواست می‌کند.",
+      to: "/tests/thyroid",
     },
     {
       tone: "soft", kicker: "شمارش", kicker2: "کامل خون",
       t: "شمارش کامل خون (CBC)",
       d: "CBC گلبول‌های قرمز، گلبول‌های سفید و پلاکت‌ها را می‌شمارد و شاخص‌هایی مثل MCV و MCH را به دست می‌دهد؛ همان‌هایی که انواع کم‌خونی را از هم جدا می‌کنند.",
+      to: "/tests/wellness",
     },
     {
       tone: "warm", kicker: "قند", kicker2: "و دیابت",
       t: "قند خون و HbA1c",
       d: "قند ناشتا وضعیت همان لحظه را نشان می‌دهد و HbA1c میانگین حدود سه ماه گذشته را. آستانه‌های این راهنما بر پایهٔ راهنمای ADA است.",
+      to: "/tests/disease",
     },
   ];
   return (
@@ -330,14 +333,14 @@ function FeaturedGuides() {
       </div>
       <div className="site-tiles">
         {cards.map((c) => (
-          <article className="site-tile" key={c.t}>
+          <Link to={c.to} className="site-tile" key={c.t} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
             <span className={`site-tile-art site-tile-art--${c.tone}`} aria-hidden="true">
               <b>{c.kicker}</b>
               <span>{c.kicker2}</span>
             </span>
             <h3>{c.t}</h3>
             <p>{c.d}</p>
-          </article>
+          </Link>
         ))}
       </div>
     </section>
@@ -391,7 +394,7 @@ function Resources() {
       <div className="site-res-grid">
         <article className="site-res">
           <div className="site-figure">
-            <img src="/lab/res-1.jpg" alt="دست‌های دستکش‌پوش، دو لولهٔ نمونهٔ خون را بالای سانتریفیوژ نگه داشته‌اند" loading="lazy" decoding="async" width="768" height="432" />
+            <img src="/lab/res-1.png" alt="دست‌های دستکش‌پوش، دو لولهٔ نمونهٔ خون را بالای سانتریفیوژ نگه داشته‌اند" loading="lazy" decoding="async" width="1024" height="1024" />
           </div>
           <h3>چطور از برگهٔ آزمایش عکس بگیریم</h3>
           <p>
@@ -404,7 +407,7 @@ function Resources() {
         <article className="site-res site-res--lead">
           <span className="site-pick">پیشنهاد ویژه</span>
           <div className="site-figure">
-            <img src="/lab/res-2.jpg" alt="جالوله‌ای پر از لوله‌های نمونهٔ خون با درپوش‌های آبی، سبز، قرمز و بنفش" loading="lazy" decoding="async" width="900" height="600" />
+            <img src="/lab/res-2.png" alt="جالوله‌ای پر از لوله‌های نمونهٔ خون با درپوش‌های آبی، سبز، قرمز و بنفش" loading="lazy" decoding="async" width="1024" height="1024" />
           </div>
           <h3>محدودهٔ مرجع یعنی چه؟</h3>
           <p>
@@ -419,7 +422,7 @@ function Resources() {
 
         <article className="site-res">
           <div className="site-figure">
-            <img src="/lab/res-3.jpg" alt="دستگاه آنالایزر خودکار آزمایشگاه در کنار یک نمایشگر لمسی" loading="lazy" decoding="async" width="768" height="432" />
+            <img src="/lab/res-3.png" alt="دستگاه آنالایزر خودکار آزمایشگاه در کنار یک نمایشگر لمسی" loading="lazy" decoding="async" width="1024" height="1024" />
           </div>
           <h3>واحدهای SI و واحدهای متعارف</h3>
           <p>
@@ -452,7 +455,7 @@ function Updates() {
           <Link className="site-more" to="/app">بیشتر بدانید ←</Link>
         </div>
         <div className="site-figure">
-          <img src="/lab/news.jpg" alt="کاروسل نمونهٔ یک دستگاه آنالایزر، پر از لوله‌های درپوش‌دار" loading="lazy" decoding="async" width="900" height="600" />
+          <img src="/lab/news.png" alt="کاروسل نمونهٔ یک دستگاه آنالایزر، پر از لوله‌های درپوش‌دار" loading="lazy" decoding="async" width="1024" height="1024" />
         </div>
       </article>
     </section>

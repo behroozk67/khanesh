@@ -219,15 +219,11 @@
 
 /* ---------- سربرگِ صفحه ---------- */
 
-.site-hero { padding-block: var(--s13) var(--s12); }
-/* متن و عکس کنارِ هم. ⚠️ نه از سرِ سلیقه: hero.jpg مربع است (۹۰۰×۹۰۰). در
-   نسخهٔ نوارِ تمام‌عرض داخلِ یک قابِ ۱۶:۹ می‌نشست، یعنی هم یک‌سومِ عکس بریده
-   می‌شد و هم ۹۰۰ پیکسل تا ۱۰۷۲ کش می‌آمد — بزرگ‌نماییِ بالاتر از رزولوشنِ
-   خودِ فایل، که روی نمایشگرِ ۲x دو برابر بدتر است. ستونِ ۴۲۰ پیکسلی عکس را
-   کوچک می‌کند نه بزرگ، و برشی هم لازم نیست. */
 .site-hero-grid {
-  display: grid; grid-template-columns: minmax(0, 1fr) 420px;   /* بُعد: ستونِ عکس */
-  gap: var(--s14); align-items: center;
+  display: grid; grid-template-columns: 1fr; gap: var(--s8); align-items: center;
+}
+@media (min-width: 980px) {
+  .site-hero-grid { grid-template-columns: 1.1fr 0.9fr; gap: var(--s11); }
 }
 .site-hero h1 {
   font-size: var(--t-d1); font-weight: var(--w-bold);
@@ -265,11 +261,18 @@
    تا قاب به‌صورت یک سوراخِ سفید ظاهر نشود. */
 
 .site-figure {
-  border-radius: var(--r-lg); overflow: hidden;
-  background: var(--sunken); line-height: 0;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: var(--sh-md);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
-.site-figure img { display: block; width: 100%; height: 100%; object-fit: cover; }
-/* نسبتِ ۱:۱ = نسبتِ خودِ فایل، پس هیچ برشی اتفاق نمی‌افتد. */
+.site-figure:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--sh-lg, 0 12px 24px rgba(15, 21, 19, 0.12));
+}
+.site-figure img { display: block; width: 100%; height: auto; }
+.site-figure--hero img { aspect-ratio: 1/1; object-fit: cover; }
+.site-figure--band img { aspect-ratio: 3/1; object-fit: cover; }
 .site-figure--hero { aspect-ratio: 1; }
 .site-figure--band { aspect-ratio: 3 / 1; margin-block: var(--s10); }
 
@@ -277,8 +280,17 @@
    الگو چهار تابلوی رنگیِ اشباع داشت (سرمه‌ای، مرجانی، …). حالا دو ارزش از
    یک فام: یکی پُر برای تنها لحظهٔ تأکید، یکی کم‌رنگ برای بقیه. */
 
-.site-panel { border-radius: var(--r-lg); padding: var(--s12) var(--s12); }
-.site-panel h3 { font-size: var(--t-d3); font-weight: var(--w-bold); margin-bottom: var(--s7); }
+.site-panel, .site-block {
+  padding: var(--s8); border-radius: 20px;
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.site-panel:hover, .site-block:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh-md);
+}
+.site-panel h3, .site-block h3 {
+  font-size: var(--t-md); font-weight: var(--w-bold); margin-bottom: var(--s4);
+}
 .site-panel p { font-size: var(--t-md); line-height: var(--lh-prose); max-width: 62ch; }
 .site-panel .btn { margin-top: var(--s10); }
 
@@ -302,7 +314,6 @@
 .site-panel--soft p { color: var(--brand-ink); }
 
 /* بلوکِ متنیِ بی‌قاب میانِ تابلوها */
-.site-block { padding-block: var(--s11) var(--s6); }
 .site-block p {
   font-size: var(--t-md); line-height: var(--lh-prose);
   color: var(--ink-2); max-width: 62ch; margin-top: var(--s6);
@@ -321,7 +332,17 @@
 
 .site-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s11); }
 .site-tiles--2 { grid-template-columns: repeat(2, 1fr); }
-.site-tile { display: flex; flex-direction: column; height: 100%; }
+.site-tile {
+  background: var(--card); border: 1px solid var(--border-card);
+  border-radius: 20px; padding: var(--s7);
+  display: flex; flex-direction: column; gap: var(--s3);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.site-tile:hover {
+  border-color: var(--brand-line);
+  transform: translateY(-4px);
+  box-shadow: var(--sh-lg, 0 12px 24px rgba(15, 21, 19, 0.12));
+}
 /* بلوکِ رنگیِ بالای کارت. سه ارزش از یک فام — قبلاً پنج رنگِ بی‌ربط بود. */
 .site-tile-art {
   display: flex; flex-direction: column; gap: var(--s1);

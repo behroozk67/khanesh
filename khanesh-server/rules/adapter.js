@@ -10,6 +10,7 @@
 
 import { getRef, getRefSource, ckdEpiEgfr } from "./refs.js";
 import { evaluate } from "./grade.js";
+import { toConventional } from "./units.js";
 
 // بیشترین مقدار قندِ موجود (ناشتا/تصادفی/دوساعته) — برای تصحیح سدیم
 function maxGlucose(tests) {
@@ -430,6 +431,10 @@ export function ocrToEngineInput(ocr) {
   const tests = {};
   const qual = {};
   const unmapped = [];
+  // تبدیل‌های واحدِ انجام‌شده — برای شفافیت به بیمار و برای اشکال‌زدایی.
+  // «۴۸ mmol/mol → ۶.۵٪» باید جایی دیده شود، وگرنه عددِ روی برگه با عددِ
+  // تفسیر نمی‌خواند و بیمار حق دارد فکر کند اشتباه شده.
+  const unitConversions = [];
   const urineOnlyPages = detectUrineOnlyPages(ocr?.tests || []);
   const abgPages = detectAbgPages(ocr?.tests || []);
 
@@ -546,10 +551,28 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
-    const v = toNum(t.value);
+    let v = toNum(t.value);
     if (v == null) {
       qual[t.name] = String(t.value);   // مقدار غیرعددی
       continue;
+    }
+
+    // ═══ IFCC — واحدِ SI روی برگه → واحدِ متعارفی که refs.js می‌فهمد ═══
+    // ⚠️ کلاسِ N3: «درجه‌بندیِ عددِ برگه با واحدی که برگه استفاده نکرده».
+    //    تا امروز فقط پنج تست محافظ داشتند و هرکدام بعد از یک باگِ واقعی.
+    //    units.js همان محافظ را برای بقیه می‌گذارد — و فقط وقتی واحدِ برگه
+    //    *صریحاً* SI باشد (تنها استثنا HbA1c؛ دلیلش در units.js).
+    //    این باید *قبل* از شاخه‌های اختصاصی بیاید تا UREA هم پوشش بگیرد،
+    //    ولی کلیدهای دارای تبدیلِ اختصاصی عمداً در جدولِ units.js نیستند
+    //    تا تبدیل دوبار اعمال نشود.
+    {
+      const c = toConventional(engineKey, v, t.unit);
+      if (c.converted) {
+        unitConversions.push({
+          test: engineKey, raw: v, from: c.from, value: c.value, to: c.to,
+        });
+        v = c.value;
+      }
     }
 
     // اوره را همان‌طور که هست نگه می‌داریم و با محدودهٔ مرجعِ خودِ اوره تفسیر می‌کنیم
@@ -698,6 +721,7 @@ export function ocrToEngineInput(ocr) {
     tests,
     qual,
     unmapped,
+    unitConversions,
     diffFailed,
     sex: inferSex(ocr),
     age: inferAge(ocr),
@@ -709,7 +733,7 @@ export function ocrToEngineInput(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, unmapped, diffFailed, sex, age } = ocrToEngineInput(ocr);
+  const { tests, qual, unmapped, unitConversions, diffFailed, sex, age } = ocrToEngineInput(ocr);
 
   // ═══ تصحیح‌های مشتق (پیش از درجه‌بندی، تا CTCAE و الگوها روی مقدار درست کار کنند) ═══
   const derived = {};
@@ -797,6 +821,7 @@ export function runEngine(ocr) {
     qual,
     indices: idx,
     unmapped,
+    unitConversions,
     noRef,
     diffFailed,
     abnormal: graded.filter((g) => g.abnormal),
