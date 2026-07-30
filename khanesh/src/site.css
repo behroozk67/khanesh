@@ -1,0 +1,850 @@
+/* ============================================================
+   Khanesh / LabMate — لایهٔ صفحه‌های محتوایی
+   (صفحهٔ فرود، راهنمای آزمایش‌ها، صفحهٔ دسته، صفحهٔ آزمایش)
+
+   این فایل جایگزینِ سه رشتهٔ CSSِ داخلِ JS شد که در Landing.jsx (۲۶۰ خط)،
+   Tests.jsx (۱۴۳ خط) و Guide.jsx (۱۴۶ خط) با <style> تزریق می‌شدند.
+   آن سه رشته یک پالتِ کاملاً جدا داشتند — سرمه‌ای، مرجانی، یاسی، صورتی و
+   کرم — که از الگوی Testing.com آمده بود و با سبزآبیِ خودِ ابزار هیچ نسبتی
+   نداشت. یعنی محصول دو دستگاهِ دیداری داشت و کاربر با رفتن از «/» به
+   «/app» عملاً وارد یک اپِ دیگر می‌شد.
+
+   حالا هر دو از یک منبع می‌خوانند:
+     • هیچ هگزی اینجا نیست (قاعدهٔ ۱ در index.css)؛ ~۱۲۰ رنگِ خام حذف شد.
+     • هیچ اندازه/وزن/لیدینگ/فاصلهٔ خامی نیست (قاعدهٔ ۲)؛ اندازه‌های
+       ۱۶.۵ و ۱۵.۵ و ۱۴.۵ و ۱۳.۵ و ۱۲.۵ پیکسل به پله‌های مقیاس نگاشته شدند.
+     • دکمه‌ها همان .btn ابزارند با .btn--pill، نه یک خانوادهٔ دومِ موازی.
+     • تنها عددهای خامِ باقی‌مانده ابعادِ فیزیکی‌اند (قاعدهٔ ۳) و هرکدام
+       کامنتِ هندسیِ خودش را دارد.
+
+   جهتِ رنگ: یک لهجه (--brand) و یک سطحِ تیره (پاصفحه). چهار رنگِ تأکیدِ
+   قبلی به سه ارزش از همان یک فامِ سبزآبی تبدیل شد — پُر، کم‌رنگ، کرم.
+
+   ⚠️ نام‌ها همه با site- شروع می‌شوند و این عمدی است: ui.css سراسری لود
+      می‌شود، پس .card و .band و .row و .note و .group از قبل صاحب دارند.
+      کلاسِ بی‌پیشوند اینجا یعنی استایلِ ابزار بی‌صدا وارد صفحهٔ محتوایی شود.
+   ============================================================ */
+
+/* ---------- فونتِ لوگوتایپ ----------
+   Poppins، زیرمجموعهٔ لاتین، خودمیزبان (SIL OFL 1.1). عمداً اینجاست و نه
+   index.css: فقط نشانِ صفحه‌های محتوایی از آن استفاده می‌کند و ابزار نباید
+   بارِ فونتِ دوم را بی‌جهت بردارد.
+   ⚠️ فقط وزنِ ۷۰۰. اعلانِ وزنِ ۶۰۰ حذف شد چون هیچ‌جا مصرف نمی‌شد: تنها
+      مصرف‌کنندهٔ Poppins لوگوتایپِ LabMateLogo است و آن fontWeight="700"
+      دارد؛ شعارِ ۶۰۰ کنارش با وزیرمتن نوشته می‌شود، نه Poppins. */
+@font-face {
+  font-family: 'Poppins'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/fonts/Poppins-700-latin.woff2') format('woff2');
+}
+
+/* ---------- ریشه ---------- */
+
+.site {
+  /* ارتفاعِ سرصفحهٔ چسبان: نشانِ ۷۲ + دو پدینگِ --s5 (۱۰) + خطِ ۱ پیکسلی.
+     بُعد است نه ریتم، ولی سه‌جا لازم می‌شود — افستِ جعبهٔ چسبان، پرشِ لنگر،
+     و ناحیهٔ دیدِ scroll-spy — و اگر هر سه جدا نوشته شوند، اولین باری که
+     ارتفاعِ نشان عوض شود لنگرها زیرِ نوار می‌افتند.
+     ⚠️ همین حالا یک بار اتفاق افتاد: نشان از ۵۶ به ۷۲ رفت و این عدد ۷۷ ماند،
+        یعنی ۱۶ پیکسل از هر لنگر زیرِ نوارِ چسبان گم می‌شد. اگر ارتفاعِ
+        .site-brand svg را دست زدید، این عدد را هم دست بزنید. */
+  --nav-h: 93px;
+
+  background: var(--page);
+  color: var(--ink);
+  font-size: var(--t-lg);
+  line-height: var(--lh-body);
+  min-height: 100dvh;
+  /* تیترِ سیال با vw محاسبه می‌شود؛ بدونِ این، سرریزِ افقیِ یکی دو پیکسلی
+     روی گوشی یک اسکرول‌بارِ افقیِ تمام‌صفحه می‌سازد.
+     ⚠️ حتماً clip و نه hidden. با hidden این عنصر خودش «ظرفِ اسکرول» می‌شود
+        و position:sticky برای **همهٔ** نوادگانش می‌میرد — یعنی هم سرصفحه و
+        هم جعبهٔ فهرستِ مطالب با صفحه بالا می‌روند. اندازه‌گیری‌شده: پیش از
+        این اصلاح، لبهٔ پایینِ سرصفحه در اسکرولِ ۴۱۰۰ پیکسل روی ۴۰۲۵− بود.
+        clip همان بریدن را می‌کند بی‌آنکه ظرفِ اسکرول بسازد. */
+  overflow-x: clip;
+}
+.site *, .site *::before, .site *::after { box-sizing: border-box; }
+.site h1, .site h2, .site h3 { margin: 0; text-wrap: balance; }
+.site p { margin: 0; }
+.site a { color: inherit; text-decoration: none; }
+
+/* ---------- ظرف و بخش ---------- */
+
+.site-wrap { max-width: var(--wide); margin-inline: auto; padding-inline: var(--s10); }
+.site-wrap--read { max-width: var(--read); }
+
+.site-sec { padding-block: var(--s14); }
+/* بخشی که بلافاصله بعد از یک بخشِ هم‌رنگ می‌آید، پدینگِ بالایش دوبار
+   شمرده می‌شود و شکافِ ۱۴۴ پیکسلی می‌سازد. */
+.site-sec + .site-sec { padding-block-start: 0; }
+
+/* تیترِ بخش: مرکب، نه رنگی. نسخهٔ قبلی تیترها را آبی می‌کرد و چون لینک‌ها
+   هم رنگی بودند، «رنگی» دیگر معنای «قابلِ کلیک» نمی‌داد. */
+.site-h2 {
+  font-size: var(--t-d2); font-weight: var(--w-bold);
+  line-height: var(--lh-tight); color: var(--ink);
+  margin-bottom: var(--s10);
+}
+.site-h3 {
+  font-size: var(--t-d3); font-weight: var(--w-bold);
+  line-height: var(--lh-tight); color: var(--ink);
+}
+/* تیترِ بخش با یک کنشِ هم‌تراز کنارش */
+.site-sec-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s10); flex-wrap: wrap; margin-bottom: var(--s11);
+}
+.site-sec-head .site-h2 { margin-bottom: 0; }
+
+/* متنِ توضیحیِ زیرِ تیترِ بخش. به عرضِ خواندن مقید است حتی داخلِ ظرفِ عریض —
+   ۱۱۲۰ پیکسل متنِ یک‌ستونه یعنی چشم سرِ سطرِ بعد را گم می‌کند. */
+.site-lede {
+  font-size: var(--t-md); line-height: var(--lh-prose);
+  color: var(--ink-2); max-width: var(--read);
+  margin-top: calc(var(--s10) * -1); margin-bottom: var(--s11);
+}
+
+/* ---------- سرصفحه ---------- */
+
+.site-nav {
+  position: sticky; top: 0; z-index: 40;
+  background: var(--page);
+  border-bottom: 1px solid var(--line);
+}
+.site-nav-in {
+  max-width: var(--wide); margin-inline: auto;
+  padding: var(--s5) var(--s10);
+  display: flex; align-items: center; gap: var(--s8);
+}
+.site-brand { display: inline-flex; align-items: center; margin-inline-end: auto; }
+/* بُعد: نشان.
+   ⚠️ این عدد سقفِ آزاد ندارد. نشان یک قفلِ افقیِ ۷۹۰×۲۱۰ است، یعنی عرضش
+      ۳٫۷۶ برابرِ ارتفاعش — هر پیکسل ارتفاع، حدود چهار پیکسل از عرضِ ردیفِ
+      سرصفحه می‌خورد. در ۵۶ پیکسل عرضِ نشان ۲۱۱ پیکسل بود و کنارش لینک‌ها،
+      جست‌وجو و دکمه جا می‌شدند؛ در ۷۲ پیکسل می‌شود ۲۷۱ پیکسل، که هنوز در
+      قابِ ۱۲۸۰ جا می‌شود. بالاتر از این، اول جست‌وجو و بعد لینک‌ها فشرده
+      می‌شوند و ردیف می‌شکند. اگر خواستید بزرگ‌تر شود، نقطهٔ شکستِ ۹۸۰ را هم
+      بالا ببرید. */
+.site-brand svg { display: block; height: 72px; width: auto; max-width: 100%; }
+
+.site-links { display: flex; align-items: center; gap: var(--s2); }
+.site-links a {
+  font-size: var(--t-sm); font-weight: var(--w-semibold); color: var(--ink-2);
+  padding: var(--s3) var(--s6); border-radius: var(--r-pill); white-space: nowrap;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.site-links a:hover { color: var(--ink); background: var(--veil-ink); }
+
+/* جست‌وجو */
+.site-search { position: relative; display: flex; align-items: center; }
+.site-search svg {
+  position: absolute; inset-inline-start: var(--s6);
+  width: 17px; height: 17px;      /* بُعد: آیکن */
+  color: var(--ink-3); pointer-events: none;
+}
+.site-search input {
+  font-family: inherit; font-size: var(--t-sm); color: var(--ink);
+  background: var(--card); border: 1px solid var(--line-input);
+  border-radius: var(--r-pill);
+  /* بُعد: عرضِ ثابتِ خانهٔ جست‌وجو — جای «جست‌وجوی آزمایش» با آیکنش. */
+  min-height: var(--tap); width: 220px;
+  padding-inline: var(--s12) var(--s6);
+  /* ⚠️ فقط رنگِ مرز متحرک است، نه عرض. نسخهٔ الگو روی :focus عرض را از ۱۹۰
+     به ۲۴۰ می‌بُرد؛ چون سرصفحه یک ردیفِ flex است، آن ۵۰ پیکسل کلِ ردیف را
+     دوباره چیدمان می‌کرد و نشان، لینک‌ها و دکمه با هر بار فوکوس تکان
+     می‌خوردند — هم پرشِ چیدمان، هم دقیقاً همان حرکتِ تزئینی‌ای که این محصول
+     جای دیگر (انیمیشنِ جاروبِ حلقه در ui.css) عمداً حذفش کرده. حلقهٔ فوکوسِ
+     سراسری خودش فوکوس را اعلام می‌کند. */
+  transition: border-color var(--dur) var(--ease);
+}
+.site-search input::placeholder { color: var(--ink-3); }
+.site-search input:hover { border-color: var(--ink-3); }
+.site-search input:focus { border-color: var(--brand); }
+
+.site-burger {
+  display: none; flex-direction: column; gap: var(--s2);
+  background: none; border: 0; cursor: pointer;
+  min-width: var(--tap); min-height: var(--tap);
+  align-items: center; justify-content: center;
+}
+.site-burger span {
+  display: block; width: 22px; height: 2px;      /* بُعد: میلهٔ همبرگر */
+  border-radius: var(--r-pill); background: var(--ink);
+}
+.site-menu {
+  max-width: var(--wide); margin-inline: auto;
+  border-top: 1px solid var(--line); background: var(--page);
+  padding: var(--s7) var(--s10) var(--s9);
+  display: grid; gap: var(--s3);
+}
+.site-menu a {
+  padding: var(--s4) 0; font-size: var(--t-md); font-weight: var(--w-semibold);
+  color: var(--ink);
+}
+.site-menu a:hover { color: var(--brand); }
+.site-menu .btn { justify-self: start; margin-top: var(--s5); }
+.site-menu .site-search { margin-bottom: var(--s4); }
+.site-menu .site-search input { width: 100%; }
+
+@media (max-width: 980px) {
+  .site-links, .site-nav-in > .site-search, .site-nav-cta { display: none; }
+  .site-burger { display: flex; }
+}
+
+/* ---------- پاصفحه ----------
+   تنها سطحِ تیرهٔ محصول. متنِ فرعی --on-ink-2 است (تِینتِ همان کرم)، نه
+   خاکستری — دلیلش کنارِ خودِ توکن در index.css نوشته شده. */
+
+.site-foot { background: var(--ink); color: var(--on-ink); margin-top: var(--s13); }
+.site-foot-in {
+  max-width: var(--wide); margin-inline: auto;
+  padding: var(--s13) var(--s10) calc(var(--s13) + var(--safe-b));
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s9);
+}
+.site-foot .site-brand svg { height: 52px; }      /* بُعد: نشانِ پاصفحه */
+.site-foot p {
+  font-size: var(--t-xs); line-height: var(--lh-prose);
+  color: var(--on-ink-2); max-width: 70ch;
+}
+.site-foot a[href^="http"] {
+  color: var(--on-ink); font-weight: var(--w-semibold);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+/* دکمهٔ اصلی روی زمینهٔ تیره: سبزآبیِ پُر روی مرکب کم‌کنتراست می‌افتد، پس
+   اینجا وارونه می‌شود — سطحِ روشن، متنِ مرکب. */
+.site-foot .btn--primary {
+  background: var(--on-ink); color: var(--ink); border-color: var(--on-ink);
+}
+.site-foot .btn--primary:hover:not(:disabled) { background: var(--on-ink-2); }
+
+/* ---------- سربرگِ صفحه ---------- */
+
+.site-hero { padding-block: var(--s13) var(--s12); }
+/* متن و عکس کنارِ هم. ⚠️ نه از سرِ سلیقه: hero.jpg مربع است (۹۰۰×۹۰۰). در
+   نسخهٔ نوارِ تمام‌عرض داخلِ یک قابِ ۱۶:۹ می‌نشست، یعنی هم یک‌سومِ عکس بریده
+   می‌شد و هم ۹۰۰ پیکسل تا ۱۰۷۲ کش می‌آمد — بزرگ‌نماییِ بالاتر از رزولوشنِ
+   خودِ فایل، که روی نمایشگرِ ۲x دو برابر بدتر است. ستونِ ۴۲۰ پیکسلی عکس را
+   کوچک می‌کند نه بزرگ، و برشی هم لازم نیست. */
+.site-hero-grid {
+  display: grid; grid-template-columns: minmax(0, 1fr) 420px;   /* بُعد: ستونِ عکس */
+  gap: var(--s14); align-items: center;
+}
+.site-hero h1 {
+  font-size: var(--t-d1); font-weight: var(--w-bold);
+  line-height: var(--lh-tight); letter-spacing: -.01em;
+  /* بُعد: عرضِ تیتر. ۱۸ch برای تیترِ کوتاه‌ترِ قبلی بسته شده بود؛ تیترِ فعلی
+     ۴۵ نویسه است و در ۱۸ch سه‌سطری می‌شد. ۲۴ch دو سطرِ هم‌وزن می‌دهد و هنوز
+     خیلی کمتر از عرضِ ستون است، پس سطرها کشیده نمی‌شوند. */
+  color: var(--ink); max-width: 24ch;
+}
+.site-hero-lede {
+  font-size: var(--t-lg); line-height: var(--lh-prose);
+  color: var(--ink-2); max-width: 58ch; margin-top: var(--s9);
+}
+.site-hero .btn { margin-top: var(--s11); }
+
+/* کادرِ معرفی — سه خطی که باید پیش از هر چیزِ دیگر خوانده شوند.
+   ⚠️ نوارِ رنگیِ ۶ پیکسلیِ لبه حذف شد: کادر پس‌زمینه و مرزِ خودش را دارد و
+      یک خطِ ضخیمِ رنگی روی آن فقط سر و صداست. */
+.site-intro {
+  background: var(--card); border: 1px solid var(--border-card);
+  border-radius: var(--r-lg); padding: var(--s10) var(--s11);
+  display: grid; gap: var(--s7); box-shadow: var(--sh-xs);
+}
+.site-intro p { font-size: var(--t-md); line-height: var(--lh-prose); color: var(--ink-2); }
+.site-intro-fine {
+  font-size: var(--t-xs); padding-top: var(--s7);
+  border-top: 1px solid var(--line-soft);
+}
+.site-intro-fine a { color: var(--brand); font-weight: var(--w-semibold); }
+.site-intro-fine a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- عکس ----------
+   قابِ گردِ الگو و دایرهٔ یاسیِ پشتش حذف شدند. عکس حالا یک مستطیلِ تمیز با
+   همان شعاعِ بقیهٔ سطح‌هاست؛ زمینهٔ --sunken پیش از رسیدنِ فایل دیده می‌شود
+   تا قاب به‌صورت یک سوراخِ سفید ظاهر نشود. */
+
+.site-figure {
+  border-radius: var(--r-lg); overflow: hidden;
+  background: var(--sunken); line-height: 0;
+}
+.site-figure img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* نسبتِ ۱:۱ = نسبتِ خودِ فایل، پس هیچ برشی اتفاق نمی‌افتد. */
+.site-figure--hero { aspect-ratio: 1; }
+.site-figure--band { aspect-ratio: 3 / 1; margin-block: var(--s10); }
+
+/* ---------- تابلوها ----------
+   الگو چهار تابلوی رنگیِ اشباع داشت (سرمه‌ای، مرجانی، …). حالا دو ارزش از
+   یک فام: یکی پُر برای تنها لحظهٔ تأکید، یکی کم‌رنگ برای بقیه. */
+
+.site-panel { border-radius: var(--r-lg); padding: var(--s12) var(--s12); }
+.site-panel h3 { font-size: var(--t-d3); font-weight: var(--w-bold); margin-bottom: var(--s7); }
+.site-panel p { font-size: var(--t-md); line-height: var(--lh-prose); max-width: 62ch; }
+.site-panel .btn { margin-top: var(--s10); }
+
+.site-panel--solid { background: var(--brand); color: var(--on-brand); }
+/* ⚠️ بدونِ opacity. متنِ نیمه‌شفاف نسبتِ کنتراستِ اعلام‌شده را باطل می‌کند و
+   هیچ ابزاری هم آن را نمی‌سنجد: computed color همان سفیدِ کامل را گزارش
+   می‌دهد در حالی که چیزی که چشم می‌بیند سفید نیست. --on-brand روی --brand
+   دقیقاً ۵.۸۲:۱ است و باید همان بماند. */
+.site-panel--solid p { color: var(--on-brand); }
+.site-panel--solid .btn--secondary {
+  background: transparent; color: var(--on-brand); border-color: var(--on-brand);
+}
+.site-panel--solid .btn--secondary:hover:not(:disabled) {
+  background: var(--on-brand); color: var(--brand);
+}
+
+.site-panel--soft {
+  background: var(--brand-soft); color: var(--brand-ink);
+  border: 1px solid var(--brand-line);
+}
+.site-panel--soft p { color: var(--brand-ink); }
+
+/* بلوکِ متنیِ بی‌قاب میانِ تابلوها */
+.site-block { padding-block: var(--s11) var(--s6); }
+.site-block p {
+  font-size: var(--t-md); line-height: var(--lh-prose);
+  color: var(--ink-2); max-width: 62ch; margin-top: var(--s6);
+}
+.site-block .btn { margin-top: var(--s10); }
+
+/* ---------- ردیفِ نامِ استانداردها ----------
+   نامِ نهادها لاتین و اختصاری است؛ وزیرمتن برای این کار فونتِ درستی نیست. */
+.site-marks { display: flex; flex-wrap: wrap; gap: var(--s8) var(--s12); align-items: center; }
+.site-marks span {
+  font-family: system-ui, sans-serif; font-size: var(--t-lg);
+  font-weight: var(--w-bold); letter-spacing: .08em; color: var(--ink-3);
+}
+
+/* ---------- کاشی‌ها (کارت‌های راهنما) ---------- */
+
+.site-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s11); }
+.site-tiles--2 { grid-template-columns: repeat(2, 1fr); }
+.site-tile { display: flex; flex-direction: column; height: 100%; }
+/* بلوکِ رنگیِ بالای کارت. سه ارزش از یک فام — قبلاً پنج رنگِ بی‌ربط بود. */
+.site-tile-art {
+  display: flex; flex-direction: column; gap: var(--s1);
+  aspect-ratio: 1 / .84; border-radius: var(--r-md);
+  padding: var(--s10); font-size: var(--t-d3);
+  font-weight: var(--w-bold); line-height: var(--lh-tight);
+}
+.site-tile-art b { display: block; font-weight: var(--w-bold); }
+/* خطِ دومِ کیکر. تفاوتش با خطِ اول از اندازه و وزن می‌آید، نه از شفافیت:
+   سفیدِ ۸۰٪ روی --brand حدود ۴.۳:۱ می‌شد و در ۱۶ پیکسلِ نیم‌ضخیم «متنِ
+   بزرگ» حساب نمی‌شود، یعنی زیرِ آستانهٔ ۴.۵. */
+.site-tile-art span { font-size: var(--t-lg); font-weight: var(--w-semibold); }
+.site-tile-art--deep { background: var(--brand); color: var(--on-brand); }
+.site-tile-art--soft { background: var(--brand-soft); color: var(--brand-ink); }
+.site-tile-art--warm { background: var(--page); border: 1px solid var(--border-card); color: var(--ink); }
+.site-tile h3 {
+  font-size: var(--t-d3); font-weight: var(--w-bold); color: var(--ink);
+  margin: var(--s9) 0 var(--s6); line-height: var(--lh-tight);
+}
+.site-tile h3 a:hover { color: var(--brand); }
+.site-tile p {
+  font-size: var(--t-sm); line-height: var(--lh-prose);
+  color: var(--ink-2); margin-bottom: var(--s9);
+}
+.site-tile .btn { width: 100%; margin-top: auto; }
+
+/* ---------- منابع و خبر ---------- */
+
+.site-res-grid {
+  display: grid; grid-template-columns: 1fr 1.3fr;
+  gap: var(--s12) var(--s12); align-items: start;
+}
+.site-res { position: relative; }
+.site-res--lead { grid-row: span 2; }
+.site-res .site-figure { aspect-ratio: 16 / 9; margin-bottom: var(--s9); }
+.site-res--lead .site-figure { aspect-ratio: 3 / 2; }
+.site-res h3 {
+  font-size: var(--t-d3); font-weight: var(--w-bold);
+  color: var(--ink); margin-bottom: var(--s6); line-height: var(--lh-tight);
+}
+.site-res p {
+  font-size: var(--t-sm); line-height: var(--lh-prose);
+  color: var(--ink-2); margin-bottom: var(--s6);
+}
+.site-more {
+  font-size: var(--t-sm); font-weight: var(--w-semibold); color: var(--brand);
+}
+.site-more:hover { text-decoration: underline; text-underline-offset: 3px; }
+.site-pick {
+  display: inline-block; background: var(--brand-soft); color: var(--brand-ink);
+  border-radius: var(--r-pill); padding: var(--s2) var(--s6);
+  font-size: var(--t-2xs); font-weight: var(--w-bold); margin-bottom: var(--s6);
+}
+
+.site-news { display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--s12); align-items: center; }
+.site-news-date { font-size: var(--t-xs); color: var(--ink-3); }
+.site-news h3 {
+  font-size: var(--t-d3); font-weight: var(--w-bold); color: var(--ink);
+  margin: var(--s4) 0 var(--s7); line-height: var(--lh-tight);
+}
+.site-news p {
+  font-size: var(--t-md); line-height: var(--lh-prose);
+  color: var(--ink-2); margin-bottom: var(--s7);
+}
+.site-news .site-figure { aspect-ratio: 3 / 2; }
+
+/* ---------- «اعداد بر چه مبنایی» ---------- */
+
+.site-basis { background: var(--sunken); }
+.site-basis-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--s5) var(--s12); margin-bottom: var(--s11);
+}
+.site-source { display: flex; align-items: center; gap: var(--s7); padding: var(--s4) 0; }
+.site-source-mark {
+  flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%;   /* بُعد: نشانِ حرف */
+  background: var(--brand-soft); color: var(--brand-ink);
+  display: flex; align-items: center; justify-content: center;
+  font-family: system-ui, sans-serif; font-size: var(--t-lg); font-weight: var(--w-bold);
+}
+.site-source-txt { display: flex; flex-direction: column; line-height: var(--lh-tight); }
+.site-source-txt b { font-size: var(--t-md); font-weight: var(--w-bold); }
+.site-source-txt i { font-style: normal; font-size: var(--t-xs); color: var(--ink-2); margin-top: var(--s1); }
+
+/* ============================================================
+   صفحهٔ «راهنمای آزمایش‌ها» (Tests.jsx)
+   ============================================================ */
+
+/* جعبه‌های دسته */
+.site-cats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s5); }
+.site-cat {
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  min-height: 72px;                     /* بُعد: ارتفاعِ یکسانِ جعبه‌ها */
+  padding: var(--s7) var(--s9);
+  background: var(--card); border: 1px solid var(--border-card);
+  border-radius: var(--r-md);
+  font-size: var(--t-sm); font-weight: var(--w-semibold);
+  line-height: var(--lh-tight); color: var(--ink);
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.site-cat:hover { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-ink); }
+
+/* بخشِ هر دسته */
+.site-guide { border-top: 1px solid var(--line); padding-top: var(--s11); margin-top: var(--s12); }
+.site-guide:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+.site-guide-h { display: flex; align-items: baseline; gap: var(--s7); flex-wrap: wrap; }
+.site-guide-h h3 { font-size: var(--t-d3); font-weight: var(--w-bold); color: var(--ink); }
+.site-guide-h h3 a:hover { color: var(--brand); }
+.site-guide-n {
+  font-family: system-ui, sans-serif; font-size: var(--t-2xs); color: var(--ink-2);
+  background: var(--sunken); border-radius: var(--r-pill); padding: var(--s1) var(--s6);
+}
+.site-guide-d {
+  font-size: var(--t-sm); line-height: var(--lh-prose); color: var(--ink-2);
+  max-width: var(--read); margin: var(--s6) 0 var(--s9);
+}
+
+/* کارتِ یک آزمایش */
+.site-tests { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s5); }
+.site-test {
+  display: flex; flex-direction: column; height: 100%;
+  background: var(--card); border: 1px solid var(--border-card);
+  border-radius: var(--r-md); padding: var(--s8) var(--s9);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
+/* آزمایشی که در فرم نیست، حالا صفحهٔ آموزشیِ خودش را دارد و کارتش کلیک‌شدنی
+   است — پس لبهٔ خط‌چینِ قبلی برداشته شد: خط‌چین در این پالت یعنی «غیرفعال».
+   چیزی که مانده زمینهٔ فرورفته و عنوانِ کم‌رنگ‌تر است، که از همان فاصله
+   می‌گوید اینجا جای وارد کردنِ عدد نیست؛ برچسبِ پایینِ کارت جمله‌اش را
+   کامل می‌کند. */
+.site-test--info { background: var(--sunken); }
+.site-test b { display: block; font-size: var(--t-md); font-weight: var(--w-bold); color: var(--ink); line-height: var(--lh-tight); }
+.site-test--info b { color: var(--ink-2); }
+.site-test i {
+  font-style: normal; font-family: system-ui, sans-serif;
+  font-size: var(--t-micro); font-weight: var(--w-regular); color: var(--ink-2);
+  background: var(--sunken); border-radius: var(--r-xs);
+  padding: var(--s1) var(--s4); margin-inline-start: var(--s4); white-space: nowrap;
+}
+.site-test p { font-size: var(--t-2xs); line-height: var(--lh-body); color: var(--ink-2); margin-top: var(--s3); }
+.site-test em {
+  font-style: normal; display: inline-block; align-self: flex-start;
+  margin-top: auto; padding-top: var(--s6);
+  font-size: var(--t-2xs); font-weight: var(--w-semibold);
+}
+.site-t-form { color: var(--brand); }
+.site-t-photo { color: var(--st-unmatched-fg); }
+.site-t-soon { color: var(--ink-3); }
+.site-t-panel { color: var(--ink-3); }
+
+/* ---------- فهرست الفبایی ----------
+   نوار دیگر «پرشِ لنگر» نیست، **فیلتر** است: هر بار یک حرف. جعبهٔ کارتیِ
+   قبلی (مرز + پس‌زمینه + گوشه) هم برداشته شد — وقتی نوار خودش کنترلِ اصلیِ
+   بخش است، قابِ دورش فقط یک مرزِ دیگر روی صفحه‌ای است که از پیش پُر از
+   کارت است. حالا حروف مستقیم روی کاغذ می‌نشینند و تنها چیزی که قاب دارد
+   حرفِ **فعال** است. */
+.site-az-strip {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: var(--s2) var(--s3);
+  padding-block-end: var(--s8);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--s12);
+}
+.site-az-key {
+  flex: 0 0 auto;
+  min-width: 40px;                  /* بُعد: خانهٔ حرف — «W» و «1 2 5 A» یک ارتفاع دارند */
+  padding: var(--s3) var(--s5);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s4);
+  font-family: system-ui, sans-serif;
+  font-size: var(--t-d3); font-weight: var(--w-bold); line-height: var(--lh-tight);
+  letter-spacing: .02em;
+  color: var(--ink-2);
+  background: none;
+  border: 1.5px solid transparent;  /* بُعد: مرزِ حلقه — همیشه هست تا انتخاب، چیدمان را جابه‌جا نکند */
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease),
+              background-color var(--dur) var(--ease);
+}
+.site-az-key:hover { color: var(--brand); background: var(--brand-soft); }
+/* حرفِ فعال: حلقه، نه پُرشدگی. پُرشدگیِ برند در این اندازه یک دکمهٔ اصلی
+   می‌سازد و نوار را به شش دکمهٔ هم‌وزنِ بقیهٔ صفحه تبدیل می‌کند. */
+.site-az-key.is-on {
+  color: var(--brand-ink); border-color: var(--brand); background: var(--brand-soft);
+}
+/* حرفی که آزمایشی ندارد. کنتراستِ ۵.۲:۱ دارد (--ink-3) و نه کمتر: «غیرفعال»
+   بهانهٔ خواناییِ کمتر نیست. */
+.site-az-key.is-off {
+  color: var(--ink-3); cursor: default;
+  padding: var(--s3) var(--s5); min-width: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: system-ui, sans-serif;
+  font-size: var(--t-d3); font-weight: var(--w-regular); line-height: var(--lh-tight);
+  border: 1.5px solid transparent;
+}
+/* حلقهٔ فوکوسِ سراسری r-xs می‌گذارد؛ روی یک قرصِ گرد، گوشهٔ تیز غلط می‌نشیند. */
+.site-az-key:focus-visible { border-radius: var(--r-pill); }
+
+/* شبکه: سه ستون، ولی ستونِ ۴۲تایی سه‌تا را می‌گیرد و خودش داخلاً می‌شکند.
+   بدونِ این، سطلِ A یک ستونِ باریکِ ۴۲ ردیفی کنارِ دو‌سومِ صفحهٔ خالی است. */
+.site-az-grid {
+  display: flex; flex-direction: column; gap: var(--s14);
+}
+
+/* یک لحظهٔ حرکت در کلِ بخش: تعویضِ حرف. از حالتِ دیده‌شده شروع نمی‌شود چون
+   خودِ گره تازه سوار شده — ولی ۲۴۰ms و بدونِ تأخیرِ پلکانی، تا کلیکِ پیاپی
+   روی حروف صف نبندد. */
+@media (prefers-reduced-motion: no-preference) {
+  .site-az-grid { animation: site-az-in 240ms cubic-bezier(.16, 1, .3, 1) both; }
+}
+@keyframes site-az-in {
+  from { opacity: 0; transform: translateY(var(--s4)); }
+  to   { opacity: 1; transform: none; }
+}
+
+.site-az-col h3 {
+  display: flex; align-items: baseline; gap: var(--s5);
+  font-family: system-ui, sans-serif; font-size: var(--t-2xl); font-weight: var(--w-bold);
+  line-height: var(--lh-tight); color: var(--ink);
+  border-bottom: 1px solid var(--ink); padding-bottom: var(--s4); margin-bottom: var(--s2);
+}
+/* شمارِ ردیف‌های ستون. رقمِ فارسی، وزنِ عادی، مرکبِ روشن — عدد باید کنارِ
+   حرف بنشیند نه با آن رقابت کند. */
+.site-az-col h3 i {
+  font-style: normal; margin-inline-start: auto;
+  font-family: inherit; font-size: var(--t-2xs); font-weight: var(--w-regular);
+  color: var(--ink-2); letter-spacing: 0;
+}
+
+
+
+/* یادداشتِ پایانی. ⚠️ نوارِ رنگیِ ۴ پیکسلیِ لبه به ۱ پیکسل رسید — بالای یک
+   پیکسل، خطِ رنگیِ کنارِ کادر تزئین است نه ساختار. */
+.site-note {
+  font-size: var(--t-sm); line-height: var(--lh-prose); color: var(--ink-2);
+  max-width: var(--read); border-inline-start: 1px solid var(--line);
+  padding-inline-start: var(--s9); margin-top: var(--s12);
+}
+.site-az-cta { margin-top: var(--s11); }
+
+/* ---------- دکمهٔ «برو بالا» ----------
+   ⚠️ inset-inline-end و نه right: صفحه RTL است، پس گوشهٔ «پایانی» سمتِ چپ
+      است. با right، دکمه روی ابتدای متن می‌نشیند.
+   ⚠️ visibility در انتقال هست تا در حالتِ پنهان از ترتیبِ Tab و درختِ
+      دسترسی بیرون بماند؛ opacity به‌تنهایی دکمهٔ نامرئیِ فوکوس‌پذیر می‌سازد. */
+.site-totop {
+  position: fixed; z-index: 30;
+  inset-block-end: var(--s10); inset-inline-end: var(--s10);
+  width: 48px; height: 48px;                 /* بُعد: کفِ هدفِ لمسی */
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--on-brand); background: var(--brand);
+  border: none; border-radius: 50%; box-shadow: var(--sh-md);
+  cursor: pointer;
+  visibility: hidden; opacity: 0; transform: translateY(var(--s5));
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease),
+              background-color var(--dur) var(--ease), visibility 0s linear var(--dur);
+}
+.site-totop.is-on {
+  visibility: visible; opacity: 1; transform: none;
+  transition-delay: 0s;
+}
+.site-totop:hover { background: var(--brand-deep); }
+.site-totop:focus-visible { border-radius: 50%; }
+@media (prefers-reduced-motion: reduce) {
+  .site-totop { transition: none; transform: none; }
+}
+
+/* ============================================================
+   صفحهٔ مقاله — دسته و تکِ آزمایش (Guide.jsx)
+   ============================================================ */
+
+/* دو ستون: متن، و جعبهٔ چسبانِ فهرست مطالب کنارش.
+   عرضِ ستونِ متن از خودِ شبکه در می‌آید: ۱۱۲۰ − ۲×۲۴ پدینگ − ۲۸۰ جعبه −
+   ۵۶ شکاف ≈ ۷۱۶ پیکسل، یعنی عملاً همان --read. پس متنِ مقاله در هر دو
+   حالتِ «با جعبه» و «بی‌جعبه» یک طولِ سطر دارد. */
+.site-art-shell {
+  max-width: var(--wide); margin-inline: auto; padding-inline: var(--s10);
+  display: grid; grid-template-columns: minmax(0, 1fr) 280px;   /* بُعد: عرضِ جعبه */
+  gap: var(--s13); align-items: start;
+}
+.site-art-main { min-width: 0; }
+
+.site-art-side { position: sticky; top: calc(var(--nav-h) + var(--s9)); }
+.site-art-side-box {
+  border: 1px solid var(--border-card); border-radius: var(--r-lg);
+  background: var(--card); padding: var(--s10);
+  max-height: calc(100dvh - var(--nav-h) - var(--s11)); overflow-y: auto;
+}
+.site-art-side-h { font-size: var(--t-sm); font-weight: var(--w-bold); color: var(--ink); margin-bottom: var(--s8); }
+.site-art-side-box ul { list-style: none; margin: 0; padding: 0; }
+.site-art-side-box li { margin-bottom: var(--s6); }
+.site-art-side-box li:last-child { margin-bottom: 0; }
+.site-art-side-box a {
+  display: flex; gap: var(--s5); font-size: var(--t-xs);
+  line-height: var(--lh-tight); color: var(--ink-2);
+  transition: color var(--dur) var(--ease);
+}
+/* نقطهٔ کنارِ بخشِ فعال — جای خودش همیشه گرفته است تا متن با تغییرِ بخشِ
+   فعال جابه‌جا نشود. ⚠️ بخشِ فعال فقط با رنگ گفته نمی‌شود: وزنِ فونت هم
+   عوض می‌شود (WCAG 1.4.1) و aria-current روی خودِ لینک نشسته. */
+.site-art-side-box a i {
+  flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%;   /* بُعد: نقطه */
+  background: transparent; margin-top: .5em;
+}
+.site-art-side-box a:hover { color: var(--ink); }
+.site-art-side-box li.is-active a { color: var(--brand); font-weight: var(--w-bold); }
+.site-art-side-box li.is-active a i { background: var(--brand); }
+
+.site-art-hero { padding-block: var(--s12) var(--s13); }
+.site-art-updated { display: block; font-size: var(--t-xs); color: var(--ink-3); margin-bottom: var(--s6); }
+.site-art-hero h1 {
+  font-size: var(--t-d1); font-weight: var(--w-bold);
+  line-height: var(--lh-tight); letter-spacing: -.01em; color: var(--ink);
+}
+.site-art-aka {
+  font-size: var(--t-xs); line-height: var(--lh-body); color: var(--ink-2);
+  background: var(--card); border: 1px solid var(--border-card);
+  border-radius: var(--r-md); padding: var(--s6) var(--s9); margin-top: var(--s10);
+}
+.site-art-aka b { color: var(--ink); }
+/* نشانِ «بر پایهٔ منابع بالینی» — جایگزینِ نشانِ «Board Approved» الگو.
+   کم‌رنگ و بی‌ادعا، چون یک واقعیتِ ساده را می‌گوید نه یک مهرِ تأیید. */
+.site-art-badge {
+  display: inline-flex; align-items: center; gap: var(--s4); margin-top: var(--s10);
+  background: var(--brand-soft); border: 1px solid var(--brand-line); color: var(--brand-ink);
+  border-radius: var(--r-pill); padding: var(--s3) var(--s8);
+  font-size: var(--t-xs); font-weight: var(--w-semibold);
+}
+.site-art-badge i {
+  font-style: normal; display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;      /* بُعد: تیکِ داخلِ نشان */
+  background: var(--brand); color: var(--on-brand); font-size: var(--t-micro);
+}
+
+.site-art-card {
+  background: var(--card); border: 1px solid var(--border-card);
+  border-radius: var(--r-lg); padding: var(--s11) var(--s12);
+  margin-bottom: var(--s11); box-shadow: var(--sh-xs);
+}
+.site-art-card-h { font-size: var(--t-d3); font-weight: var(--w-bold); color: var(--ink); margin-bottom: var(--s8); }
+
+.site-art-block { margin-bottom: var(--s6); }
+.site-art-h2 {
+  font-size: var(--t-d2); font-weight: var(--w-bold); line-height: var(--lh-tight);
+  color: var(--ink); margin: var(--s13) 0 var(--s9);
+}
+.site-art-h3 {
+  font-size: var(--t-d3); font-weight: var(--w-bold); line-height: var(--lh-tight);
+  color: var(--ink); margin: var(--s11) 0 var(--s7);
+}
+
+/* ⚠️ هر هدفِ لنگر باید به اندازهٔ سرصفحهٔ چسبان از بالا فاصله بگیرد. نسخهٔ
+   قبلی scroll-margin-top: 24px داشت و سرصفحه ۷۷ پیکسل است، یعنی هر پرش از
+   «فهرست مطالب» عنوانِ مقصد را دقیقاً زیرِ نوار می‌انداخت — کاربر می‌پرید و
+   تیتری که دنبالش بود دیده نمی‌شد. */
+.site-art-h2, .site-art-h3,
+.site-art-card, .site-art-more, .site-art-res, .site-art-src,
+.site-guide, .site-az-col {
+  scroll-margin-top: calc(var(--nav-h) + var(--s9));
+}
+.site-art-p { font-size: var(--t-lg); line-height: var(--lh-prose); color: var(--ink); margin-bottom: var(--s9); }
+.site-art-ul { margin: 0 0 var(--s9); padding-inline-start: 1.25em; }
+.site-art-ul li { font-size: var(--t-lg); line-height: var(--lh-prose); color: var(--ink); margin-bottom: var(--s5); }
+.site-art-ul li b { color: var(--ink); font-weight: var(--w-bold); }
+.site-art-note {
+  font-size: var(--t-sm); line-height: var(--lh-prose); color: var(--ink-2);
+  background: var(--sunken); border-radius: var(--r-md);
+  padding: var(--s7) var(--s9); margin: 0 0 var(--s9);
+}
+
+/* جدول */
+.site-art-tw { overflow-x: auto; margin: var(--s3) 0 var(--s10); }
+.site-art-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); line-height: var(--lh-body); min-width: 520px; }
+.site-art-table th {
+  background: var(--sunken); color: var(--ink); font-size: var(--t-2xs);
+  font-weight: var(--w-bold); letter-spacing: .02em; text-align: start;
+  padding: var(--s6) var(--s7); border: 1px solid var(--line);
+}
+.site-art-table td { padding: var(--s6) var(--s7); border: 1px solid var(--line); color: var(--ink); vertical-align: top; }
+
+/* فهرست مطالب */
+.site-toc { border: 1px solid var(--border-card); border-radius: var(--r-md); background: var(--card); margin-bottom: var(--s5); }
+.site-toc-head {
+  width: 100%; font-family: inherit; font-size: var(--t-md); font-weight: var(--w-semibold);
+  color: var(--ink); background: none; border: 0; cursor: pointer; min-height: var(--tap);
+  display: flex; align-items: center; justify-content: space-between; padding: var(--s7) var(--s10);
+}
+.site-chev {
+  width: 8px; height: 8px;      /* بُعد: پیکانِ بازشو */
+  border: solid var(--ink-2); border-width: 0 2px 2px 0;
+  transform: rotate(45deg); transition: transform var(--dur) var(--ease);
+}
+.site-chev.is-open { transform: rotate(-135deg); }
+.site-toc-list { list-style: none; margin: 0; padding: 0 var(--s10) var(--s8); border-top: 1px solid var(--line-soft); }
+.site-toc-list li { padding-top: var(--s5); }
+.site-toc-list li.is-sub { padding-inline-start: var(--s9); }
+.site-toc-list a { font-size: var(--t-sm); color: var(--ink-2); }
+.site-toc-list a:hover { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+
+/* «انواع آزمایش» — داخلِ ستونِ متن است، پس یک پنلِ گرد می‌شود نه نوارِ
+   تمام‌عرض. کارت‌هایش همان .site-tile اند و استایلِ جداگانه ندارند. */
+.site-art-band {
+  background: var(--sunken); border-radius: var(--r-lg);
+  margin-block: var(--s13); padding: var(--s12);
+  scroll-margin-top: calc(var(--nav-h) + var(--s9));
+}
+.site-art-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s10); margin-top: var(--s9); }
+.site-art-type-off {
+  display: inline-block; margin-top: auto;
+  font-size: var(--t-2xs); font-weight: var(--w-semibold); color: var(--ink-3);
+}
+
+/* فهرستِ دوستونیِ آزمایش‌های بیشتر */
+.site-art-more { margin-block: var(--s13); }
+.site-art-more-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 var(--s11); }
+.site-art-more-list li { border-bottom: 1px solid var(--line-soft); }
+.site-art-more-list a, .site-art-more-list span { display: block; padding: var(--s6) var(--s1); font-size: var(--t-sm); line-height: var(--lh-body); }
+.site-art-more-list a { color: var(--ink); }
+.site-art-more-list a:hover { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+.site-art-more-list span { color: var(--ink-3); }
+
+/* دکمهٔ ورودِ عدد */
+.site-art-cta {
+  background: var(--brand-soft); border: 1px solid var(--brand-line);
+  border-radius: var(--r-lg); padding: var(--s11) var(--s12); margin-block: var(--s12);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--s9); flex-wrap: wrap;
+}
+.site-art-cta p { font-size: var(--t-md); line-height: var(--lh-prose); color: var(--brand-ink); flex: 1 1 320px; }
+
+/* منابعِ بیشتر و منابع */
+.site-art-res, .site-art-src { margin-block: var(--s13); }
+.site-art-res-note { font-size: var(--t-xs); line-height: var(--lh-prose); color: var(--ink-2); margin-bottom: var(--s10); }
+.site-art-res-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s10); }
+.site-art-res-card { border-top: 1px solid var(--ink); padding-top: var(--s8); }
+.site-art-res-card h3 { font-size: var(--t-md); font-weight: var(--w-bold); color: var(--ink); margin-bottom: var(--s3); line-height: var(--lh-tight); }
+.site-art-res-card p { font-size: var(--t-xs); color: var(--ink-2); margin-bottom: var(--s5); }
+
+.site-art-src-list {
+  margin: 0; padding-inline-start: var(--s9);
+  background: var(--sunken); border-radius: var(--r-md);
+  padding-block: var(--s10); padding-inline-end: var(--s10);
+}
+.site-art-src-list li { font-size: var(--t-2xs); line-height: var(--lh-prose); color: var(--ink-2); margin-bottom: var(--s6); }
+.site-art-src-list li:last-child { margin-bottom: 0; }
+.site-art-src-list b { color: var(--ink); }
+.site-art-src-list i { font-style: normal; font-family: system-ui, sans-serif; }
+.site-art-src-list a { color: var(--brand); word-break: break-all; }
+.site-art-src-list a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.site-art-disclaimer {
+  font-size: var(--t-xs); line-height: var(--lh-prose); color: var(--ink-2);
+  border-inline-start: 1px solid var(--line); padding-inline-start: var(--s9); margin-bottom: var(--s10);
+}
+.site-art-back { display: inline-block; font-size: var(--t-sm); font-weight: var(--w-semibold); color: var(--brand); margin-bottom: var(--s10); }
+.site-art-back:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ============================================================
+   واکنش‌گرایی
+   تیترها سیال‌اند و مدیا-کوئریِ اندازهٔ فونت لازم ندارند؛ آنچه اینجا
+   می‌ماند فقط شکستنِ شبکه‌هاست.
+   ============================================================ */
+
+/* جعبهٔ چسبان فقط وقتی می‌ماند که واقعاً جا داشته باشد؛ پایین‌تر از آن،
+   نوارِ بازشوی «فهرست مطالب» بالای متن همان کار را می‌کند. دقیقاً یکی از
+   این دو دیده می‌شود، هیچ‌وقت هر دو و هیچ‌وقت هیچ‌کدام. */
+@media (min-width: 1081px) { .site-toc { display: none; } }
+@media (max-width: 1080px) {
+  .site-art-shell { grid-template-columns: minmax(0, 1fr); gap: 0; max-width: 940px; }
+  .site-art-side { display: none; }
+}
+
+@media (max-width: 1000px) {
+  /* عکس زیرِ متن می‌رود. ۴:۳ به‌جای مربع، چون مربعِ تمام‌عرض روی گوشی
+     تقریباً یک صفحهٔ کامل ارتفاع می‌گیرد و متنِ بعدی را از دید بیرون می‌برد.
+     برشِ ۲۵٪ از یک منبعِ ۹۰۰ پیکسلی هنوز بزرگ‌تر از قابِ ۳۷۵ پیکسلی است. */
+  .site-hero-grid { grid-template-columns: 1fr; gap: var(--s12); }
+  .site-figure--hero { aspect-ratio: 4 / 3; }
+  .site-tiles, .site-tiles--2 { grid-template-columns: 1fr; gap: var(--s12); }
+  .site-basis-grid { grid-template-columns: 1fr; }
+  .site-res-grid { grid-template-columns: 1fr; }
+  .site-res--lead { grid-row: auto; }
+  .site-news { grid-template-columns: 1fr; }
+  .site-cats, .site-tests { grid-template-columns: repeat(2, 1fr); }
+  /* دو ستون: هر ستونی که سه‌تا می‌گرفت، دوتا می‌گیرد — وگرنه span 3 روی
+     شبکهٔ دو‌ستونه به سطرِ خودش می‌افتد و کنارش خالی می‌ماند. */
+  .site-az-grid { grid-template-columns: repeat(2, 1fr); }
+  .site-az-col[data-w="3"] { grid-column: span 2; }
+  .site-az-col[data-w="3"] .site-az-list { columns: 2; }
+  .site-art-types { grid-template-columns: 1fr; }
+  .site-art-res-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 700px) {
+  /* نشان اینجا ۵۶ می‌شود، پس ارتفاعِ نوار هم ۵۶+۲۰+۱ است. بدونِ این، هر
+     لنگر ۱۶ پیکسل بیش از لازم فاصله می‌گیرد. */
+  .site { --nav-h: 77px; }
+  .site-wrap, .site-art-shell { padding-inline: var(--gutter); }
+  .site-nav-in { padding-inline: var(--gutter); }
+  .site-art-band { padding: var(--s10); }
+  .site-menu { padding-inline: var(--gutter); }
+  .site-foot-in { padding-inline: var(--gutter); }
+  /* بُعد: نشان روی گوشی. اینجا فقط نشان و دکمهٔ همبرگر در ردیف‌اند، پس
+     عرضِ ۳٫۷۶ برابرِ ارتفاع تنگ‌ترین قید است: ۵۶ پیکسل ارتفاع یعنی ۲۱۱
+     پیکسل عرض، که با گاتر و همبرگر روی صفحهٔ ۳۲۰ پیکسلی هم جا می‌شود. */
+  .site-brand svg { height: 56px; }
+  .site-foot .site-brand svg { height: 44px; }
+  .site-sec { padding-block: var(--s12); }
+  .site-panel { padding: var(--s11) var(--s10); }
+  .site-art-card { padding: var(--s10); }
+  .site-art-cta { padding: var(--s10); }
+  .site-tests, .site-art-more-list { grid-template-columns: 1fr; }
+  /* روی گوشی یک ستون و بدونِ ستون‌بندیِ داخلی: نامِ آزمایش («Anti-Mullerian
+     Hormone (هورمون آنتی‌مولرین)») در ستونی به عرضِ نصفِ گوشی می‌شکند و
+     فهرست به ردیف‌های سه‌خطیِ ناهم‌ارتفاع تبدیل می‌شود. */
+  .site-az-grid { grid-template-columns: 1fr; gap: var(--s11); }
+  .site-az-col[data-w="2"], .site-az-col[data-w="3"] { grid-column: span 1; }
+  .site-az-col .site-az-list { columns: 1; }
+  .site-az-strip { gap: var(--s1); }
+  .site-az-key, .site-az-key.is-off {
+    min-width: 34px; padding: var(--s2) var(--s3); font-size: var(--t-lg);
+  }
+  .site-totop { inset-block-end: var(--s8); inset-inline-end: var(--s8); }
+  .site-figure--band { aspect-ratio: 2 / 1; }
+}
