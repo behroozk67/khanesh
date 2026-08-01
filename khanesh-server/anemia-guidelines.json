@@ -1,0 +1,903 @@
+{
+  "run_id": "trun_7dea3e1591dd42328cd379c8d12b0af4",
+  "interaction_id": "trun_7dea3e1591dd42328cd379c8d12b0af4",
+  "result_url": "https://platform.parallel.ai/play/deep-research/trun_7dea3e1591dd42328cd379c8d12b0af4",
+  "status": "completed",
+  "output": {
+    "basis": [
+      {
+        "field": "answer",
+        "reasoning": "Assessment reasoning:\n- Field answer is a comprehensive synthesis describing CBC-based anemia classification with emphasis on WHO hemoglobin definitions, MCV/MCH/RDW patterns, reticulocyte response, and iron studies, integrating ASH/BSH/WHO perspectives. It covers microcytic, normocytic, macrocytic, hemoglobinopathies, marrow failure, and mixed-pattern scenarios, plus practical decision-ready insights and a four-stage workflow. This aligns with the field_description asking for classification by diagnostic CBC patterns using ASH, BSH, and WHO guidelines.\n- For completeness: The field answer appears to address the requested scope (types of anemia, CBC patterns, and guideline-informed approaches). It includes explicit sections on microcytic, normocytic, macrocytic/megaloblastic, hemoglobinopathies, and mixed patterns, plus a synthesis framework and decision-ready insights. Therefore completeness = true.\n- For excerpt support: Excerpts provided include sources from BSH (AIHA and aplastic anemia guidelines), ASH materials, and general guidelines related to hemolytic anemia, microcytosis evaluation, and guideline context. The field_answer content aligns with themes present in the excerpts (guideline context, reticulocyte interpretation, ferritin/inflammation considerations, and hemolysis testing). While not every line is verbatim in the excerpts, the core concepts are supported by the excerpts. Therefore supported = true.",
+        "citations": [
+          {
+            "url": "https://b-s-h.org.uk/guidelines/guidelines/the-diagnosis-and-management-of-primary-autoimmune-haemolytic-anaemia",
+            "excerpts": [
+              "Diagnosis and Management of Primary Autoimmune ...\nThe objective of this guideline is to provide healthcare professionals with guidance on the management of patients with primary autoimmune haemolytic anaemia ("
+            ],
+            "title": "Diagnosis and Management of Primary Autoimmune ..."
+          },
+          {
+            "url": "https://onlinelibrary.wiley.com/doi/full/10.1111/bjh.14478",
+            "excerpts": [
+              "The diagnosis and management of primary autoimmune ...\nby QA Hill \u00b7 2017 \u00b7 Cited by 385 \u2014 and the British Society for Haematology (2017), The diagnosis and management of primary autoimmune haemolytic anaemia. Br J Haematol, 176: 395-"
+            ],
+            "title": "The diagnosis and management of primary autoimmune ..."
+          },
+          {
+            "url": "https://ashpublications.org/hematology/article/2025/1/305/556859/Management-of-autoimmune-hemolytic-anemia",
+            "excerpts": [
+              "Management of autoimmune hemolytic anemia"
+            ],
+            "title": "Management of autoimmune hemolytic anemia ashpublications.org https://ashpublications.org \u203a hematology \u203a article \u203a Ma..."
+          },
+          {
+            "url": "http://b-s-h.org.uk/guidelines/guidelines",
+            "excerpts": [
+              "General Haematology Investigation and management of thrombocytosis."
+            ],
+            "title": "Guidelines - British Society for Haematology"
+          },
+          {
+            "url": "https://bestpractice.bmj.com/topics/en-gb/98",
+            "excerpts": [
+              "Haemolytic anaemia - Symptoms, diagnosis and treatment | BMJ ...\nHaemolytic anaemia encompasses a number of conditions that result in the premature destruction of red blood cells. Common causes include autoantibodies, medications, and underlying malignancy, but the condition can also result from a number of hereditary conditions, such as haemoglobinopathies."
+            ],
+            "title": "Haemolytic anaemia - Symptoms, diagnosis and treatment | BMJ ..."
+          },
+          {
+            "url": "https://b-s-h.org.uk/",
+            "excerpts": [
+              "British Society for Haematology\nOur first Haematology conference is a clinically focused review of key practice-changing data from major summer inter... Details. External Event. June 26th 2026."
+            ],
+            "title": "British Society for Haematology"
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/38664944",
+            "excerpts": [
+              "A British Society for Haematology Guideline update\nby K Hands \u00b7 2024 \u00b7 Cited by 48 \u2014 This includes guidance on thresholds for the diagnosis of anaemia and the diagnosis and management of iron deficiency in the preoperative context. Guidance"
+            ],
+            "title": "A British Society for Haematology Guideline update"
+          },
+          {
+            "url": "https://reference.medscape.com/viewarticle/959843",
+            "excerpts": [
+              "Iron Deficiency Anemia Clinical Practice Guidelines (BSG,"
+            ],
+            "title": "Iron Deficiency Anemia Clinical Practice Guidelines (BSG, ... Medscape Reference https://reference.medscape.com \u203a viewarticle"
+          },
+          {
+            "url": "https://www.bsg.org.uk/clinical-resource/guidelines-iron-deficiency-anaemia-in-adults",
+            "excerpts": [
+              "Adult Iron Deficiency Anaemia Care Guidelines | BSG"
+            ],
+            "title": "Adult Iron Deficiency Anaemia Care Guidelines | BSG The British Society Of Gastroenterology https://www.bsg.org.uk \u203a gui..."
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8002799",
+            "excerpts": [
+              "Iron deficiency without anaemia: a diagnosis that matters - PMC"
+            ],
+            "title": "Iron deficiency without anaemia: a diagnosis that matters - PMC National Institutes of Health (.gov) https://pmc.ncbi.nlm.nih.gov \u203a ..."
+          },
+          {
+            "url": "https://www.thebloodproject.com/diagnosis-of-thalassemia",
+            "excerpts": [
+              "Diagnosis of Thalassemia\nNormal or \u2191 ferritin with microcytosis \u2192 favors thalassemia over iron deficiency. Differentiating Iron Deficiency from Thalassemia Trait."
+            ],
+            "title": "Diagnosis of Thalassemia"
+          },
+          {
+            "url": "https://ashpublications.org/blood/article/123/25/3873/32884/Practice-guidelines-for-the-diagnosis-and",
+            "excerpts": [
+              "Practice guidelines for the diagnosis and management of microcytic ...\nPatients with microcytic anemia due to pathogenic SLC11A2 defects should be treated with oral iron supplementation and/or EPO and/or erythrocyte"
+            ],
+            "title": "Practice guidelines for the diagnosis and management of microcytic ..."
+          },
+          {
+            "url": "http://pubmed.ncbi.nlm.nih.gov/21121557",
+            "excerpts": [
+              "Microcytosis is typically an incidental finding in asymptomatic patients who received a complete blood count for other reasons. The condition is defined as a mean corpuscular volume of less than 80 \u00b5m3 (80 fL) in adults. The most common causes of microcytosis are iron deficiency anemia and thalassemia trait. Other diagnoses to consider include anemia of chronic disease, lead toxicity, and sideroblastic anemia. Serum ferritin measurement is the first laboratory test recommended in the evaluation of microcytosis. Low ferritin levels suggest iron deficiency. Once a presumptive diagnosis of iron deficiency anemia has been made, an underlying source for the deficiency should be determined. Iron deficiency anemia in adults is presumed to be caused by blood loss; the most common source of bleeding is the gastrointestinal tract. The possibility of gastrointestinal malignancy must be considered. If the serum ferritin level is not initially low, further evaluation should include total iron-binding capacity, transferrin saturation level, serum iron level, and possibly hemoglobin electrophoresis. Anemia of chronic disease is suggested with low iron levels and decreased total iron-binding capacity. Patients with beta-thalassemia trait usually have elevated levels of hemoglobin A2."
+            ],
+            "title": "Evaluation of microcytosis - PubMed"
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/1578956",
+            "excerpts": [
+              "Microcytic anemia. Differential diagnosis and management ...\nby AC Massey \u00b7 1992 \u00b7 Cited by 209 \u2014 Iron deficiency is the most common cause of microcytic anemia. The absence of iron stores in the bone marrow remains the most definitive test for"
+            ],
+            "title": "Microcytic anemia. Differential diagnosis and management ..."
+          },
+          {
+            "url": "https://www.sciencedirect.com/science/article/pii/S0006497120400746",
+            "excerpts": [
+              "Practice guidelines for the diagnosis and management of microcytic ...\nJun 19, 2014 \u00b7 We developed evidence-based multidisciplinary guidelines on the management of rare microcytic anemias due to genetic disorders of iron metabolism and heme"
+            ],
+            "title": "Practice guidelines for the diagnosis and management of microcytic ..."
+          },
+          {
+            "url": "https://www.who.int/publications/i/item/9789240088542",
+            "excerpts": [
+              "Guideline on haemoglobin cutoffs to define anaemia in ...\nMar 5, 2024 \u2014 The objective of this guideline is to provide updated, clear, evidence-informed normative statements on the use of haemoglobin concentrations to assess anaemia."
+            ],
+            "title": "Guideline on haemoglobin cutoffs to define anaemia in ..."
+          },
+          {
+            "url": "https://iris.who.int/server/api/core/bitstreams/f9f74397-1440-478d-a63c-26f29a01552f/content",
+            "excerpts": [
+              "Guideline on haemoglobin cutoffs to define anaemia in ... - IRIS"
+            ],
+            "title": "Guideline on haemoglobin cutoffs to define anaemia in ... - IRIS World Health Organization (WHO) https://iris.who.int \u203a core \u203a bitstreams \u203a content"
+          },
+          {
+            "url": "https://www.guidelinecentral.com/guideline/3534081",
+            "excerpts": [
+              "WHO Guidelines for Haemoglobin Cutoffs to Define Anaemia\nMar 5, 2024 \u2014 Haemoglobin cutoffs to define anaemia severity in individuals ; Adults, 15\u201365 years, men, \u2265130, 110\u2013129, 80\u2013109, <80 ; Pregnancy - 1st trimester"
+            ],
+            "title": "WHO Guidelines for Haemoglobin Cutoffs to Define Anaemia"
+          },
+          {
+            "url": "http://ncbi.nlm.nih.gov/books/NBK499905",
+            "excerpts": [
+              "In 2010, the World Health Organization (WHO) set diagnostic criteria for anemia, defining it as hemoglobin levels below 12 g/dL in"
+            ],
+            "title": "Anemia Screening - StatPearls - NCBI Bookshelf - NIH"
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK602198",
+            "excerpts": [
+              "Guideline on haemoglobin cutoffs to define anaemia in ... - NCBI\nThe objective of this guideline is to provide updated, clear, evidence-informed normative statements on the use of haemoglobin concentrations to assess anaemia"
+            ],
+            "title": "Guideline on haemoglobin cutoffs to define anaemia in ... - NCBI"
+          },
+          {
+            "url": "http://aafp.org/afp/2009/0201/p203",
+            "excerpts": [
+              "In megaloblastic processes, erythrogenic precursors are larger than mature red blood cells (RBCs) because folate and vitamin B \u2081\u2082 deficiencies result in defective RNA and DNA syntheses. Serum elevations in homocysteine and methylmalonic acid result from defective biochemical processes in folate and B \u2081\u2082 deficiencies, and could be used to clarify the cause of megaloblastic anemia, although this is not yet standard clinical practice. \u2078 ... Diagnostic Strategy The algorithm outlined in _Figure 3_ suggests a work-up for macrocytosis. Physicians should begin by ordering a peripheral smear, a reticulocyte count, and a vitamin B \u2081\u2082 serum level for all patients with macrocytosis. It may be necessary to specifically order a reticulocyte index in some laboratories, which assesses if there is an adequate bone marrow response. Hemorrhage or hemolysis is the most likely cause if the reticulocyte count is elevated, but anemia recovery also causes an elevation in the reticulocyte count. Measures of vitamin B \u2081\u2082 are a useful part of the initial work-up, because if vitamin B \u2081\u2082 deficiency is present but undiagnosed, folate repletion will correct the megaloblastic anemia, but not the possible neuropathic changes that occur with B \u2081\u2082 deficiency. \u00b9\u2079 ... Figure 3.Evaluation of Macrocytic Anemia When the history and physical examination, peripheral smear , B \u2081\u2082 level, and reticulocyte count have not lead to an obvious diagnosis, consider a comprehensive metabolic panel to look for liver and kidney disease, thyroid-stimulating hormone for thyroid disorders, and methylmalonic acid and homocysteine levels to assess for vitamin B \u2081\u2082 deficiency, despite a normal vitamin B \u2081\u2082 level. If the cause remains elusive, consider again whether the degree of anemia or the patient's overall health warrants referral to a hematologist for bone marrow biopsy, or search for rarer causes, keeping in mind that the most extensive work-up will result in a diagnosis in approximately 90 percent\nSearch ... Evaluation of Macrocytosis Macrocytosis, generally defined as a mean corpuscular volume greater than 100 fL, is frequently encountered when a complete blood count is performed. The most common etiologies"
+            ],
+            "title": "Evaluation of Macrocytosis | AFP"
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK459295",
+            "excerpts": [
+              "Macrocytic Anemia - StatPearls - NCBI Bookshelf - NIH\nby RB Killeen \u00b7 2025 \u00b7 Cited by 12 \u2014 Some cases of macrocytosis are normal variants, while others result from laboratory artifacts. ... The reticulocyte count should be evaluated if megaloblastic"
+            ],
+            "title": "Macrocytic Anemia - StatPearls - NCBI Bookshelf - NIH"
+          },
+          {
+            "url": "https://quizlet.com/study-guides/macrocytic-anemia-key-differentiators-cases-and-management-for-fnp-1dc53ac7-6ffd-42f2-8f86-56868e86cf94",
+            "excerpts": [
+              "Macrocytic Anemia: Key Differentiators, Cases, and Management for FNP\nFeb 23, 2026 \u00b7 For macrocytic anemia, checking B12 and folate levels is essential, followed by MMA testing if B12 is borderline. The algorithm emphasizes the"
+            ],
+            "title": "Macrocytic Anemia: Key Differentiators, Cases, and Management for FNP"
+          },
+          {
+            "url": "https://www.nnuh.nhs.uk/publication/download/macrocytosis-in-adult-patients-guidance-a004-version-9",
+            "excerpts": [
+              "A004 - ADULT PATIENTS WITH MACROCYTOSIS"
+            ],
+            "title": "A004 - ADULT PATIENTS WITH MACROCYTOSIS Norfolk and Norwich University Hospitals NHS Foundation Trust https://www.nnuh.nhs.uk \u203a publication \u203a download"
+          },
+          {
+            "url": "https://emedicine.medscape.com/article/203858-workup",
+            "excerpts": [
+              "Macrocytosis Workup: Laboratory Studies, Bone Marrow Biopsy and ...\nNov 6, 2024 \u00b7 If folate deficiency is the cause of the macrocytosis, the RBC folate level likely will be decreased. As in vitamin B12 deficiency, peripheral"
+            ],
+            "title": "Macrocytosis Workup: Laboratory Studies, Bone Marrow Biopsy and ..."
+          },
+          {
+            "url": "https://ashpublications.org/books/book/8/chapter/10647515/Thalassemia-sickle-cell-disease-and-other",
+            "excerpts": [
+              "Thalassemia, sickle cell disease, and other hemoglobinopathies"
+            ],
+            "title": "Thalassemia, sickle cell disease, and other hemoglobinopathies ashpublications.org \u00b7 https://ashpublications.org \u203a chapter"
+          },
+          {
+            "url": "https://www.hematology.org/education/clinicians/guidelines-and-quality-care/clinical-practice-guidelines/sickle-cell-disease-guidelines",
+            "excerpts": [
+              "Clinical Practice Guidelines on Sickle Cell Disease ...\nElodie also has Sickle Cell Disease (SCD) and has worked to enhance education around SCD, both through her participation in clinical trials as a study participant and as a patient representative in the development of the ASH Clinical Practice Guidelines on SCD."
+            ],
+            "title": "Clinical Practice Guidelines on Sickle Cell Disease ..."
+          },
+          {
+            "url": "https://www.gov.uk/government/publications/sickle-cell-and-thalassaemia-screening-handbook",
+            "excerpts": [
+              "Sickle cell and thalassaemia: screening handbook - GOV.UK\nGuidance for healthcare professionals covering the pathway for sickle cell and thalassaemia screening."
+            ],
+            "title": "Sickle cell and thalassaemia: screening handbook - GOV.UK"
+          },
+          {
+            "url": "https://www.merckmanuals.com/professional/hematology-and-oncology/anemias-caused-by-deficient-erythropoiesis/anemia-of-chronic-disease",
+            "excerpts": [
+              "Anemia of Chronic Disease - Hematology\nMar 1, 2024 \u2014 Anemia of chronic disease is a multifactorial anemia. ... It is characterized by a microcytic or normocytic anemia and low reticulocyte count."
+            ],
+            "title": "Anemia of Chronic Disease - Hematology"
+          },
+          {
+            "url": "https://bestpractice.bmj.com/topics/en-us/95",
+            "excerpts": [
+              "Anemia of chronic disease - Symptoms, diagnosis and treatment\nAnemia of chronic disease (ACD) is characterized by anemia and evidence of immune system activation. Anemia is mainly due to decreased red"
+            ],
+            "title": "Anemia of chronic disease - Symptoms, diagnosis and treatment"
+          },
+          {
+            "url": "https://b-s-h.org.uk/guidelines/guidelines/guidelines-for-the-diagnosis-and-management-of-adult-aplastic-anaemia",
+            "excerpts": [
+              "Guidelines for the diagnosis and management of adult"
+            ],
+            "title": "Guidelines for the diagnosis and management of adult ... b-s-h.org.uk https://b-s-h.org.uk \u203a guidelines \u203a guidelines-for-the-di..."
+          },
+          {
+            "url": "http://pubmed.ncbi.nlm.nih.gov/41920091",
+            "excerpts": [
+              "American Society of Hematology 2026 Guidelines for the Diagnosis and Management of Severe Acquired Aplastic Anemia. Blood Adv. 2026 Mar 24\nackground:** Aplastic anemia is a rare, life-threatening condition marked by pancytopenia and bone marrow hypocellularity. Despite therapeutic advances, clinical practice remains variable, and uncertainties persist regarding diagnosis and optimal management. To address these gaps, the American Society of Hematology (ASH) developed evidence-based guidelines to provide standardized, patient-centered recommendations\nbjective:** The recommendations are intended to support patients, clinicians and other health care professionals in their decisions about the management and diagnosis of severe and very severe immune acquired aplastic anemia\nethods:** ASH formed a multidisciplinary guideline panel of content experts, methodologists and a patient representative"
+            ],
+            "title": "American Society of Hematology 2026 Guidelines for the Diagnosis and Management of Severe Acquired Aplastic Anemia - PubMed"
+          },
+          {
+            "url": "http://aamds.org/research-article/american-society-hematology-2026-guidelines-diagnosis-and-management-severe",
+            "excerpts": [
+              "# American Society of Hematology 2026 Guidelines for the Diagnosis and Management of Severe Acquired Aplastic Anemia\nBackground: Aplastic anemia Aplastic anemia : (ay-PLASS-tik uh-NEE\\_mee-uh) A rare and serious condition in which the bone marrow fails to make enough blood cells - red blood cells, white blood cells, and platelets.\nThe term aplastic is a Greek word meaning not to form. Anemia is a condition that happens when red blood cell count is low. Most\u2026 is a rare, life-threatening condition marked by pancytopenia pancytopenia : A shortage of all types of blood cells - red blood cells, white blood cells, and platelets. and bone marrow bone marrow : The soft, spongy tissue inside most bones. Blood cells are formed in the bone marrow. hypocellularity. Despite therapeutic advances, clinical practice remains variable, and uncertainties persist regarding diagnosis and optimal management. To address these gaps, the American Society of Hematology (ASH) developed evidence-based guidelines to provide standardized, patient-centered recommendations\nBlood Advances\nMethods: ASH formed a multidisciplinary guideline panel of content experts, methodologists and a patient representative. An evidence synthesis team supported the guideline development process by conducting systematic evidence reviews. The panel prioritized clinical questions and used the GRADE approach, including the Evidence-to-Decision frameworks, to assess evidence and make recommendations, which were subject to public comment.\nObjective: The recommendations are intended to support patients, clinicians and other health care professionals in their decisions about the management and diagnosis of severe and very severe immune acquired aplastic anemia.\nOriginal Publication Date\n\n24 March, 2026"
+            ],
+            "title": "American Society of Hematology 2026 Guidelines for the Diagnosis and Management of Severe Acquired Aplastic Anemia | Aplastic Anemia and MDS International Foundation (AAMDSIF)"
+          },
+          {
+            "url": "https://www.merckmanuals.com/professional/hematology-and-oncology/approach-to-the-patient-with-anemia/evaluation-of-anemia",
+            "excerpts": [
+              "Evaluation of Anemia - Hematology - Merck Manuals\nAnemia is a decrease in the number of red blood cells (RBCs) as measured by the red cell count, the hematocrit, or the red cell hemoglobin content."
+            ],
+            "title": "Evaluation of Anemia - Hematology - Merck Manuals"
+          },
+          {
+            "url": "https://www.nhlbi.nih.gov/health/anemia/diagnosis",
+            "excerpts": [
+              "Anemia - Diagnosis | NHLBI, NIH\nDec 18, 2025 \u2014 To diagnose anemia, your doctor may ask you questions about your risk factors and order blood tests or other diagnostic tests."
+            ],
+            "title": "Anemia - Diagnosis | NHLBI, NIH"
+          },
+          {
+            "url": "http://uptodate.com/contents/diagnostic-approach-to-anemia-in-adults",
+            "excerpts": [
+              "Outline \u00b7 Anemia definitions \u00b7 Caveats for normal ranges \u00b7 RBC indices \u00b7 Reticulocyte production \u00b7 Correlation with symptoms"
+            ],
+            "title": "Diagnostic approach to anemia in adults"
+          },
+          {
+            "url": "https://www.mayoclinic.org/diseases-conditions/anemia/diagnosis-treatment/drc-20351366",
+            "excerpts": [
+              "Anemia - Diagnosis and treatment\nMay 5, 2026 \u2014 To diagnose anemia, your healthcare professional is likely to ask you about your medical and family history, do a physical exam, and order blood"
+            ],
+            "title": "Anemia - Diagnosis and treatment"
+          },
+          {
+            "url": "https://search.app.goo.gl/?al=googleapp%3A%2F%2Flens%3Flens_data=KAw&amv=301204913&apn=com.google.android.googlequicksearchbox&ct=4815459-oo-lens-isb-bar-lens-cam&ct=4815459-oo-lens-isb-bar-lens-cam&efr=1&ibi=com.google.GoogleMobile&ifl=https%3A%2F%2Fapps.apple.com%2Fus%2Fapp%2Fgoogle%2Fid284815942%3Fppid=1ac8cc35-d99c-4a1d-b909-321c8968cc74&isi=284815942&ius=googleapp&lens_data=KAw&link=https%3A%2F%2Fgoo.gl%2Fiosgoogleapp%2Fdefault%3Furl=googleapp%3A%2F%2Flens%3Fmin-version=180&mt=8&mt=8&ofl=https%3A%2F%2Flens.google&pt=9008&pt=9008",
+            "excerpts": [
+              "anemia mcv"
+            ],
+            "title": "anemia mcv"
+          },
+          {
+            "url": "https://obgyn.onlinelibrary.wiley.com/doi/full/10.1002/ijgo.70529",
+            "excerpts": [
+              "FIGO good practice recommendations on anemia in ...\nby AE Ubom \u00b7 2025 \u00b7 Cited by 28 \u2014 We recommend that all pregnant women should be screened for anemia in pregnancy at booking and again at 28 weeks of pregnancy, with a full blood"
+            ],
+            "title": "FIGO good practice recommendations on anemia in ..."
+          },
+          {
+            "url": "https://www.iatrox.com/guidelines/iron-deficiency-anaemia",
+            "excerpts": [
+              "Iron deficiency anaemia: ferritin, GI work-up \u2014 NICE-aligned ...\nThis page is an educational, clinician-written summary of publicly available NICE guidance intended for trained healthcare professionals. It uses original wording (not copied text) and should be used alongside the full NICE source, local pathways, and clinical judgement."
+            ],
+            "title": "Iron deficiency anaemia: ferritin, GI work-up \u2014 NICE-aligned ..."
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/26763385",
+            "excerpts": [
+              "Diagnosis and Management of Iron Deficiency in CKD\nby LEK Ratcliffe \u00b7 2016 \u00b7 Cited by 165 \u2014 The UK-based National Institute for Health and Care Excellence ( NICE ) has updated its guidance on iron deficiency and anemia management in chronic kidney"
+            ],
+            "title": "Diagnosis and Management of Iron Deficiency in CKD"
+          },
+          {
+            "url": "https://www.nhs.uk/conditions/iron-deficiency-anaemia",
+            "excerpts": [
+              "Iron deficiency anaemia\nIron deficiency anaemia is caused by lack of iron, often because of blood loss or pregnancy. It's treated with iron tablets and by eating iron-rich foods."
+            ],
+            "title": "Iron deficiency anaemia"
+          },
+          {
+            "url": "https://b-s-h.org.uk/guidelines/guidelines/diagnosis-of-b12-and-folate-deficiency",
+            "excerpts": [
+              "Diagnosis of B12 and Folate Deficiency"
+            ],
+            "title": "Diagnosis of B12 and Folate Deficiency b-s-h.org.uk https://b-s-h.org.uk \u203a guidelines"
+          },
+          {
+            "url": "https://www2.gov.bc.ca/gov/content/health/practitioner-professional-resources/bc-guidelines/vitamin-b12",
+            "excerpts": [
+              "Cobalamin (vitamin B12) and Folate Deficiency\nby SUT Date \u00b7 2023 \u2014 This guideline covers the primary care investigation and management of cobalamin (vitamin B 12 or simply B 12 ) and folate deficiency in adults."
+            ],
+            "title": "Cobalamin (vitamin B12) and Folate Deficiency"
+          },
+          {
+            "url": "https://www.nhs.uk/conditions/vitamin-b12-or-folate-deficiency-anaemia",
+            "excerpts": [
+              "Vitamin B12 or folate deficiency anaemia - NHS\nMost cases of vitamin B12 and folate deficiency can be easily treated with injections or tablets to replace the missing vitamins. Vitamin B12 supplements are usually given by injection at first. Then, depending on whether your B12 deficiency is related to your diet, you'll either require B12 tablets between meals or regular injections."
+            ],
+            "title": "Vitamin B12 or folate deficiency anaemia - NHS"
+          },
+          {
+            "url": "https://b-s-h.org.uk/guidelines/guidelines",
+            "excerpts": [
+              "Guidelines - British Society for Haematology\nProposing and writing a new BSH Guideline \u00b7 Sounding Board ... disease surveillance in people with congenital bleeding disorders: BSH & BVHG joint Guideline."
+            ],
+            "title": "Guidelines - British Society for Haematology"
+          },
+          {
+            "url": "https://www.nhs.uk/conditions/vitamin-b12-or-folate-deficiency-anaemia/treatment",
+            "excerpts": [
+              "Vitamin B12 or folate deficiency anaemia - Treatment - NHS\nVitamin B12 deficiency anaemia is usually treated with injections of vitamin B12, called hydroxocobalamin. At first, you'll have these injections every other day for 2 weeks or until your symptoms have started improving. Your GP or nurse will give the injections."
+            ],
+            "title": "Vitamin B12 or folate deficiency anaemia - Treatment - NHS"
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/38247114",
+            "excerpts": [
+              "Guidelines for the diagnosis and management of adult ...\nby A Kulasekararaj \u00b7 2024 \u00b7 Cited by 161 \u2014 Guidelines for the diagnosis and management of adult aplastic anaemia: A British Society for Haematology Guideline. Br J Haematol. 2024 Mar;204(3):784-804"
+            ],
+            "title": "Guidelines for the diagnosis and management of adult ..."
+          },
+          {
+            "url": "https://www.aamds.org/aplastic-anemia/diagnosis",
+            "excerpts": [
+              "Aplastic Anemia Diagnosis\nReticulocytes are normally found in the bone marrow. They are present in the bloodstream only in very low numbers. count measures the number of young red blood"
+            ],
+            "title": "Aplastic Anemia Diagnosis"
+          },
+          {
+            "url": "https://www.ouh.nhs.uk/media/lubh3dgp/103941anaemia.pdf",
+            "excerpts": [
+              "Autoimmune Haemolytic Anaemia"
+            ],
+            "title": "Autoimmune Haemolytic Anaemia Oxford University Hospitals https://www.ouh.nhs.uk \u203a media \u203a 103941anaemia"
+          },
+          {
+            "url": "https://www.njmonline.nl/getpdf.php?id=1045",
+            "excerpts": [
+              "autoimmune haemolytic anaemia \u2013 a practical guide to cope"
+            ],
+            "title": "autoimmune haemolytic anaemia \u2013 a practical guide to cope ... njmonline.nl https://www.njmonline.nl \u203a getpdf"
+          },
+          {
+            "url": "https://www.childrenshospital.org/conditions-treatments/autoimmune-hemolytic-anemia",
+            "excerpts": [
+              "Autoimmune Hemolytic Anemia (AIHA)"
+            ],
+            "title": "Autoimmune Hemolytic Anemia (AIHA) Boston Children's Hospital https://www.childrenshospital.org \u203a conditions-treatments"
+          },
+          {
+            "url": "http://labtestsonline.org.uk/tests/direct-antiglobulin-test",
+            "excerpts": [
+              "A direct antiglobulin test (DAT) is performed on a blood sample to detect antibodies or complement proteins attached to the surface of red blood cells.\nIt is used to help diagnose conditions where red blood cells are destroyed by the immune system, such as autoimmune haemolytic anaemia, transfusion reactions, and haemolytic disease of the newborn.\nlso known as\n\nDAT; Direct Coombs Test; Direct Anti-human Globulin Test"
+            ],
+            "title": "Lab Tests Online UK | Direct Antiglobulin Test"
+          },
+          {
+            "url": "https://www.researchgate.net/publication/381876294_Updated_WHO_Guidelines_on_the_Assessment_of_Haemoglobin_and_Cutoffs_for_Defining_Anaemia",
+            "excerpts": [
+              "Updated WHO Guidelines on the Assessment of ...\nUpdated WHO Guidelines on the Assessment of Haemoglobin and Cutoffs for Defining Anaemia. July 2024; Current Developments in Nutrition 8:102942. DOI:10.1016/j"
+            ],
+            "title": "Updated WHO Guidelines on the Assessment of ..."
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4779156",
+            "excerpts": [
+              "Maternal Hemoglobin Levels during Pregnancy and their ... - PMC\nAccording to the classification of World Health Organization (WHO), pregnant women with hemoglobin levels less than 11.0 g/dl in the first and third trimesters and less than 10.5 g/dl in the second trimester are considered anemic (Table I) (11)."
+            ],
+            "title": "Maternal Hemoglobin Levels during Pregnancy and their ... - PMC"
+          },
+          {
+            "url": "https://www.merckmanuals.com/en-ca/professional/hematology-and-oncology/approach-to-the-patient-with-anemia/evaluation-of-anemia",
+            "excerpts": [
+              "Evaluation of Anemia - Hematology"
+            ],
+            "title": "Evaluation of Anemia - Hematology Merck Manuals https://www.merckmanuals.com \u203a ..."
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK499905",
+            "excerpts": [
+              "An anemia workup is"
+            ],
+            "title": "Complete Blood Count (CBC)"
+          },
+          {
+            "url": "http://bestpractice.bmj.com/topics/en-gb/93/diagnosis-approach",
+            "excerpts": [
+              "The FBC and peripheral blood smear should be examined for clues to the underlying cause."
+            ],
+            "title": "Assessment of anaemia - Diagnosis Approach"
+          },
+          {
+            "url": "http://onlinelibrary.wiley.com/doi/10.1111/bjh.17900",
+            "excerpts": [
+              "The value of inspecting a peripheral blood film in anaemia is to identify specific changes not detected by automation."
+            ],
+            "title": "Guideline for the laboratory diagnosis of iron deficiency in ..."
+          },
+          {
+            "url": "https://iris.who.int/server/api/core/bitstreams/c6ab3080-eb35-4c04-b010-a88358d2e0b7/content",
+            "excerpts": [
+              "Serum ferritin concentrations for the assessment of iron status ...\nWHO guideline on use of ferritin concentrations to assess iron status in individuals and populations. Geneva: World Health. Organization; 2020 (https://apps.who"
+            ],
+            "title": "Serum ferritin concentrations for the assessment of iron status ..."
+          },
+          {
+            "url": "https://www.who.int/publications/i/item/9789240000124",
+            "excerpts": [
+              "WHO guideline on use of ferritin concentrations to assess ...\nApr 21, 2020 \u2014 This guideline provides global, evidence-informed recommendations on the use of indicators for assessing a population's iron status."
+            ],
+            "title": "WHO guideline on use of ferritin concentrations to assess ..."
+          },
+          {
+            "url": "https://www.who.int/tools/elena/interventions/ferritin-concentrations",
+            "excerpts": [
+              "Use of ferritin concentrations to assess iron status in ...\nAug 9, 2023 \u2014 In adult, non-healthy individuals, a ferritin concentration exceeding 500 \u00b5g/L may indicate risk of iron overload. Ferritin concentration should"
+            ],
+            "title": "Use of ferritin concentrations to assess iron status in ..."
+          },
+          {
+            "url": "https://www.who.int/publications/i/item/9789240008526",
+            "excerpts": [
+              "Serum ferritin concentrations for the assessment of iron ...\nDec 14, 2020 \u2014 This technical brief aims to provide summarized information about the use of serum ferritin for assessing iron status in individuals and populations."
+            ],
+            "title": "Serum ferritin concentrations for the assessment of iron ..."
+          },
+          {
+            "url": "https://jamanetwork.com/journals/jamanetworkopen/fullarticle/2821953",
+            "excerpts": [
+              "Ferritin Cutoffs and Diagnosis of Iron Deficiency in Primary ...\nby L J\u00e4ger \u00b7 2024 \u00b7 Cited by 33 \u2014 Different guidelines suggest widely varying cutoffs ranging from 12 to 15 ng/mL through 25 to 30 ng/mL to 45 to 50 ng/mL in the general"
+            ],
+            "title": "Ferritin Cutoffs and Diagnosis of Iron Deficiency in Primary ..."
+          },
+          {
+            "url": "https://www.nhs.uk/conditions/thalassaemia",
+            "excerpts": [
+              "Thalassaemia"
+            ],
+            "title": "Thalassaemia nhs.uk https://www.nhs.uk \u203a conditions"
+          },
+          {
+            "url": "https://www.uptodate.com/contents/diagnosis-of-thalassemia-adults-and-children",
+            "excerpts": [
+              "Diagnosis of thalassemia (adults and children)\nby EJ Benz Jr \u00b7 Cited by 6 \u2014 The thalassemias are a group of hemoglobinopathies in which the normal ratio of alpha globin to beta globin production is disrupted due to a"
+            ],
+            "title": "Diagnosis of thalassemia (adults and children)"
+          },
+          {
+            "url": "https://www.webmd.com/a-to-z-guides/anemia-rare-types",
+            "excerpts": [
+              "Rare Types of Anemia"
+            ],
+            "title": "Rare Types of Anemia WebMD https://www.webmd.com \u203a ... \u203a Reference"
+          },
+          {
+            "url": "https://jistdev.unri.ac.id/find/hg/424G19H/sickle-cell_disease-in_clinical-practice.pdf",
+            "excerpts": [
+              "Sickle Cell Disease In Clinical Practice\n4 hours ago \u2014 This report explores the current guidelines and best practices \u30fb clinical practice guideline for identifying, diagnosing, and treating newborns and infants"
+            ],
+            "title": "Sickle Cell Disease In Clinical Practice"
+          },
+          {
+            "url": "https://www.mskcc.org/pediatrics/cancer-care/types/pediatric-blood-disorders/about-pediatric-blood-disorders/hemoglobinopathies",
+            "excerpts": [
+              "Hemoglobinopathy Disorders"
+            ],
+            "title": "Hemoglobinopathy Disorders Memorial Sloan Kettering Cancer Center https://www.mskcc.org \u203a types \u203a hemoglobinopathies"
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK173968",
+            "excerpts": [
+              "Guidelines for the Clinical Management of Thalassaemia - NCBI"
+            ],
+            "title": "Guidelines for the Clinical Management of Thalassaemia - NCBI National Institutes of Health (NIH) | (.gov) https://www.ncbi.nlm.nih.gov \u203a books \u203a NBK173968"
+          },
+          {
+            "url": "https://www.nhs.uk/conditions/thalassaemia/diagnosis",
+            "excerpts": [
+              "Diagnosis - - - Thalassaemia"
+            ],
+            "title": "Diagnosis - - - Thalassaemia nhs.uk https://www.nhs.uk \u203a Conditions A to Z \u203a Thalassaemia"
+          },
+          {
+            "url": "https://emedicine.medscape.com/article/2085637-overview",
+            "excerpts": [
+              "Hemoglobin Electrophoresis\nOct 20, 2025 \u2014 Presence of HbS, but with a higher proportion of HbA than HbS - Sickle cell trait i.e., HbAS or sickle \u03b1-thalassemia \u00b7 Presence of HbS and HbF,"
+            ],
+            "title": "Hemoglobin Electrophoresis"
+          },
+          {
+            "url": "http://pubmed.ncbi.nlm.nih.gov/41592868",
+            "excerpts": [
+              "These evidence-based guidelines of the American Society of Hematology (ASH) are intended to support patients and clinicians in the timely and effective\nThese evidence-based guidelines of the American Society of Hematology (ASH) are intended to support patients and clinicians in the timely and"
+            ],
+            "title": "American Society of Hematology (ASH) 2026 Guidelines on Diagnosis of Light Chain Amyloidosis - PubMed"
+          },
+          {
+            "url": "https://www.hematology.org/education/trainees/fellows/hematopoiesis/2021/hemoglobin-electrophoresis-in-sickle-cell-disease",
+            "excerpts": [
+              "Hemoglobin Electrophoresis in Sickle Cell Disease\n- In patients with sickle cell trait, the hemoglobin A:S ratio is usually around 60:40 due to the increased affinity of the \u03b1-chains to \u03b2A chains. - Please note"
+            ],
+            "title": "Hemoglobin Electrophoresis in Sickle Cell Disease"
+          },
+          {
+            "url": "https://www.coventryrugbygpgateway.nhs.uk/pages/b12-and-folate-testing",
+            "excerpts": [
+              "B12 and Folate Testing"
+            ],
+            "title": "B12 and Folate Testing GP Gateway \u2013 Coventry & Warwickshire CCG GP Gateway https://www.coventryrugbygpgateway.nhs.uk \u203a pages"
+          },
+          {
+            "url": "https://www.nottsapc.nhs.uk/media/3xufkasz/vitamin-b12-treatment-guideline.pdf",
+            "excerpts": [
+              "Vitamin B12 Management In Adults\n*In combined B12 and folate deficiency, always start B12 24-hours ahead of folate to protect neurones. In severe B12 or folate deficiency replacement may cause."
+            ],
+            "title": "Vitamin B12 Management In Adults"
+          },
+          {
+            "url": "https://www.aafp.org/afp/2021/0800/p211",
+            "excerpts": [
+              "Iron Deficiency Anemia: Guidelines from the American ...\nby K Sonoda \u00b7 2021 \u00b7 Cited by 24 \u2014 The AGA defines anemia as a hemoglobin level of less than 13 g per dL (130 g per L) in men and less than 12 g per dL (120 g per L) in patients who are not"
+            ],
+            "title": "Iron Deficiency Anemia: Guidelines from the American ..."
+          },
+          {
+            "url": "https://www.albertadoctors.org/media/atabokv2/iron-deficiency-anemia-guideline.pdf",
+            "excerpts": [
+              "IRON DEFICIENCY ANEMIA (IDA) RECOMMENDATIONS"
+            ],
+            "title": "IRON DEFICIENCY ANEMIA (IDA) RECOMMENDATIONS Alberta Medical Association https://www.albertadoctors.org \u203a media \u203a atabokv2"
+          },
+          {
+            "url": "https://www.sciencedirect.com/science/article/pii/S0002916522027319",
+            "excerpts": [
+              "Laboratory methodologies for indicators of iron status\nby CM Pfeiffer \u00b7 2017 \u00b7 Cited by 351 \u2014 Biochemical assessment of iron status relies on serum-based indicators, such as serum ferritin (SF), transferrin saturation, and soluble transferrin"
+            ],
+            "title": "Laboratory methodologies for indicators of iron status"
+          },
+          {
+            "url": "https://www.nhlbi.nih.gov/health/anemia/iron-deficiency-anemia",
+            "excerpts": [
+              "Iron-Deficiency Anemia | NHLBI, NIH\nMar 24, 2022 \u2014 Iron-deficiency anemia is a type of anemia that develops if you do not have enough iron in your body. It is the most common type of anemia."
+            ],
+            "title": "Iron-Deficiency Anemia | NHLBI, NIH"
+          },
+          {
+            "url": "https://ashpublications.org/hematology/article/2015/1/19/20712/Diagnosis-and-treatment-of-sideroblastic-anemias",
+            "excerpts": [
+              "Diagnosis and treatment of sideroblastic anemias\nDec 5, 2015 \u2014 Most patients have some evidence of iron overload, as indicated by increased serum iron, transferrin saturation, and serum ferritin,"
+            ],
+            "title": "Diagnosis and treatment of sideroblastic anemias"
+          },
+          {
+            "url": "https://www.msdmanuals.com/professional/hematology-and-oncology/anemias-caused-by-deficient-erythropoiesis/sideroblastic-anemias",
+            "excerpts": [
+              "Sideroblastic Anemias - Hematology\nSideroblastic anemia is suspected in patients with microcytic anemia or a high RDW anemia, particularly with increased serum iron, serum ferritin, and"
+            ],
+            "title": "Sideroblastic Anemias - Hematology"
+          },
+          {
+            "url": "https://www.merckmanuals.com/professional/hematology-and-oncology/anemias-caused-by-deficient-erythropoiesis/sideroblastic-anemias",
+            "excerpts": [
+              "Sideroblastic Anemias - Hematology\nAnemia is usually microcytic in congenital sideroblastic anemia and macrocytic in acquired sideroblastic anemia. Serum iron, ferritin, and transferrin are"
+            ],
+            "title": "Sideroblastic Anemias - Hematology"
+          },
+          {
+            "url": "https://www.apollohospitals.com/diseases-and-conditions/sideroblastic-anemia",
+            "excerpts": [
+              "Sideroblastic Anemia - Causes, Symptoms, Diagnosis, and"
+            ],
+            "title": "Sideroblastic Anemia - Causes, Symptoms, Diagnosis, and ... Apollo Hospitals https://www.apollohospitals.com \u203a diseases-and-conditions"
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK538287",
+            "excerpts": [
+              "Sideroblastic Anemia - StatPearls - NCBI Bookshelf - NIH\nby D Ashorobi \u00b7 2024 \u00b7 Cited by 15 \u2014 Sideroblastic anemia is associated with normal to elevated iron levels, unlike iron deficiency anemia. A notable subtype, refractory anemia"
+            ],
+            "title": "Sideroblastic Anemia - StatPearls - NCBI Bookshelf - NIH"
+          },
+          {
+            "url": "https://www.uptodate.com/contents/diagnosis-of-hemolytic-anemia-in-adults",
+            "excerpts": [
+              "Diagnosis of hemolytic anemia in adults\nby W Barcellini \u00b7 Cited by 7 \u2014 Patients may also have increased lactate dehydrogenase (LDH) and unconjugated bilirubin, decreased haptoglobin, and RBC shape changes on the"
+            ],
+            "title": "Diagnosis of hemolytic anemia in adults"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7206321",
+            "excerpts": [
+              "Isolated Elevated Bilirubin - PMC - NIH\nby H Shroff \u00b7 2020 \u00b7 Cited by 6 \u2014 Hemolytic anemias can be ruled out by measuring serum levels of lactate dehydrogenase (LDH), haptoglobin, hemoglobin, and reticulocyte count."
+            ],
+            "title": "Isolated Elevated Bilirubin - PMC - NIH"
+          },
+          {
+            "url": "https://www.sciencedirect.com/topics/biochemistry-genetics-and-molecular-biology/reticulocyte-count",
+            "excerpts": [
+              "Reticulocyte Count - an overview\nAn elevated reticulocyte count implies a bone marrow response to either increased RBC destruction (hemolysis) or acute or chronic blood loss."
+            ],
+            "title": "Reticulocyte Count - an overview"
+          },
+          {
+            "url": "https://hiacode.com/blog/anemia-query-best-practices",
+            "excerpts": [
+              "Anemia Query Best Practices: Clarifying Type/Cause\nWhat are the Clinical Criteria for Diagnosing Acute Blood Loss Anemia? ... Low hemoglobin concentration and/or low hematocrit. Females: Hemoglobin"
+            ],
+            "title": "Anemia Query Best Practices: Clarifying Type/Cause"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4706896",
+            "excerpts": [
+              "Clinical Applications of Hemolytic Markers in the Differential ...\nby W Barcellini \u00b7 2015 \u00b7 Cited by 416 \u2014 Increased reticulocytes, lactate dehydrogenase, and bilirubin, as well as reduced haptoglobin, are observed in conditions other than hemolysis that may confound"
+            ],
+            "title": "Clinical Applications of Hemolytic Markers in the Differential ..."
+          },
+          {
+            "url": "https://www.albertahealthservices.ca/assets/info/phm/info-phm-ds-pub-dtb-iron-anemia-iron-deficiency-pregnancy.pdf",
+            "excerpts": [
+              "Anemia and iron deficiency in pregnancy Backgrounder\nFeb 27, 2020 \u2014 Criteria in Pregnancy . Recommended Intervention. Iron Deficiency . Ferritin < 30 \u00b5g/L. Iron Deficiency Anemia . Hb <110 g/L and ferritin < 30 \u00b5g/L."
+            ],
+            "title": "Anemia and iron deficiency in pregnancy Backgrounder"
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/34623079",
+            "excerpts": [
+              "Iron Deficiency Anemia in Pregnancy\nby AH James \u00b7 2021 \u00b7 Cited by 212 \u2014 In pregnancy , a hemoglobin concentration of less than 11.0 g/dL ... severe anemia ( hemoglobin 4.0-6.9 g/dL) requires further investigation."
+            ],
+            "title": "Iron Deficiency Anemia in Pregnancy"
+          },
+          {
+            "url": "https://www2.gov.bc.ca/gov/content/health/practitioner-professional-resources/bc-guidelines/iron-deficiency",
+            "excerpts": [
+              "Iron Deficiency \u2013 Diagnosis and Management\nApr 17, 2019 \u2014 Target normal ferritin >100 \u00b5g/L. Iron replacement therapy should begin as soon as iron deficiency is detected, whether or not anemia is also"
+            ],
+            "title": "Iron Deficiency \u2013 Diagnosis and Management"
+          },
+          {
+            "url": "https://www.niddk.nih.gov/health-information/blood-diseases/anemia-inflammation-chronic-disease",
+            "excerpts": [
+              "Anemia of Inflammation or Chronic Disease - NIDDK\nInflammation may prevent your body from using stored iron to make enough healthy red blood cells, leading to anemia. A picture of normal blood cells compared to"
+            ],
+            "title": "Anemia of Inflammation or Chronic Disease - NIDDK"
+          },
+          {
+            "url": "https://www.uptodate.com/contents/anemia-of-chronic-disease-anemia-of-inflammation",
+            "excerpts": [
+              "Anemia of chronic disease/anemia of inflammation\nde C Camaschella \u00b7 Cit\u00e9 7\u00a0fois \u2014 Concomitant iron deficiency \u00b7 DIAGNOSTIC EVALUATION \u00b7 Suspecting the diagnosis \u00b7 Testing for all individuals \u00b7 - CBC, reticulocyte count, and blood smear review"
+            ],
+            "title": "Anemia of chronic disease/anemia of inflammation"
+          },
+          {
+            "url": "https://ashpublications.org/hematology/article/2020/1/478/474369/Diagnosis-and-management-of-iron-deficiency-in",
+            "excerpts": [
+              "Diagnosis and management of iron deficiency in chronic ...\nde KY Fertrin \u00b7 2020 \u00b7 Cit\u00e9 71\u00a0fois \u2014 Low-grade inflammation in a CIC is enough to disrupt iron metabolism by increasing hepcidin, but does not necessarily correlate with"
+            ],
+            "title": "Diagnosis and management of iron deficiency in chronic ..."
+          },
+          {
+            "url": "https://www.ruh.nhs.uk/pathology/documents/clinical_guidelines/HAEM_Ferritin_a_guide_for_GPs.pdf",
+            "excerpts": [
+              "Ferritin interpretation \u2013 a guide for GPs (Non-pregnant adults)"
+            ],
+            "title": "Ferritin interpretation \u2013 a guide for GPs (Non-pregnant adults) Royal United Hospitals Bath https://www.ruh.nhs.uk \u203a clinical_guidelines \u203a HA..."
+          },
+          {
+            "url": "https://kdigo.org/wp-content/uploads/2026/01/KDIGO-2026-Anemia-in-CKD-Guideline-Executive-Summary.pdf",
+            "excerpts": [
+              "KDIGO-2026-Anemia-in-CKD-Guideline-Executive- ...\n\u2022 Check Hb, ferritin , and TSAT every month. \u2022 Withhold iron therapy if ferritin . >700 ng/ml (\u03bcg/l) or TSAT \u226540%. \u2022 Suspend iron therapy during active infection."
+            ],
+            "title": "KDIGO-2026-Anemia-in-CKD-Guideline-Executive- ..."
+          },
+          {
+            "url": "https://kdigo.org/wp-content/uploads/2024/11/KDIGO-2025-Anemia-in-CKD-Guideline_Public-Review-Draft_Nov42024.pdf",
+            "excerpts": [
+              "kdigo 2025 clinical practice guideline for anemia in chronic ...\nRecommendation 2.1: In people with anemia and CKD treated with hemodialysis (CKD. G5HD), we suggest initiating iron therapy if ferritin \u2264500 ng/ml (\u2264500 \u00b5g/l)"
+            ],
+            "title": "kdigo 2025 clinical practice guideline for anemia in chronic ..."
+          },
+          {
+            "url": "https://apps.worcsacute.nhs.uk/KeyDocumentPortal/Home/DownloadFile/4521",
+            "excerpts": [
+              "Guideline on the Management of Anaemia in Adults\nIdentify patients with iron deficiency anaemia, encourage use of oral and intravenous iron treatments; and highlight importance of gastro-intestinal investigations to identify the underlying cause/occult malignancy"
+            ],
+            "title": "Guideline on the Management of Anaemia in Adults"
+          },
+          {
+            "url": "http://merckmanuals.com/professional/hematology-and-oncology/approach-to-the-patient-with-anemia/evaluation-of-anemia",
+            "excerpts": [
+              "Laboratory evaluation begins with a complete blood count (CBC), including white blood cell (WBC) and platelet counts, RBC indices and morphology,\nFor adult males: Hemoglobin < 13.6 g/dL ( < 136 g/L), hematocrit < 40% ( < 0.40), or RBC < 4.5 million/mcL ( < 4.5 \u00d7 10 \u00b9\u00b2 /L) For adult females: Hemoglobin < 12 g/dL ( < 120 g/L), hematocrit < 37% (< 0.37), or RBC < 4 million/mcL ( < 4 \u00d7 10 \u00b9\u00b2 /L) For infants and children, normal values vary with age, necessitating use of age-related tables (see table Age-Specific Values for Hemoglobin and Hematocrit ). RBC populations are termed microcytic (small cells) if MCV is < 80 fL, and macrocytic (large cells) if MCV is > 100 fL. However, because reticulocytes are also larger than mature red cells, large numbers of reticulocytes can elevate the MCV. Automated techniques can also determine the degree of variation in RBC size, expressed as the RBC volume distribution width (RDW). A high RDW may be the only indication of simultaneous microcytic and macrocytic disorders; such a pattern may result in a normal MCV, which measures only the mean value. The term hypochromia refers to RBC populations in which the MCHC is < 30%. RBC populations with a normal MCHC value are normochromic. Spherocytes can have an elevated MCHC. Red cells defend their MCHC over their MCV (preserving hemoglobin at the expense of RBC size), which is why microcytosis occurs with iron deficiency, impaired hemoglobin synthesis, or the erythrocytosis in polycythemia vera . The RBC indices can help indicate the mechanism of anemia and narrow the number of possible causes. Microcytic indices occur with altered heme or globin synthesis. The most common causes are iron deficiency , thalassemia , and related hemoglobin-synthesis defects. In some patients with the anemia of chronic disease , the MCV is microcytic or borderline microcytic. Macrocytic indices occur with impaired DNA synthesis (eg, due to vitamin B12 deficiency , folate deficiency , or chemotherapeutic drugs such as hydroxyurea or antifolate agents) and in alcohol use disorder because of abnormalities of the cell membrane. Acute bleeding may briefly produce macrocytic indices because of the early release of large young reticulocytes. Normocytic indices occur in anemias resulting from deficient erythropoietin (EPO) production or inadequate response to it (hypoproliferative anemias). Hemorrhage, before iron deficiency develops, usually results in normocytic and normochromic anemia unless the number of reticulocytes is excessive. Peripheral smear The peripheral smear can suggest the presence or cause of a hemolytic anemia, demonstrate alterations in RBC structure, confirm the presence of thrombocytopenia (versus artifactual platelet clumping) and be used to identify immature granulocyte and abnormal lymphocyte morphology, often flagged by automated blood cell analyzers. It can detect other abnormalities (eg, malaria and other parasites, intracellular RBC or granulocyte inclusions) that can occur despite normal automated blood cell counts.\nHematocrit < 37% ( < 0.37) RBC < 4 million/mcL ( < 4 \u00d7 10 \u00b9\u00b2 /L) For infants and children, normal values vary with age, necessitating use of age-related tables (see table Age-Specific Values for Hemoglobin and Hematocrit ). Anemia is not a diagnosis; it is a manifestation of an underlying disorder (see Etiology of Anemia ). Thus, even mild, asymptomatic anemia should be investigated so that the primary problem can be diagnosed and treated. Anemia is usually suspected based on the history and physical examination. Common symptoms and signs of anemia include General fatigue Weakness Dyspnea on exertion Pallor History and physical examination are followed by laboratory testing with a complete blood count, reticulocyte count, and peripheral smear. The differential diagnosis (and cause of anemia) can then be further refined based on the results of testing. Pearls & Pitfalls ... Testing in Anemia Complete blood count (CBC) with white blood cell (WBC) and platelet counts RBC indices and morphology Reticulocyte count Peripheral smear Other blood and urine studies to determine etiology Sometimes bone marrow aspiration and biopsy\nTarget Cells from Thalassemia Patient Target Cells from Thalassemia Patient Target cells (thin RBCs with a central dot of hemoglobin; arrow) are due to an imbalance between the volume of the cell and its hemoglobin content and characterize thalassemia, other hemoglobinopathies (eg, hemoglobin C disease and hemoglobin S-C disease) but may also occur after splenectomy and in liver disease. Target cells (thin RBCs with a central dot of hemoglobin; arrow) are due to an imbalance between the volume of the cell ... read more By permission of the publisher. From Tefferi A, Li C. In _Atlas of Clinical Hematology_ . Edited by JO Armitage. Philadelphia, Current Medicine, 2004. Reticulocyte count The reticulocyte count is expressed as the percentage of reticulocytes or as the absolute reticulocyte count. The reticulocyte count is a crucial test in the evaluation of anemia because it informs about the response of the bone marrow and facilitates differentiation between deficient erythropoiesis (RBC production) and excessive hemolysis (RBC destruction ) as the cause of anemia. For example, higher values indicate compensatory production (reticulocytosis); in the presence of anemia, reticulocytosis suggests excessive RBC destruction, blood loss, or recovery from anemia (e.g., following iron repletion for iron deficiency anemia). Low or normal range numbers in the presence of anemia indicate inappropriately low RBC production. However, in some cases of hemolytic anemia the reticulocyte count will be low (e.g. comorbid renal disease, infection) and these patients are at risk for developing severe anemia. Calculating the reticulocyte production index corrects the reticulocyte count for anemia. Reticulocytes are best visualized when blood is stained with a supravital stain. Red cell reticulin is composed of RNA, which is present only in young red cells, so reticulocytes will only have a bluish appearance in a Wright-stained blood smear (polychromatophilia or polychromasia). The presence of polychromatophilia can provide a rough estimate of reticulocyte production on a routine blood smear. Clinical Calculators Absolute Reticulocyte Count Clinical Calculators Clinical Calculators Reticulocyte Production Index Clinical Calculators ... Other tests for evaluation of anemia Serum indirect bilirubin and lactate dehydrogenase (LDH) can sometimes help differentiate between hemolysis and blood loss. Both are elevated in hemolysis and normal in blood loss, although reabsorption of a large hematoma can decrease haptoglobin and elevate indirect bilirubin, thus mimicking a hemolytic anemia. However, LDH and bilirubin can be elevated for reasons other than hemolytic anemia and are not specific. Other tests, such as vitamin B12 and folate levels and iron and iron binding capacity, are done depending on the suspected cause of anemia."
+            ],
+            "title": "Evaluation of Anemia - Hematology"
+          },
+          {
+            "url": "http://eclinpath.com/hematology/anemia",
+            "excerpts": [
+              "evaluation of a blood smear for immature anucleate RBC (and quantifying reticulocytes in dogs and cats) is key in determining if an anemia is regenerative or"
+            ],
+            "title": "Anemia"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5689413",
+            "excerpts": [
+              "Diagnosis and treatment of macrocytic anemias in adults - PMC\nby T Nagao \u00b7 2017 \u00b7 Cited by 257 \u2014 Nonmegaloblastic anemia may be the result of liver dysfunction, alcoholism, myelodysplastic syndrome (MDS), or hypothyroidism. Common causes of macrocytosis are"
+            ],
+            "title": "Diagnosis and treatment of macrocytic anemias in adults - PMC"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4938687",
+            "excerpts": [
+              "Myelodysplastic syndrome - PMC - NIH\nby RA Wells \u00b7 2016 \u00b7 Cited by 7 \u2014 If macrocytic anemia develops in patients older than 50 years, myelodysplastic syndrome should be considered, especially in the presence of reduced platelet"
+            ],
+            "title": "Myelodysplastic syndrome - PMC - NIH"
+          },
+          {
+            "url": "https://onlinelibrary.wiley.com/doi/10.1002/jgf2.31",
+            "excerpts": [
+              "Diagnosis and treatment of macrocytic anemias in adults"
+            ],
+            "title": "Diagnosis and treatment of macrocytic anemias in adults Wiley Online Library https://onlinelibrary.wiley.com \u203a ..."
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/",
+            "excerpts": [
+              "PubMed - NIH"
+            ],
+            "title": "PubMed - NIH National Institutes of Health (NIH) | (.gov) https://pubmed.ncbi.nlm.nih.gov"
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/30426472",
+            "excerpts": [
+              "A British Society for Haematology Guideline\nby MFF McMullin \u00b7 2019 \u00b7 Cited by 144 \u2014 A guideline for the management of specific situations in polycythaemia vera and secondary erythrocytosis: A British Society for Haematology Guideline"
+            ],
+            "title": "A British Society for Haematology Guideline"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5558393",
+            "excerpts": [
+              "Diagnosis and treatment of iron deficiency anemia during"
+            ],
+            "title": "Diagnosis and treatment of iron deficiency anemia during ... PubMed Central (PMC) (.gov) https://pmc.ncbi.nlm.nih.gov \u203a articles"
+          },
+          {
+            "url": "https://b-s-h.org.uk/guidelines/guidelines/clinical-and-laboratory-diagnosis-of-heritable-platelet-disorders-in-adults-and-children",
+            "excerpts": [
+              "Clinical and laboratory diagnosis of heritable platelet ...\nAug 26, 2021 \u2014 The remit has been expanded to include clinical diagnosis and heritable thrombocytopenia under the overarching term heritable platelet disorder"
+            ],
+            "title": "Clinical and laboratory diagnosis of heritable platelet ..."
+          },
+          {
+            "url": "https://b-s-h.org.uk/media/oz0nmbon/2023-08-01-2nd-draft-preop-anaemia-guideline.pdf",
+            "excerpts": [
+              "BSH Guideline template - British Society for Haematology"
+            ],
+            "title": "BSH Guideline template - British Society for Haematology b-s-h.org.uk https://b-s-h.org.uk \u203a media \u203a 2023-08-01-2nd-d..."
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/9195773",
+            "excerpts": [
+              "Myelodysplastic syndromes"
+            ],
+            "title": "Myelodysplastic syndromes National Institutes of Health (.gov) https://pubmed.ncbi.nlm.nih.gov \u203a ..."
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK534126",
+            "excerpts": [
+              "Myelodysplastic Syndrome - StatPearls - NCBI Bookshelf - NIH"
+            ],
+            "title": "Myelodysplastic Syndrome - StatPearls - NCBI Bookshelf - NIH National Institutes of Health (.gov) https://www.ncbi.nlm.nih.gov \u203a books \u203a NBK534126"
+          },
+          {
+            "url": "https://www.medicoverhospitals.in/es/diseases/sideroblastic-anemia",
+            "excerpts": [
+              "Anemia siderobl\u00e1stica: tratamiento, s\u00edntomas y causas"
+            ],
+            "title": "Anemia siderobl\u00e1stica: tratamiento, s\u00edntomas y causas Medicover Hospitals https://www.medicoverhospitals.in \u203a sideroblastic-anemia"
+          },
+          {
+            "url": "https://www.tandfonline.com/doi/full/10.2147/JBM.S232644",
+            "excerpts": [
+              "Full article: Understanding Sideroblastic Anemia\nby G Abu-Zeinah \u00b7 2020 \u00b7 Cited by 71 \u2014 Mechanisms in the pathogenesis of SA include impaired synthesis of heme, impaired iron-Sulfur (Fe-S) cluster assembly and transport, or impaired"
+            ],
+            "title": "Full article: Understanding Sideroblastic Anemia"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC1570488",
+            "excerpts": [
+              "Megaloblastic Anemia and Other Causes of Macrocytosis - PMC\nby F Aslinia \u00b7 2006 \u00b7 Cited by 593 \u2014 Macrocytosis due to vitamin B12 or folate deficiency is a direct result of ineffective or dysplastic erythropoiesis. These important vitamins and cofactors are"
+            ],
+            "title": "Megaloblastic Anemia and Other Causes of Macrocytosis - PMC"
+          },
+          {
+            "url": "https://www.merckmanuals.com/professional/hematology-and-oncology/anemias-caused-by-deficient-erythropoiesis/megaloblastic-macrocytic-anemias",
+            "excerpts": [
+              "Megaloblastic Macrocytic Anemias - Hematology\nThe most common causes of megaloblastic, macrocytic anemia are deficiency or defective utilization of vitamin B12 or folate. Perform complete blood count"
+            ],
+            "title": "Megaloblastic Macrocytic Anemias - Hematology"
+          },
+          {
+            "url": "http://rcpa.edu.au/Manuals/RCPA-Manual/Pathology-Tests/B/Blood-film",
+            "excerpts": [
+              "Evaluation of changes in numbers or morphology of red cells, white cells and platelets. Blood film examination clarifies abnormalities detected"
+            ],
+            "title": "Blood film"
+          },
+          {
+            "url": "https://www.medcentral.com/calculators/hematology/reticulocyte-production-index",
+            "excerpts": [
+              "Reticulocyte Production Index\nReticulocyte Production Index (RPI) measures the rate of red blood cell production, indicating bone marrow's ability to replace old cells."
+            ],
+            "title": "Reticulocyte Production Index"
+          },
+          {
+            "url": "https://www.mdcalc.com/calc/1667/absolute-reticulocyte-count-reticulocyte-index",
+            "excerpts": [
+              "Corrected Reticulocyte Percentage/Reticulocyte Production Index ...\nThe Absolute Reticulocyte Count & Reticulocyte Index Assesses appropriate response to anemia, frequently in Sickle Cell Disease patients."
+            ],
+            "title": "Corrected Reticulocyte Percentage/Reticulocyte Production Index ..."
+          },
+          {
+            "url": "https://iris.who.int/items/80a8b7b3-b3e9-4673-8a47-90eeee11ccaa",
+            "excerpts": [
+              "Guideline on haemoglobin cutoffs to define anaemia in"
+            ],
+            "title": "Guideline on haemoglobin cutoffs to define anaemia in ... World Health Organization (WHO) https://iris.who.int \u203a items"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11300700",
+            "excerpts": [
+              "Hemoglobin levels for determining anemia: new World Health ...\nby GF Gonzales \u00b7 2024 \u00b7 Cited by 24 \u2014 The hemoglobin value (g/dL) or hematocrit (%) is used to diagnose anemia. the figures for anemia in this population group as of 2019 are 21% in Latin America"
+            ],
+            "title": "Hemoglobin levels for determining anemia: new World Health ..."
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK602183/table/fm-ch1.tab1/?report=objectonly",
+            "excerpts": [
+              "Guideline on haemoglobin cutoffs to define anaemia in individuals and populations [Internet]. Geneva: World Health Organization; 2024. \u00a9 World Health Organization 2024. NCBI Bookshelf. A service of the National Library of Medicine, National Institutes of Health."
+            ],
+            "title": "Table 2, Haemoglobin cutoffs to define anaemia in individuals ..."
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK602185/table/ch5.tab2/",
+            "excerpts": [
+              "Guideline on haemoglobin cutoffs to define anaemia in individuals and populations [Internet]. Based on the 5th percentile. \u00a9 World Health Organization 2024. Sales, rights and licensing. To purchase WHO publications, see https://www.who.int/publications/book-orders."
+            ],
+            "title": "Table 2, Haemoglobin cutoffs to define anaemia in individuals ..."
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5588399",
+            "excerpts": [
+              "In anemia of chronic disease (ACD), also called anemia of inflammation, serum ferritin levels are"
+            ],
+            "title": "In anemia of chronic disease (ACD), also called anemia of inflammation, serum ferritin levels are"
+          },
+          {
+            "url": "https://www.frontiersin.org/journals/physiology/articles/10.3389/fphys.2019.01294/full",
+            "excerpts": [
+              "Hepcidin and Anemia: A Tight Relationship - Frontiers\nHigh hepcidin levels block intestinal iron absorption and macrophage iron recycling, causing iron restricted erythropoiesis and anemia. Low hepcidin levels favor bone marrow iron supply for hemoglobin synthesis and red blood cells production."
+            ],
+            "title": "Hepcidin and Anemia: A Tight Relationship - Frontiers"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5065583",
+            "excerpts": [
+              "Iron deficiency or anemia of inflammation? - PMC - NIH"
+            ],
+            "title": "Iron deficiency or anemia of inflammation? - PMC - NIH PubMed Central (PMC) (.gov) https://pmc.ncbi.nlm.nih.gov \u203a articles \u203a PMC5065583"
+          }
+        ],
+        "confidence": "high"
+      }
+    ],
+    "type": "text",
+    "beta_fields": null,
+    "mcp_tool_calls": null,
+    "content_file": "anemia-guidelines.md"
+  }
+}

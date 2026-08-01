@@ -54,6 +54,7 @@ export function LabMateMark({ size = 44, title }) {
 export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA }) {
   const uid = useId();
   const clip = `lm-clip-${uid}`;
+  const gradCyan = `grad-cyan-${uid}`;
   const ink = variant === "light" ? "#ffffff" : NAVY;
   const rule = variant === "light" ? "#ffffff" : "#111111";
   const sloganInk = variant === "light" ? "#e7ecf8" : "#111111";
@@ -66,21 +67,23 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA })
       role="img"
       aria-label={`${title} — ${BRAND_SLOGAN}`}
     >
-      <FlaskAndScope clip={clip} onDark={variant === "light"} />
+      <defs>
+        <linearGradient id={gradCyan} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#29a8dd" />
+          <stop offset="100%" stopColor="#0a69a3" />
+        </linearGradient>
+      </defs>
+      <FlaskAndScope clip={clip} onDark={variant === "light"} gradCyan={`url(#${gradCyan})`} />
 
-      {/* لوگوتایپِ دورنگ: «Lab» سرمه‌ای، «Mate» آبی — همان تقسیمِ دورنگِ الگو */}
+      {/* لوگوتایپِ دورنگ با استایل بهبودیافته و گرادیان */}
       <text
         x="545" y="112" textAnchor="middle"
-        fontFamily={LOGO_FONT} fontSize="76" fontWeight="700" letterSpacing="-1.5"
+        fontFamily={LOGO_FONT} fontSize="76" fontWeight="700" letterSpacing="-1"
       >
-        <tspan fill={ink}>Lab</tspan><tspan fill={CYAN}>Mate</tspan>
+        <tspan fill={ink}>Lab</tspan><tspan fill={`url(#${gradCyan})`}>Mate</tspan>
       </text>
 
-      {/* شعارِ فارسی میانِ دو خطِ کوتاه.
-          ⚠️ اینجا textLength استفاده نمی‌شود. روی متنِ لاتین بی‌ضرر بود، اما
-          فارسی متنِ اتصالی است و کشیدن/فشردنِ گلیف‌ها شکلِ حروف و جای
-          نقطه‌ها را خراب می‌کند. عرضِ خط‌ها به‌جای آن از روی اندازهٔ
-          اندازه‌گیری‌شدهٔ همین متن تثبیت شده. */}
+      {/* شعارِ فارسی میانِ دو خطِ کوتاه. */}
       <line x1="313" y1="163" x2="347" y2="163" stroke={rule} strokeWidth="6" />
       <line x1="743" y1="163" x2="777" y2="163" stroke={rule} strokeWidth="6" />
       <text
@@ -95,19 +98,14 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA })
 
 /* ------------------------------------------------------------------ */
 /* خودِ نقش: فلاسک + گوشی. مختصات نسبت به viewBox «0 0 300 200».        */
-/* دایرهٔ بدنهٔ فلاسک: مرکز (95,128). سه شعاع تودرتو:                    */
-/*   r=41 مایع (داخل)، r=48 خطِ قرمز، r=50 لولهٔ گوشی (بیرون).          */
 /* ------------------------------------------------------------------ */
-function FlaskAndScope({ clip, onDark = false }) {
-  // ⚠️ روی زمینهٔ سرمه‌ای، گوشیِ سرمه‌ای ناپدید می‌شود — در اولین رندرِ فوتر
-  //    دقیقاً همین شد و از کلِ گوشی فقط یک حلقهٔ سفیدِ معلق دیده می‌شد.
-  //    پس روی زمینهٔ تیره، سرمه‌ای و سفید جای هم را می‌گیرند.
+function FlaskAndScope({ clip, onDark = false, gradCyan = CYAN }) {
   const scope = onDark ? "#ffffff" : NAVY;
   const chestRing = onDark ? NAVY : "#ffffff";
   return (
     <g>
       {/* حباب‌هایی که از دهانهٔ فلاسک بالا می‌روند */}
-      <g fill={CYAN}>
+      <g fill={gradCyan}>
         <circle cx="98" cy="26" r="9" />
         <circle cx="82" cy="15" r="5" />
         <circle cx="106" cy="7" r="3.4" />
@@ -120,7 +118,7 @@ function FlaskAndScope({ clip, onDark = false }) {
       <g clipPath={`url(#${clip})`}>
         <path
           d="M 50 126 C 64 112, 76 141, 95 133 C 114 125, 124 139, 140 126 L 140 176 L 50 176 Z"
-          fill={CYAN}
+          fill={gradCyan}
         />
         <g fill="#ffffff">
           <circle cx="73" cy="150" r="5" />
@@ -130,7 +128,7 @@ function FlaskAndScope({ clip, onDark = false }) {
       </g>
 
       {/* حباب‌های داخلِ گردن */}
-      <g fill={CYAN}>
+      <g fill={gradCyan}>
         <circle cx="95" cy="108" r="4" />
         <circle cx="87" cy="93" r="2.8" />
         <circle cx="100" cy="80" r="2.2" />

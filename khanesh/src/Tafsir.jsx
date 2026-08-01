@@ -46,6 +46,7 @@ export default function Tafsir() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [aiError, setAiError] = useState("");
+  const [mismatchError, setMismatchError] = useState(false);
   const [ioError, setIoError] = useState("");   // خطای واردات/خروجی JSON
   const [images, setImages] = useState([]);      // [{id, dataUrl, sizeKB, origKB}]
   const [imgBusy, setImgBusy] = useState(false);
@@ -219,8 +220,8 @@ export default function Tafsir() {
   }
 
   // فراخوانی سرور برای تفسیر
-  async function runAI() {
-    setAiError(""); setAiResult(null);
+  async function runAI(ignoreMismatch = false) {
+    setAiError(""); setMismatchError(false); setAiResult(null);
     if (rows.length === 0 && images.length === 0) {
       setAiError("ابتدا مقادیری وارد کنید یا عکس آپلود کنید."); return;
     }
@@ -235,6 +236,11 @@ export default function Tafsir() {
     //    ۴۰۴ می‌خورد و پیامِ «منقضی شده» می‌گیرد.
     try {
       const payload = { patientInfo: patientInfo() };
+      if (ignoreMismatch === true) {
+        payload.ignorePatientMismatch = true;
+      }
+      payload.patient = buildStructuredPatient();
+
       if (images.length) {
         payload.imageDataUrls = images.map((i) => i.dataUrl);
       } else {
@@ -242,7 +248,6 @@ export default function Tafsir() {
         // هم اگر موتور هیچ تستی را نشناخت سرور به مسیر قدیمی برمی‌گردد.
         payload.testResults = buildTestText();
         payload.tests = buildStructuredTests();
-        payload.patient = buildStructuredPatient();
       }
 
       // مسیرِ ناهمگام: سرور فوراً شناسهٔ کار می‌دهد و پردازش را در پس‌زمینه
@@ -263,7 +268,10 @@ export default function Tafsir() {
       if (mountedRef.current) setAiResult(data);
     } catch (e) {
       if (!mountedRef.current) return;   // کاربر رفته — setState نکن
-      if (e.name === "AbortError") {
+      if (e.code === "PATIENT_MISMATCH") {
+        setAiError(e.message);
+        setMismatchError(true);
+      } else if (e.name === "AbortError") {
         // لغو دستی. کار روی سرور ادامه دارد و شناسه‌اش ذخیره است، پس
         // با بازکردن دوبارهٔ صفحه برمی‌گردد — این را صریح می‌گوییم.
         setAiError("تحلیل لغو شد. اگر دوباره این صفحه را باز کنید، نتیجه بازیابی می‌شود.");
@@ -426,8 +434,11 @@ export default function Tafsir() {
           onClearResumed={() => { clearResult(); setResumed(null); }}
           aiLoading={aiLoading} aiProgress={aiProgress}
           aiError={aiError} aiResult={aiResult}
+          mismatchError={mismatchError}
+          onIgnoreMismatch={() => runAI(true)}
+          onCancelMismatch={() => { setAiError(""); setMismatchError(false); }}
           typedCount={images.length > 0 ? rows.length : 0}
-          runAI={runAI}
+          runAI={() => runAI(false)}
           onCancel={() => abortRef.current?.abort()}
           resultRef={resultRef}
         />

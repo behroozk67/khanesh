@@ -22,8 +22,8 @@ export const CLASSIFIERS = {
     kind: 'classifier',
     label: 'اندازه گلبول قرمز',
     bands: [
-      { max: 80,  tag: 'microcytosis', fa: 'گلبول‌های کوچک',   patient: 'گلبول‌های قرمز شما کوچک‌تر از حد معمول هستند' },
-      { max: 100, tag: 'normocytic',   fa: 'اندازه طبیعی',      patient: null },
+      { max: 'lln', tag: 'microcytosis', fa: 'گلبول‌های کوچک',   patient: 'گلبول‌های قرمز شما کوچک‌تر از حد معمول هستند' },
+      { max: 'uln', tag: 'normocytic',   fa: 'اندازه طبیعی',      patient: null, normal: true },
       { max: Infinity, tag: 'macrocytosis', fa: 'گلبول‌های بزرگ', patient: 'گلبول‌های قرمز شما بزرگ‌تر از حد معمول هستند' },
     ],
     note: 'شدت کم‌خونی را Hb تعیین می‌کند، نه MCV',
@@ -33,8 +33,8 @@ export const CLASSIFIERS = {
     kind: 'classifier',
     label: 'محتوای هموگلوبین گلبول',
     bands: [
-      { max: 27, tag: 'hypochromia', fa: 'کم‌رنگ', patient: 'گلبول‌های قرمز شما هموگلوبین کمتری دارند' },
-      { max: 34, tag: 'normochromic', fa: 'طبیعی', patient: null },
+      { max: 'lln', tag: 'hypochromia', fa: 'کم‌رنگ', patient: 'گلبول‌های قرمز شما هموگلوبین کمتری دارند' },
+      { max: 'uln', tag: 'normochromic', fa: 'طبیعی', patient: null, normal: true },
       { max: Infinity, tag: 'hyperchromia', fa: 'پررنگ', patient: null },
     ],
   },
@@ -42,7 +42,6 @@ export const CLASSIFIERS = {
   MCHC: {
     kind: 'binary',
     label: 'غلظت هموگلوبین گلبول',
-    note: 'MCHC بالا با میکروسیتوز → اسفروسیتوز مطرح است',
   },
 
   // ---- آهن ----
@@ -226,14 +225,27 @@ export function classify(testKey, value, lln, uln) {
 
   // classifier
   for (const b of c.bands) {
-    if (value < b.max) {
+    let limit = b.max;
+    if (limit === 'lln') limit = lln;
+    else if (limit === 'uln') limit = uln;
+    
+    // در مواردی که uln برای تست ارسال نشده یا نامعتبر باشد
+    if (limit == null || isNaN(limit)) {
+        if (b.max === 'lln') {
+            if (testKey === 'MCV') limit = 80;
+            else if (testKey === 'MCH') limit = 27;
+        }
+        if (b.max === 'uln') {
+            if (testKey === 'MCV') limit = 100;
+            else if (testKey === 'MCH') limit = 34;
+        }
+    }
+
+    if (value <= limit) {
       return {
         kind: 'classifier',
         tag: b.tag,
         fa: b.fa,
-        // باند می‌تواند صریحاً بگوید «این طبیعی است».
-        // بدون این، grade.js فقط نام‌های normal/normocytic/normochromic را
-        // طبیعی می‌شناسد و هر طبقه‌بند جدید با تگ دیگر، بی‌صدا غیرطبیعی می‌شود.
         normal: b.normal === true,
         patient: b.patient,
         label: c.label,

@@ -174,15 +174,28 @@ export function ckdEpiEgfr(scr, age, sex) {
   return Math.round(egfr);
 }
 
+export const GERIATRIC_REFS = {
+  // Overrides for >= 75 years old
+  HGB: { M: [11.0, 17.5], F: [10.5, 15.3], unit: 'g/dL' },
+  MCV: { both: [82, 102], unit: 'fL' },
+  ALP: { M: [80, 300], F: [64, 300], unit: 'U/L' },
+};
+
 import { getPedRef, isPediatricRCPCH } from './refs_ped.js';
 
 // گرفتن محدوده برای یک تست
 // اطفال (< 16 سال) → اول جدول RCPCH، اگر نبود → بالغ (طبق دستور خود RCPCH)
+// سالمندان (>= 75 سال) → اول جدول GERIATRIC_REFS، اگر نبود → بالغ
 export function getRef(testKey, sex, age) {
   if (isPediatricRCPCH(age)) {
     const ped = getPedRef(testKey, age);
     if (ped) return ped;
     // RCPCH: "If there is no age-specific paediatric range, use the adult range."
+  }
+  if (age >= 75 && GERIATRIC_REFS[testKey]) {
+    const g = GERIATRIC_REFS[testKey];
+    if (g.both) return g.both;
+    return sex === 'M' ? g.M : g.F;
   }
   if (testKey === 'ESR')   return esrRef(sex, age);
   if (testKey === 'CREAT') return creatRef(age, sex);
@@ -195,6 +208,7 @@ export function getRef(testKey, sex, age) {
 // منبع محدوده — برای شفافیت
 export function getRefSource(testKey, age) {
   if (isPediatricRCPCH(age) && getPedRef(testKey, age)) return 'RCPCH 2016';
+  if (age >= 75 && GERIATRIC_REFS[testKey]) return 'Geriatric Override';
   return 'Henry A5';
 }
 

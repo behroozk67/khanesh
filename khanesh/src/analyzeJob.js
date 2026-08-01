@@ -73,7 +73,11 @@ export async function startJob(payload, signal) {
   });
   let data = null;
   try { data = await res.json(); } catch { /* JSON نبود */ }
-  if (!res.ok) throw new Error(data?.error || `خطای سرور (${res.status})`);
+  if (!res.ok) {
+    const err = new Error(data?.error || `خطای سرور (${res.status})`);
+    if (data?.code) err.code = data.code;
+    throw err;
+  }
   if (!data?.job_id) throw new Error("پاسخ سرور شناسهٔ تحلیل نداشت.");
   return data;
 }
@@ -133,7 +137,9 @@ export async function pollJob(id, { onProgress, signal } = {}) {
     // تمام شد — چه موفق چه ناموفق
     clearJob();
     if (data.status === "error" || (data.status_code && data.status_code >= 400)) {
-      throw new Error(data.result?.error || "تحلیل با خطا مواجه شد.");
+      const err = new Error(data.result?.error || "تحلیل با خطا مواجه شد.");
+      if (data.result?.code) err.code = data.result.code;
+      throw err;
     }
     storeResult(data.result);
     return data.result;

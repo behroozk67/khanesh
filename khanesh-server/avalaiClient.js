@@ -23,7 +23,7 @@ export function createAvalAIClient({ apiKey, baseUrl, timeoutMs, fetchImpl }) {
   // ندارد و بالا بردنش فقط هزینه اضافه می‌کند.
   const truncations = {};
 
-  async function call({ model, messages, maxTokens = 2000, temperature = 0.2 }) {
+  async function call({ model, messages, maxTokens = 2000, temperature = 0 }) {
     const doFetch = fetchImpl ?? fetch;
     let upstream;
     try {
@@ -43,7 +43,7 @@ export function createAvalAIClient({ apiKey, baseUrl, timeoutMs, fetchImpl }) {
         }),
       });
     } catch (err) {
-      console.error("AvalAI fetch failed:", model, err.name, err.message);
+      console.error("AvalAI fetch failed:", model, err.name, err.message, "Cause:", err.cause);
       const e = new Error("upstream_timeout");
       e.model = model;
       throw e;

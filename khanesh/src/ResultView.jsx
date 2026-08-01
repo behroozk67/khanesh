@@ -374,24 +374,57 @@ export default function ResultView({ result, asText, asList }) {
       {/* ۲. تأیید اعداد */}
       <ExtractedTests list={extracted} pages={result.pages} asText={asText} />
 
-      {/* ۳. خلاصه و تفسیر */}
-      {result.summary && (
+      {/* ۳. خروجی گراف LabMat (بیمار و پزشک) */}
+      {result.labmat && (
+        <>
+          {result.labmat.safetyDetails?.score < 50 && (
+            <div className="crit-banner" role="alert">
+              <p className="crit-title">هشدار ایمنی (نمره ایمنی: {result.labmat.safetyDetails.score})</p>
+              <p className="crit-body">
+                {result.labmat.safetyDetails.warnings?.length > 0 
+                  ? result.labmat.safetyDetails.warnings.map(w => asText(w)).join(' - ')
+                  : "موارد احتیاطی فوری در نتایج شما دیده شده است. لطفاً سریعاً به پزشک مراجعه کنید."}
+              </p>
+            </div>
+          )}
+          
+          <section className="card">
+            <h2 className="block-title">تفسیر برای شما (زبان ساده)</h2>
+            <p className="text">{asText(result.labmat.patientSection)}</p>
+          </section>
+
+          <section className="card" style={{borderLeft: "4px solid var(--primary-color)"}}>
+            <h2 className="block-title">گزارش تخصصی برای پزشک</h2>
+            <p className="text">{asText(result.labmat.doctorSection)}</p>
+            {result.labmat.suggestedFollowUps?.length > 0 && (
+              <div style={{marginTop: "1rem"}}>
+                <strong>آزمایش‌های پیشنهادی تکمیلی:</strong>
+                <ul className="bullet-list">
+                  {result.labmat.suggestedFollowUps.map((test, i) => <li key={i}>{asText(test)}</li>)}
+                </ul>
+              </div>
+            )}
+          </section>
+        </>
+      )}
+
+      {/* نمایش خروجی‌های قدیمی اگر LabMat نبود (برای سازگاری عقب‌رو) */}
+      {!result.labmat && result.summary && (
         <section className="card">
           <h2 className="block-title">خلاصه</h2>
           <p className="text">{asText(result.summary)}</p>
         </section>
       )}
-      {result.interpretation && (
+      {!result.labmat && result.interpretation && (
         <section className="card">
           <h2 className="block-title">تفسیر</h2>
           <p className="text">{asText(result.interpretation)}</p>
         </section>
       )}
+      
+      {!result.labmat && <UnmatchedNote rows={unmatchedRows} />}
 
-      {/* حالت سوم */}
-      <UnmatchedNote rows={unmatchedRows} />
-
-      {asList(result.general_recommendations).length > 0 && (
+      {!result.labmat && asList(result.general_recommendations).length > 0 && (
         <section className="card">
           <h2 className="block-title">توصیه‌ها</h2>
           <ul className="bullet-list">

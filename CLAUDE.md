@@ -386,6 +386,11 @@ five analytes wider.
   clinical strings have no safety net — they need the same scrutiny as `patterns.js`, and they
   don't get it automatically.
 
+### N13 — Sending OCR raw data directly to diagnostic agents
+- **Tried:** pass `state.rawData` to diagnostic LLMs alongside `engineOutput`, instructing them to "IGNORE reference ranges in rawData and trust engineOutput".
+- **Broke:** models ignore the negative instruction when it contradicts their pre-training. Given `Hb: 12.3` and an OCR range of `13.5-17.5` for a 78yo Male, the engine correctly classified it as normal (`GERIATRIC_REFS`). But the LLMs saw the `rawData` range (or relied on their internal adult bounds) and hallucinated it as abnormal, generating differential diagnoses like MDS and writing `(بالا)` or `(پایین)` contrary to the engine's explicit `abnormal: false` flag.
+- **Rule:** the engine boundary is absolute. If a module relies on the engine's clinical judgement, it must **never** be allowed to see the raw test numbers combined with OCR ranges/flags. An LLM cannot unsee contradictory raw bounds. Supply only the normalized, age-adjusted `engineOutput` to LLMs performing downstream reporting.
+
 ---
 
 ## Rules

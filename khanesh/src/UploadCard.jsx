@@ -21,6 +21,7 @@ export default function UploadCard({
   images, imgBusy, onFile, removeImage, moveImage,
   resumed, onResume, onClearResumed,
   aiLoading, aiProgress, aiError, aiResult,
+  mismatchError, onIgnoreMismatch, onCancelMismatch,
   typedCount = 0, runAI, onCancel, resultRef,
 }) {
   const [confirmClear, setConfirmClear] = useState(false);
@@ -228,7 +229,17 @@ export default function UploadCard({
         </div>
       )}
 
-      {aiError && <div className="warn warn--strong" role="alert">{aiError}</div>}
+      {aiError && (
+        <div className="warn warn--strong" role="alert">
+          {aiError}
+          {mismatchError && (
+            <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
+              <button type="button" className="btn" onClick={onIgnoreMismatch}>ادامه بده</button>
+              <button type="button" className="btn btn--ghost" onClick={onCancelMismatch}>منصرف شدم</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* سرور موقع شکست parse با وضعیت ۲۰۰ برمی‌گرداند
           {parseError:true, raw, extracted_tests}.

@@ -1,0 +1,721 @@
+{
+  "run_id": "trun_7dea3e1591dd4232b2b5f231665f74f9",
+  "interaction_id": "trun_7dea3e1591dd4232b2b5f231665f74f9",
+  "result_url": "https://platform.parallel.ai/play/deep-research/trun_7dea3e1591dd4232b2b5f231665f74f9",
+  "status": "completed",
+  "output": {
+    "basis": [
+      {
+        "field": "answer",
+        "reasoning": "Reasoning about completeness and excerpt support:\n- The field_description requests comprehensive clinical diagnostic patterns and guidelines across biochemistry and endocrinology blood tests (diabetes, lipids, cardiovascular, kidney, liver, thyroid, electrolytes, vitamins, sex hormones, urinalysis) with critical thresholds, combinations, and action guidelines.\n- The provided field_answer is a large, multi-section synthesis that indeed covers many of these areas (diabetes, lipids, troponin, kidney, liver, thyroid, electrolytes/vitamins, sex hormones, urinalysis, and integrated action matrix).\n- Assessing completeness: The answer appears to address the breadth requested and includes thresholds, pattern interpretations, and suggested actions for many panels. It may not perfectly equal every nuance or provide every local guideline nuance, but it substantially covers the requested domains and provides actionable guidance. Therefore, completeness is judged true.\n- Assessing excerpt support: The provided excerpts list several liver-function pattern explanations, acute liver failure, vitamin D/B12, and testosterone guidelines, among others. However, the field_answer contains many detailed claims (e.g., diabetes thresholds, ACC/AHA lipid targets, troponin interpretation, SGLT2 considerations, KDIGO CKD risk, urine analysis patterns, etc.) that are not all explicitly supported by the supplied excerpts. Because the excerpts do not comprehensively back all the statements in the field_answer, the excerpts do not fully support every claim. Therefore, excerpt support is judged false or at least not universally supported.\n- Conclusion: completeness = true; supported = false.",
+        "citations": [
+          {
+            "url": "https://www.aasld.org/liver-fellow-network/core-series/back-basics/how-approach-elevated-liver-enzymes",
+            "excerpts": [
+              "How to approach elevated liver enzymes?\nJan 17, 2025 \u2014 Predominant AST/ALT elevations suggest hepatocellular injury, primarily elevated bilirubin/ALP indicates cholestatic injury and mixed patterns"
+            ],
+            "title": "How to approach elevated liver enzymes?"
+          },
+          {
+            "url": "http://aasld.org/practice-guidelines/management-acute-liver-failure",
+            "excerpts": [
+              "The present version of the AASLD guideline on the management of acute liver failure represents a thorough overhaul from the previous version of 2005."
+            ],
+            "title": "Management of Acute Liver Failure"
+          },
+          {
+            "url": "http://sps.nhs.uk/articles/assessing-liver-function-and-interpreting-liver-blood-tests",
+            "excerpts": [
+              "Abnormal liver blood tests\nAssessing liver function and interpreting liver blood tests\nPublished 1 May 2024\nWe explain how to assess liver function including the purpose of liver blood tests, how to interpret them and what to do if they are abnormal.\ninterpreting liver blood tests\nNormal blood ALT and AST levels range from 0 to 40 IU/L."
+            ],
+            "title": "Assessing liver function and interpreting liver blood tests \u2013 NHS SPS - Specialist Pharmacy Service \u2013 The first stop for professional medicines advice"
+          },
+          {
+            "url": "http://ncbi.nlm.nih.gov/books/NBK482489",
+            "excerpts": [
+              "Describe the pattern of liver function abnormality seen in alcoholic liver disease.\nElevations in ALT and AST disproportion to elevations in alkaline phosphatase and bilirubin denote hepatocellular disease. An elevation in alkaline phosphatase and bilirubin in disproportion to ALT and AST would characterize a cholestatic pattern. The actual function of the liver can be graded based on its ability to produce albumin as well as vitamin K-dependent clotting factors.\nIdentify the most common causes of abnormal liver function test results.\nOutline the pattern of liver function test results in patients with cholestatic disease.\nSummarize the significance of individual tests obtained in a liver function testing panel.\nThe liver function tests typically include alanine transaminase (ALT) and aspartate transaminase (AST), alkaline phosphatase (ALP), gamma-glutamyl transferase (GGT), serum bilirubin, prothrombin time (PT), the international normalized ratio (INR), total protein and albumin.\nThe liver has a significant role in metabolism, digestion, detoxification, and elimination of substances from the body. The liver function tests typically include alanine transaminase (ALT) and aspartate transaminase (AST), alkaline phosphatase (ALP), gamma-glutamyl transferase (GGT), serum bilirubin, prothrombin time (PT), the international normalized ratio (INR), total protein and albumin.\nThe liver, located in the right upper quadrant of the body and below the diaphragm, is responsible for several functions, including primary detoxification of various metabolites, synthesizing proteins, and producing digestive enzymes. [[1]](.r1) The liver also plays a significant role in metabolism, regulation of red blood cells (RBCs), and glucose synthesis and storage.\nThese tests can help determine an area of the liver where damage may be taking place and, depending on the pattern of elevation, can help organize a differential diagnosis."
+            ],
+            "title": "Liver Function Tests - StatPearls - NCBI Bookshelf - NIH"
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK482374",
+            "excerpts": [
+              "Acute Liver Failure - StatPearls - NCBI Bookshelf - NIH\nby NJ Shah \u00b7 2023 \u00b7 Cited by 75 \u2014 Prolongation of the INR >1.5 is considered a key component in making a diagnosis of acute liver failure.[27] Prolongation of PT/INR occurs"
+            ],
+            "title": "Acute Liver Failure - StatPearls - NCBI Bookshelf - NIH"
+          },
+          {
+            "url": "https://www.endocrine.org/clinical-practice-guidelines/vitamin-d-for-prevention-of-disease",
+            "excerpts": [
+              "Vitamin D for the Prevention of Disease Guideline Resources"
+            ],
+            "title": "Vitamin D for the Prevention of Disease Guideline Resources Endocrine Society https://www.endocrine.org \u203a vita..."
+          },
+          {
+            "url": "https://ods.od.nih.gov/factsheets/VitaminB12-HealthProfessional",
+            "excerpts": [
+              "Vitamin B12 - Health Professional Fact Sheet"
+            ],
+            "title": "Vitamin B12 - Health Professional Fact Sheet National Institutes of Health (NIH) | (.gov) https://ods.od.nih.gov \u203a factsheets"
+          },
+          {
+            "url": "http://pmc.ncbi.nlm.nih.gov/articles/PMC2912737",
+            "excerpts": [
+              "measurement of the total 25(OH)D level is the best test to assess body stores of vitamin D. The total 25(OH)D level allows for the diagnosis and monitoring of"
+            ],
+            "title": "\n            Vitamin D Deficiency in Adults: When to Test and How to Treat - PMC\n        "
+          },
+          {
+            "url": "http://ucsfbenioffchildrens.org/medical-tests/25-hydroxy-vitamin-d-test",
+            "excerpts": [
+              "May 20, 2024 \u00b7 The 25-hydroxy vitamin D test uses a blood sample to determine whether you are getting enough vitamin D. Read more about it."
+            ],
+            "title": "25-hydroxy vitamin D test - UCSF Benioff Children's Hospitals"
+          },
+          {
+            "url": "https://oaml.com/wp-content/uploads/2016/05/OAML-Vit-D-Guideline-Jn-162010-FINAL.pdf",
+            "excerpts": [
+              "Guideline for the Appropriate Ordering of Serum Tests for ...\nJun 2, 2010 \u2014 In addition, when compared to 1,25-dihydroxy vitamin D, its concentration is an order of magnitude higher, is less subject to physiological"
+            ],
+            "title": "Guideline for the Appropriate Ordering of Serum Tests for ..."
+          },
+          {
+            "url": "https://www.aafp.org/afp/2019/0501/p589",
+            "excerpts": [
+              "Cholesterol Management: ACC/AHA Updates Guideline\nby L Hoover \u00b7 2019 \u00b7 Cited by 9 \u2014 Maximally tolerated statin therapy is recommended for patients 20 to 75 years of age with an LDL-C level of 190 mg per dL or greater. \u2022 Moderate"
+            ],
+            "title": "Cholesterol Management: ACC/AHA Updates Guideline"
+          },
+          {
+            "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001423",
+            "excerpts": [
+              "2026 ACC/AHA/AACVPR/ABC/ACPM/ADA/AGS/APhA ...\nMajor patient management groups include: 1) primary prevention with LDL -C 70 to 189 mg / dL ; 2) severe hypercholesterolemia with LDL -C \u2265 190 mg / dL ; 3) diabetes; 4)"
+            ],
+            "title": "2026 ACC/AHA/AACVPR/ABC/ACPM/ADA/AGS/APhA ..."
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK305897",
+            "excerpts": [
+              "Guidelines for the Management of Dyslipidemia - Endotext - NCBI\nStatin therapy is recommended for people in primary prevention aged >40 years with HIV, irrespective of estimated cardiovascular risk and LDL-C"
+            ],
+            "title": "Guidelines for the Management of Dyslipidemia - Endotext - NCBI"
+          },
+          {
+            "url": "https://www.omedit-idf.fr/wp-content/uploads/2019-ESC-guidelines-for-the-management-of-dyslipidaemias.pdf",
+            "excerpts": [
+              "2019-ESC-guidelines-for-the-management-of-"
+            ],
+            "title": "2019-ESC-guidelines-for-the-management-of- ... OMEDIT Ile de France https://www.omedit-idf.fr \u203a wp-content \u203a uploads"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10209372",
+            "excerpts": [
+              "Guideline LDL-C Threshold Achievement in Acute Myocardial ... - PMC\nThe American Heart Association (AHA) recommends patients with very high risk ASCVD achieve below the LDL-C threshold of 1.8 mmol/l [5]. A recent consensus"
+            ],
+            "title": "Guideline LDL-C Threshold Achievement in Acute Myocardial ... - PMC"
+          },
+          {
+            "url": "https://www.auanet.org/guidelines-and-quality/guidelines/testosterone-deficiency-guideline",
+            "excerpts": [
+              "Testosterone Deficiency Guideline\nClinicians should use a total testosterone level below 300 ng/dL as a reasonable cut-off in support of the diagnosis of low testosterone. (Moderate"
+            ],
+            "title": "Testosterone Deficiency Guideline"
+          },
+          {
+            "url": "https://www.endocrine.org/clinical-practice-guidelines/testosterone-therapy",
+            "excerpts": [
+              "Testosterone Therapy for Hypogonadism Guideline ...\nMar 19, 2018 \u2014 Recommend confirming the diagnosis by repeating the measurement of morning fasting total T concentrations."
+            ],
+            "title": "Testosterone Therapy for Hypogonadism Guideline ..."
+          },
+          {
+            "url": "https://academic.oup.com/jcem/article/103/5/1715/4939465",
+            "excerpts": [
+              "Testosterone Therapy in Men With Hypogonadism\nby S Bhasin \u00b7 2018 \u00b7 Cited by 2206 \u2014 We recommend confirming the diagnosis by repeating the measurement of morning fasting total T concentrations."
+            ],
+            "title": "Testosterone Therapy in Men With Hypogonadism"
+          },
+          {
+            "url": "https://www.endocrine.org/patient-engagement/endocrine-library/hypogonadism",
+            "excerpts": [
+              "Hypogonadism in Men\nJan 24, 2022 \u2014 To get a diagnosis of hypogonadism, you need at least two early morning (7\u201310 AM) blood tests that reveal low testosterone in addition to signs"
+            ],
+            "title": "Hypogonadism in Men"
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/29562364",
+            "excerpts": [
+              "Testosterone Therapy in Men With Hypogonadism\nby S Bhasin \u00b7 2018 \u00b7 Cited by 2206 \u2014 We recommend confirming the diagnosis by repeating the measurement of morning fasting total T concentrations."
+            ],
+            "title": "Testosterone Therapy in Men With Hypogonadism"
+          },
+          {
+            "url": "https://www.ahajournals.org/doi/10.1161/CIRCULATIONAHA.122.059678",
+            "excerpts": [
+              "High-Sensitivity Cardiac Troponin and the 2021 AHA/ACC/ASE ...\nThe AHA/ACC guidelines recognize hs-cTn as the preferred biomarker for the detection of myocardial injury and endorse the assay-specific overall 99th"
+            ],
+            "title": "High-Sensitivity Cardiac Troponin and the 2021 AHA/ACC/ASE ..."
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5543710",
+            "excerpts": [
+              "Use of Troponin Assay 99th Percentile as the Decision Level ... - PMC\nBackground. The Universal Definition of Myocardial Infarction recommends the 99th percentile concentration of cardiac troponin in a normal reference population as part of the decision threshold to diagnose type 1 spontaneous myocardial infarction."
+            ],
+            "title": "Use of Troponin Assay 99th Percentile as the Decision Level ... - PMC"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11881534",
+            "excerpts": [
+              "Guideline for the Use of Natriuretic Peptides in the Early ...\nby A \u00c7elik \u00b7 2025 \u00b7 Cited by 3 \u2014 - BNP levels > 35 pg/ml or NT-proBNP levels \u2265 125 pg/ml suggest HF. - If BNP is < 35 pg/ml or NT-proBNP is < 125 pg/ml, HF is unlikely, and"
+            ],
+            "title": "Guideline for the Use of Natriuretic Peptides in the Early ..."
+          },
+          {
+            "url": "https://jamanetwork.com/journals/jamacardiology/fullarticle/2802112",
+            "excerpts": [
+              "ESC 0/1-Hour Algorithm With High-Sensitivity Cardiac"
+            ],
+            "title": "ESC 0/1-Hour Algorithm With High-Sensitivity Cardiac ... JAMA https://jamanetwork.com \u203a fullar..."
+          },
+          {
+            "url": "http://questdiagnostics.com/healthcare-professionals/about-our-tests/cardiovascular/heart-failure/early-risk-identification",
+            "excerpts": [
+              "BNP and NT-proBNP: not just for diagnosis and management anymore\nHF biomarker testing from Quest Diagnostics \u00b3\nN-terminal pro B-type natriuretic peptide (NT-proBNP), which play a role in myocardial stress, have long served as clinically useful markers for heart failure\nNT-proBNP"
+            ],
+            "title": "Focus on earlier identification of heart failure risk - Quest Diagnostics"
+          },
+          {
+            "url": "https://www.mayoclinic.org/diseases-conditions/hypothyroidism/diagnosis-treatment/drc-20350289",
+            "excerpts": [
+              "Hypothyroidism (underactive thyroid) - Diagnosis and ...\nDec 10, 2022 \u2014 If the results show that TSH is high and T-4 is low, then the diagnosis is hypothyroidism. In some cases, the thyroid hormone T-3 may be"
+            ],
+            "title": "Hypothyroidism (underactive thyroid) - Diagnosis and ..."
+          },
+          {
+            "url": "https://cks.nice.org.uk/topics/hypothyroidism/diagnosis/assessment",
+            "excerpts": [
+              "Assessment | Diagnosis | Hypothyroidism - CKS - NICE\nSuspect a diagnosis of primary hypothyroidism if TSH levels are above the normal reference range (usually above 10 mU/L) and FT4 is below the normal reference"
+            ],
+            "title": "Assessment | Diagnosis | Hypothyroidism - CKS - NICE"
+          },
+          {
+            "url": "https://www.nice.org.uk/guidance/ng145/chapter/recommendations",
+            "excerpts": [
+              "Thyroid disease: assessment and management | Guidance - NICE\nNov 20, 2019 \u00b7 For adults who are taking levothyroxine for primary hypothyroidism, consider measuring TSH every 3 months until the level has stabilised (2"
+            ],
+            "title": "Thyroid disease: assessment and management | Guidance - NICE"
+          },
+          {
+            "url": "https://www.nice.org.uk/guidance/ng145",
+            "excerpts": [
+              "Thyroid disease: assessment and management | Guidance - NICE\nNov 20, 2019 \u00b7 This guideline covers investigating all suspected thyroid disease and managing primary thyroid disease (related to the thyroid rather than the pituitary gland)."
+            ],
+            "title": "Thyroid disease: assessment and management | Guidance - NICE"
+          },
+          {
+            "url": "http://bodylogicmd.com/blog/knowing-which-thyroid-tests-to-ask-for-can-help-you-get-the-right-diagnosis",
+            "excerpts": [
+              "The four most important types of thyroid tests are:\n\n* **TSH Test.** TSH is a hormone produced by the pituitary gland that instructs your thyroid to produce hormones. If you have too much TSH, your body could be trying to activate your thyroid to compensate for low thyroid hormone levels. If you have too little, your thyroid might be overproducing hormones and suppressing TSH secretion. This is the broadest test that might indicate some kind of thyroid problem and is typically administered any time a thyroid issue is suspected.\nWhile the TSH test alone doesn't result in a diagnosis, it is a necessary first step to understand thyroid function.\n* **Free T4 Test.** The primary hormone released by your thyroid is called thyroxine, also known as T4. Free T4 testing provides a greater level of insight than TSH testing alone and is necessary to determine whether or not your thyroid is producing healthy hormone levels. Typically, high free T4 levels suggest hyperthyroidism while low free T4 levels typically point to hypothyroidism.\n* **Free T3 Test.** In order for thyroid hormones to fully impact the body, they must be converted from T4 to triiodothyronine, also known as T3. Due to an overproduction of T4, people with thyroid conditions like hyperthyroidism or Graves' disease typically also have high T3 levels. Conversely, those with low T4 levels will have correspondingly low T3 levels. However, it is also possible to have normal T4 levels and low T3 levels, suggesting a problem with the conversion process."
+            ],
+            "title": "Knowing Which Thyroid Tests to Ask For Can Help You Get the Right Diagnosis | BodyLogicMD"
+          },
+          {
+            "url": "https://diabetesjournals.org/care/article/49/Supplement_1/S27/163926/2-Diagnosis-and-Classification-of-Diabetes",
+            "excerpts": [
+              "2. Diagnosis and Classification of Diabetes: Standards of ...\nDiabetes can be diagnosed by demonstrating increased concentrations of glucose in venous plasma or increased A1C in the blood."
+            ],
+            "title": "2. Diagnosis and Classification of Diabetes: Standards of ..."
+          },
+          {
+            "url": "https://www.niddk.nih.gov/health-information/diabetes/overview/tests-diagnosis",
+            "excerpts": [
+              "Diabetes Tests & Diagnosis - NIDDK"
+            ],
+            "title": "Diabetes Tests & Diagnosis - NIDDK National Institutes of Health (NIH) | (.gov) https://www.niddk.nih.gov \u203a ... \u203a Diabetes Overview"
+          },
+          {
+            "url": "https://www.niddk.nih.gov/health-information/diagnostic-tests/a1c-test",
+            "excerpts": [
+              "The A1C Test & Diabetes - NIDDK\nThe A1C test is a blood test that provides information about your average levels of blood glucose, also called blood sugar, over the past 3 months."
+            ],
+            "title": "The A1C Test & Diabetes - NIDDK"
+          },
+          {
+            "url": "https://www.diabetes.org.uk/for-professionals/improving-care/clinical-recommendations-for-professionals/diagnosis-ongoing-management-monitoring/new_diagnostic_criteria_for_diabetes",
+            "excerpts": [
+              "Diagnostic criteria for diabetes"
+            ],
+            "title": "Diagnostic criteria for diabetes Diabetes UK https://www.diabetes.org.uk \u203a improving-care \u203a new_di..."
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3024380",
+            "excerpts": [
+              "Diagnosing Diabetes With Glucose Criteria - PMC - NIH"
+            ],
+            "title": "Diagnosing Diabetes With Glucose Criteria - PMC - NIH National Institutes of Health (NIH) | (.gov) https://pmc.ncbi.nlm.nih.gov \u203a articles \u203a PMC3024380"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC11792658",
+            "excerpts": [
+              "KDIGO 2024 Clinical Practice Guideline for the Evaluation and ...\nby F Iatridi \u00b7 2024 \u00b7 Cited by 57 \u2014 Monitoring eGFR and albuminuria in both adults and children with CKD is important not only to update staging for prognosis but also to guide clinical decisions."
+            ],
+            "title": "KDIGO 2024 Clinical Practice Guideline for the Evaluation and ..."
+          },
+          {
+            "url": "https://www.aafp.org/afp/2023/1200/chronic-kidney-disease",
+            "excerpts": [
+              "Chronic Kidney Disease: Prevention, Diagnosis, and Treatment | AFP\nCKD is defined as an estimated glomerular filtration rate (eGFR) of less than 60 mL per minute per 1.73 m2 or markers of kidney damage, including functional or structural abnormalities such as albuminuria (albumin excretion rate of 30 mg or more daily or albumin/creatinine ratio of 30 mg per g or greater), abnormal"
+            ],
+            "title": "Chronic Kidney Disease: Prevention, Diagnosis, and Treatment | AFP"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12630309",
+            "excerpts": [
+              "Optimizing urine albumin-to-creatinine ratio testing ...\nby I Capelli \u00b7 2025 \u00b7 Cited by 5 \u2014 Albuminuria, assessed by the urine albumin-to-creatinine ratio (uACR), is a key biomarker for CKD detection and risk stratification."
+            ],
+            "title": "Optimizing urine albumin-to-creatinine ratio testing ..."
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12551518",
+            "excerpts": [
+              "Change in urine albumin-to-creatinine ratio and clinical ... - PMC\nby N Tangri \u00b7 2025 \u00b7 Cited by 6 \u2014 In patients with CKD and type 2 diabetes, a >30% UACR decrease was associated with lower risk of mortality, CV events, and CKD progression,"
+            ],
+            "title": "Change in urine albumin-to-creatinine ratio and clinical ... - PMC"
+          },
+          {
+            "url": "https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf",
+            "excerpts": [
+              "KDIGO-2024-CKD-Guideline.pdf\n... CKD by GFR and albuminuria categories. Green: low risk (if no other markers of kidney disease, no CKD ); Yellow: moderately increased risk; Orange: high risk"
+            ],
+            "title": "KDIGO-2024-CKD-Guideline.pdf"
+          },
+          {
+            "url": "https://www.youtube.com/watch?v=so0JazuKXLo",
+            "excerpts": [
+              "ACG Clinical Guideline: Evaluation of Abnormal Liver ...\nACG Clinical Guideline: Evaluation of Abnormal Liver Chemistries. 183 views \u00b7 1 year ago. American Journal of Gastroenterology Author Podcasts."
+            ],
+            "title": "ACG Clinical Guideline: Evaluation of Abnormal Liver ..."
+          },
+          {
+            "url": "https://www.aasld.org/practice-guidelines/acute-chronic-liver-failure-and-management",
+            "excerpts": [
+              "Acute-on-chronic Liver Failure and the Management\nThis document from the American Association for the Study of Liver Diseases (AASLD) serves to provide guidance and a data-supported approach"
+            ],
+            "title": "Acute-on-chronic Liver Failure and the Management"
+          },
+          {
+            "url": "https://www.sciencedirect.com/science/article/pii/S0016508526002398",
+            "excerpts": [
+              "Evaluation of Abnormal Liver Biochemical Test Results\nThe degree of elevation of ALT and AST is helpful in distinguishing possible causes of liver diseases and should be contextualized with tests of liver function, including normalized ratio of prothrombin (INR) and bilirubin and with the clinical presentation."
+            ],
+            "title": "Evaluation of Abnormal Liver Biochemical Test Results"
+          },
+          {
+            "url": "https://www.mdcalc.com/calc/4064/r-factor-liver-injury",
+            "excerpts": [
+              "R Factor for Liver Injury Calculator - MDCalc\nThe R Factor for Liver Injury differentiates cholestatic from hepatocellular liver injury. R Factor between 2 and 5 suggests a mixed pattern of liver injury."
+            ],
+            "title": "R Factor for Liver Injury Calculator - MDCalc"
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/37939273",
+            "excerpts": [
+              "AASLD Practice Guidance on Acute-on-chronic liver failure ...\nby CJ Karvellas \u00b7 2024 \u00b7 Cited by 161 \u2014 Practice Guidance on Acute-on-chronic liver failure and the management of critically ill patients with cirrhosis. 79(6):1463-1502. Department of Critical Care"
+            ],
+            "title": "AASLD Practice Guidance on Acute-on-chronic liver failure ..."
+          },
+          {
+            "url": "https://diabetes.org/about-diabetes/diagnosis",
+            "excerpts": [
+              "Diabetes Diagnosis & Tests | ADA\nDiabetes Diagnosis\n___Diabetes is diagnosed at an A1C of greater than or equal to 6.5%\n___Diabetes is diagnosed at fasting blood glucose of greater than or equal to 126 mg/dl.\n___Diabetes is diagnosed at two-hour blood glucose of greater than or equal to 200 mg/dl."
+            ],
+            "title": "Diabetes Diagnosis & Tests | ADA"
+          },
+          {
+            "url": "http://emedicine.medscape.com/article/2049478-overview",
+            "excerpts": [
+              "Individuals with Hb A1c in the range of 5.7-6.4% (39-47 mmol/mol) are identified as prediabetic.\nThe diagnostic criterion for diabetes is an Hb A1c level greater than or equal to 6.5% (48 mmol/mol).\nThe reference interval for hemoglobin A1c (Hb A1c) in a nondiabetic adult or child is 4.0-5.9%"
+            ],
+            "title": "Hemoglobin A1c Testing: Reference Interval, Interpretation, Collection and Panels"
+          },
+          {
+            "url": "https://diabetesjournals.org/care/article/45/Supplement_1/S17/138925/2-Classification-and-Diagnosis-of-Diabetes",
+            "excerpts": [
+              "2. Classification and Diagnosis of Diabetes: Standards of Medical ...\nThe American Diabetes Association (ADA) \u201cStandards of Medical Care in Diabetes\u201d includes the ADA's current clinical practice recommendations."
+            ],
+            "title": "2. Classification and Diagnosis of Diabetes: Standards of Medical ..."
+          },
+          {
+            "url": "https://www.ahajournals.org/doi/10.1161/CIR.0000000000001029",
+            "excerpts": [
+              "2021 AHA/ACC/ASE/CHEST/SAEM/SCCT/SCMR Guideline for the ...\nOct 28, 2021 \u00b7 High-sensitivity cardiac troponins are the preferred standard for establishing a biomarker diagnosis of acute myocardial infarction, allowing"
+            ],
+            "title": "2021 AHA/ACC/ASE/CHEST/SAEM/SCCT/SCMR Guideline for the ..."
+          },
+          {
+            "url": "https://www.acc.org/latest-in-cardiology/articles/2020/07/17/08/00/key-points-about-myocardial-injury-and-cardiac-troponin-in-covid-19",
+            "excerpts": [
+              "Key Points About Myocardial Injury and Cardiac Troponin ...\nJul 17, 2020 \u2014 The term myocardial injury applies to any patient in whom at least one cardiac troponin (cTn) concentration is above the 99th percentile upper"
+            ],
+            "title": "Key Points About Myocardial Injury and Cardiac Troponin ..."
+          },
+          {
+            "url": "https://www.aafp.org/afp/2014/0815/p260",
+            "excerpts": [
+              "ACC/AHA Release Updated Guideline on the Treatment ...\nby M LAMBERT \u00b7 2014 \u00b7 Cited by 23 \u2014 Persons 21 years or older who have LDL-C levels of 190 mg per dL or greater should be treated with statin therapy. High-intensity statins should"
+            ],
+            "title": "ACC/AHA Release Updated Guideline on the Treatment ..."
+          },
+          {
+            "url": "https://www.acc.org/latest-in-cardiology/journal-scans/2026/03/13/15/20/acc-aha-release-new-clinical-guideline-for-managing-dyslipidemia",
+            "excerpts": [
+              "ACC, AHA Release New Clinical Guideline For Managing ...\nMar 13, 2026 \u2014 The guideline recommends an LDL-C goal of <100 mg/dL for those at borderline or intermediate risk and <70 mg/dL in those at high risk. For"
+            ],
+            "title": "ACC, AHA Release New Clinical Guideline For Managing ..."
+          },
+          {
+            "url": "https://newsroom.heart.org/news/accaha-issue-updated-guideline-for-managing-lipids-cholesterol",
+            "excerpts": [
+              "ACC/AHA Issue Updated Guideline for Managing Lipids ...\nAdditional markers, including lipoprotein (a) [Lp (a)], apolipoprotein B (apoB), high-sensitivity C-reactive protein (hsCRP) and elevated triglycerides, can be used to refine an individual\u2019s ASCVD risk."
+            ],
+            "title": "ACC/AHA Issue Updated Guideline for Managing Lipids ..."
+          },
+          {
+            "url": "https://www.hopkinsmedicine.org/health/treatment-tests-and-therapies/lipid-panel",
+            "excerpts": [
+              "Lipid Panel\nSixty mg/dL or above is considered the level to protect you against heart disease. High levels of triglycerides are linked with a higher heart disease risk."
+            ],
+            "title": "Lipid Panel"
+          },
+          {
+            "url": "https://www.auanet.org/guidelines-and-quality/guidelines/microhematuria",
+            "excerpts": [
+              "Microhematuria: AUA/SUFU Guideline (2025)\nThe 2020 AUA/SUFU Guideline proposed a risk stratification system and risk-based approach to MH evaluation based on age, sex, degree of hematuria, smoking"
+            ],
+            "title": "Microhematuria: AUA/SUFU Guideline (2025)"
+          },
+          {
+            "url": "https://www.urotoday.com/conference-highlights/aua-2020/aua-2020-bladder-health/122536-aua-guidelines-2020-microhematuria.html",
+            "excerpts": [
+              "AUA Guidelines 2020: Microhematuria\nThe aim of the 2020 AUA guidelines regarding microscopic haematuria is to provide a risk-stratified approach to hematuria evaluation based on"
+            ],
+            "title": "AUA Guidelines 2020: Microhematuria"
+          },
+          {
+            "url": "https://www.auanet.org/Documents/Guidelines/PDF/TESTOSTERONE%20ALGORITHM%20ONE%20-%20DIAGNOSTIC.pdf",
+            "excerpts": [
+              "EVALUATION AND MANAGEMENT OF TESTOSTERONE DEFICIENCY ...\nPROLACTIN TESTING If prolactin elevated, repeat test Normal Prolactin and second TT < 300 Hct <50%, high/normal or elevated LH and second TT < 300 ... ^ Testosterone values are measured as ng/dL * All TT measurements \u2265 300 ng/dL are considered normal ** After testosterone deficiency is confirmed additional tests may be considered for special"
+            ],
+            "title": "EVALUATION AND MANAGEMENT OF TESTOSTERONE DEFICIENCY ..."
+          },
+          {
+            "url": "https://www.thyroid.org/thyroid-function-tests",
+            "excerpts": [
+              "Thyroid Function Tests\nA low TSH and low FT4 or FTI indicates hypothyroidism due to a problem involving the pituitary gland. A low TSH with an elevated FT4 or FTI is found in"
+            ],
+            "title": "Thyroid Function Tests"
+          },
+          {
+            "url": "https://www.contemporaryobgyn.net/view/acog-guidelines-glance-thyroid-disease-pregnancy",
+            "excerpts": [
+              "ACOG Guidelines at a Glance Thyroid Disease in Pregnancy"
+            ],
+            "title": "ACOG Guidelines at a Glance Thyroid Disease in Pregnancy Contemporary OB/GYN https://www.contemporaryobgyn.net \u203a ... \u203a Obstetrics"
+          },
+          {
+            "url": "https://my.clevelandclinic.org/health/diseases/23544-subclinical-hypothyroidism",
+            "excerpts": [
+              "Subclinical Hypothyroidism: Symptoms & Treatment"
+            ],
+            "title": "Subclinical Hypothyroidism: Symptoms & Treatment Cleveland Clinic https://my.clevelandclinic.org \u203a health \u203a diseases \u203a 235..."
+          },
+          {
+            "url": "https://my.clevelandclinic.org/health/diagnostics/thyroid-antibodies",
+            "excerpts": [
+              "Thyroid Antibodies: What They Are, Types, Levels & Tests\nIf you test positive for TRAb and have low TSH, it likely means you have Graves' disease. About 95% of people with Graves' disease have raised"
+            ],
+            "title": "Thyroid Antibodies: What They Are, Types, Levels & Tests"
+          },
+          {
+            "url": "https://www.rightdecisions.scot.nhs.uk/media/v04ela0o/thyroid-disease-in-pregnancy-guideline-new-format.pdf",
+            "excerpts": [
+              "Thyroid disease in pregnancy"
+            ],
+            "title": "Thyroid disease in pregnancy scot.nhs.UK https://www.rightdecisions.scot.nhs.uk \u203a media"
+          },
+          {
+            "url": "https://ods.od.nih.gov/factsheets/Folate-HealthProfessional",
+            "excerpts": [
+              "Folate - Health Professional Fact Sheet - NIH ODS\nSerum folate concentrations are commonly used to assess folate status; a value above 3 ng/mL indicates adequacy [1,2,9]. This indicator, however"
+            ],
+            "title": "Folate - Health Professional Fact Sheet - NIH ODS"
+          },
+          {
+            "url": "https://my.clevelandclinic.org/health/symptoms/23129-tetany",
+            "excerpts": [
+              "Tetany: What It Is, Causes, Symptoms & Treatment\nHypocalcemia happens when the levels of calcium in your blood are too low. It's the most common cause of tetany. The calcium in your blood"
+            ],
+            "title": "Tetany: What It Is, Causes, Symptoms & Treatment"
+          },
+          {
+            "url": "https://evidence.nejm.org/doi/full/10.1056/EVIDoa2300107",
+            "excerpts": [
+              "Severe Hyponatremia Correction, Mortality, and Central Pontine ...\nSep 26, 2023 \u00b7 Hypertonic saline in the first 24 hours was administered in 12% of patients. The average 24-hour correction rate varied across the study years"
+            ],
+            "title": "Severe Hyponatremia Correction, Mortality, and Central Pontine ..."
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK441923",
+            "excerpts": [
+              "Vitamin B12 Deficiency - StatPearls - NCBI Bookshelf\nby A Ankar \u00b7 2024 \u00b7 Cited by 234 \u2014 A serum B12 above 300 pg/mL is interpreted as normal. Patients with B12 levels between 200 and 300 pg/mL are considered borderline, and further enzymatic"
+            ],
+            "title": "Vitamin B12 Deficiency - StatPearls - NCBI Bookshelf"
+          },
+          {
+            "url": "https://jamanetwork.com/journals/jama/fullarticle/2841163",
+            "excerpts": [
+              "SGLT2 Inhibitors and Kidney Outcomes by Glomerular Filtration ...\nThe current study focuses on the effects of SGLT2 inhibitors on kidney outcomes across the full spectrum of eGFR and albuminuria, while the companion meta-analysis summarizes the net absolute benefits of SGLT2 inhibitors on kidney, cause-specific hospitalization, and cause-specific mortality outcomes by diabetes status and albuminuria. 10 Both"
+            ],
+            "title": "SGLT2 Inhibitors and Kidney Outcomes by Glomerular Filtration ..."
+          },
+          {
+            "url": "http://kdigo.org/guidelines/ckd-evaluation-and-management",
+            "excerpts": [
+              "The KDIGO 2024 Clinical Practice Guideline for the Evaluation and Management of Chronic Kidney Disease was published in March 2024 in Kidney International."
+            ],
+            "title": "CKD Evaluation and Management"
+          },
+          {
+            "url": "http://bestpractice.bmj.com/topics/en-us/84",
+            "excerpts": [
+              "KDIGO 2024 clinical practice guideline for the evaluation and management of chronic kidney disease. BMJ Best Practice US"
+            ],
+            "title": "Chronic kidney disease - Symptoms, diagnosis and treatment"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8900377",
+            "excerpts": [
+              "Levothyroxine dosages during pregnancy among hypothyroid ...\nEndocrine Society guideline suggests TSH remains \u2264 2.5 mIU/mL in the first trimester and up to 3 mIU/mL in second and third trimesters or in the trimester-"
+            ],
+            "title": "Levothyroxine dosages during pregnancy among hypothyroid ..."
+          },
+          {
+            "url": "https://www.thyroid.org/management-hypothyroidism-pregnancy",
+            "excerpts": [
+              "Thyroid Health \u2013 Management of Hypothyroidism During Pregnancy\nAug 13, 2020 \u00b7 Levothyroxine dose should be adjusted to target a TSH level between the lower limit of the reference range and 2.5 mU/L."
+            ],
+            "title": "Thyroid Health \u2013 Management of Hypothyroidism During Pregnancy"
+          },
+          {
+            "url": "https://www.sdb.unipd.it/sites/sdb.unipd.it/files/Guidelines%20ATA%202017%20American%20Thyroid%20Association.pdf",
+            "excerpts": [
+              "2017 Guidelines of the American Thyroid Association for the ...\nThe aim of these guidelines is to inform clinicians, patients, researchers, and health policy makers on published evidence relating to the diagnosis and management of thyroid disease in women during pregnancy, preconception, and the postpartum period."
+            ],
+            "title": "2017 Guidelines of the American Thyroid Association for the ..."
+          },
+          {
+            "url": "https://eguideline.guidelinecentral.com/i/521958-ata-hypothyroidism-pocket-card/3",
+            "excerpts": [
+              "ATA Guidelines Tools - ATA Hypothyroidism Pocket Card\nDose adjustments should be made when there are large changes in body weight, with aging, and with pregnancy, with TSH assessment 4-6 weeks after any dosage"
+            ],
+            "title": "ATA Guidelines Tools - ATA Hypothyroidism Pocket Card"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10332848",
+            "excerpts": [
+              "Hypertonic saline (typically 3% NaCl) is reserved for acute, symptomatic, or severe hyponatremia (serum sodium <120 mEq/L) accompanied by neurological symptoms like seizures, severe confusion, or coma. It is utilized to quickly raise serum sodium levels and reverse brain swelling."
+            ],
+            "title": "Hypertonic saline (typically 3% NaCl) is reserved for acute, symptomatic, or severe hyponatremia (serum sodium <120 mEq/L) accompanied by neurological symptoms like seizures, severe confusion, or coma. It is utilized to quickly raise serum sodium levels and reverse brain swelling."
+          },
+          {
+            "url": "https://journals.lww.com/euro-emergencymed/fulltext/2020/10000/acute_hyperkalemia_in_the_emergency_department__a.10.aspx",
+            "excerpts": [
+              "Acute hyperkalemia in the emergency department: a summary...\nThe ECG is a mainstay in managing hyperkalemia. Membrane stabilization by calcium salts and potassium-shifting agents, such as insulin and salbutamol, is the"
+            ],
+            "title": "Acute hyperkalemia in the emergency department: a summary..."
+          },
+          {
+            "url": "https://www.merckmanuals.com/home/kidney-disorders/electrolyte-balance/hypocalcemia-low-level-of-calcium-in-the-blood",
+            "excerpts": [
+              "Hypocalcemia (Low Level of Calcium in the Blood)"
+            ],
+            "title": "Hypocalcemia (Low Level of Calcium in the Blood) Merck Manuals https://www.merckmanuals.com \u203a ..."
+          },
+          {
+            "url": "https://emedicine.medscape.com/article/242166-guidelines",
+            "excerpts": [
+              "Hyponatremia Guidelines - Medscape Reference\nJan 9, 2025 \u00b7 For severe symptomatic hyponatremia prompt infusion of hypertonic 3% saline in the first-hour of management is recommended."
+            ],
+            "title": "Hyponatremia Guidelines - Medscape Reference"
+          },
+          {
+            "url": "https://diabetesjournals.org/care/article/47/8/1257/156808/Hyperglycemic-Crises-in-Adults-With-Diabetes-A",
+            "excerpts": [
+              "Hyperglycemic Crises in Adults With Diabetes: A Consensus ...\nby GE Umpierrez \u00b7 2024 \u00b7 Cited by 318 \u2014 DKA is characterized by the triad of hyperglycemia, increased ketone concentration in the blood and/or urine, and metabolic acidosis, while HHS"
+            ],
+            "title": "Hyperglycemic Crises in Adults With Diabetes: A Consensus ..."
+          },
+          {
+            "url": "https://diabetesjournals.org/care/article/49/Supplement_1/S339/163925/16-Diabetes-Care-in-the-Hospital-Standards-of-Care",
+            "excerpts": [
+              "16. Diabetes Care in the Hospital: Standards of Care in Diabetes ...\nDec 8, 2025 \u00b7 The diagnostic criteria for DKA and HHS are summarized in Table 16.1; all criteria must be met to establish these diagnoses. Table 16.1"
+            ],
+            "title": "16. Diabetes Care in the Hospital: Standards of Care in Diabetes ..."
+          },
+          {
+            "url": "http://jelsciences.com/articles/jbres2189.php",
+            "excerpts": [
+              "Criteria for severe DKA included a pH threshold below 7.1 and a bicarbonate level below 5 to 10 mmol/L. The most frequently reported definition was pH < 7.1"
+            ],
+            "title": "Biochemical Testing and Thresholds for Diagnosing ..."
+          },
+          {
+            "url": "https://www.ccjm.org/content/92/3/152",
+            "excerpts": [
+              "Hyperglycemic crises in adults: A look at the 2024 consensus report\nMar 1, 2025 \u00b7 The updated consensus report (June 2024) introduces revised criteria for the diagnosis and resolution of DKA and HHS, as well as new recommendations for"
+            ],
+            "title": "Hyperglycemic crises in adults: A look at the 2024 consensus report"
+          },
+          {
+            "url": "http://rch.org.au/clinicalguide/guideline_index/Diabetic_Ketoacidosis",
+            "excerpts": [
+              "The biochemical criteria for diagnosis of DKA are all three of Serum glucose >11 mmol/L Venous pH <7.3 or bicarbonate <18 mmol/L Ketonaemia (ketones \u22653 mmol/L)"
+            ],
+            "title": "Clinical Practice Guidelines : Diabetic ketoacidosis"
+          },
+          {
+            "url": "https://www.auanet.org/documents/Guidelines/PDF/Microhematuria-JU.pdf",
+            "excerpts": [
+              "Microhematuria: AUA/SUFU Guideline\nby DA Barocas \u00b7 2020 \u00b7 Cited by 360 \u2014 Clinicians should not define MH by positive dipstick testing alone. A positive urine dipstick test (trace blood or greater) should prompt formal microscopic."
+            ],
+            "title": "Microhematuria: AUA/SUFU Guideline"
+          },
+          {
+            "url": "https://www.auajournals.org/doi/10.1097/JU.0000000000001297",
+            "excerpts": [
+              "Microhematuria: AUA/SUFU Guideline | Journal of Urology\nby DA Barocas \u00b7 2020 \u00b7 Cited by 360 \u2014 A repeat UA represents an initial, non-invasive modality for continued monitoring. Patients with a negative follow-up UA may be discharged from"
+            ],
+            "title": "Microhematuria: AUA/SUFU Guideline | Journal of Urology"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC85454",
+            "excerpts": [
+              "Evaluation of the Leukocyte Esterase and Nitrite Urine ... - PMC\nby H Semeniuk \u00b7 1999 \u00b7 Cited by 188 \u2014 A positive dipstick urinalysis (ie, leukocyte esterase test and/or nitrite test) did not reliably detect significant bacteriuria in 479 ambulatory women."
+            ],
+            "title": "Evaluation of the Leukocyte Esterase and Nitrite Urine ... - PMC"
+          },
+          {
+            "url": "https://www.auanet.org/documents/Guidelines/PDF/2025%20Guidelines/Microhematuria%20Amendment%20SUMMARY-%20Final.pdf",
+            "excerpts": [
+              "[PDF] Guideline Amendment Summary - American Urological Association\nAUA/SUFU Microhematuria Risk. Stratification System 2025. Amended to update risk categories and factors. Corresponding references updated. Page 2. Department:"
+            ],
+            "title": "[PDF] Guideline Amendment Summary - American Urological Association"
+          },
+          {
+            "url": "https://www.fda.gov/media/116737/download",
+            "excerpts": [
+              "[PDF] Guidance for Industry: Drug-Induced Liver Injury - FDA\nAssessment of Hy's Law Cases in the Clinical Trials Database....................................................16. Drug-Induced Liver Injury: This guidance is intended to assist the"
+            ],
+            "title": "[PDF] Guidance for Industry: Drug-Induced Liver Injury - FDA"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4212151",
+            "excerpts": [
+              "Liver Safety Assessment: Required Data Elements and Best ... - PMC\nAs described in the 2009 guidance, biochemical criteria consistent with Hy's Law include elevations of serum ALT or AST > 3X ULN, accompanied by increases of serum bilirubin levels >2X ULN that occur concomitantly or ensue within a one-month period."
+            ],
+            "title": "Liver Safety Assessment: Required Data Elements and Best ... - PMC"
+          },
+          {
+            "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12087471",
+            "excerpts": [
+              "Refinement of Hy's Law using the Drug-Induced Liver Injury ...\nby AS Barritt \u00b7 2024 \u00b7 Cited by 7 \u2014 Four permutations of Hy's Law were applied: R\u2265 5 using initial (1) or peak (2) ALT, AST and Alk P levels, and the FDA associated criteria of ALT or AST \u2265 3x ULN"
+            ],
+            "title": "Refinement of Hy's Law using the Drug-Induced Liver Injury ..."
+          },
+          {
+            "url": "https://www.fda.gov/media/151077/download",
+            "excerpts": [
+              "IMI TransBioLine Drug-Induced Liver Injury Work Package\nJan 4, 2016 \u2014 Use of Hy's law and a new composite algorithm to predict acute liver failure in patient's with drug-induced liver injury. Gastroenterology"
+            ],
+            "title": "IMI TransBioLine Drug-Induced Liver Injury Work Package"
+          },
+          {
+            "url": "https://www.fda.gov/vaccines-blood-biologics/general-biologics-guidances/clinical-guidances",
+            "excerpts": [
+              "Clinical Guidances\n8 days ago \u2014 Drug-Induced Liver Injury: Premarketing Clinical Evaluation; Guidance for Industry CDER/CBER, July 2009; Guidance for Industry and FDA Staff"
+            ],
+            "title": "Clinical Guidances"
+          },
+          {
+            "url": "https://www.asrm.org/practice-guidance/practice-committee-documents/evidence-based-guideline-premature-ovarian-insufficiency--2024",
+            "excerpts": [
+              "Evidence-based guideline: Premature Ovarian Insufficiency - ASRM\nThe current guideline provides 145 recommendations on symptoms, diagnosis, causation, sequelae and treatment of POI."
+            ],
+            "title": "Evidence-based guideline: Premature Ovarian Insufficiency - ASRM"
+          },
+          {
+            "url": "https://www.eshre.eu/guidelines-and-legal/guidelines/management-of-premature-ovarian-insufficiency.aspx",
+            "excerpts": [
+              "Guideline on premature ovarian insufficiency - ESHRE\nThis updated guideline offers best practice recommendations for the care of women with with both primary and secondary premature ovarian insufficiency (POI)."
+            ],
+            "title": "Guideline on premature ovarian insufficiency - ESHRE"
+          },
+          {
+            "url": "https://www.imsociety.org/wp-content/uploads/2024/12/INTERNATIONAL-GUIDELINE-ON-POI-2024.pdf",
+            "excerpts": [
+              "[PDF] Premature Ovarian Insufficiency (POI) - International Menopause Society\nThe ESHRE, IMS Guideline Group on POI 2024 Guideline. IMS Recommendations on women's midlife health and menopause hormone therapy. with premature ovarian"
+            ],
+            "title": "[PDF] Premature Ovarian Insufficiency (POI) - International Menopause Society"
+          },
+          {
+            "url": "https://cks.nice.org.uk/topics/menopause/diagnosis/diagnosis-of-premature-ovarian-insufficiency",
+            "excerpts": [
+              "Diagnosis of premature ovarian insufficiency - CKS - NICE\nThe NICE clinical guideline states that the presence of menopausal symptoms and elevated follicle-stimulating hormone (FSH) levels on two blood samples in a woman younger than 40 years indicates a diagnosis of POI."
+            ],
+            "title": "Diagnosis of premature ovarian insufficiency - CKS - NICE"
+          },
+          {
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK589674",
+            "excerpts": [
+              "Primary Ovarian Insufficiency - StatPearls - NCBI Bookshelf - NIH\nMar 6, 2023 \u00b7 However, due to the variability of the disease, the overall success of pregnancy and live birth only reaches 25% after cryopreservation and"
+            ],
+            "title": "Primary Ovarian Insufficiency - StatPearls - NCBI Bookshelf - NIH"
+          },
+          {
+            "url": "https://ods.od.nih.gov/factsheets/VitaminD-HealthProfessional",
+            "excerpts": [
+              "Vitamin D - Health Professional Fact Sheet"
+            ],
+            "title": "Vitamin D - Health Professional Fact Sheet National Institutes of Health (.gov) https://ods.od.nih.gov \u203a factsheets"
+          },
+          {
+            "url": "https://digitalmedia.hhs.gov/storefront/showContent/16576",
+            "excerpts": [
+              "Folate: Fact Sheet for Health Professionals"
+            ],
+            "title": "Folate: Fact Sheet for Health Professionals HHS Syndication Storefront (.gov) https://digitalmedia.hhs.gov \u203a sho..."
+          },
+          {
+            "url": "https://www.e-lactancia.org/media/papers/Vitamin_B12_-_NIH2020.pdf",
+            "excerpts": [
+              "Vitamin B12 - Health Professional Fact Sheet"
+            ],
+            "title": "Vitamin B12 - Health Professional Fact Sheet e-lactancia.org https://www.e-lactancia.org \u203a media \u203a papers \u203a V..."
+          },
+          {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/24957908",
+            "excerpts": [
+              "Use of BNP and NT-proBNP for the diagnosis of heart failure ...\nby SA Hill \u00b7 2014 \u00b7 Cited by 190 \u2014 Both BNP and NT-proBNP perform well to rule out, but less well to rule in, the diagnosis of heart failure among persons presenting to emergency departments or"
+            ],
+            "title": "Use of BNP and NT-proBNP for the diagnosis of heart failure ..."
+          }
+        ],
+        "confidence": "medium"
+      }
+    ],
+    "type": "text",
+    "beta_fields": null,
+    "mcp_tool_calls": null,
+    "content_file": "biochem-guidelines.md"
+  }
+}
