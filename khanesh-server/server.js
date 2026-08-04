@@ -37,7 +37,7 @@ import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
 import { createAvalAIClient, safeParseJson } from "./avalaiClient.js";
 import { extractMedlineTerms, formatMedlineContext } from "./rules/medline.js";
-import { missingFindingText } from "./rules/coverage.js";
+import { missingFindingText, stripUnmeasuredClaims } from "./rules/coverage.js";
 import { createJob, reportPage, finishJob, getJob, jobView, jobCount } from "./jobStore.js";
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
@@ -1052,6 +1052,21 @@ const analyzeHandler = async (req, res) => {
     if (medlineSources.length) parsed.sources = medlineSources;
 
     // ═══ تور ایمنی ═══
+    // ادعای وضعیت دربارهٔ تستی که روی برگه نبوده (N4 / T10). عمداً *قبل* از
+    // تورهای بعدی: آن‌ها متنِ خودِ موتور را اضافه می‌کنند و آن متن نباید از
+    // این فیلتر رد شود.
+    //
+    // ⚠️ روی summary/interpretation تنها کافی نیست. این مسیر هر فیلدی را که
+    //    مدل برگردانده عیناً به کلاینت پاس می‌دهد، پس همان ادعا از فیلدی مثل
+    //    analysis/reasoning/text هم بیرون می‌زند. تا وقتی پاسخ به یک شکلِ
+    //    مشخص محدود نشده، فیلتر باید همهٔ رشته‌های سطحِ اول را ببیند.
+    if (engineOut) {
+      const measured = [...new Set(engineOut.graded.map((g) => g.test))];
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === "string") parsed[k] = stripUnmeasuredClaims(v, measured);
+      }
+    }
+
     // اگر مدل نام فیلد را اشتباه بدهد یا اصلاً ندهد، توصیه‌ها بی‌صدا گم می‌شوند.
     // این اتفاق افتاد: مدل "recommendations" داد ولی فرانت
     // "general_recommendations" می‌خواند → بخش توصیه‌ها خالی ماند.

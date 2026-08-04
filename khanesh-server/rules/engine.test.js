@@ -2252,3 +2252,46 @@ test("M37: خروجیِ موتور برای پنلِ N15 رشتهٔ خراب ن�
     assert.equal(DESTROYED_RX.test(s), false, `رشتهٔ خروجی نابود شده است: ${s.slice(0, 80)}`);
   }
 });
+
+// ---------- M39/M40: ادعای وضعیت دربارهٔ تستی که اندازه‌گیری نشده (N4 / T10) ----------
+//
+// موتور صریحاً می‌گوید «کراتینین اندازه‌گیری نشده»؛ مدل می‌نویسد «کراتینین شما
+// طبیعی است». هیچ توری در مسیر قدیمی این کلاس را نمی‌گرفت — نه پوششِ must_say
+// (که فقط چیزِ *افتاده* را برمی‌گرداند، نه چیزِ *اضافه‌شده*)، نه فیلترِ forbid
+// (که فقط به general_recommendations نگاه می‌کند).
+//
+// تطبیق از روی FA_NAMES انجام می‌شود نه regex روی نام تست: «کراتینین» باید به
+// کلیدِ CREAT برسد، همان‌طور که «هموگلوبین» به HGB. هر جای دیگری در این پروژه
+// که کلید به متن تبدیل می‌شود از faName() رد می‌شود؛ این هم برعکسِ همان است.
+//
+// دو تست، و جهتِ خطا در هر دو مهم است:
+//   M39 — ادعای کاذب باید حذف شود.
+//   M40 — ادعای درست *نباید* حذف شود. این تست اجباری است: یک فیلترِ بیش‌ازحد
+//         مشتاق، متنِ درست را هم می‌بُرد و آن خرابیِ ساکتی است که فقط با یک
+//         تستِ منفی دیده می‌شود.
+
+const UNMEASURED_MODEL_TEXT =
+  "کراتینین شما طبیعی است و کلیه‌ها مشکلی ندارند.";
+const MEASURED_MODEL_TEXT =
+  "هموگلوبین شما طبیعی است و نشانه‌ای از کم‌خونی دیده نمی‌شود.";
+
+test("M39: ادعای وضعیت دربارهٔ تستِ اندازه‌گیری‌نشده حذف می‌شود", async () => {
+  const { stripUnmeasuredClaims } = await import("./coverage.js");
+  assert.equal(typeof stripUnmeasuredClaims, "function",
+    "coverage.js باید stripUnmeasuredClaims را صادر کند");
+
+  // CK اندازه‌گیری شده، کراتینین نه — همان شکلِ فیکسچرِ T10.
+  const out = stripUnmeasuredClaims(UNMEASURED_MODEL_TEXT, ["CK"]);
+  assert.equal(/کراتینین/.test(out), false,
+    `ادعای کاذب دربارهٔ کراتینین باقی ماند: «${out}»`);
+});
+
+test("M40: ادعای وضعیت دربارهٔ تستِ اندازه‌گیری‌شده حذف نمی‌شود", async () => {
+  const { stripUnmeasuredClaims } = await import("./coverage.js");
+  assert.equal(typeof stripUnmeasuredClaims, "function",
+    "coverage.js باید stripUnmeasuredClaims را صادر کند");
+
+  const out = stripUnmeasuredClaims(MEASURED_MODEL_TEXT, ["HGB", "MCV"]);
+  assert.equal(out.trim(), MEASURED_MODEL_TEXT,
+    `جملهٔ درست دربارهٔ هموگلوبینِ اندازه‌گیری‌شده حذف شد: «${out}»`);
+});
