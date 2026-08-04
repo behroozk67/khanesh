@@ -167,6 +167,15 @@ const OCR_MAX_TOKENS = Number(process.env.OCR_MAX_TOKENS || 8000);
 // موتور قواعد: پیش‌فرض روشن. برای برگشت به روش قدیم: USE_ENGINE=false
 const USE_ENGINE = process.env.USE_ENGINE !== "false";
 
+// گرافِ ۱۰-عاملهٔ LabMat: پیش‌فرض *خاموش*، با USE_GRAPH=true روشن می‌شود.
+//
+// ⚠️ چرا خاموش: در مسیرِ گراف، متنِ بیمار از دو عاملِ LLM (patientSection و
+//    doctorSection) بیرون می‌آید که خروجی‌شان از تورهای ایمنیِ این فایل رد
+//    نمی‌شود — نه پوششِ must_sayِ اورژانسی، نه تضمینِ key_number، نه فیلترِ
+//    forbid. مسیرِ کلاسیک همهٔ این‌ها را دارد. تا وقتی گراف پشتِ همان تورها
+//    نرفته، پیش‌فرض باید مسیرِ کلاسیک باشد (N13 هم از همین‌جا آمد).
+const USE_GRAPH = process.env.USE_GRAPH === "true";
+
 // محدودیت نرخ روی /api/analyze.
 // این اندپوینت هر بار یک تا چند فراخوانِ پولیِ AvalAI می‌زند (OCR + تحلیل) و هیچ
 // احراز هویتی ندارد؛ بدون سقف، هر کسی که آدرس را پیدا کند می‌تواند حساب را خالی کند.
@@ -798,18 +807,59 @@ const analyzeHandler = async (req, res) => {
       if (bits.length) patientText = bits.join("، ") + " (از روی برگه خوانده شد)";
     }
 
-        // ---- مرحله ۲: تحلیل (با گراف ۱۰ عامله LabMat) ----
-    let engineOut = null, patternOut = null;
+    // ---- مرحله ۲: تحلیل ----
+    let raw, parsed, engineOut = null, patternOut = null;
+
+    // مسیر موتور برای هر دو ورودی: عکس (از OCR) و ورود دستی (ساختاریافته).
+    // اگر موتور هیچ‌کدام از تست‌ها را نشناخت، به مسیر قدیمی برمی‌گردیم تا
+    // کاربر به‌جای تفسیر، دست خالی نماند.
     let engineCandidate = null;
     if (USE_ENGINE && lastMergedOcr) {
       engineCandidate = runEngine(lastMergedOcr);
-      if (engineCandidate.graded.length > 0) {
-        engineOut = engineCandidate;
-        patternOut = runPatterns(engineOut);
+      if (engineCandidate.graded.length === 0) {
+        console.warn(
+          "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
+          `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
+        );
+        engineCandidate = null;
       }
     }
 
-    if (engineOut && patternOut) {
+    if (engineCandidate) {
+      engineOut = engineCandidate;
+      patternOut = runPatterns(engineOut);
+
+      console.log(
+        `موتور: ${engineOut.graded.length} تست ارزیابی شد | ` +
+        `${engineOut.abnormal.length} غیرطبیعی | ` +
+        `الگو: ${patternOut.findings.map((f) => f.rule_id).join(", ") || "هیچ"} | ` +
+        `فوریت: ${patternOut.overall_urgency}`
+      );
+      // ⚠️ تست‌هایی که موتور نمی‌شناسد نباید بی‌صدا ناپدید شوند.
+      //    مثال واقعی: Procalcitonin=12 و Lactate=6.2 (نشانگرهای سپسیس)
+      //    در NAME_MAP نبودند → از تفسیر حذف شدند و کاربر هرگز نفهمید.
+      //    حالا: در «مقادیر خوانده‌شده» هست، و صریحاً می‌گوییم تفسیر نشد.
+      if (engineOut.unmapped.length) {
+        console.warn(`موتور: نگاشت نشد → ${engineOut.unmapped.join(", ")}`);
+        ocrWarnings.push(
+          (hasImage
+            ? `این تست‌ها از برگه خوانده شدند ولی موتور تفسیرشان نمی‌کند: `
+            : `این تست‌ها را وارد کردید ولی موتور تفسیرشان نمی‌کند: `) +
+          `${engineOut.unmapped.join("، ")}. ` +
+          // ورود دستی فهرست «مقادیر خوانده‌شده» ندارد؛ فقط عکس آن فهرست را می‌سازد.
+          (hasImage
+            ? `مقادیرشان در فهرست بالا هست — حتماً با پزشک بررسی کنید.`
+            : `حتماً این مقادیر را با پزشک بررسی کنید.`)
+        );
+      }
+      if (engineOut.noRef.length) {
+        console.warn(`موتور: محدوده مرجع ندارد → ${engineOut.noRef.join(", ")}`);
+        ocrWarnings.push(
+          `برای این تست‌ها محدوده مرجع نداریم: ${engineOut.noRef.join("، ")}. ` +
+          `تفسیر نشدند.`
+        );
+      }
+
       // ⚠️ فقط وقتی «طبیعی» بگو که هیچ تست غیرطبیعی نباشد.
       //    «قاعده‌ای مطابقت نکرد» ≠ «طبیعی است».
       //    باگ واقعی: WBC=258 هیچ قاعده‌ای نداشت → «نتایج شما طبیعی است».
@@ -820,13 +870,27 @@ const analyzeHandler = async (req, res) => {
         if (ocrWarnings.length) out.ocr_warnings = ocrWarnings;
         if (pageInfo) out.pages = pageInfo;
         if (medlineSources.length) out.sources = medlineSources;
-        out._engine = { patterns: [], urgency: "none", abnormal: 0 };
+        // ⚠️ قبلاً اینجا دستی ساخته می‌شد و نه `indices` داشت نه `tests` —
+        //    یعنی پرتکرارترین مسیرِ اپ (پنلِ کاملاً طبیعی) تنها مسیری بود
+        //    که رابط کاربری هیچ داده‌ای برای رندرِ ردیف‌ها نداشت. همان
+        //    drift‌ای که کامنتِ engineDebug ادعای جلوگیری‌اش را می‌کرد.
+        out._engine = engineDebug(engineOut, patternOut);
         return res.json(out);
+      }
+
+      if (patternOut.findings.length === 0 && engineOut.abnormal.length > 0) {
+        // فقط نامِ تست، بی مقدار: برای پیدا کردن شکافِ patterns.js همین کافی است،
+        // و مقدارِ بالینیِ بیمار در لاگ سرور نمی‌نشیند.
+        console.warn(
+          `⚠️ ${engineOut.abnormal.length} تست غیرطبیعی ولی هیچ قاعده‌ای مطابقت نکرد: ` +
+          engineOut.abnormal.map((a) => a.test).join(", ")
+        );
       }
     }
 
+    if (USE_GRAPH) {
     const { app: labmatGraph } = await import("./labmat-agents/graph.js");
-    
+
     console.log("[LabMat API] Starting 10-Agent Graph with Rules Engine Data...");
     
     // حذف نوت‌های داخلی موتور قواعد قبل از ارسال به LLM
@@ -852,11 +916,11 @@ const analyzeHandler = async (req, res) => {
     console.log("[LabMat API] Graph execution finished.");
 
     // Map LabMat output to a format the frontend can use, but also keep OCR context
-    const parsed = {
+    parsed = {
       labmat: finalState.finalOutput,
       loops: finalState.loopCount
     };
-    
+
     if (extractedTests.length) parsed.extracted_tests = extractedTests;
     if (ocrWarnings.length) parsed.ocr_warnings = ocrWarnings;
     if (pageInfo) parsed.pages = pageInfo;
@@ -917,6 +981,151 @@ const analyzeHandler = async (req, res) => {
 
     // خروجی موتور — برای دیباگ و شفافیت
     if (engineOut && patternOut) {
+      parsed._engine = engineDebug(engineOut, patternOut);
+      // فوریت را موتور تعیین می‌کند، نه مدل
+      parsed.has_critical = patternOut.has_critical;
+    }
+
+    return res.json(parsed);
+    }
+    // ═══ پایانِ مسیرِ گراف ═══
+
+    if (engineCandidate) {
+      // ═══ مسیر موتور ═══
+      raw = await callAvalAI({
+        model: TEXT_MODEL,
+        maxTokens: 2000,
+        // کارِ این فراخوان بازنویسیِ یافته‌های موتور به فارسی است، نه قضاوت —
+        // پس دمای صفر. مسیر قدیم عمداً روی ۰.۲ می‌ماند چون خودش قضاوت می‌کند.
+        temperature: 0,
+        messages: [
+          { role: "system", content: ENGINE_SYSTEM_PROMPT },
+          // ورود دستی بارداری/بیماری زمینه‌ای را در patient می‌فرستد؛ فقط زمینهٔ لحن،
+          // نه ورودیِ گرید. مسیر عکس این‌ها را ندارد و null می‌ماند.
+          buildEnginePrompt(engineOut, patternOut, medlineContext, patient),
+        ],
+      });
+    } else {
+      // ═══ مسیر قدیم — ورودی متنی یا USE_ENGINE=false ═══
+      raw = await callAvalAI({
+        model: TEXT_MODEL,
+        maxTokens: 2500,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          buildAnalysisMessage(patientText, finalText, medlineContext, hasImage),
+        ],
+      });
+    }
+
+    parsed = safeParseJson(raw);
+    if (!parsed) {
+      // ⚠️ در «مسیر موتور» یافته‌ها (از جمله اورژانس‌ها) قبلاً قطعی محاسبه شده‌اند.
+      //    اگر خروجی مدل خراب باشد نباید has_critical/توصیه‌ها دور ریخته شوند.
+      //    یک نتیجهٔ قطعی مستقیم از موتور می‌سازیم؛ فقط مسیر متنی legacy به raw سقوط می‌کند.
+      if (patternOut && engineOut) {
+        console.warn("⚠️ JSON مدل نامعتبر — نتیجه از خروجی قطعی موتور ساخته شد");
+        const fb = buildEngineFallbackResult(engineOut, patternOut);
+        if (extractedTests.length) fb.extracted_tests = extractedTests;
+        if (ocrWarnings.length) fb.ocr_warnings = ocrWarnings;
+        if (pageInfo) fb.pages = pageInfo;
+        if (medlineSources.length) fb.sources = medlineSources;
+        fb.parseErrorRecovered = true;
+        fb._engine = engineDebug(engineOut, patternOut);
+        return res.status(200).json(fb);
+      }
+      return res.status(200).json({
+        raw,
+        parseError: true,
+        extracted_tests: extractedTests,
+        ocr_warnings: ocrWarnings,
+        pages: pageInfo,
+        sources: medlineSources,
+      });
+    }
+
+    // فهرست تست‌ها را خودمان می‌گذاریم، نه مدل
+    if (extractedTests.length) parsed.extracted_tests = extractedTests;
+    if (ocrWarnings.length) parsed.ocr_warnings = ocrWarnings;
+    if (pageInfo) parsed.pages = pageInfo;
+    // لینک‌های MedlinePlus قبلاً ساخته و دور ریخته می‌شدند.
+    // نشان دادنشان هم شفافیت است هم اعتبار پاسخ را بالا می‌برد.
+    if (medlineSources.length) parsed.sources = medlineSources;
+
+    // ═══ تور ایمنی ═══
+    // اگر مدل نام فیلد را اشتباه بدهد یا اصلاً ندهد، توصیه‌ها بی‌صدا گم می‌شوند.
+    // این اتفاق افتاد: مدل "recommendations" داد ولی فرانت
+    // "general_recommendations" می‌خواند → بخش توصیه‌ها خالی ماند.
+    // موتور خودش لیست را دارد، پس اگر مدل جا انداخت، از موتور پرش می‌کنیم.
+    if (patternOut && patternOut.findings.length) {
+      const recs = parsed.general_recommendations ?? parsed.recommendations;
+      const chosen = (!Array.isArray(recs) || recs.length === 0)
+        ? (console.warn("مدل general_recommendations نداد — از موتور ساخته شد"),
+           buildEngineRecommendations(patternOut, engineOut))
+        : recs;
+      // حذف تکراری‌ها: دو finding ممکن است یک آزمایش را پیشنهاد دهند (مثلاً
+      // کم‌خونی + همولیز هر دو «بیلی‌روبین»)، یا مدل یک سطر را دوبار بنویسد.
+      // ⚠️ تمیزکاری باید روی فهرستِ مدل هم اجرا شود نه فقط مسیرِ موتور: مدل
+      //    همان یافته‌ها را می‌بیند و همان «نوبت عادی…»های نزدیک‌به‌هم را بازتولید
+      //    می‌کند. اینجا فقط new Set بود، پس تکرارِ نزدیک رد می‌شد.
+      parsed.general_recommendations = tidyRecommendations(chosen);
+      delete parsed.recommendations;
+
+      // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
+      //
+      // 🔴 باگ واقعی (با فراخوانیِ زندهٔ gpt-4o-mini تأیید شد): قبلاً حضور را با
+      //    «زیررشتهٔ عینیِ headline یا کلِ must_say» می‌سنجیدیم. مدل یافتهٔ
+      //    رابدومیولیز (۱۰ جمله) را خلاصه نوشت → تطبیقِ عینی شکست خورد → کلِ
+      //    بلوک دوباره append شد و بیمار توضیح را دو بار دید. هرچه must_say
+      //    غنی‌تر، کپیِ کلمه‌به‌کلمه بعیدتر؛ یعنی این تور با هدفِ «تفسیر حرفه‌ای»
+      //    در تضاد بود. حالا جمله‌به‌جمله سنجیده می‌شود (rules/coverage.js) و
+      //    فقط جمله‌های واقعاً افتاده برمی‌گردند.
+      const emerg = patternOut.findings.filter((f) => f.urgency === "emergency");
+      if (emerg.length) {
+        const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;
+        const additions = emerg
+          .map((f) => missingFindingText(f, text))
+          .filter(Boolean);
+        if (additions.length) {
+          console.warn(`⚠️ ${additions.length} یافتهٔ اورژانسی ناقص منتقل شد — بخشِ افتاده اضافه شد`);
+          parsed.interpretation =
+            (parsed.interpretation || "") + "\n\n" + additions.join(" ");
+        }
+      }
+
+      // ── تضمین اعدادِ کلیدیِ بزرگی (eGFR، میانگین قند/eAG، آنیون‌گپ) ──
+      // مدل ارزان گاهی جملهٔ حاویِ یک عددِ مشتق‌شده را حذف می‌کند — مثلاً eGFR را
+      // «تکراری با کراتینین» می‌بیند و می‌اندازد. این اعداد بخشِ حرفه‌ایِ تشخیص‌اند
+      // (بزرگیِ اختلال) و نباید گم شوند. اگر عددِ key_number در متن نبود، جملهٔ اولِ
+      // must_say (که همان عدد را دارد) به ابتدای تفسیر برمی‌گردد.
+      const toLatinDigits = (s) =>
+        String(s).replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+      const interpText = toLatinDigits(`${parsed.summary || ""} ${parsed.interpretation || ""}`);
+      const missingFacts = [];
+      for (const f of patternOut.findings) {
+        if (f.key_number == null) continue;
+        if (interpText.includes(toLatinDigits(f.key_number))) continue;
+        const sent = String(f.must_say || "").split(/(?<=[.؟!])\s/)[0].trim();
+        if (sent && !missingFacts.includes(sent)) missingFacts.push(sent);
+      }
+      if (missingFacts.length) {
+        console.warn(`⚠️ ${missingFacts.length} عددِ کلیدی در متن مدل نبود — به تفسیر اضافه شد`);
+        parsed.interpretation = `${missingFacts.join(" ")} ${parsed.interpretation || ""}`.trim();
+      }
+
+      // تست ممنوع اگر از دست مدل در رفت
+      const forbidden = patternOut.findings.flatMap((f) => f.forbid ?? []);
+      if (forbidden.length) {
+        const before = parsed.general_recommendations.length;
+        parsed.general_recommendations = parsed.general_recommendations.filter(
+          (r) => !forbidden.some((w) => String(r).includes(w))
+        );
+        const dropped = before - parsed.general_recommendations.length;
+        if (dropped) console.warn(`${dropped} توصیه حذف شد — تست ممنوع برای این الگو`);
+      }
+    }
+
+    // خروجی موتور — برای دیباگ و شفافیت
+    if (patternOut) {
       parsed._engine = engineDebug(engineOut, patternOut);
       // فوریت را موتور تعیین می‌کند، نه مدل
       parsed.has_critical = patternOut.has_critical;
@@ -1064,6 +1273,7 @@ app.get("/health", (_req, res) =>
     // اگر این اعداد بالا رفت، سقف توکن کم است.
     // قبل از بالا بردن maxTokens اول اینجا را ببین.
     engine: USE_ENGINE ? "on" : "off",
+    graph: USE_GRAPH ? "on" : "off",
     ocrMaxTokens: OCR_MAX_TOKENS,
     truncations: avalai.truncations,
     rateLimit: `${RATE_LIMIT_MAX}/${RATE_LIMIT_WINDOW_MIN}min`,
@@ -1085,6 +1295,7 @@ app.listen(PORT, () => {
   console.log(`مدل متن: ${TEXT_MODEL} | مدل بینایی: ${VISION_MODEL} | مهلت: ${AI_TIMEOUT_MS}ms`);
   console.log(`آپلود چند عکس: تا ${MAX_IMAGES} عکس | همزمانی ${IMAGE_CONCURRENCY} | ${OCR_RETRIES} تلاش مجدد`);
   console.log(`موتور قواعد: ${USE_ENGINE ? "روشن (Henry + RCPCH + CTCAE v5)" : "خاموش"}`);
+  console.log(`گراف ۱۰-عامله: ${USE_GRAPH ? "روشن (USE_GRAPH=true)" : "خاموش — مسیر کلاسیک"}`);
   console.log(`سقف توکن OCR: ${OCR_MAX_TOKENS}`);
   console.log(`محدودیت نرخ: ${RATE_LIMIT_MAX} درخواست در ${RATE_LIMIT_WINDOW_MIN} دقیقه`);
   if (ALLOWED_ORIGINS.length === 0) {
