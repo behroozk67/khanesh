@@ -241,7 +241,12 @@ export function classify(testKey, value, lln, uln) {
         }
     }
 
-    if (value <= limit) {
+    // مرزِ پایینِ بازهٔ مرجع «طبیعی» است، نه غیرطبیعی: بازهٔ [lln, uln] هر دو سر را شامل می‌شود.
+    // پس بند lln باید اکیداً کوچک‌تر باشد (MCV=80 نرموسیتیک است، نه میکروسیتیک)، در حالی که
+    // بند uln شامل خودِ مرز است (MCV=100 نرموسیتیک است). قبلاً هر دو <= بودند و مرزِ پایین
+    // برخلافِ refs.js غیرطبیعی علامت می‌خورد.
+    const hit = b.max === 'lln' ? value < limit : value <= limit;
+    if (hit) {
       return {
         kind: 'classifier',
         tag: b.tag,

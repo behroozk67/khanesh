@@ -285,7 +285,7 @@ test("R6: سدیم ۱۲۸ با قند ۶۰۰ تصحیح می‌شود و هیپ�
 });
 
 // ---------- R7: رتیکولوسیت در کم‌خونی نورموسیتیک ----------
-test.skip("R7: کم‌خونی نورموسیتیک با رتیکولوسیت بالا به همولیز/خونریزی اشاره می‌کند", () => {
+test("R7: کم‌خونی نورموسیتیک با رتیکولوسیت بالا به همولیز/خونریزی اشاره می‌کند", () => {
   const e = runEngine({
     patient: { age: 30, sex: "F" },
     tests: [{ name: "Hemoglobin", value: "10" }, { name: "MCV", value: "90" }, { name: "Retic", value: "3.0" }],
@@ -394,7 +394,7 @@ test("U1: پروتئین/خون ادرار حالا الگوهای ادرار ر
 // فوریت this_week می‌داند — در UI به‌صورت «موارد بحرانی، مراجعه فوری» نشان داده شد.
 test("M1: پنل فقر آهنِ ورود دستی، فوریت this_week می‌دهد نه بحرانی", () => {
   const e = runEngine({
-    patient: { age: "30 سال", sex: "زن" },
+    patient: { conditions: ['سرطان'], age: "30 سال", sex: "زن" },
     tests: [
       { name: "Ferritin", value: 5, unit: "ng/mL" },
       { name: "Iron", value: 28, unit: "µg/dL" },
@@ -760,7 +760,7 @@ test("M14: دیابتِ قطعی eAG را به‌عنوان key_number می‌آ
 // باگ واقعی: روی برگهٔ واقعی D-dimer خوانده و به‌عنوان «خارج از محدوده» علامت
 // می‌خورد، ولی چون binary است و هیچ الگویی به آن اشاره نمی‌کرد، هیچ finding
 // تولید نمی‌شد → «خوانده شد ولی تفسیر نداد». حالا قاعدهٔ اختصاصی دارد.
-test.skip("M15: D-dimerِ بالای تنها یافتهٔ this_week می‌سازد، نه سکوت", () => {
+test("M15: D-dimerِ بالای تنها یافتهٔ this_week می‌سازد، نه سکوت", () => {
   const e = runEngine({ tests: [{ name: "D-Dimer", value: 600 }] });   // نرمال 0–500 ng/mL (FEU)
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "d_dimer_elevated");
@@ -770,7 +770,7 @@ test.skip("M15: D-dimerِ بالای تنها یافتهٔ this_week می‌سا
   assert.ok(f.warnings.some((w) => /اورژانس/.test(w)), "باید هشدار علائم لخته بدهد");
 });
 
-test.skip("M15: D-dimerِ نرمال هیچ یافتهٔ D-dimer نمی‌سازد", () => {
+test("M15: D-dimerِ نرمال هیچ یافتهٔ D-dimer نمی‌سازد", () => {
   const e = runEngine({ tests: [{ name: "D-Dimer", value: 100 }] });
   const p = runPatterns(e);
   assert.ok(!p.findings.some((x) => x.pattern === "d_dimer_elevated"), "D-dimer نرمال نباید یافته بسازد");
@@ -792,7 +792,7 @@ test("M15: DIC با تریگر ISTH (D-dimer شدید + PLT پایین + PT با
 });
 
 // اختصاصی بودن: D-dimerِ شدید ولی پلاکت نرمال نباید اورژانسِ DIC کاذب بسازد.
-test.skip("M15: D-dimerِ شدید با پلاکت نرمال، DIC کاذب نمی‌سازد", () => {
+test("M15: D-dimerِ شدید با پلاکت نرمال، DIC کاذب نمی‌سازد", () => {
   const e = runEngine({ tests: [{ name: "PLT", value: 250 }, { name: "D-Dimer", value: 5000 }] });
   const p = runPatterns(e);
   assert.ok(!p.findings.some((x) => x.pattern === "possible_DIC"), "بدون پلاکت پایین نباید DIC شود");
@@ -802,14 +802,14 @@ test.skip("M15: D-dimerِ شدید با پلاکت نرمال، DIC کاذب ن�
 
 // واحد: برگه‌های ایرانی اغلب D-dimer را mg/L / µg/mL FEU می‌دهند. بدون تبدیل،
 // «۱.۵ mg/L» (= ۱۵۰۰ ng/mL، واضحاً بالا) با محدودهٔ ng/mL «نرمال» گزارش می‌شد.
-test.skip("M15: D-dimerِ mg/L به ng/mL تبدیل می‌شود (۱.۵ mg/L → بالا، نه نرمالِ کاذب)", () => {
+test("M15: D-dimerِ mg/L به ng/mL تبدیل می‌شود (۱.۵ mg/L → بالا، نه نرمالِ کاذب)", () => {
   const e = runEngine({ tests: [{ name: "D-Dimer", value: 1.5, unit: "mg/L" }] });
   const g = e.graded.find((x) => x.test === "DDIMER");
   assert.equal(g.value, 1500, "۱.۵ mg/L باید ۱۵۰۰ ng/mL شود");
   assert.ok(g.abnormal && g.dir === "high", "باید «بالا» باشد، نه نرمال");
 });
 
-test.skip("M15: D-dimerِ µg/mL هم تبدیل می‌شود و بدون واحد با بزرگیِ عدد حدس زده می‌شود", () => {
+test("M15: D-dimerِ µg/mL هم تبدیل می‌شود و بدون واحد با بزرگیِ عدد حدس زده می‌شود", () => {
   const mgml = runEngine({ tests: [{ name: "D-Dimer", value: 2, unit: "µg/mL" }] });
   assert.equal(mgml.graded.find((x) => x.test === "DDIMER").value, 2000);
   // بدون واحد، عددِ کوچک ≈ mg/L → ×۱۰۰۰
@@ -821,7 +821,7 @@ test.skip("M15: D-dimerِ µg/mL هم تبدیل می‌شود و بدون وا�
 
 // always_show: زیر یک اورژانسِ blocks_others (پان‌سیتوپنی)، دی‌دایمر کاملاً پنهان
 // نمی‌شود بلکه نسخهٔ کوتاهش نمایش داده می‌شود؛ فوریت کلی همچنان emergency می‌ماند.
-test.skip("M15: D-dimer زیر اورژانس با نسخهٔ کوتاه نمایش داده می‌شود، نه پنهان", () => {
+test("M15: D-dimer زیر اورژانس با نسخهٔ کوتاه نمایش داده می‌شود، نه پنهان", () => {
   const e = runEngine({ tests: [
     { name: "WBC", value: 2.0 }, { name: "Hemoglobin", value: 7 }, { name: "PLT", value: 40 },
     { name: "D-Dimer", value: 600 },
@@ -838,7 +838,7 @@ test.skip("M15: D-dimer زیر اورژانس با نسخهٔ کوتاه نما�
 // باگ واقعی: کم‌خونی/چربی/الکترولیت فقط می‌گفتند «بالا/پایین» بدون آوردن عددِ
 // خودِ بیمار و محدودهٔ مرجع — تفسیرِ «ابتدایی». حالا مقدار و بستر عددی می‌آید.
 
-test.skip("M16: کم‌خونی میکروسیتیک مقدار Hb و MCV و شدت را می‌آورد + key_number", () => {
+test("M16: کم‌خونی میکروسیتیک مقدار Hb و MCV و شدت را می‌آورد + key_number", () => {
   const e = runEngine({ patient: { age: 30, sex: "F" },
     tests: [{ name: "Hemoglobin", value: 9 }, { name: "MCV", value: 70 }, { name: "RBC", value: 4 }] });
   const p = runPatterns(e);
@@ -1222,7 +1222,7 @@ test("M26: رابدومیولیز عددِ CK + محدوده + key_number می�
     "باید از مسکّنِ ضدالتهاب (فشار بر کلیه) پرهیز بدهد");
 });
 
-test.skip("M26: با پتاسیمِ بالا، عددِ پتاسیم و پرچمِ آریتمی در متن می‌آید", () => {
+test("M26: با پتاسیمِ بالا، عددِ پتاسیم و پرچمِ آریتمی در متن می‌آید", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
             { name: "Potassium", value: 6.4 }] });
@@ -1236,7 +1236,7 @@ test.skip("M26: با پتاسیمِ بالا، عددِ پتاسیم و پرچم
   assert.ok(f.suggest.some((s) => /^تکرار/.test(s)), "پایشِ سریالی باید با قالبِ «تکرار» بیاید");
 });
 
-test.skip("M26: با کراتینینِ طبیعی، ادعای درگیریِ کلیه نمی‌کند ولی هشدارِ تأخیر می‌دهد", () => {
+test("M26: با کراتینینِ طبیعی، ادعای درگیریِ کلیه نمی‌کند ولی هشدارِ تأخیر می‌دهد", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 6000 }, { name: "Urine Blood", value: "+2" },
             { name: "Creatinine", value: 0.9 }] });
@@ -1251,7 +1251,7 @@ test.skip("M26: با کراتینینِ طبیعی، ادعای درگیریِ �
 // ── M26: نتیجهٔ اندازه‌گیری‌نشده نباید «طبیعی» اعلام شود ──
 // 🔴 باگ واقعی: شرطِ «!crHigh» هر سه حالتِ طبیعی/پایین/غایب را یکی می‌گرفت و
 //    روی برگهٔ بدونِ کراتینین می‌گفت «شاخص کلیه هنوز طبیعی است» — ساختنِ نتیجه.
-test.skip("M26: بدونِ کراتینین روی برگه، نباید بگوید کراتینین طبیعی است", () => {
+test("M26: بدونِ کراتینین روی برگه، نباید بگوید کراتینین طبیعی است", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 8200 }, { name: "Urine Blood", value: "+2" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
@@ -1262,7 +1262,7 @@ test.skip("M26: بدونِ کراتینین روی برگه، نباید بگو�
     "باید صریح بگوید کراتینین روی برگه نیست و بررسی‌اش فوری است");
 });
 
-test.skip("M26: کراتینینِ پایین هم «طبیعی» اعلام نمی‌شود", () => {
+test("M26: کراتینینِ پایین هم «طبیعی» اعلام نمی‌شود", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 8200 }, { name: "Urine Blood", value: "+2" },
             { name: "Creatinine", value: 0.35 }] });
@@ -1273,7 +1273,7 @@ test.skip("M26: کراتینینِ پایین هم «طبیعی» اعلام ن�
 });
 
 // ── M26: پتاسیمِ خفیف نباید «فوری‌ترین بخش» خوانده شود (آستانهٔ ۶.۰) ──
-test.skip("M26: پتاسیمِ ۵.۱ «فوری‌ترین بخش» نیست ولی ۶.۴ هست", () => {
+test("M26: پتاسیمِ ۵.۱ «فوری‌ترین بخش» نیست ولی ۶.۴ هست", () => {
   const mild = runPatterns(runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 2000 }, { name: "Urine Blood", value: "+2" },
             { name: "Potassium", value: 5.1 }] })).findings
@@ -1293,7 +1293,7 @@ test.skip("M26: پتاسیمِ ۵.۱ «فوری‌ترین بخش» نیست و�
 // کلسیمِ e.graded با آلبومین تصحیح شده؛ چاپِ خامِ آن عددی را نشان می‌داد که
 // روی برگهٔ بیمار وجود ندارد (۷.۳ در برابرِ ۶.۲) و قاعدهٔ calcium_abnormal که
 // توضیحِ تصحیح را دارد، زیرِ این یافتهٔ اورژانسی سرکوب می‌شود.
-test.skip("M26: کلسیمِ پایین بدونِ عددِ تصحیح‌شده گفته می‌شود + هشدارِ مکملِ خودسرانه", () => {
+test("M26: کلسیمِ پایین بدونِ عددِ تصحیح‌شده گفته می‌شود + هشدارِ مکملِ خودسرانه", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
             { name: "Calcium", value: 6.2 }, { name: "Albumin", value: 2.6 }] });
@@ -1352,7 +1352,7 @@ test("M29: parseTitre شکل‌های واقعیِ برگه را می‌فهمد
   assert.notEqual(parseTitre("1/160"), 1160);
 });
 
-test.skip("M29: رایت ۱/۳۲۰ + 2ME ۱/۸۰ → تب مالتِ فعال (نه «نتایج طبیعی است»)", () => {
+test("M29: رایت ۱/۳۲۰ + 2ME ۱/۸۰ → تب مالتِ فعال (نه «نتایج طبیعی است»)", () => {
   const e = runEngine({ patient: { age: 35, sex: "M" },
     tests: [{ name: "Wright", value: "1/320" }, { name: "2ME", value: "1/80" }] });
   assert.deepEqual(e.unmapped, [], "هیچ‌کدام نباید unmapped بمانند");
@@ -1365,7 +1365,7 @@ test.skip("M29: رایت ۱/۳۲۰ + 2ME ۱/۸۰ → تب مالتِ فعال (�
   assert.ok(/چهاربرابری/.test(f.must_say), "باید بگوید تیترِ منفرد کافی نیست");
 });
 
-test.skip("M29: رایتِ زیرِ آستانه + کومبسِ مثبت هم تب مالتِ فعال است (آنتی‌بادی بلوک‌کننده)", () => {
+test("M29: رایتِ زیرِ آستانه + کومبسِ مثبت هم تب مالتِ فعال است (آنتی‌بادی بلوک‌کننده)", () => {
   const e = runEngine({ patient: { age: 35, sex: "M" },
     tests: [{ name: "Wright", value: "1/40" }, { name: "Coombs Wright", value: "1/160" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "brucella_active");
@@ -1413,7 +1413,7 @@ test("M29: CRP و RFِ عددی دیگر به qual نمی‌افتند (هم‌�
   assert.deepEqual(e.qual, {}, "هیچ‌کدام نباید کیفی بمانند");
 });
 
-test.skip("M29: RFِ کیفیِ «RA factor: Positive» تطبیق می‌خورد و ادعای روماتیسم نمی‌کند", () => {
+test("M29: RFِ کیفیِ «RA factor: Positive» تطبیق می‌خورد و ادعای روماتیسم نمی‌کند", () => {
   const e = runEngine({ patient: { age: 60, sex: "F" },
     tests: [{ name: "RA factor", value: "Positive" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rf_positive");
@@ -1449,7 +1449,7 @@ test("M30: توصیه‌های هم‌سرآغاز ادغام می‌شوند ب
   assert.ok(/باردار/.test(out[0]), "جزئیاتِ دوم هم نباید گم شود");
 });
 
-test.skip("M30: پیشنهادِ زیرمجموعه حذف می‌شود («پنل کامل آهن» ⊃ «آهن سرم»)", () => {
+test("M30: پیشنهادِ زیرمجموعه حذف می‌شود («پنل کامل آهن» ⊃ «آهن سرم»)", () => {
   const e = runEngine({ patient: { age: 32, sex: "F" },
     tests: [{ name: "Hemoglobin", value: 8.1 }, { name: "MCV", value: 68 },
             { name: "Ferritin", value: 6 }] });
@@ -1497,7 +1497,7 @@ test("M31: هر شکلی از ESR به ESR نگاشت می‌شود", () => {
   }
 });
 
-test.skip("M31: ESRِ بالا تفسیر می‌گیرد، نه «توضیح آماده‌ای نداریم»", () => {
+test("M31: ESRِ بالا تفسیر می‌گیرد، نه «توضیح آماده‌ای نداریم»", () => {
   const e = runEngine({ patient: { age: 32, sex: "F" },
     tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "13.2" }] });
   const fs = runPatterns(e).findings;
@@ -1509,7 +1509,7 @@ test.skip("M31: ESRِ بالا تفسیر می‌گیرد، نه «توضیح آ
   assert.ok(f.must_say.includes("85") && /0–20|0-20/.test(f.must_say), "عدد + محدوده");
 });
 
-test.skip("M31: در بیمارِ کم‌خون، نکتهٔ «کم‌خونی خودش ESR را بالا می‌برد» گفته می‌شود", () => {
+test("M31: در بیمارِ کم‌خون، نکتهٔ «کم‌خونی خودش ESR را بالا می‌برد» گفته می‌شود", () => {
   const anemic = runPatterns(runEngine({ patient: { age: 32, sex: "F" },
     tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "7.4" },
             { name: "M.C.V", value: "74.1" }] })).findings
@@ -1524,7 +1524,7 @@ test.skip("M31: در بیمارِ کم‌خون، نکتهٔ «کم‌خونی �
     "بدون کم‌خونی نباید این نکته بیاید (هشدارِ کاذب)");
 });
 
-test.skip("M31: ESR بالای ۱۰۰ فوریتِ بالاتر و پرچمِ علائم می‌گیرد", () => {
+test("M31: ESR بالای ۱۰۰ فوریتِ بالاتر و پرچمِ علائم می‌گیرد", () => {
   const f = runPatterns(runEngine({ patient: { age: 32, sex: "F" },
     tests: [{ name: "ESR", value: "120" }] })).findings
     .find((x) => x.pattern === "esr_elevated");
@@ -1557,7 +1557,7 @@ test("M28: واحدِ استاندارد دست‌نخورده می‌ماند (
   assert.equal(e.graded.find((g) => g.test === "RBC").value, 4.8);
 });
 
-test.skip("M28: اورژانسِ واقعی در هر دو واحد حفظ می‌شود", () => {
+test("M28: اورژانسِ واقعی در هر دو واحد حفظ می‌شود", () => {
   // لوسمی: چه 258 (K/µL) چه 258000 (خام)
   for (const v of [258, 258000]) {
     const e = runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name: "WBC", value: v }] });
@@ -1597,7 +1597,7 @@ const MODEL_TEXT_RHABDO =
   "کلسیم شما هم پایین است، که در این وضعیت شایع و قابل‌انتظار است. " +
   "این وضعیت نیاز به رسیدگی فوری دارد.";
 
-test.skip("M27: جمله‌ای که مدل بازنویسی کرده دوباره append نمی‌شود", () => {
+test("M27: جمله‌ای که مدل بازنویسی کرده دوباره append نمی‌شود", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
             { name: "Potassium", value: 6.4 }, { name: "Creatinine", value: 2.4 },
@@ -1620,7 +1620,7 @@ test.skip("M27: جمله‌ای که مدل بازنویسی کرده دوبار
     "نکتهٔ اوجِ ۲۴–۷۲ ساعت را مدل انداخته بود — باید برگردد");
 });
 
-test.skip("M27: وقتی مدل یافته را کامل انداخته، سرتیتر + کلِ متن برمی‌گردد", () => {
+test("M27: وقتی مدل یافته را کامل انداخته، سرتیتر + کلِ متن برمی‌گردد", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
@@ -1629,7 +1629,7 @@ test.skip("M27: وقتی مدل یافته را کامل انداخته، سرت
   assert.ok(added.includes("میوگلوبین"), "کلِ must_say باید برگردد");
 });
 
-test.skip("M27: متنِ عیناً کپی‌شده هیچ افزوده‌ای تولید نمی‌کند", () => {
+test("M27: متنِ عیناً کپی‌شده هیچ افزوده‌ای تولید نمی‌کند", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
@@ -1648,7 +1648,7 @@ test("M27: نرمال‌سازی — ارقام فارسی و نیم‌فاصل�
 });
 
 // ── M26: eGFR در آسیبِ حاد نباید نقل شود (CKD-EPI کراتینینِ پایدار می‌خواهد) ──
-test.skip("M26: در رابدومیولیز عددِ eGFR در متن نمی‌آید", () => {
+test("M26: در رابدومیولیز عددِ eGFR در متن نمی‌آید", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
             { name: "Creatinine", value: 2.4 }] });
@@ -1720,7 +1720,7 @@ test("M33: سرتیتر نامِ بیماری را فاش نمی‌کند؛ در
   assert.ok(!/HIV|ایدز/i.test(hiv.must_say), "متنِ HIV عمداً نام بیماری را نمی‌برد");
 });
 
-test.skip("M33: غربالگریِ واکنش‌گر this_week است، نه اورژانس، و بقیه را نمی‌پوشاند", () => {
+test("M33: غربالگریِ واکنش‌گر this_week است، نه اورژانس، و بقیه را نمی‌پوشاند", () => {
   for (const [name, value] of [["HCV Ab", "Reactive"], ["HBsAg", "Positive"], ["HIV Ab", "Reactive"]]) {
     const f = serologyRule(name, value)[0];
     assert.equal(f.urgency, "this_week", `${name}: غربالگری اورژانس نیست (وحشت‌آفرین است)`);
@@ -1736,7 +1736,7 @@ test.skip("M33: غربالگریِ واکنش‌گر this_week است، نه ا�
 // کردنِ رفتارِ فعلی است تا تغییرِ بعدی بی‌صدا آن را نشکند. با M-هایی که
 // N10 توصیف می‌کند (باید روی کدِ قبل بشکنند) اشتباه گرفته نشوند.
 // ═══════════════════════════════════════════════════════════
-test.skip("پوشش/قلبی: تروپونینِ مثبت (کیفی و عددی) اورژانس است و بقیه را می‌پوشاند", () => {
+test("پوشش/قلبی: تروپونینِ مثبت (کیفی و عددی) اورژانس است و بقیه را می‌پوشاند", () => {
   for (const t of [{ name: "Troponin I", value: "Positive" }, { name: "hs-cTnI", value: 2.5 }]) {
     const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" }, tests: [t] }));
     const f = p.findings.find((x) => x.rule_id === "troponin_positive");
@@ -1749,7 +1749,7 @@ test.skip("پوشش/قلبی: تروپونینِ مثبت (کیفی و عددی)
   }
 });
 
-test.skip("پوشش/قلبی: CK-MB بالا this_week است و تروپونین را پیشنهاد می‌دهد", () => {
+test("پوشش/قلبی: CK-MB بالا this_week است و تروپونین را پیشنهاد می‌دهد", () => {
   const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "CK-MB", value: 45 }] }));
   const f = p.findings.find((x) => x.rule_id === "ckmb_high");
   assert.ok(f, "CK-MB بالا باید قاعده داشته باشد، نه unmatched_abnormal");
@@ -1764,7 +1764,7 @@ test.skip("پوشش/قلبی: CK-MB بالا this_week است و تروپونی�
   assert.ok(/CK کل شما هم بالاست/.test(withCk.must_say), "باید به منشأ عضلانی اشاره کند");
 });
 
-test.skip("پوشش/قلبی: با تروپونینِ مثبت، CK-MB زیرِ اورژانس می‌رود", () => {
+test("پوشش/قلبی: با تروپونینِ مثبت، CK-MB زیرِ اورژانس می‌رود", () => {
   const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" },
     tests: [{ name: "Troponin I", value: "Positive" }, { name: "CK-MB", value: 45 }] }));
   assert.deepEqual(p.findings.map((f) => f.rule_id), ["troponin_positive"],
@@ -1933,7 +1933,7 @@ test("G1b: بدونِ واحدِ صریحِ SI هیچ تبدیلی انجام ن
 });
 
 // ---------- G2: WHO — فریتینِ «طبیعی» که التهاب پنهانش کرده ----------
-test.skip("G2: فریتین ۴۵ با CRP بالا، کمبودِ آهن را مطرح می‌کند نه سکوت", () => {
+test("G2: فریتین ۴۵ با CRP بالا، کمبودِ آهن را مطرح می‌کند نه سکوت", () => {
   const e = runEngine({
     tests: [
       { name: "Ferritin", value: "45", unit: "ng/mL" },
@@ -1950,7 +1950,7 @@ test.skip("G2: فریتین ۴۵ با CRP بالا، کمبودِ آهن را م
   assert.ok(f.sources.includes("WHO_FERRITIN"), "منبع باید ثبت شود");
 });
 
-test.skip("G2: فریتین ۴۵ بدونِ التهاب همچنان طبیعی است", () => {
+test("G2: فریتین ۴۵ بدونِ التهاب همچنان طبیعی است", () => {
   // آستانهٔ ۷۰ فقط در التهاب معنا دارد؛ وگرنه هر فریتینِ متوسطی آلارم می‌شد.
   const e = runEngine({
     tests: [
@@ -1982,7 +1982,7 @@ test("G3: هیپرکالمیِ غیرشدید هشدارِ همولیزِ نمو
   assert.ok(k.sources.includes("CLSI"));
 });
 
-test.skip("G3: پتاسیمِ خطرناک با «شاید همولیز بوده» رقیق نمی‌شود", () => {
+test("G3: پتاسیمِ خطرناک با «شاید همولیز بوده» رقیق نمی‌شود", () => {
   const e = runEngine({
     tests: [{ name: "Potassium", value: "7.1", unit: "mEq/L" }, { name: "Age", value: "40" }],
   });
@@ -1997,7 +1997,7 @@ test.skip("G3: پتاسیمِ خطرناک با «شاید همولیز بوده
 });
 
 // ---------- G4: CLSI — پلاکتِ کاذب‌پایینِ EDTA ----------
-test.skip("G4: پلاکتِ پایینِ منفرد، احتمالِ لختهٔ EDTA را ذکر می‌کند", () => {
+test("G4: پلاکتِ پایینِ منفرد، احتمالِ لختهٔ EDTA را ذکر می‌کند", () => {
   const e = runEngine({
     tests: [
       { name: "PLT", value: "95", unit: "K/uL" },
@@ -2014,7 +2014,7 @@ test.skip("G4: پلاکتِ پایینِ منفرد، احتمالِ لختهٔ 
 });
 
 // ---------- G5: EFLM — RCV و شاخصِ فردیت ----------
-test.skip("G5: RCVِ کراتینین عددِ معناداری می‌دهد و در متنِ کلیه می‌آید", () => {
+test("G5: RCVِ کراتینین عددِ معناداری می‌دهد و در متنِ کلیه می‌آید", () => {
   const r = rcv("CREAT");
   assert.ok(Number.isFinite(r) && r > 10 && r < 40, `RCV غیرمنتظره: ${r}`);
   assert.equal(rcv("NOT_A_TEST"), null, "تستِ بی‌داده باید null بدهد نه عددِ حدسی");
@@ -2075,4 +2075,60 @@ test("G7: هیچ کلیدِ خامی از راهِ تبدیلِ واحد به ب
   for (const k of convertible) {
     assert.ok(k in FA_NAMES, `کلیدِ قابلِ تبدیلِ «${k}» در FA_NAMES نیست`);
   }
+});
+
+// ---------- M33: MDS Test ----------
+test("M33: کم‌خونی با MCV بالا و پلاکت پایین الگوی MDS را فعال می‌کند", () => {
+  const e = runPatterns(runEngine({
+    patient: { age: 70, gender: "male" },
+    tests: [{ name: "HGB", value: 10 }, { name: "MCV", value: 106 }, { name: "PLT", value: 130 }],
+  }));
+  const mds = e.findings.find((f) => f.pattern === "anemia_macrocytic_mds");
+  assert.ok(mds, "باید الگوی MDS پیدا شود");
+  assert.equal(mds.urgency, "this_week", "فوریت باید این هفته باشد");
+});
+
+// ---------- M34: مرزِ پایینِ بازهٔ مرجع در طبقه‌بندها طبیعی است ----------
+test("M34: MCV دقیقاً روی حدِ پایین (۸۰) نرموسیتیک است، نه میکروسیتیک", () => {
+  // بازهٔ مرجعِ [lln, uln] هر دو سر را شامل می‌شود، پس MCV=80 داخلِ محدوده است.
+  // قبلاً حلقهٔ طبقه‌بند برای بندِ lln هم «<=» می‌زد، پس مقدارِ دقیقاً روی مرز
+  // «گلبول‌های کوچک» علامت می‌خورد — یعنی طبقه‌بند با refs.js تناقض داشت و یک
+  // بیمارِ کاملاً طبیعی برچسبِ میکروسیتوز می‌گرفت.
+  const onBoundary = evaluate("MCV", 80, 80, 96);
+  assert.equal(onBoundary.tag, "normocytic", "MCV=80 باید نرموسیتیک باشد");
+  assert.equal(onBoundary.abnormal, false, "MCV=80 باید طبیعی شمرده شود");
+
+  // یک واحد پایین‌تر همچنان باید میکروسیتوز بماند — مرز جابه‌جا نشده، فقط اکید شده.
+  assert.equal(evaluate("MCV", 79, 80, 96).tag, "microcytosis");
+
+  // سرِ بالا برعکس است: uln خودش داخلِ محدوده است و باید «<=» بماند.
+  assert.equal(evaluate("MCV", 96, 80, 96).tag, "normocytic", "MCV=96 باید نرموسیتیک بماند");
+  assert.equal(evaluate("MCV", 97, 80, 96).tag, "macrocytosis");
+});
+
+test("M34: همین مرز برای MCH هم درست است", () => {
+  // MCH تنها طبقه‌بندِ دیگری است که بندِ lln دارد؛ همان باگ را داشت.
+  const onBoundary = evaluate("MCH", 27.5, 27.5, 33.2);
+  assert.equal(onBoundary.tag, "normochromic", "MCH=27.5 باید طبیعی باشد");
+  assert.equal(onBoundary.abnormal, false);
+  assert.equal(evaluate("MCH", 27.4, 27.5, 33.2).tag, "hypochromia");
+});
+
+// ---------- M35: بازهٔ ALP بدون منبع و بدون تأیید وارد کد نشود ----------
+test("M35: ALP بزرگسال روی بازهٔ تأییدشده گرفته می‌شود، نه بازهٔ ثبت‌نشدهٔ [70,306]", () => {
+  // بازهٔ [70,306] بدونِ منبع و بدونِ عبور از دروازهٔ بازبینی بالینی
+  // (AGENTS.md) در refs.js نوشته شده بود. با سقفِ ۳۰۶، بیمارِ دارای
+  // ALP=200 — که می‌تواند کلستاز یا بیماری استخوانی باشد — «طبیعی»
+  // گزارش می‌شد؛ همان کم‌خوانیِ خاموشِ N2.
+  assert.deepEqual(getRef("ALP", "M", 40), [20, 130]);
+  assert.deepEqual(getRef("ALP", "F", 40), [20, 130]);
+
+  const e = runEngine({ patient: { age: 40, gender: "male" }, tests: [{ name: "ALP", value: 200 }] });
+  const alp = e.graded.find((g) => g.test === "ALP");
+  assert.ok(alp, "ALP باید استخراج شود");
+  assert.equal(alp.abnormal, true, "ALP=200 باید غیرطبیعی باشد");
+
+  // در جهتِ مخالف: کفِ ۷۰ باعث می‌شد ALP=50 که طبیعی است «پایین» علامت بخورد.
+  const low = runEngine({ patient: { age: 40, gender: "male" }, tests: [{ name: "ALP", value: 50 }] });
+  assert.equal(low.graded.find((g) => g.test === "ALP").abnormal, false, "ALP=50 باید طبیعی باشد");
 });
