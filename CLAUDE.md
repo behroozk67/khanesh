@@ -25,12 +25,20 @@ When the user asks for a change in this repo:
    |---|---|---|---|
    | `HEAD` before `5059a05` | 186 | 137 | **49** |
    | `HEAD` at `5059a05` (mojibake repaired) | 186 | 174 | **12** |
-   | working tree, 2026-08-04 | 187 | 186 | **1** (`T10`) |
+   | `HEAD` at `a547164` (docs only — unchanged, as expected) | 186 | 174 | **12** |
+   | `HEAD` at `c093712` (`M36`+`M37` added) | 190 | 178 | **12** |
+   | working tree, 2026-08-04 (before `M37`) | 187 | 186 | **1** (`T10`) |
+   | working tree, 2026-08-04 (after `M37`, 3 new tests) | 190 | 189 | **1** (`T10`) |
 
    **Any baseline you quote must name which tree it came from**, and you must *re-measure* it —
-   never copy a number out of this file. The three differ because uncommitted work in the tree
-   fixes tests that the commit does not. The 12 still failing at `5059a05` need the clinical
-   changes that are deliberately not committed yet.
+   never copy a number out of this file. Committed and working-tree rows differ because
+   uncommitted work in the tree fixes tests that the commit does not. The 12 still failing at
+   `c093712` need the clinical changes that are deliberately not committed yet; that count has
+   not moved since `5059a05`, so a 13th failure is yours.
+
+   ⚠️ **Measure with `node_modules` present or the number is fiction.** See the warning under
+   [Commands](#commands) — the obvious "clean checkout" recipe silently reports **20** failures
+   instead of 12.
 
    `T10` («دربارهٔ تستِ اندازه‌گیری‌نشده ادعای «طبیعی» نمی‌کند») is the N4 contract and the one
    failure present in *every* column. Any *other* failure is yours. Don't `SKIP_HOOKS=1` past it —
@@ -205,6 +213,34 @@ file in the working tree. Before touching anemia, decide which of the two you're
 finish the migration, do it as its own change — the two rule sets overlap, and spreading
 `RULES_ANEMIA` into `RULES` without suppressing `LEGACY_ANEMIA_IDS` fires both.
 
+⚠️ **That file is also damaged, and being dead is why nobody noticed** (2026-08-04, see
+[N15(c)](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests)). Its
+mojibake has been recovered and it now scans clean, but wiring `RULES_ANEMIA` into `RULES` has
+**three hard prerequisites**, each of which currently turns the suite red:
+
+1. **8 Persian strings are literal `?` and unrecoverable.** `anemia_macrocytic_mds` and
+   `anemia_spherocytosis` exist only in the working tree, and their
+   `headline`/`must_say`/`action`/`suggest` text is *gone, not garbled* — a lossy single-byte save,
+   not the reversible cp1252 round-trip. A human writes that clinical text. `M37`'s second
+   assertion enforces it. Don't fill them in by paraphrasing the rule id; that is inventing
+   clinical content, and it is the one thing this architecture exists to prevent.
+2. **`anemia_macrocytic_mds` is a duplicate id.** The same id is already live in
+   `patterns_hematology.js`, and the `patterns_anemia.js` copy is a byte-for-byte clone of its
+   `match`/`build` with the text destroyed — it carries no new clinical logic. Spreading both
+   fires `M36`'s duplicate-id assertion. Delete one; the live one is the one with readable text.
+3. **`LEGACY_ANEMIA_IDS` must actually be applied**, per the paragraph above, or the old and new
+   anemia rules both fire.
+
+⚠️ **Separately, spherocytosis coverage is currently missing from the live engine.** The committed
+`patterns_hematology.js` has `spherocytosis_likely`; the working tree's uncommitted rewrite deleted
+it, and a repo-wide search now finds that id in **zero** files. Its intended replacement,
+`anemia_spherocytosis`, is one of the two rules stranded in the dead file with destroyed text. So
+in the working tree a patient matching that pattern gets no finding at all — the silent
+under-reading of N2 — and no test covers it. Its plumbing is at least sound: `MCHC`, `RDW_CV` and
+`RDW_SD` are fully wired through `refs.js`, `NAME_MAP` and `FA_NAMES`, so this is a missing rule,
+not a missing test key. Porting it into `patterns_hematology.js` with freshly written Persian is
+the smaller, safer change, and it does **not** require finishing the migration.
+
 ---
 
 ## Commands
@@ -226,12 +262,30 @@ npm test           # node --test — EVERY *.test.js in khanesh-server/, see Tec
 npm run test:coverage   # same, with thresholds: lines 85 / branches 70 / functions 85
 ```
 
-**Re-measure the baseline; don't quote one.** As of 2026-08-04 the committed tree (`5059a05`)
-is `tests 186 · pass 174 · fail 12` and the working tree is `tests 187 · pass 186 · fail 1`
-(`api-contract.test.js` T10). Those are different trees, not a discrepancy — see the table in
-[Your Role](#your-role) and [N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
-To measure the committed number without your own edits in the way, use a clean checkout
-(`git archive HEAD khanesh-server | tar -x -C <tmp>`), not the working tree.
+**Re-measure the baseline; don't quote one.** As of 2026-08-04 the committed tree (`c093712`)
+is `tests 190 · pass 178 · fail 12` and the working tree is `tests 190 · pass 189 · fail 1`
+(`api-contract.test.js` T10). Both are 190 for the same reason — `M37` added three tests that
+day — but they are different trees, not a discrepancy; see the table in [Your Role](#your-role)
+and [N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
+
+To measure the committed number without your own edits in the way, extract a clean copy **and
+give it the dependencies**:
+
+```bash
+git archive HEAD khanesh-server | tar -x -C <tmp>
+# Windows: New-Item -ItemType Junction <tmp>/khanesh-server/node_modules -Target <repo>/khanesh-server/node_modules
+ln -s "$PWD/khanesh-server/node_modules" <tmp>/khanesh-server/node_modules
+cd <tmp>/khanesh-server && node --test
+```
+
+⚠️ **Skip the link and the number is wrong by eight.** `git archive` does not carry
+`node_modules` (it is gitignored), so `api-contract.test.js` cannot import `express`, the whole
+file errors out, and **all ten of T1–T10 fail** — reporting `pass 166 · fail 20` for a tree whose
+real score is `178 / 12`. Nothing in that output says "missing dependency" unless you read past
+the summary to `ERR_MODULE_NOT_FOUND`. This bit a session on 2026-08-04, which briefly concluded
+it had broken eight contract tests it had never touched — the same trap as N15(b), reached
+through a *procedure* rather than a quoted number. A baseline measured with the wrong
+environment is a quoted baseline wearing a lab coat.
 
 To run one file: `node --test rules/engine.test.js`.
 
@@ -639,10 +693,19 @@ look. Neither showed up as an error. One of them made the suite *greener*.
   rule went missing — only the array's integrity was destroyed, and nothing measured that.
 - **Guard:** test `M36` in `rules/engine.test.js` asserts every `RULES` entry is an object with
   an `id`, that each has callable `match`/`build`, and that no `id` repeats. It fails against the
-  corrupt state with `62 خانه از 149 خالی است`. It also catches a **pre-existing** defect the
+  corrupt state with `62 خانه از 149 خالی است`. It also caught a **pre-existing** defect the
   same class had hidden: two stray *import objects*
-  (`{preanalyticalCaveats, attachPreanalytical}`, `{repeatDeltaFa}`) sitting inside the
-  `RULES_ANEMIA` array literal in `patterns_anemia.js`.
+  (`{preanalyticalCaveats, attachPreanalytical}`, `{repeatDeltaFa}`) — object-shorthand copies of
+  the file's own `import` lines, sitting at the head of the `RULES_HEMATOLOGY` array literal in
+  [patterns_hematology.js:7-8](khanesh-server/rules/patterns_hematology.js#L7-L8). Removed in
+  `c093712`; `M36` fails against the state before it with `2 خانه از 85 خالی است` at indices 26–27.
+  ⚠️ **An earlier draft of this entry put them in `RULES_ANEMIA` / `patterns_anemia.js` — wrong,
+  and wrong in the way that costs a session.** `grep` for those identifiers finds nothing, because
+  the working tree's uncommitted hematology rewrite had already dropped them; they survive only in
+  the committed tree. The way to locate an offending `RULES` index is to *derive* it — sum the
+  lengths of the spread arrays in `patterns.js` until the index lands inside one
+  (`RULES_INFECTIOUS` 0–9, `RULES_NEPHROLOGY` 10–20, `RULES_NEPHROLOGY_NEW` 21–25, so 26 is the
+  first hematology entry) — not to guess from the rule's subject matter.
 
 **(b) Mojibake hid 37 red tests behind a quoted baseline nobody re-derived.**
 
@@ -656,9 +719,63 @@ look. Neither showed up as an error. One of them made the suite *greener*.
 - **Rule:** **a baseline is measured, never quoted.** Re-derive it from the tree you are actually
   about to change, and say which tree that was. A number in a document is a claim about a moment,
   and this file has now been wrong about it once.
-- **Guard:** a mojibake check belongs in the suite — assert no source file under `rules/` contains
-  the cp1252 signature (`Ø`, `Ù`, `Ú©`, `â€Œ`). Until it exists, the one-liner is
-  `grep -rlE 'Ø|Ù|Ú©' khanesh-server/rules/*.js` and it must return nothing.
+- **Guard:** test `M37` in `rules/engine.test.js` now does this — three assertions, added
+  2026-08-04. It replaces the `grep` one-liner this entry used to recommend.
+  1. **Source scan.** No `.js` file under `rules/` may contain a mojibake character
+     (`U+00D8`–`U+00DB` — the mojibaked lead byte of every Persian letter — plus `U+00C3`,
+     `U+00E2`, `U+FFFD`). None of those has a legitimate use in this repo's Persian or English,
+     so *presence alone* is the failure. Verified against a deliberately mojibaked probe file:
+     `این فایل‌ها mojibake دارند: _n15_probe.js (43 نویسه)`.
+     ⚠️ The test writes those characters as `\uXXXX` escapes on purpose — spell them literally
+     and the check fails on its own source. (It did, on the first draft.)
+  2. **Destroyed-text scan.** Live `patterns_*.js` files may not contain a run of 3+ `?`. This is
+     a *second, worse* class than mojibake: Persian saved through a single-byte encoding becomes
+     literal `?` and is **unrecoverable** — the bytes are gone, not permuted. The "live" list is
+     derived from `patterns.js`'s own `import` statements, not hand-maintained, so nothing can be
+     quietly exempted.
+  3. **Runtime scan.** The N15 panel (`WBC 114`, `PLT 46`, `HGB 8.1`) is run through the engine
+     and every string in the output is checked for both classes. It first asserts
+     `acute_leukemia_suspicion` actually fired — because if the rule doesn't fire, scanning its
+     output proves nothing and yields exactly the meaningless green this entry is about.
+
+**(c) What it actually did to a patient, and what was still broken a day later.**
+
+- **The patient impact of (b), stated plainly.** On a panel with `WBC 114` and `PLT 46` the engine
+  worked perfectly: `acute_leukemia_suspicion` fired, urgency was `emergency`, and the safety net
+  returned the mandatory text. But that one sentence — «احتمال لوسمی حاد، بدون تأخیر به اورژانس
+  مراجعه کنید» — rendered as mojibake, because it lived in one of the nine damaged files. The rest
+  of the report was clean, since it came from files the `sed` never touched. **The single most
+  important sentence in the report was the only unreadable one**, and every structural assertion
+  about it passed. That asymmetry is the whole point: encoding damage is not evenly distributed
+  across a report, and the fraction that is unreadable tells you nothing about which fraction it is.
+- **The damage was in the *working tree*, not in a file `5059a05` skipped.** An earlier draft of
+  this entry said "`5059a05` repaired nine files and missed a tenth" — that is wrong, and the
+  diffstat disproves it in one command: `patterns_anemia.js` is the **first** of the nine files in
+  `git show --stat 5059a05` (98 changed lines). What was actually true on 2026-08-04 is the
+  reverse of a miss — `HEAD`'s copy was clean and the *uncommitted* copy was mojibaked, i.e. an
+  in-progress edit had re-broken a file the commit had already fixed. It survived for the reason
+  it is safe to miss and dangerous to leave: **nothing imports it**, so no test could see it, and
+  `npm test` stayed green at 187/186/1 with a whole rules file unreadable. Recovered by
+  round-tripping cp1252→UTF-8 (2296 Persian characters restored, 0 residual, CRLF preserved,
+  `node --check` clean, all 10 `RULES_ANEMIA` ids intact); it now scans clean at `0` mojibake
+  characters.
+- **Rule:** before writing "the fix missed file X", diff the fix. "Which files did that commit
+  touch" is `git show --stat <sha>` and it is never worth guessing — a wrong claim of omission
+  sends the next session hunting for damage that was repaired weeks ago, and it discredits the
+  entry that would otherwise have been believed.
+- **Recovery has a floor, and part of that file is under it.** Two rules that exist *only* in the
+  working tree — `anemia_macrocytic_mds` and `anemia_spherocytosis` — have 8 Persian strings
+  (`headline`, `must_say`, `action`, `suggest`) saved as literal `?`: `"??? ????????? ???? ??????
+  …"`. That is a different failure from mojibake and **cannot be decoded back**; the information
+  no longer exists in the file. No Persian was invented to fill them in — writing plausible-looking
+  clinical text into a `must_say` is precisely the thing this architecture forbids. They are
+  harmless today because the file is dead, and `M37`'s second assertion is wired so that importing
+  `RULES_ANEMIA` into `RULES` turns the suite red until that text is rewritten by a human.
+- **Rule:** a mechanical repair is only complete over the set you *enumerated*, not the set you
+  meant. After a bulk fix, re-run the detector over the **whole** directory — including files
+  nothing imports — because "no test covers it" is the reason damage survives there, not a reason
+  it is safe. And distinguish the two damage classes when you report one: mojibake is recoverable,
+  `?` is not, and calling both "an encoding issue" hides which one you are looking at.
 
 **The generalizing rule, and the one worth remembering:** when you change many files with one
 mechanical command, the suite passing is *not* evidence the command did what you meant. Ask what
