@@ -4,6 +4,13 @@
 # بک‌اند: npm test (رگرسیون موتور قوانین)  |  فرانت‌اند: npm run lint
 # فقط برای زیرپروژه‌ای اجرا می‌شود که فایلی از آن stage شده باشد.
 #
+# ⚠️ بررسی‌ها روی **ایندکس** اجرا می‌شوند، نه درختِ کاری.
+#    نسخهٔ قبلی این هوک `cd "$ROOT/$dir"` می‌زد، یعنی هرچه روی دیسک بود را تست
+#    می‌کرد. نتیجه‌اش acc9cc0 است: هوک ۱۹۳/۱۹۳/۰ چاپ کرد و کامیت ۱۹۳/۱۸۱/۱۲
+#    بود، با M38 قرمز روی یک نقصِ واقعیِ متنِ انگلیسی در patterns_hematology.js.
+#    ایندکس و درختِ کاری دو چیزند؛ گِیت باید آن یکی را بسنجد که کامیت می‌شود.
+#    (CLAUDE.md → N15(b))
+#
 # رد کردن موقت:  SKIP_HOOKS=1 git commit ...
 
 set -u
@@ -14,9 +21,98 @@ if [ "${SKIP_HOOKS:-0}" = "1" ]; then
 fi
 
 ROOT=$(git rev-parse --show-toplevel)
-STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+
+# ⚠️ D عمداً در فیلتر هست. با ACMR، کامیتی که فقط فایل حذف می‌کند فهرستِ خالی
+# می‌داد و هوک بی‌صدا exit 0 می‌شد — یعنی حذفِ یک فایلِ زندهٔ rules/، که
+# بیشترین نیاز را به گِیت دارد، تنها تغییری بود که اصلاً گِیت نمی‌خورد.
+STAGED=$(git diff --cached --name-only --diff-filter=ACMRD)
 
 [ -z "$STAGED" ] && exit 0
+
+NEED_BACKEND=0
+NEED_FRONTEND=0
+echo "$STAGED" | grep -q '^khanesh-server/.*\.\(js\|mjs\|json\)$' && NEED_BACKEND=1
+echo "$STAGED" | grep -q '^khanesh/.*\.\(js\|jsx\|mjs\|json\)$' && NEED_FRONTEND=1
+
+if [ "$NEED_BACKEND" = 0 ] && [ "$NEED_FRONTEND" = 0 ]; then
+  exit 0
+fi
+
+DIRS=""
+[ "$NEED_BACKEND" = 1 ] && DIRS="$DIRS khanesh-server"
+[ "$NEED_FRONTEND" = 1 ] && DIRS="$DIRS khanesh"
+
+# ── ساختِ درختِ ایندکس در یک پوشهٔ موقت ────────────────────────────────────
+#
+# چرا آرشیو و نه `git stash -k`: stash درختِ کاریِ کاربر را جابه‌جا می‌کند، و
+# اگر تست کرش کند یا کاربر Ctrl-C بزند، کارِ کامیت‌نشده داخل یک stash entry
+# می‌ماند و درختِ کاری شبیهِ ایندکس می‌شود — یعنی هوک کارِ کاربر را «ناپدید»
+# کرده. اینجا هیچ‌چیزِ درختِ کاری لمس نمی‌شود؛ بدترین حالتِ شکست یک پوشهٔ
+# جامانده در TMPDIR است، نه کارِ گم‌شده.
+#
+# node_modules و .env هر دو gitignore شده‌اند، پس در آرشیو نیستند:
+#   • node_modules را لینک می‌کنیم — بدونش api-contract.test.js نمی‌تواند
+#     express را import کند، کلِ فایل می‌ترکد و T1..T10 قرمز می‌شوند؛ یعنی
+#     هوک هر کامیتی را با یک شکستِ جعلی می‌بست. (CLAUDE.md → Commands)
+#   • .env را عمداً لینک نمی‌کنیم: کامیت نشده، پس تست هم نباید به آن تکیه کند.
+#     اندازه‌گیری شد — نبودنش هیچ تستی را قرمز نمی‌کند.
+
+WORKDIR=""
+cleanup() {
+  # rm -rf روی پوشه‌ای که junction دارد: خودِ لینک unlink می‌شود و دنبال نمی‌شود،
+  # پس node_modulesِ واقعیِ پروژه دست نمی‌خورد. آزموده شد، نه فرض‌شده.
+  [ -n "$WORKDIR" ] && [ -d "$WORKDIR" ] && rm -rf "$WORKDIR"
+  return 0
+}
+trap cleanup EXIT INT TERM
+
+prepare_index_tree() {
+  # write-tree و `git diff --cached` بالا هر دو از یک ایندکس می‌خوانند — هرکدام که
+  # گیت به هوک داده باشد (در صورتِ ست‌بودنِ GIT_INDEX_FILE، همان). پس «کدام بررسی
+  # اجرا شود» و «چه محتوایی سنجیده شود» نمی‌توانند از هم واگرا شوند؛ واگراییِ همین
+  # دو، خودِ نقصی بود که این بازنویسی برای رفعش است.
+  # اگر ایندکس merge نشده باشد (وسطِ conflict) شکست می‌خورد و به مسیرِ تنزل می‌رود.
+  tree=$(git write-tree 2>/dev/null) || return 1
+  [ -n "$tree" ] || return 1
+
+  WORKDIR=$(mktemp -d 2>/dev/null) || return 1
+
+  for d in $DIRS; do
+    git archive "$tree" "$d" 2>/dev/null | tar -x -C "$WORKDIR" || return 1
+    [ -d "$WORKDIR/$d" ] || return 1
+
+    if [ -d "$ROOT/$d/node_modules" ]; then
+      ln -s "$ROOT/$d/node_modules" "$WORKDIR/$d/node_modules" 2>/dev/null || return 1
+      # لینک باید واقعاً قابل‌عبور باشد، نه فقط موجود. روی ویندوز ln -s بسته به
+      # MSYS/developer mode می‌تواند لینکِ شکسته بسازد؛ خواندنِ محتوا تنها
+      # اثباتِ قابل‌قبول است.
+      [ -n "$(ls -A "$WORKDIR/$d/node_modules" 2>/dev/null)" ] || return 1
+    fi
+  done
+
+  return 0
+}
+
+if prepare_index_tree; then
+  # ⚠️ این انتساب کلِ هوک است. اگر جا بیفتد، BASE روی درختِ کاری می‌ماند و هوک
+  # همان کارِ قبلی را می‌کند ولی برچسبِ «ایندکس» چاپ می‌کند — یعنی نقصِ اصلی،
+  # این‌بار با یک ادعای دروغ رویش. در نسخهٔ اولِ همین بازنویسی دقیقاً همین شد.
+  BASE="$WORKDIR"
+  MODE="ایندکس"
+else
+  # ⚠️ اینجا عمداً کامیت را نمی‌بندیم. هوکی که به‌خاطرِ نقصِ خودش همه‌چیز را با
+  # شکستِ جعلی رد کند، از هوکِ درخت‌کاری‌سنج بدتر است. به رفتارِ قبلی برمی‌گردیم
+  # — ولی با بنر، نه بی‌صدا: تنزلِ ساکت همان چیزی است که N15 دربارهٔ آن است.
+  cleanup
+  WORKDIR=""
+  BASE="$ROOT"
+  MODE="درختِ کاری"
+  printf '\n\033[33m⚠ pre-commit: ساختِ درختِ ایندکس ممکن نشد.\033[0m\n'
+  printf '  بررسی روی \033[33mدرختِ کاری\033[0m انجام می‌شود — نتیجه‌اش دربارهٔ خودِ کامیت چیزی نمی‌گوید.\n'
+  printf '  قبل از push، کامیت را جدا بسنج (CLAUDE.md → Commands).\n'
+fi
+
+printf '\n\033[36mpre-commit: بررسی روی %s\033[0m\n' "$MODE"
 
 FAILED=""
 
@@ -24,7 +120,7 @@ run_check() {
   # run_check <label> <dir> <command...>
   label=$1; dir=$2; shift 2
   printf '\n\033[36m▶ %s\033[0m  (%s)\n' "$label" "$*"
-  if ( cd "$ROOT/$dir" && "$@" ); then
+  if ( cd "$BASE/$dir" && "$@" ); then
     printf '\033[32m✔ %s\033[0m\n' "$label"
   else
     printf '\033[31m✘ %s\033[0m\n' "$label"
@@ -32,11 +128,11 @@ run_check() {
   fi
 }
 
-if echo "$STAGED" | grep -q '^khanesh-server/.*\.\(js\|mjs\|json\)$'; then
+if [ "$NEED_BACKEND" = 1 ]; then
   run_check "backend tests" "khanesh-server" npm test --silent
 fi
 
-if echo "$STAGED" | grep -q '^khanesh/.*\.\(js\|jsx\|mjs\|json\)$'; then
+if [ "$NEED_FRONTEND" = 1 ]; then
   run_check "frontend lint" "khanesh" npm run lint --silent
 fi
 
