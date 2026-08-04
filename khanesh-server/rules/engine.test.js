@@ -7,6 +7,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { creatRef, getRef, esrRef, ckdEpiEgfr, ADULT_REFS } from "./refs.js";
 import { CLASSIFIERS } from "./interpret.js";
@@ -14,7 +17,7 @@ import { CTCAE_MAP } from "./ctcae.js";
 import { FA_NAMES, faName } from "./names.js";
 import { evaluate } from "./grade.js";
 import { runEngine, parseTitre } from "./adapter.js";
-import { runPatterns } from "./patterns.js";
+import { runPatterns, RULES } from "./patterns.js";
 import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT,
          tidyRecommendations, phraseSuggestion, buildNormalResult } from "./prompt.js";
 import { extractMedlineTerms, matchesMedlineKey, TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
@@ -2131,4 +2134,121 @@ test("M35: ALP بزرگسال روی بازهٔ تأییدشده گرفته می
   // در جهتِ مخالف: کفِ ۷۰ باعث می‌شد ALP=50 که طبیعی است «پایین» علامت بخورد.
   const low = runEngine({ patient: { age: 40, gender: "male" }, tests: [{ name: "ALP", value: 50 }] });
   assert.equal(low.graded.find((g) => g.test === "ALP").abnormal, false, "ALP=50 باید طبیعی باشد");
+});
+
+// ---------- M36: آرایهٔ RULES نباید خانهٔ خالی (undefined) داشته باشد ----------
+test("M36: هر خانهٔ RULES یک قاعدهٔ واقعی با id است — بدون خانهٔ خالی", () => {
+  // باگ واقعی: هنگام تعمیرِ انکودینگِ فایل‌های patterns_*.js یک sed اشتباه
+  // «},» را به «},,» و «[» را به «[,» تبدیل کرد. این‌ها در جاوااسکریپت
+  // «خانهٔ خالی» (array elision) می‌سازند، پس RULES پر از undefined شد:
+  // ۱۴۹ خانه که ۶۲ تای آن undefined بود. هیچ خطایی هم بالا نیامد، چون
+  // runPatterns با «if (!rule?.id) continue» بی‌صدا ردشان می‌کند — یعنی
+  // فایلِ خراب دقیقاً مثل فایلِ سالم تست پاس می‌شد. این تست همان سکوت را
+  // می‌شکند: خانهٔ خالی باید صریحاً شکست بدهد، نه اینکه نادیده گرفته شود.
+  const holes = [];
+  RULES.forEach((r, i) => {
+    if (!r || typeof r !== "object" || !r.id) holes.push(i);
+  });
+  assert.equal(
+    holes.length, 0,
+    `RULES نباید خانهٔ خالی داشته باشد؛ ${holes.length} خانه از ${RULES.length} خالی است (اندیس‌ها: ${holes.slice(0, 12).join(", ")}${holes.length > 12 ? " …" : ""})`,
+  );
+
+  // هر قاعده باید match و build اجراپذیر داشته باشد.
+  for (const r of RULES) {
+    assert.equal(typeof r.match, "function", `قاعدهٔ ${r.id} باید match داشته باشد`);
+    assert.equal(typeof r.build, "function", `قاعدهٔ ${r.id} باید build داشته باشد`);
+  }
+
+  // id تکراری هم نشانهٔ خرابیِ همان جنس است.
+  const ids = RULES.map((r) => r.id);
+  assert.equal(new Set(ids).size, ids.length, "id قواعد نباید تکراری باشد");
+});
+
+// ---------- M37: mojibake و متنِ نابودشده در رشته‌های فارسی (کلاسِ N15) ----------
+//
+// باگ واقعی: در پنلی با WBC=۱۱۴ و PLT=۴۶ قاعدهٔ acute_leukemia_suspicion درست
+// فعال شد و شبکهٔ ایمنی هم متنِ اجباری را برگرداند — ولی همان یک جمله که
+// می‌گفت «احتمال لوسمی حاد، بدون تأخیر به اورژانس مراجعه کنید» به‌صورت
+// mojibake رندر شد، چون فایلِ قاعده‌اش با cp1252 ذخیره شده بود. بقیهٔ گزارش
+// سالم بود، چون از فایلی می‌آمد که خراب نشده بود. یعنی مهم‌ترین جملهٔ گزارش،
+// تنها جملهٔ ناخوانا بود — و کلِ suite سبز ماند، چون هیچ تستی به *بایت‌های*
+// رشته‌های فارسی نگاه نمی‌کرد؛ همه فقط ساختار و عدد را چک می‌کردند.
+//
+// دو نشانهٔ متفاوت با دو سرنوشتِ متفاوت، و هر دو باید صریح شکست بدهند:
+//   ۱) mojibake — UTF-8 که با cp1252 خوانده شده. برگشت‌پذیر است. نویسه‌های
+//      شاخصش U+00D8..U+00DB (سرِ بایتِ حروف فارسی در UTF-8)، U+00C3،
+//      U+00E2 (سرِ ZWNJ) و U+FFFD هستند. هیچ‌کدام در متنِ فارسی یا انگلیسیِ
+//      این پروژه کاربردِ درستی ندارند، پس *حضورشان* خودش خطاست.
+//   ۲) متنِ نابودشده — فارسی که با یک انکودینگِ تک‌بایتی ذخیره شده و به
+//      «؟» تبدیل شده. برگشت‌ناپذیر است: اطلاعات رفته، نه جابه‌جا شده.
+//
+// نکته: این فایل عمداً هیچ‌کدام از آن نویسه‌ها را به‌صورت لفظی ندارد و همه را
+// با \u می‌نویسد، وگرنه تست روی خودش شکست می‌خورد.
+
+const RULES_DIR = path.dirname(fileURLToPath(import.meta.url));
+const MOJIBAKE_RX = /[\u00D8-\u00DB\u00C3\u00E2\uFFFD]/;
+const DESTROYED_RX = /\?{3,}/;
+
+function collectStrings(node, out = []) {
+  if (typeof node === "string") out.push(node);
+  else if (Array.isArray(node)) for (const n of node) collectStrings(n, out);
+  else if (node && typeof node === "object") for (const n of Object.values(node)) collectStrings(n, out);
+  return out;
+}
+
+// فایل‌هایی که قواعدشان واقعاً وارد RULES می‌شود — از خودِ importهای
+// patterns.js استخراج می‌شود، نه از یک فهرستِ دستیِ کنارگذاشته‌شده.
+function livePatternFiles() {
+  const src = fs.readFileSync(path.join(RULES_DIR, "patterns.js"), "utf8");
+  return [...new Set([...src.matchAll(/from\s+"\.\/(patterns_\w+\.js)"/g)].map((m) => m[1]))];
+}
+
+test("M37: هیچ فایلِ rules/ نویسهٔ mojibake ندارد", () => {
+  // اسکنِ *سورس*، نه خروجی: یک فایلِ مرده هم باید سالم بماند، چون فردا
+  // ممکن است زنده شود و آن‌وقت خرابی‌اش مستقیم به بیمار می‌رسد.
+  const broken = [];
+  for (const f of fs.readdirSync(RULES_DIR).filter((n) => n.endsWith(".js"))) {
+    const txt = fs.readFileSync(path.join(RULES_DIR, f), "utf8");
+    const hits = txt.match(new RegExp(MOJIBAKE_RX.source, "g"));
+    if (hits) broken.push(`${f} (${hits.length} نویسه)`);
+  }
+  assert.deepEqual(broken, [], `این فایل‌ها mojibake دارند: ${broken.join("، ")}`);
+});
+
+test("M37: فایل‌های زندهٔ patterns متنِ نابودشده ندارند", () => {
+  // patterns_anemia.js عمداً اینجا نیست — چون patterns.js واردش نمی‌کند و
+  // قواعدش به بیمار نمی‌رسند. این استثنا دستی نیست: از گرافِ importها
+  // مشتق می‌شود. لحظه‌ای که کسی RULES_ANEMIA را وارد RULES کند، همین تست
+  // خودبه‌خود آن فایل را هم پوشش می‌دهد و قرمز می‌شود — که دقیقاً درست است،
+  // چون آن فایل هنوز ۸ رشتهٔ فارسیِ نابودشده («؟») دارد و مهاجرتِ ناتمامش
+  // نباید با متنِ ناخوانا کامل شود.
+  const broken = [];
+  for (const f of livePatternFiles()) {
+    const txt = fs.readFileSync(path.join(RULES_DIR, f), "utf8");
+    if (DESTROYED_RX.test(txt)) broken.push(f);
+  }
+  assert.deepEqual(broken, [], `متنِ فارسیِ این فایل‌ها نابود شده است: ${broken.join("، ")}`);
+});
+
+test("M37: خروجیِ موتور برای پنلِ N15 رشتهٔ خراب ندارد", () => {
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "WBC", value: "114" }, { name: "PLT", value: "46" }, { name: "HGB", value: "8.1" }],
+  });
+  const p = runPatterns(e);
+
+  // اول ثابت کن این تست روی چیزی گرفته شده: اگر قاعده فعال نشود، اسکنِ
+  // رشته‌ها هیچ چیزی را ثابت نمی‌کند و یک سبزِ بی‌معنا می‌دهد — همان چیزی
+  // که N15 دربارهٔ آن است.
+  const fired = (p.selected || p.findings || []).map((f) => f.pattern);
+  assert.ok(
+    fired.includes("acute_leukemia_suspicion"),
+    `پنلِ N15 باید acute_leukemia_suspicion را فعال کند؛ فعال‌شده‌ها: ${fired.join(", ")}`,
+  );
+
+  for (const s of collectStrings([e, p])) {
+    assert.equal(MOJIBAKE_RX.test(s), false, `رشتهٔ خروجی mojibake دارد: ${s.slice(0, 80)}`);
+    assert.equal(DESTROYED_RX.test(s), false, `رشتهٔ خروجی نابود شده است: ${s.slice(0, 80)}`);
+  }
 });

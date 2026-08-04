@@ -4,8 +4,6 @@ import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
 export const RULES_HEMATOLOGY = [
-{ preanalyticalCaveats, attachPreanalytical },
-{ repeatDeltaFa },
 {
     id: "dic_pattern",
     match: (e) => isDIC(e),
