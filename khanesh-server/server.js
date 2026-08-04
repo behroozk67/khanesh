@@ -809,6 +809,22 @@ const analyzeHandler = async (req, res) => {
       }
     }
 
+    if (engineOut && patternOut) {
+      // ⚠️ فقط وقتی «طبیعی» بگو که هیچ تست غیرطبیعی نباشد.
+      //    «قاعده‌ای مطابقت نکرد» ≠ «طبیعی است».
+      //    باگ واقعی: WBC=258 هیچ قاعده‌ای نداشت → «نتایج شما طبیعی است».
+      if (patternOut.findings.length === 0 && engineOut.abnormal.length === 0) {
+        // همه‌چیز واقعاً طبیعی — نیازی به AI نیست، رایگان
+        const out = buildNormalResult(engineOut);
+        out.extracted_tests = extractedTests;
+        if (ocrWarnings.length) out.ocr_warnings = ocrWarnings;
+        if (pageInfo) out.pages = pageInfo;
+        if (medlineSources.length) out.sources = medlineSources;
+        out._engine = { patterns: [], urgency: "none", abnormal: 0 };
+        return res.json(out);
+      }
+    }
+
     const { app: labmatGraph } = await import("./labmat-agents/graph.js");
     
     console.log("[LabMat API] Starting 10-Agent Graph with Rules Engine Data...");
@@ -841,14 +857,70 @@ const analyzeHandler = async (req, res) => {
       loops: finalState.loopCount
     };
     
-    if (engineOut && patternOut) {
-      parsed._engine = engineDebug(engineOut, patternOut);
-    }
-
     if (extractedTests.length) parsed.extracted_tests = extractedTests;
     if (ocrWarnings.length) parsed.ocr_warnings = ocrWarnings;
     if (pageInfo) parsed.pages = pageInfo;
     if (medlineSources.length) parsed.sources = medlineSources;
+
+    // ═══ تور ایمنی ═══
+    // اگر مدل نام فیلد را اشتباه بدهد یا اصلاً ندهد، توصیه‌ها بی‌صدا گم می‌شوند.
+    // این اتفاق افتاد: مدل "recommendations" داد ولی فرانت
+    // "general_recommendations" می‌خواند → بخش توصیه‌ها خالی ماند.
+    // موتور خودش لیست را دارد، پس اگر مدل جا انداخت، از موتور پرش می‌کنیم.
+    if (patternOut && patternOut.findings.length) {
+      const recs = parsed.general_recommendations ?? parsed.recommendations;
+      const chosen = (!Array.isArray(recs) || recs.length === 0)
+        ? (console.warn("مدل general_recommendations نداد — از موتور ساخته شد"),
+           buildEngineRecommendations(patternOut, engineOut))
+        : recs;
+      // حذف تکراری‌ها: دو finding ممکن است یک آزمایش را پیشنهاد دهند (مثلاً
+      // کم‌خونی + همولیز هر دو «بیلی‌روبین»)، یا مدل یک سطر را دوبار بنویسد.
+      // ⚠️ تمیزکاری باید روی فهرستِ مدل هم اجرا شود نه فقط مسیرِ موتور: مدل
+      //    همان یافته‌ها را می‌بیند و همان «نوبت عادی…»های نزدیک‌به‌هم را بازتولید
+      //    می‌کند. اینجا فقط new Set بود، پس تکرارِ نزدیک رد می‌شد.
+      parsed.general_recommendations = tidyRecommendations(chosen);
+      delete parsed.recommendations;
+
+      // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
+      //
+      // 🔴 باگ واقعی (با فراخوانیِ زندهٔ gpt-4o-mini تأیید شد): قبلاً حضور را با
+      //    «زیررشتهٔ عینیِ headline یا کلِ must_say» می‌سنجیدیم. مدل یافتهٔ
+      //    رابدومیولیز (۱۰ جمله) را خلاصه نوشت → تطبیقِ عینی شکست خورد → کلِ
+      //    بلوک دوباره append شد و بیمار توضیح را دو بار دید. هرچه must_say
+      //    غنی‌تر، کپیِ کلمه‌به‌کلمه بعیدتر؛ یعنی این تور با هدفِ «تفسیر حرفه‌ای»
+      //    در تضاد بود. حالا جمله‌به‌جمله سنجیده می‌شود (rules/coverage.js) و
+      //    فقط جمله‌های واقعاً افتاده برمی‌گردند.
+      const emerg = patternOut.findings.filter((f) => f.urgency === "emergency");
+      if (emerg.length) {
+        const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;
+        const additions = emerg
+          .map((f) => missingFindingText(f, text))
+          .filter(Boolean);
+        if (additions.length) {
+          console.warn(`⚠️ ${additions.length} یافتهٔ اورژانسی ناقص منتقل شد — بخشِ افتاده اضافه شد`);
+          parsed.interpretation =
+            (parsed.interpretation || "") + "\n\n" + additions.join(" ");
+        }
+      }
+
+      // تست ممنوع اگر از دست مدل در رفت
+      const forbidden = patternOut.findings.flatMap((f) => f.forbid ?? []);
+      if (forbidden.length) {
+        const before = parsed.general_recommendations.length;
+        parsed.general_recommendations = parsed.general_recommendations.filter(
+          (r) => !forbidden.some((w) => String(r).includes(w))
+        );
+        const dropped = before - parsed.general_recommendations.length;
+        if (dropped) console.warn(`${dropped} توصیه حذف شد — تست ممنوع برای این الگو`);
+      }
+    }
+
+    // خروجی موتور — برای دیباگ و شفافیت
+    if (engineOut && patternOut) {
+      parsed._engine = engineDebug(engineOut, patternOut);
+      // فوریت را موتور تعیین می‌کند، نه مدل
+      parsed.has_critical = patternOut.has_critical;
+    }
 
     res.json(parsed);
   } catch (err) {
@@ -1001,6 +1073,12 @@ app.get("/health", (_req, res) =>
     jobsInMemory: jobCount(),
   })
 );
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('[Express Error]', err.message);
+  res.status(500).json({ error: 'خطای سرور رخ داده است.' });
+});
 
 app.listen(PORT, () => {
   console.log(`سرور واسط (با MedlinePlus) روی پورت ${PORT} در حال اجراست`);
