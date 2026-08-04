@@ -28,6 +28,11 @@ import { PREANALYTICAL_RULES } from "./preanalytical.js";
 import { rcv, hasLowIndividuality } from "./biovar.js";
 import { toConventional, ifccToNgsp, SI_CONVERSIONS } from "./units.js";
 
+// فقط برای M38 — تحلیل نحویِ سورسِ rules/. هر دو devDependency هستند و در
+// package.json اعلام شده‌اند، پس هیچ کدِ تولیدی به آن‌ها وابسته نیست.
+import { parse as acornParse } from "acorn";
+import * as acornWalk from "acorn-walk";
+
 // ---------- A1: کراتینین با سن نامعلوم ----------
 test("A1: creatRef با سن null محدودهٔ بالغ می‌دهد نه نوزادی", () => {
   assert.deepEqual(creatRef(null), [0.6, 1.2]);
@@ -2251,6 +2256,225 @@ test("M37: خروجیِ موتور برای پنلِ N15 رشتهٔ خراب ن�
     assert.equal(MOJIBAKE_RX.test(s), false, `رشتهٔ خروجی mojibake دارد: ${s.slice(0, 80)}`);
     assert.equal(DESTROYED_RX.test(s), false, `رشتهٔ خروجی نابود شده است: ${s.slice(0, 80)}`);
   }
+});
+
+// ---------- M38: هر رشتهٔ کاربرمحور در rules/ باید فارسی باشد ----------
+//
+// ⚠️ این اسکنر ایستا است: عبارت را می‌بیند، نه خروجی را. آنچه می‌خواند متنِ
+// نوشته‌شده در سورس است، نه چیزی که واقعاً به بیمار می‌رسد. دو نتیجه دارد و
+// هر دو مهم‌اند:
+//   • چیزی که علامت می‌زند لزوماً به بیمار نرسیده — شاید شاخه‌ای باشد که هرگز
+//     اجرا نمی‌شود، یا قاعده‌ای در فایلی که هیچ‌کس import نکرده.
+//   • سبزبودنش هم ثابت نمی‌کند خروجی سالم است — متنی که در زمان اجرا ساخته
+//     می‌شود (از faName()، از یک map، از رشته‌ای بیرونِ این چهار کلید) اصلاً
+//     دیده نمی‌شود.
+// پس این تست مکملِ اسکنِ زمان‌اجرایِ M37 است، جانشینِ آن نیست.
+//
+// M37 می‌پرسد «آیا این رشته خراب شده؟». M38 چیزِ دیگری می‌پرسد:
+// «آیا این رشته اصلاً فارسی هست؟» — چون spherocytosis_likely در
+// patterns_hematology.js کامل انگلیسی نوشته شده بود، یک قاعدهٔ زنده که
+// شلیک می‌کند و به بیمارِ فارسی‌زبان متنِ انگلیسی می‌دهد. نه mojibake بود،
+// نه «؟»؛ بایت‌هایش کاملاً سالم بودند. هیچ تستی نمی‌توانست ببیندش.
+//
+// اسکنِ سورس است نه خروجی، به همان دلیلِ M37: قاعده‌ای که امروز شلیک نمی‌کند
+// فردا می‌کند.
+//
+// چهار کلید بررسی می‌شوند: headline، must_say، action، suggest.
+//
+// ── فایلِ مرده اسکن نمی‌شود ───────────────────────────────────────────────
+// یک فایلِ patterns_* که patterns.js واردش نمی‌کند، هیچ رشته‌ای به بیمار
+// نمی‌رساند؛ قرمزکردنِ تست به‌خاطرِ آن یعنی گِیتِ کامیت را روی چیزی بستن که
+// خروجی ندارد. ولی *ساکت* هم ردش نمی‌کنیم: برای هر فایلِ رد‌شده یک
+// t.diagnostic چاپ می‌شود با تعدادِ رشته‌هایی که اگر زنده بود قرمز می‌کردند.
+// فرقِ «رد شد» و «چیزی نبود» باید در خروجی دیده شود، وگرنه همان سبزِ
+// بی‌معنایی است که N15 دربارهٔ آن است.
+//
+// فهرستِ زنده‌ها از livePatternFiles() می‌آید — همان تابعی که assertion دومِ
+// M37 استفاده می‌کند، مشتق از خودِ importهای patterns.js. هیچ فهرستِ دستی،
+// چون فهرستِ دستی همان چیزی است که آدم فراموش می‌کند به‌روز کند: لحظه‌ای که
+// کسی RULES_ANEMIA را وارد RULES کند، این تست خودبه‌خود آن فایل را پوشش
+// می‌دهد و قرمز می‌شود.
+//
+// امروز دقیقاً یک فایل رد می‌شود: patterns_anemia.js، با ۱۰ رشتهٔ فارسیِ
+// نابودشدهٔ N15(c) در anemia_macrocytic_mds و anemia_spherocytosis. آن متن
+// را باید یک انسان بنویسد؛ بازسازی‌اش از روی نامِ قاعده یعنی ساختنِ متنِ
+// بالینی، و همان چیزی است که این معماری برای جلوگیری از آن هست.
+
+// ── نام آزمایش‌ها: تنها متنِ غیرفارسیِ مجاز ─────────────────────────────
+//
+// N8 می‌گوید هیچ واژهٔ موتور نباید خام به بیمار برسد. ولی برای بخشی از
+// آزمایش‌ها همین اختصارِ لاتین *همان چیزی است* که روی برگهٔ آزمایشگاه ایرانی
+// چاپ شده و بیمار می‌شناسد؛ ترجمه‌اش کمکی نمی‌کند. همان استثنایی که M32 هم
+// می‌پذیرد (MCH، MCHC، HDL، LDL، INR، TIBC: نامِ درستِ بیمارمحور خودِ اختصار است).
+//
+// این فهرست عمداً صریح و دستی است — نه یک regex از جنسِ «هر واژهٔ کوتاهِ
+// بزرگ‌حرف مجاز است». تطبیق هم عیناً با کلِ رشته انجام می‌شود، نه با بخشی از آن.
+// یعنی یک نامِ تازه حتماً این تست را قرمز می‌کند و کسی باید آگاهانه اضافه‌اش
+// کند. **این ویژگی است، نه دردسر**: افزودنِ یک سطر به این آرایه یعنی کسی
+// تأیید کرده که بیمارِ فارسی‌زبان این رشته را روی صفحه ببیند و بفهمد.
+const ALLOWED_TEST_NAMES = new Set([
+  // اختصارهایی که روی برگهٔ آزمایش فارسی هم به همین شکل چاپ می‌شوند
+  "CBC", "CRP", "ESR", "TIBC", "LDH", "CK", "GGT", "ALP", "AST", "ALT",
+  "BUN", "ABG", "VBG", "ECG", "TSH", "FT3", "FT4", "TSI", "MMA", "FBS",
+  "HbA1c", "eGFR", "SPEP", "UPEP", "2ME", "Anti-TPO", "Anti-CCP",
+
+  // ⚠️ اینها واژهٔ انگلیسی‌اند، نه اختصار. امروز پذیرفته شده‌اند چون همین
+  // الان در متنِ قواعد هستند، ولی معادلِ فارسی دارند و بهتر است فارسی شوند
+  // («الکترولیت‌ها»، «پنل چربی»، «کشت ادرار…»). هر کدام که فارسی شد، سطرش
+  // را از اینجا هم بردارید تا فهرست دوباره سفت شود.
+  "Bilirubin", "Direct Bilirubin", "Creatinine", "Electrolytes", "Folate",
+  "Ketone", "Lipase", "Osmolality", "Hepatitis Panel", "Lipid Panel",
+  "Urine Albumin",
+]);
+
+// بازهٔ U+0600..U+06FF، با عدد و نه با نویسهٔ لفظی: اگر روزی همین فایل با
+// cp1252 ذخیره شود، یک بازهٔ لفظی بی‌صدا خراب می‌شد و آن‌وقت این تست به‌جای
+// شکستن، همه‌چیز را سبز اعلام می‌کرد — دقیقاً همان کلاسِ N15.
+const FA_LO = 0x0600;
+const FA_HI = 0x06ff;
+const hasFa = (s) => [...s].some((c) => {
+  const p = c.codePointAt(0);
+  return p >= FA_LO && p <= FA_HI;
+});
+
+// «حرف» به معنای Unicode Letter. رشته‌ای که هیچ حرفی ندارد — "."، " ("،
+// "12.5" — دربارهٔ زبان هیچ ادعایی نمی‌کند و نباید اسکن شود. اینها معمولاً
+// قطعه‌های چسبانندهٔ یک concat یا template هستند. شرطِ تست پس دو بخشی است:
+// حرف داشته باشد، و اگر داشت، دستِ‌کم یک حرفش فارسی باشد.
+//
+// ⚠️ با یک استثنا، و استثنا خودش یک باگِ گرفته‌شده است: متنِ فارسیِ نابودشدهٔ
+// N15(c) — "??? ????????? ???? ??????" — هم هیچ Unicode Letterی ندارد، چون
+// حرف‌هایش دیگر وجود ندارند. یک رشتهٔ پر از ? قطعهٔ چسباننده نیست؛ متنی است
+// که *بود* و دیگر نیست، و باید شمرده شود.
+// اندازه‌گیری‌شده روی patterns_anemia.js وقتی هنوز اسکن می‌شد: بدون این
+// استثنا M38 چهار مورد گزارش می‌داد نه ده مورد — یعنی معافیتِ «حرف ندارد»
+// شش رشتهٔ نابودشده را بی‌صدا سبز می‌کرد. آن فایل حالا رد می‌شود، ولی استثنا
+// می‌ماند: همین امروز اگر متنِ یک فایلِ *زنده* نابود شود، بدون آن دیده نمی‌شد.
+const hasLetter = (s) => /\p{L}/u.test(s) || DESTROYED_RX.test(s);
+
+const UF_KEYS = new Set(["headline", "must_say", "action", "suggest"]);
+
+// عملگرهایی که رشتهٔ کنارشان «متن» نیست بلکه برچسبِ حالت است:
+// kind === "cholestatic" هرگز به بیمار نمی‌رسد، فقط انتخاب می‌کند کدام متنِ
+// فارسی برود. اینها استثنا نمی‌شوند — اصلاً اسکن نمی‌شوند، که فرق دارد:
+// استثنا یعنی «دیدم و چشم‌پوشی کردم»، این یعنی «اینجا اصلاً متن نیست».
+const COMPARISON_OPS = new Set(["===", "!==", "==", "!=", "<", ">", "<=", ">="]);
+
+// درختِ نحوی، نه regex. acorn دقیقاً همان چیزی را می‌بیند که Node اجرا می‌کند،
+// پس ternary تودرتو، template چندخطی با ${…}، و concat همه بدون حدس‌زدن حل
+// می‌شوند — و مهم‌تر: می‌شود پرسید این رشته *کجای* عبارت است، که با اسکنِ
+// متنی ممکن نبود. acorn/acorn-walk هر دو devDependencyِ اعلام‌شده‌اند.
+function userFacingStrings(ast) {
+  const found = [];
+
+  const collect = (node, sink) => {
+    acornWalk.recursive(node, null, {
+      // شاخهٔ شرط (test) اسکن نمی‌شود، دو شاخهٔ نتیجه می‌شوند.
+      ConditionalExpression(n, st, c) {
+        c(n.consequent, st);
+        c(n.alternate, st);
+      },
+      // دو سرِ یک مقایسه هم همین‌طور؛ ولی + و سایر عملگرها اسکن می‌شوند
+      // چون "…" + x واقعاً متن است.
+      BinaryExpression(n, st, c) {
+        if (COMPARISON_OPS.has(n.operator)) return;
+        c(n.left, st);
+        c(n.right, st);
+      },
+      Literal(n) {
+        if (typeof n.value === "string") sink.push({ text: n.value, node: n });
+      },
+      // quasiها به هم چسبانده می‌شوند تا واحدِ سنجش همان جمله باشد، نه
+      // تکه‌های دو طرفِ ${…}: در `${n} گرم` تکهٔ اول خالی است و تکهٔ دوم فارسی.
+      TemplateLiteral(n, st, c) {
+        sink.push({
+          text: n.quasis.map((q) => q.value.cooked ?? "").join(""),
+          node: n,
+        });
+        for (const e of n.expressions) c(e, st);
+      },
+    });
+  };
+
+  acornWalk.ancestor(ast, {
+    Property(n, _st, ancestors) {
+      const key = n.key.type === "Identifier" ? n.key.name : n.key.value;
+      if (!UF_KEYS.has(key)) return;
+      const sink = [];
+      collect(n.value, sink);
+      const id = ruleIdOf(ancestors);
+      for (const s of sink) found.push({ ...s, key, id });
+    },
+  });
+
+  return found;
+}
+
+// شناسهٔ قاعده از نزدیک‌ترین شیءِ دربرگیرنده به بیرون خوانده می‌شود، نه با
+// lastIndexOf روی متن: در یک فایل با چند قاعده، «نزدیک‌ترین id قبل از این
+// نقطه» به‌راحتی id قاعدهٔ قبلی را برمی‌دارد و گزارش را به فایلِ اشتباه می‌برد.
+function ruleIdOf(ancestors) {
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    const a = ancestors[i];
+    if (a.type !== "ObjectExpression") continue;
+    for (const k of ["id", "pattern"]) {
+      const p = a.properties.find(
+        (q) => q.type === "Property"
+          && (q.key.type === "Identifier" ? q.key.name : q.key.value) === k
+          && q.value.type === "Literal"
+          && typeof q.value.value === "string",
+      );
+      if (p) return p.value.value;
+    }
+  }
+  return "?";
+}
+
+test("M38: رشته‌های کاربرمحورِ rules/ فارسی هستند", (t) => {
+  const files = fs.readdirSync(RULES_DIR)
+    .filter((n) => n.endsWith(".js") && !n.endsWith(".test.js"));
+
+  // فقط فایل‌های patterns_* مشمولِ بررسیِ زنده‌بودن‌اند. بقیه (refs.js،
+  // prompt.js، names.js …) را patterns.js وارد نمی‌کند ولی مرده نیستند —
+  // از جای دیگری وارد می‌شوند و متنشان به بیمار می‌رسد.
+  const live = new Set(livePatternFiles());
+  const isDead = (f) => /^patterns_\w+\.js$/.test(f) && !live.has(f);
+
+  const bad = [];
+  for (const f of files) {
+    const src = fs.readFileSync(path.join(RULES_DIR, f), "utf8");
+    const ast = acornParse(src, {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      locations: true,
+    });
+
+    const hits = [];
+    for (const { text, node, key, id } of userFacingStrings(ast)) {
+      const s = text.trim();
+      if (!hasLetter(s)) continue;          // متن نیست
+      if (hasFa(s)) continue;               // فارسی است
+      if (ALLOWED_TEST_NAMES.has(s)) continue;  // نام آزمایش، آگاهانه پذیرفته‌شده
+      hits.push({ line: node.loc.start.line, key, id, s });
+    }
+
+    if (!isDead(f)) {
+      for (const h of hits) bad.push(`${f}:${h.line} [${h.id}] ${h.key} — ${h.s.slice(0, 60)}`);
+      continue;
+    }
+
+    // فایلِ مرده: رد می‌شود، ولی بی‌صدا نه. عددها شمرده می‌شوند نه نقل‌شده،
+    // تا اگر فایل عوض شد پیام هم عوض شود.
+    if (!hits.length) continue;
+    const destroyed = hits.filter((h) => DESTROYED_RX.test(h.s)).length;
+    const other = hits.length - destroyed;
+    const what = [];
+    if (destroyed) what.push(`${destroyed} رشتهٔ نابودشده`);
+    if (other) what.push(`${other} رشتهٔ غیرفارسی`);
+    t.diagnostic(`SKIP: ${f} — فایل مرده، ${what.join(" + ")}، نیازمند متن انسانی`);
+  }
+
+  assert.deepEqual(bad, [], `این رشته‌های کاربرمحور فارسی نیستند:\n  ${bad.join("\n  ")}`);
 });
 
 // ---------- M39/M40: ادعای وضعیت دربارهٔ تستی که اندازه‌گیری نشده (N4 / T10) ----------
