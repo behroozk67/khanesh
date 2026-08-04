@@ -1,5 +1,9 @@
 # Khanesh — LabMate
 
+<sub>Structure, commands, agents, skills and test baseline last verified against the working tree
+on **2026-08-03** (branch `recovery`). The Lab Notebook below is cumulative and not re-verified —
+its entries are history, and history doesn't expire.</sub>
+
 ## Project Overview
 
 Patient-facing web app that interprets medical lab reports in Persian/Farsi. A React frontend collects lab values (typed in or photographed) and an Express backend runs them through a deterministic clinical rules engine before an LLM (via AvalAI, an OpenAI-compatible gateway) rewrites the engine's findings into plain-language Persian.
@@ -11,9 +15,28 @@ When the user asks for a change in this repo:
 1. **Locate** — figure out which sub-project (`khanesh/` frontend or `khanesh-server/` backend) owns the change; they have no shared `package.json`, so `cd` into the right one before running commands.
 2. **Respect the engine boundary** — clinical judgment (abnormal/normal, severity, patterns) belongs in `khanesh-server/rules/`, never in a prompt. See [rules/architecture.md](.claude/rules/architecture.md).
 3. **Edit** — for a new lab test, touch the rules files together (see [rules/rules-engine.md](.claude/rules/rules-engine.md)); for UI/API-contract changes, keep `Tafsir.jsx`'s expectations of the response shape in sync with `server.js` (see [rules/frontend.md](.claude/rules/frontend.md)).
-4. **Verify** — run `npm test` in `khanesh-server/` (rules-engine regression suite) and `npm run lint` in `khanesh/`. The frontend has no tests, so trace UI logic by reading. The pre-commit hook runs both automatically — see [Git Hooks](#git-hooks).
+4. **Verify** — run `npm test` in `khanesh-server/` and `npm run lint` in `khanesh/`. The frontend has no tests, so trace UI logic by reading. The pre-commit hook runs both automatically — see [Git Hooks](#git-hooks).
+   ⚠️ **The backend suite is red, and "the baseline" is two different numbers.** A previous
+   version of this file quoted `186 tests, 185 pass, 1 fail` as *the* baseline. That number was
+   only ever true of somebody's **working tree**; the committed tree was far redder, and nobody
+   re-derived it. See [N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
 
-Three subagents in `.claude/agents/` cover the recurring work — see [Agents](#agents) below.
+   | what you measured | tests | pass | fail |
+   |---|---|---|---|
+   | `HEAD` before `5059a05` | 186 | 137 | **49** |
+   | `HEAD` at `5059a05` (mojibake repaired) | 186 | 174 | **12** |
+   | working tree, 2026-08-04 | 187 | 186 | **1** (`T10`) |
+
+   **Any baseline you quote must name which tree it came from**, and you must *re-measure* it —
+   never copy a number out of this file. The three differ because uncommitted work in the tree
+   fixes tests that the commit does not. The 12 still failing at `5059a05` need the clinical
+   changes that are deliberately not committed yet.
+
+   `T10` («دربارهٔ تستِ اندازه‌گیری‌نشده ادعای «طبیعی» نمی‌کند») is the N4 contract and the one
+   failure present in *every* column. Any *other* failure is yours. Don't `SKIP_HOOKS=1` past it —
+   fix T10 or leave it alone.
+
+Eight subagents in `.claude/agents/` cover the recurring work — see [Agents](#agents) below.
 
 Before you start a clinical change, read [Lab Notebook](#lab-notebook--things-not-to-try-again) — it is the log of mistakes previous Claude instances actually made here. Most of them look reasonable right up until they reach a patient.
 
@@ -26,14 +49,24 @@ Before you start a clinical change, read [Lab Notebook](#lab-notebook--things-no
 
 ## Tech Stack
 
-- **Frontend**: React 19 + Vite, `react-router-dom`, embedded CSS, no CSS framework
-- **Backend**: Node + Express (`lab-proxy` / "LabMate"), proxies to AvalAI (`https://api.avalai.ir/v1`, OpenAI-compatible)
+- **Frontend**: React 19 + Vite 8, `react-router-dom` 7, plain CSS files (`index.css` / `site.css` / `ui.css`), no CSS framework. Content pages are route-level `lazy()` imports; `/` (the tool) deliberately is not.
+- **Backend**: Node + Express 4 (`lab-proxy` / "LabMate"), proxies to AvalAI (`https://api.avalai.ir/v1`, OpenAI-compatible), `express-rate-limit` on the analyze endpoints
 - **Rules engine**: plain deterministic JS modules (`khanesh-server/rules/`) — no ML, no external calls
-- **Linting**: oxlint (frontend only; config `.oxlintrc.json`)
+- **Agent graph**: `@langchain/langgraph` — a 12-node, two-layer graph in `khanesh-server/labmat-agents/`. **Default off.** See [The LabMat Agent Graph](#the-labmat-agent-graph-use_graph).
+- **Linting**: oxlint (frontend only; config `.oxlintrc.json`). Currently 6 `no-unused-vars` warnings, 0 errors — warnings don't fail the gate.
 - **External data**: NLM MedlinePlus web service (public health-topic summaries, fetched live, cached 20h)
-- **Tests**: backend only — `node:test` regression suite at `khanesh-server/rules/engine.test.js` (`npm test`), one test per previously-fixed clinical bug. No frontend tests.
+- **Tests**: backend only, `node:test`. `npm test` is bare `node --test`, so it runs **every** `*.test.js` in `khanesh-server/`, not just the rules suite:
+  | File | What it covers |
+  |---|---|
+  | `rules/engine.test.js` | the clinical regression suite — one test per real fixed bug, commented in Persian |
+  | `rules/geriatric.test.js` | `GERIATRIC_REFS` (age ≥ 75) overrides in `refs.js` |
+  | `api-contract.test.js` | end-to-end `/api/analyze` response shape and safety nets (**T10 is the known failure**) |
+  | `avalaiClient.test.js` | the HTTP boundary — 429, timeout, truncation, malformed JSON — with an injected `fetch`, no network |
+  `test-api.js` is *not* a test file but `node --test` picks it up anyway; it tries a real network call and logs a `fetch failed` / `EACCES` above the summary. That noise is expected, and it still reports `✔`.
+- **No frontend tests** and no frontend test runner — `khanesh/package.json` has no `test` script.
 - **No npm workspace** — two fully independent `package.json`s
-- **MCP**: `.mcp.json` registers the Playwright server (`@playwright/mcp`) for driving the frontend in a browser
+- **MCP**: `.mcp.json` registers the Playwright server (`@playwright/mcp@0.0.78`) for driving the frontend in a browser
+- **Submodule**: `.impeccable` is a git submodule (`github.com/pbakaus/impeccable`), separate from the three vendored `impeccable` *skill* copies described under [Skills](#skills)
 
 ---
 
@@ -41,56 +74,136 @@ Before you start a clinical change, read [Lab Notebook](#lab-notebook--things-no
 
 ```
 khanesh-project/
-├── khanesh/                    # React + Vite frontend
+├── khanesh/                     # React + Vite frontend
 │   ├── src/
-│   │   ├── App.jsx             # routes: "/" -> Tafsir; "/app" and "*" redirect to "/"
-│   │   ├── Tafsir.jsx          # the actual tool (manual entry + photo upload)
-│   │   ├── ResultView.jsx      # result screen: six states, category groups, derived values
-│   │   ├── resultStates.js     # the six result states (word + shape + colour)
-│   │   ├── testCategories.js   # engine key -> body-system category (presentation only)
-│   │   ├── digits.js           # Persian/Arabic digit normalisation
-│   │   ├── Logo.jsx            # circular badge (rescued from the deleted Landing.jsx)
+│   │   ├── App.jsx              # routes — see below; NOT "/" -> Tafsir any more
+│   │   ├── Landing.jsx          # "/" — the marketing page, un-deleted and back in front
+│   │   ├── Tafsir.jsx           # the tool itself, now at "/app" and "/tafsir"
+│   │   ├── labRefs.js           # ⭐ REF / CATS / statusOf / comboInsights — the client-side
+│   │   │                        #   copy of test metadata, moved OUT of Tafsir.jsx
+│   │   ├── LocalPreview.jsx     # manual-entry preview — the only clinical text with no engine
+│   │   ├── analyzeJob.js        # async job client: start, poll, resume from localStorage
+│   │   ├── imageIntake.js       # photo intake + compression (was inline in Tafsir.jsx)
+│   │   ├── ResultView.jsx       # result screen: states, category groups, derived values
+│   │   ├── ResultErrorBoundary.jsx  # keeps a malformed response off a white screen
+│   │   ├── ExtractedTests.jsx / Scorecard.jsx / RangeBand.jsx / Num.jsx / Segmented.jsx
+│   │   ├── EntryGrid.jsx / UploadCard.jsx / ProfileCard.jsx      # the two input paths
+│   │   ├── Tests.jsx / CategoryPage.jsx / TestPage.jsx / ExtraTestPage.jsx / Guide.jsx
+│   │   ├── content/             # the encyclopaedia text: extra.<topic>.js × 18 + coverage.mjs
+│   │   ├── testContent.js / guideContent.js / testCatalog.js / testCategories.js
+│   │   ├── sources.js / rangeMath.js / safeText.js / digits.js / resultStates.js
+│   │   ├── Logo.jsx             # BRAND_FA / BRAND_LATIN live here
+│   │   ├── LabMateLogo.jsx      # the wordmark used by Landing
 │   │   ├── main.jsx
-│   │   └── index.css / App.css
-│   ├── public/fonts/           # self-hosted Vazirmatn variable woff2 + OFL licence
-│   ├── public/
-│   ├── vite.config.js          # dev-only proxy: /api -> http://localhost:8787
+│   │   └── index.css / site.css / ui.css
+│   ├── public/fonts/            # self-hosted Vazirmatn variable woff2 + OFL licence
+│   ├── public/lab/              # ⚠️ landing imagery — mostly .png, i.e. GITIGNORED (see N14)
+│   ├── vite.config.js           # dev-only proxy: /api -> http://localhost:8787
 │   └── package.json
 ├── khanesh-server/              # Express backend
-│   ├── server.js                # POST /api/analyze, GET /health
+│   ├── server.js                # the request pipeline + every safety net (~1300 lines)
+│   ├── avalaiClient.js          # the HTTP boundary to AvalAI, factory + injectable fetch
+│   ├── jobStore.js              # in-memory analyze-job store with TTL (async path)
+│   ├── labmat-agents/           # the LangGraph agent graph — OFF unless USE_GRAPH=true
+│   │   ├── graph.js             # StateGraph wiring, 12 nodes over two layers
+│   │   ├── state.js / llm.js
+│   │   └── agents/layer1.js     # context, cbc, biochem, hormone, microbio, crossTest,
+│   │       └─ agents/layer2.js  #   diagnosis, evidence │ patient, doctor, safety, final
+│   ├── api-contract.test.js     # /api/analyze contract — T10 currently failing
+│   ├── avalaiClient.test.js
+│   ├── test-api.js              # a manual script, not a test (node --test runs it anyway)
+│   ├── *-guidelines.{json,md}   # anemia + biochem source extracts
 │   ├── rules/
 │   │   ├── adapter.js           # OCR text -> engine keys (NAME_MAP, unit conversion)
 │   │   ├── guidelines.js        # citation registry (CLSI/IFCC/EFLM/WHO/KDIGO/ADA/ESC/ACG/…)
 │   │   ├── units.js             # IFCC SI -> conventional units (HbA1c mmol/mol, mmol/L, µmol/L)
 │   │   ├── preanalytical.js     # CLSI sample-quality caveats (hemolysis, fasting, EDTA, stasis)
 │   │   ├── biovar.js            # EFLM biological variation -> reference change value
-│   │   ├── refs.js              # adult reference ranges (Henry's Clinical Diagnosis)
+│   │   ├── refs.js              # adult ranges (Henry's) + GERIATRIC_REFS (age >= 75)
 │   │   ├── refs_ped.js          # pediatric ranges <16y (RCPCH 2016)
 │   │   ├── grade.js             # picks severity/classifier/binary mode per test
 │   │   ├── ctcae.js             # CTCAE v5 severity grading
 │   │   ├── interpret.js         # categorical classifiers (e.g. MCV micro/normo/macro)
-│   │   ├── patterns.js          # multi-test clinical pattern rules (RULES array)
+│   │   ├── patterns.js          # ⭐ now an AGGREGATOR — see "Where a pattern lives" below
+│   │   ├── patterns_anemia.js / _hematology.js / _biochem.js / _biochem_new.js
+│   │   ├── patterns_nephrology.js / _nephrology_new.js / _infectious.js
+│   │   ├── patterns_endocrine_rheum.js / _endocrine_new.js / _malignancy.js
+│   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
 │   │   ├── medline.js           # MedlinePlus term extraction + lookup
 │   │   ├── coverage.js          # sentence-level check that the LLM kept every must_say
-│   │   ├── engine.test.js       # node:test regression suite (npm test)
+│   │   ├── engine.test.js       # the clinical regression suite
+│   │   ├── geriatric.test.js    # GERIATRIC_REFS coverage
+│   │   ├── split*.cjs / extract-ids.cjs   # one-off migration scripts; dead, not wired in
 │   │   ├── CLINICAL_REVIEW.md   # clinical audit log — fixed + outstanding defects
 │   │   └── REF_DIFF.md          # known REF (frontend) vs refs.js (backend) range drift
 │   ├── .env                     # AVALAI_API_KEY, etc. (gitignored)
 │   └── package.json
 ├── .claude/
-│   ├── agents/                  # subagents, see below
+│   ├── agents/                  # 8 subagents, see below
+│   ├── eval-gate/               # the evaluation gate's code: run.mjs + lib/*.mjs + fixtures
+│   │   └── runs/                # per-run evidence — gitignored, reproducible
 │   ├── rules/                   # detailed rules, see below
-│   ├── skills/                  # project skills, see below
+│   ├── skills/                  # project + vendored skills, see below
 │   └── settings.local.json      # MCP allowlist + the impeccable design hooks
+├── .specs/                      # eval specs (yaml) + written reports; docs, not executable
 ├── .githooks/pre-commit         # test/lint gate (core.hooksPath = .githooks)
 ├── .mcp.json                    # Playwright MCP server
-├── .agents/skills/              # vendored third-party skills, see below
+├── .agents/skills/              # vendored third-party skills, cross-tool layout
+├── skills-lock.json             # ⭐ EXISTS — source + hash per vendored skill
+├── .impeccable/                 # git submodule (github.com/pbakaus/impeccable)
 ├── .codex/hooks.json            # impeccable hooks for Codex (reads .agents/skills/)
 ├── .github/hooks/impeccable.json # impeccable hooks for GitHub (reads .github/skills/)
 └── CLAUDE.md                    # this file
 ```
+
+**Loose files at the repo root** — `AGENTS.md`, `ARCHITECTURE.md`, `MEDICAL_RULES.md`,
+`MEMORY.md`, `VERIFICATION_AUDIT.md`, `audit_report.md`, `CONTRACT_TEST_REPORT.md`,
+`architecture.html`, `diagram.mmd`, `fix_val.js`, several `.png`s, `scratchpad/`,
+`labmat-prototype/`. These are agent-run artefacts and scratch, **not** maintained
+documentation, and several contradict each other and this file. `CLAUDE.md` +
+`.claude/rules/` are the map; treat everything in that list as a snapshot of one past session
+unless you've just verified it against the code.
+
+### Routes (`App.jsx`)
+
+The old "the tool *is* the landing page" decision was reversed — `/` is `Landing` again.
+
+| path | renders |
+|---|---|
+| `/` and `/landing` | `Landing` (lazy) |
+| `/app` and `/tafsir` | `Tafsir` — the actual tool |
+| `/tests`, `/tests/:cat`, `/test/:key` | the encyclopaedia (lazy) |
+| `*` | `Navigate` to `/` |
+
+The Nginx `try_files $uri /index.html` caveat still applies to every one of these, and now
+matters more: a hard load of `/app` is the *main* entry point for a returning user.
+
+### Where a pattern lives
+
+`patterns.js` no longer holds the rules. It imports ten `patterns_*.js` files and concatenates
+them into the exported `RULES` array; it still owns `runPatterns()`, `SUGGEST_TESTS`, and the
+suppression/dedup logic. So:
+
+- **Adding a clinical rule** → the right `patterns_<system>.js`, then confirm its `RULES_*` export
+  is spread into `RULES` in `patterns.js`. A rule in a file that isn't imported is invisible and
+  fails exactly like N1 — silently, into `unmatched_abnormal`.
+- **Changing how rules are selected, ranked, or suppressed** → `patterns.js` itself.
+
+⚠️ **`patterns_anemia.js` is dead code — nothing imports it.** It exports `RULES_ANEMIA`
+(10 rules: `anemia_microcytic_ida`, `anemia_microcytic_thalassemia`, `anemia_hemolytic`,
+`anemia_macrocytic_megaloblastic`, …) and no file in the repo imports it. `patterns.js` also
+declares `LEGACY_ANEMIA_IDS` and never reads it. The intent is legible — `LEGACY_ANEMIA_IDS`
+lists exactly the six older anemia rules (`microcytic_anemia`, `macrocytic_anemia`,
+`normocytic_anemia`, `iron_deficiency_panel`, `anemia_chronic_disease`, `hemolysis_pattern`),
+so `patterns_anemia.js` was meant to replace them and the last two lines of that migration were
+never written. **The anemia rules that actually run live in `patterns_hematology.js`.**
+
+So: editing `patterns_anemia.js` changes nothing a patient sees, and it is currently a modified
+file in the working tree. Before touching anemia, decide which of the two you're in, and if you
+finish the migration, do it as its own change — the two rule sets overlap, and spreading
+`RULES_ANEMIA` into `RULES` without suppressing `LEGACY_ANEMIA_IDS` fires both.
 
 ---
 
@@ -109,10 +222,67 @@ npm run preview
 npm install
 node server.js     # or: npm start
 npm run dev        # nodemon — watches server.js + rules/, ignores *.test.js
-npm test           # node --test — rules/engine.test.js regression suite
+npm test           # node --test — EVERY *.test.js in khanesh-server/, see Tech Stack
+npm run test:coverage   # same, with thresholds: lines 85 / branches 70 / functions 85
 ```
 
+**Re-measure the baseline; don't quote one.** As of 2026-08-04 the committed tree (`5059a05`)
+is `tests 186 · pass 174 · fail 12` and the working tree is `tests 187 · pass 186 · fail 1`
+(`api-contract.test.js` T10). Those are different trees, not a discrepancy — see the table in
+[Your Role](#your-role) and [N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
+To measure the committed number without your own edits in the way, use a clean checkout
+(`git archive HEAD khanesh-server | tar -x -C <tmp>`), not the working tree.
+
+To run one file: `node --test rules/engine.test.js`.
+
 Requires a `.env` file with `AVALAI_API_KEY` (server boots without it but logs a warning, and all AI calls fail). See [rules/environment.md](.claude/rules/environment.md).
+
+---
+
+## The LabMat Agent Graph (`USE_GRAPH`)
+
+`khanesh-server/labmat-agents/` is a `@langchain/langgraph` `StateGraph` with 12 nodes in two
+layers — layer 1 fans out to `cbc`, `biochem`, `hormone`, `microbio` after a context node, then
+`crossTest` → `diagnosis` → `evidence`; layer 2 runs `patient`, `doctor`, `safety`, `final`.
+
+**It is off by default and that is a clinical decision, not an unfinished toggle.** The reason is
+written in Persian at [server.js:170-176](khanesh-server/server.js#L170-L176): on the graph path
+the patient-facing text comes out of two LLM agents (`patientSection`, `doctorSection`) whose
+output **does not pass through any of `server.js`'s safety nets** — not the emergency `must_say`
+coverage check, not the `key_number` guarantee, not the `forbid` filter. The classic path has all
+three. N13 came from exactly this path.
+
+If you work on the graph:
+
+- Turn it on with `USE_GRAPH=true` for a local run only. `GET /health` reports `graph: "on"|"off"`
+  and boot logs it in Persian — check there before concluding which path produced an output.
+- The graph is fed `safeEngineOut`, a copy of `engineOut` with `note` and `patient` **deleted**
+  from every graded test, because an agent that reads «تالاسمی» in a `note` field reports the
+  patient *has* thalassemia. Don't add fields back into that payload without asking what an LLM
+  will do with the wording.
+- It is still handed `rawData` (the OCR text). That is the N13 shape and the reason the default is
+  off — do not treat the current wiring as an endorsement of it.
+- Making it the default requires routing its output through the step-8 safety nets first. That's
+  the work; a flag flip is not.
+
+## Async Analyze Endpoints
+
+`server.js` exposes more than the two routes the old docs listed:
+
+| route | purpose |
+|---|---|
+| `POST /api/analyze` | the original synchronous path — still the one the safety nets are written around |
+| `POST /api/analyze/start` | starts a job, returns an id immediately |
+| `GET /api/analyze/job/:id` | polls that job |
+| `POST /api/labmat/analyze` | the graph-path entry point |
+| `GET /health` | config + truncation counters + `graph` state |
+
+The async pair exists because a three-page sheet takes 90–150s with `IMAGE_CONCURRENCY=1` and
+`OCR_RETRIES=3`, and a phone that locks or backgrounds the tab was destroying the whole job — and
+the real OCR spend with it. `jobStore.js` is **in-memory with a TTL**: a server restart drops
+in-flight jobs, and behind a load balancer a poll can land on an instance that never had the job.
+The client half is `khanesh/src/analyzeJob.js`, which keeps the job id in `localStorage` so a
+returning user sees the finished result instead of an empty form.
 
 ---
 
@@ -125,21 +295,37 @@ Requires a `.env` file with `AVALAI_API_KEY` (server boots without it but logs a
 
 A failure blocks the commit. `SKIP_HOOKS=1 git commit ...` bypasses it — don't reach for that to get past a failing clinical regression test; fix the test.
 
+⚠️ **The backend half of this gate is currently red** (`api-contract.test.js` T10), so *any*
+commit touching `khanesh-server/**.{js,mjs,json}` is blocked until T10 is fixed. That is the gate
+working, not a broken hook. Fixing T10 is the way through; `SKIP_HOOKS=1` on a clinical contract
+test is the thing this file exists to talk you out of.
+
 If the hook never fires on a fresh clone, `git config core.hooksPath .githooks`.
 
 ---
 
 ## Agents
 
-Three subagents in `.claude/agents/` handle the recurring work. Invoke them by name.
+Eight subagents in `.claude/agents/`. Invoke them by name. The first three are the everyday set;
+the five `eval-*` agents are stages of the evaluation gate and are normally driven by the
+`eval-gate` skill rather than called individually.
 
 | Agent | Use it for | Can edit? |
 |---|---|---|
 | `research` | Facts before code: tracing a value through OCR → adapter → grade → patterns → prompt, finding where a test key is defined, sourcing a reference range or CTCAE grade, collecting real-world lab-sheet spellings for `NAME_MAP` | No |
 | `code-reviewer` | Reviewing a diff for engine-boundary violations, wrong ranges/units/grading modes, missed `NAME_MAP` aliases, urgency errors, frontend/backend contract drift, privacy and Persian-string regressions | No |
 | `qa` | Running `npm test`, `npm run lint`, `npm run build`, and direct engine spot-checks; writing regression tests in `rules/engine.test.js` for bugs just fixed | Yes |
+| `eval-planner` | Gate stage 1 — turns a requested change into an approved `plan.json` before any code exists | Writes plan only |
+| `eval-builder` | Gate stage 2 — implements that plan and nothing else; minimal diffs, no scope drift | Yes |
+| `eval-medical-reviewer` | Gate stage 4 — clinical correctness only (ranges, units, grading, pattern logic, dangerous interpretations). Never reviews style | Writes report |
+| `eval-trajectory-reviewer` | Gate stage 5 — scores *how* the builder got there from the session transcript: wasted loops, hallucinated edits, ignored tool output | Writes report |
+| `eval-judge` | Gate stage 6 — blind PASS/FAIL on one question: did the implementation satisfy the task? Sees the task and the diff, never the other scores. Run last, with clean context | Writes verdict |
 
 Typical clinical change: `research` (what should the range be, where does it live) → edit → `qa` (test it, lock it in) → `code-reviewer` (before commit).
+
+For a change that needs a merge decision rather than a read, use the `eval-gate` skill — it
+sequences all eight stages, three of which (`lib/checks.mjs`, `lib/risk.mjs`, `lib/gate.mjs`) are
+deterministic code rather than another LLM opinion.
 
 ---
 
@@ -155,12 +341,26 @@ Typical clinical change: `research` (what should the range be, where does it liv
   design detector is wired to `scripts/hook.mjs` in `.claude/settings.local.json`,
   `.codex/hooks.json`, and `.github/hooks/impeccable.json`. To check an install for drift:
   `node .claude/skills/impeccable/scripts/doctor.mjs`.
-- `.agents/skills/` holds third-party skills vendored from GitHub in the cross-tool `.agents/`
-  layout, which Claude Code also reads: `do-competitively`, `do-in-parallel`, `find-skills`,
-  `impeccable`, `judge`, `judge-with-debate`, `multi-agent-patterns`, `parallel-deep-research`,
-  `parallel-web-search`. Don't hand-edit them; re-vendor from source. There is **no**
-  `skills-lock.json` and never has been — nothing here is version-pinned, so read a skill's own
-  `SKILL.md` frontmatter to find out which version you actually have.
+- `eval-gate` (`.claude/skills/`) — the eight-stage merge gate described under [Agents](#agents).
+  Its code lives in `.claude/eval-gate/` (`run.mjs`, `lib/*.mjs`, `fixtures/`, `regressions/`);
+  per-run evidence lands in `.claude/eval-gate/runs/`, which is gitignored on purpose.
+  `node .claude/eval-gate/selftest.mjs` checks the gate itself.
+- `add-medical-rule` (`.agents/skills/`, Persian) — step-by-step procedure for adding a new
+  clinical rule or pattern. It overlaps [rules-engine.md](.claude/rules/rules-engine.md); where
+  they disagree, this repo's own rules files win, and note that the skill predates the
+  `patterns_*.js` split described above.
+- Design skills: `brandkit`, `design-taste-frontend` (+ a `-v1` copy in `.agents/`),
+  `imagegen-frontend-web`. Multi-agent skills: `do-competitively`, `do-in-parallel`, `judge`,
+  `judge-with-debate`, `multi-agent-patterns`, `parallel-deep-research`, `parallel-web-search`,
+  `find-skills`.
+- **Vendored skills are version-pinned.** `skills-lock.json` at the repo root records
+  `source` (e.g. `Leonxlnx/taste-skill`), `sourceType`, `skillPath`, and a `computedHash` for each
+  one. *(A previous version of this file claimed no such lock file existed "and never has" — it
+  does; that claim was wrong.)* Don't hand-edit a vendored skill: re-vendor from source, which
+  updates the hash. A skill whose files no longer match its `computedHash` has been edited in
+  place and its provenance is gone.
+- The same skill can exist in `.claude/skills/` and `.agents/skills/` as **two independent
+  copies** — that's the same trap as the three `impeccable` installs. Changing one changes one.
 
 ---
 
@@ -390,6 +590,88 @@ five analytes wider.
 - **Tried:** pass `state.rawData` to diagnostic LLMs alongside `engineOutput`, instructing them to "IGNORE reference ranges in rawData and trust engineOutput".
 - **Broke:** models ignore the negative instruction when it contradicts their pre-training. Given `Hb: 12.3` and an OCR range of `13.5-17.5` for a 78yo Male, the engine correctly classified it as normal (`GERIATRIC_REFS`). But the LLMs saw the `rawData` range (or relied on their internal adult bounds) and hallucinated it as abnormal, generating differential diagnoses like MDS and writing `(بالا)` or `(پایین)` contrary to the engine's explicit `abnormal: false` flag.
 - **Rule:** the engine boundary is absolute. If a module relies on the engine's clinical judgement, it must **never** be allowed to see the raw test numbers combined with OCR ranges/flags. An LLM cannot unsee contradictory raw bounds. Supply only the normalized, age-adjusted `engineOutput` to LLMs performing downstream reporting.
+- **Status:** this is why `USE_GRAPH` defaults to off. The graph path still receives `rawData`.
+  See [The LabMat Agent Graph](#the-labmat-agent-graph-use_graph).
+
+### N14 — A blanket `*.png` gitignore that ate the product's own images
+2026-08-03, `.gitignore`. Not clinical — but it ships a broken page.
+
+- **Tried:** `.gitignore` a blanket `*.png` to keep Playwright/debug screenshots out of the repo.
+  Reasonable at the time: the root really does collect `root.png`, `landing-ok.png`,
+  `ocr-result.png`, `site-up.png`, `az-default.png` from UI checks.
+- **Broke:** the pattern has no path anchor, so it also matches `khanesh/public/lab/*.png` — the
+  landing page's own imagery. `Landing.jsx` and `Tests.jsx` reference at least 12 of them
+  (`hero_image_lab_ai.png`, `couple.png`, `doctor-tablet.png`, `lab_modern_tech.png`,
+  `cbc_card.png`, `thyroid_card.png`, `diabetes_card.png`, `res-1/2/3.png`, `news.png`). Exactly
+  one `.png` in the whole repo is tracked — `khanesh/src/assets/hero.png`, and only because
+  `.gitignore` has no effect on a file that was already tracked when the rule landed; nothing
+  imports it. **On a fresh clone the landing page — the app's `/` route — renders with every hero
+  and card image 404.** It looks fine locally forever, because the files are sitting right there,
+  untracked.
+- **The workaround made it worse:** someone hit this and renamed files to dodge the pattern, so
+  the tree now holds `cbc_card.png.jpg`, `thyroid_card.png.jpg`, and `diabetes_card.png.PNG`
+  (that last one is *also* ignored — the pattern is case-insensitive on Windows). Those double
+  extensions are a symptom, not a fix; the code still asks for `/lab/cbc_card.png`.
+- **Rule:** anchor an ignore pattern to the directory that actually produces the junk
+  (`/*.png`, `.playwright-mcp/`), never a bare `*.ext` in a repo that ships assets of that type.
+  After touching `.gitignore`, verify with `git status --porcelain --ignored <asset-dir>` that
+  nothing the app loads has become ignored — and treat a filename like `x.png.jpg` as evidence
+  that someone already tripped over this and routed around it instead of fixing it.
+
+### N15 — A green suite proves nothing when the damage is invisible to the tests
+2026-08-04, `5059a05`. Two instances in a single session, from one careless bulk edit.
+
+The shared shape: a mechanical fix (`sed`, an encoding conversion) was run across many rules
+files at once, and the resulting damage landed in exactly the places the test suite does not
+look. Neither showed up as an error. One of them made the suite *greener*.
+
+**(a) 62 array elisions turned 42% of the rules engine off, and the suite stayed green.**
+
+- **Tried:** repair mojibake across `patterns_*.js` with a bulk `sed`. It also rewrote `},` to
+  `},,` (58×) and `[` to `[,` (4×).
+- **Broke:** in JavaScript those are *array elisions* — `[, {a}, , {b}]` has holes. `RULES` went
+  from 87 entries to 149, of which **62 were `undefined`**. Nothing threw, because
+  [patterns.js:146](khanesh-server/rules/patterns.js#L146) opens the loop with
+  `if (!rule?.id) continue;` and skipped every hole in silence. `npm test` was **identical**
+  before and after: the corrupt engine and the healthy one scored the same.
+- **Why it was invisible:** no test asserted anything about the *shape* of `RULES`. Every test
+  exercised rules through `runPatterns()`, and the holes were between rules, so no individual
+  rule went missing — only the array's integrity was destroyed, and nothing measured that.
+- **Guard:** test `M36` in `rules/engine.test.js` asserts every `RULES` entry is an object with
+  an `id`, that each has callable `match`/`build`, and that no `id` repeats. It fails against the
+  corrupt state with `62 خانه از 149 خالی است`. It also catches a **pre-existing** defect the
+  same class had hidden: two stray *import objects*
+  (`{preanalyticalCaveats, attachPreanalytical}`, `{repeatDeltaFa}`) sitting inside the
+  `RULES_ANEMIA` array literal in `patterns_anemia.js`.
+
+**(b) Mojibake hid 37 red tests behind a quoted baseline nobody re-derived.**
+
+- **Tried:** trust this file's stated baseline — `186 tests, 185 pass, 1 fail` — as the number to
+  establish before starting.
+- **Broke:** that was the **working tree's** number. The *committed* tree was `137 pass, 49 fail`.
+  Every Persian string in nine `patterns_*.js` files was UTF-8 decoded as cp1252 and re-saved
+  («تروپونین» stored as «ØªØ±ÙˆÙ¾ÙˆÙ†ÛŒÙ†»), so 37 tests asserting patient-facing text could not
+  possibly match. A new session that cloned the repo, ran `npm test`, and compared against the
+  documented 185/1 would have concluded it had broken 48 tests itself.
+- **Rule:** **a baseline is measured, never quoted.** Re-derive it from the tree you are actually
+  about to change, and say which tree that was. A number in a document is a claim about a moment,
+  and this file has now been wrong about it once.
+- **Guard:** a mojibake check belongs in the suite — assert no source file under `rules/` contains
+  the cp1252 signature (`Ø`, `Ù`, `Ú©`, `â€Œ`). Until it exists, the one-liner is
+  `grep -rlE 'Ø|Ù|Ú©' khanesh-server/rules/*.js` and it must return nothing.
+
+**The generalizing rule, and the one worth remembering:** when you change many files with one
+mechanical command, the suite passing is *not* evidence the command did what you meant. Ask what
+the tests actually observe, then verify the thing they don't — here, `RULES.length` and the
+absence of `undefined` (one `node -e`), and the encoding of the files themselves. For an
+encoding repair specifically, prove it is content-neutral by re-encoding each changed line back
+through cp1252 and asserting it reproduces the original bytes; `5059a05` is 1006 insertions and
+1006 deletions with zero net change, which is what encoding-only looks like in a diffstat.
+
+⚠️ And note what defeated the safety net: `if (!rule?.id) continue` is a *defensive* guard, and
+its defensiveness is what let a third of the engine go dark quietly. A guard that skips bad data
+without counting it converts a loud failure into a silent one. If you add one, count what it
+skipped and fail when the count is non-zero.
 
 ---
 
@@ -397,10 +679,10 @@ five analytes wider.
 
 Detailed instructions are split across `.claude/rules/`:
 
-- [architecture.md](.claude/rules/architecture.md) — core architecture decision (engine vs. LLM), the 9-step `/api/analyze` request flow, the legacy non-engine path
-- [rules-engine.md](.claude/rules/rules-engine.md) — the three grading modes (severity/classifier/binary), reference-range sources, checklist for adding a new lab test
-- [frontend.md](.claude/rules/frontend.md) — `Tafsir.jsx` structure (manual entry vs. photo upload), which API response fields the UI depends on
-- [environment.md](.claude/rules/environment.md) — backend `.env` variables, tuning warnings, `GET /health`
+- [architecture.md](.claude/rules/architecture.md) — core architecture decision (engine vs. LLM), the 9-step `/api/analyze` request flow, the legacy non-engine path. Describes the **classic path**, which is still the default and the only one with safety nets; the graph path is documented in this file instead.
+- [rules-engine.md](.claude/rules/rules-engine.md) — the three grading modes (severity/classifier/binary), reference-range sources, checklist for adding a new lab test. Its checklist says `patterns.js`; read that as "the right `patterns_<system>.js`" since the split.
+- [frontend.md](.claude/rules/frontend.md) — routes, the decomposed `Tafsir.jsx`, `labRefs.js`, the async job client, and the `_engine` response shape the UI depends on
+- [environment.md](.claude/rules/environment.md) — backend `.env` variables (including `USE_GRAPH`), tuning warnings, `GET /health`
 - [notes.md](.claude/rules/notes.md) — cross-cutting notes: Persian-only strings, dev vs. prod proxying, patient-privacy rules, the backend regression suite
 ## Working Agreement
 
