@@ -432,7 +432,24 @@ export const RULES_BIOCHEM = [
       ].filter(Boolean).length;
       const dm = dmHits >= 1;
       // ADA: دو آزمایشِ متفاوتِ غیرطبیعی روی یک نمونه = تشخیص قطعی، بدون نیاز به تکرار.
-      // (باگ قبلی: برای FBS۴۰۰+A1c۱۲ می‌گفت «باید تکرار شود» که غلط بود.)
+      //
+      // ⚠️ اینجا یک‌بار به «قندِ ≥۲۰۰ به‌تنهایی هم قطعی است» تغییر کرد و برگردانده
+      // شد. ADA Standards of Care، بخش ۲، توصیهٔ 2.1b:
+      //   «In the absence of unequivocal hyperglycemia (e.g., hyperglycemic
+      //    crises), diagnosis requires confirmatory testing.»
+      // و تأیید یعنی: «two abnormal results from different tests which may be
+      // obtained at the same time (e.g., A1C and FPG), or the same test at two
+      // different time points» — یعنی دقیقاً همین dmHits >= 2.
+      //
+      // تنها استثنای ADA قندِ تصادفیِ ≥۲۰۰ است، و آن هم فقط «in an individual
+      // with classic symptoms of hyperglycemia or hyperglycemic crisis». این
+      // موتور فقط عدد می‌بیند و هیچ ورودیِ علامتی ندارد، پس هرگز نمی‌تواند
+      // احراز کند که آن استثنا برقرار است. عددِ بالا به‌تنهایی علامت نیست.
+      //
+      // توجیهِ آن تغییر این بود که «FBS۴۰۰ + A1c۱۲ می‌گفت باید تکرار شود» —
+      // ولی آن دو، دو آزمایشِ متفاوت‌اند، یعنی dmHits = 2 و از همان اول قطعی
+      // بود. آن باگ وجود نداشت؛ تغییر، یک تشخیصِ قطعیِ تک‌آزمایشی می‌ساخت که
+      // ADA آن را نمی‌پذیرد.
       const confirmed = dmHits >= 2;
 
       // eAG — میانگین قند سه ماه از HbA1c (فرمول ADAG/Nathan 2008: 28.7×A1c − 46.7)

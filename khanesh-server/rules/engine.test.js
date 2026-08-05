@@ -743,6 +743,48 @@ test("M13: قند ناشتای منفرد ۱۳۰ هنوز نیاز به تکرا
   assert.ok(f.suggest.some((s) => /تکرار قند/.test(s)), "باید تکرار قند پیشنهاد شود");
 });
 
+// ═══ M42: یک آزمایشِ منفرد، هرچقدر هم بالا، تشخیصِ قطعی نیست ═══
+// این قاعده یک‌بار به «قندِ ≥۲۰۰ به‌تنهایی قطعی است» تغییر کرد. ADA Standards
+// of Care بخش ۲، توصیهٔ 2.1b: «In the absence of unequivocal hyperglycemia
+// (e.g., hyperglycemic crises), diagnosis requires confirmatory testing.»
+// تنها استثنا قندِ تصادفیِ ≥۲۰۰ «in an individual with classic symptoms of
+// hyperglycemia or hyperglycemic crisis» است — و این موتور هیچ ورودیِ علامتی
+// ندارد، پس هرگز نمی‌تواند احراز کند آن استثنا برقرار است.
+//
+// جهتِ خطا مهم است: تشخیصِ قطعیِ زودهنگام یعنی بیمار متنِ «دیابت دارید» را
+// می‌خواند بدون آنکه معیارِ تأیید برقرار باشد.
+test("M42: قند ناشتای ۲۴۰ به‌تنهایی «قطعی» نیست و تکرار می‌خواهد", () => {
+  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "FBS", value: 240 }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "diabetes_range");
+  assert.ok(f, "باید الگوی دیابت فعال شود");
+  assert.ok(/یک بار دیگر تکرار/.test(f.must_say),
+    `یک آزمایشِ منفرد — هر قدر بالا — باید تکرار بخواهد. متن: «${f.must_say.slice(0, 120)}»`);
+});
+
+test("M42: قندِ تصادفیِ ۳۱۰ به‌تنهایی هم «قطعی» نیست", () => {
+  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Random Blood Sugar", value: 310 }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "diabetes_range");
+  assert.ok(f, "باید الگوی دیابت فعال شود");
+  assert.ok(/یک بار دیگر تکرار/.test(f.must_say),
+    `قندِ تصادفیِ منفرد بدونِ علامت، طبق ADA قطعی نیست. متن: «${f.must_say.slice(0, 120)}»`);
+});
+
+// تستِ منفی: دو آزمایشِ متفاوت روی یک نمونه *باید* قطعی باشد. بدونِ این،
+// یک «رفعِ» بیش‌ازحد محتاط می‌توانست همه‌چیز را به تکرار بفرستد و آن هم غلط است.
+test("M42: ناشتای ۲۴۰ + HbA1c ۹ قطعی است و تکرار نمی‌خواهد", () => {
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "FBS", value: 240 }, { name: "HbA1c", value: 9 }],
+  });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "diabetes_range");
+  assert.ok(f, "باید الگوی دیابت فعال شود");
+  assert.equal(/یک بار دیگر تکرار/.test(f.must_say), false,
+    `دو آزمایشِ متفاوتِ غیرطبیعی طبق ADA تأیید است. متن: «${f.must_say.slice(0, 120)}»`);
+});
+
 // ═══ M14: قاعده‌های بزرگی‌محور عددِ کلیدی را به‌عنوان key_number علامت می‌زنند ═══
 // باگ واقعی: LLM ارزان جملهٔ eGFR را از تفسیر حذف می‌کرد (آن را «تکراری با
 // کراتینین» می‌دید). تور ایمنی سرور به key_number تکیه می‌کند تا عدد را برگرداند؛
