@@ -731,9 +731,17 @@ export const RULES_HEMATOLOGY = [
         const g = e.graded.find((x) => x.test === "RETIC");
         return g?.abnormal && g.dir === "high";
       })();
-      // بیلی‌روبین غیرمستقیم بالا = توتال بالا با مستقیم طبیعی
-      const indirectHigh = t.BILI_T != null && t.BILI_D != null &&
-                           (t.BILI_T - t.BILI_D) > 1.0;
+      // بیلی‌روبین غیرمستقیم: اگر خودش روی برگه چاپ شده از همان استفاده کن،
+      // وگرنه از تفریقِ تام منهای مستقیم بساز — همان ترتیبی که
+      // patterns_biochem.js:758 از قبل به کار می‌بَرد.
+      // ⚠️ پیش از این فقط مسیرِ دوم بود، پس برگه‌ای که غیرمستقیم را مستقیماً
+      //    چاپ می‌کند (هشت املای BILI_I در adapter.js) در شمارشِ نشانگرها صفر
+      //    می‌آورد و همان بیمار بسته به ستونی که آزمایشگاه چاپ کرده بود، الگوی
+      //    همولیز می‌گرفت یا نمی‌گرفت. تست: M46.
+      // آستانهٔ ۱.۰ و هر سه شاخهٔ خروج دست‌نخورده‌اند.
+      const indirect = t.BILI_I != null ? t.BILI_I
+                     : (t.BILI_T != null && t.BILI_D != null ? t.BILI_T - t.BILI_D : null);
+      const indirectHigh = indirect != null && indirect > 1.0;
       const markers = [ldhHigh, haptoLow, reticHigh, indirectHigh].filter(Boolean).length;
 
       // تله عضله: LDH بالا + AST/CK بالا + هاپتوگلوبین طبیعی → عضله، نه همولیز.

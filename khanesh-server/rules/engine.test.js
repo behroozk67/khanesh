@@ -2752,3 +2752,59 @@ test("M41: MCHC بالا با RDW بالا و کم‌خونی، الگوی اس�
     "لام خون محیطی باید به‌عنوان قدم بعدی گفته شود");
   assert.equal(f.urgency, "this_week");
 });
+
+// ---------- M46: hemolysis_pattern باید بیلی‌روبین غیرمستقیمِ اندازه‌گیری‌شده را ببیند ----------
+//
+// نقص: indirectHigh فقط از تفریقِ BILI_T − BILI_D ساخته می‌شد و BILI_I را
+// نمی‌خواند — با اینکه BILI_I کلیدِ کاملاً سیم‌کشی‌شده است (هشت املا در
+// adapter.js، بازهٔ refs.js، نامِ فارسی در names.js، تبدیلِ SI در units.js).
+// نتیجه: برگه‌ای که «Bilirubin Indirect» را مستقیماً چاپ می‌کند، در شمارشِ
+// نشانگرهای همولیز صفر می‌آورد.
+//
+// پنلِ A و B از نظر بالینی یک بیمارند (غیرمستقیمِ ۲.۰ در برابر ۳.۰−۰.۴=۲.۶)؛
+// تنها تفاوت این است که آزمایشگاه کدام ستون را چاپ کرده. پیش از این رفع،
+// A الگوی همولیز نمی‌گرفت و B می‌گرفت.
+//
+// قاعدهٔ همسایه این کار را از قبل درست انجام می‌دهد — patterns_biochem.js:758 —
+// پس این هم‌راستاسازی است، نه آستانهٔ تازه. آستانهٔ ۱.۰ و هر سه شاخهٔ خروج
+// (muscleTrap | haptoLow && ≥۲ | ≥۳) دست‌نخورده‌اند.
+
+const HEMOLYSIS_BASE = [
+  { name: "Hb", value: "9.0" }, { name: "MCV", value: "90" },
+  { name: "RBC", value: "3.2" }, { name: "Retic", value: "8" },
+  { name: "LDH", value: "600" },
+];
+const hemolysisRun = (extra) =>
+  runPatterns(runEngine({ patient: { age: 40, sex: "F" },
+    tests: [...HEMOLYSIS_BASE, ...extra] }));
+
+test("M46: پنل A — بیلی‌روبین غیرمستقیمِ چاپ‌شده الگوی همولیز را فعال می‌کند", () => {
+  const fired = hemolysisRun([{ name: "Bilirubin Indirect", value: "2.0" }])
+    .findings.map((f) => f.pattern);
+  assert.ok(fired.includes("hemolysis_likely"),
+    `الگوی همولیز فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+});
+
+test("M46: پنل B — مسیرِ قدیمیِ تام منهای مستقیم نباید بشکند", () => {
+  const fired = hemolysisRun([
+    { name: "Bilirubin Total", value: "3.0" }, { name: "Bilirubin Direct", value: "0.4" },
+  ]).findings.map((f) => f.pattern);
+  assert.ok(fired.includes("hemolysis_likely"),
+    `مسیرِ BILI_T−BILI_D شکست؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+});
+
+test("M46: بیلی‌روبین غیرمستقیمِ طبیعی الگوی همولیز نمی‌سازد (مثبتِ کاذب)", () => {
+  // غیرمستقیمِ ۰.۵ زیر آستانهٔ ۱.۰ است → فقط LDH و Retic می‌مانند = ۲ نشانگر.
+  const fired = hemolysisRun([{ name: "Bilirubin Indirect", value: "0.5" }])
+    .findings.map((f) => f.pattern);
+  assert.ok(!fired.includes("hemolysis_likely"),
+    `با غیرمستقیمِ طبیعی نباید همولیز اعلام شود؛ فعال‌شده‌ها: ${fired.join("، ")}`);
+});
+
+test("M46: کم‌خونیِ نورموسیتیک کنارِ الگوی همولیز خفه نمی‌شود", () => {
+  const fired = hemolysisRun([{ name: "Bilirubin Indirect", value: "2.0" }])
+    .findings.map((f) => f.pattern);
+  assert.ok(fired.includes("normocytic_anemia"),
+    `normocytic_anemia از دست رفت؛ فعال‌شده‌ها: ${fired.join("، ")}`);
+});
+
