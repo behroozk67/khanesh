@@ -2199,6 +2199,70 @@ test("M35: بزرگسال با ALP=۵۰ پایین علامت می‌خورد (�
   assert.equal(alp.dir, "low");
 });
 
+// ---------- M45: کم‌خونی شدید اورژانس است (پورت از فایلِ مرده) ----------
+//
+// شکافِ اندازه‌گیری‌شده پیش از پورت: هموگلوبینِ ۵.۰ با CBC کامل فقط
+// this_week می‌گرفت، و هموگلوبینِ ۶.۵ به‌تنهایی به unmatched_abnormal
+// می‌افتاد — یعنی بیمار در آستانهٔ تزریق خون جملهٔ «برای این ترکیب توضیح
+// آماده‌ای نداریم» را می‌خواند. قاعده در patterns_anemia.js وجود داشت و
+// چون آن فایل import نمی‌شود، هرگز شلیک نمی‌کرد.
+//
+// آستانهٔ ۷.۰ عیناً منتقل شد و منبعِ ثبت‌شده ندارد — MEDICAL_RULES.md.
+test("M45: هموگلوبین ۵.۰ با CBC کامل اورژانس است", () => {
+  const e = runEngine({
+    patient: { age: "45 سال", sex: "مرد" },
+    tests: [
+      { name: "Hb", value: 5.0 }, { name: "MCV", value: 85 },
+      { name: "PLT", value: 240000 }, { name: "WBC", value: 6500 },
+      { name: "RBC", value: 2.1 },
+    ],
+  });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "severe_anemia_crisis");
+  assert.ok(f, `قاعدهٔ کم‌خونی شدید باید فعال شود؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
+  assert.equal(f.urgency, "emergency");
+  assert.equal(f.key_number, 5, "عددِ محرک باید key_number باشد");
+  assert.equal(p.overall_urgency, "emergency");
+});
+
+test("M45: هموگلوبین ۶.۵ به‌تنهایی اورژانس است، نه unmatched_abnormal", () => {
+  const e = runEngine({ patient: { age: "45 سال", sex: "مرد" }, tests: [{ name: "Hb", value: 6.5 }] });
+  const p = runPatterns(e);
+  const fired = p.findings.map((x) => x.pattern);
+  assert.ok(fired.includes("severe_anemia_crisis"), `فعال‌شده‌ها: ${fired.join("، ")}`);
+  assert.equal(fired.includes("unmatched_abnormal"), false,
+    "نباید به تورِ عمومی بیفتد — همان چیزی که این پورت رفعش می‌کند");
+  assert.equal(p.overall_urgency, "emergency");
+});
+
+// تستِ منفیِ اجباری: آستانه باید آستانه بماند. بدونِ این، یک «بهبودِ» بعدی
+// که مثلاً ۸.۰ را هم اورژانس کند بی‌صدا رد می‌شود و هر کم‌خونیِ متوسط
+// بیمار را به اورژانس می‌فرستد.
+test("M45: هموگلوبین ۷.۵ اورژانس نیست", () => {
+  const e = runEngine({ patient: { age: "45 سال", sex: "مرد" }, tests: [{ name: "Hb", value: 7.5 }, { name: "MCV", value: 88 }] });
+  const p = runPatterns(e);
+  assert.equal(p.findings.some((x) => x.pattern === "severe_anemia_crisis"), false,
+    "۷.۵ بالای آستانهٔ ۷.۰ است");
+  assert.notEqual(p.overall_urgency, "emergency");
+});
+
+// تستِ منفی: پورت نباید قاعده‌های موجود را خفه کند. هر دو باید کنار هم بیایند.
+test("M45: قاعده‌های موجودِ کم‌خونی همچنان شلیک می‌کنند", () => {
+  const severe = runPatterns(runEngine({
+    patient: { age: "45 سال", sex: "مرد" },
+    tests: [{ name: "Hb", value: 5.0 }, { name: "MCV", value: 85 }, { name: "PLT", value: 240000 }],
+  }));
+  assert.ok(severe.findings.some((x) => x.pattern === "normocytic_anemia"),
+    `normocytic_anemia باید کنارِ اورژانس بماند؛ فعال‌شده‌ها: ${severe.findings.map((x) => x.pattern).join("، ")}`);
+
+  const mild = runPatterns(runEngine({
+    patient: { age: "45 سال", sex: "مرد" },
+    tests: [{ name: "Hb", value: 9.5 }, { name: "MCV", value: 88 }],
+  }));
+  assert.ok(mild.findings.some((x) => x.pattern === "normocytic_anemia"),
+    "کم‌خونیِ متوسط باید مثل قبل رفتار کند");
+});
+
 // ---------- M43: ALP اطفال — ردهٔ ۳–۱۵ باز شد، ردهٔ زیرِ ۳ سال نه ----------
 //
 // مسئلهٔ واقعی: سقفِ قبلیِ ۳۰۸ برای ۱–۱۴ سال، اوجِ فیزیولوژیکِ رشد و بلوغ

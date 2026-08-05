@@ -8,26 +8,6 @@ import { val } from "./patterns_utils.js";
 
 export const RULES_ANEMIA = [
   // ── بحران کم‌خونی (اورژانس) ──
-  {
-    id: "severe_anemia_crisis",
-    match: (e) => {
-      const hgb = e.graded.find((g) => g.test === "HGB");
-      // اگر هموگلوبین زیر ۷.۰ باشد (یا زیر ۸.۰ برای بیماران پرخطر)
-      return hgb && hgb.value !== null && Number(hgb.value) < 7.0;
-    },
-    build: (e) => {
-      const hgb = e.graded.find((g) => g.test === "HGB");
-      return {
-        pattern: "severe_anemia_crisis",
-        urgency: "emergency",
-        headline: "بحران کم‌خونی شدید (اورژانس پزشکی)",
-        must_say: `مقدار هموگلوبین شما ${hgb.value} است که افت بسیار شدیدی را نشان می‌دهد (کمتر از ۷.۰). این میزان از کم‌خونی باعث کاهش شدید اکسیژن‌رسانی به بافت‌های حیاتی از جمله قلب و مغز می‌شود و خطر جانی دارد.`,
-        action: "فوراً و بدون اتلاف وقت به بخش اورژانس بیمارستان مراجعه کنید (احتمال نیاز فوری به تزریق خون وجود دارد).",
-        suggest: ["تزریق خون (Blood Transfusion)", "CBC"],
-        key_number: hgb.value
-      };
-    }
-  },
 
   // ─────────────────────────────────────────
   // 1. کم‌خونی‌های میکروسیتیک (Microcytic)

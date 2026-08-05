@@ -16,33 +16,81 @@ When the user asks for a change in this repo:
 2. **Respect the engine boundary** — clinical judgment (abnormal/normal, severity, patterns) belongs in `khanesh-server/rules/`, never in a prompt. See [rules/architecture.md](.claude/rules/architecture.md).
 3. **Edit** — for a new lab test, touch the rules files together (see [rules/rules-engine.md](.claude/rules/rules-engine.md)); for UI/API-contract changes, keep `Tafsir.jsx`'s expectations of the response shape in sync with `server.js` (see [rules/frontend.md](.claude/rules/frontend.md)).
 4. **Verify** — run `npm test` in `khanesh-server/` and `npm run lint` in `khanesh/`. The frontend has no tests, so trace UI logic by reading. The pre-commit hook runs both automatically — see [Git Hooks](#git-hooks).
-   ⚠️ **The backend suite is red, and "the baseline" is two different numbers.** A previous
-   version of this file quoted `186 tests, 185 pass, 1 fail` as *the* baseline. That number was
-   only ever true of somebody's **working tree**; the committed tree was far redder, and nobody
-   re-derived it. See [N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
+   ⚠️ **"The baseline" is always two different numbers — the working tree's and the commit's.**
+   A previous version of this file quoted `186 tests, 185 pass, 1 fail` as *the* baseline. That
+   number was only ever true of somebody's **working tree**; the committed tree was far redder,
+   and nobody re-derived it. As of `acc9cc0` the working tree is green and the committed tree is
+   12 red, so the trap is now the other way round and just as easy to fall into. See
+   [N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
 
-   | what you measured | tests | pass | fail |
-   |---|---|---|---|
-   | `HEAD` before `5059a05` | 186 | 137 | **49** |
-   | `HEAD` at `5059a05` (mojibake repaired) | 186 | 174 | **12** |
-   | `HEAD` at `a547164` (docs only — unchanged, as expected) | 186 | 174 | **12** |
-   | `HEAD` at `c093712` (`M36`+`M37` added) | 190 | 178 | **12** |
-   | working tree, 2026-08-04 (before `M37`) | 187 | 186 | **1** (`T10`) |
-   | working tree, 2026-08-04 (after `M37`, 3 new tests) | 190 | 189 | **1** (`T10`) |
+   | what you measured | tests | pass | fail | skipped |
+   |---|---|---|---|---|
+   | `HEAD` before `5059a05` | 186 | 137 | **49** | — |
+   | `HEAD` at `5059a05` (mojibake repaired) | 186 | 174 | **12** | — |
+   | `HEAD` at `a547164` (docs only — unchanged, as expected) | 186 | 174 | **12** | — |
+   | `HEAD` at `c093712` (`M36`+`M37` added) | 190 | 178 | **12** | — |
+   | working tree, 2026-08-04 (before `M37`) | 187 | 186 | **1** (`T10`) | — |
+   | working tree, 2026-08-04 (after `M37`, 3 new tests) | 190 | 189 | **1** (`T10`) | — |
+   | `HEAD` at `acc9cc0` (`T10` fixed, `M38` added) | 193 | 181 | **12** | `patterns_anemia.js` |
+   | working tree, 2026-08-04 (after `acc9cc0`) | 193 | 193 | **0** | `patterns_anemia.js` |
+   | `HEAD` at `1469449` (docs + hook only — unchanged, as expected) | 193 | 181 | **12** | `patterns_anemia.js` |
+   | working tree, 2026-08-05 (after `M41`, `spherocytosis_likely` restored) | 194 | 194 | **0** | `patterns_anemia.js` |
 
    **Any baseline you quote must name which tree it came from**, and you must *re-measure* it —
    never copy a number out of this file. Committed and working-tree rows differ because
-   uncommitted work in the tree fixes tests that the commit does not. The 12 still failing at
-   `c093712` need the clinical changes that are deliberately not committed yet; that count has
-   not moved since `5059a05`, so a 13th failure is yours.
+   uncommitted work in the tree fixes tests that the commit does not.
+
+   ⚠️ **The two `acc9cc0` rows are 12 apart, and that gap is the whole point of this table.**
+   A session on 2026-08-04 watched the pre-commit hook print `193 · 193 · 0` and recorded that
+   as the committed baseline. It isn't: the hook runs `npm test` against the **working tree**,
+   not against what is being committed. The committed tree is `193 · 181 · 12`. Reading a
+   baseline off a hook run is the same error as quoting one out of a file — see
+   [N15(b)](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests). The
+   only way to measure a commit is to check it out; the recipe is under [Commands](#commands).
+
+   The 12 failing at `acc9cc0` are **not** the 12 at `c093712` — the count is a coincidence.
+   They are still the same 12 at `1469449` (re-measured 2026-08-05). Eleven of them (`T9`, `R7`,
+   `M15`, `M16`, `M31`×3, `M28`, `G2`, `G4`, `M33`) need the clinical changes still uncommitted in
+   the working tree. The twelfth is `M38` itself, and it is failing on a **real live defect in the
+   committed tree**: `spherocytosis_likely` in `patterns_hematology.js` has its
+   `headline`/`must_say`/`action`/`suggest` entirely in English («Increased Intracellular
+   Hemoglobin Concentration», «Schedule an appointment with your doctor in the coming weeks»).
+   That rule fires, and a Persian-speaking patient reads it.
+   **The working tree fixes this** — the rewrite of `patterns_hematology.js` restores the rule
+   with the same thresholds and freshly written Persian at
+   [patterns_hematology.js:514](khanesh-server/rules/patterns_hematology.js#L514), and `M41` locks
+   it in — but until that lands, the committed tree ships English clinical text to patients.
+   `M38` at `HEAD` also flags a bare `LDL` in `severe_hypercholesterolemia`'s `must_say`; the
+   working tree's version of that string is Persian with `LDL` inline («مقدار کلسترول بد (LDL) شما
+   …»), which is the right fix — `LDL` was **not** added to `ALLOWED_TEST_NAMES`, so that list is
+   still exactly the eleven English full words of `P6` plus the printed-on-the-sheet abbreviations.
 
    ⚠️ **Measure with `node_modules` present or the number is fiction.** See the warning under
    [Commands](#commands) — the obvious "clean checkout" recipe silently reports **20** failures
    instead of 12.
 
-   `T10` («دربارهٔ تستِ اندازه‌گیری‌نشده ادعای «طبیعی» نمی‌کند») is the N4 contract and the one
-   failure present in *every* column. Any *other* failure is yours. Don't `SKIP_HOOKS=1` past it —
-   fix T10 or leave it alone.
+   **`skipped` is a real column, not a footnote.** `patterns_anemia.js` is dead code
+   (`patterns.js` does not import it) and holds 10 destroyed Persian strings that only a human can
+   rewrite — see [N15(c)](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
+   Three guards treat it differently, and the difference matters:
+
+   | guard | covers `patterns_anemia.js`? |
+   |---|---|
+   | `M36` (`RULES` integrity) | **no** — its rules are not in `RULES` at all |
+   | `M37` assertion 1 (mojibake, every `rules/*.js`) | **yes** — and it passes; the mojibake was repaired |
+   | `M37` assertion 2 (destroyed text, live files only) | **no** |
+   | `M38` (Persian user-facing strings) | **no** — skipped, with a visible `t.diagnostic` |
+
+   So the file is *not* unguarded: its encoding is checked, its content is not. `M38` prints
+   `SKIP: patterns_anemia.js — فایل مرده، 10 رشتهٔ نابودشده، نیازمند متن انسانی` on every run, so
+   the exemption is visible in the output rather than silent. All three exemptions are derived
+   from `patterns.js`'s own `import` statements via `livePatternFiles()` — nothing is hand-listed,
+   so wiring `RULES_ANEMIA` into `RULES` turns all three red at once, which is correct.
+
+   `T10` («دربارهٔ تستِ اندازه‌گیری‌نشده ادعای «طبیعی» نمی‌کند») was the N4 contract failure
+   present in every column up to `c093712`. It was fixed in `2f964df` (`stripUnmeasuredClaims` in
+   `rules/coverage.js`) and now passes in both trees. Don't reach for `SKIP_HOOKS=1` on any
+   clinical contract test that replaces it.
 
 Eight subagents in `.claude/agents/` cover the recurring work — see [Agents](#agents) below.
 
@@ -68,7 +116,7 @@ Before you start a clinical change, read [Lab Notebook](#lab-notebook--things-no
   |---|---|
   | `rules/engine.test.js` | the clinical regression suite — one test per real fixed bug, commented in Persian |
   | `rules/geriatric.test.js` | `GERIATRIC_REFS` (age ≥ 75) overrides in `refs.js` |
-  | `api-contract.test.js` | end-to-end `/api/analyze` response shape and safety nets (**T10 is the known failure**) |
+  | `api-contract.test.js` | end-to-end `/api/analyze` response shape and safety nets (`T10` was the long-standing failure; fixed in `2f964df`) |
   | `avalaiClient.test.js` | the HTTP boundary — 429, timeout, truncation, malformed JSON — with an injected `fetch`, no network |
   `test-api.js` is *not* a test file but `node --test` picks it up anyway; it tries a real network call and logs a `fetch failed` / `EACCES` above the summary. That noise is expected, and it still reports `✔`.
 - **No frontend tests** and no frontend test runner — `khanesh/package.json` has no `test` script.
@@ -117,7 +165,7 @@ khanesh-project/
 │   │   ├── state.js / llm.js
 │   │   └── agents/layer1.js     # context, cbc, biochem, hormone, microbio, crossTest,
 │   │       └─ agents/layer2.js  #   diagnosis, evidence │ patient, doctor, safety, final
-│   ├── api-contract.test.js     # /api/analyze contract — T10 currently failing
+│   ├── api-contract.test.js     # /api/analyze contract — green since 2f964df
 │   ├── avalaiClient.test.js
 │   ├── test-api.js              # a manual script, not a test (node --test runs it anyway)
 │   ├── *-guidelines.{json,md}   # anemia + biochem source extracts
@@ -163,10 +211,19 @@ khanesh-project/
 ├── .impeccable/                 # git submodule (github.com/pbakaus/impeccable)
 ├── .codex/hooks.json            # impeccable hooks for Codex (reads .agents/skills/)
 ├── .github/hooks/impeccable.json # impeccable hooks for GitHub (reads .github/skills/)
+├── MEDICAL_RULES.md             # ⭐ clinical decision register — pending human review (P1-P7)
 └── CLAUDE.md                    # this file
 ```
 
-**Loose files at the repo root** — `AGENTS.md`, `ARCHITECTURE.md`, `MEDICAL_RULES.md`,
+**`MEDICAL_RULES.md` at the repo root is maintained, and it is not like the others.** It is the
+clinical decision register: every threshold, range, or rule change that needs a *human* clinical
+reviewer is recorded there under "در انتظار بازبینی" with the proposal, the reasoning, and what
+happens to the patient either way. `5c3a86b` filled in `P3`–`P7`. Read it before changing a
+number in `refs.js` or a threshold in a pattern — the answer to "should this be 306 or 130?" is
+often already written down, waiting for a decision rather than for code. Nothing there is
+supposed to reach executable code until a reviewer moves it to the approved section.
+
+**The other loose files at the repo root** — `AGENTS.md`, `ARCHITECTURE.md`,
 `MEMORY.md`, `VERIFICATION_AUDIT.md`, `audit_report.md`, `CONTRACT_TEST_REPORT.md`,
 `architecture.html`, `diagram.mmd`, `fix_val.js`, several `.png`s, `scratchpad/`,
 `labmat-prototype/`. These are agent-run artefacts and scratch, **not** maintained
@@ -231,15 +288,24 @@ mojibake has been recovered and it now scans clean, but wiring `RULES_ANEMIA` in
 3. **`LEGACY_ANEMIA_IDS` must actually be applied**, per the paragraph above, or the old and new
    anemia rules both fire.
 
-⚠️ **Separately, spherocytosis coverage is currently missing from the live engine.** The committed
-`patterns_hematology.js` has `spherocytosis_likely`; the working tree's uncommitted rewrite deleted
-it, and a repo-wide search now finds that id in **zero** files. Its intended replacement,
-`anemia_spherocytosis`, is one of the two rules stranded in the dead file with destroyed text. So
-in the working tree a patient matching that pattern gets no finding at all — the silent
-under-reading of N2 — and no test covers it. Its plumbing is at least sound: `MCHC`, `RDW_CV` and
-`RDW_SD` are fully wired through `refs.js`, `NAME_MAP` and `FA_NAMES`, so this is a missing rule,
-not a missing test key. Porting it into `patterns_hematology.js` with freshly written Persian is
-the smaller, safer change, and it does **not** require finishing the migration.
+✅ **Spherocytosis coverage was missing from the working tree's live engine; it is back.**
+(Resolved 2026-08-05 — recorded because the *shape* of the gap is the reusable part.) The committed
+`patterns_hematology.js` has `spherocytosis_likely` with English text; an uncommitted rewrite of
+that file deleted the rule outright, and for a stretch a repo-wide search found the id in **zero**
+files. No test noticed, because a *deleted* rule breaks nothing structurally and `M38` only reads
+strings that still exist. **Measured, not assumed**: running `M41`'s panel with the rule filtered
+out of `RULES` fires `normocytic_anemia` and nothing else — so the patient got a finding, just not
+*this* one, and lost the actual next step (peripheral blood smear). That is the N2 class, and it is
+worse than silence precisely because the output still looks complete. Its intended replacement, `anemia_spherocytosis`, was (and still is) stranded in
+the dead `patterns_anemia.js` with destroyed text, so it could not stand in.
+
+The fix was the smaller one: port the rule back into
+[patterns_hematology.js:514](khanesh-server/rules/patterns_hematology.js#L514) with the HEAD
+thresholds unchanged (`MCHC > 36`, `MCV ≤ 100`, MCH normal, HGB low, RBC not high, RDW high) and
+freshly written Persian, plus `M41` to lock it in. It did **not** require finishing the anemia
+migration — the plumbing was always sound (`MCHC`, `RDW_CV`, `RDW_SD` are fully wired through
+`refs.js`, `NAME_MAP` and `FA_NAMES`). Still open: the `MCHC > 36` threshold carries no recorded
+source — see `P5` in [MEDICAL_RULES.md](MEDICAL_RULES.md).
 
 ---
 
@@ -262,11 +328,18 @@ npm test           # node --test — EVERY *.test.js in khanesh-server/, see Tec
 npm run test:coverage   # same, with thresholds: lines 85 / branches 70 / functions 85
 ```
 
-**Re-measure the baseline; don't quote one.** As of 2026-08-04 the committed tree (`c093712`)
-is `tests 190 · pass 178 · fail 12` and the working tree is `tests 190 · pass 189 · fail 1`
-(`api-contract.test.js` T10). Both are 190 for the same reason — `M37` added three tests that
-day — but they are different trees, not a discrepancy; see the table in [Your Role](#your-role)
-and [N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
+**Re-measure the baseline; don't quote one.** As of 2026-08-05 the committed tree (`1469449`)
+is `tests 193 · pass 181 · fail 12` and the working tree is `tests 194 · pass 194 · fail 0`.
+The counts differ by one because the working tree adds `M41`; the 12-test gap is the uncommitted
+clinical work plus one live English-text defect `M38` catches — they are different trees, not a
+discrepancy. See the table in [Your Role](#your-role) and
+[N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
+
+⚠️ **The pre-commit hook's output is not a substitute for this measurement**, even now that it
+gates the index (`1469449`). It tells you the *index* was green at the moment you committed; it
+says nothing about `HEAD` afterwards, and it never runs at all for a commit that stages no
+`.js`/`.jsx`/`.mjs`/`.json` under the two sub-projects — `5c3a86b` is exactly that case, and its
+own message says so. To know what a commit scores, check it out and run it.
 
 To measure the committed number without your own edits in the way, extract a clean copy **and
 give it the dependencies**:
@@ -349,9 +422,31 @@ returning user sees the finished result instead of an empty form.
 
 A failure blocks the commit. `SKIP_HOOKS=1 git commit ...` bypasses it — don't reach for that to get past a failing clinical regression test; fix the test.
 
-⚠️ **The backend half of this gate is currently red** (`api-contract.test.js` T10), so *any*
-commit touching `khanesh-server/**.{js,mjs,json}` is blocked until T10 is fixed. That is the gate
-working, not a broken hook. Fixing T10 is the way through; `SKIP_HOOKS=1` on a clinical contract
+✅ **The gate measures the index, not your working tree** — since `1469449`. It was the other way
+round until then, and that is how `acc9cc0` was committed 12-red on a green hook: the hook ran
+`npm test` in the checkout, so a partial commit (`git add -p`, or staging two of three changed
+files) was gated on code that wasn't going in. How the current hook works, because each part was a
+failure someone hit:
+
+- It builds the index tree with `git write-tree` + `git archive` into a temp dir, and runs the
+  checks *there*. It deliberately does **not** `git stash -k` — a crash or a Ctrl-C mid-run would
+  strand uncommitted work in a stash entry and leave the tree looking like the index, i.e. the
+  hook would appear to have eaten your work. Nothing in the working tree is touched.
+- It links `node_modules` into that temp tree, because without it `api-contract.test.js` can't
+  import `express`, the whole file errors, and `T1`–`T10` go red — the hook would then block every
+  commit with a fake failure. Same trap as the manual recipe under [Commands](#commands).
+- On Windows it links with `mklink /J` (a junction) and falls back to `ln -s`, not the reverse:
+  `ln -s` in Git Bash needs `MSYS=winsymlinks:nativestrict` or Developer Mode, and measured five
+  runs on this repo, **three of them failed**.
+- If the index tree can't be built, **the commit is blocked**, not waved through. The previous
+  version fell back to the working tree, which is usually greener than the index — that made the
+  gate random, and `8aaba5d` went through with 11 red tests that way. "I don't know" answers no.
+
+`.env` is deliberately *not* linked in: it isn't committed, so the tests must not depend on it.
+Measured — its absence turns nothing red.
+
+The backend half was red for a long stretch on `api-contract.test.js` `T10`; that was the gate
+working, and it was fixed in `2f964df` rather than skipped. `SKIP_HOOKS=1` on a clinical contract
 test is the thing this file exists to talk you out of.
 
 If the hook never fires on a fresh clone, `git config core.hooksPath .githooks`.
@@ -671,6 +766,19 @@ five analytes wider.
   After touching `.gitignore`, verify with `git status --porcelain --ignored <asset-dir>` that
   nothing the app loads has become ignored — and treat a filename like `x.png.jpg` as evidence
   that someone already tripped over this and routed around it instead of fixing it.
+- ✅ **Fixed 2026-08-05 (staged, not committed).** `*.png` → `/*.png`, and the 11 referenced
+  images staged. Verified against the **index tree**, not the working tree — the working tree
+  always passes here, which is why this survived so long: `git archive $(git write-tree)
+  khanesh/public/lab`, then resolve every `/lab/…` path `grep`ped out of `khanesh/src/`. All 13
+  resolve. The five root screenshots N14 named (`root.png`, `landing-ok.png`, `ocr-result.png`,
+  `site-up.png`, `az-default.png`) are still ignored, now by `.gitignore:5`.
+- **Left open on purpose:** the workaround files (`cbc_card.png.jpg`, `thyroid_card.png.jpg`,
+  `diabetes_card.png.PNG`) are still untracked on disk — nothing references them; deleting them
+  is a separate call. And the 11 tracked `.png` are **7.1 MB**, while optimized `.jpg` twins of
+  four of them are already tracked at **212 KB total** (`res-1/2/3.jpg`, `news.jpg` — ~15×
+  smaller). Pointing `Landing.jsx` at the `.jpg` and re-exporting the other seven is the right
+  follow-up; it was not folded in here because it changes rendered output and needs eyes on the
+  images, whereas tracking what the code already names does not.
 
 ### N15 — A green suite proves nothing when the damage is invisible to the tests
 2026-08-04, `5059a05`. Two instances in a single session, from one careless bulk edit.
@@ -789,6 +897,40 @@ through cp1252 and asserting it reproduces the original bytes; `5059a05` is 1006
 its defensiveness is what let a third of the engine go dark quietly. A guard that skips bad data
 without counting it converts a loud failure into a silent one. If you add one, count what it
 skipped and fail when the count is non-zero.
+
+### N16 — Every guard in this repo watches the rules that exist; none watches the one you deleted
+2026-08-05, `spherocytosis_likely`. Fixed in the working tree; recorded because the *gap* is
+structural, not specific to that rule.
+
+- **Tried:** rewrite `patterns_hematology.js` and, in the course of it, drop a rule that was going
+  to be replaced by `anemia_spherocytosis` in `patterns_anemia.js`. The replacement never landed —
+  that file is dead and its text is destroyed (N15(c)) — so the id ended up in **zero** files.
+- **Broke:** on the matching panel (Hb 10.5, MCV 88, MCH 30, MCHC 37, RDW 16.5) the engine returns
+  `normocytic_anemia` and stops. The patient gets a plausible, complete-looking report that never
+  mentions red-cell shape, never quotes the MCHC that triggered it, and never asks for the
+  peripheral blood smear that is the whole point. Under-reading dressed as a finished answer.
+- **Why nothing caught it — check this list before trusting a green suite after a rewrite:**
+
+  | guard | what it observes | sees a deleted rule? |
+  |---|---|---|
+  | `M36` | `RULES` integrity: no holes, callable `match`/`build`, no duplicate ids | **no** — a shorter array is still a valid one |
+  | `M37` | encoding of the files that exist | **no** |
+  | `M38` | language of the strings that exist | **no** — deleted strings aren't scanned |
+  | `runPatterns()` | whatever did fire | **no** — it has no expectation of what *should* have |
+
+  Every one of them is a property of the present tense. Deletion is the one edit with no artefact.
+- **Rule:** a rewrite is not a refactor until you diff the **id set**, not the file. Before and
+  after: `node -e "import('./rules/patterns.js').then(m=>console.log(m.RULES.map(r=>r.id).sort().join('\n')))"`
+  and compare. Any id that leaves the set is a clinical deletion and needs the same review as a
+  clinical addition — a source, a decision, and a line in `MEDICAL_RULES.md`. "It's being replaced"
+  is a plan, not a state; verify the replacement is in `RULES` in the same change, or don't remove
+  the original.
+- **And write the negative control, don't assert it.** `M41` locks the restored rule in; it was
+  verified by filtering the id back out of `RULES` in a temp copy and watching it go red
+  (`166 pass · 1 fail`, `الگوی اسفروسیتوز فعال نشد؛ فعال‌شده‌ها: normocytic_anemia`). That run is
+  also what corrected this entry: the pre-fix claim in `MEDICAL_RULES.md` was "the patient gets no
+  finding at all", and the measurement says otherwise. N10 asks you to run the test against the old
+  code — do it literally, because it tells you what the bug *was*, not just that the test works.
 
 ---
 
