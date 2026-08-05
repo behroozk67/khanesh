@@ -65,7 +65,7 @@ const NAME_MAP = {
   bs2h: "GLU_2H", glu2h: "GLU_2H", glucose2h: "GLU_2H", "2hourpp": "GLU_2H",
   postprandial: "GLU_2H", postprandialbloodsugar: "GLU_2H",
   "2hourpostprandial": "GLU_2H", قندخوندوساعته: "GLU_2H", قنددوساعته: "GLU_2H",
-  hba1c: "HBA1C", a1c: "HBA1C",
+  hemoglobina1c: "HBA1C", hba1c: "HBA1C", a1c: "HBA1C",
   urea: "UREA", اوره: "UREA", bun: "UREA_N", bloodureanitrogen: "UREA_N", ureanitrogen: "UREA_N",
   creatinine: "CREAT", cr: "CREAT", کراتینین: "CREAT",
   creatinin: "CREAT", creatnine: "CREAT", cretinine: "CREAT", serumcreatinine: "CREAT",
@@ -735,6 +735,9 @@ export function ocrToEngineInput(ocr) {
 export function runEngine(ocr) {
   const { tests, qual, unmapped, unitConversions, diffFailed, sex, age } = ocrToEngineInput(ocr);
 
+  const conditions = ocr?.patient?.conditions || [];
+  const isCancerPatient = conditions.some((c) => /سرطان|شیمی.?درمانی|رادیوتراپی|ایمونوتراپی/.test(c));
+
   // ═══ تصحیح‌های مشتق (پیش از درجه‌بندی، تا CTCAE و الگوها روی مقدار درست کار کنند) ═══
   const derived = {};
 
@@ -771,7 +774,7 @@ export function runEngine(ocr) {
     const ref = getRef(key, sex, age);
     if (!ref) { noRef.push(key); continue; }
 
-    const e = evaluate(key, value, ref[0], ref[1]);
+    const e = evaluate(key, value, ref[0], ref[1], isCancerPatient);
     graded.push({
       test: key,
       value,

@@ -781,7 +781,18 @@ const analyzeHandler = async (req, res) => {
           tests: manualTests,
           // موتور سن را فقط از patient.age می‌خواند — سطح بالا نادیده گرفته می‌شود
           // و سن null باعث اعمال محدودهٔ بزرگسال روی کودک می‌شود.
-          patient: { age: patient?.age ?? null, sex: patient?.sex ?? null },
+          //
+          // ⚠️ conditions هم باید بیاید. از وقتی grade.js درجه‌بندی CTCAE را به
+          // بیمارِ سرطانی مشروط کرد، این دیگر «فقط زمینه برای لحن» نیست بلکه
+          // ورودیِ درجه‌بندی است. مسیر عکس (خط ~۷۲۶) کلِ patient را پاس می‌دهد،
+          // پس اگر اینجا بازسازیِ دستی فقط age/sex بدهد، یک بیمارِ سرطانی که
+          // مقادیر را تایپ می‌کند درجهٔ CTCAE نمی‌گیرد ولی همان بیمار با عکسِ
+          // همان برگه می‌گیرد — یک خروجی برای دو مسیرِ ورودی.
+          patient: {
+            age: patient?.age ?? null,
+            sex: patient?.sex ?? null,
+            conditions: patient?.conditions ?? [],
+          },
           unreadable_notes: [],
         };
       }

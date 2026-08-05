@@ -1,10 +1,10 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
 export const RULES_HEMATOLOGY = [
-{
+  {
     id: "dic_pattern",
     match: (e) => isDIC(e),
     build: (e) => {
@@ -29,7 +29,10 @@ export const RULES_HEMATOLOGY = [
       };
     },
   },
-{
+  // دی‌دایمرِ بالای تنها — وقتی تصویر DIC نباشد. باینری است و هیچ الگویی
+  // برنمی‌داشتش، پس «خوانده می‌شد ولی تفسیر نداشت». D-dimer غیراختصاصی است:
+  // فوریت this_week با لحن اطمینان‌بخش + هشدارِ علائم لخته.
+  {
     id: "d_dimer_elevated",
     match: (e) => {
       const d = e.graded.find((g) => g.test === "DDIMER");
@@ -62,7 +65,10 @@ export const RULES_HEMATOLOGY = [
       };
     },
   },
-{
+
+  // ═══════════ لکوسیتوز شدید — پرچم قرمز ═══════════
+  // 🔴 این قاعده نبود و WBC=258 «طبیعی» گزارش شد.
+  {
     id: "extreme_leukocytosis",
     match: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
@@ -87,7 +93,7 @@ export const RULES_HEMATOLOGY = [
       };
     },
   },
-{
+  {
     id: "leukocytosis",
     match: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
@@ -112,7 +118,7 @@ export const RULES_HEMATOLOGY = [
       };
     },
   },
-{
+  {
     id: "leukopenia",
     match: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
@@ -138,7 +144,71 @@ export const RULES_HEMATOLOGY = [
       };
     },
   },
-{
+  {
+    id: "severe_neutropenia",
+    match: (e) => {
+      const n = e.graded.find((g) => g.test === "NEUT_ABS");
+      return n?.abnormal && n.dir === "low" && n.value < 500;
+    },
+    build: () => ({
+      pattern: "severe_neutropenia",
+      urgency: "emergency",
+      headline: "یکی از انواع گلبول سفید بسیار کم است",
+      must_say:
+        "نوتروفیل — سلولی که با عفونت باکتریایی مقابله می‌کند — بسیار کم است. " +
+        "این وضعیت نیاز به رسیدگی فوری دارد.",
+      action: "همین امروز به پزشک مراجعه کنید. اگر تب دارید، به اورژانس بروید.",
+      suggest: [],
+      warnings: ["از تماس با افراد بیمار و مکان‌های شلوغ پرهیز کنید تا پزشک را ببینید."],
+      blocks_others: true,
+    }),
+  },
+  {
+    id: "severe_thrombocytopenia",
+    match: (e) => {
+      const p = e.graded.find((g) => g.test === "PLT");
+      return p?.abnormal && p.dir === "low" && p.value < 50;
+    },
+    build: (e) => {
+      const p = e.graded.find((g) => g.test === "PLT");
+      return {
+        pattern: "severe_thrombocytopenia",
+        urgency: "emergency",
+        headline: "پلاکت خون شما بسیار کم است",
+        must_say:
+          `پلاکت ${p.value} است. پلاکت سلولی است که جلوی خونریزی را می‌گیرد.`,
+        action: "همین امروز به پزشک یا اورژانس مراجعه کنید.",
+        suggest: [],
+        warnings: [
+          "آسپرین یا مسکن‌های ضدالتهاب مصرف نکنید.",
+          "اگر خونریزی، کبودی بی‌دلیل یا نقطه‌های قرمز روی پوست دیدید، فوراً به اورژانس بروید.",
+        ],
+        blocks_others: true,
+      };
+    },
+  },
+  {
+    id: "thrombocytopenia",
+    match: (e) => {
+      const p = e.graded.find((g) => g.test === "PLT");
+      return p?.abnormal && p.dir === "low" && p.value >= 50;
+    },
+    build: (e) => {
+      const p = e.graded.find((g) => g.test === "PLT");
+      return {
+        pattern: "thrombocytopenia",
+        urgency: "this_week",
+        headline: "پلاکت خون شما کمتر از حد طبیعی است",
+        must_say:
+          `پلاکت شما ${p.value} است (حد طبیعی ${p.range}). ` +
+          "پلاکت‌ها جلوی خونریزی را می‌گیرند. کاهش خفیف اغلب علت موقتی دارد (عفونت ویروسی، برخی داروها) و باید فقط پیگیری شود؛ خطر خونریزی معمولاً وقتی جدی می‌شود که پلاکت خیلی پایین‌تر بیاید.",
+        action: "این هفته با پزشک وقت بگیرید.",
+        suggest: ["تکرار CBC"],
+        warnings: ["اگر خونریزی یا کبودی بی‌دلیل دیدید، زودتر مراجعه کنید."],
+      };
+    },
+  },
+  {
     id: "thrombocytosis",
     match: (e) => {
       const p = e.graded.find((g) => g.test === "PLT");
@@ -159,8 +229,282 @@ export const RULES_HEMATOLOGY = [
       };
     },
   },
+  {
+    id: "pancytopenia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return (
+        hgb?.abnormal && hgb.dir === "low" &&
+        t.WBC != null && t.WBC < 4 &&
+        t.PLT != null && t.PLT < 150
+      );
+    },
+    build: () => ({
+      pattern: "pancytopenia",
+      urgency: "emergency",
+      headline: "هر سه نوع سلول خونی کمتر از حد طبیعی هستند",
+      must_say:
+        "گلبول قرمز، گلبول سفید و پلاکت — هر سه پایین هستند. " +
+        "وقتی هر سه ردهٔ سلولی با هم افت می‌کنند، معمولاً مشکل از خودِ مغز استخوان (کارخانهٔ ساخت سلول‌های خونی) یا تخریب گستردهٔ آن‌هاست و نیاز به بررسی فوری دارد.",
+      action: "همین امروز با پزشک تماس بگیرید.",
+      suggest: [],
+      warnings: [],
+      blocks_others: true,
+    }),
+  },
 
-{
+  // ═══════════ تالاسمی مینور — بدون کم‌خونی ═══════════
+  // 🔴 باگ بالینی: قاعده microcytic_anemia فقط وقتی Hb پایین باشد
+  //    فعال می‌شد. ولی تالاسمی مینور اغلب Hb نرمال دارد —
+  //    بدن با ساختن گلبول بیشتر (RBC بالا) جبران می‌کند.
+  //
+  //    نمونه واقعی: RBC 7.13↑ | MCV 67.3↓ | MCH 22.2↓ | HGB 15.8 (نرمال)
+  //    Mentzer = 9.4 → کلاسیک‌ترین تالاسمی مینور. موتور هیچ نگفت.
+  {
+    id: "thal_trait_no_anemia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const anemic = hgb?.abnormal && hgb.dir === "low";
+      // میکروسیتوز + بدون کم‌خونی + RBC بالا یا Mentzer پایین
+      return (
+        !anemic &&
+        t.MCV != null && t.MCV < 80 &&
+        ((t.RBC != null && t.RBC > 5.5) ||
+         (e.indices.mentzer != null && e.indices.mentzer < 13))
+      );
+    },
+    build: (e) => {
+      const t = val(e);
+      const mi = e.indices.mentzer;
+      return {
+        pattern: "thal_trait_likely",
+        urgency: "routine",
+        headline: "گلبول‌های قرمز شما کوچک هستند ولی تعدادشان زیاد است",
+        must_say:
+          "هموگلوبین شما طبیعی است، پس کم‌خونی ندارید. " +
+          "ولی گلبول‌ها کوچک‌ترند و تعدادشان بیشتر از حد معمول است. " +
+          "این الگو معمولاً به یک ویژگی ارثی اشاره دارد که از پدر یا مادر به ارث می‌رسد " +
+          "و خودش معمولاً بی‌خطر است. کمبود آهن هم می‌تواند شبیهش باشد، " +
+          "ولی این الگو بیشتر به حالت ارثی می‌خورد." +
+          (mi != null ? ` (شاخص Mentzer = ${mi})` : ""),
+        action: "نوبت عادی با پزشک. آزمایش الکتروفورز هموگلوبین و فریتین را مطرح کنید.",
+        suggest: ["الکتروفورز هموگلوبین", "فریتین"],
+        warnings: [
+          "بدون تجویز پزشک قرص آهن نخورید. اگر علت آهن نباشد، آهن اضافی به بدن آسیب می‌زند.",
+          "⚠️ اگر قصد بچه‌دار شدن دارید، این نتیجه مهم است — حتماً با پزشک و همسرتان مطرح کنید. " +
+            "اگر هر دو والد این ویژگی را داشته باشند، فرزند ممکن است شکل شدید بیماری را بگیرد.",
+        ],
+      };
+    },
+  },
+  {
+    id: "erythrocytosis",
+    match: (e) => {
+      const t = val(e);
+      const rbc = e.graded.find((g) => g.test === "RBC");
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      // RBC بالا + MCV نرمال یا بالا + Hb بالا → پلی‌سیتمی، نه تالاسمی
+      return (
+        rbc?.abnormal && rbc.dir === "high" &&
+        t.MCV != null && t.MCV >= 80 &&
+        hgb?.abnormal && hgb.dir === "high"
+      );
+    },
+    build: (e) => {
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return {
+        pattern: "erythrocytosis",
+        urgency: "this_week",
+        headline: "تعداد گلبول‌های قرمز و هموگلوبین شما بالاست",
+        must_say:
+          (hgb ? `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range})؛ ` : "") +
+          "یعنی خون غلیظ‌تر از حد معمول است. علت‌های شایع: کم‌آبی (که موقت است)، سیگار، آپنهٔ خواب، یا زندگی در ارتفاع. کمتر پیش می‌آید که از یک اختلال مغز استخوان (پلی‌سیتمی) باشد.",
+        action: "این هفته با پزشک وقت بگیرید. اگر کم‌آب هستید، آزمایش پس از آب‌رسانی کافی تکرار شود.",
+        suggest: ["تکرار CBC", "اریتروپویتین", "اشباع اکسیژن خون"],
+        warnings: ["اگر سردرد شدید، تاری دید، یا درد و تورم یک‌طرفهٔ ساق پا دارید، زودتر مراجعه کنید — خون غلیظ خطر لخته را کمی بالا می‌برد."],
+      };
+    },
+  },
+
+  // ═══════════ کم‌خونی ═══════════
+  {
+    id: "macrocytic_anemia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return hgb?.abnormal && hgb.dir === "low" && t.MCV > 100;
+    },
+    build: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const rdwHigh = t.RDW_CV > 15 || t.RDW_SD > 56;
+      return {
+        pattern: "macrocytic_anemia",
+        urgency: "this_week",
+        headline: "گلبول‌های قرمز شما کم و بزرگ‌تر از حد معمول هستند",
+        must_say:
+          (hgb ? `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range}) و ` : "") +
+          `گلبول‌های قرمز بزرگ‌تر از حد معمول‌اند (MCV حدود ${t.MCV}). ` +
+          "این نوع کم‌خونی («ماکروسیتیک») اغلب از کمبود ویتامین B12 یا فولات می‌آید — این ویتامین‌ها برای ساخت درست سلول لازم‌اند و بدون آن‌ها گلبول‌ها بزرگ و ناقص ساخته می‌شوند. کم‌کاری تیروئید هم می‌تواند علت باشد. " +
+          (rdwHigh
+            ? "تفاوت اندازهٔ گلبول‌ها هم زیاد است (RDW بالا) که سرنخ مهمی است."
+            : ""),
+        action:
+          "این هفته با پزشک عمومی یا داخلی وقت بگیرید و این آزمایش‌ها را بخواهید.",
+        // ⚠️ آهن اینجا نیست — مدل قبلاً اشتباهاً پیشنهاد می‌داد
+        suggest: ["ویتامین B12", "فولات", "رتیکولوسیت", "TSH"],
+        forbid: ["آهن", "فریتین", "iron", "ferritin"],
+        warnings: [
+          "خودتان مکمل B12 شروع نکنید — اگر قبل از آزمایش مصرف کنید، نتیجه گمراه‌کننده می‌شود.",
+        ],
+      };
+    },
+  },
+  {
+    id: "anemia_macrocytic_mds",
+    match: (e) => {
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const isAnemia = hgb?.abnormal && hgb.dir === "low";
+      if (!isAnemia) return false;
+
+      const t = val(e);
+      const mcvHigh = t.MCV != null && t.MCV > 102;
+      
+      const plt = e.graded.find((g) => g.test === "PLT");
+      const pltLow = plt?.abnormal && plt.dir === "low";
+
+      return mcvHigh && pltLow;
+    },
+    build: (e) => {
+      return {
+        pattern: "anemia_macrocytic_mds",
+        urgency: "this_week",
+        headline: "کم‌خونی ماکروسیتیک و کاهش پلاکت",
+        must_say: "حجم گلبول‌های قرمز بزرگتر از حد طبیعی است (بالای ۱۰۲) و تعداد پلاکت‌ها نیز کاهش یافته است. در برخی موارد، این الگو (به‌ویژه در سنین بالاتر) می‌تواند نشان‌دهنده سندرم‌های میلودیسپلاستیک (MDS) باشد.",
+        action: "جهت بررسی دقیق‌تر و معاینه بالینی، در اسرع وقت به متخصص خون (هماتولوژیست) مراجعه کنید.",
+        suggest: ["گسترش خون محیطی (PBS)", "مشاوره هماتولوژی"],
+        warnings: [],
+      };
+    },
+  },
+  {
+    id: "microcytic_anemia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return hgb?.abnormal && hgb.dir === "low" && t.MCV < 80;
+    },
+    build: (e) => {
+      const t = val(e);
+      const mi = e.indices.mentzer;
+      const thal = mi != null && mi < 13;
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      // شدت کم‌خونی به‌سبک WHO: خفیف تا حد ۱۱، متوسط ۸ تا ۱۱، شدید زیر ۸.
+      const hb = hgb?.value;
+      const sev =
+        hb == null ? null : hb < 8 ? "شدید" : hb < 11 ? "متوسط" : "خفیف";
+      // بزرگیِ کم‌خونی: مقدار هموگلوبین + محدودهٔ طبیعی، و اندازهٔ گلبول (MCV).
+      const mag =
+        hgb != null
+          ? `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range})${sev ? ` — کم‌خونیِ ${sev}` : ""}` +
+            (t.MCV != null ? `، و اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} است که کوچک‌تر از حد طبیعی (۸۰ تا ۱۰۰) است` : "") +
+            ". "
+          : "";
+      // مکانیسم: چرا گلبول‌ها کوچک شده‌اند.
+      const mechThal =
+        "دو علت شایعِ گلبولِ کوچک وجود دارد: کمبود آهن، یا یک ویژگی ارثی خون (صفت تالاسمی) که معمولاً بی‌خطر است. " +
+        `یک شاخص محاسباتی (اندکس منتزر${mi != null ? ` حدود ${mi}` : ""}) در اینجا زیر ۱۳ است که بیشتر به سمت صفت تالاسمی می‌خورد تا کمبود آهن — ولی این فقط یک احتمال است و آزمایش قطعی (فریتین و الکتروفورز هموگلوبین) لازم است.`;
+      const mechIda =
+        "آهن جزء اصلیِ هموگلوبین است؛ وقتی ذخیرهٔ آهن کم می‌شود، مغز استخوان مجبور می‌شود گلبول‌های کوچک‌تر و کم‌رنگ‌تر بسازد — که همین الگوی آزمایش شماست. " +
+        (mi != null
+          ? `شاخص محاسباتی منتزر (حدود ${mi}) بالای ۱۳ است که با کمبود آهن سازگارتر است تا صفت تالاسمی. `
+          : "") +
+        "برای تأیید، فریتین باید اندازه‌گیری شود (فریتین زیر ۳۰ کمبود آهن را تأیید می‌کند؛ ولی چون فریتین در التهاب بالا می‌رود، مقدار طبیعی هم گاهی کمبود آهن را رد نمی‌کند).";
+      return {
+        pattern: thal ? "microcytic_thal_likely" : "microcytic_ida_likely",
+        urgency: thal ? "routine" : "this_week",
+        ...(hb != null ? { key_number: hb } : {}),
+        headline: thal
+          ? "گلبول‌های قرمز شما کوچک هستند ولی تعدادشان زیاد است"
+          : "گلبول‌های قرمز شما کم و کوچک‌تر از حد معمول هستند",
+        must_say:
+          mag +
+          "این یعنی کم‌خونیِ میکروسیتیک (گلبولِ کوچک). " +
+          (thal ? mechThal : mechIda),
+        action: thal
+          ? "نوبت عادی با پزشک. آزمایش فریتین و الکتروفورز هموگلوبین را مطرح کنید."
+          : `${sev === "شدید" ? "چون کم‌خونی شدید است، همین چند روز با پزشک وقت بگیرید" : "این هفته با پزشک وقت بگیرید"}؛ در بزرگسالان، کمبود آهن باید علت‌یابی شود (به‌ویژه منبع خونریزی پنهان گوارشی).`,
+        suggest: thal
+          ? ["فریتین", "الکتروفورز هموگلوبین"]
+          : ["فریتین", "آهن سرم", "TIBC", "بررسی خون مخفی در مدفوع (FOBT)"],
+        forbid: ["B12", "فولات"],
+        warnings: [
+          "بدون تجویز پزشک قرص آهن نخورید. اگر علت آهن نباشد، آهن اضافی به بدن آسیب می‌زند.",
+          ...(sev === "شدید"
+            ? ["اگر تنگی نفس، تپش قلب، یا احساس ضعف و سرگیجهٔ شدید دارید، زودتر به پزشک مراجعه کنید."]
+            : []),
+          ...(thal
+            ? ["اگر در خانواده‌تان کسی تالاسمی دارد یا قصد بچه‌دار شدن دارید، حتماً به پزشک بگویید."]
+            : []),
+        ],
+      };
+    },
+  },
+  {
+    id: "normocytic_anemia",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return hgb?.abnormal && hgb.dir === "low" && t.MCV >= 80 && t.MCV <= 100;
+    },
+    build: (e) => {
+      // رتیکولوسیت کلید تفکیک کم‌خونیِ کم‌تولید از پرتخریب/خونریزی است.
+      const retic = e.graded.find((g) => g.test === "RETIC");
+      const reticHigh = retic?.abnormal && retic.dir === "high";
+      const reticLow = retic?.abnormal && retic.dir === "low";
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const hb = hgb?.value;
+      const sev =
+        hb == null ? null : hb < 8 ? "شدید" : hb < 11 ? "متوسط" : "خفیف";
+      const mag =
+        hgb != null
+          ? `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range})${sev ? ` — کم‌خونیِ ${sev}` : ""}. `
+          : "";
+      let extra = "";
+      let suggest = ["رتیکولوسیت", "فریتین", "کراتینین", "CRP"];
+      if (reticHigh) {
+        extra = " شمارش رتیکولوسیت بالاست — یعنی مغز استخوان در حال جبران است؛ این بیشتر به خونریزی یا تجزیهٔ گلبول‌ها (همولیز) می‌خورد.";
+        suggest = ["هاپتوگلوبین", "LDH", "بیلی‌روبین مستقیم و غیرمستقیم", "بررسی منبع خونریزی"];
+      } else if (reticLow) {
+        extra = " شمارش رتیکولوسیت پایین است — یعنی مغز استخوان پاسخ کافی نمی‌دهد؛ علت‌هایی مثل کمبود آهن/ویتامین، کم‌کاری کلیه یا مشکل مغز استخوان مطرح است.";
+        suggest = ["فریتین", "ویتامین B12 و فولات", "کراتینین", "بررسی توسط پزشک"];
+      }
+      return {
+        pattern: "normocytic_anemia",
+        urgency: "this_week",
+        ...(hb != null ? { key_number: hb } : {}),
+        headline: "خون شما کم‌خونی نشان می‌دهد",
+        must_say:
+          mag +
+          "گلبول‌ها اندازهٔ طبیعی دارند ولی تعدادشان کم است (کم‌خونیِ نورموسیتیک)." + extra +
+          " شمارش رتیکولوسیت (گلبول‌های تازه‌ساز) کلید تعیین علت است و برای پیدا کردن ریشهٔ کم‌خونی چند آزمایش دیگر لازم است.",
+        action:
+          sev === "شدید"
+            ? "چون کم‌خونی شدید است، همین چند روز با پزشک وقت بگیرید."
+            : "نوبت با پزشک بگیرید.",
+        suggest,
+        warnings:
+          sev === "شدید"
+            ? ["اگر تنگی نفس، تپش قلب، یا سرگیجهٔ شدید دارید، زودتر مراجعه کنید."]
+            : [],
+      };
+    },
+  },
+
+
+  {
     // P5 — تا acc9cc0 هر چهار رشتهٔ کاربرمحورِ این قاعده انگلیسی بود
     // («Increased Intracellular Hemoglobin Concentration»)، یعنی یک قاعدهٔ
     // زنده که به بیمارِ فارسی‌زبان انگلیسی می‌داد — همان چیزی که M38 برای
@@ -196,7 +540,8 @@ export const RULES_HEMATOLOGY = [
       };
     },
   },
-{
+
+  {
     id: "coagulation_abnormal",
     match: (e) => {
       const pt = e.graded.find((g) => g.test === "PT");
@@ -233,5 +578,183 @@ export const RULES_HEMATOLOGY = [
         blocks_others: severe,
       };
     },
-  }
-];
+  },
+
+  // ═══════════ فقر آهن — با پنل آهن (نه فقط CBC) ═══════════
+  // رویکرد الف: فقط وقتی پنل آهن موجود است فعال می‌شود.
+  // اگر فقط CBC باشد، microcytic_anemia قبلی کار می‌کند.
+  // گایدلاین (Labcorp/AAFP): فقر آهن = فریتین پایین + TIBC بالا + TSAT پایین.
+  {
+    id: "iron_deficiency_panel",
+    match: (e) => {
+      const t = val(e);
+      // حداقل فریتین لازم است — قوی‌ترین نشانگر
+      if (t.FERRITIN == null) return false;
+      const ferr = e.graded.find((g) => g.test === "FERRITIN");
+      const ferrLow = ferr?.abnormal && ferr.dir === "low";
+      // فریتین پایین به‌تنهایی تقریباً قطعیِ فقر آهن است (اگر التهاب نباشد)
+      const tsatLow = t.TSAT != null && t.TSAT < 20;
+      const tibcHigh = (() => {
+        const g = e.graded.find((x) => x.test === "TIBC");
+        return g?.abnormal && g.dir === "high";
+      })();
+      // ⚠️ شکافِ واقعی (کلاسِ N2 — کم‌خوانیِ خاموش):
+      //    فریتین واکنش‌گرِ فاز حاد است و در التهاب بالا می‌رود. پس در بیمارِ
+      //    ملتهب، فریتینِ «طبیعی» کمبودِ آهن را رد نمی‌کند. WHO 2020 دقیقاً
+      //    برای همین آستانهٔ جداگانه دارد: در حضورِ عفونت/التهاب، فریتینِ
+      //    زیر ۷۰ µg/L در بزرگسال کمبودِ آهن را مطرح می‌کند (به‌جای ۱۵).
+      //    بدون این شاخه، بیمارِ CRPِ ۴۰ با فریتینِ ۴۵ هیچ پیامی نمی‌گرفت.
+      return ferrLow || (tsatLow && tibcHigh) || whoInflamIronDeficiency(e);
+    },
+    build: (e) => {
+      const t = val(e);
+      const ferr = e.graded.find((g) => g.test === "FERRITIN");
+      const ferrLow = ferr?.abnormal && ferr.dir === "low";
+      const inflam = hasInflammation(e);
+      // شاخهٔ WHO: فریتین طبق آزمایشگاه «طبیعی» است ولی با التهاب زیر ۷۰.
+      const whoOnly = !ferrLow && whoInflamIronDeficiency(e);
+      return {
+        pattern: whoOnly ? "iron_deficiency_masked_by_inflammation" : "iron_deficiency",
+        urgency: "this_week",
+        sources: ["WHO_FERRITIN"],
+        headline: whoOnly
+          ? "فریتین شما «طبیعی» گزارش شده، ولی با توجه به التهاب می‌تواند کمبود آهن را پنهان کند"
+          : "الگوی آزمایش‌ها به کمبود آهن اشاره دارد",
+        must_say: whoOnly
+          ? `فریتین شما ${t.FERRITIN} است که در محدودهٔ چاپ‌شدهٔ آزمایشگاه «طبیعی» به حساب می‌آید — ولی ` +
+            "فریتین یک پروتئینِ التهابی هم هست و هر التهاب یا عفونتی آن را بالا می‌برد، حتی وقتی ذخیرهٔ آهن ته کشیده باشد. " +
+            "چون نشانه‌های التهاب در همین برگه بالاست، سازمان جهانی بهداشت در این وضعیت آستانهٔ بالاتری (فریتین زیر ۷۰) را " +
+            "برای مطرح کردنِ کمبود آهن به کار می‌برد، نه آستانهٔ معمولِ ۱۵. یعنی این عدد کمبود آهن را رد نمی‌کند و باید بررسی شود."
+          : "ذخیره آهن بدن شما پایین است" +
+            (ferrLow ? " (فریتین پایین، قوی‌ترین نشانه کمبود آهن)" : "") +
+            ". شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است." +
+            (inflam ? " توجه: نشانه‌های التهاب هم بالاست و ممکن است تصویر آهن را پیچیده کند — پزشک باید تفسیر کند." : ""),
+        action: "این هفته با پزشک وقت بگیرید. اگر خون‌ریزی گوارشی یا قاعدگی سنگین دارید حتماً بگویید.",
+        suggest: whoOnly
+          ? ["اشباع ترانسفرین (TSAT)", "گیرندهٔ محلول ترانسفرین (sTfR)", "بررسی علت التهاب"]
+          : ["پنل کامل آهن", "بررسی علت خون‌ریزی"],
+        warnings: [
+          "قبل از تأیید پزشک و مشخص شدن علت، خودتان دوز بالای آهن شروع نکنید.",
+        ],
+      };
+    },
+  },
+
+  // ═══════════ کم‌خونی بیماری مزمن ═══════════
+  // گایدلاین: آهن پایین + TIBC پایین/طبیعی + فریتین طبیعی/بالا + TSAT پایین.
+  // تمایز کلیدی از فقر آهن: در فقر آهن TIBC بالاست، اینجا پایین.
+  {
+    id: "anemia_chronic_disease",
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const anemic = hgb?.abnormal && hgb.dir === "low";
+      if (!anemic) return false;
+      // نیاز به پنل آهن برای تمایز
+      if (t.IRON == null || t.FERRITIN == null) return false;
+      const iron = e.graded.find((g) => g.test === "IRON");
+      const ferr = e.graded.find((g) => g.test === "FERRITIN");
+      const ironLow = iron?.abnormal && iron.dir === "low";
+      // فریتین طبیعی یا بالا (نه پایین) — این فقر آهن را رد می‌کند
+      const ferrNotLow = !(ferr?.abnormal && ferr.dir === "low");
+      // TIBC پایین یا طبیعی (نه بالا)
+      const tibc = e.graded.find((g) => g.test === "TIBC");
+      const tibcNotHigh = !(tibc?.abnormal && tibc.dir === "high");
+      return ironLow && ferrNotLow && tibcNotHigh;
+    },
+    build: (e) => {
+      const crp = e.graded.find((g) => g.test === "CRP_Q");
+      const inflam = crp?.abnormal && crp.dir === "high";
+      return {
+        pattern: "anemia_of_chronic_disease",
+        urgency: "this_week",
+        headline: "الگوی کم‌خونی شما بیشتر به التهاب یا بیماری زمینه‌ای می‌خورد تا کمبود آهن",
+        must_say:
+          "برخلاف کمبود آهن، اینجا ذخیره آهن بدن پایین نیست — ولی بدن نمی‌تواند از آهن موجود خوب استفاده کند. " +
+          "این الگو معمولاً همراه یک التهاب یا بیماری مزمن دیده می‌شود." +
+          (inflam ? " CRP شما هم بالاست که با این تصویر همخوانی دارد." : ""),
+        action: "این هفته با پزشک وقت بگیرید تا علت زمینه‌ای بررسی شود.",
+        suggest: ["CRP", "بررسی بیماری زمینه‌ای", "عملکرد کلیه"],
+        // مهم: در این نوع کم‌خونی آهن خوراکی کمکی نمی‌کند و گاهی مضر است
+        forbid: ["آهن خوراکی", "قرص آهن", "iron supplement"],
+        warnings: [
+          "در این نوع کم‌خونی، مصرف خودسرانه قرص آهن معمولاً کمکی نمی‌کند. درمان روی علت اصلی است.",
+        ],
+      };
+    },
+  },
+
+  // ═══════════ همولیز ═══════════
+  // گایدلاین (AAFP/ARUP): LDH بالا + بیلی‌روبین غیرمستقیم بالا +
+  //   هاپتوگلوبین پایین + رتیکولوسیت بالا → همولیز.
+  // تله مهم (منبع): LDH+AST بالا با هاپتوگلوبین طبیعی → عضله، نه همولیز.
+  {
+    id: "hemolysis_pattern",
+    match: (e) => {
+      const t = val(e);
+      // حداقل دو نشانگر از نشانگرهای اصلی همولیز لازم است
+      const ldhHigh = (() => {
+        const g = e.graded.find((x) => x.test === "LDH");
+        return g?.abnormal && g.dir === "high";
+      })();
+      const haptoLow = (() => {
+        const g = e.graded.find((x) => x.test === "HAPTO");
+        return g?.abnormal && g.dir === "low";
+      })();
+      const reticHigh = (() => {
+        const g = e.graded.find((x) => x.test === "RETIC");
+        return g?.abnormal && g.dir === "high";
+      })();
+      // بیلی‌روبین غیرمستقیم بالا = توتال بالا با مستقیم طبیعی
+      const indirectHigh = t.BILI_T != null && t.BILI_D != null &&
+                           (t.BILI_T - t.BILI_D) > 1.0;
+      const markers = [ldhHigh, haptoLow, reticHigh, indirectHigh].filter(Boolean).length;
+
+      // تله عضله: LDH بالا + AST/CK بالا + هاپتوگلوبین طبیعی → عضله، نه همولیز.
+      // این حالت هم باید الگو را فعال کند تا توضیح درست به کاربر برسد
+      // (وگرنه در تور ایمنی عمومی می‌افتد و پیام گمراه‌کننده می‌دهد).
+      const ast = e.graded.find((g) => g.test === "AST");
+      const ck = e.graded.find((g) => g.test === "CK");
+      const muscleTrap = ldhHigh && !haptoLow &&
+                         ck?.abnormal && ck.dir === "high" &&
+                         ast?.abnormal && ast.dir === "high";
+
+      // هاپتوگلوبین پایین قوی‌ترین نشانه است؛ اگر باشد یک نشانه دیگر کافی است
+      return muscleTrap || (haptoLow && markers >= 2) || markers >= 3;
+    },
+    build: (e) => {
+      const t = val(e);
+      // تله عضله: اگر AST و CK بالا و هاپتوگلوبین طبیعی → احتمالاً عضله
+      const ast = e.graded.find((g) => g.test === "AST");
+      const ck = e.graded.find((g) => g.test === "CK");
+      const hapto = e.graded.find((g) => g.test === "HAPTO");
+      const haptoLow = hapto?.abnormal && hapto.dir === "low";
+      const muscleTrap = !haptoLow &&
+                         ck?.abnormal && ck.dir === "high" &&
+                         ast?.abnormal && ast.dir === "high";
+      if (muscleTrap) {
+        return {
+          pattern: "ldh_muscle_not_hemolysis",
+          urgency: "routine",
+          headline: "چند شاخص بالا هستند، ولی الگو بیشتر به عضله می‌خورد تا خون",
+          must_say:
+            "LDH و برخی آنزیم‌ها بالا هستند، ولی هاپتوگلوبین طبیعی است — " +
+            "این به آسیب یا فعالیت عضلانی اشاره دارد نه شکستن گلبول قرمز. ورزش سنگین اخیر هم می‌تواند علت باشد.",
+          action: "نوبت عادی. اگر ورزش سنگین کرده‌اید حتماً به پزشک بگویید.",
+          suggest: ["CK", "تکرار آزمایش پس از استراحت"],
+          warnings: [],
+        };
+      }
+      return {
+        pattern: "hemolysis_likely",
+        urgency: "this_week",
+        headline: "الگوی آزمایش‌ها به شکستن گلبول‌های قرمز (همولیز) اشاره دارد",
+        must_say:
+          "چند شاخص با هم نشان می‌دهند که گلبول‌های قرمز شما ممکن است زودتر از حد معمول تجزیه شوند. " +
+          "علت‌های زیادی دارد — از ارثی تا خودایمنی و دارویی — و برای مشخص شدن باید بررسی شود.",
+        action: "این هفته با پزشک وقت بگیرید. این برگه را همراه ببرید.",
+        suggest: ["هاپتوگلوبین", "رتیکولوسیت", "بیلی‌روبین مستقیم و غیرمستقیم", "اسمیر خون محیطی", "تست کومبس"],
+        warnings: [],
+      };
+    },
+  }];

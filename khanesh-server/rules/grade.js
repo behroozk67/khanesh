@@ -56,7 +56,7 @@ const FA = {
  *   note: string|null
  * }}
  */
-export function evaluate(testKey, value, lln, uln) {
+export function evaluate(testKey, value, lln, uln, isCancer = false) {
   if (value == null || lln == null || uln == null) {
     return { mode: MODE.UNKNOWN, abnormal: false, dir: null, fa: FA.unknown,
              tag: null, patient: null, level: null,
@@ -73,7 +73,7 @@ export function evaluate(testKey, value, lln, uln) {
       const key = value > uln - m ? 'normal_high_end' : (value < lln + m ? 'normal_low_end' : 'normal');
       return { mode: MODE.SEVERITY, abnormal: false, dir: null, fa: FA[key],
                tag: 'normal', nearLimit: key !== 'normal', patient: null, level: 'normal',
-               ctcaeGrade: 0, ctcaeTerm: null, source: 'CTCAE v5', note: null };
+               ctcaeGrade: isCancer ? 0 : null, ctcaeTerm: null, source: isCancer ? 'CTCAE v5' : 'ارزیابی شدت', note: null };
     }
     const c = ctcaeGrade(testKey, value, lln, uln);
     if (c && c.grade != null) {
@@ -81,8 +81,8 @@ export function evaluate(testKey, value, lln, uln) {
       const key = c.grade === 0 ? 'normal' : `${level}_${dir}`;
       return { mode: MODE.SEVERITY, abnormal: c.grade > 0, dir, fa: FA[key],
                tag: c.grade > 0 ? level : 'normal', patient: null, level,
-               ctcaeGrade: c.grade, ctcaeTerm: c.term,
-               source: 'CTCAE v5', note: c.note };
+               ctcaeGrade: isCancer ? c.grade : null, ctcaeTerm: isCancer ? c.term : null,
+               source: isCancer ? 'CTCAE v5' : 'ارزیابی شدت', note: c.note };
     }
   }
 

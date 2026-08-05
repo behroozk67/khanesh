@@ -3,10 +3,10 @@ import { RULES_NEPHROLOGY } from "./patterns_nephrology.js";
 import { RULES_NEPHROLOGY_NEW } from "./patterns_nephrology_new.js";
 import { RULES_HEMATOLOGY } from "./patterns_hematology.js";
 import { RULES_BIOCHEM } from "./patterns_biochem.js";
+import { levelGrade } from "./patterns_utils.js";
 import { RULES_BIOCHEM_NEW } from "./patterns_biochem_new.js";
 import { RULES_ENDOCRINE_RHEUM } from "./patterns_endocrine_rheum.js";
 import { RULES_ENDOCRINE_NEW } from "./patterns_endocrine_new.js";
-import { RULES_ANEMIA } from "./patterns_anemia.js";
 import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
@@ -29,8 +29,7 @@ export const RULES = [
   ...RULES_INFECTIOUS,
   ...RULES_NEPHROLOGY,
   ...RULES_NEPHROLOGY_NEW,
-  ...RULES_HEMATOLOGY.filter(r => !LEGACY_ANEMIA_IDS.includes(r.id)),
-  ...RULES_ANEMIA,
+  ...RULES_HEMATOLOGY,
   ...RULES_MALIGNANCY,
   ...RULES_BIOCHEM,
   ...RULES_BIOCHEM_NEW,
@@ -183,7 +182,7 @@ export function runPatterns(engineOut) {
     )[0];
     const hasCritical = engineOut.abnormal.some((a) => a.level === "critical");
     const hasMarked = engineOut.abnormal.some(
-      (a) => a.level === "marked" || a.ctcaeGrade >= 3
+      (a) => a.level === "marked" || a.level === "critical" || levelGrade(a) >= 3
     );
     // بحرانی → emergency، شدید → this_week، بقیه → routine
     const urgency = hasCritical ? "emergency" : hasMarked ? "this_week" : "routine";

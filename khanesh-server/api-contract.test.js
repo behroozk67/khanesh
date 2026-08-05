@@ -459,3 +459,55 @@ test("T10: دربارهٔ تستِ اندازه‌گیری‌نشده ادعای
   assert.equal(hit, null,
     `پاسخ دربارهٔ کراتینینِ اندازه‌گیری‌نشده ادعای «طبیعی» دارد: «${hit?.[0]}»`);
 });
+
+// ════════════════════════════════════════════════════════════
+// T11 ⚠️ — conditions باید از مسیرِ ورودِ دستی هم به موتور برسد
+//
+// از وقتی grade.js درجه‌بندیِ CTCAE را به بیمارِ سرطانی مشروط کرد،
+// patient.conditions دیگر «فقط زمینه برای لحنِ متن» نیست؛ ورودیِ
+// درجه‌بندی است. مسیرِ عکس کلِ آبجکتِ patient را پاس می‌دهد، ولی مسیرِ
+// ورودِ دستی آن را دستی بازسازی می‌کرد و فقط age/sex می‌گذاشت — یعنی
+// همان بیمار، همان عددها، دو خروجیِ متفاوت بسته به اینکه تایپ کرده یا
+// عکس گرفته. تستِ منفی هم لازم است، وگرنه پاس‌دادنِ بی‌قیدِ conditions
+// (که به هرکسی درجهٔ CTCAE بدهد) هم سبز می‌شد.
+// ════════════════════════════════════════════════════════════
+const PANEL_ANEMIA_CANCER = {
+  patient: { age: 50, sex: "F", conditions: ["سرطان پستان"] },
+  tests: [{ name: "Hemoglobin", value: 7.2 }, { name: "Creatinine", value: 0.9 }],
+};
+const PANEL_ANEMIA_NO_CANCER = {
+  patient: { age: 50, sex: "F" },
+  tests: [{ name: "Hemoglobin", value: 7.2 }, { name: "Creatinine", value: 0.9 }],
+};
+
+const hgbOf = (body) => (body?._engine?.tests ?? []).find((t) => t.key === "HGB");
+
+test("T11: conditions از ورودِ دستی به موتور می‌رسد و CTCAE را فعال می‌کند", async () => {
+  // پیش‌شرط: موتور با conditions واقعاً درجه می‌دهد. اگر این بشکند، تست
+  // دربارهٔ سرورِ چیزی ثابت نمی‌کند.
+  const direct = runEngine({
+    patient: { age: "50 سال", sex: "زن", conditions: ["سرطان پستان"] },
+    tests: [{ name: "Hemoglobin", value: 7.2 }],
+  }).graded.find((g) => g.test === "HGB");
+  assert.equal(typeof direct.ctcaeGrade, "number",
+    "پیش‌شرط: موتور با conditions باید ctcaeGrade عددی بدهد");
+
+  const { body } = await analyze(PANEL_ANEMIA_CANCER, modelSays({ hasCritical: false }));
+  const hgb = hgbOf(body);
+  assert.ok(hgb, `HGB باید در _engine.tests باشد؛ کلیدها: ${(body?._engine?.tests ?? []).map((t) => t.key).join(", ")}`);
+  assert.equal(typeof hgb.ctcaeGrade, "number",
+    `بیمارِ سرطانی باید درجهٔ CTCAE بگیرد، ولی ctcaeGrade=${JSON.stringify(hgb.ctcaeGrade)} برگشت — ` +
+    `یعنی conditions در ساختِ ورودیِ موتور در server.js افتاده است.`);
+});
+
+test("T11b: بدونِ conditions درجهٔ CTCAE داده نمی‌شود (ولی شدت می‌ماند)", async () => {
+  const { body } = await analyze(PANEL_ANEMIA_NO_CANCER, modelSays({ hasCritical: false }));
+  const hgb = hgbOf(body);
+  assert.ok(hgb, "HGB باید در _engine.tests باشد");
+  assert.equal(hgb.ctcaeGrade, null,
+    `بیمارِ غیرسرطانی نباید درجهٔ CTCAE بگیرد؛ CTCAE مقیاسِ عوارضِ درمانِ سرطان است. بود: ${JSON.stringify(hgb.ctcaeGrade)}`);
+  // شدت نباید همراهش گم شود — وگرنه «CTCAE را خاموش کردیم» تبدیل می‌شود به
+  // «شدت را خاموش کردیم» و آن یک کم‌خوانیِ خاموش است (N2).
+  assert.ok(["mild", "moderate", "marked", "critical"].includes(hgb.level),
+    `شدت باید مستقل از CTCAE بماند؛ level=${JSON.stringify(hgb.level)}`);
+});

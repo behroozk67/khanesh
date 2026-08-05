@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -186,7 +186,7 @@ export const RULES_BIOCHEM = [
       const ca = e.graded.find((g) => g.test === "CA");
       const v = ca.value;
       const high = ca.dir === "high";
-      const grade = ca.ctcaeGrade ?? 0;
+      const grade = levelGrade(ca);
       const critical = v >= 14 || v <= 6.5;      // نیاز به اورژانس
       const corrNote = e.indices.ca_correction_applied
         ? ` (این مقدار با آلبومین تصحیح شده؛ اندازه‌گیری‌شده روی برگه ${e.indices.ca_measured}.)`
@@ -673,7 +673,7 @@ export const RULES_BIOCHEM = [
         : R >= 5 ? "hepatocellular"
         : R <= 2 ? "cholestatic"
         : "mixed";
-      const maxG = Math.max(alt?.ctcaeGrade || 0, ast?.ctcaeGrade || 0);
+      const maxG = Math.max(levelGrade(alt), levelGrade(ast));
 
       // شدت آنزیم: خیلی بالا (چند برابر) → اشاره به آسیب حاد کبدی (مثل هپاتیت حاد)
       // کیس Verlita فصل: ALT/AST > ۱۰۰۰. آستانه محتاطانه: >۱۰ برابر سقف مرجع.

@@ -1,4 +1,4 @@
-﻿import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, CRP_RE, RF_RE } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -210,7 +210,7 @@ export const RULES_INFECTIOUS = [
     },
   },
 
-    // ═══════════ التهاب ═══════════
+  // ═══════════ التهاب ═══════════
   {
     id: "crp_pos_esr_normal",
     match: (e) => {
@@ -231,19 +231,31 @@ export const RULES_INFECTIOUS = [
       warnings: [],
     }),
   },
+
+  // ── CRPِ کیفی («۳+»، «مثبت») ──
+  // 🔴 باگ واقعی: «crp» در فهرست QUALITATIVE بود و به e.qual می‌رفت، ولی همهٔ
+  //    الگوها دنبال کلیدِ عددیِ CRP_Q می‌گشتند. نتیجه: CRPِ ۳+ خوانده می‌شد،
+  //    در جدولِ «مقادیر خوانده‌شده» می‌آمد، و در تفسیر هیچ‌جا ذکر نمی‌شد.
+  //    (همان کلاسِ باگِ D-dimer: «خوانده می‌شد ولی تفسیر نداشت».)
+  //
+  // ⚠️ «۳+» را به mg/L ترجمه نمی‌کنیم: در کیت‌های نیمه‌کمی ضریبِ تبدیل روی
+  //    برچسبِ همان کیت است (۵ تا ۱۰ mg/L) و در پلاکِ کیفی اصلاً فرمولی وجود
+  //    ندارد — شدتِ لختگی را چشمی درجه می‌دهند. ساختنِ عدد یعنی جعلِ داده.
   {
     id: "crp_elevated",
     match: (e) => {
-      const CRP_RE = /crp/i;
-      const quant = e.graded.find((g) => CRP_RE.test(g.test));
-      const qual = Object.entries(e.qual).find(([k, v]) => CRP_RE.test(k) && /\+|positive|مثبت/i.test(v));
-      return (quant && quant.abnormal && quant.dir === "high") || qual;
+      const q = e.graded.find((g) => g.test === "CRP_Q");
+      const quant = q?.abnormal && q.dir === "high";
+      const qual = qualPositive(e, CRP_RE);
+      // قاعدهٔ اختصاصی‌ترِ «CRP مثبت + ESR طبیعی» خودش متن دارد؛ دوباره‌گویی نکن.
+      const esr = e.graded.find((g) => g.test === "ESR");
+      if (qual && !quant && esr && !esr.abnormal) return false;
+      return quant || qual;
     },
     build: (e) => {
-      const CRP_RE = /crp/i;
-      const q = e.graded.find((g) => CRP_RE.test(g.test));
-      const quant = q && q.abnormal && q.dir === "high";
-      const shown = quant ? `${q.value} (حد طبیعی ${q.range})` : `«${e.qual.CRP || 'مثبت'}»`;
+      const q = e.graded.find((g) => g.test === "CRP_Q");
+      const quant = q?.abnormal && q.dir === "high";
+      const shown = quant ? `${q.value} (حد طبیعی ${q.range})` : `«${qualValue(e, CRP_RE)}»`;
       return {
         pattern: "crp_elevated",
         urgency: "this_week",
@@ -315,51 +327,26 @@ export const RULES_INFECTIOUS = [
     },
   },
 
-  // ═══════════ عفونت ویروسی — لنفوسیتوز ═══════════// ═══════════ لنفوسیتوز (نسبی یا مطلق) ═══════════
+  // ═══════════ عفونت ویروسی — لنفوسیتوز ═══════════
   {
     id: "viral_lymphocytosis",
     match: (e) => {
-      const lymphAbs = e.graded.find((g) => g.test === "LYMPH_ABS");
-      const lymphAbsHigh = lymphAbs?.abnormal && lymphAbs.dir === "high";
-      
-      // اگر WBC نباشد، فقط درصد داریم
-      const t = val(e);
-      const lymphPctHigh = t.LYMPH_PCT != null && t.LYMPH_PCT > 50;
-
-      const neutAbs = e.graded.find((g) => g.test === "NEUT_ABS");
-      const neutAbsHigh = neutAbs?.abnormal && neutAbs.dir === "high";
-
-      return (lymphAbsHigh || lymphPctHigh) && !neutAbsHigh;
+      const lymph = e.graded.find((g) => g.test === "LYMPH_ABS");
+      const lymphHigh = lymph?.abnormal && lymph.dir === "high";
+      // نوتروفیل بالا نباشد (که به باکتریایی می‌خورد)
+      const neut = e.graded.find((g) => g.test === "NEUT_ABS");
+      const neutHigh = neut?.abnormal && neut.dir === "high";
+      return lymphHigh && !neutHigh;
     },
-    build: (e) => {
-      const t = val(e);
-      const lymphAbs = e.graded.find((g) => g.test === "LYMPH_ABS");
-      
-      const isMarked = (t.LYMPH_PCT != null && t.LYMPH_PCT >= 70) || (lymphAbs && lymphAbs.value > 8000);
-      const isElderly = e.age && e.age >= 50;
-
-      if (isMarked) {
-         return {
-          pattern: "marked_lymphocytosis",
-          urgency: "this_week",
-          headline: "افزایش شدید لنفوسیت‌ها؛ نیازمند بررسی تخصصی",
-          must_say: "میزان لنفوسیت‌های خون شما بسیار بیشتر از حد طبیعی است. در حالی که عفونت‌های ویروسی (مثل EBV یا CMV) می‌توانند عامل آن باشند، افزایش شدید و پایدار لنفوسیت‌ها، به‌خصوص در سنین میانسالی و بالاتر، حتماً نیازمند رد کردن اختلالات لنفوپرولیفراتیو (مانند CLL) توسط متخصص خون است.",
-          action: "حتماً در اسرع وقت برای بررسی دقیق‌تر به پزشک متخصص داخلی یا خون (هماتولوژیست) مراجعه کنید.",
-          suggest: ["گسترش خون محیطی (Peripheral Smear)", "فلوسیتومتری خون محیطی", "LDH"],
-          warnings: ["لطفاً این نتیجه را نادیده نگیرید و پیگیری پزشکی را در اولویت قرار دهید."],
-        };
-      }
-
-      return {
-        pattern: "viral_lymphocytosis",
-        urgency: "routine",
-        headline: "افزایش لنفوسیت‌ها؛ معمولاً نشانه عفونت ویروسی",
-        must_say:
-          "لنفوسیت‌ها نوعی گلبول سفیدند که در پاسخ به عفونت‌های ویروسی بالا می‌روند. " +
-          "این حالت معمولاً موقتی است و پس از بهبود عفونت به حالت عادی برمی‌گردد.",
-        action: "اگر علائمی مانند تب یا تورم غدد لنفاوی دارید، با پزشک مطرح کنید. در غیر این صورت تکرار آزمایش بعد از چند هفته توصیه می‌شود.",
-        suggest: ["تکرار CBC پس از چند هفته", "اسمیر خون محیطی در صورت تداوم"],
-        warnings: [],
-      };
-    },
+    build: () => ({
+      pattern: "viral_lymphocytosis",
+      urgency: "routine",
+      headline: "افزایش لنفوسیت‌ها معمولاً به یک عفونت ویروسی اشاره دارد",
+      must_say:
+        "لنفوسیت‌ها نوعی گلبول سفیدند که در عفونت‌های ویروسی بالا می‌روند. " +
+        "این معمولاً موقتی است و پس از بهبود عفونت به حالت عادی برمی‌گردد.",
+      action: "اگر علائم دارید یا این عدد خیلی بالاست، با پزشک مطرح کنید. در غیر این صورت تکرار آزمایش بعد از چند هفته کافی است.",
+      suggest: ["تکرار CBC پس از بهبود", "اسمیر خون محیطی در صورت تداوم"],
+      warnings: [],
+    }),
   }];

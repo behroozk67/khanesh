@@ -11,6 +11,8 @@
 // ============================================================
 
 import { alreadyMeasured, SUGGEST_TESTS } from "./patterns.js";
+import { TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
+import { levelGrade } from "./patterns_utils.js";
 import { faName } from "./names.js";
 
 // ⚠️ سقفِ «حداکثر N جمله» در interpretation با قاعدهٔ ۱ («must_say را کامل
@@ -96,7 +98,7 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
       value: g.value,
       normal_range: g.range,
       label: g.fa,
-      ...(g.ctcaeGrade ? { severity: SEVERITY_FA[g.ctcaeGrade] ?? null } : {}),
+      ...(levelGrade(g) ? { severity: SEVERITY_FA[levelGrade(g)] ?? null } : {}),
       ...(g.mode === "classifier" ? { category: g.tag } : {}),
     }));
 

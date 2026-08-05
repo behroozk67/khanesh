@@ -15,6 +15,16 @@ import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
+export function levelGrade(g) {
+  if (!g) return 0;
+  if (g.ctcaeGrade != null) return g.ctcaeGrade;
+  if (g.level === 'critical') return 4;
+  if (g.level === 'marked') return 3;
+  if (g.level === 'moderate') return 2;
+  if (g.level === 'mild') return 1;
+  return 0;
+}
+
 const has = (t, ...ks) => ks.every((k) => t[k] != null);
 
 // آیا یک تست سرولوژی (که نامش با nameRe جور است) واکنش‌گر/مثبت است؟

@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -304,7 +304,7 @@ export const RULES_NEPHROLOGY = [
       const egfr = e.indices.egfr;
       const ratio = e.indices.bun_cr;
       const prerenal = ratio != null && ratio > 20;
-      const crG = cr?.ctcaeGrade ?? 0;
+      const crG = levelGrade(cr);
       // فوریت بر پایهٔ eGFR (مرحله‌بندی CKD) یا شدت CTCAE کراتینین
       const severe = crG >= 3 || (egfr != null && egfr < 15);          // G5
       const moderate = crG >= 2 || (egfr != null && egfr < 45);        // G3b/G4

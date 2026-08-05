@@ -200,8 +200,10 @@ export default function Tafsir() {
     return {
       age: age ? `${age} ${unitFa}` : null,
       sex: sex === "female" ? "زن" : "مرد",
-      // فقط زمینه برای لحنِ متن، نه ورودیِ گرید. موتور با این‌ها تصمیم نمی‌گیرد،
-      // ولی بدون ارسالشان مسیر موتور بارداری/بیماری زمینه‌ای را کاملاً دور می‌ریخت.
+      // pregnant فقط زمینه برای لحنِ متن است.
+      // ⚠️ conditions دیگر این‌طور نیست: grade.js درجه‌بندی CTCAE را به بیمارِ
+      // سرطانی مشروط می‌کند، پس این آرایه ورودیِ درجه‌بندی است نه فقط لحن.
+      // نفرستادنش یعنی بیمارِ سرطانی درجهٔ CTCAE نمی‌گیرد.
       pregnant: sex === "female" && pregnant ? true : undefined,
       conditions: conditions.length ? conditions : undefined,
     };
