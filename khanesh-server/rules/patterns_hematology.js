@@ -161,6 +161,11 @@ export const RULES_HEMATOLOGY = [
   },
 
 {
+    // P5 — تا acc9cc0 هر چهار رشتهٔ کاربرمحورِ این قاعده انگلیسی بود
+    // («Increased Intracellular Hemoglobin Concentration»)، یعنی یک قاعدهٔ
+    // زنده که به بیمارِ فارسی‌زبان انگلیسی می‌داد — همان چیزی که M38 برای
+    // گرفتنش نوشته شد. اینجا فقط *ترجمه* شده: match، آستانه‌ها، urgency و
+    // ${mchc.value} عیناً همان‌اند و هیچ محتوایی افزوده یا کم نشده. تست: M41.
     id: "spherocytosis_likely",
     match: (e) => {
       const t = val(e);
@@ -171,10 +176,10 @@ export const RULES_HEMATOLOGY = [
 
       const mchcHigh = t.MCHC != null && t.MCHC > 36;
       const mcvNormalOrLow = t.MCV != null && t.MCV <= 100;
-      const mchNormal = mch && (!mch.abnormal || mch.tag === 'normal' || mch.tag === 'normochromic' || mch.dir == null);
-      const hgbLow = hgb && hgb.abnormal && hgb.dir === 'low';
-      const rbcNotHigh = !rbc || !rbc.abnormal || rbc.dir === 'low';
-      const rdwHigh = rdw && rdw.abnormal && rdw.dir === 'high';
+      const mchNormal = mch && (!mch.abnormal || mch.tag === "normal" || mch.tag === "normochromic" || mch.dir == null);
+      const hgbLow = hgb && hgb.abnormal && hgb.dir === "low";
+      const rbcNotHigh = !rbc || !rbc.abnormal || rbc.dir === "low";
+      const rdwHigh = rdw && rdw.abnormal && rdw.dir === "high";
 
       return mchcHigh && mcvNormalOrLow && mchNormal && hgbLow && rbcNotHigh && rdwHigh;
     },
@@ -183,10 +188,10 @@ export const RULES_HEMATOLOGY = [
       return {
         pattern: "spherocytosis_likely",
         urgency: "this_week",
-        headline: "Increased Intracellular Hemoglobin Concentration",
-        must_say: `The concentration of hemoglobin in red blood cells (MCHC) is higher than normal, with a value of ${mchc.value}. When accompanied by elevated RDW, mild anemia, and normal or small red blood cells, it strongly suggests a need to check for abnormal red blood cell shapes (such as spherocytosis). A peripheral blood smear is highly recommended.`,
-        action: "Schedule an appointment with your doctor in the coming weeks to examine a peripheral blood smear.",
-        suggest: ["Peripheral Blood Smear", "Bilirubin", "Repeat CBC"],
+        headline: "غلظت هموگلوبین داخل گلبول‌های قرمز بالاتر از حد طبیعی است",
+        must_say: `غلظت هموگلوبین در گلبول‌های قرمز (MCHC) بالاتر از حد طبیعی است، با مقدار ${mchc.value}. وقتی با RDW بالا، کم‌خونی خفیف و گلبول‌های قرمز طبیعی یا کوچک همراه باشد، به‌شدت نشان‌دهندهٔ نیاز به بررسی شکل‌های غیرطبیعی گلبول قرمز (مانند اسفروسیتوز) است. لام خون محیطی به‌شدت توصیه می‌شود.`,
+        action: "در همین هفته‌های پیشِ رو با پزشک وقت بگیرید تا لام خون محیطی بررسی شود.",
+        suggest: ["لام خون محیطی", "بیلی‌روبین", "تکرار CBC"],
         warnings: [],
       };
     },
