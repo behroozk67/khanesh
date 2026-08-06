@@ -66,6 +66,9 @@ export const SUGGEST_TESTS = {
   "ویتامین B12": ["B12"],
   "فولات": ["FOLATE"],
   "آمیلاز": ["AMYLASE"],
+  "منیزیم": ["MG"],
+  // رشته باید *عیناً* با suggestِ قاعده‌ها یکی باشد — alreadyMeasured تطابقِ دقیق دارد.
+  "اسمولالیتهٔ سرم": ["OSM"],
   "رتیکولوسیت": ["RETIC"],
   "هاپتوگلوبین": ["HAPTO"],
   "قند خون ناشتا (FBS)": ["GLU_F"],
@@ -140,6 +143,50 @@ export const RULE_SOURCES = {
   vitamin_d_abnormal:   ["ENDO_VIT_D"],
 };
 
+/**
+ * کلیدهایی که *سورسِ* هر قاعده می‌خواند — یک‌بار در بارگذاریِ ماژول ساخته می‌شود.
+ *
+ * چرا از روی سورس و نه یک فیلدِ `tests:` روی خودِ قاعده: ۹۵ قاعده هست و
+ * دست‌زدن به همه‌شان یعنی ۹۵ فرصتِ خراب‌کاری — همان استدلالِ RULE_SOURCES.
+ * سورس‌خوانی هم دقیق‌تر از متن‌کاوی است: `liver_pattern` دربارهٔ AST/ALT
+ * حرف می‌زند بی‌آنکه اسمشان را در متن بیاورد، ولی در `match` هر دو را می‌خواند.
+ *
+ * ⚠️ این نگاشت فقط به تورِ ایمنیِ `unexplained_abnormal` سرویس می‌دهد. برای
+ *    هیچ تصمیمِ بالینیِ دیگری استفاده نشود — «قاعده این کلید را خواند» با
+ *    «قاعده دربارهٔ این کلید چیزی گفت» یکی نیست، و دقیقاً به همین دلیل
+ *    شرطِ AND با متن‌کاوی هم لازم است.
+ */
+const RULE_READS = new Map();
+for (const rule of RULES) {
+  if (!rule?.id) continue;
+  // ⚠️ کامنت‌ها اول حذف می‌شوند. toString() آن‌ها را نگه می‌دارد، و کامنتی مثل
+  //    «// PT>25، فیبرینوژن<100، یا INR>3 → فوری» کلید را «خوانده‌شده» جا می‌زند
+  //    بی‌آنکه کد واقعاً بخواندش. جهتِ این خطا سکوت است، و سکوت بدترین خروجیِ
+  //    این تور است — پس محافظه‌کارانه‌تر آن است که کمتر «پوشش‌داده» بشماریم.
+  const src = (String(rule.match) + "\n" + String(rule.build))
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ");
+  const keys = new Set();
+  for (const tok of src.match(/[A-Z][A-Z0-9_]+/g) ?? []) keys.add(tok);
+  RULE_READS.set(rule.id, keys);
+}
+
+/**
+ * آیا این تستِ ناهنجار در متنِ یافته‌ها اسم برده شده؟
+ *
+ * سه راهِ اسم‌بردن پذیرفته است: نامِ فارسیِ faName، هستهٔ فارسیِ آن بدون
+ * پرانتزِ لاتین («PT (زمان پروترومبین)» → «زمان پروترومبین»)، و خودِ کلیدِ
+ * لاتین با مرزِ واژه. مرزِ واژه لازم است وگرنه `PT` داخلِ `aPTT` می‌افتد و
+ * تستِ دیگری را «توضیح‌داده‌شده» جا می‌زند — یعنی سکوت، که خطرناک‌ترین جهت است.
+ */
+function textNamesTest(text, key) {
+  const fa = faName(key);
+  if (fa && fa !== key && text.includes(fa)) return true;
+  const faCore = String(fa).replace(/\s*\([^)]*\)\s*/g, " ").trim();
+  if (faCore && faCore !== key && faCore.length > 1 && text.includes(faCore)) return true;
+  return new RegExp(`(^|[^A-Za-z0-9_])${key}([^A-Za-z0-9_]|$)`).test(text);
+}
+
 export function runPatterns(engineOut) {
   const findings = [];
   for (const rule of RULES) {
@@ -204,6 +251,80 @@ export function runPatterns(engineOut) {
       suggest: [],
       warnings: [],
     });
+  }
+
+  // ═══ تور ایمنی ۲ — تستِ ناهنجارِ بی‌اشاره ═══
+  // 🔴 باگ واقعی (اندازه‌گیری‌شده، ۲۰۲۶-۰۸-۰۶): تورِ بالا فقط وقتی می‌گیرد که
+  //    findings خالی باشد. پس روی برگه‌ای که یک قاعدهٔ دیگر فعال شده، تستِ
+  //    ناهنجارِ بی‌قاعده *اصلاً ذکر نمی‌شد* — نه پیامِ مبهم، بلکه سکوتِ کامل.
+  //
+  //    پنلِ سنجش: Hb 9.5 · MCV 70 · فریتین 6 · فسفر 1.0
+  //    → microcytic_anemia + iron_deficiency_panel فعال شدند و فسفرِ ۱.۰
+  //      (هیپوفسفاتمیِ شدید) از گزارش ناپدید شد. بیمار یک تفسیرِ کامل و
+  //      قانع‌کننده دربارهٔ فقر آهن می‌خواند و خبر ندارد چیزِ دیگری هم هست.
+  //      این همان کلاسِ N2/N16 است: کم‌خوانیِ خاموش در لباسِ جوابِ تمام‌شده.
+  //
+  // «بی‌اشاره» با شرطِ AND تعریف می‌شود — هم هیچ قاعدهٔ فعال‌شده‌ای کلید را
+  // *نخوانده* باشد، هم متنِ یافته‌ها اسمش را نبرده باشد. هر کدام تنها،
+  // اندازه‌گیری شد و بد بود: متن‌کاویِ خالص روی پنلِ کبدی ۶ مثبتِ کاذب داد
+  // (liver_pattern دربارهٔ AST/ALT حرف می‌زند بی‌آنکه اسمشان را بیاورد)، و
+  // سورس‌خوانیِ خالص روی همان پنلِ فقر آهن IRON را «پوشش‌داده» جا زد.
+  // با AND، پنلِ کبدی به یک مورد رسید و شکاف‌های واقعی سرِ جایشان ماندند.
+  if (findings.length > 0 && engineOut.abnormal.length > 0) {
+    const covered = new Set();
+    for (const f of findings) {
+      for (const k of RULE_READS.get(f.rule_id) ?? []) covered.add(k);
+    }
+    const text = findings
+      .map((f) => [f.headline, f.must_say, f.action, (f.warnings ?? []).join(" ")].join(" "))
+      .join(" ");
+
+    const orphans = engineOut.abnormal
+      .filter((a) => !covered.has(a.test) && !textNamesTest(text, a.test))
+      .sort((a, b) => rankOf(b) - rankOf(a));
+
+    if (orphans.length > 0) {
+      const hasCritical = orphans.some((a) => a.level === "critical");
+      const hasMarked = orphans.some(
+        (a) => a.level === "marked" || a.level === "critical" || levelGrade(a) >= 3
+      );
+      const urgency = hasCritical ? "emergency" : hasMarked ? "this_week" : "routine";
+
+      // فهرست را می‌بریم تا جمله بلند نشود؛ چون بر اساس rankOf مرتب شده،
+      // آن‌چه بریده می‌شود همیشه کم‌اهمیت‌ترین‌هاست و تعدادش گفته می‌شود.
+      const SHOWN = 6;
+      const head = orphans.slice(0, SHOWN);
+      const rest = orphans.length - head.length;
+      const list = head
+        .map((a) => `${faName(a.test)} ${a.value}${a.range ? ` (طبیعی ${a.range})` : ""}`)
+        .join("، ");
+      const tail = rest > 0 ? ` و ${rest} مورد دیگر` : "";
+
+      findings.push({
+        rule_id: "unexplained_abnormal",
+        pattern: "unexplained_abnormal",
+        urgency,
+        // ⚠️ هرگز blocks_others نمی‌شود: این تور جای قاعده را نمی‌گیرد،
+        //    فقط چیزی را که هیچ قاعده‌ای برنداشته اضافه می‌کند.
+        blocks_others: false,
+        // زیر یک یافتهٔ مهم‌تر پنهان نمی‌شود، ولی نسخهٔ کوتاهش را می‌گیرد —
+        // همان قراردادِ always_show/brief که D-dimer هم از آن استفاده می‌کند.
+        always_show: true,
+        headline: "چند نتیجهٔ خارج از محدوده که جداگانه توضیح داده نشدند",
+        must_say:
+          `${orphans.length} مورد دیگر هم خارج از محدودهٔ مرجع است و در توضیح‌های بالا ` +
+          `به آن‌ها پرداخته نشده: ${list}${tail}. برای این‌ها توضیحِ آمادهٔ اختصاصی نداریم؛ ` +
+          "این یعنی موتور دربارهٔ آن‌ها نتیجه‌گیری نکرده، نه اینکه بی‌اهمیت‌اند.",
+        brief: `${orphans.length} نتیجهٔ دیگر هم خارج از محدوده است: ${list}${tail}.`,
+        action: hasCritical
+          ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
+          : hasMarked
+          ? "این هفته با پزشک وقت بگیرید و این برگه را همراه ببرید."
+          : "این موارد را هم موقع مراجعه با پزشک مرور کنید.",
+        suggest: [],
+        warnings: [],
+      });
+    }
   }
 
   // ═══ انتخاب یافته‌ها ═══

@@ -2019,8 +2019,10 @@ test("G3: هیپرکالمیِ غیرشدید هشدارِ همولیزِ نمو
     tests: [{ name: "Potassium", value: "5.6", unit: "mEq/L" }, { name: "Age", value: "40" }],
   });
   const p = runPatterns(e);
-  // ⚠️ باندِ ۵.۱–۵.۹ قاعدهٔ اختصاصی ندارد و به تورِ ایمنی می‌افتد — همان
-  //    باندی که R5 دربارهٔ آن نوشته شده بود.
+  // ⚠️ باندِ ۵.۱–۵.۹ زمانی قاعدهٔ اختصاصی نداشت و به تورِ ایمنی می‌افتاد؛ از
+  //    وقتی potassium_critical روی هر پتاسیمِ غیرطبیعی می‌نشیند (M48)، همین
+  //    باند صاحبِ قاعده است. هر دو شناسه عمداً اینجا مانده‌اند تا تست به یکی
+  //    از دو مسیر گره نخورد — چیزی که سنجیده می‌شود چسبیدنِ کاوئات است.
   const k = p.findings.find(
     (x) => x.rule_id === "potassium_critical" || x.rule_id === "unmatched_abnormal"
   );
@@ -2808,3 +2810,1013 @@ test("M46: کم‌خونیِ نورموسیتیک کنارِ الگوی همول
     `normocytic_anemia از دست رفت؛ فعال‌شده‌ها: ${fired.join("، ")}`);
 });
 
+// M47 — P1: شکافِ «هموگلوبینِ طبیعی، ولی RBC و HCT پایین».
+//
+// موردِ واقعی (همان کیسِ live-probe.js): مرد ۷۸ ساله با RBC 3.82↓، HCT 38.6↓،
+// HGB 12.3 که به‌خاطر GERIATRIC_REFS «طبیعی» است. هر پنج قاعدهٔ گلبولِ قرمز در
+// patterns_hematology.js روی `hgb.dir === "low"` گیت شده‌اند، پس هیچ‌کدام شلیک
+// نمی‌کرد و بیمار «برای این ترکیب توضیح آماده‌ای نداریم» می‌خواند — کلاسِ N1.
+//
+// این تست روی درختِ پیش از افزودنِ low_rbc_hct_without_anemia قرمز است:
+// اندازه‌گیری‌شده، فعال‌شده‌ها = «هیچ» و یافته unmatched_abnormal بود.
+test("M47: RBC و HCT پایین با هموگلوبینِ طبیعی، دیگر در unmatched_abnormal نمی‌افتد", () => {
+  const e = runEngine({
+    patient: { age: "78", sex: "M" },
+    tests: [
+      { name: "R.B.C", value: 3.82 },
+      { name: "Hb", value: 12.3 },
+      { name: "H.C.T", value: 38.6 },
+      { name: "M.C.V", value: 101.0 },
+      { name: "M.C.H", value: 32.2 },
+    ],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.pattern);
+
+  assert.ok(
+    fired.includes("low_rbc_hct_without_anemia"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`,
+  );
+  // هدفِ اصلی: بیمار دیگر «توضیح آماده‌ای نداریم» نمی‌خواند.
+  assert.ok(
+    !fired.includes("unmatched_abnormal"),
+    "هنوز در unmatched_abnormal می‌افتد",
+  );
+
+  const f = p.findings.find((x) => x.pattern === "low_rbc_hct_without_anemia");
+  // هر دو عددِ غیرطبیعی باید در متن بیایند، نه توصیفِ کیفی.
+  assert.match(f.must_say, /3\.82/, "مقدار RBC باید در متن گفته شود");
+  assert.match(f.must_say, /38\.6/, "مقدار هماتوکریت باید در متن گفته شود");
+
+  // ⚠️ مرزِ موتور: موتور هموگلوبین را پایین ندانسته، پس قاعده حق ندارد
+  //    «کم‌خونی» اعلام کند. این همان کاری است که N13 در سمتِ LLM ممنوع می‌کند.
+  assert.match(f.must_say, /این نتیجه «کم‌خونی» نیست/,
+    "باید صریح بگوید این کم‌خونی نیست");
+
+  // بندِ سالمندی باید فعال شود — با e.patient.age (که وجود ندارد) خاموش می‌ماند.
+  assert.match(f.must_say, /طبیعیِ سن/,
+    "بندِ سالمندی برای سن ۷۸ باید در متن بیاید");
+  assert.equal(f.urgency, "routine");
+});
+
+// M47b — N4: هموگلوبینِ *اندازه‌گیری‌نشده* نباید «طبیعی» خوانده شود.
+// اگر شرطِ متن به `!hgbLow` ساده شود، این تست قرمز می‌شود.
+test("M47b: وقتی هموگلوبین روی برگه نیست، ادعای «کم‌خونی نیست» نمی‌کند", () => {
+  const e = runEngine({
+    patient: { age: "40", sex: "M" },
+    tests: [
+      { name: "R.B.C", value: 3.9 },
+      { name: "H.C.T", value: 37.0 },
+    ],
+  });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "low_rbc_hct_without_anemia");
+  assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ") || "هیچ"}`);
+  assert.match(f.must_say, /هموگلوبین در این برگه اندازه‌گیری نشده/,
+    "غیبتِ هموگلوبین باید صریح گفته شود");
+  assert.doesNotMatch(f.must_say, /این نتیجه «کم‌خونی» نیست/,
+    "بدون هموگلوبین نمی‌توان کم‌خونی را رد کرد");
+  // بندِ سالمندی نباید برای ۴۰ ساله بیاید.
+  assert.doesNotMatch(f.must_say, /طبیعیِ سن/, "بندِ سالمندی نباید برای ۴۰ ساله بیاید");
+});
+
+// M47c — قاعده نباید کارِ قاعده‌های کم‌خونی را بدزدد.
+// هموگلوبینِ پایین یعنی microcytic/normocytic/macrocytic باید بگیرند، نه این.
+test("M47c: با هموگلوبینِ پایین، قاعدهٔ «بدون کم‌خونی» فعال نمی‌شود", () => {
+  const e = runEngine({
+    patient: { age: "29", sex: "F" },
+    tests: [
+      { name: "Hb", value: 9.4 },
+      { name: "MCV", value: 68 },
+      { name: "R.B.C", value: 3.6 },
+      { name: "H.C.T", value: 30.0 },
+    ],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.pattern);
+  assert.ok(
+    !fired.includes("low_rbc_hct_without_anemia"),
+    `نباید فعال می‌شد؛ فعال‌شده‌ها: ${fired.join("، ")}`,
+  );
+  // کدام قاعدهٔ میکروسیتیک بگیرد مهم نیست (اینجا microcytic_ida_likely برنده
+  // می‌شود و microcytic_anemia را سرکوب می‌کند) — مهم این است که مسیرِ کم‌خونی
+  // صاحبِ این مورد باشد، نه قاعدهٔ «بدون کم‌خونی».
+  assert.ok(
+    fired.some((f) => /microcytic/.test(f)),
+    `یک قاعدهٔ کم‌خونی میکروسیتیک باید بگیرد؛ فعال‌شده‌ها: ${fired.join("، ")}`,
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M48 — پتاسیمِ غیرطبیعی ولی غیربحرانی، قاعده نداشت.
+//
+// `potassium_critical` فقط از K ≥ ۶.۰ یا ≤ ۲.۹ شلیک می‌کرد، پس باندهای
+// ۳.۰–۳.۴ و ۵.۱–۵.۹ — یعنی شایع‌ترین پتاسیمِ غیرطبیعیِ یک برگهٔ سرپایی —
+// به تورِ ایمنی می‌افتادند. اندازه‌گیری‌شده روی درختِ پیش از تغییر:
+//   K 5.6 → ["unmatched_abnormal"] با فوریتِ routine
+//   K 3.2 → ["unmatched_abnormal"] با فوریتِ routine
+// یعنی بیمار کنارِ عددی که واقعاً غیرطبیعی است می‌خواند «برای این ترکیب
+// توضیح آماده‌ای نداریم». کلاسِ N1.
+// ═══════════════════════════════════════════════════════════════════
+test("M48: پتاسیمِ ۵.۶ قاعده دارد و در unmatched_abnormal نمی‌افتد", () => {
+  const e = runEngine({
+    patient: { age: "40", sex: "M" },
+    tests: [{ name: "Potassium", value: "5.6", unit: "mEq/L" }],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.pattern);
+
+  assert.ok(fired.includes("hyperkalemia"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(!fired.includes("unmatched_abnormal"), "هنوز در unmatched_abnormal می‌افتد");
+
+  const f = p.findings.find((x) => x.pattern === "hyperkalemia");
+  assert.match(f.must_say, /5\.6/, "مقدار باید در متن گفته شود");
+  assert.equal(f.urgency, "this_week");
+  assert.ok(!f.blocks_others, "باندِ غیربحرانی نباید بقیهٔ یافته‌ها را بپوشاند");
+});
+
+// گاردِ آستانه: باندِ اورژانسی باید بایت‌به‌بایت همان بماند که بود.
+test("M48: پهن‌کردنِ قاعده، آستانهٔ اورژانسیِ پتاسیم را دست‌نخورده می‌گذارد", () => {
+  const e = runEngine({
+    patient: { age: "40", sex: "M" },
+    tests: [{ name: "Potassium", value: "6.2", unit: "mEq/L" }],
+  });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "hyperkalemia");
+  assert.ok(f, "قاعدهٔ پتاسیم باید بگیرد");
+  assert.equal(f.urgency, "emergency");
+  assert.equal(f.blocks_others, true);
+});
+
+test("M48b: پتاسیمِ ۳.۲ قاعده دارد و فوریتش routine است", () => {
+  const e = runEngine({
+    patient: { age: "40", sex: "M" },
+    tests: [{ name: "Potassium", value: "3.2", unit: "mEq/L" }],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.pattern);
+
+  assert.ok(fired.includes("hypokalemia"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(!fired.includes("unmatched_abnormal"), "هنوز در unmatched_abnormal می‌افتد");
+
+  const f = p.findings.find((x) => x.pattern === "hypokalemia");
+  assert.match(f.must_say, /3\.2/);
+  assert.equal(f.urgency, "routine");
+});
+
+// M48c — گاردِ N12: شدت و جهت دو محورِ جداگانه‌اند.
+// ⚠️ این تست دقیقاً همان تلهٔ پهن‌کردن را می‌گیرد. متغیرِ `high` در نسخهٔ
+//    قبلی `t.K >= 6.0` بود، یعنی جهت را از آستانهٔ *شدت* می‌گرفت. اگر قاعده
+//    پهن شود ولی این خط نماند `kg.dir === "high"`، پتاسیمِ ۵.۲ به بیمار
+//    می‌گوید «پایین‌تر از حد طبیعی» — همان جدولِ N12 در CLAUDE.md.
+test("M48c: پتاسیمِ ۵.۲ «بالاتر» خوانده می‌شود، نه «پایین‌تر»", () => {
+  const e = runEngine({
+    patient: { age: "40", sex: "M" },
+    tests: [{ name: "Potassium", value: "5.2", unit: "mEq/L" }],
+  });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "hyperkalemia");
+  assert.ok(f, "قاعدهٔ پتاسیم باید بگیرد");
+  assert.match(f.must_say, /بالاتر از حد طبیعی/, "جهت باید از dir بیاید، نه از آستانهٔ شدت");
+  assert.doesNotMatch(f.must_say, /پایین‌تر از حد طبیعی/);
+});
+
+// M48d — N4 روی منیزیم: «اندازه‌گیری‌نشده» با «طبیعی» یکی نیست.
+// منیزیمِ پایین از علل شایعِ پتاسیمِ پایینِ مقاوم است، ولی وقتی منیزیم روی
+// برگه نیست قاعده حق ندارد دربارهٔ آن حکم بدهد — فقط باید غیبتش را بگوید.
+test("M48d: پتاسیمِ پایین بدونِ منیزیم، ادعای «منیزیم طبیعی» نمی‌کند", () => {
+  const e = runEngine({
+    patient: { age: "40", sex: "M" },
+    tests: [{ name: "Potassium", value: "3.2", unit: "mEq/L" }],
+  });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "hypokalemia");
+  assert.ok(f, "قاعدهٔ پتاسیم باید بگیرد");
+  assert.match(f.must_say, /منیزیم روی این برگه اندازه‌گیری نشده/,
+    "غیبتِ منیزیم باید صریح گفته شود");
+  assert.ok(f.suggest.includes("منیزیم"), "منیزیم باید پیشنهاد شود");
+
+  // و نیمهٔ دومِ شاخهٔ سه‌حالته: منیزیمِ اندازه‌گیری‌شده و طبیعی.
+  const e2 = runEngine({
+    patient: { age: "40", sex: "M" },
+    tests: [
+      { name: "Potassium", value: "3.2", unit: "mEq/L" },
+      { name: "Magnesium", value: "2.0", unit: "mg/dL" },
+    ],
+  });
+  const f2 = runPatterns(e2).findings.find((x) => x.pattern === "hypokalemia");
+  assert.match(f2.must_say, /منیزیم شما اندازه‌گیری شده و طبیعی است/);
+  assert.doesNotMatch(f2.must_say, /منیزیم روی این برگه اندازه‌گیری نشده/);
+  // پیشنهادِ «منیزیم» وقتی روی برگه هست باید حذف شود (باگِ «درخواست فریتین»).
+  assert.ok(!f2.suggest.includes("منیزیم"),
+    "منیزیمِ موجود نباید دوباره «درخواست» شود");
+});
+
+// M48e — پسودوهایپرکالمی از شمارشِ سلولی (کاوئاتِ پیش‌تحلیلیِ تازه).
+// پلاکت یا گلبولِ سفیدِ خیلی بالا پتاسیمِ سرم را کاذب بالا می‌برد. هر دو
+// جهتِ تست لازم است: چسبیدنِ کاوئات وقتی شمارش بالاست، و *نچسبیدنش* وقتی
+// نیست — وگرنه کاوئات به هر هایپرکالمی می‌چسبد و بی‌معنا می‌شود.
+test("M48e: پتاسیمِ بالا با پلاکتِ خیلی بالا، هشدارِ پسودوهایپرکالمی می‌گیرد", () => {
+  const e = runEngine({
+    patient: { age: "55", sex: "M" },
+    tests: [
+      { name: "Potassium", value: "5.4", unit: "mEq/L" },
+      { name: "Platelet", value: "800" },
+    ],
+  });
+  const f = runPatterns(e).findings.find((x) => x.rule_id === "potassium_critical");
+  assert.ok(f, "قاعدهٔ پتاسیم باید بگیرد");
+  assert.ok(
+    f.warnings.some((w) => /پلاکت یا گلبول‌های سفید خیلی بالا/.test(w)),
+    `هشدارِ پسودوهایپرکالمی نچسبید؛ هشدارها: ${f.warnings.join(" | ") || "هیچ"}`,
+  );
+  assert.ok(f.sources.includes("CLSI"));
+});
+
+test("M48e: بدونِ شمارشِ سلولیِ بالا، هشدارِ پسودوهایپرکالمی نمی‌چسبد", () => {
+  const e = runEngine({
+    patient: { age: "55", sex: "M" },
+    tests: [
+      { name: "Potassium", value: "5.4", unit: "mEq/L" },
+      { name: "Platelet", value: "250" },
+    ],
+  });
+  const f = runPatterns(e).findings.find((x) => x.rule_id === "potassium_critical");
+  assert.ok(
+    !f.warnings.some((w) => /پلاکت یا گلبول‌های سفید خیلی بالا/.test(w)),
+    "کاوئات نباید به هر هایپرکالمی بچسبد",
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M49 — سدیمِ غیرطبیعی ولی غیربحرانی، قاعده نداشت.
+//
+// `sodium_critical` فقط از Na ≥ ۱۵۵ یا ≤ ۱۲۵ شلیک می‌کرد، پس باندهای
+// ۱۲۶–۱۳۴ و ۱۴۶–۱۵۴ قاعده نداشتند. اندازه‌گیری‌شده پیش از تغییر:
+//   Na 132 → ["unmatched_abnormal"] routine
+//   Na 148 → ["unmatched_abnormal"] routine
+//   Na 127 → ["unmatched_abnormal"] routine   (در حالی که CTCAE گرید ۳ است)
+// باندِ ۱۲۶–۱۳۴ همان هیپوناترمیِ مزمن است — جایی که خطرِ واقعی نه خودِ عدد،
+// که *اصلاحِ سریعِ* آن است. پس هشدارِ سرعتِ اصلاح از شاخهٔ بحرانی به همهٔ
+// سدیم‌های پایین منتقل شد.
+// ═══════════════════════════════════════════════════════════════════
+test("M49: سدیمِ ۱۳۲ قاعده دارد و هشدارِ سرعتِ اصلاح می‌گیرد", () => {
+  const e = runEngine({
+    patient: { age: "50", sex: "F" },
+    tests: [{ name: "Sodium", value: "132", unit: "mEq/L" }],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.pattern);
+
+  assert.ok(fired.includes("hyponatremia"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(!fired.includes("unmatched_abnormal"), "هنوز در unmatched_abnormal می‌افتد");
+
+  const f = p.findings.find((x) => x.pattern === "hyponatremia");
+  assert.match(f.must_say, /132/);
+  assert.equal(f.urgency, "routine");
+  assert.ok(
+    f.warnings.some((w) => /اصلاح سدیم باید آهسته/.test(w)),
+    `هشدارِ سرعتِ اصلاح نیامد؛ هشدارها: ${f.warnings.join(" | ") || "هیچ"}`,
+  );
+});
+
+// M49b — گاردِ N12، و این یکی باگِ *زنده* بود: `const high = t.NA >= 155`.
+// با پهن‌شدنِ قاعده، سدیمِ ۱۴۸ زیرِ آن خط «سدیم پایین است» می‌شد.
+test("M49b: سدیمِ ۱۴۸ «بالا» خوانده می‌شود، نه «پایین»", () => {
+  const e = runEngine({
+    patient: { age: "50", sex: "M" },
+    tests: [{ name: "Sodium", value: "148", unit: "mEq/L" }],
+  });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "hypernatremia");
+  assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${runPatterns(e).findings.map((x) => x.pattern).join("، ") || "هیچ"}`);
+  assert.equal(f.headline, "سدیم خون شما بالاست");
+  assert.match(f.must_say, /سدیم بالاتر از حد طبیعی/);
+  assert.doesNotMatch(f.must_say, /سدیم پایین‌تر از حد طبیعی/);
+});
+
+// M49c — باندی که CTCAE گرید ۳ می‌داند (NA < 130) نباید routine بماند.
+test("M49c: سدیمِ ۱۲۷ فوریتِ this_week می‌گیرد", () => {
+  const e = runEngine({
+    patient: { age: "50", sex: "M" },
+    tests: [{ name: "Sodium", value: "127", unit: "mEq/L" }],
+  });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "hyponatremia");
+  assert.ok(f, "قاعدهٔ سدیم باید بگیرد");
+  assert.equal(f.urgency, "this_week");
+});
+
+// M49d — دو یافتهٔ اورژانسی برای یک عدد.
+// اندازه‌گیری‌شده پیش از تغییر: Na 118 هم `severe_hyponatremia` (در
+// patterns_nephrology_new.js) و هم `sodium_critical` را فعال می‌کرد — دو
+// یافتهٔ emergency با متنِ تقریباً یکسان. قاعدهٔ دومی متنِ غنی‌تر و نکتهٔ
+// تصحیحِ قند را دارد، پس اولی حذف شد.
+test("M49d: سدیمِ ۱۱۸ فقط یک یافتهٔ اورژانسی می‌سازد، نه دو تا", () => {
+  const e = runEngine({
+    patient: { age: "50", sex: "M" },
+    tests: [{ name: "Sodium", value: "118", unit: "mEq/L" }],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.rule_id);
+
+  assert.ok(
+    !fired.includes("severe_hyponatremia"),
+    `قاعدهٔ تکراری هنوز فعال است؛ فعال‌شده‌ها: ${fired.join("، ")}`,
+  );
+  const f = p.findings.find((x) => x.rule_id === "sodium_critical");
+  assert.ok(f, "sodium_critical باید بگیرد");
+  assert.equal(f.urgency, "emergency");
+  assert.equal(f.blocks_others, true);
+  assert.match(f.must_say, /118/);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M50 — منیزیمِ غیرطبیعیِ منفرد قاعده نداشت.
+//
+// `magnesium_depletion` یک الگوی *زنجیره‌ای* است: فقط وقتی می‌گیرد که
+// پتاسیم یا کلسیم هم پایین باشد، چون ارزشش پیامِ «اول منیزیم را درست کن»
+// است. پس منیزیمِ پایینِ تنها، و هر منیزیمِ بالا، بی‌قاعده بودند.
+// اندازه‌گیری‌شده پیش از تغییر:
+//   Mg 1.5 → ["unmatched_abnormal"]
+//   Mg 3.2 → ["unmatched_abnormal"]
+//   Mg 3.2 + Creatinine 2.4 → ["kidney"] و بس — منیزیم اصلاً نامی نمی‌بُرد،
+//     یعنی گزارش کامل به نظر می‌رسید و یک عددِ غیرطبیعی در آن گم بود.
+// ═══════════════════════════════════════════════════════════════════
+test("M50: منیزیمِ ۱.۵ به‌تنهایی قاعده دارد و ادعای «پتاسیم طبیعی» نمی‌کند", () => {
+  const e = runEngine({
+    patient: { age: "50", sex: "M" },
+    tests: [{ name: "Magnesium", value: "1.5", unit: "mg/dL" }],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.pattern);
+
+  assert.ok(fired.includes("hypomagnesemia"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(!fired.includes("unmatched_abnormal"), "هنوز در unmatched_abnormal می‌افتد");
+
+  const f = p.findings.find((x) => x.pattern === "hypomagnesemia");
+  assert.match(f.must_say, /1\.5/);
+  assert.equal(f.urgency, "routine");   // level=mild → levelGrade 1
+  // N4: پتاسیم و کلسیم روی برگه نیستند، پس نه «طبیعی» و نه «پایین».
+  assert.match(f.must_say, /روی این برگه اندازه‌گیری نشده/);
+  assert.doesNotMatch(f.must_say, /پتاسیم و کلسیم شما اندازه‌گیری شده‌اند و طبیعی‌اند/);
+});
+
+test("M50b: منیزیمِ بالا تنها routine است، ولی با نارساییِ کلیه this_week", () => {
+  const alone = runPatterns(runEngine({
+    patient: { age: "50", sex: "M" },
+    tests: [{ name: "Magnesium", value: "3.2", unit: "mg/dL" }],
+  }));
+  const f1 = alone.findings.find((x) => x.pattern === "hypermagnesemia");
+  assert.ok(f1, `قاعده فعال نشد؛ فعال‌شده‌ها: ${alone.findings.map((x) => x.pattern).join("، ") || "هیچ"}`);
+  assert.equal(f1.urgency, "routine");
+  assert.match(f1.must_say, /3\.2/);
+
+  // ⚠️ CTCAE هیچ MG_HIGH ندارد، پس تشدید نمی‌تواند از levelGrade بیاید و
+  //    عددِ کتابیِ ۷.۰/۱۰.۰ هم منبع ندارد. تشدید از خودِ موتور می‌آید:
+  //    کراتینینِ بالا یا eGFR زیرِ ۶۰.
+  const e2 = runEngine({
+    patient: { age: "70", sex: "M" },
+    tests: [
+      { name: "Magnesium", value: "3.2", unit: "mg/dL" },
+      { name: "Creatinine", value: "2.4", unit: "mg/dL" },
+    ],
+  });
+  const p2 = runPatterns(e2);
+  const f2 = p2.findings.find((x) => x.pattern === "hypermagnesemia");
+  assert.ok(f2,
+    `منیزیم کنارِ نارساییِ کلیه گم شد؛ فعال‌شده‌ها: ${p2.findings.map((x) => x.pattern).join("، ")}`);
+  assert.equal(f2.urgency, "this_week");
+});
+
+// M50c — انحصارِ متقابل. اگر گیتِ `!mgChain` نباشد، پنلِ M23 دو یافتهٔ
+// منیزیمی می‌گیرد که یکی‌شان پیامِ «اول منیزیم» را رقیق می‌کند.
+test("M50c: وقتی الگوی زنجیره‌ای می‌گیرد، قاعدهٔ منفردِ منیزیم ساکت می‌ماند", () => {
+  const e = runEngine({
+    patient: { age: "50", sex: "F" },
+    tests: [
+      { name: "Magnesium", value: "1.2", unit: "mg/dL" },
+      { name: "Potassium", value: "3.0", unit: "mEq/L" },
+    ],
+  });
+  const fired = runPatterns(e).findings.map((f) => f.pattern);
+  assert.ok(fired.includes("magnesium_depletion_pattern"),
+    `الگوی زنجیره‌ای باید بگیرد؛ فعال‌شده‌ها: ${fired.join("، ")}`);
+  assert.ok(
+    !fired.includes("hypomagnesemia"),
+    `قاعدهٔ منفرد نباید فعال می‌شد؛ فعال‌شده‌ها: ${fired.join("، ")}`,
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M52 — آلکالوزِ متابولیک قاعده نداشت، و بدتر: قاعدهٔ شکافِ آنیونی روی آن
+//       شلیک می‌کرد و خلافِ واقع می‌گفت بدن اسید جمع کرده.
+//
+// نقصِ زندهٔ اندازه‌گیری‌شده پیش از رفع، با Na 142 / Cl 92 / HCO3 36:
+//   anion_gap = 14  →  فقط high_anion_gap فعال می‌شد، با این متن:
+//   «شکاف آنیونی … حدود 14 است، بالاتر از حد معمول (~۱۲). این می‌تواند
+//    نشانهٔ تجمع اسید در بدن باشد …»
+// بی‌کربناتِ ۳۶ یعنی خون به سمتِ *قلیایی* رفته، نه اسیدی. آلکالوزِ انقباضی
+// شکافِ آنیونی را کمی بالا می‌برد، پس این ترکیب نادر نیست. کلاسِ N12:
+// یک شاخصِ محاسبه‌شده بدونِ زمینهٔ جهتش خوانده شده بود.
+// و HCO3 32 به‌تنهایی → ["unmatched_abnormal"].
+// ═══════════════════════════════════════════════════════════════════
+test("M52: بی‌کربناتِ بالا آلکالوز است، نه «تجمع اسید»", () => {
+  const e = runEngine({
+    patient: { age: "55", sex: "F" },
+    tests: [
+      { name: "Sodium", value: "142" },
+      { name: "Chloride", value: "92" },
+      { name: "Bicarbonate", value: "36" },
+    ],
+  });
+  // پیش‌شرطِ خودِ تست: اگر شکافِ آنیونی بالا نباشد، تله‌ای که می‌سنجیم وجود ندارد.
+  assert.ok(e.indices.anion_gap > 12, "پنل باید شکافِ آنیونیِ بالای ۱۲ بسازد");
+
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.rule_id);
+
+  assert.ok(fired.includes("metabolic_alkalosis"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(
+    !fired.includes("high_anion_gap"),
+    `قاعدهٔ شکافِ آنیونی نباید روی آلکالوز بگیرد؛ فعال‌شده‌ها: ${fired.join("، ")}`,
+  );
+  // و هیچ متنی نباید ادعای تجمع اسید کند.
+  const allText = p.findings.map((f) => f.must_say).join(" ");
+  assert.doesNotMatch(allText, /تجمع اسید/,
+    "به بیمارِ آلکالوتیک نباید گفته شود اسید جمع کرده");
+
+  const f = p.findings.find((x) => x.rule_id === "metabolic_alkalosis");
+  assert.match(f.must_say, /36/);
+  assert.equal(f.urgency, "this_week");   // کلرِ پایین همراه دارد
+});
+
+test("M52b: بی‌کربناتِ ۳۲ به‌تنهایی قاعده دارد و routine است", () => {
+  const e = runEngine({
+    patient: { age: "55", sex: "F" },
+    tests: [{ name: "Bicarbonate", value: "32" }],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.rule_id);
+
+  assert.ok(fired.includes("metabolic_alkalosis"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(!fired.includes("unmatched_abnormal"), "هنوز در unmatched_abnormal می‌افتد");
+
+  const f = p.findings.find((x) => x.rule_id === "metabolic_alkalosis");
+  assert.match(f.must_say, /32/);
+  assert.equal(f.urgency, "routine");
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M51 — اسیدوزِ متابولیک با شکافِ آنیونیِ *طبیعی* (هیپرکلرمیک) قاعده نداشت.
+//
+// موتور فقط دو قاعدهٔ اسید-باز داشت: severe_acidosis (HCO3 < ۱۵ یا pH < ۷.۲۵)
+// و high_anion_gap (شکاف > ۱۲). بینِ این دو یک باندِ کامل خالی بود:
+// بی‌کربناتِ پایینِ غیرشدید با شکافِ آنیونیِ طبیعی — یعنی اسهالِ طولانی و
+// اختلالِ دفعِ اسیدِ کلیه، دو علتِ کاملاً شایع. اندازه‌گیری‌شده پیش از رفع:
+//   Na 140 / Cl 116 / HCO3 16 (شکاف = ۸) → ["unmatched_abnormal"] routine
+//
+// مرزها ساختاری‌اند و نه انتخابی: هرچه زیرِ HCO3 ۱۵ باشد مالِ severe_acidosis
+// است و هرچه شکافش بالای ۱۲ باشد مالِ high_anion_gap. این قاعده باقی‌مانده را
+// می‌گیرد، پس هیچ عددِ تازه‌ای انتخاب نشده.
+// ═══════════════════════════════════════════════════════════════════
+test("M51: بی‌کربناتِ پایین با شکافِ آنیونیِ طبیعی، قاعدهٔ خودش را دارد", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Sodium", value: "140" },
+      { name: "Chloride", value: "116" },
+      { name: "Bicarbonate", value: "16" },
+    ],
+  });
+  assert.equal(e.indices.anion_gap, 8, "پنل باید شکافِ آنیونیِ طبیعی بسازد");
+
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.rule_id);
+
+  assert.ok(fired.includes("normal_ag_acidosis"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(!fired.includes("unmatched_abnormal"), "هنوز در unmatched_abnormal می‌افتد");
+  assert.ok(!fired.includes("high_anion_gap"), "شکاف طبیعی است، این قاعده نباید بگیرد");
+
+  const f = p.findings.find((x) => x.rule_id === "normal_ag_acidosis");
+  assert.match(f.must_say, /16/);
+  assert.equal(f.urgency, "this_week");
+  // کلر روی برگه هست و بالاست، پس باید نامش برده شود.
+  assert.match(f.must_say, /116/, "کلرِ بالا باید در متن بیاید");
+});
+
+test("M51b: شکافِ آنیونیِ بالا مالِ قاعدهٔ خودش می‌ماند", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Sodium", value: "140" },
+      { name: "Chloride", value: "100" },
+      { name: "Bicarbonate", value: "18" },
+    ],
+  });
+  const fired = runPatterns(e).findings.map((f) => f.rule_id);
+  assert.ok(fired.includes("high_anion_gap"), `فعال‌شده‌ها: ${fired.join("، ")}`);
+  assert.ok(!fired.includes("normal_ag_acidosis"),
+    `قاعدهٔ شکافِ طبیعی نباید بگیرد؛ فعال‌شده‌ها: ${fired.join("، ")}`);
+});
+
+test("M51c: اسیدوزِ شدید مالِ قاعدهٔ اورژانسیِ خودش می‌ماند", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Sodium", value: "140" },
+      { name: "Chloride", value: "118" },
+      { name: "Bicarbonate", value: "12" },
+    ],
+  });
+  const fired = runPatterns(e).findings.map((f) => f.rule_id);
+  assert.ok(fired.includes("severe_acidosis"), `فعال‌شده‌ها: ${fired.join("، ")}`);
+  assert.ok(!fired.includes("normal_ag_acidosis"),
+    `زیرِ ۱۵ مالِ اورژانس است؛ فعال‌شده‌ها: ${fired.join("، ")}`);
+});
+
+// M51d — N4: جملهٔ کلر فقط وقتی مجاز است که کلر واقعاً روی برگه و بالا باشد.
+// اینجا کلر اندازه‌گیری شده ولی طبیعی است (۱۰۳ در بازهٔ ۹۵–۱۰۳).
+test("M51d: با کلرِ طبیعی، متن ادعای «کلر بالا» نمی‌کند", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Sodium", value: "136" },
+      { name: "Chloride", value: "103" },
+      { name: "Bicarbonate", value: "21" },
+    ],
+  });
+  assert.ok(e.indices.anion_gap <= 12, "پنل باید شکافِ آنیونیِ طبیعی بسازد");
+  const f = runPatterns(e).findings.find((x) => x.rule_id === "normal_ag_acidosis");
+  assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${runPatterns(e).findings.map((x) => x.rule_id).join("، ") || "هیچ"}`);
+  assert.doesNotMatch(f.must_say, /کلرِ شما هم بالاست/,
+    "کلرِ طبیعی نباید به‌عنوان شاهدِ الگو نقل شود");
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M53 — نسبتِ دلتا (ΔAG/ΔHCO₃) در قاعدهٔ شکافِ آنیونی.
+//
+// وقتی شکافِ آنیونی بالاست، مقایسهٔ «چقدر شکاف بالا رفته» با «چقدر بی‌کربنات
+// پایین آمده» نشان می‌دهد آیا یک اختلال در کار است یا چند تا. این تنها
+// اطلاعاتی است که از همان سه عددِ موجود بیرون می‌آید و موتور تا امروز
+// نمی‌گرفت. خودِ نسبت عمداً به بیمار گفته نمی‌شود — عددی پزشک‌سطح است.
+// ═══════════════════════════════════════════════════════════════════
+test("M53: نسبتِ دلتای پایین، احتمالِ اختلالِ همزمان را هشدار می‌دهد", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Sodium", value: "140" },
+      { name: "Chloride", value: "108" },
+      { name: "Bicarbonate", value: "16" },
+    ],
+  });
+  assert.equal(e.indices.anion_gap, 16);   // Δ = (16−12)/(24−16) = 0.5
+  const f = runPatterns(e).findings.find((x) => x.rule_id === "high_anion_gap");
+  assert.ok(f, "قاعدهٔ شکافِ آنیونی باید بگیرد");
+  assert.ok(
+    f.warnings.some((w) => /بیش از یک اختلال/.test(w)),
+    `هشدارِ دلتا نیامد؛ هشدارها: ${f.warnings.join(" | ") || "هیچ"}`,
+  );
+  // ⚠️ خودِ نسبت نباید چاپ شود.
+  assert.doesNotMatch(f.must_say, /0\.5/);
+});
+
+test("M53b: نسبتِ دلتای بالا، گرایشِ قلیاییِ همزمان را هشدار می‌دهد", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Sodium", value: "140" },
+      { name: "Chloride", value: "95" },
+      { name: "Bicarbonate", value: "20" },
+    ],
+  });
+  assert.equal(e.indices.anion_gap, 25);   // Δ = (25−12)/(24−20) = 3.25
+  const f = runPatterns(e).findings.find((x) => x.rule_id === "high_anion_gap");
+  assert.ok(f, "قاعدهٔ شکافِ آنیونی باید بگیرد");
+  assert.ok(
+    f.warnings.some((w) => /گرایشِ قلیایی/.test(w)),
+    `هشدارِ دلتا نیامد؛ هشدارها: ${f.warnings.join(" | ") || "هیچ"}`,
+  );
+});
+
+// M53c — باندِ سکوت. نسبتِ ۰.۸ تا ۲ یعنی «یک اختلالِ خالص»، و آنجا هیچ
+// حرفی نباید زده شود. بدونِ این گارد، هر شکافِ آنیونیِ بالا یک هشدارِ
+// بی‌محتوا می‌گیرد و هشدارها بی‌ارزش می‌شوند.
+test("M53c: نسبتِ دلتای میانی هیچ هشداری تولید نمی‌کند", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Sodium", value: "140" },
+      { name: "Chloride", value: "100" },
+      { name: "Bicarbonate", value: "16" },
+    ],
+  });
+  assert.equal(e.indices.anion_gap, 24);   // Δ = (24−12)/(24−16) = 1.5
+  const f = runPatterns(e).findings.find((x) => x.rule_id === "high_anion_gap");
+  assert.ok(f, "قاعدهٔ شکافِ آنیونی باید بگیرد");
+  assert.ok(
+    !f.warnings.some((w) => /بیش از یک اختلال|گرایشِ قلیایی/.test(w)),
+    `باندِ میانی باید ساکت باشد؛ هشدارها: ${f.warnings.join(" | ")}`,
+  );
+});
+
+// M53d — گاردِ پایداری: نزدیکِ بی‌کربناتِ ۲۴ مخرج به صفر می‌رود و نسبت
+// منفجر می‌شود. آنجا هیچ هشداری نباید ساخته شود.
+test("M53d: با بی‌کربناتِ نزدیک به طبیعی، نسبتِ دلتا محاسبه نمی‌شود", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Sodium", value: "145" },
+      { name: "Chloride", value: "100" },
+      { name: "Bicarbonate", value: "23" },
+    ],
+  });
+  assert.equal(e.indices.anion_gap, 22);
+  const f = runPatterns(e).findings.find((x) => x.rule_id === "high_anion_gap");
+  assert.ok(f, "قاعدهٔ شکافِ آنیونی باید بگیرد");
+  assert.ok(
+    !f.warnings.some((w) => /بیش از یک اختلال|گرایشِ قلیایی/.test(w)),
+    `مخرجِ ناپایدار نباید هشدار بسازد؛ هشدارها: ${f.warnings.join(" | ")}`,
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M54 — لاکتاتِ بالا ولی زیرِ آستانهٔ سپسیس، قاعده نداشت.
+// `sepsis_markers` از لاکتاتِ ≥ ۴ شلیک می‌کند (اورژانس)، پس باندِ ۲.۳–۳.۹
+// بی‌قاعده بود. اندازه‌گیری‌شده: Lactate 3.2 → ["unmatched_abnormal"] routine.
+// آستانهٔ ۴ از قاعدهٔ موجود می‌آید، پس عددِ تازه‌ای انتخاب نشده.
+// ═══════════════════════════════════════════════════════════════════
+test("M54: لاکتاتِ ۳.۲ قاعده دارد و در unmatched_abnormal نمی‌افتد", () => {
+  const e = runEngine({
+    patient: { age: "60", sex: "M" },
+    tests: [{ name: "Lactate", value: "3.2", unit: "mmol/L" }],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.rule_id);
+
+  assert.ok(fired.includes("lactate_elevated"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(!fired.includes("unmatched_abnormal"), "هنوز در unmatched_abnormal می‌افتد");
+
+  const f = p.findings.find((x) => x.rule_id === "lactate_elevated");
+  assert.match(f.must_say, /3\.2/);
+  assert.equal(f.urgency, "this_week");
+});
+
+test("M54b: لاکتاتِ ۶ همچنان مالِ قاعدهٔ اورژانسیِ سپسیس است", () => {
+  const e = runEngine({
+    patient: { age: "60", sex: "M" },
+    tests: [{ name: "Lactate", value: "6.0", unit: "mmol/L" }],
+  });
+  const fired = runPatterns(e).findings.map((f) => f.rule_id);
+  assert.ok(fired.includes("sepsis_markers"), `فعال‌شده‌ها: ${fired.join("، ")}`);
+  assert.ok(!fired.includes("lactate_elevated"),
+    `بالای ۴ مالِ اورژانس است؛ فعال‌شده‌ها: ${fired.join("، ")}`);
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M55 — اسمولالیتهٔ سرم و شکافِ اسمولال.
+//
+// موتور تا امروز اصلاً کلیدِ OSM نداشت. شکافِ اسمولال تنها راهی است که سه
+// عددِ موجودِ همین برگه (سدیم، قند، اوره) می‌توانند وجودِ *چیزِ دیگری* در خون
+// را نشان بدهند — مهم‌ترین حالتش الکلِ صنعتی/تقلبی و ضدیخ است، که درمانِ
+// مؤثر دارد ولی پنجرهٔ درمانش کوتاه است.
+// ═══════════════════════════════════════════════════════════════════
+test("M55: اسمولالیتهٔ سرم نگاشت می‌شود و شکافِ اسمولال محاسبه می‌گردد", () => {
+  const e = runEngine({
+    patient: { age: "35", sex: "M" },
+    tests: [
+      { name: "Serum Osmolality", value: "330", unit: "mOsm/kg" },
+      { name: "Sodium", value: "140" },
+      { name: "Glucose", value: "90" },
+      { name: "BUN", value: "14" },
+    ],
+  });
+  assert.ok(e.graded.some((g) => g.test === "OSM"), "OSM باید نگاشت و درجه‌بندی شود");
+  assert.equal(e.indices.osm_calc, 290);   // 2×140 + 90/18 + 14/2.8 = 290
+  assert.equal(e.indices.osm_gap, 40);
+
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.rule_id === "osmolal_gap_high");
+  assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.rule_id).join("، ") || "هیچ"}`);
+  assert.equal(f.urgency, "emergency");
+  assert.equal(f.blocks_others, true);
+  assert.match(f.must_say, /330/);
+  assert.match(f.must_say, /290/);
+});
+
+// M55b — نگاشتِ محافظه‌کار. نامِ برهنه باید در unmapped بماند، چون بازهٔ
+// اسمولالیتهٔ سرم و ادرار روی هم می‌افتد و نگاشتِ اشتباه قابلِ تشخیص نیست.
+// این تست روزی قرمز می‌شود که کسی املای حریصانه اضافه کند.
+test("M55b: «Osmolality»ِ برهنه عمداً نگاشت نمی‌شود", () => {
+  const e = runEngine({
+    patient: { age: "35", sex: "M" },
+    tests: [{ name: "Osmolality", value: "300" }],
+  });
+  assert.ok(!e.graded.some((g) => g.test === "OSM"),
+    "نامِ بدونِ ذکرِ نمونه نباید به اسمولالیتهٔ سرم نگاشت شود");
+  assert.ok(e.unmapped.some((u) => /osmolality/i.test(u)),
+    `باید در unmapped بماند؛ unmapped = ${JSON.stringify(e.unmapped)}`);
+});
+
+test("M55c: شکافِ اسمولالِ طبیعی هیچ یافته‌ای نمی‌سازد", () => {
+  const e = runEngine({
+    patient: { age: "35", sex: "M" },
+    tests: [
+      { name: "Serum Osmolality", value: "292", unit: "mOsm/kg" },
+      { name: "Sodium", value: "140" },
+      { name: "Glucose", value: "90" },
+      { name: "BUN", value: "14" },
+    ],
+  });
+  assert.equal(e.indices.osm_gap, 2);
+  const fired = runPatterns(e).findings.map((f) => f.rule_id);
+  assert.ok(!fired.includes("osmolal_gap_high"), `فعال‌شده‌ها: ${fired.join("، ")}`);
+  assert.ok(!fired.includes("serum_osmolality_abnormal"), "۲۹۲ در بازهٔ طبیعی است");
+});
+
+// M55d — N4 روی خودِ فرمول. اگر قند یا اوره روی برگه نباشد، شکاف
+// محاسبه‌ناپذیر است. نسخه‌ای که اجزای غایب را صفر بگیرد، شکافِ کاذبِ بزرگ
+// می‌سازد و بیمار را بی‌دلیل به اورژانس می‌فرستد.
+test("M55d: بدونِ قند و اوره، شکافِ اسمولال محاسبه نمی‌شود", () => {
+  const e = runEngine({
+    patient: { age: "35", sex: "M" },
+    tests: [
+      { name: "Serum Osmolality", value: "330", unit: "mOsm/kg" },
+      { name: "Sodium", value: "140" },
+    ],
+  });
+  assert.equal(e.indices.osm_gap, undefined, "بدونِ هر سه جزء نباید عددی ساخته شود");
+  assert.equal(e.indices.osm_calc, undefined);
+
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.rule_id);
+  assert.ok(!fired.includes("osmolal_gap_high"),
+    `شکافِ محاسبه‌نشده نباید اورژانس بسازد؛ فعال‌شده‌ها: ${fired.join("، ")}`);
+  // ولی خودِ عددِ غیرطبیعی نباید بی‌صاحب بماند.
+  assert.ok(fired.includes("serum_osmolality_abnormal"),
+    `فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(!fired.includes("unmatched_abnormal"), "افزودنِ بازهٔ مرجع نباید مسیرِ تازهٔ تور بسازد");
+});
+
+// M55e — آنچه قاعده حق ندارد بگوید. مسمومیت با الکلِ صنعتی در ایران
+// تکرارشونده است، پس متن باید هم جدی باشد و هم از دو خطا دور بماند:
+// تشخیصِ قطعی زدن، و بدتر از آن، اشارهٔ درمانی به اتانول.
+test("M55e: متنِ شکافِ اسمولال نه تشخیص می‌دهد نه درمان تجویز می‌کند", () => {
+  const e = runEngine({
+    patient: { age: "35", sex: "M" },
+    tests: [
+      { name: "Serum Osmolality", value: "330", unit: "mOsm/kg" },
+      { name: "Sodium", value: "140" },
+      { name: "Glucose", value: "90" },
+      { name: "BUN", value: "14" },
+    ],
+  });
+  const f = runPatterns(e).findings.find((x) => x.rule_id === "osmolal_gap_high");
+  const all = `${f.must_say} ${f.action}`;
+
+  assert.doesNotMatch(all, /اتانول بخور|الکل بنوشید|مصرف کنید/,
+    "هیچ اشارهٔ درمانی، به‌ویژه به اتانول، مجاز نیست");
+  assert.doesNotMatch(all, /مسموم شده‌اید|شما مسموم/,
+    "تشخیصِ قطعی نباید زده شود");
+  // توضیح‌های خوش‌خیم باید نام برده شوند، وگرنه متن یک‌طرفه و ترساننده است.
+  assert.match(all, /اتانول|الکلِ معمولی/, "توضیحِ خوش‌خیم باید ذکر شود");
+  assert.match(all, /اورژانس/, "اقدامِ لازم باید صریح باشد");
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M56 / M57 — دو قاعدهٔ مرده در patterns_nephrology_new.js
+//
+// هر دو کلیدی می‌خواندند که هرگز کلیدِ درجه‌بندی‌شده نبوده است:
+//   ckd_pattern_diagnostic   → val(e).EGFR   (eGFR در e.indices.egfr است)
+//   persistent_microhematuria → val(e).U_RBC (شمارشِ ادراری در e.qual است)
+// اولی فقط مرده نبود؛ چون شاخهٔ eGFR هرگز اجرا نمی‌شد، متن با ACR تنها هم
+// شلیک می‌کرد و می‌گفت «مقدار eGFR شما طبیعی» — یعنی دربارهٔ تستی که اصلاً
+// روی برگه نیست ادعای «طبیعی» می‌کرد. این عیناً کلاسِ N4 است.
+// ═══════════════════════════════════════════════════════════════════
+
+// M56 — N4: خروجیِ اندازه‌گیری‌شدهٔ پیش از رفع، با ACR=45 و بدونِ کراتینین:
+//   «مقدار eGFR شما طبیعی و نسبت آلبومین به کراتینین ادرار (uACR) شما 45 است.»
+//   در حالی که e.indices.egfr برابر undefined بود.
+test("M56: با ACR بالا و بدونِ کراتینین، ادعای «eGFR طبیعی» نمی‌کند", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [{ name: "ACR", value: "45" }],
+  });
+  // پیش‌شرطِ خودِ تست: اگر eGFR واقعاً محاسبه شده باشد، این تست چیزی را ثابت نمی‌کند.
+  assert.equal(e.indices.egfr, undefined, "برای این پنل eGFR نباید محاسبه شود");
+
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "ckd_pattern_diagnostic");
+  assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ") || "هیچ"}`);
+
+  assert.doesNotMatch(f.must_say, /eGFR شما طبیعی/,
+    "دربارهٔ تستِ اندازه‌گیری‌نشده ادعای «طبیعی» نکن (N4)");
+  assert.match(f.must_say, /محاسبه نشده/,
+    "غیبتِ eGFR باید صریح گفته شود، نه با سکوت رد شود");
+  assert.equal(f.urgency, "routine");
+});
+
+// M56b — نیمهٔ دومِ همان نقص: وقتی eGFR *هست*، باید عددِ واقعی بیاید.
+// پیش از رفع، val(e).EGFR همیشه undefined بود پس این شاخه هرگز اجرا نمی‌شد.
+test("M56b: وقتی کراتینین هست، عددِ واقعیِ eGFR در متن می‌آید", () => {
+  const e = runEngine({
+    patient: { age: "60", sex: "M" },
+    tests: [
+      { name: "ACR", value: "45" },
+      { name: "Creatinine", value: "1.9" },
+    ],
+  });
+  assert.ok(e.indices.egfr != null, "برای این پنل eGFR باید محاسبه شود");
+
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "ckd_pattern_diagnostic");
+  assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ") || "هیچ"}`);
+  assert.match(
+    f.must_say,
+    new RegExp(String(e.indices.egfr).replace(".", "\\.")),
+    `عددِ eGFR (${e.indices.egfr}) باید در متن بیاید`,
+  );
+  assert.doesNotMatch(f.must_say, /محاسبه نشده/);
+});
+
+// M57 — persistent_microhematuria روی U_RBC بود که کلید نیست، پس هرگز فعال
+// نمی‌شد. باندی که می‌پوشاند دقیقاً همان است که hematuria_pattern (rbc > 3)
+// از دست می‌دهد: RBC برابرِ ۳، که تعریفِ AUA آن را مثبت می‌داند.
+test("M57: سه گلبول قرمز در ادرار، قاعدهٔ میکروهماچوری را فعال می‌کند", () => {
+  const e = runEngine({
+    patient: { age: "50", sex: "M" },
+    tests: [{ name: "Urine RBC", value: "3" }],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.pattern);
+
+  assert.ok(
+    fired.includes("persistent_microhematuria"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`,
+  );
+  const f = p.findings.find((x) => x.pattern === "persistent_microhematuria");
+  assert.match(f.must_say, /3/, "شمارشِ واقعی باید در متن بیاید");
+  assert.equal(f.urgency, "routine");
+});
+
+// M57b — واگذاری: بالای ۳، تصویرِ عمومی‌ترِ hematuria_pattern مالک است
+// (متنش کامل‌تر و فوریتش this_week). زنده‌کردنِ خامِ قاعده با `>= 3` اینجا
+// یافتهٔ تکراری با فوریتِ *پایین‌تر* می‌ساخت.
+test("M57b: بالای سه گلبول قرمز، به hematuria_pattern واگذار می‌شود", () => {
+  const e = runEngine({
+    patient: { age: "50", sex: "M" },
+    tests: [{ name: "Urine RBC", value: "8" }],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.pattern);
+
+  assert.ok(fired.includes("hematuria"),
+    `hematuria_pattern باید بگیرد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
+  assert.ok(
+    !fired.includes("persistent_microhematuria"),
+    `نباید فعال می‌شد؛ فعال‌شده‌ها: ${fired.join("، ")}`,
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M58 — تور ایمنی فقط وقتی می‌گرفت که findings خالی باشد
+//
+// `unmatched_abnormal` شرطش `findings.length === 0` بود. یعنی روی هر برگه‌ای
+// که دست‌کم یک قاعده فعال شده، تستِ ناهنجارِ بی‌قاعده *اصلاً ذکر نمی‌شد* —
+// نه پیامِ مبهم، سکوتِ کامل. اندازه‌گیریِ پیش از رفع، روی پنلِ زیر:
+//   الگوها: microcytic_anemia, iron_deficiency_panel
+//   «منیزیم در متن؟ false | فسفر در متن؟ false»
+// یعنی فسفرِ ۱.۰ (هیپوفسفاتمیِ شدید) از گزارش ناپدید می‌شد و بیمار یک تفسیرِ
+// کامل و قانع‌کننده دربارهٔ فقر آهن می‌خواند. کلاسِ N2/N16.
+// ═══════════════════════════════════════════════════════════════════
+
+test("M58: تستِ ناهنجارِ بی‌قاعده زیر یافتهٔ دیگر ناپدید نمی‌شود", () => {
+  const e = runEngine({
+    patient: { age: "40", sex: "F" },
+    tests: [
+      { name: "Hemoglobin", value: "9.5" }, { name: "MCV", value: "70" },
+      { name: "Ferritin", value: "6" }, { name: "Iron", value: "25" },
+      { name: "TIBC", value: "450" }, { name: "WBC", value: "7000" },
+      { name: "Platelet", value: "280000" }, { name: "Phosphorus", value: "1.0" },
+    ],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.rule_id);
+
+  // پیش‌شرط: قاعدهٔ دیگری واقعاً فعال شده باشد، وگرنه تورِ قدیمی هم می‌گرفت
+  // و این تست چیزی را قفل نمی‌کند (N10).
+  assert.ok(
+    fired.some((id) => id !== "unexplained_abnormal"),
+    `پیش‌شرط برقرار نشد — هیچ قاعدهٔ واقعی فعال نشده: ${fired.join("، ") || "هیچ"}`,
+  );
+
+  const all = p.findings
+    .map((f) => [f.headline, f.must_say, f.action].join(" "))
+    .join(" ");
+  assert.match(all, /فسفر/, `فسفرِ ۱.۰ باید جایی در گزارش بیاید؛ الگوها: ${fired.join("، ")}`);
+});
+
+// M58b — کنترلِ منفی: روی پنلی که همه‌چیزش توضیح داده شده، تور نباید
+// روشن شود. بدونِ این، M58 با یک تورِ همیشه‌روشن هم سبز می‌ماند.
+test("M58b: وقتی همهٔ ناهنجاری‌ها توضیح دارند، تور دوم روشن نمی‌شود", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "FBS", value: "180" }, { name: "HbA1c", value: "8.2" },
+      { name: "Cholesterol", value: "260" }, { name: "LDL", value: "180" },
+      { name: "HDL", value: "35" }, { name: "Triglyceride", value: "320" },
+    ],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.rule_id);
+  assert.ok(
+    !fired.includes("unexplained_abnormal"),
+    `تور نباید روشن می‌شد؛ الگوها: ${fired.join("، ")}`,
+  );
+});
+
+// M58c — تور هرگز جای قاعده را نمی‌گیرد و یافتهٔ دیگری را نمی‌پوشاند.
+// blocks_others روی آن یعنی یک متنِ «توضیحی نداریم» می‌تواند یافتهٔ
+// واقعیِ کم‌فوریت‌تر را حذف کند — دقیقاً برعکسِ کاری که باید بکند.
+test("M58c: تور دوم هیچ‌وقت blocks_others نمی‌شود", () => {
+  const e = runEngine({
+    patient: { age: "50", sex: "M" },
+    tests: [
+      { name: "Creatinine", value: "2.4" }, { name: "Urea", value: "95" },
+      { name: "Uric acid", value: "12" }, { name: "Potassium", value: "5.9" },
+    ],
+  });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.rule_id === "unexplained_abnormal");
+  assert.ok(f, `تور باید روشن می‌شد؛ الگوها: ${p.findings.map((x) => x.rule_id).join("، ")}`);
+  assert.equal(f.blocks_others, false);
+  assert.match(f.must_say, /اسید اوریک/, "اسیدِ اوریکِ بی‌قاعده باید نام برده شود");
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// M59 — کمبودِ آشکارِ B12 قاعده نداشت، ولی موردِ مرزی داشت
+//
+// `borderline_b12_deficiency` بازهٔ ۱۵۰–۳۹۹ را می‌گیرد. زیرِ ۱۵۰ هیچ قاعده‌ای
+// نبود، پس موتور موردِ *مرزی* را توضیح می‌داد و دربارهٔ کمبودِ *آشکار* ساکت
+// بود. اندازه‌گیریِ پیش از رفع: B12=۸۰ روی یک پنلِ کامل فقط
+// `unmatched_abnormal` می‌گرفت — «برای این ترکیب توضیح آماده‌ای نداریم».
+// ═══════════════════════════════════════════════════════════════════
+
+test("M59: B12 برابر ۸۰ قاعدهٔ کمبودِ آشکار را فعال می‌کند", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Vitamin B12", value: "80" }, { name: "Hemoglobin", value: "14" },
+      { name: "MCV", value: "88" }, { name: "WBC", value: "7000" },
+      { name: "Platelet", value: "250000" },
+    ],
+  });
+  const p = runPatterns(e);
+  const fired = p.findings.map((f) => f.rule_id);
+
+  assert.ok(
+    fired.includes("overt_b12_deficiency"),
+    `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`,
+  );
+  assert.ok(
+    !fired.includes("unmatched_abnormal"),
+    "نباید به تورِ «توضیح آماده‌ای نداریم» بیفتد",
+  );
+  const f = p.findings.find((x) => x.rule_id === "overt_b12_deficiency");
+  assert.match(f.must_say, /80/, "عددِ واقعی باید در متن بیاید");
+});
+
+// M59b — N4: شمارشِ خونِ طبیعی نباید طوری نوشته شود که کمبود را رد کند.
+// آسیبِ عصبیِ کمبود B12 پیش از هر تغییری در گلبول‌های قرمز شروع می‌شود، پس
+// «CBC شما طبیعی است» در این متن یک ادعای غلطِ آرام‌بخش است.
+test("M59b: با CBC طبیعی، متن کمبود را رد‌شده جلوه نمی‌دهد", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "Vitamin B12", value: "80" }, { name: "Hemoglobin", value: "14" },
+      { name: "MCV", value: "88" },
+    ],
+  });
+  const f = runPatterns(e).findings.find((x) => x.rule_id === "overt_b12_deficiency");
+  assert.ok(f);
+  assert.match(f.must_say, /رد نمی‌کند/, "باید صریح بگوید شمارشِ طبیعی کمبود را رد نمی‌کند");
+  assert.ok(
+    f.warnings.some((w) => /فولات|اسید فولیک/.test(w)),
+    "هشدارِ فولات باید باشد — فولات کم‌خونی را می‌پوشاند و آسیبِ عصبی ادامه می‌یابد",
+  );
+});
+
+// M59c — واگذاری: بالای ۱۵۰ همچنان مالِ قاعدهٔ مرزی است. بدونِ این، دو
+// قاعده روی یک عدد شلیک می‌کنند و بیمار دو متنِ متناقض می‌خواند.
+test("M59c: B12 برابر ۱۸۰ همچنان مالِ قاعدهٔ مرزی است", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [{ name: "Vitamin B12", value: "180" }],
+  });
+  const fired = runPatterns(e).findings.map((f) => f.rule_id);
+  assert.ok(fired.includes("borderline_b12_deficiency"), `فعال‌شده‌ها: ${fired.join("، ")}`);
+  assert.ok(!fired.includes("overt_b12_deficiency"), `نباید فعال می‌شد؛ ${fired.join("، ")}`);
+});

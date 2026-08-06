@@ -35,6 +35,39 @@ When the user asks for a change in this repo:
    | working tree, 2026-08-04 (after `acc9cc0`) | 193 | 193 | **0** | `patterns_anemia.js` |
    | `HEAD` at `1469449` (docs + hook only — unchanged, as expected) | 193 | 181 | **12** | `patterns_anemia.js` |
    | working tree, 2026-08-05 (after `M41`, `spherocytosis_likely` restored) | 194 | 194 | **0** | `patterns_anemia.js` |
+   | working tree, 2026-08-06, **before** the electrolyte work (bare `node --test`) | 215 | 215 | **0** | — |
+   | working tree, 2026-08-06, after it — `rules/*.test.js` + `avalaiClient.test.js` only | 238 | 238 | **0** | `patterns_anemia.js` |
+
+   | working tree, 2026-08-06, after the auth/DB test-gate repair (`npm test`) | 256 | 256 | **0** | — |
+
+   ✅ **`npm test` hung for a stretch on 2026-08-06 — fixed, and worth reading because both
+   causes were invisible in the test output.** Concurrent work added `khanesh-server/auth.js` +
+   `khanesh-server/database.js` and wired `requireAuth` onto the analyze routes. Three separate
+   breakages, all measured, none of which named itself:
+   - **401 on every contract test.** `api-contract.test.js` sends no `Authorization` header.
+     (Resolved upstream — `requireAuth` is currently short-circuited at
+     [auth.js:75-77](khanesh-server/auth.js#L75-L77). ⚠️ When auth is re-enabled, these go red
+     again unless the tests are given a token or the route is exempted.)
+   - **The suite never exited.** `database.js` called `open({...})` at **module scope**, so merely
+     importing it opened a SQLite handle that held the event loop. `node --test
+     api-contract.test.js` timed out at exit 124 — and since the pre-commit hook runs `npm test`,
+     **the hook hung too, blocking every backend commit**. Fixed by making the connection lazy
+     (`dbConn()`) and exporting `closeDb()`, which the test's `after` hook now calls. Production
+     is unchanged: `initDb()` still opens it at boot.
+   - **A listen race.** `app.listen()` moved inside `initDb().then(...)`, so the server no longer
+     comes up synchronously with the `import`. The `before` hook read `serverHandle.once` on a
+     still-`null` handle and threw `TypeError: Cannot read properties of null`. It now waits for
+     the handle before waiting for `listening`.
+
+   **The generalizing lesson:** a hang and a `TypeError` in a `before` hook both present as "all
+   tests in the file fail", which looks identical to the `ERR_MODULE_NOT_FOUND` trap documented
+   under [Commands](#commands). Three different root causes, one symptom. When a whole test file
+   goes red at once, read past the summary to the *first* error — the count tells you nothing.
+
+   ⚠️ **`khanesh-server/database.sqlite` is gitignored** (`/khanesh-server/database.sqlite`,
+   path-anchored per N14). `npm test` creates it, because importing `server.js` runs `initDb()`.
+   Without the ignore it shows up in `git status` as a 24 KB binary and eventually gets committed
+   — along with whatever phone numbers are sitting in the `users` table.
 
    **Any baseline you quote must name which tree it came from**, and you must *re-measure* it —
    never copy a number out of this file. Committed and working-tree rows differ because
@@ -328,12 +361,13 @@ npm test           # node --test — EVERY *.test.js in khanesh-server/, see Tec
 npm run test:coverage   # same, with thresholds: lines 85 / branches 70 / functions 85
 ```
 
-**Re-measure the baseline; don't quote one.** As of 2026-08-05 the committed tree (`1469449`)
-is `tests 193 · pass 181 · fail 12` and the working tree is `tests 194 · pass 194 · fail 0`.
-The counts differ by one because the working tree adds `M41`; the 12-test gap is the uncommitted
-clinical work plus one live English-text defect `M38` catches — they are different trees, not a
-discrepancy. See the table in [Your Role](#your-role) and
-[N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
+**Re-measure the baseline; don't quote one.** Measured 2026-08-06 with the recipe below:
+the committed tree at `d44921f` is `tests 213 · pass 213 · fail 0` — **green**. The long-standing
+"the committed tree is 12 red" note that used to sit here described `1469449` and has been true
+of no tree since; the uncommitted clinical work it referred to has landed. This is the third time
+this file has carried a stale number, which is the entire point of
+[N15(b)](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests): if you
+are about to quote any figure in this section, re-derive it first and say which tree you measured.
 
 ⚠️ **The pre-commit hook's output is not a substitute for this measurement**, even now that it
 gates the index (`1469449`). It tells you the *index* was green at the moment you committed; it
@@ -734,6 +768,59 @@ five analytes wider.
   so no `must_say`, no coverage check, and no backend test ever saw this text. Frontend-only
   clinical strings have no safety net — they need the same scrutiny as `patterns.js`, and they
   don't get it automatically.
+- ⚠️ **Recurred twice more, 2026-08-06, in the backend engine** (`potassium_critical`,
+  `sodium_critical`). This is now the most-repeated entry in the file, and the new shape is worth
+  naming because it is *latent*: both rules derived direction from a **severity threshold** —
+  `const high = t.K >= 6.0` and `const high = t.NA >= 155` — which was *correct* only because each
+  rule's `match` happened to exclude everything between the two extremes. The bug was armed and
+  waiting for someone to widen the `match`. Widening the rules to cover every abnormal value (the
+  `calcium_abnormal` shape) would have made `K 5.6` read «پایین‌تر از حد طبیعی» and `Na 148` read
+  «سدیم پایین است». Guards `M48c` and `M49b`.
+- **Rule, sharpened:** it is not enough that direction is *currently* right. Derive it from
+  `graded.dir` — never from a comparison against a severity cutoff — even when the two agree
+  today. A correct-by-coincidence expression is a bug with a delayed fuse, and the fuse is lit by
+  the next person who broadens the rule.
+- **Same axis-confusion, one level up — a derived index read without its context** (2026-08-06,
+  `high_anion_gap`). Measured: `Na 142 / Cl 92 / HCO3 36` → anion gap 14 → the rule fired and told
+  the patient «این می‌تواند نشانهٔ تجمع اسید در بدن باشد». Bicarbonate 36 is *alkalosis*, and
+  contraction alkalosis raises the anion gap mildly, so this is not an exotic panel. The anion gap
+  is a **directionless number**: it says how much unmeasured anion is present, never whether the
+  patient is acidotic. Fixed by gating the rule on `HCO3` not being high, and giving alkalosis its
+  own rule. Guard `M52`.
+- **Rule:** before interpreting any computed index (`anion_gap`, `bun_cr`, `r_ratio`, `nlr`,
+  `non_hdl`, `osm_gap`), write down which measured value supplies its direction, and gate on that
+  value explicitly. An index that can be produced by two opposite clinical states must never carry
+  a one-directional sentence.
+
+### N17 — A rule that reads a key which doesn't exist fails as a confident false claim, not as silence
+2026-08-06, `ckd_pattern_diagnostic` in `patterns_nephrology_new.js`. Fixed; recorded because the
+*failure mode* is the reusable part.
+
+- **Tried:** read a derived value the way graded tests are read — `val(e).EGFR`.
+- **Broke:** `val(e)` only flattens `e.graded`, and eGFR is never a graded test — it lives in
+  `e.indices.egfr`. So the read returned `undefined` forever. That alone would have been a merely
+  dead branch. What made it a patient-safety defect was the *fallback*: the text was written as
+  `${egfr != null ? egfr : 'طبیعی'}`, so a permanently-`undefined` read did not go quiet — it
+  asserted. Measured live on `ACR 45` with no creatinine on the sheet:
+
+  > «مقدار eGFR شما **طبیعی** و نسبت آلبومین به کراتینین ادرار (uACR) شما 45 است.»
+
+  The engine had never computed eGFR, and the patient was told it was normal. Same class as N4,
+  reached by a different road — and `persistent_microhematuria` in the same file had the twin bug
+  (`val(e).U_RBC`, which simply made the rule unreachable).
+- **Why no guard caught it:** `M36` sees a well-formed rule object, `M37` sees clean encoding,
+  `M38` sees Persian strings. All three are properties of code that *exists*. Nothing checks that
+  the keys a rule reads are keys the engine can produce.
+- **Rule:** `val(e)` is for graded tests only. Derived values are on `e.indices`, qualitative and
+  urine values are in `e.qual` (via `urineCellCount`/`urinePositive`/`urineGrade`). Before writing
+  `val(e).SOMETHING`, confirm `SOMETHING` is a key in `ADULT_REFS` — if it isn't, the read is dead.
+- **And the sharper rule:** **never write `x != null ? x : 'طبیعی'`.** A missing value must produce
+  the "not measured" branch, never the reassuring one — that is N4's whole content. When a
+  three-way branch is right, write all three arms; a binary fallback on an absent test is a false
+  claim waiting for the read to break. Guards `M56`, `M56b`.
+- **Cheap detector for the next rewrite:** diff the rule-id set before and after
+  (`node -e "import('./rules/patterns.js').then(m=>console.log(m.RULES.map(r=>r.id).sort().join('\n')))"`,
+  per N16) *and* grep the diff for `val(e).` reads whose key is absent from `refs.js`.
 
 ### N13 — Sending OCR raw data directly to diagnostic agents
 - **Tried:** pass `state.rawData` to diagnostic LLMs alongside `engineOutput`, instructing them to "IGNORE reference ranges in rawData and trust engineOutput".
@@ -931,6 +1018,62 @@ structural, not specific to that rule.
   also what corrected this entry: the pre-fix claim in `MEDICAL_RULES.md` was "the patient gets no
   finding at all", and the measurement says otherwise. N10 asks you to run the test against the old
   code — do it literally, because it tells you what the bug *was*, not just that the test works.
+
+### N18 — A safety net that only fires when nothing else did is not a safety net
+2026-08-06, `unmatched_abnormal` in `patterns.js`. Fixed; the shape is the reusable part.
+
+- **Tried:** guard the "we have no rule for this" case with `if (findings.length === 0 &&
+  engineOut.abnormal.length > 0)`. Reasonable-looking: if the engine produced *nothing*, say
+  something. It is the net that caught `WBC = 258`.
+- **Broke:** the condition is `=== 0`, so the net switched itself off the moment any *other*
+  rule fired. On a real sheet — where something almost always fires — an abnormal test with no
+  rule was not given a vague message. It was **not mentioned at all**. Measured:
+
+  > panel `Hb 9.5 · MCV 70 · ferritin 6 · Mg 0.68 · Phos 1.0`
+  > → `microcytic_anemia, iron_deficiency_panel`
+  > → `منیزیم در متن؟ false | فسفر در متن؟ false`
+
+  Magnesium 0.68 and phosphate 1.0 both graded `abnormal: true` and then vanished. The patient
+  reads a complete, confident write-up about iron deficiency. That is the N2/N16 class, and the
+  completeness is what makes it dangerous.
+- **The measurement that sizes it:** pushing each of the 82 `ADULT_REFS` keys out of range one at
+  a time, on an otherwise-normal full panel, **33 of 44 directions produced only
+  `unmatched_abnormal`** — i.e. a third of the graded vocabulary has no rule of its own. The net
+  is not an edge case; it is load-bearing, and it was disabled exactly when other findings existed.
+- **Rule:** a net whose trigger is "the normal path produced nothing" only covers total failure,
+  never partial. Write the condition over *what is still uncovered*, not over *whether anything
+  happened*. Any time you see `=== 0` / `.length === 0` guarding a fallback, ask what the partial
+  case looks like — that is where the silence lives.
+- **On detecting "uncovered", and why one signal was not enough:** the fix has to decide whether a
+  fired finding already accounts for a test. Two obvious signals, both measured, both wrong alone:
+  scanning the finding *text* for the test's name gave 6 false positives on a liver panel
+  (`liver_pattern` discusses AST/ALT without naming them); scanning the rule's *source* for the key
+  marked `IRON` covered on an iron panel where nothing said anything about it. The `AND` of the two
+  cut the liver panel to one and kept the real gaps. **Strip comments before scanning source** —
+  `toString()` keeps them, and `// PT>25 … INR>3` would mark keys as read that the code never
+  reads. That error direction is silence, which is the one this whole entry is about.
+- **And don't buy precision with an exception list.** `MCH` and `RDW_CV` have no rule anywhere, so
+  they surface on nearly every anemia panel and dilute the output. The tempting fix is to suppress
+  them when `MCV` is covered. Don't: an unsourced suppression list is how N16 happened. Give them
+  real coverage inside the anemia rules instead. Logged as open in `MEDICAL_RULES.md` `E5`.
+- **Guards:** `M58`, `M58b` (negative control), `M58c`. Verified against the pre-fix code in a temp
+  copy — `M58` and `M58c` go red there. Note the copy needs `node_modules` junctioned in or the
+  whole file dies on `Cannot find package 'acorn'`, the same trap the Commands section warns about.
+
+### N19 — Covering the borderline case and not the frank one
+2026-08-06, `borderline_b12_deficiency`. Same session as N18, found by the same probe.
+
+- **Tried:** write a rule for the clinically interesting *grey zone* — `150 ≤ B12 ≤ 399`, the band
+  where the lab flags nothing but the patient may still be deficient. Genuinely good clinical
+  thinking, and the rule itself is fine.
+- **Broke:** nothing covered `B12 < 150`. So `B12 = 80` — an unambiguous deficiency — fell through
+  to `unmatched_abnormal` and got «برای این ترکیب توضیح آماده‌ای نداریم», while `B12 = 250` got a
+  paragraph. **The worse the number, the less the patient was told.**
+- **Rule:** when a rule's `match` is a *band* rather than a threshold, both edges are new gaps.
+  Before merging one, run the analyte past each edge and check what fires. A band that starts at a
+  non-zero lower bound is claiming someone else owns the region below it — verify that someone
+  exists, exactly as N16 asks you to verify a replacement exists before deleting a rule.
+- **Guards:** `M59`, `M59b`, `M59c` (hand-off at 180, so two rules never fire on one value).
 
 ---
 
