@@ -151,7 +151,7 @@ Before you start a clinical change, read [Lab Notebook](#lab-notebook--things-no
   | `rules/geriatric.test.js` | `GERIATRIC_REFS` (age ≥ 75) overrides in `refs.js` |
   | `api-contract.test.js` | end-to-end `/api/analyze` response shape and safety nets (`T10` was the long-standing failure; fixed in `2f964df`) |
   | `avalaiClient.test.js` | the HTTP boundary — 429, timeout, truncation, malformed JSON — with an injected `fetch`, no network |
-  `test-api.js` is *not* a test file but `node --test` picks it up anyway; it tries a real network call and logs a `fetch failed` / `EACCES` above the summary. That noise is expected, and it still reports `✔`.
+  ✅ **The `fetch failed` / `EACCES` noise above the summary is gone.** It came from `test-api.js`, a manual network script that `node --test` picked up because its name matches the runner's default `test-*.js` glob. Deleted in `1d8b224`. If you add a manual probe script to `khanesh-server/`, **do not name it `test-*.js` or `*.test.js`** — the runner will execute it on every commit via the pre-commit hook.
 - **No frontend tests** and no frontend test runner — `khanesh/package.json` has no `test` script.
 - **No npm workspace** — two fully independent `package.json`s
 - **MCP**: `.mcp.json` registers the Playwright server (`@playwright/mcp@0.0.78`) for driving the frontend in a browser
@@ -186,7 +186,8 @@ khanesh-project/
 │   │   ├── main.jsx
 │   │   └── index.css / site.css / ui.css
 │   ├── public/fonts/            # self-hosted Vazirmatn variable woff2 + OFL licence
-│   ├── public/lab/              # ⚠️ landing imagery — mostly .png, i.e. GITIGNORED (see N14)
+│   ├── public/lab/              # landing imagery — exactly the 12 files the code names, + CREDITS.md
+│   │                            #   (N14 fixed: /*.png is anchored; 18 orphans deleted 2026-08-06)
 │   ├── vite.config.js           # dev-only proxy: /api -> http://localhost:8787
 │   └── package.json
 ├── khanesh-server/              # Express backend
@@ -200,7 +201,7 @@ khanesh-project/
 │   │       └─ agents/layer2.js  #   diagnosis, evidence │ patient, doctor, safety, final
 │   ├── api-contract.test.js     # /api/analyze contract — green since 2f964df
 │   ├── avalaiClient.test.js
-│   ├── test-api.js              # a manual script, not a test (node --test runs it anyway)
+│   ├── auth.js / database.js    # OTP/JWT + SQLite — off by default, see rules/environment.md
 │   ├── *-guidelines.{json,md}   # anemia + biochem source extracts
 │   ├── rules/
 │   │   ├── adapter.js           # OCR text -> engine keys (NAME_MAP, unit conversion)
@@ -236,7 +237,8 @@ khanesh-project/
 │   ├── rules/                   # detailed rules, see below
 │   ├── skills/                  # project + vendored skills, see below
 │   └── settings.local.json      # MCP allowlist + the impeccable design hooks
-├── .specs/                      # eval specs (yaml) + written reports; docs, not executable
+├── .specs/reports/              # 8 tracked past eval reports; docs, not executable. Nothing
+│                                #   reads them — the untracked run output was deleted 2026-08-06
 ├── .githooks/pre-commit         # test/lint gate (core.hooksPath = .githooks)
 ├── .mcp.json                    # Playwright MCP server
 ├── .agents/skills/              # vendored third-party skills, cross-tool layout
@@ -256,13 +258,27 @@ number in `refs.js` or a threshold in a pattern — the answer to "should this b
 often already written down, waiting for a decision rather than for code. Nothing there is
 supposed to reach executable code until a reviewer moves it to the approved section.
 
-**The other loose files at the repo root** — `AGENTS.md`, `ARCHITECTURE.md`,
-`MEMORY.md`, `VERIFICATION_AUDIT.md`, `audit_report.md`, `CONTRACT_TEST_REPORT.md`,
-`architecture.html`, `diagram.mmd`, `fix_val.js`, several `.png`s, `scratchpad/`,
-`labmat-prototype/`. These are agent-run artefacts and scratch, **not** maintained
-documentation, and several contradict each other and this file. `CLAUDE.md` +
-`.claude/rules/` are the map; treat everything in that list as a snapshot of one past session
-unless you've just verified it against the code.
+✅ **The loose agent-run artefacts at the repo root are gone** (2026-08-06). `AGENTS.md`,
+`ARCHITECTURE.md`, `MEMORY.md`, `VERIFICATION_AUDIT.md`, `audit_report.md`,
+`CONTRACT_TEST_REPORT.md`, `architecture.html`, `diagram.mmd`, `fix_val.js`, five stray debug
+`.png`s, `khanesh-server/live-probe.js`, `scratchpad/` (4.4 MB), and the untracked half of
+`.specs/` were deleted. They were snapshots of past sessions that contradicted each other and
+this file, and a new session had no way to tell which was current. The root is now `CLAUDE.md` +
+`MEDICAL_RULES.md` + `skills-lock.json` + the two sub-projects.
+Before deleting `MEMORY.md` its four "vital lessons" were each checked against the code, and all
+four are live: pH-is-urine-unless-ABG → `ABG_MARKERS` ([adapter.js:305](khanesh-server/rules/adapter.js#L305));
+qualitative `3+` → N6; CTCAE only for cancer patients → the `isCancer` gate at
+[grade.js:76](khanesh-server/rules/grade.js#L76), tested at `engine.test.js:405`; `Anti-HIV`
+spellings → N2. Nothing was lost that wasn't already enforced somewhere that runs.
+
+⚠️ **`labmat-prototype/` is still there, and it is the one item that was not cleaned up.** It is
+a superseded copy of `khanesh-server/labmat-agents/` — and it has **5110 tracked files**, of which
+**5101 are `node_modules`**, plus a tracked `labmat-prototype/.env` **containing a live
+`AVALAI_API_KEY`**. `.gitignore` lists `labmat-prototype/node_modules/`, which does nothing,
+because an ignore rule has no effect on files that were already tracked — the same mechanism as
+N14, in the opposite direction. Deleting the directory would **not** remove the key from history;
+the key has to be rotated at AvalAI regardless, and that is a decision plus a 5110-file commit,
+so it was flagged rather than folded into a cleanup.
 
 ### Routes (`App.jsx`)
 
@@ -859,13 +875,29 @@ five analytes wider.
   khanesh/public/lab`, then resolve every `/lab/…` path `grep`ped out of `khanesh/src/`. All 13
   resolve. The five root screenshots N14 named (`root.png`, `landing-ok.png`, `ocr-result.png`,
   `site-up.png`, `az-default.png`) are still ignored, now by `.gitignore:5`.
-- **Left open on purpose:** the workaround files (`cbc_card.png.jpg`, `thyroid_card.png.jpg`,
-  `diabetes_card.png.PNG`) are still untracked on disk — nothing references them; deleting them
-  is a separate call. And the 11 tracked `.png` are **7.1 MB**, while optimized `.jpg` twins of
-  four of them are already tracked at **212 KB total** (`res-1/2/3.jpg`, `news.jpg` — ~15×
-  smaller). Pointing `Landing.jsx` at the `.jpg` and re-exporting the other seven is the right
-  follow-up; it was not folded in here because it changes rendered output and needs eyes on the
-  images, whereas tracking what the code already names does not.
+- ✅ **Closed 2026-08-06.** The workaround files (`cbc_card.png.jpg`, `thyroid_card.png.jpg`,
+  `diabetes_card.png.PNG`) and 15 other unreferenced files were deleted; `public/lab/` is now
+  exactly the 12 files the code names, plus `CREDITS.md`. Method, which is the reusable part:
+  `grep -rhoE "/lab/[A-Za-z0-9._-]+" src/ index.html | sort -u` gives the live set, and anything
+  on disk outside it goes. Do this from the **reference side**, never by eyeballing filenames —
+  `hero.jpg` and `hero.png` and `hero_image_lab_ai.png` and `hero.gif.mp4` and `hero_ai_desk.webp`
+  all coexisted and only two were live.
+- ⚠️ **The paragraph that used to sit here was wrong, and acting on it would have changed the
+  page.** It said `res-1/2/3.jpg` and `news.jpg` were "optimized `.jpg` twins" of the `.png` at
+  ~15× smaller, and recommended pointing `Landing.jsx` at them. **They are not twins.** Measured:
+  every `.jpg` is an Unsplash photograph cropped to its frame (`res-1.jpg` 768×432, `news.jpg`
+  900×600); every `.png` is a square 1024×1024 image from a different, later set. Swapping the
+  reference would have silently replaced four photographs with four **different** photographs, at
+  the wrong aspect ratio. The size gap was real and the conclusion drawn from it was not — a file
+  being smaller with the same stem is not evidence it is the same picture. **Read the dimensions
+  before calling two files the same asset.** The `.jpg` were unreferenced and are now deleted;
+  their Unsplash attribution lives in git history and is described in `CREDITS.md`.
+- ⚠️ **And the images that replaced them have no recorded provenance at all.** Eight of the eleven
+  live `.png` entered in `5fae645` — a *clinical rules* commit — as untracked files the commit
+  happened to sweep up. `CREDITS.md` still claimed "every image in this folder is from Unsplash"
+  for months afterwards, and `Landing.jsx:256` points the reader at that claim. It has been
+  rewritten to state what is actually known. **A licence file that covers a folder rather than a
+  list of files becomes false the moment someone adds a file** — and nothing will report it.
 
 ### N15 — A green suite proves nothing when the damage is invisible to the tests
 2026-08-04, `5059a05`. Two instances in a single session, from one careless bulk edit.
