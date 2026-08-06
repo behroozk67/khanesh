@@ -139,6 +139,23 @@ const NAME_MAP = {
   ammonia: "NH3", nh3: "NH3",
   hco3: "HCO3", bicarbonate: "HCO3", co2: "HCO3",
   ph: "PH",
+  // ═══ اسمولالیته — عمداً فقط املاهایی که *نمونه* را نام می‌برند ═══
+  // ⚠️ `osmolality` / `osmolarity` / `osm`ِ برهنه اینجا نیستند، و این یک
+  //    تصمیم است نه فراموشی. برای pH یک گیتِ ارزشی کار می‌کند (adapter پایین‌تر،
+  //    ABG_MARKERS) چون خونی و ادراری بازهٔ مجزا دارند؛ اینجا نمی‌کند: اسمولالیتهٔ
+  //    سرم ۲۷۵–۲۹۵ است و اسمولالیتهٔ ادرار ۵۰–۱۲۰۰، یعنی عددِ ۳۰۰ به یک اندازه
+  //    برای هر دو محتمل است. نگاشتِ اشتباه در متنِ بالینی از نبودِ نگاشت بدتر
+  //    است (N2)، پس نامِ برهنه به `unmapped` می‌رود و سرور بلند می‌گوید
+  //    «موتور تفسیرش نمی‌کند» — که شکستِ درست است.
+  // ⚠️ املای «Osmolality, Serum» (سبکِ LabCorp/Quest) هنوز نگاشت نمی‌شود، چون
+  //    norm() کاما را حذف نمی‌کند. این نقصِ عمومی‌ترِ norm است و جداگانه ثبت شده.
+  serumosmolality: "OSM", serumosmolarity: "OSM",
+  plasmaosmolality: "OSM", plasmaosmolarity: "OSM",
+  osmolalityserum: "OSM", osmolalityplasma: "OSM",
+  osmserum: "OSM", sosm: "OSM",
+  "اسمولالیتهسرم": "OSM", "اسمولالیتهٔسرم": "OSM",
+  "اسمولاریتهسرم": "OSM", "اسمولاریتهٔسرم": "OSM",
+  "اسمولالیتهپلاسما": "OSM", "اسمولالیتهٔپلاسما": "OSM",
   inr: "INR",
   esrfirsthour: "ESR",
 
@@ -804,6 +821,31 @@ export function runEngine(ocr) {
     idx.anion_gap = +ag.toFixed(1);
     // تصحیح آلبومین (هر ۱ g/dL افت آلبومین ≈ ۲.۵ کاهش کاذب آنیون‌گپ)
     if (tests.ALB != null) idx.anion_gap_corr = +(ag + 2.5 * (4.0 - tests.ALB)).toFixed(1);
+  }
+  // اسمولالیتهٔ محاسبه‌شده و شکافِ اسمولال: 2·Na + قند/18 + BUN/2.8.
+  //
+  // ⚠️ کلاً پشتِ «OSMِ اندازه‌گیری‌شده وجود دارد» گیت شده. بدونِ آن شکاف
+  //    محاسبه‌ناپذیر است و عددِ محاسبه‌شده به‌تنهایی هیچ اطلاعِ مستقلی ندارد —
+  //    هر سه جزئش خودشان قاعده دارند. ضمناً prompt.js کلِ indices را به LLM
+  //    می‌دهد، پس عددِ بی‌صاحب یعنی چیزی که مدل می‌تواند دربارهٔ آن حرف بزند
+  //    بی‌آنکه قاعده‌ای متنش را مهار کند.
+  // ⚠️ سدیمِ *اندازه‌گیری‌شده*، نه تصحیح‌شده — همان دلیلِ آنیون‌گپ بالا:
+  //    تصحیحِ هایپرگلیسمی خودش اثرِ قند است و اینجا جملهٔ قند دوباره شمرده می‌شد.
+  // ⚠️ هر سه جزء لازم‌اند. نبودِ قند یا اوره، osm_calc را کم و شکاف را کاذب
+  //    بزرگ می‌کند — یعنی دقیقاً به سمتِ آلارمِ اشتباه.
+  // ⚠️ maxGlucose عمداً: بزرگ‌ترین قند، osm_calc را بیش‌برآورد و شکاف را
+  //    کم‌برآورد می‌کند. یعنی خطا به سمتِ سکوت می‌شکند، نه به سمتِ ادعای
+  //    مسمومیت — که جهتِ درستِ شکستن برای این قاعده است.
+  if (tests.OSM != null) {
+    const naForOsm = derived.na_measured ?? tests.NA;
+    const gluForOsm = maxGlucose(tests);
+    const bunForOsm = tests.UREA_N != null
+      ? tests.UREA_N
+      : (tests.UREA != null ? ureaToBUN(tests.UREA) : null);
+    if (naForOsm != null && gluForOsm != null && bunForOsm != null) {
+      idx.osm_calc = +(2 * naForOsm + gluForOsm / 18 + bunForOsm / 2.8).toFixed(0);
+      idx.osm_gap = +(tests.OSM - idx.osm_calc).toFixed(0);
+    }
   }
   // R3 — eGFR با CKD-EPI 2021 (فقط بزرگسال؛ اطفال فرمول متفاوت دارند)
   if (tests.CREAT != null && age != null && age >= 18 && sex) {
