@@ -62,6 +62,36 @@
         این اصلاح، لبهٔ پایینِ سرصفحه در اسکرولِ ۴۱۰۰ پیکسل روی ۴۰۲۵− بود.
         clip همان بریدن را می‌کند بی‌آنکه ظرفِ اسکرول بسازد. */
   overflow-x: clip;
+  
+  /* Decorative background blobs for glassmorphism */
+  position: relative;
+  z-index: 0;
+}
+
+.site::before, .site::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.site::before {
+  top: -100px;
+  right: -100px;
+  width: 500px;
+  height: 500px;
+  background: var(--brand-soft);
+}
+
+.site::after {
+  top: 400px;
+  left: -150px;
+  width: 600px;
+  height: 600px;
+  background: rgba(47, 111, 107, 0.08); /* faint brand color */
 }
 .site *, .site *::before, .site *::after { box-sizing: border-box; }
 .site h1, .site h2, .site h3 { margin: 0; text-wrap: balance; }
@@ -108,8 +138,10 @@
 
 .site-nav {
   position: sticky; top: 0; z-index: 40;
-  background: var(--page);
-  border-bottom: 1px solid var(--line);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-lg));
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg));
+  border-bottom: 1px solid var(--glass-border);
 }
 .site-nav-in {
   max-width: var(--wide); margin-inline: auto;
@@ -220,13 +252,13 @@
 /* ---------- سربرگِ صفحه ---------- */
 
 .site-hero-grid {
-  display: grid; grid-template-columns: 1fr; gap: var(--s8); align-items: center;
+  display: grid; grid-template-columns: 1fr; gap: var(--s8); align-items: start;
 }
 @media (min-width: 980px) {
-  .site-hero-grid { grid-template-columns: 1.1fr 0.9fr; gap: var(--s11); }
+  .site-hero-grid { grid-template-columns: 1fr 1fr; gap: var(--s14); }
 }
 .site-hero h1 {
-  font-size: var(--t-d1); font-weight: var(--w-bold);
+  font-size: var(--t-d2); font-weight: var(--w-bold);
   line-height: var(--lh-tight); letter-spacing: -.01em;
   /* بُعد: عرضِ تیتر. ۱۸ch برای تیترِ کوتاه‌ترِ قبلی بسته شده بود؛ تیترِ فعلی
      ۴۵ نویسه است و در ۱۸ch سه‌سطری می‌شد. ۲۴ch دو سطرِ هم‌وزن می‌دهد و هنوز
@@ -234,7 +266,7 @@
   color: var(--ink); max-width: 24ch;
 }
 .site-hero-lede {
-  font-size: var(--t-lg); line-height: var(--lh-prose);
+  font-size: var(--t-md); line-height: var(--lh-prose);
   color: var(--ink-2); max-width: 58ch; margin-top: var(--s9);
 }
 .site-hero .btn { margin-top: var(--s11); }
@@ -243,9 +275,12 @@
    ⚠️ نوارِ رنگیِ ۶ پیکسلیِ لبه حذف شد: کادر پس‌زمینه و مرزِ خودش را دارد و
       یک خطِ ضخیمِ رنگی روی آن فقط سر و صداست. */
 .site-intro {
-  background: var(--card); border: 1px solid var(--border-card);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--r-lg); padding: var(--s10) var(--s11);
-  display: grid; gap: var(--s7); box-shadow: var(--sh-xs);
+  display: grid; gap: var(--s7); box-shadow: var(--sh-md), var(--glass-shadow);
 }
 .site-intro p { font-size: var(--t-md); line-height: var(--lh-prose); color: var(--ink-2); }
 .site-intro-fine {
@@ -264,16 +299,21 @@
   border-radius: 24px;
   overflow: hidden;
   box-shadow: var(--sh-md);
-  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  transition: transform var(--dur-lg) var(--ease-spring), box-shadow var(--dur) var(--ease);
 }
 .site-figure:hover {
   transform: translateY(-4px);
   box-shadow: var(--sh-lg, 0 12px 24px rgba(15, 21, 19, 0.12));
 }
-.site-figure img { display: block; width: 100%; height: auto; }
-.site-figure--hero img { aspect-ratio: 1/1; object-fit: cover; }
+.site-figure img, .site-figure video { display: block; width: 100%; height: auto; }
+.site-figure--hero img, .site-figure--hero video { animation: float 6s ease-in-out infinite; }
+@keyframes float {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0); }
+}
 .site-figure--band img { aspect-ratio: 2.2/1; object-fit: cover; object-position: center 38%; }
-.site-figure--hero { aspect-ratio: 1; }
+.site-figure--hero { }
 .site-figure--band { aspect-ratio: 2.2 / 1; margin-block: var(--s10); }
 
 /* ---------- تابلوها ----------
@@ -282,11 +322,16 @@
 
 .site-panel, .site-block {
   padding: var(--s8); border-radius: 20px;
-  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--sh-xs), var(--glass-shadow);
+  transition: transform var(--dur-lg) var(--ease-spring), box-shadow var(--dur) var(--ease);
 }
 .site-panel:hover, .site-block:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--sh-md);
+  transform: translateY(-4px);
+  box-shadow: var(--sh-md), var(--glass-shadow);
 }
 .site-panel h3, .site-block h3 {
   font-size: var(--t-md); font-weight: var(--w-bold); margin-bottom: var(--s4);
@@ -308,8 +353,9 @@
 }
 
 .site-panel--soft {
-  background: var(--brand-soft); color: var(--brand-ink);
-  border: 1px solid var(--brand-line);
+  background: rgba(230, 244, 243, 0.65); /* brand-soft with opacity for glass */
+  color: var(--brand-ink);
+  border: 1px solid var(--glass-border);
 }
 .site-panel--soft p { color: var(--brand-ink); }
 
@@ -330,18 +376,36 @@
 
 /* ---------- کاشی‌ها (کارت‌های راهنما) ---------- */
 
-.site-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s11); }
-.site-tiles--2 { grid-template-columns: repeat(2, 1fr); }
+.site-tiles { 
+  display: grid; grid-template-columns: 1fr; gap: var(--s11); 
+}
+@media (min-width: 768px) {
+  .site-tiles { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 980px) {
+  .site-tiles { grid-template-columns: repeat(3, 1fr); }
+}
+
 .site-tile {
-  background: var(--card); border: 1px solid var(--border-card);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--sh-xs), var(--glass-shadow);
   border-radius: 20px; padding: var(--s7);
   display: flex; flex-direction: column; gap: var(--s3);
-  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  transition: transform var(--dur-lg) var(--ease-spring), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  animation: cascade-in 0.6s var(--ease-spring) both;
+  animation-delay: calc(var(--index, 0) * 100ms);
+}
+@keyframes cascade-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .site-tile:hover {
   border-color: var(--brand-line);
-  transform: translateY(-4px);
-  box-shadow: var(--sh-lg, 0 12px 24px rgba(15, 21, 19, 0.12));
+  transform: translateY(-6px);
+  box-shadow: var(--sh-lg), var(--glass-shadow);
 }
 /* بلوکِ رنگیِ بالای کارت. سه ارزش از یک فام — قبلاً پنج رنگِ بی‌ربط بود. */
 .site-tile-art {
@@ -821,7 +885,7 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
      تقریباً یک صفحهٔ کامل ارتفاع می‌گیرد و متنِ بعدی را از دید بیرون می‌برد.
      برشِ ۲۵٪ از یک منبعِ ۹۰۰ پیکسلی هنوز بزرگ‌تر از قابِ ۳۷۵ پیکسلی است. */
   .site-hero-grid { grid-template-columns: 1fr; gap: var(--s12); }
-  .site-figure--hero { aspect-ratio: 4 / 3; }
+  .site-figure--hero { }
   .site-tiles, .site-tiles--2 { grid-template-columns: 1fr; gap: var(--s12); }
   .site-basis-grid { grid-template-columns: 1fr; }
   .site-res-grid { grid-template-columns: 1fr; }

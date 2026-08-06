@@ -1,6 +1,8 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Tafsir from "./Tafsir";
+import AuthGuard from "./AuthGuard";
+import Profile from "./Profile";
 
 // ابزار خودش صفحهٔ فرود است.
 //
@@ -30,8 +32,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/landing" element={<Landing />} />
-          <Route path="/app" element={<Tafsir />} />
-          <Route path="/tafsir" element={<Tafsir />} />
+          <Route path="/app" element={<AuthGuard><Tafsir /></AuthGuard>} />
+          <Route path="/tafsir" element={<AuthGuard><Tafsir /></AuthGuard>} />
+          <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
           {/* راهنمای آزمایش‌ها: فهرستِ دسته‌ها و فهرستِ الفبایی */}
           <Route path="/tests" element={<Tests />} />
           {/* صفحهٔ یک دسته (۱۷ دسته) و صفحهٔ یک آزمایش (۴۶ آزمایشِ فرم). */}

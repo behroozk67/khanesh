@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { useParams, Navigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import Guide from "./Guide.jsx";
 import { REF } from "./labRefs.js";
 import { catOfTest, TIER } from "./testCatalog.js";

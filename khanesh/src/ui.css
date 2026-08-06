@@ -71,8 +71,10 @@
 /* ---------- کارت ---------- */
 
 .card {
-  background: var(--card);
-  border: 1px solid var(--border-card);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
   border-radius: var(--r-lg);
   padding: var(--s8);
   box-shadow: var(--sh-xs);
@@ -125,6 +127,8 @@
 .crit-banner {
   background: var(--st-emergency-bg); color: var(--st-emergency-fg);
   border-radius: var(--r-md); padding: var(--s7) var(--s8);
+  box-shadow: var(--glow-emergency);
+  border: 1px solid rgba(179, 38, 30, 0.4);
 }
 .crit-title { font-size: var(--t-xl); font-weight: var(--w-bold); margin-bottom: var(--s3); }
 .crit-body { font-size: var(--t-sm); line-height: var(--lh-prose); }

@@ -1,15 +1,41 @@
 # Frontend Structure (`khanesh/src/`)
 
-- `App.jsx` — the tool **is** the landing page: `/` renders `Tafsir.jsx`. `/app` and any unknown
-  path `Navigate` to `/`, so old links keep working. The former marketing page (`Landing.jsx`) was
-  deleted; only its circular SVG badge survives, in `Logo.jsx`.
-  ⚠️ The redirect only runs if the production server serves `index.html` for unknown paths
-  (`try_files $uri /index.html`). Without that fallback a hard load of `/app` 404s before React boots.
+- `App.jsx` — **the "tool is the landing page" decision was reversed.** `Landing.jsx` is back and
+  owns `/`; the tool moved to `/app` and `/tafsir`. Current table:
+
+  | path | renders |
+  |---|---|
+  | `/`, `/landing` | `Landing` (lazy) |
+  | `/app`, `/tafsir` | `Tafsir` — the tool |
+  | `/tests`, `/tests/:cat`, `/test/:key` | the encyclopaedia: `Tests`, `CategoryPage`, `TestPage` (lazy) |
+  | `*` | `Navigate` to `/` |
+
+  Content routes are `lazy()` for size, not taste — 17 categories and 46 tests of Persian body text
+  is several hundred KB, and a patient on mobile who just wants one number read shouldn't download
+  it. `/` is not lazy.
+  ⚠️ The catch-all only runs if the production server serves `index.html` for unknown paths
+  (`try_files $uri /index.html`). Without that fallback a hard load of `/app` 404s before React
+  boots — and `/app` is now the tool's real address, so this matters more than it used to.
   ⚠️ **Open product decision:** `Logo.jsx` still spells `LABMATE` in its SVG `textPath` while the app
   header says «خوانش». Both strings are exported as `BRAND_LATIN` / `BRAND_FA` — pick one before shipping.
-- `Tafsir.jsx` is a single large component with two independent input paths that both ultimately call `POST /api/analyze`:
-  - **Manual entry** — a client-side `REF` object (its own copy of test metadata/ranges/categories, separate from the backend's `rules/`) drives a category-filtered form for typing in values directly.
-  - **Photo upload** — client-side image compression (`compressImage()`, canvas-based, targets ~400KB per photo since mobile photos can be 8MB+) before sending as data URLs; HEIC decode fallback for iPhones via `<img>` since `createImageBitmap` often fails on HEIC.
+  `LabMateLogo.jsx` (the wordmark `Landing` uses) imports `BRAND_FA` from `Logo.jsx`, so the two
+  files are already coupled; don't add a third spelling.
+- `Tafsir.jsx` is no longer one large component — it has been decomposed, and the pieces are where
+  the interesting logic now lives. Both input paths still end at the analyze API:
+  - **Manual entry** — the client-side `REF` object (its own copy of test metadata/ranges/categories,
+    separate from the backend's `rules/`) **moved out of `Tafsir.jsx` into `labRefs.js`**, alongside
+    `CATS`, `ALL`, `LOCAL_STATES`, `statusOf()`, `deltaOf()` and `comboInsights()`. `EntryGrid.jsx`
+    renders the form; `LocalPreview.jsx` renders the engine-free preview (see N12 — that file is the
+    only clinical text in the app with no engine, no `must_say`, and no test behind it).
+  - **Photo upload** — `imageIntake.js` holds the intake and canvas compression (~400KB target,
+    since mobile photos can be 8MB+) and the HEIC `<img>` decode fallback for iPhones, where
+    `createImageBitmap` often fails. `UploadCard.jsx` is the UI.
+  - **The request is asynchronous now.** `analyzeJob.js` starts a job (`POST /api/analyze/start`),
+    polls (`GET /api/analyze/job/:id`), and keeps the job id in `localStorage` so a locked phone or a
+    backgrounded tab no longer destroys a 90–150s analysis. The id never leaves the device; the
+    server drops the job after ~30 minutes.
+  - `ResultErrorBoundary.jsx` wraps the result screen so a malformed response degrades instead of
+    white-screening.
   - Rendering reads `extracted_tests`, `_engine`, `has_critical`, `ocr_warnings`, `pages`, `sources` from the API response — the fields the backend safety-net guarantees will be present/correct even if the LLM's own JSON is malformed.
 
 ### `_engine` shape
@@ -66,4 +92,7 @@ Each carries a constraint that is not obvious from the field name:
 Test grouping by body system is presentation data and lives in `khanesh/src/testCategories.js`,
 keyed by engine key — deliberately not in `rules/refs.js`, whose only job is clinical ranges.
 
-Keep `REF` (client-side, manual-entry only) and `khanesh-server/rules/` (server-side, authoritative) in sync when a test's range or label changes — they are two separate copies by design, not a shared source of truth.
+Keep `REF` (in `khanesh/src/labRefs.js` — client-side, manual-entry only) and
+`khanesh-server/rules/` (server-side, authoritative) in sync when a test's range or label changes
+— they are two separate copies by design, not a shared source of truth. Record any deliberate
+divergence in `khanesh-server/rules/REF_DIFF.md`.

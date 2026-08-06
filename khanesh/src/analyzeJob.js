@@ -65,9 +65,13 @@ export function clearResult() { safeDel(LS_RESULT); }
 /* ---------- شبکه ---------- */
 
 export async function startJob(payload, signal) {
+  const token = localStorage.getItem('auth_token');
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(START_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(payload),
     signal,
   });

@@ -44,7 +44,6 @@ export default function Landing() {
       <Nav />
       <Hero />
       <HowItWorks />
-      <Standards />
       <FeaturedGuides />
       <ReviewBasis />
       <Resources />
@@ -124,7 +123,7 @@ export function Nav() {
 
         {search("site-nav-q")}
 
-        <Link to="/app" className="btn btn--primary btn--pill site-nav-cta">شروع تحلیل</Link>
+        <Link to="/app" className="btn btn--primary btn--pill site-nav-cta">تحلیل نتایج من</Link>
 
         <button
           type="button"
@@ -144,7 +143,7 @@ export function Nav() {
             <Link key={l.label} to={l.to} onClick={() => setOpen(false)}>{l.label}</Link>
           ))}
           <Link to="/app" className="btn btn--primary btn--pill" onClick={() => setOpen(false)}>
-            شروع تحلیل
+            تحلیل نتایج من
           </Link>
         </div>
       )}
@@ -172,13 +171,13 @@ function Hero() {
           <h1>جواب آزمایشتان را بفهمید، آگاهانه تصمیم بگیرید</h1>
 
           <p className="site-hero-lede">
-            {BRAND} برگهٔ آزمایش شما را به زبان ساده توضیح می‌دهد: هر عدد چه چیزی را
-            می‌سنجد، محدودهٔ طبیعی‌اش کجاست، و اگر بیرون از آن محدوده باشد یعنی چه.
+            {BRAND} نتیجهٔ آزمایش شما را با زبانی ساده و روشن توضیح می‌دهد: اینکه هر عدد دقیقاً
+            چه چیزی را می‌سنجد، محدودهٔ طبیعی آن کجاست و اگر خارج از این محدوده باشد چه معنایی دارد.
           </p>
           <p className="site-hero-lede">
-            ده‌ها آزمایش رایج پوشش داده شده است. محدوده‌های مرجع از منابع بالینی معتبر
-            می‌آیند و طبیعی یا غیرطبیعی بودن هر عدد را یک موتور قاعده‌محور تعیین می‌کند،
-            نه یک مدل زبانی؛ کار مدل زبانی فقط ساده‌نویسی همان یافته‌هاست.
+            ما ده‌ها آزمایش رایج را پوشش داده‌ایم. برای اطمینان خاطر شما، محدوده‌های مرجع از معتبرترین
+            منابع پزشکی استخراج شده‌اند و وضعیت طبیعی یا غیرطبیعی بودن نتایج توسط یک سیستم دقیقِ علمی
+            سنجیده می‌شود، نه هوش مصنوعی. نقش هوش مصنوعی در اینجا، تنها ساده‌سازی این یافته‌های تخصصی برای شماست.
           </p>
 
           <div className="site-intro">
@@ -193,10 +192,13 @@ function Hero() {
         </div>
 
         <div className="site-figure site-figure--hero">
-          <img
-            src="/lab/pov-lab-test.png"
-            alt="نمای اول شخص از فردی که در حال خواندن برگه آزمایش است"
-            width="1024" height="1024" decoding="async"
+          <video
+            src="/lab/hero.gif.mp4"
+            autoPlay
+            loop
+            muted
+            playsInline
+            width="1024" height="1024"
             className="animated-pov"
           />
         </div>
@@ -229,28 +231,25 @@ function HowItWorks() {
       <div className="site-block">
         <h3 className="site-h3">نگاه جامع به نتایج، نه فقط یک عدد ساده</h3>
         <p>
-          سیستم ما نتایج آزمایش‌ها را جداگانه تحلیل نمی‌کند، بلکه ارتباط بین آن‌ها را درک می‌کند. مثلاً پایین بودن هموگلوبین به‌تنهایی یک نشانه است، اما اگر با افت فریتین همراه شود، زنگ خطر کم‌خونی فقر آهن را به صدا درمی‌آورد. ما الگوهای پنهان را پیدا می‌کنیم تا تصویر کاملی از سلامتی‌تان داشته باشید.
+          بدن شما یک سیستم یکپارچه است و ما نیز نتایج آزمایش شما را با همین رویکرد بررسی می‌کنیم. سیستم هوشمند ما فراتر از ارزیابی تک‌تک اعداد عمل کرده و با تحلیل ارتباط میان شاخص‌های مختلف، تصویری دقیق و جامع از وضعیت سلامتی‌تان ارائه می‌دهد. ما الگوهای پنهان را شناسایی می‌کنیم تا شما با اطمینان و آرامش خاطر، درک کاملی از شرایط خود داشته باشید.
         </p>
       </div>
 
       <div className="site-panel site-panel--soft">
         <h3>پشت هر یافته، منبعش هم نوشته می‌شود</h3>
         <p>
-          کنار هر یافته، منبعی که آن را پشتیبانی می‌کند نشان داده می‌شود. اگر چیزی در
-          نمونه‌گیری توانسته باشد روی عدد اثر بگذارد — ناشتا نبودن، همولیز نمونه یا لخته شدن
-          پلاکت‌ها — همان هم گفته می‌شود؛ بدون این نکته ممکن است عدد را اشتباه بفهمید.
+          دقت و شفافیت، پایه و اساس تحلیل‌های ماست. هر آستانه و تفسیری که دریافت می‌کنید، مستقیماً به معتبرترین استانداردهای بالینی جهانی ارجاع داده شده و منبع علمی آن در کنار هر یافته درج می‌شود. همچنین، اگر عوامل محیطی مانند ناشتا نبودن یا شرایط خاص نمونه‌گیری بر نتایج اثر گذاشته باشند، با شفافیت کامل به شما اطلاع می‌دهیم تا هیچ ابهامی در درک اعداد باقی نماند.
         </p>
       </div>
 
       <Band tone="cool" />
 
       <div className="site-block">
-        <h3 className="site-h3">بدانید قدم بعدی چیست</h3>
+        <h3 className="site-h3">قدم بعدی را آگاهانه بردارید</h3>
         <p>
-          نتیجه نقطهٔ شروع است، نه پایان کار. برای هر یافته می‌بینید کدام آزمایش باید تکرار
-          شود، با چه فاصلهٔ زمانی، و چه چیزی را در ویزیت با پزشک مطرح کنید.
+          جواب آزمایش پایان راه نیست، بلکه نقطه شروعی برای سلامتی شماست. ما به شما می‌گوییم هر یافته چه معنایی دارد، چه زمانی نیاز به تکرار آزمایش است و دقیقاً چه نکاتی را با پزشک خود در میان بگذارید.
         </p>
-        <Link to="/app" className="btn btn--secondary btn--pill">شروع تحلیل</Link>
+        <Link to="/app" className="btn btn--secondary btn--pill">تحلیل نتایج من</Link>
       </div>
     </section>
   );
@@ -260,7 +259,7 @@ function HowItWorks() {
 // آزاد؛ اعتبارِ هر عکس در public/lab/CREDITS.md ثبت شده است.
 const BANDS = {
   warm: { src: "/lab/doctor-tablet.png", alt: "پزشک زن در حال بررسی اطلاعات پزشکی در تبلت" },
-  cool: { src: "/lab/band-2.png", alt: "طراحی مینیمال از ابزارهای آزمایشگاهی و داده‌های پزشکی" },
+  cool: { src: "/lab/lab_modern_tech.png", alt: "محیط مدرن آزمایشگاهی با تمرکز بر فناوری‌های پیشرفته" },
 };
 
 function Band({ tone }) {
@@ -269,25 +268,6 @@ function Band({ tone }) {
     <div className="site-figure site-figure--band">
       <img src={b.src} alt={b.alt} loading="lazy" decoding="async" width="1440" height="480" />
     </div>
-  );
-}
-
-function Standards() {
-  // ⚠️ عنوان عمداً «Partners» نیست — این‌ها شریکِ ما نیستند، منابعی‌اند که
-  //    موتور به اسنادشان ارجاع می‌دهد. لوگو هم گذاشته نشد، چون لوگو یعنی
-  //    تأییدیه.
-  const bodies = ["CLSI", "IFCC", "EFLM", "KDIGO", "ADA", "ESC", "WHO", "RCPCH", "CTCAE v5"];
-  return (
-    <section className="site-wrap site-sec">
-      <h2 className="site-h2">استانداردهای مرجع</h2>
-      <p className="site-lede">
-        آستانه‌هایی که موتور با آن‌ها کار می‌کند، به اسناد منتشرشدهٔ این نهادها برمی‌گردند.
-        این فهرست فقط ارجاع به منبع است؛ نه شراکت با این نهادها و نه تأییدی از سوی آن‌ها.
-      </p>
-      <div className="site-marks">
-        {bodies.map((b) => <span key={b}>{b}</span>)}
-      </div>
-    </section>
   );
 }
 
@@ -300,18 +280,21 @@ function FeaturedGuides() {
   const cards = [
     {
       tone: "deep", kicker: "تیروئید", kicker2: "آزمایش",
+      img: "/lab/thyroid_card.png",
       t: "آزمایش عملکرد تیروئید",
       d: "TSH و T4 نشان می‌دهند تیروئید چقدر فعال است. این راهنما توضیح می‌دهد هر عدد چه چیزی را می‌سنجد و چرا معمولاً TSH اولین آزمایشی است که پزشک درخواست می‌کند.",
       to: "/tests/thyroid",
     },
     {
       tone: "soft", kicker: "شمارش", kicker2: "کامل خون",
+      img: "/lab/cbc_card.png",
       t: "شمارش کامل خون (CBC)",
       d: "CBC گلبول‌های قرمز، گلبول‌های سفید و پلاکت‌ها را می‌شمارد و شاخص‌هایی مثل MCV و MCH را به دست می‌دهد؛ همان‌هایی که انواع کم‌خونی را از هم جدا می‌کنند.",
       to: "/tests/wellness",
     },
     {
       tone: "warm", kicker: "قند", kicker2: "و دیابت",
+      img: "/lab/diabetes_card.png",
       t: "قند خون و HbA1c",
       d: "قند ناشتا وضعیت همان لحظه را نشان می‌دهد و HbA1c میانگین حدود سه ماه گذشته را. آستانه‌های این راهنما بر پایهٔ راهنمای ADA است.",
       to: "/tests/disease",
@@ -324,11 +307,12 @@ function FeaturedGuides() {
         <Link to="/tests" className="btn btn--secondary btn--pill">همهٔ راهنماها</Link>
       </div>
       <div className="site-tiles">
-        {cards.map((c) => (
-          <Link to={c.to} className="site-tile" key={c.t} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-            <span className={`site-tile-art site-tile-art--${c.tone}`} aria-hidden="true">
-              <b>{c.kicker}</b>
-              <span>{c.kicker2}</span>
+        {cards.map((c, idx) => (
+          <Link to={c.to} className="site-tile" key={c.t} style={{ textDecoration: 'none', color: 'inherit', display: 'block', '--index': idx }}>
+            <span className={`site-tile-art site-tile-art--${c.tone}`} aria-hidden="true" style={c.img ? { padding: 0, position: 'relative', overflow: 'hidden' } : {}}>
+              {c.img && (
+                <img src={c.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, right: 0 }} />
+              )}
             </span>
             <h3>{c.t}</h3>
             <p>{c.d}</p>
@@ -467,7 +451,7 @@ export function Footer() {
           <a href="https://medlineplus.gov" target="_blank" rel="noopener noreferrer">MedlinePlus</a>{" "}
           (کتابخانهٔ ملی پزشکی آمریکا) گرفته شده است.
         </p>
-        <Link to="/app" className="btn btn--primary btn--pill">شروع تحلیل</Link>
+        <Link to="/app" className="btn btn--primary btn--pill">تحلیل نتایج من</Link>
       </div>
     </footer>
   );

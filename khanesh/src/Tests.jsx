@@ -130,10 +130,6 @@ const colOf = (label) => {
 };
 const bucketOf = (col) => (col === FA_COL ? FA_KEY : col >= "A" ? col : HOME_KEY);
 
-// پهنای ستون بر حسبِ تعدادِ ردیف: ستونِ ۴۲تایی نباید یک‌سومِ عرض و
-// چهار برابرِ ارتفاعِ همسایه‌اش باشد. ۱۴ = حدودِ بلندیِ راحتِ یک ستون.
-const widthOf = (n) => Math.min(3, Math.max(1, Math.ceil(n / 14)));
-
 export default function Tests() {
   const [params, setParams] = useSearchParams();
   const azRef = useRef(null);

@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { toNumber, toFaDigits } from "./digits.js";
 import { REF, ALL, ageInMonths, statusOf } from "./labRefs.js";
 import { MAX_IMAGES, looksLikeImage, compressImage } from "./imageIntake.js";
-import { BRAND_FA } from "./Logo.jsx";
+import { LabMateLogo } from "./LabMateLogo.jsx";
 import ProfileCard from "./ProfileCard.jsx";
 import EntryGrid from "./EntryGrid.jsx";
 import LocalPreview from "./LocalPreview.jsx";
@@ -20,15 +21,6 @@ import {
 // labRefs.js، دریافتِ عکس در imageIntake.js، و هر ناحیهٔ صفحه در کامپوننتِ
 // خودش نشسته — قبلاً همه‌شان یک فایلِ ۱۲۶۲ خطی بودند که ۱۸٪‌اش شیءِ استایل
 // بود، و همان مکانیزم بود که :focus-visible و مدیا-کوئری را غیرممکن می‌کرد.
-
-function BrandMark() {
-  return (
-    <svg className="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-      <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" strokeWidth="2.5" />
-      <path d="M16 2 A14 14 0 0 0 16 30 Z" fill="currentColor" />
-    </svg>
-  );
-}
 
 export default function Tafsir() {
   const [sex, setSex] = useState("male");
@@ -380,11 +372,14 @@ export default function Tafsir() {
   return (
     <div className="page">
       <div className="shell">
-        <header className="site-header">
-          {/* نامِ برند از Logo.jsx می‌آید، نه هاردکد — تا «خوانش» در هدر و
-              «LABMATE» داخلِ نشان دوباره از هم جدا نیفتند. */}
-          <p className="logo"><BrandMark /><span className="brand">{BRAND_FA}</span></p>
-          <p className="tagline">تفسیر آموزشی نتایج آزمایش خون</p>
+        <header className="site-header" style={{ position: 'relative' }}>
+          <Link to="/" style={{ textDecoration: 'none' }}>
+            <LabMateLogo height={68} />
+          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)' }}>
+            <p className="tagline" style={{ margin: 0 }}>تفسیر آموزشی نتایج آزمایش خون</p>
+            <Link to="/profile" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)', padding: 'var(--s2) var(--s4)' }}>پروفایل من</Link>
+          </div>
         </header>
 
         <ProfileCard
