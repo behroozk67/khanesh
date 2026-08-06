@@ -39,6 +39,8 @@ import { createAvalAIClient, safeParseJson } from "./avalaiClient.js";
 import { extractMedlineTerms, formatMedlineContext } from "./rules/medline.js";
 import { missingFindingText, stripUnmeasuredClaims } from "./rules/coverage.js";
 import { createJob, reportPage, finishJob, getJob, jobView, jobCount } from "./jobStore.js";
+import authRouter, { requireAuth, authBootReport } from "./auth.js";
+import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById } from "./database.js";
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
 //
@@ -140,6 +142,7 @@ const TRUST_PROXY = process.env.TRUST_PROXY;
 if (TRUST_PROXY) app.set("trust proxy", /^\d+$/.test(TRUST_PROXY) ? Number(TRUST_PROXY) : TRUST_PROXY);
 
 app.use(express.json({ limit: "60mb" }));   // ← Nginx روی 50M است؛ Express نباید تنگ‌تر باشد
+app.use("/api/auth", authRouter);
 
 const AVALAI_API_KEY = process.env.AVALAI_API_KEY;
 const AVALAI_BASE_URL = "https://api.avalai.ir/v1";
@@ -1182,7 +1185,7 @@ const analyzeHandler = async (req, res) => {
 };
 
 // مسیرِ همگامِ قدیمی — دست‌نخورده، برای سازگاری عقب‌رو
-app.post("/api/analyze", requireAllowedOrigin, analyzeLimiter, analyzeHandler);
+app.post("/api/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, analyzeHandler);
 
 // ============================================================
 // [۱۴-ب] مسیرِ ناهمگام: شناسهٔ کار + پرسشِ دوره‌ای
@@ -1196,12 +1199,18 @@ app.post("/api/analyze", requireAllowedOrigin, analyzeLimiter, analyzeHandler);
 //    که هر ۲ ثانیه poll می‌کند خودش را بلاک می‌کند. چیزی که هزینهٔ AvalAI
 //    را می‌سازد شروعِ کار است، نه پرسیدنِ وضعیت.
 // ============================================================
-app.post("/api/analyze/start", requireAllowedOrigin, analyzeLimiter, (req, res) => {
+app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter, (req, res) => {
   const imgs = Array.isArray(req.body?.imageDataUrls)
     ? req.body.imageDataUrls
     : (typeof req.body?.imageDataUrl === "string" ? [req.body.imageDataUrl] : []);
 
   const jobId = createJob({ pagesTotal: imgs.length });
+  
+  // -- ثبت در دیتابیس --
+  if (req.user && req.user.userId) {
+    createJobRecord(jobId, req.user.userId, imgs.length).catch(err => console.error("DB createJobRecord error:", err));
+  }
+
   res.status(202).json({ job_id: jobId, pages_total: imgs.length });
 
   // از اینجا به بعد پاسخ رفته؛ نتیجه فقط در انبارِ کار می‌نشیند.
@@ -1210,13 +1219,19 @@ app.post("/api/analyze/start", requireAllowedOrigin, analyzeLimiter, (req, res) 
   const captured = { code: 200 };
   const shim = {
     status(c) { captured.code = c; return shim; },
-    json(body) { finishJob(jobId, captured.code, body); return shim; },
+    json(body) { 
+      finishJob(jobId, captured.code, body); 
+      // -- آپدیت نتیجه در دیتابیس --
+      updateJobResult(jobId, captured.code === 200 ? 'completed' : 'failed', body).catch(err => console.error("DB updateJobResult error:", err));
+      return shim; 
+    },
     setHeader() { return shim; },
   };
 
   analyzeHandler(req, shim).catch((err) => {
     console.error("Job failed:", err.name, err.message);
     finishJob(jobId, 500, { error: "خطای داخلی سرور." });
+    updateJobResult(jobId, 'failed', { error: "خطای داخلی سرور." }).catch(e => {});
   });
 });
 
@@ -1316,22 +1331,27 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'خطای سرور رخ داده است.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`سرور واسط (با MedlinePlus) روی پورت ${PORT} در حال اجراست`);
-  console.log(`مدل متن: ${TEXT_MODEL} | مدل بینایی: ${VISION_MODEL} | مهلت: ${AI_TIMEOUT_MS}ms`);
-  console.log(`آپلود چند عکس: تا ${MAX_IMAGES} عکس | همزمانی ${IMAGE_CONCURRENCY} | ${OCR_RETRIES} تلاش مجدد`);
-  console.log(`موتور قواعد: ${USE_ENGINE ? "روشن (Henry + RCPCH + CTCAE v5)" : "خاموش"}`);
-  console.log(`گراف ۱۰-عامله: ${USE_GRAPH ? "روشن (USE_GRAPH=true)" : "خاموش — مسیر کلاسیک"}`);
-  console.log(`سقف توکن OCR: ${OCR_MAX_TOKENS}`);
-  console.log(`محدودیت نرخ: ${RATE_LIMIT_MAX} درخواست در ${RATE_LIMIT_WINDOW_MIN} دقیقه`);
-  if (ALLOWED_ORIGINS.length === 0) {
-    console.warn("⚠️ ALLOWED_ORIGINS ست نشده — CORS به هر مبدأیی باز است. در پرودکشن ست کن.");
-  } else {
-    console.log(`مبدأهای مجاز: ${ALLOWED_ORIGINS.join(", ")}`);
-  }
-  if (!TRUST_PROXY) {
-    console.warn("⚠️ TRUST_PROXY ست نشده — اگر پشت Nginx هستی، rate limit همهٔ کاربران را " +
-                 "یک آی‌پی می‌بیند و با یک کاربرِ پرمصرف همه بلاک می‌شوند. مقدار = تعداد hop.");
-  }
-  if (!AVALAI_API_KEY) console.warn("⚠️  هشدار: AVALAI_API_KEY تنظیم نشده! فایل .env را بساز.");
-});
+initDb().then(() => {
+  app.listen(PORT, () => {
+    console.log(`سرور واسط (با MedlinePlus) روی پورت ${PORT} در حال اجراست`);
+    console.log(`مدل متن: ${TEXT_MODEL} | مدل بینایی: ${VISION_MODEL} | مهلت: ${AI_TIMEOUT_MS}ms`);
+    console.log(`آپلود چند عکس: تا ${MAX_IMAGES} عکس | همزمانی ${IMAGE_CONCURRENCY} | ${OCR_RETRIES} تلاش مجدد`);
+    console.log(`موتور قواعد: ${USE_ENGINE ? "روشن (Henry + RCPCH + CTCAE v5)" : "خاموش"}`);
+    console.log(`گراف ۱۰-عامله: ${USE_GRAPH ? "روشن (USE_GRAPH=true)" : "خاموش — مسیر کلاسیک"}`);
+    console.log(`سقف توکن OCR: ${OCR_MAX_TOKENS}`);
+    console.log(`محدودیت نرخ: ${RATE_LIMIT_MAX} درخواست در ${RATE_LIMIT_WINDOW_MIN} دقیقه`);
+    if (ALLOWED_ORIGINS.length === 0) {
+      console.warn("⚠️ ALLOWED_ORIGINS ست نشده — CORS به هر مبدأیی باز است. در پرودکشن ست کن.");
+    } else {
+      console.log(`مبدأهای مجاز: ${ALLOWED_ORIGINS.join(", ")}`);
+    }
+    if (!TRUST_PROXY) {
+      console.warn("⚠️ TRUST_PROXY ست نشده — اگر پشت Nginx هستی، rate limit همهٔ کاربران را " +
+                   "یک آی‌پی می‌بیند و با یک کاربرِ پرمصرف همه بلاک می‌شوند. مقدار = تعداد hop.");
+    }
+    if (!AVALAI_API_KEY) console.warn("⚠️  هشدار: AVALAI_API_KEY تنظیم نشده! فایل .env را بساز.");
+    // احراز هویت: وضعیتش باید در بوت دیده شود. خاموش‌بودنش یعنی تاریخچهٔ
+    // آزمایش‌ها بینِ کاربران جدا نیست — چیزی که نباید بی‌صدا بماند.
+    console.log(authBootReport());
+  });
+}).catch(console.error);

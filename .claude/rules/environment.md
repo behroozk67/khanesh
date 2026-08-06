@@ -13,11 +13,44 @@ IMAGE_CONCURRENCY=1          # ⚠️ raise only if your AvalAI account tolerate
 OCR_RETRIES=3
 OCR_MAX_TOKENS=8000          # ⚠️ tuned from a real truncation incident — check GET /health before raising
 USE_ENGINE=true              # "false" disables the rules engine, falls back to the old AI-only path
+USE_GRAPH=false              # ⚠️ default OFF. "true" routes analysis through the 12-node LangGraph
+                             #    in labmat-agents/, whose patient text bypasses every safety net in
+                             #    server.js. Local experimentation only — see CLAUDE.md, N13.
+AUTH_REQUIRED=false          # ⚠️ default OFF. "true" enforces the OTP/JWT layer on the analyze
+                             #    routes. While off, every request is the same anonymous user
+                             #    (userId 1), so `getJobById(jobId, userId)` isolates nothing and
+                             #    any caller can read any stored result. See warning below.
+JWT_SECRET=                  # ⚠️ required when AUTH_REQUIRED=true. The in-repo dev fallback makes
+                             #    tokens forgeable, so boot REFUSES rather than warns in that case.
 ALLOWED_ORIGINS=             # comma-separated CORS allowlist; empty = any origin. SET THIS IN PRODUCTION
 TRUST_PROXY=                 # number of proxy hops (1 behind a single Nginx). See warning below
 RATE_LIMIT_WINDOW_MIN=15     # rate-limit window for POST /api/analyze
 RATE_LIMIT_MAX=20            # max /api/analyze requests per IP per window
 ```
+
+## Authentication (`AUTH_REQUIRED`) — and the privacy surface it introduced
+
+`auth.js` + `database.js` add OTP-over-SMS login and a local SQLite store. **This is the first
+place the project persists a patient identifier.** Until now the rule was absolute: phone, name and
+national ID are never extracted, never sent to the model (see [notes.md](notes.md)). The `users`
+table stores the phone number, and `jobs` stores the **full interpretation result** next to a
+`user_id`. That is a deliberate product change, not an implementation detail — retention,
+encryption at rest, and deletion are now open questions that the code does not answer.
+
+- **Off by default, and loudly.** With `AUTH_REQUIRED` unset, `requireAuth` assigns a shared
+  anonymous user (`userId: 1`). Every job is attributed to that one id, so the `userId` argument in
+  `getJobById(jobId, userId)` filters nothing — anyone who guesses a job id reads that result. Boot
+  prints this in Persian rather than leaving it silent. Do not run it this way in production.
+  ⚠️ An earlier version disabled auth with an unconditional `return next()` and left the real
+  check as unreachable code below it, so the file read as though protection were in force. If you
+  need to disable auth again, flip the flag — never short-circuit the middleware.
+- **`JWT_SECRET` is enforced, not warned about.** With auth on and the secret still the in-repo dev
+  default, anyone who has read the source can mint a valid token, so `authBootReport()` throws
+  instead of warning. This is the one place the server refuses to start.
+- **The SMS sender is still a mock** — the code is only `console.log`ged. Wire a real provider
+  before enabling auth, or the login code lives in the server log.
+- `database.sqlite` is gitignored (path-anchored). `npm test` creates it, because importing
+  `server.js` runs `initDb()`.
 
 ## Rate limiting and `TRUST_PROXY`
 

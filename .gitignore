@@ -9,3 +9,12 @@ labmat-prototype/node_modules/
 
 # خروجی اجراهای eval-gate (شواهد و evaluation.json هر اجرا) — قابل بازتولید، commit نمی‌شود
 .claude/eval-gate/runs/
+
+# دیتابیس محلیِ SQLite. اجرای `npm test` خودش می‌سازدش (server.js هنگام
+# import، initDb() را صدا می‌زند)، پس بدون این خط هر بار یک باینریِ ۲۴ کیلوبایتی
+# در git status ظاهر می‌شود و دیر یا زود commit می‌گردد — همراهِ هر شماره‌تلفنی
+# که در جدولِ users نشسته. مسیر لنگر انداخته، طبق درسِ N14.
+/khanesh-server/database.sqlite
+/khanesh-server/database.sqlite-journal
+/khanesh-server/database.sqlite-wal
+/khanesh-server/database.sqlite-shm

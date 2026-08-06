@@ -229,8 +229,19 @@ before(async () => {
 
   await import("./server.js");
 
+  // ⚠️ server.js دیگر app.listen() را هم‌زمان با import صدا نمی‌زند؛ حالا داخلِ
+  //    initDb().then(...) است، یعنی سرور یک تیکِ ناهمگام بعد بالا می‌آید. پس
+  //    درست بعد از import هنوز serverHandle برابرِ null است و `.once` روی null
+  //    می‌ترکد (TypeError: Cannot read properties of null). اول منتظرِ ساخته‌شدنِ
+  //    خودِ هندل می‌مانیم، بعد منتظرِ listening.
+  const deadline = Date.now() + 10_000;
+  while (!serverHandle && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  if (!serverHandle) throw new Error("سرور در ۱۰ ثانیه بالا نیامد");
+
   await new Promise((resolve) => {
-    if (serverHandle?.listening) return resolve();
+    if (serverHandle.listening) return resolve();
     serverHandle.once("listening", resolve);
   });
   baseUrl = `http://127.0.0.1:${serverHandle.address().port}`;
@@ -245,6 +256,13 @@ after(async () => {
     serverHandle.closeAllConnections?.();
     await new Promise((r) => serverHandle.close(r));
   }
+  // ⚠️ server.js هنگامِ import، initDb() را صدا می‌زند و یک اتصالِ SQLite باز
+  //    می‌کند. بدونِ بستنش حلقهٔ رویداد زنده می‌ماند و فرایندِ تست هرگز خارج
+  //    نمی‌شود — یعنی `npm test` (و در نتیجه هوکِ pre-commit) هنگ می‌کند.
+  //    اندازه‌گیری‌شده: پیش از این خط، `node --test api-contract.test.js`
+  //    با exit 124 تایم‌اوت می‌خورد.
+  const { closeDb } = await import("./database.js");
+  await closeDb();
 });
 
 // ════════════════════════════════════════════════════════════
