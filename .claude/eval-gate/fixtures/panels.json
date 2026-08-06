@@ -1,0 +1,91 @@
+[
+  {
+    "id": "normal_cbc_raw_counts",
+    "why": "N3 — Iranian sheets print WBC/PLT as raw counts, not K/µL. A normal CBC must stay normal.",
+    "expect": { "urgency": "none", "no_patterns": ["unmatched_abnormal"], "abnormal_keys_empty": true },
+    "ocr": {
+      "patient": { "age": 34, "sex": "M" },
+      "tests": [
+        { "name": "WBC", "value": "7000", "unit": "/µL" },
+        { "name": "RBC", "value": "5.1", "unit": "M/µL" },
+        { "name": "Hgb", "value": "15.2", "unit": "g/dL" },
+        { "name": "HCT", "value": "45", "unit": "%" },
+        { "name": "MCV", "value": "88", "unit": "fL" },
+        { "name": "Platelet", "value": "250000", "unit": "/µL" }
+      ]
+    }
+  },
+  {
+    "id": "iron_deficiency_anemia",
+    "why": "N1 — a covered multi-test pattern must be matched by a rule, never fall through to unmatched_abnormal.",
+    "expect": { "min_findings": 1, "no_patterns": ["unmatched_abnormal"] },
+    "ocr": {
+      "patient": { "age": 29, "sex": "F" },
+      "tests": [
+        { "name": "Hgb", "value": "9.4", "unit": "g/dL" },
+        { "name": "MCV", "value": "68", "unit": "fL" },
+        { "name": "Ferritin", "value": "5", "unit": "ng/mL" },
+        { "name": "Iron", "value": "22", "unit": "µg/dL" },
+        { "name": "TIBC", "value": "460", "unit": "µg/dL" }
+      ]
+    }
+  },
+  {
+    "id": "critical_hypokalemia",
+    "why": "N12 — severity and direction are two axes. A critically LOW potassium must never be described as high.",
+    "expect": { "urgency_at_least": "this_week", "dir_of": { "K": "low" }, "forbid_text": ["هایپرکالمی"] },
+    "ocr": {
+      "patient": { "age": 61, "sex": "F" },
+      "tests": [
+        { "name": "Potassium", "value": "2.4", "unit": "mEq/L" },
+        { "name": "Sodium", "value": "138", "unit": "mEq/L" },
+        { "name": "Creatinine", "value": "0.9", "unit": "mg/dL" }
+      ]
+    }
+  },
+  {
+    "id": "hba1c_ifcc_units",
+    "why": "N3 — 48 mmol/mol is exactly the ADA diabetes threshold (6.5%); graded as a percentage it reads as 'normal'.",
+    "expect": { "conversion_for": "HBA1C", "min_findings": 1 },
+    "ocr": {
+      "patient": { "age": 52, "sex": "M" },
+      "tests": [
+        { "name": "HbA1c", "value": "48", "unit": "mmol/mol" },
+        { "name": "FBS", "value": "131", "unit": "mg/dL" }
+      ]
+    }
+  },
+  {
+    "id": "geriatric_borderline_hb",
+    "why": "N13 — the engine's age-adjusted verdict is authoritative; a borderline geriatric Hb must not be forced abnormal.",
+    "expect": { "graded_present": ["HGB"] },
+    "ocr": {
+      "patient": { "age": 78, "sex": "M" },
+      "tests": [
+        { "name": "Hemoglobin", "value": "12.3", "unit": "g/dL" },
+        { "name": "MCV", "value": "90", "unit": "fL" }
+      ]
+    }
+  },
+  {
+    "id": "reactive_serology_screen",
+    "why": "N2 — a reactive qualitative screen must reach `qual` and fire a pattern, not fall through to buildNormalResult().",
+    "expect": { "min_findings": 1 },
+    "ocr": {
+      "patient": { "age": 41, "sex": "M" },
+      "tests": [
+        { "name": "HIV Ab", "value": "Reactive" },
+        { "name": "HBs Ag", "value": "Negative" }
+      ]
+    }
+  },
+  {
+    "id": "uncovered_abnormal_safety_net",
+    "why": "The safety net itself is an invariant: an abnormal with no rule must still produce a finding, never silence.",
+    "expect": { "min_findings": 1 },
+    "ocr": {
+      "patient": { "age": 45, "sex": "M" },
+      "tests": [{ "name": "LDH", "value": "890", "unit": "U/L" }]
+    }
+  }
+]

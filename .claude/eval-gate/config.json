@@ -1,0 +1,116 @@
+{
+  "version": "1.0.0",
+  "project": "khanesh-labmate",
+  "thresholds": {
+    "trajectory_score": 70,
+    "medical_confidence": 0.8
+  },
+  "gate": {
+    "require_regression_on_failure": true,
+    "unknown_path_risk": "MEDIUM",
+    "max_risk_for_auto_merge": "MEDIUM",
+    "llm_can_only_lower": true
+  },
+  "subprojects": {
+    "khanesh-server": { "dir": "khanesh-server", "test": ["npm", "test"], "lint": null, "build": null },
+    "khanesh": { "dir": "khanesh", "test": null, "lint": ["npm", "run", "lint"], "build": ["npm", "run", "build"] }
+  },
+  "//exclude_from_static": "Vendored third-party code. CLAUDE.md's rule is to re-vendor these from source rather than hand-edit them, so a finding inside one is not actionable here — gating on it only teaches people to ignore the check.",
+  "exclude_from_static": [
+    ".agents/skills/**",
+    ".claude/skills/impeccable/**",
+    ".github/skills/**",
+    "labmat-prototype/**",
+    "**/node_modules/**",
+    "**/dist/**"
+  ],
+  "checks": {
+    "typecheck": { "blocking": true, "note": "no tsconfig in repo — degrades to node --check syntax pass over changed JS/MJS" },
+    "lint": { "blocking": true },
+    "unit_tests": { "blocking": true },
+    "integration_tests": { "blocking": true },
+    "build": { "blocking": true },
+    "dead_code": { "blocking": true, "only_newly_introduced": true },
+    "dependency_validation": { "blocking": true }
+  },
+  "risk": {
+    "HIGH": [
+      "khanesh-server/rules/**",
+      "khanesh-server/server.js",
+      "khanesh-server/labmat-agents/**",
+      "khanesh-server/.env*",
+      "khanesh/src/ResultView.jsx",
+      "khanesh/src/resultStates.js",
+      "khanesh/src/LocalPreview.jsx",
+      "**/migrations/**",
+      "**/*.sql",
+      "**/auth/**",
+      "**/*auth*.js",
+      "**/nginx*",
+      "**/Dockerfile*",
+      "**/docker-compose*",
+      ".githooks/**",
+      ".claude/eval-gate/config.json",
+      ".claude/eval-gate/lib/gate.mjs",
+      ".claude/eval-gate/lib/risk.mjs"
+    ],
+    "LOW": [
+      "**/*.md",
+      "**/*.txt",
+      "**/*.png",
+      "**/*.jpg",
+      "**/*.svg",
+      "**/*.woff2",
+      "khanesh/public/**",
+      ".claude/eval-gate/README.md",
+      ".claude/eval-gate/REGRESSIONS.md"
+    ],
+    "MEDIUM_HINT": [
+      "khanesh/src/**",
+      "khanesh-server/**",
+      "**/package.json",
+      "**/package-lock.json",
+      "khanesh/vite.config.js",
+      ".claude/**"
+    ]
+  },
+  "medical": {
+    "range_modules": [
+      "khanesh-server/rules/refs.js",
+      "khanesh-server/rules/refs_ped.js",
+      "khanesh-server/rules/ctcae.js",
+      "khanesh-server/rules/units.js",
+      "khanesh-server/rules/grade.js",
+      "khanesh-server/rules/interpret.js"
+    ],
+    "prompt_modules": [
+      "khanesh-server/rules/prompt.js",
+      "khanesh-server/server.js"
+    ],
+    "boundary_smells": [
+      { "id": "threshold_in_prompt", "scope": "string", "re": "[<>]=?\\s*\\d|\\d+\\s*(mg/dl|mg/dL|mmol|g/dL|K/µL|IU/L)", "msg": "numeric clinical threshold added to prompt text — clinical judgment must live in rules/, not in a string the model is asked to reason from" },
+      { "id": "verdict_verb_in_prompt", "scope": "string", "re": "(تشخیص بده|قضاوت کن|decide (if|whether)|judge whether|determine if .*(abnormal|normal|severe))", "msg": "prompt instructs the model to make a clinical decision — engine-boundary violation" },
+      { "id": "raw_key_template", "scope": "line", "re": "\\$\\{\\s*(e|t|row|test)\\.(test|key)\\s*\\}", "msg": "raw engine key interpolated into user-facing text — must go through faName() (N8)" }
+    ]
+  },
+  "trajectory": {
+    "penalties": {
+      "duplicate_tool_call": { "each": 3, "cap": 20 },
+      "out_of_plan_edit": { "each": 5, "cap": 30 },
+      "verbatim_retry_after_error": { "each": 4, "cap": 16 },
+      "blind_edit_no_read": { "each": 2, "cap": 12 },
+      "over_budget_call": { "each": 1, "cap": 10 },
+      "ignored_tool_error": { "each": 10, "cap": 20 }
+    },
+    "budget": { "base": 12, "per_plan_step": 6 },
+
+    "//transient": "An identical call repeated after one of THESE errors is compliance, not a failure to read the output — the tool asked for the retry. Penalising it measures the platform's uptime, not the agent's judgement.",
+    "transient_error_patterns": [
+      "temporarily unavailable",
+      "wait briefly and then try this action again",
+      "rate limit|429|529|overloaded",
+      "ECONNRESET|ETIMEDOUT|socket hang up",
+      "service unavailable|internal server error"
+    ]
+  }
+}
