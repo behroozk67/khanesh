@@ -192,13 +192,10 @@ function Hero() {
         </div>
 
         <div className="site-figure site-figure--hero">
-          <video
-            src="/lab/hero.gif.mp4"
-            autoPlay
-            loop
-            muted
-            playsInline
-            width="1024" height="1024"
+          <img
+            src="/lab/hero_ai_desk.webp"
+            alt="تصویر فوتورئال از برگه آزمایش روی میز با هولوگرام‌های هوش مصنوعی و شبکه عصبی دیجیتال"
+            width="2160" height="2160"
             className="animated-pov"
           />
         </div>
