@@ -529,3 +529,76 @@ test("T11b: بدونِ conditions درجهٔ CTCAE داده نمی‌شود (و�
   assert.ok(["mild", "moderate", "marked", "critical"].includes(hgb.level),
     `شدت باید مستقل از CTCAE بماند؛ level=${JSON.stringify(hgb.level)}`);
 });
+
+// ════════════════════════════════════════════════════════════
+// T12 — C3: تورِ coverage فقط روی اورژانس اجرا می‌شد
+//
+// پنلِ Calcium 6.2 + Albumin 2.1: موتور کلسیم را با آلبومین تصحیح
+// می‌کند و عددِ تصحیح‌شده را نقل می‌کند، ولی در must_say صریحاً
+// می‌گوید عددِ روی برگه چیست. آن یافته اورژانسی نیست، پس تا پیش از
+// این رفع هرگز بررسی نمی‌شد: مدل جملهٔ تصحیح را می‌انداخت و بیمار
+// عددی می‌خواند که روی برگه‌اش نیست. کلاسِ N5.
+//
+// مدل اینجا عمداً متنی می‌دهد که عددِ تصحیح‌شده را دارد ولی جملهٔ
+// تصحیح را ندارد — دقیقاً همان چیزی که در مشاهدهٔ زنده رخ داد. اگر
+// تور فقط عدد را تضمین کند (کاری که تضمینِ عددِ کلیدی می‌کند)، این
+// تست سبز می‌شود بی‌آنکه نقص رفع شده باشد؛ پس روی *عددِ اندازه‌گیری‌شده*
+// assert می‌کنیم، نه روی عددِ تصحیح‌شده.
+// ════════════════════════════════════════════════════════════
+const PANEL_CORRECTED_CALCIUM = {
+  patient: { age: 45, sex: "F" },
+  tests: [
+    { name: "Calcium", value: 6.2 },
+    { name: "Albumin", value: 2.1 },
+  ],
+};
+
+test("T12: عددِ تصحیح‌شده بدون توضیح به بیمار نمی‌رسد (C3)", async () => {
+  const { engineOut, patterns } = engineVerdict(PANEL_CORRECTED_CALCIUM);
+
+  // پیش‌شرط‌ها — بدونِ این‌ها تست چیزی را اثبات نمی‌کند (N15: اول ثابت کن
+  // قاعده فعال شد، بعد خروجی‌اش را اسکن کن).
+  assert.equal(engineOut.indices?.ca_correction_applied, true,
+    "پیش‌شرط: تصحیحِ کلسیم باید اعمال شده باشد");
+  const ca = patterns.findings.find((f) => f.key_number != null);
+  assert.ok(ca, "پیش‌شرط: باید یک یافتهٔ عدددار وجود داشته باشد");
+  assert.notEqual(ca.urgency, "emergency",
+    "پیش‌شرط: این یافته نباید اورژانسی باشد — وگرنه تورِ قدیمی هم می‌گرفتش و تست چیزی را قفل نمی‌کند");
+
+  const measured = String(engineOut.indices.ca_measured);   // 6.2 — روی برگه
+  const corrected = String(engineOut.indices.ca_corrected); // آنچه موتور نقل می‌کند
+
+  const { body } = await analyze(PANEL_CORRECTED_CALCIUM, modelSays({
+    text: `کلسیم خون شما ${corrected} است و پایین‌تر از حد طبیعی قرار دارد.`,
+    hasCritical: false,
+  }));
+
+  const text = allText(body);
+  assert.ok(text.includes(measured),
+    `عددِ روی برگهٔ بیمار (${measured}) در پاسخ نیست، ولی عددِ تصحیح‌شده (${corrected}) هست. ` +
+    `بیمار عددی می‌خواند که روی برگه‌اش نیست — N5/C3.`);
+});
+
+// کنترلِ منفی: تور نباید متنی را که مدل *کامل* منتقل کرده دوباره اضافه کند.
+// این همان چیزی است که N7 از آن آسیب دید — تورِ بیش‌ازحد مشتاق، متنِ تکراری.
+test("T12b: وقتی مدل جملهٔ تصحیح را آورده، تور چیزی تکرار نمی‌کند", async () => {
+  const { patterns } = engineVerdict(PANEL_CORRECTED_CALCIUM);
+  const ca = patterns.findings.find((f) => f.key_number != null);
+  assert.ok(ca?.must_say, "پیش‌شرط: یافته باید must_say داشته باشد");
+
+  const { body } = await analyze(PANEL_CORRECTED_CALCIUM, modelSays({
+    text: ca.must_say,          // مدل عیناً همه‌چیز را منتقل کرده
+    hasCritical: false,
+  }));
+
+  // ⚠️ فقط interpretation شمرده می‌شود، نه allText(body). استابِ modelSays همان
+  //    متن را در شش فیلد می‌گذارد (analysis/reasoning/diagnosis/text/summary/
+  //    interpretation)، پس شمارشِ کلِ بدنه همیشه ۶ می‌دهد و ربطی به تور ندارد.
+  //    تور *به interpretation* اضافه می‌کند، پس همان‌جا جای درستِ اندازه‌گیری است.
+  const first = String(ca.must_say).split(/(?<=[.؟!])\s/)[0].trim();
+  assert.ok(first.length > 12, "پیش‌شرط: جملهٔ اول باید به‌قدرِ کافی متمایز باشد");
+  const occurrences = String(body?.interpretation || "").split(first).length - 1;
+  assert.equal(occurrences, 1,
+    `جملهٔ اولِ must_say باید دقیقاً یک بار در interpretation باشد، بود ${occurrences} بار. ` +
+    `بیش از یک بار یعنی تور متنی را که مدل کامل منتقل کرده دوباره اضافه کرده (N7).`);
+});
