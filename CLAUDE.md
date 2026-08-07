@@ -19,9 +19,23 @@ When the user asks for a change in this repo:
    ⚠️ **"The baseline" is always two different numbers — the working tree's and the commit's.**
    A previous version of this file quoted `186 tests, 185 pass, 1 fail` as *the* baseline. That
    number was only ever true of somebody's **working tree**; the committed tree was far redder,
-   and nobody re-derived it. As of `acc9cc0` the working tree is green and the committed tree is
-   12 red, so the trap is now the other way round and just as easy to fall into. See
+   and nobody re-derived it. Then the trap ran the other way — this file carried "the committed
+   tree is 12 red" for weeks after it had stopped being true of any tree. See
    [N15](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
+
+   **Last measured — re-derive before you quote it:**
+
+   | what was measured | when | tests | pass | fail | skipped |
+   |---|---|---|---|---|---|
+   | `HEAD` at `e9d386e` (`isolated_ldh_elevation`, `M61`×5) | 2026-08-06 | 266 | 266 | **0** | — |
+   | `HEAD` at `c81019c` (the commit before it) | 2026-08-06 | 256 | 256 | **0** | — |
+
+   Both with the `git archive` + `node_modules` recipe under [Commands](#commands). The suite has
+   been green in both trees since the uncommitted clinical work landed; **that is a fact about
+   2026-08-06, not a property of the repo.**
+
+   <details>
+   <summary>Historical rows — the record that produced the warning above. Not current.</summary>
 
    | what you measured | tests | pass | fail | skipped |
    |---|---|---|---|---|
@@ -37,17 +51,24 @@ When the user asks for a change in this repo:
    | working tree, 2026-08-05 (after `M41`, `spherocytosis_likely` restored) | 194 | 194 | **0** | `patterns_anemia.js` |
    | working tree, 2026-08-06, **before** the electrolyte work (bare `node --test`) | 215 | 215 | **0** | — |
    | working tree, 2026-08-06, after it — `rules/*.test.js` + `avalaiClient.test.js` only | 238 | 238 | **0** | `patterns_anemia.js` |
-
    | working tree, 2026-08-06, after the auth/DB test-gate repair (`npm test`) | 256 | 256 | **0** | — |
+
+   The `skipped` column names `patterns_anemia.js`, a dead file `M38` exempted by name. **That
+   file was deleted in `ba144a7`** and nothing is exempt from any guard today — see
+   [Where a pattern lives](#where-a-pattern-lives).
+
+   </details>
 
    ✅ **`npm test` hung for a stretch on 2026-08-06 — fixed, and worth reading because both
    causes were invisible in the test output.** Concurrent work added `khanesh-server/auth.js` +
    `khanesh-server/database.js` and wired `requireAuth` onto the analyze routes. Three separate
    breakages, all measured, none of which named itself:
    - **401 on every contract test.** `api-contract.test.js` sends no `Authorization` header.
-     (Resolved upstream — `requireAuth` is currently short-circuited at
-     [auth.js:75-77](khanesh-server/auth.js#L75-L77). ⚠️ When auth is re-enabled, these go red
-     again unless the tests are given a token or the route is exempted.)
+     (Resolved upstream — `requireAuth` now returns the anonymous user when `AUTH_REQUIRED` is
+     unset, at [auth.js:155-157](khanesh-server/auth.js#L155-L157). It is a *flag*, not the
+     unreachable-code short-circuit an earlier version of this file described; see
+     [rules/environment.md](.claude/rules/environment.md). ⚠️ Setting `AUTH_REQUIRED=true` turns
+     these red again unless the tests are given a token or the route is exempted.)
    - **The suite never exited.** `database.js` called `open({...})` at **module scope**, so merely
      importing it opened a SQLite handle that held the event loop. `node --test
      api-contract.test.js` timed out at exit 124 — and since the pre-commit hook runs `npm test`,
@@ -102,23 +123,18 @@ When the user asks for a change in this repo:
    [Commands](#commands) — the obvious "clean checkout" recipe silently reports **20** failures
    instead of 12.
 
-   **`skipped` is a real column, not a footnote.** `patterns_anemia.js` is dead code
-   (`patterns.js` does not import it) and holds 10 destroyed Persian strings that only a human can
-   rewrite — see [N15(c)](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests).
-   Three guards treat it differently, and the difference matters:
+   ✅ **`skipped` is empty now, and the mechanism that emptied it is the part to keep.** That
+   column used to name `patterns_anemia.js` — a dead file `M38` exempted because it held 10
+   destroyed Persian strings. **The file was deleted in `ba144a7`** once every one of its rules
+   was confirmed to have a live equivalent, so the exemption went with it. No `rules/*.js` file
+   is exempt from any guard today.
 
-   | guard | covers `patterns_anemia.js`? |
-   |---|---|
-   | `M36` (`RULES` integrity) | **no** — its rules are not in `RULES` at all |
-   | `M37` assertion 1 (mojibake, every `rules/*.js`) | **yes** — and it passes; the mojibake was repaired |
-   | `M37` assertion 2 (destroyed text, live files only) | **no** |
-   | `M38` (Persian user-facing strings) | **no** — skipped, with a visible `t.diagnostic` |
-
-   So the file is *not* unguarded: its encoding is checked, its content is not. `M38` prints
-   `SKIP: patterns_anemia.js — فایل مرده، 10 رشتهٔ نابودشده، نیازمند متن انسانی` on every run, so
-   the exemption is visible in the output rather than silent. All three exemptions are derived
-   from `patterns.js`'s own `import` statements via `livePatternFiles()` — nothing is hand-listed,
-   so wiring `RULES_ANEMIA` into `RULES` turns all three red at once, which is correct.
+   The reason it was safe to carry that exemption for as long as it lasted still applies to the
+   next one: the "live" file list is **derived** from `patterns.js`'s own `import` statements via
+   `livePatternFiles()` in `engine.test.js`, never hand-maintained. So a file cannot be quietly
+   exempted by editing a list, and adding a file to `patterns.js` subjects it to every guard in
+   the same commit. If you ever need an exemption again, make it visible in the output the way
+   that one was (a `t.diagnostic` on every run) — a silent exemption is the N15 class.
 
    `T10` («دربارهٔ تستِ اندازه‌گیری‌نشده ادعای «طبیعی» نمی‌کند») was the N4 contract failure
    present in every column up to `c093712`. It was fixed in `2f964df` (`stripUnmeasuredClaims` in
@@ -215,7 +231,7 @@ khanesh-project/
 │   │   ├── ctcae.js             # CTCAE v5 severity grading
 │   │   ├── interpret.js         # categorical classifiers (e.g. MCV micro/normo/macro)
 │   │   ├── patterns.js          # ⭐ now an AGGREGATOR — see "Where a pattern lives" below
-│   │   ├── patterns_anemia.js / _hematology.js / _biochem.js / _biochem_new.js
+│   │   ├── patterns_hematology.js / _biochem.js / _biochem_new.js
 │   │   ├── patterns_nephrology.js / _nephrology_new.js / _infectious.js
 │   │   ├── patterns_endocrine_rheum.js / _endocrine_new.js / _malignancy.js
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
@@ -296,46 +312,33 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports ten `patterns_*.js` files and concatenates
-them into the exported `RULES` array; it still owns `runPatterns()`, `SUGGEST_TESTS`, and the
-suppression/dedup logic. So:
+`patterns.js` no longer holds the rules. It imports **nine** `patterns_<system>.js` files and
+concatenates their `RULES_*` exports into the exported `RULES` array; it still owns
+`runPatterns()`, `SUGGEST_TESTS`, and the suppression/dedup logic. So:
 
 - **Adding a clinical rule** → the right `patterns_<system>.js`, then confirm its `RULES_*` export
   is spread into `RULES` in `patterns.js`. A rule in a file that isn't imported is invisible and
   fails exactly like N1 — silently, into `unmatched_abnormal`.
 - **Changing how rules are selected, ranked, or suppressed** → `patterns.js` itself.
 
-⚠️ **`patterns_anemia.js` is dead code — nothing imports it.** It exports `RULES_ANEMIA`
-(10 rules: `anemia_microcytic_ida`, `anemia_microcytic_thalassemia`, `anemia_hemolytic`,
-`anemia_macrocytic_megaloblastic`, …) and no file in the repo imports it. `patterns.js` also
-declares `LEGACY_ANEMIA_IDS` and never reads it. The intent is legible — `LEGACY_ANEMIA_IDS`
-lists exactly the six older anemia rules (`microcytic_anemia`, `macrocytic_anemia`,
-`normocytic_anemia`, `iron_deficiency_panel`, `anemia_chronic_disease`, `hemolysis_pattern`),
-so `patterns_anemia.js` was meant to replace them and the last two lines of that migration were
-never written. **The anemia rules that actually run live in `patterns_hematology.js`.**
+**The anemia rules that run live in `patterns_hematology.js`.** There is exactly one place; this
+sentence used to need a paragraph of caveats after it.
 
-So: editing `patterns_anemia.js` changes nothing a patient sees, and it is currently a modified
-file in the working tree. Before touching anemia, decide which of the two you're in, and if you
-finish the migration, do it as its own change — the two rule sets overlap, and spreading
-`RULES_ANEMIA` into `RULES` without suppressing `LEGACY_ANEMIA_IDS` fires both.
+✅ **The `patterns_anemia.js` migration is over — the file was deleted in `ba144a7`.** It is
+recorded here because a long stretch of this file, and of the Lab Notebook, is about it, and
+because the way it ended is the reusable part. For ~a month the repo held a tenth `patterns_*.js`
+that **nothing imported**: 10 anemia rules meant to replace six older ones, a `LEGACY_ANEMIA_IDS`
+suppression list that was declared and never read, two rules whose Persian was destroyed beyond
+recovery (`?`, not mojibake — see
+[N15(c)](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests)), and one
+duplicate id. Being dead is why none of that was ever caught by a test.
 
-⚠️ **That file is also damaged, and being dead is why nobody noticed** (2026-08-04, see
-[N15(c)](#n15--a-green-suite-proves-nothing-when-the-damage-is-invisible-to-the-tests)). Its
-mojibake has been recovered and it now scans clean, but wiring `RULES_ANEMIA` into `RULES` has
-**three hard prerequisites**, each of which currently turns the suite red:
-
-1. **8 Persian strings are literal `?` and unrecoverable.** `anemia_macrocytic_mds` and
-   `anemia_spherocytosis` exist only in the working tree, and their
-   `headline`/`must_say`/`action`/`suggest` text is *gone, not garbled* — a lossy single-byte save,
-   not the reversible cp1252 round-trip. A human writes that clinical text. `M37`'s second
-   assertion enforces it. Don't fill them in by paraphrasing the rule id; that is inventing
-   clinical content, and it is the one thing this architecture exists to prevent.
-2. **`anemia_macrocytic_mds` is a duplicate id.** The same id is already live in
-   `patterns_hematology.js`, and the `patterns_anemia.js` copy is a byte-for-byte clone of its
-   `match`/`build` with the text destroyed — it carries no new clinical logic. Spreading both
-   fires `M36`'s duplicate-id assertion. Delete one; the live one is the one with readable text.
-3. **`LEGACY_ANEMIA_IDS` must actually be applied**, per the paragraph above, or the old and new
-   anemia rules both fire.
+It was not finished — it was **cancelled**, after each of its rules was checked against the live
+engine and found to have an equivalent already running. That is the right way out of a
+half-migration: the alternative on offer was to author replacement clinical text for two rules
+whose meaning existed only in their ids, which is exactly the invention this architecture forbids.
+**A migration nobody can finish is deleted, not carried.** If you are about to add a
+`_new`-suffixed rules file, decide up front what deletes the old one, and in which commit.
 
 ✅ **Spherocytosis coverage was missing from the working tree's live engine; it is back.**
 (Resolved 2026-08-05 — recorded because the *shape* of the gap is the reusable part.) The committed
@@ -345,8 +348,10 @@ files. No test noticed, because a *deleted* rule breaks nothing structurally and
 strings that still exist. **Measured, not assumed**: running `M41`'s panel with the rule filtered
 out of `RULES` fires `normocytic_anemia` and nothing else — so the patient got a finding, just not
 *this* one, and lost the actual next step (peripheral blood smear). That is the N2 class, and it is
-worse than silence precisely because the output still looks complete. Its intended replacement, `anemia_spherocytosis`, was (and still is) stranded in
-the dead `patterns_anemia.js` with destroyed text, so it could not stand in.
+worse than silence precisely because the output still looks complete. Its intended replacement,
+`anemia_spherocytosis`, was stranded in the dead `patterns_anemia.js` with destroyed text, so it
+could not stand in — and that file has since been deleted (`ba144a7`), so `spherocytosis_likely`
+in `patterns_hematology.js` is now the only version there is.
 
 The fix was the smaller one: port the rule back into
 [patterns_hematology.js:514](khanesh-server/rules/patterns_hematology.js#L514) with the HEAD
@@ -998,6 +1003,11 @@ look. Neither showed up as an error. One of them made the suite *greener*.
   clinical text into a `must_say` is precisely the thing this architecture forbids. They are
   harmless today because the file is dead, and `M37`'s second assertion is wired so that importing
   `RULES_ANEMIA` into `RULES` turns the suite red until that text is rewritten by a human.
+  ✅ **Resolved by deletion, `ba144a7`.** The text was never rewritten and never needed to be: each
+  of the file's rules was checked against the live engine, found to have an equivalent already
+  running, and the file was removed. `M37`'s guard stands unchanged for the next such file. **The
+  floor under recovery is real, and the way past it is to delete, not to author** — see
+  [Where a pattern lives](#where-a-pattern-lives).
 - **Rule:** a mechanical repair is only complete over the set you *enumerated*, not the set you
   meant. After a bulk fix, re-run the detector over the **whole** directory — including files
   nothing imports — because "no test covers it" is the reason damage survives there, not a reason

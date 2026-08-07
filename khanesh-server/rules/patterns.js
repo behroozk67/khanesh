@@ -14,16 +14,10 @@ import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
 
-const LEGACY_ANEMIA_IDS = [
-  "macrocytic_anemia",
-  "microcytic_anemia",
-  "microcytic_thal_likely",
-  "microcytic_ida_likely",
-  "normocytic_anemia",
-  "iron_deficiency_panel",
-  "anemia_chronic_disease",
-  "hemolysis_pattern",
-];
+// حذف‌شده: LEGACY_ANEMIA_IDS — فهرستِ سرکوبِ مهاجرتی که در ba144a7 لغو شد.
+// هرگز خوانده نمی‌شد؛ patterns_anemia.js که قرار بود جایگزینِ این هشت قاعده شود
+// حذف شد چون هر کدامشان معادلِ زنده داشتند. نگه‌داشتنِ فهرست یعنی یک مهاجرتِ
+// نیمه‌کاره را زنده جلوه دادن. هشت شناسه در تاریخچهٔ گیت‌اند اگر لازم شد.
 
 export const RULES = [
   ...RULES_INFECTIOUS,
