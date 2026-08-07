@@ -54,6 +54,7 @@ When the user asks for a change in this repo:
    | working tree, 2026-08-06, after the auth/DB test-gate repair (`npm test`) | 256 | 256 | **0** | — |
    | working tree, 2026-08-07, **before** the mineral/bone work (`npm test`) | 266 | 266 | **0** | — |
    | working tree, 2026-08-07, after it — `patterns_mineral_bone.js` + 17 tests (`npm test`) | 285 | 285 | **0** | — |
+   | working tree, 2026-08-07, after P30+P31 (ped phosphate, magnesium) | 289 | 289 | **0** | — |
 
    ⚠️ **266 → 285 is 19, not 17, and the extra two are not tests anyone wrote.** `M37` and `M38`
    derive their file list from `patterns.js`'s own `import` statements (`livePatternFiles()`), so
