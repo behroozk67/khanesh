@@ -3820,3 +3820,207 @@ test("M59c: B12 برابر ۱۸۰ همچنان مالِ قاعدهٔ مرزی ا
   assert.ok(fired.includes("borderline_b12_deficiency"), `فعال‌شده‌ها: ${fired.join("، ")}`);
   assert.ok(!fired.includes("overt_b12_deficiency"), `نباید فعال می‌شد؛ ${fired.join("، ")}`);
 });
+
+// ============================================================
+// M60 — بازهٔ مرجع LDH (P24). تصمیمِ بازبینِ بالینیِ پروژه، ۲۰۲۶-۰۸-۰۶.
+// بود [235,470] در بالغ و [400,900] در کودک. آن بازه دو خطای *متضاد* داشت،
+// و هر دو اندازه‌گیری شدند نه استدلال:
+//   • LDH=۳۰۰ در بالغ «طبیعی» گرفته می‌شد — سکوت روی عددی که بالاست، و
+//     LDH قوی‌ترین نشانگرِ hemolysis_pattern است.
+//   • LDH=۱۸۰ در بالغ «پایین» علامت می‌خورد — ترساندن بابتِ عددِ طبیعی.
+// این تست‌ها روی کدِ پیش از اصلاح قرمز می‌شوند (N10).
+// ============================================================
+test("M60: LDH=۳۰۰ در بالغ بالاست و LDH=۱۸۰ طبیعی", () => {
+  const g = (v) => {
+    const e = runEngine({
+      patient: { age: "45", sex: "M" },
+      tests: [{ name: "LDH", value: String(v) }],
+    });
+    return e.graded.find((x) => x.test === "LDH");
+  };
+  const high = g(300);
+  assert.equal(high.abnormal, true, "LDH=۳۰۰ نباید طبیعی گرفته شود");
+  assert.equal(high.dir, "high");
+
+  const norm = g(180);
+  assert.equal(norm.abnormal, false, "LDH=۱۸۰ طبیعی است و نباید «پایین» علامت بخورد");
+});
+
+// M60b — همان عدد نباید در ۱۵ سالگی و ۱۶ سالگی دو حکمِ متضاد بگیرد.
+// پیش از اصلاح: کودکِ ۱۰ ساله با LDH=۳۰۰ «پایین» می‌شد، در حالی که بالغ با
+// همان عدد «بالا» می‌شود. جدولِ اطفال با همان خانوادهٔ سنجش هم‌راستا شد.
+test("M60b: بازهٔ اطفال (۱ تا ۱۵ سال) با بازهٔ بالغ هم‌خانواده است", () => {
+  const g = (age, v) => {
+    const e = runEngine({
+      patient: { age: String(age), sex: "M" },
+      tests: [{ name: "LDH", value: String(v) }],
+    });
+    return e.graded.find((x) => x.test === "LDH");
+  };
+  assert.equal(g(10, 300).abnormal, false, "کودکِ ۱۰ ساله با LDH=۳۰۰ طبیعی است");
+  const hi = g(10, 500);
+  assert.equal(hi.abnormal, true, "کودکِ ۱۰ ساله با LDH=۵۰۰ بالاست");
+  assert.equal(hi.dir, "high");
+});
+
+// M60c — زیرِ ۱ سال عمداً درجه‌بندی نمی‌شود (تصمیمِ بازبین: نوزاد و شیرخوار
+// در موتور اعمال نشوند). این تست آن *تصمیم* را قفل می‌کند، نه یک عددِ بالینی:
+// اگر کسی روزی ردیفِ اطفال را تا زیرِ یک‌سالگی گسترش دهد، اینجا قرمز می‌شود و
+// مجبور است دربارهٔ آن گروه صریحاً تصمیم بگیرد.
+test("M60c: زیرِ یک سال با بازهٔ کودک سنجیده نمی‌شود", () => {
+  const e = runEngine({
+    patient: { age: "0.5", sex: "M" },
+    tests: [{ name: "LDH", value: "300" }],
+  });
+  const g = e.graded.find((x) => x.test === "LDH");
+  assert.equal(g.abnormal, false, "شیرخوار نباید با بازهٔ ۱۴۰–۳۷۰ «پایین/بالا» شود");
+  assert.ok(
+    !/^140/.test(String(g.range)),
+    `بازهٔ کودک به شیرخوار نشت کرده: ${g.range}`,
+  );
+});
+
+// M60d — پیامدِ بالینیِ اصلاح، نه فقط عدد. تلهٔ عضله (LDH بالا + CK/AST بالا +
+// هاپتوگلوبینِ طبیعی) شاخهٔ ldh_muscle_not_hemolysis را دارد که به بیمار
+// می‌گوید این الگو به عضله می‌خورد نه به شکستنِ گلبول قرمز. با بازهٔ قدیمی
+// LDH=۳۰۰ طبیعی بود، پس ldhHigh غلط می‌شد و این شاخه *اصلاً دست‌نیافتنی* بود.
+test("M60d: تلهٔ عضله با LDH=۳۰۰ قابل‌دسترس می‌شود", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "LDH", value: "300" }, { name: "CK", value: "900" },
+      { name: "AST", value: "80" }, { name: "ALT", value: "30" },
+      { name: "Haptoglobin", value: "150" },
+    ],
+  });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.rule_id === "hemolysis_pattern");
+  assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.rule_id).join("، ") || "هیچ"}`);
+  assert.equal(f.pattern, "ldh_muscle_not_hemolysis", "باید شاخهٔ عضله باشد، نه همولیز");
+});
+
+// M60e — کنترلِ منفی. پایین آوردنِ سقفِ LDH یک نشانگرِ همولیز را روی سهم
+// بزرگ‌تری از برگه‌ها روشن می‌کند؛ این تست تضمین می‌کند که به‌تنهایی کافی نیست.
+// پنلِ ژیلبرِ کلاسیک (بیلی‌روبینِ غیرمستقیمِ خفیف، آنزیم و هموگلوبینِ طبیعی)
+// نباید ادعای همولیز بسازد — ادعای همولیز روی یک ویژگیِ ارثیِ بی‌خطر،
+// دقیقاً همان ترساندنی است که این معماری برای جلوگیری از آن هست.
+test("M60e: LDHِ بالا به‌تنهایی ادعای همولیز نمی‌سازد", () => {
+  const e = runEngine({
+    patient: { age: "45", sex: "M" },
+    tests: [
+      { name: "LDH", value: "260" }, { name: "Total bilirubin", value: "2.2" },
+      { name: "Direct bilirubin", value: "0.3" }, { name: "Hemoglobin", value: "15" },
+      { name: "ALT", value: "20" }, { name: "AST", value: "22" },
+    ],
+  });
+  const fired = runPatterns(e).findings.map((f) => f.rule_id);
+  assert.ok(
+    !fired.includes("hemolysis_pattern"),
+    `نباید همولیز ادعا شود؛ فعال‌شده‌ها: ${fired.join("، ")}`,
+  );
+  assert.ok(fired.includes("bilirubin_pattern"), `فعال‌شده‌ها: ${fired.join("، ")}`);
+});
+
+// ============================================================
+// M61 — قاعدهٔ «LDHِ بالای منفرد» (isolated_ldh_elevation).
+//
+// شکافی که اصلاحِ P24 باز کرد: با پایین آمدنِ سقفِ LDH از ۴۷۰ به ۲۵۰،
+// «LDHِ بالا با CBCِ طبیعی» از حالتی کمیاب به حالتی شایع تبدیل شد و هیچ
+// قاعده‌ای مالکش نبود — پنلِ سالم با LDH=۳۰۰ فقط unmatched_abnormal می‌گرفت،
+// یعنی «برای این ترکیب توضیح آماده‌ای نداریم».
+//
+// مسیرِ بازتابی از منابعِ ثبت‌شده در P24 (Merck Manual Professional،
+// ARUP Consult): هاپتوگلوبین + رتیکولوسیت + بیلی‌روبینِ غیرمستقیم، و اسمیرِ
+// خونِ محیطی *پس از* تأیید. این تست‌ها روی کدِ پیش از قاعده قرمز می‌شوند (N10).
+// ============================================================
+const LDH_HEALTHY = [
+  { name: "Hemoglobin", value: "14.5" }, { name: "WBC", value: "6.5" },
+  { name: "PLT", value: "250" }, { name: "Creatinine", value: "0.9" },
+];
+const ldhRun = (tests, patient) =>
+  runPatterns(runEngine({ patient: patient ?? { age: "45", sex: "M" }, tests }));
+
+test("M61: LDHِ بالای منفرد دیگر به «توضیح آماده نداریم» نمی‌افتد", () => {
+  const r = ldhRun([...LDH_HEALTHY, { name: "LDH", value: "300" }]);
+  const ids = r.findings.map((f) => f.rule_id);
+  assert.ok(ids.includes("isolated_ldh_elevation"), `فعال‌شده‌ها: ${ids.join("، ") || "هیچ"}`);
+  assert.ok(!ids.includes("unmatched_abnormal"), `تورِ عمومی نباید بماند؛ ${ids.join("، ")}`);
+  assert.ok(!ids.includes("unexplained_abnormal"), `LDH نباید بی‌اشاره بماند؛ ${ids.join("، ")}`);
+});
+
+test("M61b: متن، مسیرِ بازتابیِ منبع را به همان ترتیب می‌گوید", () => {
+  const f = ldhRun([...LDH_HEALTHY, { name: "LDH", value: "300" }])
+    .findings.find((x) => x.rule_id === "isolated_ldh_elevation");
+  const say = f.must_say;
+  // ۱) غیراختصاصی‌بودنِ LDH — نکتهٔ صریحِ منبع. بدونِ آن، «LDH بالا» در ذهنِ
+  //    بیمار مساوی همولیز می‌شود.
+  for (const w of ["عضلان", "کبد", "کلیه", "بدخیمی", "همولیز"]) {
+    assert.ok(say.includes(w), `علتِ «${w}» در متن نیست`);
+  }
+  // ۲) هر سه آزمایشِ بازتابی نام برده شده‌اند.
+  for (const w of ["هاپتوگلوبین", "رتیکولوسیت", "بیلی‌روبینِ غیرمستقیم"]) {
+    assert.ok(say.includes(w), `آزمایشِ «${w}» در متن نیست`);
+  }
+  // ۳) ⚠️ ترتیب، نه فقط حضور: اسمیر باید *بعد* از تأیید بیاید. اگر روزی کسی
+  //    اسمیر را به suggest اضافه کند، این تست هم باید بازبینی شود — نه دور زده.
+  assert.ok(/اسمیر/.test(say) && /پس از/.test(say), "شرطِ «اسمیر پس از تأیید» در متن نیست");
+  assert.ok(
+    !f.suggest.some((s) => /اسمیر|گسترش/.test(s)),
+    `اسمیر نباید در این مرحله درخواست شود: ${JSON.stringify(f.suggest)}`,
+  );
+});
+
+test("M61c: سه‌شاخهٔ «هست / نیست» — نه ادعای طبیعی‌بودنِ تستِ نداده", () => {
+  // هیچ‌کدام روی برگه نیست → هر سه درخواست می‌شوند و هیچ‌جا نمی‌گوید طبیعی‌اند.
+  const none = ldhRun([...LDH_HEALTHY, { name: "LDH", value: "300" }])
+    .findings.find((x) => x.rule_id === "isolated_ldh_elevation");
+  assert.equal(none.suggest.length, 3, `باید هر سه درخواست شوند: ${JSON.stringify(none.suggest)}`);
+  assert.ok(
+    !/هاپتوگلوبینِ شما طبیعی/.test(none.must_say),
+    "دربارهٔ تستی که روی برگه نیست ادعای «طبیعی» شد — N4",
+  );
+
+  // هر سه روی برگه و طبیعی → هیچ‌کدام دوباره «درخواست» نمی‌شود (N8).
+  const all = ldhRun([
+    ...LDH_HEALTHY, { name: "LDH", value: "300" },
+    { name: "Haptoglobin", value: "150" }, { name: "Retic", value: "1.0" },
+    { name: "Total bilirubin", value: "0.8" }, { name: "Direct bilirubin", value: "0.2" },
+  ]).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
+  assert.equal(all.suggest.length, 0, `تستِ اندازه‌گیری‌شده نباید درخواست شود: ${JSON.stringify(all.suggest)}`);
+  // و چون بیلی‌روبینِ غیرمستقیم از کسر به دست آمده، متن باید همین را بگوید — N5.
+  assert.ok(/چاپ نشده/.test(all.must_say), "عددِ مشتق‌شده باید صریحاً «چاپ‌نشده» معرفی شود");
+});
+
+test("M61d: هاپتوگلوبینِ طبیعی، «همولیز رد شد» ترجمه نمی‌شود", () => {
+  // ⚠️ نکتهٔ صریحِ منبع: هاپتوگلوبین پروتئینِ فازِ حاد است و در عفونت/التهاب
+  //    بالا می‌رود، پس می‌تواند افتِ ناشی از همولیزِ واقعی را بپوشاند. نبودنِ
+  //    این جمله یعنی «طبیعی» به «رد شد» ترجمه می‌شود — همان کلاسِ N4.
+  const f = ldhRun([
+    ...LDH_HEALTHY, { name: "LDH", value: "300" }, { name: "Haptoglobin", value: "150" },
+  ]).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
+  assert.ok(/رد نمی‌کند/.test(f.must_say), `قید نبود: ${f.must_say}`);
+});
+
+test("M61e: کنترلِ منفی — هرگز هم‌زمان با قاعدهٔ همولیز فعال نمی‌شود", () => {
+  // همولیزِ واقعی: هاپتوگلوبینِ پایین + رتیکولوسیتِ بالا + LDHِ بالا.
+  const real = ldhRun([
+    { name: "Hemoglobin", value: "9" }, { name: "MCV", value: "90" },
+    { name: "LDH", value: "400" }, { name: "Haptoglobin", value: "20" }, { name: "Retic", value: "8" },
+  ]).findings.map((x) => x.rule_id);
+  assert.ok(real.includes("hemolysis_pattern"), `فعال‌شده‌ها: ${real.join("، ")}`);
+  assert.ok(!real.includes("isolated_ldh_elevation"), `دو متن دربارهٔ یک عدد: ${real.join("، ")}`);
+
+  // تلهٔ عضله: شاخهٔ ldh_muscle_not_hemolysis هم مالِ همان قاعده است.
+  const muscle = ldhRun([
+    { name: "LDH", value: "300" }, { name: "CK", value: "900" },
+    { name: "AST", value: "80" }, { name: "ALT", value: "30" }, { name: "Haptoglobin", value: "150" },
+  ]).findings.map((x) => x.rule_id);
+  assert.ok(muscle.includes("hemolysis_pattern"), `فعال‌شده‌ها: ${muscle.join("، ")}`);
+  assert.ok(!muscle.includes("isolated_ldh_elevation"), `دو متن دربارهٔ یک عدد: ${muscle.join("، ")}`);
+
+  // و جهت: LDHِ پایین یا طبیعی این قاعده را فعال نمی‌کند (N12 — جهت از dir).
+  for (const v of ["60", "180"]) {
+    const ids = ldhRun([...LDH_HEALTHY, { name: "LDH", value: v }]).findings.map((x) => x.rule_id);
+    assert.ok(!ids.includes("isolated_ldh_elevation"), `LDH=${v} نباید این قاعده را فعال کند؛ ${ids.join("، ")}`);
+  }
+});

@@ -185,6 +185,16 @@ export const GUIDELINES = {
     scope: 'مکانیسمِ ساده‌شدهٔ یافته‌های آزمایشگاهی',
   },
 
+  ARUP_CONSULT: {
+    org: 'ARUP Consult',
+    fa: 'ARUP Consult (راهنمای انتخاب آزمایش)',
+    title: 'ARUP Consult — laboratory test selection & reflex algorithms',
+    year: 2026,
+    url: 'https://arupconsult.com/',
+    access: 'open',
+    scope: 'ترتیبِ آزمایش‌های بازتابی — کدام تست اول، کدام پس از تأیید',
+  },
+
   UPTODATE: {
     org: 'UpToDate',
     fa: 'آپ‌تودیت',

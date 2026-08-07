@@ -87,7 +87,11 @@ export const PREANALYTICAL_RULES = [
 
   {
     id: 'hemolysis_ldh_ast',
-    attachTo: ['hemolysis_pattern', 'liver_pattern'],
+    // isolated_ldh_elevation از ۲۰۲۶-۰۸-۰۶ اضافه شد: پس از اصلاحِ بازهٔ LDH
+    // (P24) الگوی «LDH+AST بالا با ALTِ طبیعی» بیشتر به آن قاعده می‌رسد تا به
+    // hemolysis_pattern، و بدونِ این سطر هشدارِ «شاید نمونه در لوله همولیز
+    // شده» به هیچ یافتهٔ نمایش‌داده‌شده‌ای نمی‌چسبید.
+    attachTo: ['hemolysis_pattern', 'liver_pattern', 'isolated_ldh_elevation'],
     // LDH و AST هر دو در گلبولِ قرمز غلیظ‌اند و حتی با همولیزِ نامرئی بالا
     // می‌روند؛ ALT بسیار کمتر. پس «LDH+AST بالا با ALTِ طبیعی» می‌تواند
     // همولیزِ داخلِ لوله باشد، نه بیماریِ کبد.
