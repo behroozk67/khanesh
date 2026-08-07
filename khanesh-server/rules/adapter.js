@@ -75,6 +75,25 @@ const NAME_MAP = {
   ca: "CA", calcium: "CA", کلسیم: "CA",
   mg: "MG", magnesium: "MG",
   phos: "PHOS", phosphorus: "PHOS", p: "PHOS",
+  // ── هورمون پاراتیروئید ──
+  // ⚠️ فقط PTHِ *سرم*. «PTH-rP» (پپتیدِ مرتبط، نشانگرِ هایپرکلسمیِ بدخیمی)
+  //    عمداً نگاشت نمی‌شود: بازهٔ مرجعش pmol/L است و کاملاً متفاوت، و در جدولِ
+  //    ۱۶.۲ دقیقاً همان ستونی است که PTH را از PTH-rP جدا می‌کند. نگاشتِ اشتباه
+  //    یعنی هایپرکلسمیِ بدخیمی «پرکاریِ پاراتیروئید» خوانده شود.
+  pth: "PTH", parathyroidhormone: "PTH", intactpth: "PTH", ipth: "PTH",
+  pthintact: "PTH", parathormone: "PTH", parathyrin: "PTH",
+  "pth-intact": "PTH", pthi: "PTH",
+  پاراتورمون: "PTH", هورمونپاراتیروئید: "PTH", پاراتیروئید: "PTH",
+  // ── کلسیم ادرارِ ۲۴ ساعته ──
+  // ⚠️ «calcium» تنها به CA (سرم) می‌رود؛ فقط نام‌هایی که صریحاً ادرار را
+  //    نام می‌برند اینجا می‌آیند. بدونِ این قید، کلسیمِ سرمِ ۹.۵ به‌عنوان
+  //    کلسیمِ ادرارِ «خیلی پایین» خوانده می‌شد و FHH جعل می‌کرد — دو بازه
+  //    (۸.۸–۱۰.۳ و ۱۰۰–۳۰۰) هیچ همپوشانی ندارند، پس خطا خاموش نمی‌ماند
+  //    ولی جهتش خطرناک است.
+  urinecalcium: "U_CA", urinarycalcium: "U_CA", calciumurine: "U_CA",
+  "24hurinecalcium": "U_CA", "24hrurinecalcium": "U_CA",
+  urinecalcium24h: "U_CA", calcium24hurine: "U_CA", ucalcium: "U_CA",
+  کلسیمادرار: "U_CA", کلسیمادرار۲۴ساعته: "U_CA", دفعکلسیمادرار: "U_CA",
   ast: "AST", sgot: "AST", astsgot: "AST",
   alt: "ALT", sgpt: "ALT", altsgpt: "ALT",
   alkp: "ALP", alp: "ALP", alkalinephosphatase: "ALP",
@@ -758,10 +777,20 @@ export function runEngine(ocr) {
   // ═══ تصحیح‌های مشتق (پیش از درجه‌بندی، تا CTCAE و الگوها روی مقدار درست کار کنند) ═══
   const derived = {};
 
-  // R1 — کلسیم تصحیح‌شده با آلبومین: Ca_corr = Ca + 0.8×(4.0 − Alb[g/dL]).
+  // R1 — کلسیم تصحیح‌شده با آلبومین: Ca_corr = Ca + 0.8×(4.4 − Alb[g/dL]).
   //   در هیپوآلبومینمی کلسیم توتال کاذب پایین می‌شود؛ CTCAE هم کلسیم تصحیح‌شده می‌خواهد.
+  //
+  // 🔴 ۲۰۲۶-۰۸-۰۶: آلبومینِ مرجع از ۴.۰ به ۴.۴ رفت. این همان معادلهٔ ۱۶.۱ در
+  //    Henry فصل ۱۶ است و متن صریح است: «آلبومینی حدودِ ۴.۴ معمولاً به‌عنوان
+  //    مقدارِ نرمال در فرمولِ بالا به کار می‌رود.» عددِ ۴.۰ منبعِ ثبت‌شده‌ای
+  //    در این مخزن نداشت.
+  //    اثرِ اندازه‌گیری‌شده: تصحیح ۰.۳۲ mg/dL بیشتر می‌شود (۰.۸ × ۰.۴). جهتش
+  //    مهم است — موتور تا امروز *کم‌تصحیح* می‌کرد، یعنی در هیپوآلبومینمی
+  //    هایپوکلسمی را بزرگ‌تر از واقع و هایپرکلسمی را کوچک‌تر از واقع نشان می‌داد.
+  //    نمونهٔ تستِ engine.test.js (Ca 8.0 + Alb 2.0): ۹.۶ → ۹.۹.
+  const CA_CORR_NORMAL_ALB = 4.4;
   if (tests.CA != null && tests.ALB != null) {
-    const caCorr = +(tests.CA + 0.8 * (4.0 - tests.ALB)).toFixed(1);
+    const caCorr = +(tests.CA + 0.8 * (CA_CORR_NORMAL_ALB - tests.ALB)).toFixed(1);
     derived.ca_measured = tests.CA;
     derived.ca_corrected = caCorr;
     if (Math.abs(caCorr - tests.CA) >= 0.3) {

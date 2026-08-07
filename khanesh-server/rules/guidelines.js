@@ -280,6 +280,17 @@ export const GUIDELINES = {
     access: 'open',
     scope: 'کمبود <۲۰، ناکافی ۲۱–۲۹، کافی ≥۳۰ ng/mL',
   },
+
+  HENRY_MINERAL: {
+    org: "Henry's Clinical Diagnosis",
+    fa: 'هنری — تشخیص بالینی و مدیریت با روش‌های آزمایشگاهی',
+    title: 'Biochemical Markers of Bone Metabolism (فصل ۱۶)',
+    year: 2022,
+    url: 'https://www.elsevier.com/books/henrys-clinical-diagnosis-and-management-by-laboratory-methods/mcpherson/978-0-323-67320-4',
+    access: 'open',
+    scope:
+      'محدوده‌های کلسیم/فسفر/PTH/کلسیم ادرار، و تفکیک علل هایپر و هایپوکلسمی بر پایهٔ PTH (جدول‌های ۱۶.۱ و ۱۶.۲)',
+  },
 };
 
 /** یک شناسهٔ منبع → رکورد. شناسهٔ ناشناس → null (نه پرتاب خطا؛ متن نباید بشکند). */

@@ -2,6 +2,7 @@ import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, wh
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
+import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 
 /**
  * پیش‌شرطِ الگوی زنجیره‌ایِ منیزیم: منیزیمِ پایین به‌همراه پتاسیم یا کلسیمِ پایین.
@@ -529,16 +530,33 @@ export const RULES_BIOCHEM = [
   //    حالا هر کلسیمِ غیرطبیعی پوشش دارد، با فوریتِ متناسبِ گرید CTCAE.
   {
     id: "calcium_abnormal",
+    // ⚠️ انحصار با محورِ کلسیم/PTH (patterns_mineral_bone.js) — با یک استثنا.
+    //
+    //    وقتی PTH روی برگه باشد، محور همان کلسیم را با علتش توضیح می‌دهد و
+    //    این قاعده باید کنار برود، وگرنه بیمار دو یافتهٔ کلسیمی می‌گیرد که
+    //    یکی‌شان کم‌اطلاع‌تر است و پیام را رقیق می‌کند.
+    //
+    // 🔴 استثنا، و دلیلش: این قاعده تنها جایی است که کلسیمِ بحرانی
+    //    (≥۱۴ یا ≤۶.۵) را به اورژانس می‌برد و blocks_others می‌گذارد.
+    //    اگر محور بی‌قید آن را خاموش می‌کرد، بیمارِ Ca=۱۵ با PTH بالا
+    //    یافتهٔ «این هفته با پزشک وقت بگیرید» می‌گرفت به‌جای «همین حالا
+    //    به اورژانس». آن جابه‌جایی، خودِ چیزی است که تورهای ایمنی برای
+    //    جلوگیری از آن نوشته شده‌اند. پس در حالت بحرانی هر دو فعال می‌شوند
+    //    و blocks_othersِ همین قاعده ترتیب را درست می‌کند.
     match: (e) => {
       const ca = e.graded.find((g) => g.test === "CA");
-      return ca?.abnormal === true;
+      if (ca?.abnormal !== true) return false;
+      return mineralAxis(e) === null || caCritical(e);
     },
     build: (e) => {
       const ca = e.graded.find((g) => g.test === "CA");
       const v = ca.value;
       const high = ca.dir === "high";
       const grade = levelGrade(ca);
-      const critical = v >= 14 || v <= 6.5;      // نیاز به اورژانس
+      // ⚠️ از caCritical می‌آید، نه inline. عدد دو مصرف‌کننده دارد (اینجا و
+      //    شرطِ انحصارِ match بالا)؛ دو نسخهٔ جدا یعنی اولین ویرایشِ بعدی
+      //    یکی را عوض کند و دیگری را نه — و آن حالت، سکوتِ اورژانس است.
+      const critical = caCritical(e);            // ≥۱۴ یا ≤۶.۵ → نیاز به اورژانس
       const corrNote = e.indices.ca_correction_applied
         ? ` (این مقدار با آلبومین تصحیح شده؛ اندازه‌گیری‌شده روی برگه ${e.indices.ca_measured}.)`
         : "";

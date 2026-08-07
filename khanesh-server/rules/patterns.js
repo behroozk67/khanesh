@@ -8,6 +8,7 @@ import { RULES_BIOCHEM_NEW } from "./patterns_biochem_new.js";
 import { RULES_ENDOCRINE_RHEUM } from "./patterns_endocrine_rheum.js";
 import { RULES_ENDOCRINE_NEW } from "./patterns_endocrine_new.js";
 import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
+import { RULES_MINERAL_BONE } from "./patterns_mineral_bone.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
@@ -28,7 +29,8 @@ export const RULES = [
   ...RULES_BIOCHEM,
   ...RULES_BIOCHEM_NEW,
   ...RULES_ENDOCRINE_RHEUM,
-  ...RULES_ENDOCRINE_NEW
+  ...RULES_ENDOCRINE_NEW,
+  ...RULES_MINERAL_BONE
 ];
 
 //    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ
@@ -83,6 +85,22 @@ export const SUGGEST_TESTS = {
   //    بی‌کربناتِ غایب همان‌هایی‌اند که پیشنهاد باید بخواهد. مجموعهٔ کامل را شرط می‌کنیم
   //    تا پیشنهاد فقط وقتی حذف شود که واقعاً همه‌شان موجود باشند.
   "الکترولیت‌ها": ["NA", "K", "CA", "PHOS", "HCO3"],
+  // ── مینرال و استخوان ──
+  // ⚠️ این‌ها *باید* اینجا باشند، وگرنه دقیقاً باگِ N8 تکرار می‌شود: قاعده‌های
+  //    patterns_mineral_bone.js وقتی PTH را می‌خوانند «هورمون پاراتیروئید (PTH)»
+  //    را هم پیشنهاد می‌دهند، و بدونِ این ردیف‌ها به بیمار گفته می‌شد
+  //    «درخواست آزمایش PTH از پزشک» در حالی که PTH همان بالای برگه‌اش چاپ شده.
+  //    رشته باید *عیناً* با suggestِ قاعده یکی باشد — تطابق دقیق است.
+  "هورمون پاراتیروئید (PTH)": ["PTH"],
+  "کلسیم ادرار ۲۴ ساعته": ["U_CA"],
+  // ⚠️ «تکرار کلسیم» / «تکرار فسفر» عمداً اینجا *نیستند* — طبق همان قاعدهٔ
+  //    بالا، «تکرارِ …» پایشِ سریالی است نه درخواستِ آزمایشی که نداریم.
+  //    اگر اضافه شوند، calcium_abnormal توصیهٔ «تکرار کلسیم»‌اش را از دست
+  //    می‌دهد، چون کلسیم همیشه روی برگه هست وقتی آن قاعده فعال می‌شود.
+  "کلسیم": ["CA"],
+  "فسفر": ["PHOS"],
+  "ویتامین D": ["VIT_D"],
+  "کراتینین و eGFR": ["CREAT"],
 };
 
 /** آیا این پیشنهاد، آزمایشی است که همین حالا اندازه‌گیری شده؟ */
@@ -144,6 +162,22 @@ export const RULE_SOURCES = {
   // روماتولوژی و ویتامین
   rf_positive:          ["ACR_EULAR"],
   vitamin_d_abnormal:   ["ENDO_VIT_D"],
+  // مینرال و استخوان — محورِ کلسیم/PTH، جدول‌های ۱۶.۱ و ۱۶.۲ و آستانهٔ
+  //   هیپوفسفاتمیِ علامت‌دار، همه از فصل ۱۶ هنری می‌آیند.
+  hpt_primary:                       ["HENRY_MINERAL"],
+  fhh_pattern:                       ["HENRY_MINERAL"],
+  hypercalcemia_pth_independent:     ["HENRY_MINERAL"],
+  hypercalcemia_pth_indeterminate:   ["HENRY_MINERAL"],
+  hypoparathyroidism:                ["HENRY_MINERAL"],
+  hpt_secondary_renal:               ["HENRY_MINERAL"],
+  hpt_secondary_nonrenal:            ["HENRY_MINERAL"],
+  hypocalcemia_pth_indeterminate:    ["HENRY_MINERAL"],
+  hpt_renal_advanced:                ["HENRY_MINERAL"],
+  hypophosphatemia_severe:           ["HENRY_MINERAL"],
+  // ⚠️ pth_isolated_abnormal / phosphate_abnormal / urine_calcium_abnormal
+  //    عمداً اینجا نیستند: آن‌ها فقط روی محدودهٔ مرجع می‌ایستند (که خودش در
+  //    getRefSource ثبت است) و هیچ آستانه یا الگویی از فصل ۱۶ نمی‌خوانند.
+  //    برچسبِ منبع روی قاعده‌ای که از آن منبع چیزی نگرفته، ادعای دروغ است.
 };
 
 /**

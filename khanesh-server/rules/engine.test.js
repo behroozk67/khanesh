@@ -219,9 +219,13 @@ test("R1: کلسیم ۸.۰ با آلبومین ۲.۰ تصحیح می‌شود و
     tests: [{ name: "Calcium", value: "8.0" }, { name: "Albumin", value: "2.0" }],
   });
   const ca = e.graded.find((g) => g.test === "CA");
-  assert.equal(e.indices.ca_corrected, 9.6);            // 8.0 + 0.8×(4−2)
+  // 🔴 ۲۰۲۶-۰۸-۰۶: عدد از ۹.۶ به ۹.۹ رفت چون آلبومینِ مرجعِ فرمول از ۴.۰
+  //    به ۴.۴ اصلاح شد — معادلهٔ ۱۶.۱ در Henry فصل ۱۶، که صریحاً می‌گوید
+  //    «آلبومینی حدود ۴.۴ معمولاً به‌عنوان مقدار نرمال به کار می‌رود».
+  //    عددِ قبلی منبعِ ثبت‌شده‌ای نداشت. این تغییرِ ادعا نیست، تغییرِ منبع است.
+  assert.equal(e.indices.ca_corrected, 9.9);            // 8.0 + 0.8×(4.4−2.0) = 9.92 → 9.9
   assert.equal(e.indices.ca_correction_applied, true);
-  assert.equal(ca.value, 9.6);
+  assert.equal(ca.value, 9.9);
   assert.equal(ca.abnormal, false, "کلسیم تصحیح‌شده طبیعی است");
   const p = runPatterns(e);
   assert.ok(!p.findings.some((f) => f.pattern === "hypocalcemia"), "نباید هیپوکلسمی کاذب بدهد");
@@ -233,8 +237,13 @@ test("R1: با آلبومین طبیعی، کلسیم پایین همچنان پ
     tests: [{ name: "Calcium", value: "8.0" }, { name: "Albumin", value: "4.0" }],
   });
   const ca = e.graded.find((g) => g.test === "CA");
-  assert.equal(e.indices.ca_correction_applied, undefined);
-  assert.equal(ca.abnormal, true);
+  // ⚠️ ادعای قبلی `ca_correction_applied === undefined` بود. آن، *عارضهٔ*
+  //    فرمولِ قدیم را قفل می‌کرد نه قصدِ تست را: با آلبومینِ مرجعِ ۴.۴،
+  //    آلبومینِ ۴.۰ تصحیحِ ۰.۳۲ می‌گیرد و دقیقاً از آستانهٔ ۰.۳ رد می‌شود.
+  //    قصدِ تست این بوده که تصحیح، یک کلسیمِ واقعاً پایین را «طبیعی» نکند —
+  //    و همان ادعا می‌شود، مستقل از ضریب.
+  assert.equal(ca.abnormal, true, "۸.۳ی تصحیح‌شده هم زیر کفِ ۸.۸ است");
+  assert.equal(e.indices.ca_measured, 8.0, "عددِ روی برگه باید حفظ شود (N5)");
 });
 
 // ---------- R2: شکاف آنیونی بالا ----------
@@ -4023,4 +4032,303 @@ test("M61e: کنترلِ منفی — هرگز هم‌زمان با قاعدهٔ
     const ids = ldhRun([...LDH_HEALTHY, { name: "LDH", value: v }]).findings.map((x) => x.rule_id);
     assert.ok(!ids.includes("isolated_ldh_elevation"), `LDH=${v} نباید این قاعده را فعال کند؛ ${ids.join("، ")}`);
   }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// M62–M69 — محورِ کلسیم/PTH  (patterns_mineral_bone.js)
+// منبع: Henry فصل ۱۶، جدول‌های ۱۶.۱ و ۱۶.۲، جعبه‌های ۱۶.۱–۱۶.۴
+//
+// چرا این بلوک لازم شد: تا پیش از این، PTH اصلاً کلیدی در موتور نداشت و
+// کلسیمِ غیرطبیعی همیشه یک جملهٔ واحد می‌گرفت («کلسیم بالاست، علت‌یابی شود»).
+// حالا کلسیم + PTH با هم یک الگو می‌سازند. آنچه این تست‌ها قفل می‌کنند
+// *تفکیک* است، نه صرفِ فعال‌شدن.
+// ════════════════════════════════════════════════════════════════════════
+
+const mineralRun = (tests, patient = { age: 50, sex: "F" }) =>
+  runPatterns(runEngine({ patient, tests }));
+
+const ruleIds = (p) => p.findings.map((f) => f.rule_id);
+const allText = (p) =>
+  p.findings.map((f) => [f.headline, f.must_say, f.action, (f.warnings ?? []).join(" ")].join(" ")).join(" ");
+
+test("M62: کلسیم بالا + PTH بالا → هایپرپاراتیروئیدی اولیه، نه پیام عمومیِ کلسیم", () => {
+  const p = mineralRun([
+    { name: "Calcium", value: "11.4" },
+    { name: "PTH", value: "120" },
+    { name: "Phosphorus", value: "2.1" },
+  ]);
+  const ids = ruleIds(p);
+  assert.ok(ids.includes("hpt_primary"), `فعال‌شده‌ها: ${ids.join("، ")}`);
+  // انحصار: قاعدهٔ عمومیِ کلسیم باید کنار رفته باشد، وگرنه بیمار دو متنِ
+  // کلسیمی می‌گیرد و پیامِ اختصاصی رقیق می‌شود.
+  assert.ok(!ids.includes("calcium_abnormal"), `دو یافتهٔ کلسیمی: ${ids.join("، ")}`);
+  // فسفرِ پایین باید *نام برده* شود — هم N4، هم پیش‌شرطِ امن‌بودنِ انحصار با
+  // phosphate_abnormal (N18).
+  assert.ok(/فسفر/.test(allText(p)), "فسفر در متن نیامد");
+  assert.ok(!ids.includes("phosphate_abnormal"), `فسفر دو بار: ${ids.join("، ")}`);
+});
+
+test("M62b: بدون کلسیم ادرار، متن صریحاً می‌گوید تفکیک از حالت ارثی انجام نشده (N4)", () => {
+  const p = mineralRun([
+    { name: "Calcium", value: "11.4" },
+    { name: "PTH", value: "120" },
+  ]);
+  const txt = allText(p);
+  assert.ok(/کلسیم ادرار ۲۴ ساعته روی این برگه نیست/.test(txt),
+    "شاخهٔ «اندازه‌گیری نشده» برای کلسیم ادرار گفته نشد");
+  // و هرگز نباید ادعای «طبیعی بود» بکند — همان N17.
+  assert.ok(!/کلسیم ادرار.{0,30}طبیعی است/.test(txt), "ادعای طبیعی‌بودنِ تستِ نداده");
+});
+
+test("M63: همان کلسیم و PTH، ولی کلسیم ادرار پایین → FHH، نه اولیه", () => {
+  const p = mineralRun([
+    { name: "Calcium", value: "11.4" },
+    { name: "PTH", value: "120" },
+    { name: "Urine Calcium", value: "60" },
+  ]);
+  const ids = ruleIds(p);
+  assert.ok(ids.includes("fhh_pattern"), `فعال‌شده‌ها: ${ids.join("، ")}`);
+  assert.ok(!ids.includes("hpt_primary"), `هر دو شاخه فعال شدند: ${ids.join("، ")}`);
+  // نکتهٔ بالینیِ کلِ این تفکیک: جراحی لازم نیست. اگر این جمله برود،
+  // تفکیک بی‌فایده است.
+  assert.ok(/جراحی/.test(allText(p)), "پیامِ «جراحی لازم نیست» گفته نشد");
+});
+
+test("M64: کلسیم بالا + PTH پایین → شاخهٔ مستقل از پاراتیروئید، با فوریتِ بالاتر", () => {
+  const p = mineralRun([
+    { name: "Calcium", value: "11.2" },
+    { name: "PTH", value: "4" },
+  ]);
+  const ids = ruleIds(p);
+  assert.ok(ids.includes("hypercalcemia_pth_independent"), `فعال‌شده‌ها: ${ids.join("، ")}`);
+  const f = p.findings.find((x) => x.rule_id === "hypercalcemia_pth_independent");
+  assert.equal(f.urgency, "this_week");
+  // ⚠️ کنترلِ N12 — جهت. همین کلسیم با PTHِ بالا نباید این شاخه را بدهد.
+  const other = ruleIds(mineralRun([
+    { name: "Calcium", value: "11.2" }, { name: "PTH", value: "120" },
+  ]));
+  assert.ok(!other.includes("hypercalcemia_pth_independent"),
+    `شاخهٔ PTH-پایین با PTHِ بالا فعال شد: ${other.join("، ")}`);
+});
+
+test("M65: کلسیم بالا + PTH طبیعی → هیچ تشخیصی ادعا نمی‌شود، فقط اعلامِ تفکیک‌نشدن", () => {
+  const p = mineralRun([
+    { name: "Calcium", value: "10.9" },
+    { name: "PTH", value: "40" },
+  ]);
+  const ids = ruleIds(p);
+  assert.ok(ids.includes("hypercalcemia_pth_indeterminate"), `فعال‌شده‌ها: ${ids.join("، ")}`);
+  // این قاعده عمداً هیچ‌کدام از دو تشخیص را نمی‌گوید — منبع برای PTHِ طبیعی
+  // در کنارِ کلسیمِ بالا حکمی ندارد و ساختنش یعنی اختراعِ محتوای بالینی.
+  for (const bad of ["hpt_primary", "hypercalcemia_pth_independent", "fhh_pattern"]) {
+    assert.ok(!ids.includes(bad), `تشخیصِ بی‌منبع ادعا شد: ${bad}`);
+  }
+  assert.ok(/نمی‌توانیم تفکیک کنیم/.test(allText(p)), "صراحتِ «تفکیک نشد» گفته نشد");
+});
+
+test("M66: کلسیم پایین + PTH پایین + منیزیم پایین → علتِ برگشت‌پذیر نام برده می‌شود", () => {
+  const p = mineralRun([
+    { name: "Calcium", value: "7.4" },
+    { name: "PTH", value: "5" },
+    { name: "Magnesium", value: "1.1" },
+  ]);
+  const ids = ruleIds(p);
+  assert.ok(ids.includes("hypoparathyroidism"), `فعال‌شده‌ها: ${ids.join("، ")}`);
+  const txt = allText(p);
+  // جعبهٔ ۱۶.۲ منبع، هیپومنیزیمیِ شدید را در ستونِ «برگشت‌پذیر» می‌گذارد.
+  // بدونِ این جمله، بیمار یک بیماریِ دائمیِ غده را می‌خواند که ممکن است نداشته باشد.
+  assert.ok(/برگشت.?پذیر/.test(txt), "علتِ برگشت‌پذیرِ منیزیمی گفته نشد");
+  assert.ok(/منیزیم/.test(txt), "منیزیم نام برده نشد");
+});
+
+test("M66b: همان تصویر با منیزیمِ طبیعی، ادعای برگشت‌پذیری نمی‌کند", () => {
+  const txt = allText(mineralRun([
+    { name: "Calcium", value: "7.4" },
+    { name: "PTH", value: "5" },
+    { name: "Magnesium", value: "2.0" },
+  ]));
+  // ⚠️ نسخهٔ اولِ این ادعا «هیچ جای متن کلمهٔ برگشت‌پذیر نباشد» بود و روی کدِ
+  //    درست شکست: شاخهٔ منیزیمِ طبیعی صریحاً می‌گوید «علتِ برگشت‌پذیرِ شایع
+  //    مطرح نیست» — یعنی همان کلمه، در جملهٔ نفی. ادعا باید *امیدِ* برگشت‌پذیری
+  //    را بگیرد، نه واژه را. تمایزدهنده، جملهٔ شاخهٔ منیزیمِ پایین است.
+  assert.ok(!/با اصلاح منیزیم/.test(txt), "با منیزیمِ طبیعی نباید امیدِ برگشت‌پذیری بدهد");
+  assert.ok(/برگشت.?پذیرِ شایعِ این تصویر مطرح نیست/.test(txt), "نفیِ صریح گفته نشد");
+});
+
+test("M67: کلسیم پایین + PTH بالا + کلیهٔ مختل → شاخهٔ کلیوی، نه غیرکلیوی", () => {
+  const p = mineralRun([
+    { name: "Calcium", value: "7.8" },
+    { name: "PTH", value: "210" },
+    { name: "Phosphorus", value: "6.2" },
+    { name: "Creatinine", value: "3.4" },
+  ], { age: 60, sex: "M" });
+  const ids = ruleIds(p);
+  assert.ok(ids.includes("hpt_secondary_renal"), `فعال‌شده‌ها: ${ids.join("، ")}`);
+  assert.ok(!ids.includes("hpt_secondary_nonrenal"), `هر دو شاخه: ${ids.join("، ")}`);
+  // هشدارِ اختصاصیِ این شاخه: مکملِ خودسرانه در نارسایی کلیه خطرناک است.
+  assert.ok(/خودسرانه/.test(allText(p)), "هشدارِ مکملِ خودسرانه گفته نشد");
+});
+
+test("M67b: همان کلسیم و PTH با کراتینین طبیعی → شاخهٔ غیرکلیوی و پیگیریِ ویتامین D", () => {
+  const p = mineralRun([
+    { name: "Calcium", value: "7.8" },
+    { name: "PTH", value: "210" },
+    { name: "Creatinine", value: "0.8" },
+  ]);
+  const ids = ruleIds(p);
+  assert.ok(ids.includes("hpt_secondary_nonrenal"), `فعال‌شده‌ها: ${ids.join("، ")}`);
+  assert.ok(!ids.includes("hpt_secondary_renal"), `شاخهٔ کلیوی با کلیهٔ سالم: ${ids.join("، ")}`);
+  assert.ok(/ویتامین D روی این برگه اندازه‌گیری نشده/.test(allText(p)),
+    "شاخهٔ «اندازه‌گیری نشده»ی ویتامین D گفته نشد (N4)");
+});
+
+test("M68: کلسیمِ بحرانی، پیامِ اورژانس را از دست نمی‌دهد حتی وقتی محور فعال است", () => {
+  // این تنها استثنای انحصار است و دلیلِ وجودی‌اش همین حالت است:
+  // اگر محور بی‌قید calcium_abnormal را خاموش می‌کرد، Ca=۱۵ به‌جای
+  // «همین حالا به اورژانس» یافتهٔ «این هفته وقت بگیرید» می‌گرفت.
+  const p = mineralRun([
+    { name: "Calcium", value: "15.0" },
+    { name: "PTH", value: "300" },
+  ]);
+  const ids = ruleIds(p);
+  assert.ok(ids.includes("calcium_abnormal"), `قاعدهٔ بحرانی خاموش شد: ${ids.join("، ")}`);
+  assert.equal(p.overall_urgency, "emergency");
+  assert.ok(p.has_critical, "has_critical نباید false باشد");
+  assert.ok(/اورژانس/.test(allText(p)), "کلمهٔ اورژانس در متن نیست");
+});
+
+test("M68b: کنترلِ منفی — بدونِ PTH، رفتار قبلیِ موتور دست‌نخورده می‌ماند", () => {
+  // افزودنِ این ماژول نباید هیچ برگه‌ای را که PTH ندارد عوض کند.
+  const ids = ruleIds(mineralRun([{ name: "Calcium", value: "11.4" }]));
+  assert.ok(ids.includes("calcium_abnormal"), `رفتار قبلی شکست: ${ids.join("، ")}`);
+  for (const id of ["hpt_primary", "fhh_pattern", "hypercalcemia_pth_independent",
+                    "hypercalcemia_pth_indeterminate"]) {
+    assert.ok(!ids.includes(id), `محور بدونِ PTH فعال شد: ${id}`);
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// M69 — فسفر و کلسیمِ ادرار: کلیدهایی که قاعده نداشتند
+// ════════════════════════════════════════════════════════════════════════
+
+test("M69: فسفر ۰.۹ کنارِ فقر آهن دیگر ناپدید نمی‌شود (N18)", () => {
+  // پنلِ عیناً همان چیزی که N18 اندازه گرفت و ساکت ماند.
+  const p = mineralRun([
+    { name: "Hemoglobin", value: "9.5" }, { name: "MCV", value: "70" },
+    { name: "Ferritin", value: "6" }, { name: "Phosphorus", value: "0.9" },
+  ]);
+  const ids = ruleIds(p);
+  assert.ok(ids.includes("hypophosphatemia_severe"), `فعال‌شده‌ها: ${ids.join("، ")}`);
+  assert.equal(p.overall_urgency, "emergency");
+  assert.ok(/فسفر/.test(allText(p)), "فسفر نام برده نشد");
+});
+
+test("M69b: آستانهٔ ۰.۹۹ mg/dL دو طرفش را درست جدا می‌کند", () => {
+  // ۰.۳۲ mmol/L × ۳.۰۹۷ = ۰.۹۹ mg/dL — از خودِ متنِ منبع، گرد نشده.
+  const below = ruleIds(mineralRun([{ name: "Phosphorus", value: "0.95" }]));
+  assert.ok(below.includes("hypophosphatemia_severe"), `زیر آستانه نگرفت: ${below.join("، ")}`);
+  assert.ok(!below.includes("phosphate_abnormal"), `هر دو قاعدهٔ فسفر: ${below.join("، ")}`);
+
+  const above = ruleIds(mineralRun([{ name: "Phosphorus", value: "1.8" }]));
+  assert.ok(above.includes("phosphate_abnormal"), `فسفرِ خفیف بی‌قاعده ماند: ${above.join("، ")}`);
+  assert.ok(!above.includes("hypophosphatemia_severe"), `اورژانسِ کاذب: ${above.join("، ")}`);
+});
+
+test("M69c: PTH و کلسیمِ ادرارِ غیرطبیعیِ منفرد به «توضیح آماده نداریم» نمی‌افتند (N1)", () => {
+  for (const [name, value, expect] of [
+    ["PTH", "150", "pth_isolated_abnormal"],
+    ["Urine Calcium", "480", "urine_calcium_abnormal"],
+  ]) {
+    const ids = ruleIds(mineralRun([{ name, value }]));
+    assert.ok(ids.includes(expect), `${name} → ${ids.join("، ")}`);
+    assert.ok(!ids.includes("unmatched_abnormal"), `${name} به تور افتاد: ${ids.join("، ")}`);
+    assert.ok(!ids.includes("unexplained_abnormal"), `${name} بی‌اشاره ماند: ${ids.join("، ")}`);
+  }
+});
+
+test("M69d: PTHِ منفرد بدونِ کلسیم، ادعای «کلسیم طبیعی است» نمی‌کند (N4/N17)", () => {
+  const txt = allText(mineralRun([{ name: "PTH", value: "150" }]));
+  assert.ok(/کلسیم خون روی این برگه اندازه‌گیری نشده/.test(txt), "شاخهٔ «اندازه‌گیری نشده» گفته نشد");
+  assert.ok(!/کلسیم خون شما .{0,25}طبیعی/.test(txt), "ادعای طبیعی‌بودنِ کلسیمِ نداده");
+});
+
+test("M69e: کلسیمِ سرم هرگز به کلسیمِ ادرار نگاشت نمی‌شود", () => {
+  // بازه‌ها (۸.۸–۱۰.۳ و ۱۰۰–۳۰۰) هیچ همپوشانی ندارند، پس نگاشتِ اشتباه
+  // یک FHHِ جعلی می‌ساخت — کلسیمِ ۹.۵ به‌عنوان کلسیمِ ادرارِ «خیلی پایین».
+  const e = runEngine({ patient: { age: 50, sex: "F" }, tests: [{ name: "Calcium", value: "9.5" }] });
+  assert.ok(e.graded.some((g) => g.test === "CA"), "کلسیم سرم نگاشت نشد");
+  assert.ok(!e.graded.some((g) => g.test === "U_CA"), "کلسیم سرم به کلسیم ادرار رفت");
+});
+
+test("M70: فوریتِ یافته با متنِ اقدامش نمی‌جنگد (کلِ ماژولِ مینرال)", () => {
+  // 🔴 باگِ واقعی، گرفته‌شده در دودتستِ خروجی: Ca=۱۱.۴ گریدِ CTCAE ۱ می‌گیرد
+  //    (>ULN تا ۱۱.۵) پس فوریت `routine` می‌شود، ولی متنِ اقدامِ hpt_primary
+  //    «این هفته … وقت بگیرید» هاردکد بود. کاربر یک یافتهٔ routine می‌دید که
+  //    در متنش «این هفته» نوشته بود — و آنچه واقعاً خوانده می‌شود متن است،
+  //    نه فیلدِ urgency که فقط رنگ و ترتیب می‌سازد.
+  //
+  // این ادعا عمداً روی *همهٔ* قاعده‌های ماژول اجرا می‌شود، نه روی چهار موردی
+  // که آن روز خراب بودند — وگرنه قاعدهٔ بعدی که کسی اضافه کند همین را تکرار
+  // می‌کند و تست ساکت می‌ماند.
+  const MINERAL_IDS = new Set([
+    "hpt_primary", "fhh_pattern", "hypercalcemia_pth_independent",
+    "hypercalcemia_pth_indeterminate", "hypoparathyroidism",
+    "hpt_secondary_renal", "hpt_secondary_nonrenal",
+    "hypocalcemia_pth_indeterminate", "hpt_renal_advanced",
+    "pth_isolated_abnormal", "hypophosphatemia_severe",
+    "phosphate_abnormal", "urine_calcium_abnormal",
+  ]);
+
+  // پنل‌ها طوری چیده شده‌اند که هر سیزده قاعده دست‌کم یک‌بار فعال شود، و
+  // کلسیم‌ها عمداً هم گریدِ ۱ (routine) و هم گریدِ ۲+ (this_week) را بپوشانند.
+  const PANELS = [
+    [{ name: "Calcium", value: "11.4" }, { name: "PTH", value: "138" }],                       // گرید ۱
+    [{ name: "Calcium", value: "12.9" }, { name: "PTH", value: "138" }],                       // گرید ۲
+    [{ name: "Calcium", value: "11.4" }, { name: "PTH", value: "138" }, { name: "Urine Calcium", value: "60" }],
+    [{ name: "Calcium", value: "12.9" }, { name: "PTH", value: "138" }, { name: "Urine Calcium", value: "60" }],
+    [{ name: "Calcium", value: "11.2" }, { name: "PTH", value: "4" }],
+    [{ name: "Calcium", value: "10.9" }, { name: "PTH", value: "40" }],
+    [{ name: "Calcium", value: "7.9" },  { name: "PTH", value: "5" }],
+    [{ name: "Calcium", value: "7.2" },  { name: "PTH", value: "5" }, { name: "Magnesium", value: "1.1" }],
+    [{ name: "Calcium", value: "7.9" },  { name: "PTH", value: "210" }],
+    [{ name: "Calcium", value: "7.2" },  { name: "PTH", value: "210" }],
+    [{ name: "Calcium", value: "7.9" },  { name: "PTH", value: "40" }],
+    // ⚠️ کراتینینِ این دو عمداً ۱.۵ است نه ۳.۴ (eGFR ۴۰ نه ۱۵). با ۳.۴ قاعدهٔ
+    //    `kidney` فوریتِ emergency و `blocks_others` می‌گیرد و هر دو یافتهٔ
+    //    مینرالِ this_week را زیر خود می‌پوشاند — که رفتارِ *درستِ* موتور است،
+    //    ولی این تست را به یک سبزِ بی‌معنا تبدیل می‌کرد. اندازه‌گیری‌شده، نه حدس.
+    [{ name: "Calcium", value: "7.8" },  { name: "PTH", value: "210" }, { name: "Creatinine", value: "1.5" }],
+    [{ name: "Calcium", value: "11.4" }, { name: "PTH", value: "210" }, { name: "Creatinine", value: "1.5" }],
+    [{ name: "PTH", value: "150" }],
+    [{ name: "Phosphorus", value: "0.8" }],
+    [{ name: "Phosphorus", value: "1.9" }],
+    [{ name: "Phosphorus", value: "6.5" }],
+    [{ name: "Urine Calcium", value: "480" }],
+  ];
+
+  const seen = new Set();
+  for (const tests of PANELS) {
+    const p = runPatterns(runEngine({ patient: { age: 58, sex: "F" }, tests }));
+    for (const f of p.findings) {
+      if (!MINERAL_IDS.has(f.rule_id)) continue;
+      seen.add(f.rule_id);
+      const txt = `${f.action ?? ""} ${f.must_say ?? ""}`;
+      if (f.urgency === "routine") {
+        assert.ok(!/این هفته/.test(f.action ?? ""),
+          `${f.rule_id}: فوریت routine ولی اقدام «این هفته» می‌گوید — «${f.action}»`);
+        assert.ok(!/همین حالا|همین امروز|اورژانس مراجعه/.test(f.action ?? ""),
+          `${f.rule_id}: فوریت routine ولی اقدام اورژانسی است — «${f.action}»`);
+      }
+      if (f.urgency === "emergency") {
+        assert.ok(/همین حالا|همین امروز|اورژانس/.test(txt),
+          `${f.rule_id}: فوریت emergency ولی متن فوریتی نمی‌گوید — «${f.action}»`);
+      }
+    }
+  }
+
+  // ⚠️ بدون این، تست می‌تواند سبز بماند در حالی که هیچ قاعده‌ای فعال نشده —
+  //    همان «سبزِ بی‌معنا»ی N15. اگر قاعده‌ای اضافه شود و پنلی برایش نیاید،
+  //    اینجا قرمز می‌شود و نویسنده مجبور است پنلش را اضافه کند.
+  const missing = [...MINERAL_IDS].filter((id) => !seen.has(id));
+  assert.equal(missing.length, 0, `این قاعده‌ها هرگز فعال نشدند: ${missing.join("، ")}`);
 });

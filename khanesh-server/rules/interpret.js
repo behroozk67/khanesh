@@ -194,7 +194,13 @@ export const CLASSIFIERS = {
   B12:      { kind: 'binary', label: 'ویتامین B12' },
   HAPTO:    { kind: 'binary', label: 'هاپتوگلوبین', note: 'پایین → همولیز' },
   LDH:      { kind: 'binary', label: 'LDH', note: 'بالا با هاپتو پایین → همولیز' },
-  PHOS:     { kind: 'binary', label: 'فسفر' },
+  PHOS:     { kind: 'binary', label: 'فسفر', note: 'با کلسیم و PTH با هم تفسیر می‌شود؛ جهتش تعیین‌کنندهٔ الگوست' },
+  // PTH و کلسیمِ ادرار عمداً باینری‌اند، نه دسته‌بند: عددشان به‌تنهایی هیچ
+  // معنایی ندارد. «PTH = ۹۰» در هایپرکلسمی یعنی پرکاریِ اولیه و در
+  // هایپوکلسمی یعنی پاسخِ طبیعیِ ثانویه — دو تشخیصِ متضاد از یک عدد.
+  // تصمیم فقط در patterns_mineral_bone.js گرفته می‌شود، جایی که کلسیم هم دیده می‌شود.
+  PTH:      { kind: 'binary', label: 'هورمون پاراتیروئید (PTH)', note: 'بدون کلسیمِ همزمان تفسیرپذیر نیست' },
+  U_CA:     { kind: 'binary', label: 'کلسیم ادرار ۲۴ ساعته', note: 'هایپرپاراتیروئیدی اولیه را از FHH جدا می‌کند' },
   AMYLASE:  { kind: 'binary', label: 'آمیلاز', note: 'ACG: لیپاز >3×ULN اختصاصی‌تر' },
   LIPASE:   { kind: 'binary', label: 'لیپاز', note: 'ACG: >3×ULN → پانکراتیت حاد' },
 };

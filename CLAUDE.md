@@ -52,6 +52,14 @@ When the user asks for a change in this repo:
    | working tree, 2026-08-06, **before** the electrolyte work (bare `node --test`) | 215 | 215 | **0** | — |
    | working tree, 2026-08-06, after it — `rules/*.test.js` + `avalaiClient.test.js` only | 238 | 238 | **0** | `patterns_anemia.js` |
    | working tree, 2026-08-06, after the auth/DB test-gate repair (`npm test`) | 256 | 256 | **0** | — |
+   | working tree, 2026-08-07, **before** the mineral/bone work (`npm test`) | 266 | 266 | **0** | — |
+   | working tree, 2026-08-07, after it — `patterns_mineral_bone.js` + 17 tests (`npm test`) | 285 | 285 | **0** | — |
+
+   ⚠️ **266 → 285 is 19, not 17, and the extra two are not tests anyone wrote.** `M37` and `M38`
+   derive their file list from `patterns.js`'s own `import` statements (`livePatternFiles()`), so
+   adding a `patterns_*.js` file automatically adds a subtest to each. Useful to know before you
+   conclude a count is off: **the total is a function of how many pattern files exist**, not just
+   of how many `test()` calls are in the suite.
 
    The `skipped` column names `patterns_anemia.js`, a dead file `M38` exempted by name. **That
    file was deleted in `ba144a7`** and nothing is exempt from any guard today — see
@@ -234,6 +242,7 @@ khanesh-project/
 │   │   ├── patterns_hematology.js / _biochem.js / _biochem_new.js
 │   │   ├── patterns_nephrology.js / _nephrology_new.js / _infectious.js
 │   │   ├── patterns_endocrine_rheum.js / _endocrine_new.js / _malignancy.js
+│   │   ├── patterns_mineral_bone.js  # ⭐ محور کلسیم/PTH — یک طبقه‌بند، ۱۳ قاعده
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
@@ -312,14 +321,31 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **nine** `patterns_<system>.js` files and
-concatenates their `RULES_*` exports into the exported `RULES` array; it still owns
-`runPatterns()`, `SUGGEST_TESTS`, and the suppression/dedup logic. So:
+`patterns.js` no longer holds the rules. It imports **ten** `patterns_<system>.js` files and
+concatenates their `RULES_*` exports into the exported `RULES` array — **110 rules, measured
+2026-08-07** with the `node -e` one-liner under N16; it still owns `runPatterns()`,
+`SUGGEST_TESTS`, and the suppression/dedup logic. So:
 
 - **Adding a clinical rule** → the right `patterns_<system>.js`, then confirm its `RULES_*` export
   is spread into `RULES` in `patterns.js`. A rule in a file that isn't imported is invisible and
   fails exactly like N1 — silently, into `unmatched_abnormal`.
 - **Changing how rules are selected, ranked, or suppressed** → `patterns.js` itself.
+
+⭐ **`patterns_mineral_bone.js` (2026-08-07) is the one file here with a different shape, and
+the shape is the point.** Its nine calcium/PTH rules do not each carry their own `match`
+condition. They all call one classifier — `mineralAxis(e)` — which returns exactly one label or
+`null`, and each rule asks only "is that my label?". Two of these rules cannot fire together,
+not because the author was careful but because the function returns one value. Prefer this shape
+whenever a group of rules partitions the same input space; the alternative (nine independent
+`match`es that happen to be mutually exclusive today) is one edit away from a patient reading two
+contradictory findings about the same number.
+
+Two things about it that are easy to get wrong:
+- `mineralAxis` returns `null` unless **both** calcium and PTH are on the sheet. That is what
+  makes the module additive: a sheet without PTH behaves exactly as it did before.
+- `calcium_abnormal` in `patterns_biochem.js` is excluded by the axis **except when calcium is
+  critical** (`caCritical()`, ≥14 or ≤6.5). Without that exception, `Ca 15 + PTH 300` loses the
+  emergency and gets a `this_week` finding instead — measured, and locked by `M68`.
 
 **The anemia rules that run live in `patterns_hematology.js`.** There is exactly one place; this
 sentence used to need a paragraph of caveats after it.
@@ -1116,6 +1142,36 @@ structural, not specific to that rule.
   non-zero lower bound is claiming someone else owns the region below it — verify that someone
   exists, exactly as N16 asks you to verify a replacement exists before deleting a rule.
 - **Guards:** `M59`, `M59b`, `M59c` (hand-off at 180, so two rules never fire on one value).
+
+### N20 — A finding's `urgency` and its action sentence are two copies of one decision, and only one of them is read
+2026-08-07, `patterns_mineral_bone.js`. Caught by a smoke test before commit, logged because the
+class is not covered by any entry above and it is trivially easy to reintroduce.
+
+- **Tried:** derive a rule's `urgency` from the engine (`levelGrade(ca) >= 2 ? "this_week" :
+  "routine"` — correct, and deliberately not an invented number), then write the `action` sentence
+  as a plain string underneath it.
+- **Broke:** on `Ca 11.4` the CTCAE hypercalcemia grade is 1 (`>ULN` to 11.5), so `urgency` came
+  out `routine` — while the hardcoded action said «این هفته با پزشک … وقت بگیرید». One finding,
+  two different instructions. **The field the patient actually reads is the sentence**; `urgency`
+  only drives colour and ordering in the UI. So the engine would have been "right" in the field
+  nobody reads and wrong in the one they do. Four rules had it.
+- **Why no existing guard caught it:** every guard in the repo checks a property of one thing —
+  `M36` the rule object, `M37` the encoding, `M38` the language of a string. Nothing compares two
+  fields of the same finding for agreement. Consistency between fields is a new axis.
+- **Rule:** if a value is computed, every sentence that restates it must be *derived from the
+  computed value*, never written beside it. Here that is `actionFor(urgency, {week, routine})` —
+  one argument, so the two cannot disagree. Same shape as N12's lesson one level up: there, two
+  axes were collapsed into one variable; here, one decision was copied into two variables.
+- **Guard:** `M70`. It sweeps 18 panels through every rule in the module and asserts `routine`
+  findings never say «این هفته» or «همین حالا», and `emergency` findings always carry urgent
+  wording. Verified against the pre-fix code — it goes red. It also asserts **every** rule id in
+  the module was reached by at least one panel, because without that the test can pass while
+  firing nothing (N15's meaningless green); that assertion is what caught two rules whose panels
+  were being suppressed by an unrelated `kidney` emergency.
+- **And the finding underneath the finding:** those two rules were not broken — `kidney` at
+  eGFR 15 is an `emergency` with `blocks_others`, so it correctly hides `this_week` mineral
+  findings. Worth knowing before you debug a rule that "doesn't fire": check `suppressed` in
+  `runPatterns`'s return before assuming the `match` is wrong.
 
 ---
 
