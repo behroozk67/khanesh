@@ -55,6 +55,8 @@ When the user asks for a change in this repo:
    | working tree, 2026-08-07, **before** the mineral/bone work (`npm test`) | 266 | 266 | **0** | — |
    | working tree, 2026-08-07, after it — `patterns_mineral_bone.js` + 17 tests (`npm test`) | 285 | 285 | **0** | — |
    | working tree, 2026-08-07, after P30+P31 (ped phosphate, magnesium) | 289 | 289 | **0** | — |
+   | working tree, 2026-08-10, **before** the real-sheet work (`npm test`) | 289 | 289 | **0** | — |
+   | working tree, 2026-08-10, after it — `M73`–`M77`, 13 tests (`npm test`) | 302 | 302 | **0** | — |
 
    ⚠️ **266 → 285 is 19, not 17, and the extra two are not tests anyone wrote.** `M37` and `M38`
    derive their file list from `patterns.js`'s own `import` statements (`livePatternFiles()`), so
@@ -642,6 +644,16 @@ second one; a recurring entry is the strongest signal in the file.
   fixed in `qualPositive` for «RA factor» and never carried across. Net effect: three screening
   rules that could not fire on any realistic sheet, and a reactive HIV screen answered with
   `buildNormalResult()`. Coverage tests are what surfaced it — the rules looked fine when read.
+- **The lab prints two names for one test, and `norm()` glues them together** (2026-08-10, a
+  real three-page sheet). The rows read `SGOT (AST)` and `SGPT (ALT)`. `norm()` strips the
+  parens, so the key is `sgotast` — and `NAME_MAP` held only the *reverse* order, `astsgot`.
+  Both liver enzymes went `unmapped` on a sheet that printed them, so the engine never saw the
+  liver at all, and `isolated_ldh_elevation` — which reads AST/ALT — had nothing to read. The
+  asymmetry had been sitting there since the entry was written; nobody printed the other order
+  until this sheet. Fixed in `resolveAlias` with a split rule that accepts `a+b` **only when
+  both halves map to the same engine key**, so `astalt`, `ptinr` and `cacr` are still refused —
+  the agreement requirement is the guard, which is why this isn't the fuzzy matching the rule
+  above forbids. Guards `M73`, `M73b`.
 - **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
   anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
   *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When
@@ -730,8 +742,17 @@ second one; a recurring entry is the strongest signal in the file.
   them the numbers match. Every *new* patient-facing surface re-opens this hole; the fix is that the
   server attaches a `faName()`-resolved `name` alongside the key, and test `G7` asserts every
   convertible key exists in `FA_NAMES`.
+- **Recurred a third time on the recommendation list** (2026-08-10). `SUGGEST_TESTS` is what lets
+  `alreadyMeasured()` drop a suggestion for a test the sheet already has — and `"پروفایل چربی"`
+  was simply **not in the table**. `alreadyMeasured` returns `false` for an unknown string, so a
+  patient whose sheet printed cholesterol, LDL, HDL *and* triglycerides was told «درخواست آزمایش
+  پروفایل چربی از پزشک», directly under his own four numbers. Note the failure direction of a
+  missing table row: it is silent and it always errs toward the wrong side. Added as
+  `["CHOL", "LDL", "HDL", "TG"]` — all four, because a three-key entry would make a sheet without
+  LDL count as "complete" and delete a suggestion that was correct. Guards `M77`, `M77b`.
 - **Rule:** every key goes through `faName()`. For a test that was already measured, the phrasing is
-  «تکرارِ …», not a fresh request. Deduplicate recommendations by first sentence and drop
+  «تکرارِ …», not a fresh request. **And when a rule suggests a panel, add that exact string to
+  `SUGGEST_TESTS` in the same commit** — the match is exact, and an absent row fails open. Deduplicate recommendations by first sentence and drop
   data-driven subsets (سرم آهن + TIBC under «پنل کامل آهن») — a plain `new Set` left 19 near-identical
   lines on an ordinary panel.
 - **Near-miss, now machine-checked:** an audit found `ACR` fully wired (`refs.js`, `interpret.js`
@@ -1041,6 +1062,17 @@ look. Neither showed up as an error. One of them made the suite *greener*.
   it is safe. And distinguish the two damage classes when you report one: mojibake is recoverable,
   `?` is not, and calling both "an encoding issue" hides which one you are looking at.
 
+⚠️ **Recurred 2026-08-10, self-inflicted, caught in the same minute — and the cause is a tool
+worth naming.** A block of new Persian tests was appended to `rules/engine.test.js` with
+PowerShell's `Add-Content -Path … -Value (Get-Content -Raw …) -Encoding utf8`. `Get-Content`
+without `-Encoding` decodes as the system ANSI codepage, so 164 lines of Persian were re-encoded
+into perfect cp1252 mojibake. It surfaced instantly — seven assertions matching Persian text
+failed while every structural assertion passed, which is exactly N15(b)'s fingerprint — and the
+repair was to truncate and re-append with `cat >>` from Bash. **Never move Persian text through
+PowerShell 5.1's `Get-Content`/`Add-Content`/`Set-Content` in this repo**; use the Write/Edit
+tools or Bash. Cost was minutes here only because the text was under test; the same command
+against a `patterns_*.js` file is `5059a05` again.
+
 **The generalizing rule, and the one worth remembering:** when you change many files with one
 mechanical command, the suite passing is *not* evidence the command did what you meant. Ask what
 the tests actually observe, then verify the thing they don't — here, `RULES.length` and the
@@ -1113,6 +1145,19 @@ structural, not specific to that rule.
   never partial. Write the condition over *what is still uncovered*, not over *whether anything
   happened*. Any time you see `=== 0` / `.length === 0` guarding a fallback, ask what the partial
   case looks like — that is where the silence lives.
+- ⚠️ **Recurred 2026-08-10, in `server.js`'s recommendation net — same `=== 0`, different file.**
+  The net rebuilt `general_recommendations` from the engine only when the model returned *no*
+  list (`!Array.isArray(recs) || recs.length === 0`). On the real sheet the model returned a
+  list and simply made it **shorter**: the engine's `glycemia` finding suggested
+  `["تکرار قند ناشتا", "HbA1c", "ACR ادرار", "eGFR", "پروفایل چربی"]` and the patient's screen
+  showed only «تکرار قند ناشتا». On an `FBS 209`, HbA1c is the test that both confirms the
+  diagnosis and measures how long it has been running — and it vanished with nothing logged.
+  Fixed with `missingSuggestions()` in `rules/prompt.js`, wired into **both** the sync and async
+  paths. It compares per *test name* with a token measure (all words of the name, ≥0.6), not by
+  sentence, because a test name is a proper noun the model barely paraphrases; the error
+  direction is biased toward re-adding, like the emergency nets. Guards `M76`, `M76b`, `M76c`.
+  **The generalizing point: `=== 0` on a model's output is never the right guard.** A model that
+  drops one item looks exactly like a model that did its job.
 - **On detecting "uncovered", and why one signal was not enough:** the fix has to decide whether a
   fired finding already accounts for a test. Two obvious signals, both measured, both wrong alone:
   scanning the finding *text* for the test's name gave 6 false positives on a liver panel
@@ -1173,6 +1218,60 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   eGFR 15 is an `emergency` with `blocks_others`, so it correctly hides `this_week` mineral
   findings. Worth knowing before you debug a rule that "doesn't fire": check `suppressed` in
   `runPatterns`'s return before assuming the `match` is wrong.
+
+### N21 — Listing the possible causes without saying which ones the same sheet already argues against
+2026-08-10, `isolated_ldh_elevation`. Found by running a real patient's sheet through the engine.
+
+- **Tried:** write the "your LDH is high" finding as an honest differential — muscle, liver,
+  heart, kidney, malignancy, hemolysis — and then attach *extra* clues only when another test is
+  **also abnormal** (`if (ck === "high")`, `if (ast === "high" || alt === "high")`).
+- **Broke:** the sheet had `AST 16` and `ALT 22`, both normal, printed two rows above the LDH.
+  The patient read a paragraph naming liver disease and muscle injury among the causes, and the
+  finding never mentioned that two of those causes had just been tested on that same page and
+  come back normal. Nothing said was false. What was withheld was the only reassuring thing on
+  the sheet, and withholding it in a paragraph that names malignancy is not a neutral omission.
+- **Why no guard saw it:** `M36`/`M37`/`M38` are properties of strings that exist, and the
+  string that should have existed didn't. The N16 blind spot, one level down: not a deleted rule
+  but a **branch that was never written**.
+- **Rule:** when a finding enumerates causes, every cause that the panel can speak to needs a
+  three-way branch — supported / argued against / not measured — not just the first one.
+  A rule that reads a key only in its `=== "high"` arm is treating "normal" and "absent" as the
+  same answer, which is N4 wearing different clothes. Write the "normal" arm at the same time as
+  the "high" arm, and make the "absent" arm say it is absent.
+- **And keep the two apart:** the `else if` for "one enzyme normal, the other missing" tests
+  `=== "absent"` explicitly, not "anything that isn't high". Written the lazy way, a *low* ALT
+  would have produced «ALT روی برگهٔ شما نیست» about a number that was printed on it.
+- **Guards:** `M74`, `M74b`, `M74c` — all three red against the pre-fix rule.
+
+### N22 — A reference range is not a target, and the sheet only knows the range
+2026-08-10, `lipid_profile`. Same sheet as N21.
+
+- **Tried:** gate the lipid finding on the reference range, like every other test —
+  `ldl?.abnormal && ldl.dir === "high"`, i.e. LDL above 130.
+- **Broke:** the patient's `LDL` was **114** and his `FBS` was **209**. 114 is inside the range,
+  so `lipid_profile` never fired and the interpretation said nothing at all about his lipids —
+  on the one sheet where they mattered most. The ADA target for someone whose glucose is in the
+  diabetes range is under 100 (under 70 if high-risk). The engine had the number and the glucose
+  side by side and drew no line between them.
+- **The generalizing shape, which is not specific to lipids:** `refs.js` answers "is this value
+  unusual for a general adult?". Several analytes are also governed by a *target* that depends on
+  another finding on the same sheet — LDL in diabetes, blood pressure in CKD, HbA1c in pregnancy.
+  For those, "normal" and "acceptable for this patient" are different questions, and grading only
+  answers the first. **Whenever a rule's `match` is `abnormal && dir === "high"`, ask whether some
+  other finding on the panel lowers the bar** — and if it does, that is a second `match` arm, not
+  a change to the range. Changing `refs.js` would have mislabelled every non-diabetic's LDL.
+- **What was deliberately not done:** the 70 target needs cardiovascular history the engine can't
+  see, so only 100 is implemented and the text hands the stricter target to the doctor; no statin
+  recommendation was added (prescribing isn't this engine's job); and the text says «قند شما در
+  محدودهٔ دیابت است», never «دیابت دارید» — the sheet had one abnormal glucose, and ADA needs two.
+- **Sourcing:** the number is in `guidelines.js` as `ADA_SOC_CVD`, a **separate** entry from
+  `ADA_SOC` even though it is the same document, because `ADA_SOC`'s scope is diagnosis (section
+  2) and this comes from section 10. And it is attached via `sources:` on the finding, only on
+  that branch — `RULE_SOURCES` deliberately has no lipid row, since the other thresholds there are
+  NCEP's, and a blanket attach would have cited ADA to every patient with high triglycerides.
+- **Guards:** `M75`, `M75b` (negative control — same LDL, normal glucose, no finding), `M75c`
+  (the source doesn't leak onto non-diabetic lipid findings). Registered as `P33` in
+  [MEDICAL_RULES.md](MEDICAL_RULES.md) with two open questions for the clinical reviewer.
 
 ---
 

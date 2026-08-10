@@ -1019,7 +1019,7 @@ export const RULES_BIOCHEM = [
       const ldlHigh = ldl?.abnormal && ldl.dir === "high";
       const hdlLow = hdl?.abnormal && hdl.dir === "low";
       const tgHigh = t.TG != null && t.TG >= 150;
-      return cholHigh || ldlHigh || hdlLow || tgHigh;
+      return cholHigh || ldlHigh || hdlLow || tgHigh || ldlAboveDmTarget(e);
     },
     build: (e) => {
       const t = val(e);
@@ -1029,6 +1029,7 @@ export const RULES_BIOCHEM = [
       const cholHigh = chol?.abnormal && chol.dir === "high";
       const ldlHigh = ldl?.abnormal && ldl.dir === "high";
       const hdlLow = hdl?.abnormal && hdl.dir === "low";
+      const dmTarget = ldlAboveDmTarget(e);
 
       // طبقه‌بندی تری‌گلیسرید
       const tg = t.TG;
@@ -1057,6 +1058,7 @@ export const RULES_BIOCHEM = [
       const parts = [];
       if (cholHigh) parts.push(`کلسترول تام ${chol.value} (مطلوب زیر ۲۰۰)`);
       if (ldlHigh) parts.push(`کلسترول بد (LDL) ${ldl.value} (مطلوب زیر ۱۰۰؛ برای افراد پرخطر قلبی زیر ۷۰)`);
+      else if (dmTarget) parts.push(`کلسترول بد (LDL) ${ldl.value} (هدف در دیابت: زیر ۱۰۰)`);
       if (hdlLow) parts.push(`کلسترول خوب (HDL) ${hdl.value} که پایین است (مطلوب: مردان بالای ۴۰، زنان بالای ۵۰)`);
       if (tgVeryHigh) parts.push(`تری‌گلیسرید ${tg} که خیلی بالاست`);
       else if (tgHigh) parts.push(`تری‌گلیسرید ${tg} که بالاست (مطلوب زیر ۱۵۰)`);
@@ -1067,7 +1069,7 @@ export const RULES_BIOCHEM = [
       const significant = ldlHigh || cholHigh || tgHigh || tgVeryHigh;
       // LDL ≥۱۹۰ سطحی است که راهنماها مستقل از سایر عوامل خطر، درمان دارویی پرقدرت را توصیه می‌کنند.
       const ldlVeryHigh = ldl != null && ldl.value >= 190;
-      const keyNum = ldlHigh ? ldl.value : tgHigh || tgVeryHigh ? tg : cholHigh ? chol.value : null;
+      const keyNum = ldlHigh || dmTarget ? ldl.value : tgHigh || tgVeryHigh ? tg : cholHigh ? chol.value : null;
 
       // non-HDL (Kenwright, «Lipids and Lipoproteins»): پیش‌بینی‌کنندهٔ مستقلِ خطر،
       //   به‌ویژه در دیابت و تری‌گلیسریدِ بالا؛ هدف ≈ هدفِ LDL + ۳۰ (یعنی زیر ۱۳۰).
@@ -1080,9 +1082,16 @@ export const RULES_BIOCHEM = [
         pattern: "dyslipidemia",
         urgency: significant ? "this_week" : "routine",
         ...(keyNum != null ? { key_number: keyNum } : {}),
+        // منبع فقط وقتی چسبانده می‌شود که واقعاً از آن استفاده شده باشد.
+        // RULE_SOURCES عمداً برای لیپید خالی است (آستانه‌ها NCEP‌اند)، پس
+        // برچسبِ ADA نباید روی هر یافتهٔ چربی بنشیند — فقط روی این شاخه.
+        ...(dmTarget ? { sources: ["ADA_SOC_CVD"] } : {}),
         headline: "چربی خون شما در حد مطلوب نیست",
         must_say:
           `در پروفایل چربی شما ${summary} دیده می‌شود. ` +
+          (dmTarget
+            ? "عددِ LDL شما در محدودهٔ مرجعِ عمومیِ برگه «طبیعی» است؛ آنچه آن را اینجا مطرح می‌کند قندِ شماست: وقتی قند در محدودهٔ دیابت باشد، رگ‌ها زودتر آسیب می‌بینند و هدفِ LDL از حدِ عمومی پایین‌تر و زیر ۱۰۰ در نظر گرفته می‌شود. این یعنی عددی که برای فردِ دیگری خبرِ خوبی است، برای شما هنوز جای کار دارد. "
+            : "") +
           (nonHdlHigh
             ? `مجموعِ چربی‌های بدِ خون (کلسترول تام منهای HDL) ${nonHdl} است، در حالی‌که مطلوب زیر ۱۳۰ است؛ این عدد همهٔ ذرات چربیِ رسوب‌کننده در رگ را با هم می‌سنجد و پیش‌بینی‌کنندهٔ خوبی برای خطر قلبی است — به‌ویژه اگر دیابت یا تری‌گلیسرید بالا داشته باشید. `
             : "") +
@@ -1513,3 +1522,35 @@ export const RULES_BIOCHEM = [
       };
     },
   }];
+
+/**
+ * آیا LDL «در محدودهٔ مرجعِ عمومی طبیعی، ولی بالاتر از هدفِ دیابت» است؟
+ *
+ * 🔴 شکافِ اندازه‌گیری‌شده روی یک برگهٔ واقعی: FBS=۲۰۹ با LDL=۱۱۴. بازهٔ LDL
+ *    در refs.js تا ۱۳۰ است، پس LDL غیرطبیعی نمی‌شد، lipid_profile فعال
+ *    نمی‌شد، و بیمار دربارهٔ چربی خونش هیچ نمی‌خواند — در حالی که قندش در
+ *    محدودهٔ دیابت بود و همان عدد برای او بالاتر از هدف است.
+ *    «طبیعیِ عمومی» و «در هدف» دو چیزند و برگه فقط اولی را می‌داند.
+ *
+ * منبع: ADA Standards of Care 2025، بخشِ ۱۰ (ADA_SOC_CVD). هدفِ زیر ۱۰۰
+ *    برای دیابت بدونِ بیماریِ قلبی‌عروقیِ شناخته‌شده، و زیر ۷۰ در پرخطر.
+ *    این موتور سابقهٔ قلبی نمی‌بیند، پس فقط عددِ محافظه‌کارانه‌ترِ ۱۰۰ را
+ *    به کار می‌برد و وجودِ هدفِ سخت‌گیرانه‌ترِ ۷۰ را به پزشک واگذار می‌کند.
+ *
+ * ⚠️ شرطِ قند عمداً *همان* چهار معیارِ ADA در قاعدهٔ glycemia است، نه یک
+ *    آستانهٔ تازه. اگر روزی آن‌ها عوض شوند، این هم با آن‌ها عوض می‌شود؛
+ *    آستانهٔ دوم یعنی دو قاعده دربارهٔ یک بیمار دو حرفِ متفاوت — کلاسِ N20.
+ * ⚠️ و «قندش در محدودهٔ دیابت است» ≠ «دیابت دارد». متن هم همین را می‌گوید:
+ *    تشخیصِ تأییدنشده را قطعی جا نمی‌زند.
+ */
+function ldlAboveDmTarget(e) {
+  const t = val(e);
+  const ldl = e.graded.find((g) => g.test === "LDL");
+  if (!ldl || ldl.value == null || ldl.value < 100) return false;
+  // اگر خودش بالای بازهٔ مرجع است، شاخهٔ عادیِ قاعده صاحبش است، نه این.
+  if (ldl.abnormal && ldl.dir === "high") return false;
+  return (t.GLU_F != null && t.GLU_F >= 126) ||
+         (t.HBA1C != null && t.HBA1C >= 6.5) ||
+         (t.GLU_2H != null && t.GLU_2H >= 200) ||
+         (t.GLU_RANDOM != null && t.GLU_RANDOM >= 200);
+}

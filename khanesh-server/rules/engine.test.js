@@ -19,7 +19,8 @@ import { evaluate } from "./grade.js";
 import { runEngine, parseTitre } from "./adapter.js";
 import { runPatterns, RULES } from "./patterns.js";
 import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT,
-         tidyRecommendations, phraseSuggestion, buildNormalResult } from "./prompt.js";
+         tidyRecommendations, phraseSuggestion, buildNormalResult,
+         missingSuggestions } from "./prompt.js";
 import { extractMedlineTerms, matchesMedlineKey, TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
 import { missingSentences, missingFindingText, normalizeFa, splitSentences, distinctiveTokens } from "./coverage.js";
 import { runPatterns as _rp, RULE_SOURCES } from "./patterns.js";
@@ -4401,4 +4402,169 @@ test("M72b: هیپرمنیزیمیِ منبع (۰.۹ mmol/L) همان سقفِ �
   const fromSource = 0.9 * SI_CONVERSIONS.MG.factor;
   assert.ok(Math.abs(uln - fromSource) < 0.05,
     `سقفِ ${uln} با تعریفِ منبع (${fromSource.toFixed(3)}) نمی‌خواند`);
+});
+
+// ============================================================
+// برگهٔ واقعی ۲۰۲۶-۰۸-۱۰ — مرد ۵۴ ساله، بیوشیمی سه‌صفحه‌ای.
+// چهار نقصِ جدا که همگی روی همین یک برگه با هم رخ دادند (M73–M77).
+// ============================================================
+const SHEET_0810 = () => ({
+  patient: { age: 54, sex: "M" },
+  tests: [
+    { name: "Fasting Blood Sugar", value: "209", unit: "mg/dL" },
+    { name: "Urea", value: "37", unit: "mg/dL" },
+    { name: "Uric Acid", value: "3.8", unit: "mg/dL" },
+    { name: "Cholesterol", value: "194", unit: "mg/dL" },
+    { name: "Triglycerides", value: "94", unit: "mg/dL" },
+    { name: "Creatinine", value: "1.05", unit: "mg/dL" },
+    { name: "HDL Cholesterol", value: "56", unit: "mg/dL" },
+    { name: "LDL cholesterol", value: "114", unit: "mg/dL" },
+    { name: "SGOT (AST)", value: "16", unit: "IU/L" },
+    { name: "SGPT (ALT)", value: "22", unit: "IU/L" },
+    { name: "Alkaline Phosphatase", value: "229", unit: "U/L" },
+    { name: "LDH", value: "290", unit: "U/L" },
+  ],
+});
+
+// ---------- M73: «SGOT (AST)» و «SGPT (ALT)» ----------
+// روی برگهٔ واقعی هر دو unmapped شدند، چون norm() پرانتز را می‌اندازد و کلید
+// «sgotast» می‌شود در حالی که NAME_MAP فقط «astsgot» را داشت. نتیجه: موتور
+// دو آنزیمِ کبدی را اصلاً ندید — سکوت، نه خطا (N2).
+test("M73: «SGOT (AST)» و «SGPT (ALT)» به AST و ALT نگاشت می‌شوند", () => {
+  const e = runEngine(SHEET_0810());
+  assert.deepEqual(e.unmapped, [], `نگاشت‌نشده: ${JSON.stringify(e.unmapped)}`);
+  assert.equal(e.graded.find((g) => g.test === "AST")?.value, 16);
+  assert.equal(e.graded.find((g) => g.test === "ALT")?.value, 22);
+});
+
+test("M73b: تقسیمِ دونیمه فقط با توافقِ دو نیمه — جفتِ نامرتبط رد می‌شود", () => {
+  // ⚠️ نگهبانِ همان قاعده. اگر روزی شرطِ «هر دو نیمه یک کلید» شل شود،
+  //    «AST/ALT ratio» به یکی از آن دو نگاشت می‌شود و عددِ نسبت به‌جای
+  //    عددِ آنزیم گرید می‌خورد. نگاشتِ غلط از نگاشت‌نشدن بدتر است.
+  const e = runEngine({ tests: [{ name: "AST ALT", value: "2.1" }] });
+  assert.equal(e.graded.length, 0,
+    `«AST ALT» نباید نگاشت شود؛ graded: ${JSON.stringify(e.graded.map((g) => g.test))}`);
+});
+
+// ---------- M74: LDHِ بالا و آنزیم‌های کبدیِ طبیعیِ همان برگه ----------
+// قاعده فقط شاخهٔ «بالا» داشت، پس روی این برگه کبد را جزوِ علت‌های ممکن نام
+// می‌برد و هیچ‌جا نمی‌گفت AST و ALT همان‌جا بررسی و طبیعی بوده‌اند.
+test("M74: LDHِ بالا با AST/ALTِ طبیعی، طبیعی‌بودنشان را می‌گوید", () => {
+  const f = runPatterns(runEngine(SHEET_0810()))
+    .findings.find((x) => x.rule_id === "isolated_ldh_elevation");
+  assert.ok(f, "قاعدهٔ LDH فعال نشد");
+  assert.match(f.must_say, /AST و ALT .*طبیعی/,
+    `متن به طبیعی‌بودنِ آنزیم‌های کبدی اشاره نکرد: ${f.must_say}`);
+});
+
+test("M74b: CKِ طبیعی هم گفته می‌شود، و CKِ نبوده ادعا نمی‌سازد", () => {
+  const withCk = runPatterns(runEngine({
+    patient: { age: 54, sex: "M" },
+    tests: [{ name: "LDH", value: "290" }, { name: "CK", value: "90" }],
+  })).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
+  assert.match(withCk.must_say, /CK .*طبیعی است/, `CKِ طبیعی گفته نشد: ${withCk.must_say}`);
+
+  // ⚠️ N4 از سمتِ عکس: وقتی CK روی برگه نیست، هیچ جمله‌ای دربارهٔ عضله نباید
+  //    ادعای وضعیت کند — نه «طبیعی»، نه «بالا».
+  const noCk = runPatterns(runEngine({
+    patient: { age: 54, sex: "M" }, tests: [{ name: "LDH", value: "290" }],
+  })).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
+  assert.ok(!/CK .*طبیعی/.test(noCk.must_say), `دربارهٔ CKِ نبوده ادعا شد: ${noCk.must_say}`);
+});
+
+test("M74c: ALTِ طبیعی بدونِ AST، نمی‌گوید ASTِ نبوده طبیعی است", () => {
+  const f = runPatterns(runEngine({
+    patient: { age: 54, sex: "M" },
+    tests: [{ name: "LDH", value: "290" }, { name: "SGPT", value: "22" }],
+  })).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
+  assert.match(f.must_say, /AST روی برگهٔ شما نیست/, `متن: ${f.must_say}`);
+  assert.ok(!/AST و ALT .*طبیعی/.test(f.must_say), "ادعای طبیعی‌بودنِ تستِ نبوده");
+});
+
+// ---------- M75: LDLِ «طبیعی» که برای این بیمار بالاتر از هدف است ----------
+// LDL=۱۱۴ زیر سقفِ ۱۳۰ است، پس lipid_profile فعال نمی‌شد و بیمار با قندِ ۲۰۹
+// دربارهٔ چربی خونش هیچ نمی‌خواند. هدفِ ADA در دیابت زیر ۱۰۰ است.
+test("M75: LDL=۱۱۴ با قندِ در محدودهٔ دیابت، یافتهٔ چربی می‌سازد", () => {
+  const p = runPatterns(runEngine(SHEET_0810()));
+  const f = p.findings.find((x) => x.rule_id === "lipid_profile");
+  assert.ok(f, `قاعدهٔ چربی فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.rule_id).join("، ")}`);
+  assert.match(f.must_say, /زیر ۱۰۰/, `هدفِ ۱۰۰ در متن نیست: ${f.must_say}`);
+  assert.ok(f.sources?.includes("ADA_SOC_CVD"), `منبعِ ADA به یافته نچسبید: ${JSON.stringify(f.sources)}`);
+  // ⚠️ ادعای تشخیصِ قطعی ممنوع: قند تأیید نشده (یک آزمایش، dmHits=1).
+  assert.ok(!/شما دیابت دارید/.test(f.must_say), "تشخیصِ قطعیِ دیابت ادعا شد");
+});
+
+test("M75b: نگهبانِ منفی — همان LDL بدونِ قندِ دیابتی یافته نمی‌سازد", () => {
+  const s = SHEET_0810();
+  s.tests = s.tests.map((t) => t.name === "Fasting Blood Sugar" ? { ...t, value: "95" } : t);
+  const ids = runPatterns(runEngine(s)).findings.map((x) => x.rule_id);
+  assert.ok(!ids.includes("lipid_profile"),
+    `LDL=۱۱۴ با قندِ طبیعی نباید یافتهٔ چربی بسازد؛ فعال‌شده‌ها: ${ids.join("، ")}`);
+});
+
+test("M75c: منبعِ ADA فقط روی شاخهٔ خودش می‌نشیند، نه روی هر یافتهٔ چربی", () => {
+  // ⚠️ RULE_SOURCES عمداً برای لیپید خالی است (آستانه‌ها NCEP‌اند). اگر منبع
+  //    به کلِ قاعده وصل شود، بیمارِ بدونِ دیابت هم ارجاعِ ADA می‌بیند.
+  const f = runPatterns(runEngine({
+    patient: { age: 54, sex: "M" },
+    tests: [{ name: "LDL cholesterol", value: "175" }, { name: "Triglycerides", value: "94" }],
+  })).findings.find((x) => x.rule_id === "lipid_profile");
+  assert.ok(f, "قاعدهٔ چربی با LDL=۱۷۵ فعال نشد");
+  assert.ok(!(f.sources ?? []).includes("ADA_SOC_CVD"), `منبعِ ADA بی‌جا چسبید: ${JSON.stringify(f.sources)}`);
+});
+
+// ---------- M76: توصیه‌ای که مدل از فهرست انداخت ----------
+// تورِ قبلی فقط «مدل هیچ نداد» را می‌گرفت (length === 0). روی برگهٔ واقعی مدل
+// فهرست را کوتاه کرد و «HbA1c» افتاد — کلاسِ N18.
+test("M76: پیشنهادِ افتاده از فهرستِ مدل برگردانده می‌شود", () => {
+  const e = runEngine(SHEET_0810());
+  const p = runPatterns(e);
+  const modelRecs = ["این هفته وقت بگیرید.", "درخواست آزمایش تکرار قند ناشتا از پزشک"];
+  const back = missingSuggestions(modelRecs, p, e);
+  assert.ok(back.some((r) => /HbA1c/i.test(r)), `HbA1c برنگشت: ${JSON.stringify(back)}`);
+  assert.ok(back.some((r) => /هاپتوگلوبین/.test(r)), `هاپتوگلوبین برنگشت: ${JSON.stringify(back)}`);
+});
+
+test("M76b: چیزی که مدل نوشته دوباره اضافه نمی‌شود", () => {
+  const e = runEngine(SHEET_0810());
+  const p = runPatterns(e);
+  // فهرستِ کاملِ خودِ موتور → هیچ‌چیز نباید غایب شمرده شود، وگرنه تور روی
+  // هر تفسیرِ سالم هم متن تکراری می‌چسباند.
+  const full = buildEngineRecommendations(p, e);
+  assert.deepEqual(missingSuggestions(full, p, e), []);
+});
+
+test("M76c: بازنویسیِ مدل «غایب» شمرده نمی‌شود، ولی اشتراکِ یک واژه کافی نیست", () => {
+  const e = runEngine(SHEET_0810());
+  const p = runPatterns(e);
+  // «ACR ادرار» فقط با آمدنِ «ادرار» پوشش‌داده حساب نشود — نامِ آزمایش کوتاه
+  //  است و آستانه باید هر دو واژه را بخواهد.
+  const onlyUrine = missingSuggestions(["یک نمونهٔ ادرار بدهید"], p, e);
+  assert.ok(onlyUrine.some((r) => /ACR/.test(r)), `ACR با یک واژهٔ مشترک پوشش‌داده شمرده شد: ${JSON.stringify(onlyUrine)}`);
+  const withAcr = missingSuggestions(["نسبت ACR ادرار را چک کنید"], p, e);
+  assert.ok(!withAcr.some((r) => /ACR/.test(r)), `ACRِ نوشته‌شده دوباره اضافه شد: ${JSON.stringify(withAcr)}`);
+});
+
+// ---------- M77: پروفایل چربیِ چاپ‌شده دوباره «درخواست» نمی‌شود ----------
+test("M77: با کاملِ پروفایل چربی روی برگه، «درخواست آزمایش پروفایل چربی» نمی‌آید", () => {
+  const e = runEngine(SHEET_0810());
+  const recs = buildEngineRecommendations(runPatterns(e), e);
+  assert.ok(!recs.includes("درخواست آزمایش پروفایل چربی از پزشک"),
+    `آزمایشی که روی برگه هست دوباره درخواست شد — N8:\n${recs.join("\n")}`);
+});
+
+test("M77b: با LDLِ نبوده، همان پیشنهاد باید بماند", () => {
+  // نگهبانِ منفی: اگر مجموعهٔ کلیدها ناقص شود، پیشنهادِ *درست* حذف می‌شود.
+  const e = runEngine({
+    patient: { age: 54, sex: "M" },
+    tests: [
+      { name: "Fasting Blood Sugar", value: "209" },
+      { name: "Cholesterol", value: "194" },
+      { name: "HDL Cholesterol", value: "56" },
+      { name: "Triglycerides", value: "94" },
+    ],
+  });
+  const recs = buildEngineRecommendations(runPatterns(e), e);
+  assert.ok(recs.includes("درخواست آزمایش پروفایل چربی از پزشک"),
+    `پیشنهادِ لازم حذف شد:\n${recs.join("\n")}`);
 });

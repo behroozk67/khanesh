@@ -31,7 +31,7 @@ import "dotenv/config";
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
 import { runEngine } from "./rules/adapter.js";
 import { runPatterns } from "./rules/patterns.js";
-import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions } from "./rules/prompt.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
@@ -959,6 +959,19 @@ const analyzeHandler = async (req, res) => {
       parsed.general_recommendations = tidyRecommendations(chosen);
       delete parsed.recommendations;
 
+      // ⚠️ تورِ بالا فقط «مدل هیچ توصیه‌ای نداد» را می‌گیرد. حالتِ شایع‌تر و
+      //    بی‌صداتر، *کوتاه‌کردنِ* فهرست است: روی یک برگهٔ واقعی با FBS=۲۰۹
+      //    موتور HbA1c را خواسته بود و مدل فقط «تکرار قند ناشتا» را نوشت.
+      //    شرطِ `length === 0` دقیقاً کلاسِ N18 است — توری که فقط شکستِ کامل
+      //    را می‌بیند، شکستِ جزئی را نمی‌بیند.
+      const addBack = missingSuggestions(parsed.general_recommendations, patternOut, engineOut);
+      if (addBack.length) {
+        console.warn(`تورِ توصیه‌ها: ${addBack.length} پیشنهادِ موتور در فهرستِ مدل نبود و برگردانده شد`);
+        parsed.general_recommendations = tidyRecommendations([
+          ...parsed.general_recommendations, ...addBack,
+        ]);
+      }
+
       // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
       //
       // 🔴 باگ واقعی (با فراخوانیِ زندهٔ gpt-4o-mini تأیید شد): قبلاً حضور را با
@@ -1118,6 +1131,19 @@ const analyzeHandler = async (req, res) => {
       //    می‌کند. اینجا فقط new Set بود، پس تکرارِ نزدیک رد می‌شد.
       parsed.general_recommendations = tidyRecommendations(chosen);
       delete parsed.recommendations;
+
+      // ⚠️ تورِ بالا فقط «مدل هیچ توصیه‌ای نداد» را می‌گیرد. حالتِ شایع‌تر و
+      //    بی‌صداتر، *کوتاه‌کردنِ* فهرست است: روی یک برگهٔ واقعی با FBS=۲۰۹
+      //    موتور HbA1c را خواسته بود و مدل فقط «تکرار قند ناشتا» را نوشت.
+      //    شرطِ `length === 0` دقیقاً کلاسِ N18 است — توری که فقط شکستِ کامل
+      //    را می‌بیند، شکستِ جزئی را نمی‌بیند.
+      const addBack = missingSuggestions(parsed.general_recommendations, patternOut, engineOut);
+      if (addBack.length) {
+        console.warn(`تورِ توصیه‌ها: ${addBack.length} پیشنهادِ موتور در فهرستِ مدل نبود و برگردانده شد`);
+        parsed.general_recommendations = tidyRecommendations([
+          ...parsed.general_recommendations, ...addBack,
+        ]);
+      }
 
       // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
       //

@@ -11,6 +11,7 @@
 // ============================================================
 
 import { alreadyMeasured, SUGGEST_TESTS } from "./patterns.js";
+import { normalizeFa } from "./coverage.js";
 import { TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
 import { levelGrade } from "./patterns_utils.js";
 import { faName } from "./names.js";
@@ -284,6 +285,65 @@ export function buildEngineRecommendations(patterns, engineOut) {
   // حذف تکراری‌ها: دو finding ممکن است یک آزمایش/اقدام را پیشنهاد دهند —
   // هم دقیقاً یکسان، هم یکی ادامهٔ دیگری («نوبت عادی…» در سه شکل).
   return tidyRecommendations(filtered);
+}
+
+/**
+ * توکن‌های یک *نامِ آزمایش* برای سنجشِ حضور در متنِ مدل.
+ *
+ * ⚠️ عمداً distinctiveTokens نیست. آن تابع برای *جمله* تنظیم شده: واژه‌های
+ *    زیر چهار حرف و stop-wordها را دور می‌ریزد، چون در یک جملهٔ بلند چیزی
+ *    ثابت نمی‌کنند. نامِ آزمایش جمله نیست — «ACR ادرار» سه‌حرفی‌اش دقیقاً
+ *    همان چیزی است که نام را می‌سازد، و انداختنش «هر جملهٔ حاویِ ادرار» را
+ *    به‌عنوان پوشش قبول می‌کرد. اینجا هر واژه‌ای که ≥۲ نویسه است می‌ماند.
+ */
+function nameTokens(name) {
+  return [...new Set(
+    normalizeFa(name).split(" ").filter((w) => w.length >= 2 || /\d/.test(w)),
+  )];
+}
+
+/**
+ * پیشنهادهای موتور که در فهرستِ توصیه‌های مدل *نیامده‌اند* — آمادهٔ افزودن.
+ *
+ * 🔴 شکافِ اندازه‌گیری‌شده روی یک برگهٔ واقعی (FBS=۲۰۹): موتور برای قندِ
+ *    در محدودهٔ دیابت پنج پیشنهاد داده بود که «HbA1c» بینشان بود، و مدل در
+ *    فهرستِ نهایی فقط «تکرار قند ناشتا» را نوشت. یعنی آزمایشی که هم تشخیص
+ *    را قطعی می‌کند و هم شدت را می‌سنجد، بی‌صدا افتاد.
+ *
+ * ⚠️ تورِ قبلیِ توصیه‌ها فقط شرطِ «مدل هیچ نداد» را داشت (`length === 0`)،
+ *    که همان کلاسِ N18 است: تور فقط شکستِ کامل را می‌دید و *کوتاه‌شدنِ*
+ *    فهرست — که حالتِ شایع‌تر است — از زیرش رد می‌شد.
+ *
+ * جهتِ خطا مثل تورهای اورژانسِ server.js به نفعِ افزودن است: تکرارِ یک
+ * توصیه بد است، افتادنِ درخواستِ HbA1c از برگهٔ یک نفر با قندِ ۲۰۹ بدتر.
+ * پس تطبیق باید *همهٔ* واژه‌های نام را ببیند (آستانهٔ ۰.۶ روی نامِ دوکلمه‌ای
+ * یعنی هر دو)، نه یکی از آن‌ها را.
+ */
+export function missingSuggestions(modelRecs, patterns, engineOut) {
+  const measured = new Set((engineOut?.graded ?? []).map((g) => g.test));
+  const allSuggest = dropSubsumedTests([
+    ...new Set((patterns?.findings ?? []).flatMap((f) => f.suggest ?? [])
+      .filter((t) => !alreadyMeasured(t, measured))),
+  ]);
+  if (!allSuggest.length) return [];
+
+  const modelText = normalizeFa((modelRecs ?? []).join(" "));
+  const modelTokens = new Set(modelText.split(" ").filter(Boolean));
+
+  const missing = allSuggest.filter((name) => {
+    const toks = nameTokens(name);
+    // نامِ بدونِ هیچ توکنِ قابلِ سنجش → با تطبیقِ عینیِ نرمال‌شده
+    if (!toks.length) return !modelText.includes(normalizeFa(name));
+    const hits = toks.filter((t) => modelTokens.has(t)).length;
+    return hits / toks.length < 0.6;
+  }).map(phraseSuggestion);
+
+  // همان فیلترِ forbid که buildEngineRecommendations دارد — تور نباید
+  // آزمایشی را برگرداند که یافتهٔ دیگری صریحاً منعش کرده.
+  const forbidden = (patterns?.findings ?? []).flatMap((f) => f.forbid ?? []);
+  return forbidden.length
+    ? missing.filter((r) => !forbidden.some((w) => String(r).includes(w)))
+    : missing;
 }
 
 /**

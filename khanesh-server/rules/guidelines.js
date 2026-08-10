@@ -103,6 +103,20 @@ export const GUIDELINES = {
     scope: 'معیارهای تشخیص دیابت و پیش‌دیابت؛ لزومِ تکرارِ تأییدی',
   },
 
+  // ⚠️ همان سند، ولی ورودیِ جدا — و این عمدی است. ADA_SOC دامنه‌اش «تشخیص»
+  //    است (بخشِ ۲)؛ هدفِ LDL از بخشِ ۱۰ می‌آید. ارجاع به بخشِ اشتباهِ یک
+  //    سند، دقیقاً همان ایرادی است که این فایل دربارهٔ «سندِ اشتباهِ همان
+  //    سازمان» می‌گیرد، یک پله ریزتر. یک ورودی ارزانتر از یک ادعای نادرست است.
+  ADA_SOC_CVD: {
+    org: 'ADA',
+    fa: 'انجمن دیابت آمریکا',
+    title: 'Standards of Care in Diabetes — Cardiovascular Disease and Risk Management',
+    year: 2025,
+    url: 'https://diabetesjournals.org/care/issue/48/Supplement_1',
+    access: 'open',
+    scope: 'هدفِ LDL در دیابت (زیر ۱۰۰، و زیر ۷۰ در پرخطرِ قلبی‌عروقی)',
+  },
+
   ESC_EAS_LIPID: {
     org: 'ESC/EAS',
     fa: 'انجمن قلب اروپا / انجمن آترواسکلروز اروپا',
