@@ -305,6 +305,17 @@ export const GUIDELINES = {
     scope:
       'محدوده‌های کلسیم/فسفر/PTH/کلسیم ادرار، و تفکیک علل هایپر و هایپوکلسمی بر پایهٔ PTH (جدول‌های ۱۶.۱ و ۱۶.۲)',
   },
+
+  HENRY_LIPID: {
+    org: "Henry's Clinical Diagnosis",
+    fa: 'هنری — تشخیص بالینی و مدیریت با روش‌های آزمایشگاهی',
+    title: 'Lipids and Dyslipoproteinemia (فصل ۱۸)',
+    year: 2022,
+    url: 'https://www.elsevier.com/books/henrys-clinical-diagnosis-and-management-by-laboratory-methods/mcpherson/978-0-323-67320-4',
+    access: 'open',
+    scope:
+      'طبقه‌بندی تری‌گلیسرید (طبیعی/مرزی/بالا/خیلی‌بالا ≥۵۰۰)، آستانه‌های شکِ هایپرکلسترولمی فامیلی در بزرگسال و زیر ۲۰ سال، جدول ۱۸.۱۰ (کلسترول و LDL کودکان)، و آستانهٔ apoB',
+  },
 };
 
 /** یک شناسهٔ منبع → رکورد. شناسهٔ ناشناس → null (نه پرتاب خطا؛ متن نباید بشکند). */

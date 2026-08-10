@@ -30,6 +30,8 @@ export const FA_NAMES = {
   B12: "ویتامین B12", FOLATE: "فولات", VIT_D: "ویتامین D",
   TSH: "TSH", FT4: "T4 آزاد", FT3: "T3 آزاد", T3: "T3 تام", T4: "T4 تام", ANTI_TPO: "آنتی‌بادی TPO",
   CHOL: "کلسترول", HDL: "HDL", LDL: "LDL", TG: "تری‌گلیسیرید",
+  // پرانتزِ لاتین می‌ماند چون برگه «Apo B» چاپ می‌کند — همان استدلالِ PTH/HDL.
+  APOB: "آپولیپوپروتئین B (Apo B)",
   HAPTO: "هاپتوگلوبین", PT: "PT (زمان پروترومبین)", APTT: "aPTT", FIB: "فیبرینوژن",
   DDIMER: "D-dimer", INR: "INR", LACTATE: "لاکتات", PCT_SEPSIS: "پروکلسی‌تونین",
   CRP_Q: "CRP", NH3: "آمونیاک", HCO3: "بی‌کربنات", PH: "pH خون",

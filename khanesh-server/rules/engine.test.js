@@ -4568,3 +4568,188 @@ test("M77b: با LDLِ نبوده، همان پیشنهاد باید بماند"
   assert.ok(recs.includes("درخواست آزمایش پروفایل چربی از پزشک"),
     `پیشنهادِ لازم حذف شد:\n${recs.join("\n")}`);
 });
+
+// ============================================================
+// M78–M82 — فصل ۱۸ هنری (لیپیدها و دیس‌لیپوپروتئینمی)
+// ============================================================
+
+// ---------- M78: آستانهٔ پانکراتیت از ۸۸۰ به ۵۰۰ ----------
+// منبع: «TG ≥ ۵۰۰ خیلی‌بالاست و استفاده از داروی کاهنده برای پیشگیری از
+// پانکراتیت توجیه دارد». عددِ ۸۸۰ی قبلی منبع نداشت، پس کلِ بازهٔ ۵۰۰–۸۸۰ —
+// جایی که پانکراتیت واقعاً رخ می‌دهد — فقط یافتهٔ عمومیِ چربی می‌گرفت.
+const tgSheet = (tg, extra = []) => ({
+  patient: { age: 44, sex: "M" },
+  tests: [{ name: "Triglycerides", value: String(tg) }, ...extra],
+});
+
+test("M78: تری‌گلیسرید ۵۲۰ یافتهٔ خطر پانکراتیت می‌سازد", () => {
+  const p = runPatterns(runEngine(tgSheet(520)));
+  const f = p.findings.find((x) => x.pattern === "triglyceride_pancreatitis_risk");
+  assert.ok(f, `یافتهٔ پانکراتیت ساخته نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
+  assert.equal(f.key_number, 520);
+  assert.match(f.must_say, /پانکراتیت/, `متن به پانکراتیت اشاره نکرد: ${f.must_say}`);
+  assert.ok(f.sources?.includes("HENRY_LIPID"), `منبع نچسبید: ${JSON.stringify(f.sources)}`);
+});
+
+test("M78b: نگهبانِ منفی — ۴۸۰ هنوز «بالا»ست نه «خیلی بالا»", () => {
+  const p = runPatterns(runEngine(tgSheet(480)));
+  const pats = p.findings.map((x) => x.pattern);
+  assert.ok(!pats.includes("triglyceride_pancreatitis_risk"),
+    `۴۸۰ نباید یافتهٔ پانکراتیت بسازد؛ فعال‌شده‌ها: ${pats.join("، ")}`);
+  const f = p.findings.find((x) => x.pattern === "dyslipidemia");
+  assert.ok(f, "با TG=۴۸۰ هیچ یافتهٔ چربی ساخته نشد");
+  assert.match(f.must_say, /تری‌گلیسرید 480 که بالاست/, `متنِ بندِ TG: ${f.must_say}`);
+  // شاخهٔ مردهٔ «خیلی بالاست» حذف شد؛ اگر برگردد این می‌شکند.
+  assert.ok(!/خیلی بالاست/.test(f.must_say), `شاخهٔ tgVeryHigh دوباره زنده شد: ${f.must_say}`);
+});
+
+test("M78c: مرزِ دقیقِ ۵۰۰ داخلِ شاخهٔ پانکراتیت است", () => {
+  const pats = runPatterns(runEngine(tgSheet(500))).findings.map((x) => x.pattern);
+  assert.ok(pats.includes("triglyceride_pancreatitis_risk"),
+    `۵۰۰ باید داخل باشد؛ فعال‌شده‌ها: ${pats.join("، ")}`);
+});
+
+// ---------- M79: آستانه‌های چربیِ اطفال (جدول ۱۸.۱۰) ----------
+// بازهٔ RCPCH برای کلسترول سقفِ ۲۳۲ mg/dL داشت، پس کودکِ ۱۰ ساله با کلسترول
+// ۲۲۰ «طبیعی» گرفته می‌شد — زیرخوانیِ خاموش، کلاسِ N2.
+const kidSheet = (age, tests) => ({ patient: { age, sex: "M" }, tests });
+
+test("M79: کودکِ ۱۰ ساله با کلسترول ۲۲۰ غیرطبیعی است", () => {
+  const e = runEngine(kidSheet(10, [{ name: "Cholesterol", value: "220" }]));
+  const g = e.graded.find((x) => x.test === "CHOL");
+  assert.ok(g?.abnormal, `کلسترول ۲۲۰ در ۱۰ سالگی طبیعی شمرده شد: ${JSON.stringify(g)}`);
+  assert.equal(g.dir, "high");
+  assert.equal(g.range, "0–170", "بازهٔ اعمال‌شده جدول ۱۸.۱۰ نیست");
+  // N1: هر غیرطبیعی باید قاعده‌ای داشته باشد، وگرنه unmatched_abnormal می‌شود.
+  const pats = runPatterns(e).findings.map((x) => x.pattern);
+  assert.ok(!pats.includes("unmatched_abnormal"),
+    `کلسترولِ کودک بی‌قاعده ماند؛ فعال‌شده‌ها: ${pats.join("، ")}`);
+});
+
+test("M79b: LDL اطفال — ۱۲۰ غیرطبیعی، ۱۰۰ طبیعی", () => {
+  const hi = runEngine(kidSheet(10, [{ name: "LDL", value: "120" }]))
+    .graded.find((x) => x.test === "LDL");
+  assert.ok(hi?.abnormal, `LDL=۱۲۰ در ۱۰ سالگی طبیعی شمرده شد: ${JSON.stringify(hi)}`);
+  assert.equal(hi.range, "0–110", "بازهٔ اعمال‌شده جدول ۱۸.۱۰ نیست");
+  const ok = runEngine(kidSheet(10, [{ name: "LDL", value: "100" }]))
+    .graded.find((x) => x.test === "LDL");
+  assert.ok(!ok.abnormal, `LDL=۱۰۰ نباید غیرطبیعی باشد: ${JSON.stringify(ok)}`);
+});
+
+test("M79c: منبعِ ردیفِ اطفال دیگر به‌غلط «RCPCH 2016» برچسب نمی‌خورد", () => {
+  const g = runEngine(kidSheet(10, [{ name: "Cholesterol", value: "220" }]))
+    .graded.find((x) => x.test === "CHOL");
+  assert.match(g.refSource, /Henry ch\.18/, `منبعِ اشتباه به بیمار نشان داده می‌شود: ${g.refSource}`);
+  // ردیف‌های دست‌نخوردهٔ RCPCH باید همان برچسب را نگه دارند.
+  const hgb = runEngine(kidSheet(10, [{ name: "Hemoglobin", value: "12.5" }]))
+    .graded.find((x) => x.test === "HGB");
+  assert.equal(hgb.refSource, "RCPCH 2016");
+});
+
+test("M79d: نگهبانِ منفی — زیرِ سنِ غربالگری هنوز RCPCH است", () => {
+  // منبع غربالگری را از ۲ سالگی شروع می‌کند و برای شیرخوار آستانه‌ای نمی‌دهد؛
+  // پس آستانهٔ ۱۷۰ نباید به عقب کشیده شود.
+  const g = runEngine(kidSheet(1.5, [{ name: "Cholesterol", value: "200" }]))
+    .graded.find((x) => x.test === "CHOL");
+  assert.ok(!g.abnormal, `آستانهٔ اطفال بی‌جا به زیرِ ۲ سال کشیده شد: ${JSON.stringify(g)}`);
+  assert.equal(g.refSource, "RCPCH 2016");
+});
+
+test("M79e: عددِ «مطلوب» در متن همان عددی است که تست را غیرطبیعی کرد", () => {
+  const f = runPatterns(runEngine(kidSheet(10, [{ name: "Cholesterol", value: "180" }])))
+    .findings.find((x) => x.pattern === "dyslipidemia");
+  assert.ok(f, "کلسترولِ ۱۸۰ در ۱۰ سالگی یافته نساخت");
+  assert.match(f.must_say, /مطلوب زیر ۱۷۰ در این سن/, `متن با آستانهٔ گریدینگ نمی‌خواند: ${f.must_say}`);
+  assert.ok(!/مطلوب زیر ۲۰۰/.test(f.must_say),
+    `به کودکی که علامت خورده گفته شد هدفش زیر ۲۰۰ است: ${f.must_say}`);
+});
+
+// ---------- M80: شکِ FH با non-HDL، و قیدِ سنی ----------
+// منبع: بزرگسال ≥۲۰ سال → LDL ≥ ۱۹۰ *یا* non-HDL ≥ ۲۲۰.
+test("M80: بدونِ LDL روی برگه، non-HDL ≥ ۲۲۰ قاعدهٔ FH را فعال می‌کند", () => {
+  const p = runPatterns(runEngine({
+    patient: { age: 46, sex: "F" },
+    tests: [{ name: "Cholesterol", value: "300" }, { name: "HDL", value: "40" }],
+  }));
+  const f = p.findings.find((x) => x.pattern === "severe_hypercholesterolemia");
+  assert.ok(f, `با non-HDL=۲۶۰ فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
+  assert.equal(f.key_number, 260, "عددِ نشان‌داده‌شده باید همانی باشد که شرط را برآورده کرد");
+  assert.match(f.must_say, /non-HDL/, `به شاخصِ واقعی اشاره نشد: ${f.must_say}`);
+  assert.ok(f.sources?.includes("HENRY_LIPID"), `منبع نچسبید: ${JSON.stringify(f.sources)}`);
+});
+
+test("M80b: نگهبانِ منفی — non-HDL=۲۰۵ زیرِ آستانه است", () => {
+  const pats = runPatterns(runEngine({
+    patient: { age: 46, sex: "F" },
+    tests: [{ name: "Cholesterol", value: "250" }, { name: "HDL", value: "45" }],
+  })).findings.map((x) => x.pattern);
+  assert.ok(!pats.includes("severe_hypercholesterolemia"),
+    `۲۰۵ نباید FH بسازد؛ فعال‌شده‌ها: ${pats.join("، ")}`);
+  assert.ok(pats.includes("dyslipidemia"), "یافتهٔ عمومیِ چربی هم غایب شد");
+});
+
+test("M80c: نوجوانِ ۱۴ ساله متنِ بزرگسال نمی‌گیرد", () => {
+  const pats = runPatterns(runEngine(kidSheet(14, [{ name: "LDL", value: "195" }])))
+    .findings.map((x) => x.pattern);
+  assert.ok(!pats.includes("severe_hypercholesterolemia"),
+    `قاعدهٔ بزرگسال روی نوجوان فعال شد؛ فعال‌شده‌ها: ${pats.join("، ")}`);
+  assert.ok(pats.includes("familial_hypercholesterolemia_youth"),
+    `قاعدهٔ اطفال جای آن را نگرفت؛ فعال‌شده‌ها: ${pats.join("، ")}`);
+});
+
+// ---------- M81: FH زیرِ ۲۰ سال ----------
+test("M81: LDL=۱۷۰ در ۱۴ سالگی شکِ FH است", () => {
+  const p = runPatterns(runEngine(kidSheet(14, [{ name: "LDL", value: "170" }])));
+  const f = p.findings.find((x) => x.pattern === "familial_hypercholesterolemia_youth");
+  assert.ok(f, `فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
+  assert.equal(f.key_number, 170);
+  assert.match(f.must_say, /۱۶۰/, `آستانهٔ سنی در متن نیامد: ${f.must_say}`);
+  assert.match(f.must_say, /والد/, `توصیهٔ بررسیِ خانواده در متن نیست: ${f.must_say}`);
+});
+
+test("M81b: سنِ نامعلوم قاعدهٔ اطفال را فعال نمی‌کند", () => {
+  const pats = runPatterns(runEngine({
+    patient: {}, tests: [{ name: "LDL", value: "170" }],
+  })).findings.map((x) => x.pattern);
+  assert.ok(!pats.includes("familial_hypercholesterolemia_youth"),
+    `بدون سن، متنِ کودک به بزرگسال چسبید؛ فعال‌شده‌ها: ${pats.join("، ")}`);
+});
+
+test("M81c: نگهبانِ منفی — بزرگسالِ ۲۵ ساله با LDL=۱۷۰ هیچ FHـی نمی‌گیرد", () => {
+  const pats = runPatterns(runEngine({
+    patient: { age: 25, sex: "M" }, tests: [{ name: "LDL", value: "170" }],
+  })).findings.map((x) => x.pattern);
+  assert.ok(!pats.includes("severe_hypercholesterolemia") &&
+            !pats.includes("familial_hypercholesterolemia_youth"),
+    `آستانهٔ اطفال به بزرگسال نشت کرد؛ فعال‌شده‌ها: ${pats.join("، ")}`);
+  assert.ok(pats.includes("dyslipidemia"), "یافتهٔ عمومیِ چربی غایب شد");
+});
+
+// ---------- M82: apoB ----------
+test("M82: Apo B=۱۵۰ یافته می‌سازد و کلیدِ خام به متن نمی‌رسد", () => {
+  const p = runPatterns(runEngine({
+    patient: { age: 52, sex: "M" }, tests: [{ name: "Apo B", value: "150" }],
+  }));
+  const f = p.findings.find((x) => x.pattern === "apob_elevated");
+  assert.ok(f, `فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
+  assert.equal(f.key_number, 150);
+  assert.equal(faName("APOB"), "آپولیپوپروتئین B (Apo B)");
+  assert.ok(!/\bAPOB\b/.test(f.must_say), `کلیدِ خامِ موتور در متن: ${f.must_say}`);
+});
+
+test("M82b: با LDLِ به‌ظاهر طبیعی، متن دلیلِ اهمیتِ apoB را می‌گوید", () => {
+  const f = runPatterns(runEngine({
+    patient: { age: 52, sex: "M" },
+    tests: [{ name: "Apolipoprotein B", value: "150" }, { name: "LDL", value: "110" }],
+  })).findings.find((x) => x.pattern === "apob_elevated");
+  assert.ok(f, "با نامِ کاملِ آزمایش نگاشت نشد");
+  assert.match(f.must_say, /کمتر از آنچه هست/, `شاخهٔ کم‌برآوردِ LDL نیامد: ${f.must_say}`);
+});
+
+test("M82c: املاهای رایجِ Apo B همگی به یک کلید می‌رسند", () => {
+  for (const name of ["Apo B", "APO-B", "ApoB100", "آپو ب", "Apolipoprotein B"]) {
+    const e = runEngine({ patient: { age: 52, sex: "M" }, tests: [{ name, value: "150" }] });
+    assert.ok(e.graded.some((g) => g.test === "APOB"),
+      `«${name}» نگاشت نشد؛ unmapped: ${JSON.stringify(e.unmapped)}`);
+  }
+});

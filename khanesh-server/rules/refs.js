@@ -120,6 +120,17 @@ export const ADULT_REFS = {
   HDL:     { both: [40, 100],  unit: 'mg/dL' },  // پایین بودن نامطلوب است
   LDL:     { both: [0, 130],   unit: 'mg/dL' },  // بالا بودن نامطلوب است
   TG:      { both: [0, 150],   unit: 'mg/dL' },  // «طبیعی» <۱۵۰ (بود 10–190، مرزیِ 150–199 را جا می‌انداخت)
+  // آپولیپوپروتئین B — روی هر ذرهٔ آترون‌زا (شیلومیکرون، VLDL، IDL، LDL) دقیقاً
+  //   یک مولکول apoB نشسته، پس این عدد *شمارِ ذرات* را می‌سنجد نه بارِ کلسترولشان
+  //   را. Henry فصل ۱۸ دو عدد می‌دهد: غلظتِ پلاسمایی ۸۰–۱۰۰ mg/dL (جدول ۱۸.۴) و
+  //   آستانهٔ «تشدیدکنندهٔ خطرِ» ACC/AHA ‏≥۱۳۰ mg/dL. آستانهٔ تصمیم اینجا نشسته،
+  //   نه بازهٔ جمعیتی — همان تفکیکی که برای CHOL/LDL/TG بالاتر توضیح داده شد،
+  //   و به همان دلیل حدِ پایین ۰ است: apoBِ پایین خبرِ بدی نیست.
+  // ⚠️ Lp(a) عمداً اینجا نیست. روی برگه با دو مقیاسِ غیرقابل‌تبدیل چاپ می‌شود
+  //   (mg/dL و nmol/L) و منبع دو آستانهٔ جدا می‌دهد (>۵۰ و >۱۲۵) بدون هیچ ضریبی؛
+  //   NAME_MAP بر اساس نام نگاشت می‌کند نه واحد، پس هر بازهٔ واحدی مقیاسِ دیگر را
+  //   غلط درجه‌بندی می‌کند. کلاسِ N3 — ثبت‌شده در MEDICAL_RULES.md ذیل P35.
+  APOB:    { both: [0, 130],   unit: 'mg/dL' },
   // منیزیم — ۱.۷–۲.۲ mg/dL. (اصلاحِ قبلی: بود ۱.۸–۳.۰، پس ۱.۵ «طبیعی» می‌شد.)
   // ✅ ۱۶ مرداد ۱۴۰۵ — با Henry فصل ۱۶ تأیید شد، نه عوض. متن همین جفت را
   //    می‌دهد: «۰.۷۵ تا ۰.۹۵ mmol/L (۱.۷ و ۲.۲ mg/dL، یا ۱.۵ و ۱.۹ mEq/L)».
@@ -256,7 +267,7 @@ export const GERIATRIC_REFS = {
   ALP: { M: [80, 300], F: [64, 300], unit: 'U/L' },
 };
 
-import { getPedRef, isPediatricRCPCH } from './refs_ped.js';
+import { getPedRef, getPedRefSource, isPediatricRCPCH } from './refs_ped.js';
 
 // گرفتن محدوده برای یک تست
 // اطفال (< 16 سال) → اول جدول RCPCH، اگر نبود → بالغ (طبق دستور خود RCPCH)
@@ -282,7 +293,9 @@ export function getRef(testKey, sex, age) {
 
 // منبع محدوده — برای شفافیت
 export function getRefSource(testKey, age) {
-  if (isPediatricRCPCH(age) && getPedRef(testKey, age)) return 'RCPCH 2016';
+  // ⚠️ برچسبِ ثابتِ «RCPCH 2016» جای خود را به منبعِ همان ردیف داد — بعضی
+  //    ردیف‌های PED_REFS عددشان از هنری می‌آید و RCPCH نگفته است. قفل: M79c.
+  if (isPediatricRCPCH(age) && getPedRef(testKey, age)) return getPedRefSource(testKey, age);
   if (age >= 75 && GERIATRIC_REFS[testKey]) return 'Geriatric Override';
   return 'Henry A5';
 }

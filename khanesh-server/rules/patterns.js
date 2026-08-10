@@ -136,11 +136,18 @@ export const RULE_SOURCES = {
   dka_pattern:          ["ADA_SOC"],
   hhs_pattern:          ["ADA_SOC"],
   hypoglycemia:         ["ADA_SOC"],
-  // ⚠️ لیپید عمداً اینجا نیست: آستانه‌های LDL/کلسترول/TG در refs.js از
+  // ⚠️ `lipid_profile` عمداً اینجا نیست: آستانه‌های LDL/کلسترول در refs.js از
   //    NCEP ATP III می‌آیند، نه از ESC/EAS. تا وقتی اهدافِ ریسک‌محورِ ESC
   //    (<۵۵/<۷۰/<۱۰۰/<۱۱۶) واقعاً پیاده نشده‌اند، برچسبِ ESC یعنی ادعای
   //    منبعی که موتور از آن استفاده نمی‌کند. ورودیِ ESC_EAS_LIPID در
   //    guidelines.js برای همان کارِ آینده نگه داشته شده.
+  //    شاخهٔ ≥۵۰۰ی همان قاعده منبعش هنری فصل ۱۸ است و برچسبش را — مثل شاخهٔ
+  //    دیابتِ کنارش — روی خودِ یافته می‌گذارد، نه روی کلِ قاعده.
+  // چربی — آستانه‌های شکِ FH (بزرگسال ۱۹۰/۲۲۰، زیر ۲۰ سال ۱۶۰/۱۹۰) و apoB ≥۱۳۰
+  //    همگی از هنری فصل ۱۸ می‌آیند.
+  severe_hypercholesterolemia:        ["HENRY_LIPID"],
+  familial_hypercholesterolemia_youth:["HENRY_LIPID"],
+  apob_elevated:                      ["HENRY_LIPID"],
   // کبد — نسبت R و آستانه‌های آنزیمی از گایدلاینِ آنزیم‌های کبدیِ ACG.
   liver_pattern:        ["ACG_LIVER"],
   bilirubin_pattern:    ["ACG_LIVER"],

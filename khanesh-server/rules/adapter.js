@@ -141,6 +141,10 @@ const NAME_MAP = {
   cholesterole: "CHOL", cholestérol: "CHOL", کلسترول: "CHOL",
   hdl: "HDL", hdlc: "HDL", hdlcholesterol: "HDL", "hdl-c": "HDL", hdlcholestrol: "HDL",
   ldl: "LDL", ldlc: "LDL", ldlcholesterol: "LDL", "ldl-c": "LDL", ldlcholestrol: "LDL",
+  // ⚠️ norm() خط تیره و فاصله را می‌اندازد، پس «Apo-B» و «Apo B» هر دو «apob»
+  //    می‌شوند و کلیدِ جدایی لازم ندارند. فارسی هم ي→ی و نیم‌فاصله نرمال می‌شود.
+  apob: "APOB", apob100: "APOB", apolipoproteinb: "APOB", apolipoproteinb100: "APOB",
+  آپولیپوپروتئینb: "APOB", آپوب: "APOB", آپوبی: "APOB",
   tg: "TG", triglyceride: "TG", triglycerides: "TG",
   triglicerde: "TG", triglicerid: "TG", triglicerides: "TG", trigliserid: "TG",
   triglycerid: "TG", تریگلیسیرید: "TG", تریگلیسرید: "TG",
@@ -337,6 +341,7 @@ const BLOOD_BIOCHEM_MARKERS = new Set([
   "ast", "sgot", "alt", "sgpt", "alp", "ggt", "ldh", "hba1c", "a1c",
   "ferritin", "iron", "tibc", "tsh", "ft4", "ft3", "t3", "t4",
   "uricacid", "amylase", "lipase", "hdl", "ldl", "b12", "vitd", "vitamind",
+  "apob", "apolipoproteinb",
 ]);
 
 // نشانگرهای گاز خون شریانی (ABG) — تنها زمینه‌ای که pH خون معنا دارد.

@@ -27,6 +27,8 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `c4c28e7`, **before** the Henry ch.18 lipid work (`npm test`) | 2026-08-10 | 302 | 302 | **0** | — |
+   | working tree on `c4c28e7`, after it — `M78`–`M82c`, 17 tests (`npm test`) | 2026-08-10 | 319 | 319 | **0** | — |
    | `HEAD` at `e9d386e` (`isolated_ldh_elevation`, `M61`×5) | 2026-08-06 | 266 | 266 | **0** | — |
    | `HEAD` at `c81019c` (the commit before it) | 2026-08-06 | 256 | 256 | **0** | — |
 
@@ -1072,6 +1074,27 @@ repair was to truncate and re-append with `cat >>` from Bash. **Never move Persi
 PowerShell 5.1's `Get-Content`/`Add-Content`/`Set-Content` in this repo**; use the Write/Edit
 tools or Bash. Cost was minutes here only because the text was under test; the same command
 against a `patterns_*.js` file is `5059a05` again.
+
+**(d) The Windows tool that re-encodes on append — hit again 2026-08-10, caught by `M37`.**
+
+- **Tried:** append a block of Persian tests to `rules/engine.test.js` with
+  `Add-Content -Path … -Value (Get-Content -Raw) -Encoding utf8` in PowerShell 5.1, because a
+  Bash heredoc had failed to parse.
+- **Broke:** `Get-Content` decoded the UTF-8 source as the system ANSI codepage and `Add-Content`
+  re-encoded the result, so the appended 185 lines landed as textbook mojibake — 2260 characters
+  of it. The Persian *regexes inside the assertions* were mojibaked too, so ten tests failed with
+  messages like «متن به پانکراتیت اشاره نکرد» printed next to output that clearly did mention
+  پانکراتیت. Read carelessly, that looks like a rules bug, not an encoding bug.
+- **What worked:** `node -e "fs.appendFileSync(dst, fs.readFileSync(src,'utf8'))"`. Bash `cat`
+  and the `Write` tool are also safe. **Never append Persian with PowerShell 5.1 cmdlets** —
+  `Set-Content`/`Add-Content`/`Out-File` all round-trip through a codepage, and `-Encoding utf8`
+  additionally means *UTF-8 with BOM*, so on a file that already has content you get a BOM
+  spliced into the middle.
+- **Cost this time: none.** `M37` failed on the same run and named the file and the character
+  count. That is the entry above doing exactly what it was written to do — but note it caught a
+  *test* file. The same command on `patterns_hematology.js` would have produced unreadable
+  clinical text, and `M37` would have caught that too; the point of logging it is that the
+  reflex «I'll just append with PowerShell» is what needs to not happen again.
 
 **The generalizing rule, and the one worth remembering:** when you change many files with one
 mechanical command, the suite passing is *not* evidence the command did what you meant. Ask what

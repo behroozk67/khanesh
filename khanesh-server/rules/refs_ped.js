@@ -169,7 +169,7 @@ export const PED_REFS = {
   //    اختراعِ عدد. اگر روزی منبعی برای ۱۶–۱۸ سال پیدا شد، اینجا جایش است.
   // قفل‌شده با M71.
   PHOS: [ { maxAge: 1,  range: r(1.3,  2.6,  CONV.PHOS) },   // RCPCH 2016 — بدون تغییر
-          { maxAge: 16, range: r(1.29, 2.26, CONV.PHOS) } ], // Henry فصل ۱۶ → 3.99–7.00 mg/dL
+          { maxAge: 16, range: r(1.29, 2.26, CONV.PHOS), source: 'Henry ch.16' } ], // → 3.99–7.00 mg/dL
 
   // ---- متابولیک (صفحه ۲) ----
   GLU_F: [                                  // mmol/L → mg/dL
@@ -177,9 +177,26 @@ export const PED_REFS = {
     { maxAge: 16,     range: r(3.0, 6.0, CONV.GLU) },
   ],
   HBA1C: [ { maxAge: 16, range: [4, 6] } ],  // %
+  // ⚠️ کلسترول و LDLِ کودک «بازهٔ مرجع» نیستند، آستانهٔ ریسک‌اند — همان تفکیکی که
+  //   refs.js برای بزرگسال دارد و دلیلش آنجا نوشته شده. Henry فصل ۱۸، جدول ۱۸.۱۰:
+  //     کلسترول تام: قابل‌قبول <۱۷۰ · مرزی ۱۷۰–۱۹۹ · غیرطبیعی ≥۲۰۰ mg/dL
+  //     LDL:         قابل‌قبول <۱۱۰ · مرزی ۱۱۰–۱۲۹ · غیرطبیعی ≥۱۳۰ mg/dL
+  //   بازهٔ RCPCH برای کلسترول ۲.۸–۶.۰ mmol/L است، یعنی سقفِ ۲۳۲ mg/dL — پس
+  //   کودکِ ۱۰ ساله با کلسترول ۲۲۰ تا امروز «طبیعی» گرفته می‌شد، در حالی که همان
+  //   عدد در منبع «غیرطبیعی» است و یک زیرخوانیِ خاموش بود (کلاسِ N2).
+  //   ⚠️ زیرِ ۲ سالگی عمداً دست نخورد: خودِ منبع غربالگری را از ۲ سالگی شروع
+  //   می‌کند و برای شیرخوار هیچ آستانه‌ای نمی‌دهد؛ حدس نزدیم.
+  //   قفل‌شده با M79 / M79b / M79c.
   CHOL: [
-    { maxAge: 1,      range: r(1.2, 4.7, CONV.CHOL) },  // شیرخوار
-    { maxAge: 16,     range: r(2.8, 6.0, CONV.CHOL) },
+    { maxAge: 1,  range: r(1.2, 4.7, CONV.CHOL) },  // شیرخوار — RCPCH 2016
+    { maxAge: 2,  range: r(2.8, 6.0, CONV.CHOL) },  // پیش از سنِ شروعِ غربالگری — RCPCH 2016
+    { maxAge: 16, range: [0, 170], source: 'Henry ch.18 (Table 18.10)' },
+  ],
+  LDL: [
+    // RCPCH برای LDL هیچ ردیفی ندارد. زیرِ ۲ سال منبعی نداریم، پس همان آستانهٔ
+    // بزرگسالِ refs.js تکرار می‌شود تا رفتار عوض نشود؛ این «عددِ اطفال» نیست.
+    { maxAge: 2,  range: [0, 130], source: 'Henry A5' },
+    { maxAge: 16, range: [0, 110], source: 'Henry ch.18 (Table 18.10)' },
   ],
   TG: [
     { maxAge: M(1),   range: r(0,   1.8, CONV.TG) },
@@ -317,6 +334,24 @@ export function getPedRef(testKey, ageYears) {
     if (ageYears <= row.maxAge) return row.range;
   }
   return null;   // سن از آخرین ردیف بیشتر است → بالغ
+}
+
+/**
+ * منبعِ همان ردیفی که getPedRef برگرداند.
+ *
+ * ⚠️ چرا لازم شد: getRefSource تا امروز هر ردیفِ اطفال را «RCPCH 2016» برچسب
+ *    می‌زد، و این برچسب در `_engine.tests[].refSource` به بیمار نشان داده
+ *    می‌شود. حالا که چند ردیف عددشان از هنری می‌آید نه RCPCH، آن برچسبِ ثابت
+ *    یعنی ادعای منبعی که خوانده نشده — همان چیزی که guidelines.js ممنوع کرده.
+ *    ردیفِ بدون `source` همچنان RCPCH است.
+ */
+export function getPedRefSource(testKey, ageYears) {
+  const rows = PED_REFS[testKey];
+  if (!rows || ageYears == null) return null;
+  for (const row of rows) {
+    if (ageYears <= row.maxAge) return row.source ?? 'RCPCH 2016';
+  }
+  return null;
 }
 
 /**
