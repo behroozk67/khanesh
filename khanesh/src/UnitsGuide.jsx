@@ -21,7 +21,7 @@ export default function UnitsGuide() {
         </p>
 
         <h2 className="site-h3" style={{ marginTop: '2rem', marginBottom: '1rem' }}>اصل طلایی: تبدیل غلط بدتر از نبودِ تبدیل است</h2>
-        <div className="site-panel site-panel--soft" style={{ marginBottom: '1.5rem', borderRight: '4px solid #f59e0b', paddingRight: '1rem' }}>
+        <div className="site-panel site-panel--soft" style={{ marginBottom: '1.5rem' }}>
           <p>
             سیستم ما از یک قانون بسیار سخت‌گیرانه پیروی می‌کند: <b>فقط و فقط زمانی تبدیل واحد را انجام بده که واحد روی برگه صریحاً SI باشد.</b> یک تبدیلِ اشتباه، عددِ درست را به یک تشخیصِ غلط تبدیل می‌کند و از نبودِ تبدیل بدتر است.
           </p>
