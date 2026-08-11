@@ -27,8 +27,22 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
-   | `HEAD` at `c5700c0` (`git archive` + junction recipe below) | 2026-08-11 | 350 | 350 | **0** | — |
-   | working tree on `c5700c0`, after the glucose/liver fix — `M91`–`M92d`, 9 tests (`npm test`) | 2026-08-11 | 359 | 359 | **0** | — |
+   | `HEAD` at `90ac7d6` (`git archive` + junction recipe below) — **115 rules** | 2026-08-11 | 372 | 372 | **0** | — |
+   | `HEAD` at `c5700c0` (same recipe) — 116 rules | 2026-08-11 | 350 | 350 | **0** | — |
+   | working tree on `c5700c0`, mid-way — glucose/liver only, `M91`–`M92d` (`npm test`) | 2026-08-11 | 359 | 359 | **0** | — |
+   | working tree on `c4c28e7`, **before** the Henry ch.20 protein work (`npm test`) | 2026-08-11 | 350 | 350 | **0** | — |
+   | working tree on `c4c28e7`, after it — `M94`–`M94k`, 11 tests (`npm test`) | 2026-08-11 | 372 | 372 | **0** | — |
+
+   ⚠️ **That 350 → 372 is +22, and only 11 of them are the ch.20 work.** A second session was
+   editing this tree at the same time and landed `M91`–`M92d` and its own `M93`/`M93b` in
+   between the two measurements. Isolated properly — the rules suites alone, measured in a temp
+   copy with the ch.20 edits reverted and again with them applied — the range change is
+   **330 · 330 · 0 both ways**, i.e. it broke nothing and added nothing. Two things this cost,
+   worth knowing before you trust a delta here: the concurrent session had already taken `P41`,
+   `P42` **and** `P43` in `MEDICAL_RULES.md` (hence `P44`), and it had taken `M93`/`M93b`, so a
+   bulk rename of a freshly appended block clobbered two of its test names before they were
+   restored. **When `git status` shows files you did not touch, derive your delta by isolating
+   your own change — a total is not an attribution.**
    | working tree on `c4c28e7`, **before** the Henry ch.19 cardiac work (`npm test`) | 2026-08-10 | 319 | 319 | **0** | — |
    | working tree on `c4c28e7`, after it — `M83`–`M90b`, 31 tests (`npm test`) | 2026-08-10 | 350 | 350 | **0** | — |
    | working tree on `c4c28e7`, **before** the Henry ch.18 lipid work (`npm test`) | 2026-08-10 | 302 | 302 | **0** | — |
@@ -1392,6 +1406,52 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
 - **Guards:** `M75`, `M75b` (negative control — same LDL, normal glucose, no finding), `M75c`
   (the source doesn't leak onto non-diabetic lipid findings). Registered as `P33` in
   [MEDICAL_RULES.md](MEDICAL_RULES.md) with two open questions for the clinical reviewer.
+
+### N23 — Changing a reference range silently loosens every rule that reads `dir === "low"`
+2026-08-11, `ADULT_REFS.ALB` 3.5 → 3.9 (Henry ch.20, reviewer decision `P44`). Caught before
+commit by probing the change rather than by any test. Logged because **no existing entry covers
+it and no guard in the repo watches for it.**
+
+- **Tried:** apply a reviewer-approved reference range. Henry's Table 20.2 gives albumin
+  39–51 g/L, so `[3.5, 5.0]` became `[3.9, 5.1]` g/dL. A range change, nothing more — the kind
+  of edit that looks like it can only affect whether one test reads "normal".
+- **Broke:** two multi-marker *diagnostic* rules, neither of which was touched.
+  `cirrhosis_pattern` counts 4 markers and fires at 3; `isNephrotic` requires heavy proteinuria
+  **and** low albumin. Both expressed "low albumin" as `alb.abnormal && alb.dir === "low"` — so
+  their clinical threshold was never a decision, it was a **silent alias for whatever the
+  reference range happened to be**. Measured on `HEAD`, not argued:
+
+  | panel | before the range change | after, before the guard |
+  |---|---|---|
+  | `ALB 3.7 · PLT 120 · BILI_T 1.5` | `thrombocytopenia` | + `chronic_liver_disease_pattern` |
+  | `urine protein 3+ · ALB 3.7` | `proteinuria_heavy` | `nephrotic_pattern` |
+
+  The first panel is a plausible Gilbert syndrome — mild unconjugated hyperbilirubinemia is
+  common and benign — plus mild thrombocytopenia. Telling that patient they have chronic liver
+  disease is an over-read nobody decided on. Nephrotic syndrome is not defined at albumin 3.7
+  either.
+- **Why nothing caught it:** every guard in this repo is a property of *one* thing — `M36` the
+  rule object, `M37` encoding, `M38` language, `M70` field agreement inside one finding. The
+  full suite stayed **330 pass · 0 fail** across the change. A reference range and a rule that
+  reads it live in different files, and nothing asserts a relationship between them.
+- **Rule:** a reference range answers "is this unusual for a general adult?". Membership in a
+  multi-marker pattern for a heavy diagnosis is a **different question with a different number**.
+  Any rule that treats `dir === "low"` / `dir === "high"` as evidence *for a named disease* is
+  coupled to `refs.js` whether its author knew it or not. Before changing a range, grep for the
+  key in `patterns_*.js` and run the boundary panel — the new value paired with just enough other
+  markers to sit one short of the rule's threshold. That panel is where the silent change lives.
+- **The fix is a hold-the-line constant, not a new threshold.** `ALB_LOW_MARKER_GDL = 3.5` in
+  `patterns_utils.js` pins the two rules to the behaviour they already had, so the range change
+  has zero effect on rule firing. It makes no new clinical claim and needs no new source — which
+  is exactly why it was the right move for a change whose mandate was "adopt Henry's range", not
+  "redefine cirrhosis". Whether 3.5–3.8 *should* count as a marker is a real clinical question
+  and it is written down as an open question in `P44-ج`, not decided in passing.
+- **This is N22 from the other side.** There, the reference range was too loose for a
+  treatment target and a second `match` arm was needed. Here, the reference range got *tighter*
+  and a diagnostic threshold rode along with it. Same underlying error both times: **one number
+  was doing two jobs.**
+- **Guards:** `M94f`, `M94g` (the real 4-marker cirrhosis still fires — a widened guard must not
+  become a blindfold), `M94h` (both arms: 3.7 is not nephrotic, 2.4 still is).
 
 ---
 
