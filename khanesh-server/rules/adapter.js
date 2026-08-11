@@ -210,6 +210,32 @@ const NAME_MAP = {
   فاکتورروماتوئید: "RF", فاکتورروماتیسمی: "RF", رومافاکتور: "RF", آرافاکتور: "RF",
 
   crplatex: "CRP_Q", creactiveprotein: "CRP_Q", crpqualitative: "CRP_Q",
+
+  // ═══ نشانگرهای قلبی‌عروقیِ هنری فصل ۱۹ — تا امروز هیچ‌کدام کلید نداشتند ═══
+  // یعنی برگه‌ای که BNP یا هموسیستئین رویش چاپ شده بود، آن ردیف را به
+  // `unmapped` می‌فرستاد و بی‌صدا از تفسیر می‌انداخت — همان کلاسِ N2.
+  bnp: "BNP", btypenatriureticpeptide: "BNP", brainnatriureticpeptide: "BNP",
+  // ⚠️ NT-proBNP باید کلیدِ *جدا* بماند: آستانه‌اش ۳۰۰ pg/mL است و BNP ۱۰۰.
+  //    اگر به BNP نگاشت شود، NT-proBNP=۲۵۰ (طبیعی) «بالا» علامت می‌خورد.
+  //    resolveAlias هم آن را به bnp نمی‌شکند، چون قاعدهٔ تقسیمش توافقِ هر دو
+  //    نیمه را می‌خواهد و «ntpro» به هیچ کلیدی نگاشت نمی‌شود.
+  ntprobnp: "NTPROBNP", nterminalprobnp: "NTPROBNP", ntprobnptest: "NTPROBNP",
+  nbnp: "NTPROBNP", nterminalbnp: "NTPROBNP",
+  // ⚠️ «Pro-BNP»ِ برهنه عمداً به NT-proBNP نگاشت می‌شود و نه به BNP. دلیلش
+  //    این است که proBNPِ ۱۰۸ اسیدآمینه‌ای سنجهٔ سفارش‌دادنیِ بالینی نیست —
+  //    متنِ منبع می‌گوید «در حال حاضر فقط سنجه‌های مرتبط با BNP کاربردِ گسترده
+  //    دارند» و آن دو را BNP و N-BNP/NT-proBNP نام می‌برد. پس ردیفی که روی
+  //    برگهٔ ایرانی «Pro BNP» نوشته شده، در عمل همان NT-proBNP است.
+  probnp: "NTPROBNP", probnatriureticpeptide: "NTPROBNP",
+
+  // هموسیستئین. ⚠️ «homocystine» (بدون e) از نظر شیمیایی مولکولِ دیگری است
+  //    (دی‌سولفید)، ولی خودِ متنِ منبع می‌گوید آنچه اندازه‌گیری می‌شود «مجموعِ
+  //    این گونه‌هاست» و نام‌های «total homocysteine»، «homocyst(e)ine» و
+  //    «homocysteine» برای همان یک کمیت به کار می‌روند. پس ردیفِ برگه با هر
+  //    کدام از این املاها همان آنالیت است.
+  homocysteine: "HCY", totalhomocysteine: "HCY", homocystine: "HCY",
+  homocysteineserum: "HCY", hcy: "HCY", thcy: "HCY",
+  هموسیستئین: "HCY", هموسیستین: "HCY",
 };
 
 // ---------- نگاشتِ پشتیبان برای املاهای دیده‌نشده ----------
@@ -540,7 +566,37 @@ export function ocrToEngineInput(ocr) {
     if (/troponin|ctn[it]|hs.?ctn|^tn[it]$|cardiactroponin/.test(key)) {
       const tv = toNum(t.value);
       if (tv != null) {
-        tests.TROPONIN_I = tv;
+        // 🔴 باگ واقعی، کلاسِ N3 — و جهتش «اورژانسِ کاذب» بود، نه سکوت.
+        //    refs.js تروپونین را بر حسب µg/L می‌خواهد ([0, 0.6]) ولی سنجه‌های
+        //    حساسیت‌بالا روی برگه با ng/L (یا pg/mL، که عددشان یکی است) چاپ
+        //    می‌شوند. هنری فصل ۱۹: صدکِ ۹۹ این سنجه‌ها ۱۰ تا ۳۰ ng/L است، یعنی
+        //    یک تروپونینِ کاملاً *طبیعیِ* «8 ng/L» بدونِ تبدیل با ۰.۶ سنجیده
+        //    می‌شد → «بالاتر از حد طبیعی» → troponin_positive → «همین حالا به
+        //    اورژانس بروید». روی شایع‌ترین حالتِ این تست، که طبیعی بودن است.
+        //    ۱ ng/L = ۱ pg/mL = ۰.۰۰۱ µg/L = ۰.۰۰۱ ng/mL.
+        const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
+        // ⚠️ سنجهٔ hs را باید *بشناسیم*، چون قاعدهٔ باندِ ۰.۰۳–۰.۶ فقط برای
+        //    همین سنجه معتبر است: سنجهٔ سنتی حدِ تشخیصش ۱۰–۵۰ ng/L است و
+        //    عددِ ۰.۰۴ ng/mL از آن، «بالای صدک ۹۹» نیست بلکه مرزِ نویزِ خودش
+        //    است. دو نشانهٔ مستقل، هر کدام کافی: نامِ ردیف، یا واحدِ ng/L.
+        const hsUnit = /^(ng\/l|pg\/ml)$/.test(u);
+        const hsName = /^hs|highsensitiv|highsensetiv/.test(key);
+        if (hsUnit || hsName) tests._trop_hs = true;
+
+        if (hsUnit) {
+          // ۴ رقمِ اعشار: ۸ ng/L → ۰.۰۰۸ µg/L. گردکردنِ کمتر، مقدارِ طبیعی را صفر می‌کند.
+          const conv = +(tv / 1000).toFixed(4);
+          unitConversions.push({ test: "TROPONIN_I", raw: tv, from: u, value: conv, to: "µg/L" });
+          tests.TROPONIN_I = conv;
+        } else {
+          // ng/mL و µg/L عددشان یکی است → دست‌نخورده.
+          // ⚠️ واحدِ نانوشته عمداً *حدس زده نمی‌شود*، برخلافِ D-dimer بالاتر.
+          //    آنجا دو مقیاس شکافِ عددیِ تمیزی دارند (mg/L زیر ۵۰، ng/mL بالای
+          //    آن)؛ اینجا ندارند: بازهٔ µg/L در بیمارِ واقعی ۰.۰۱ تا ~۱۰۰ است و
+          //    بازهٔ ng/L ‏۱ تا ۱۰۰٬۰۰۰ — روی ۱۰ تا ۱۰۰ کاملاً هم‌پوشان‌اند.
+          //    حدس زدن در این هم‌پوشانی همان چیزی است که N3 دربارهٔ آن است.
+          tests.TROPONIN_I = tv;
+        }
       } else {
         qual[t.name] = String(t.value);
       }
@@ -835,6 +891,13 @@ export function runEngine(ocr) {
       derived.na_correction_applied = true;
     }
   }
+
+  // ⚠️ `_trop_hs` را ocrToEngineInput روی `tests` گذاشته، ولی حلقهٔ درجه‌بندی
+  //    پایین‌تر هر کلیدِ زیرخط‌دار را رد می‌کند و هیچ‌جای دیگری هم آن را
+  //    نمی‌خواند. الگوها فقط `graded`/`qual`/`indices` را می‌بینند، پس بدونِ
+  //    این خط پرچم به قاعده نمی‌رسد. (`_ddimer_raw` دقیقاً همین‌طور نوشته شد و
+  //    تا امروز هیچ‌کس نمی‌خواندش — نمونهٔ زندهٔ همین تله.)
+  if (tests._trop_hs) derived.trop_hs_assay = true;
 
   const graded = [];
   const noRef = [];

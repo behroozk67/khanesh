@@ -316,6 +316,21 @@ export const GUIDELINES = {
     scope:
       'طبقه‌بندی تری‌گلیسرید (طبیعی/مرزی/بالا/خیلی‌بالا ≥۵۰۰)، آستانه‌های شکِ هایپرکلسترولمی فامیلی در بزرگسال و زیر ۲۰ سال، جدول ۱۸.۱۰ (کلسترول و LDL کودکان)، و آستانهٔ apoB',
   },
+
+  HENRY_CARDIAC: {
+    org: "Henry's Clinical Diagnosis",
+    fa: 'هنری — تشخیص بالینی و مدیریت با روش‌های آزمایشگاهی',
+    title: 'Cardiac Injury, Atherosclerosis, and Thrombotic Disease (فصل ۱۹)',
+    year: 2022,
+    url: 'https://www.elsevier.com/books/henrys-clinical-diagnosis-and-management-by-laboratory-methods/mcpherson/978-0-323-67320-4',
+    access: 'open',
+    scope:
+      'صدکِ ۹۹ سنجه‌های تروپونینِ حساسیت‌بالا (۱۰–۳۰ ng/L) و حدِ تشخیصشان (۱–۲ ng/L)؛ ' +
+      'جدول ۱۹.۳ (تعریفِ جهانیِ چهارمِ انفارکتوس)؛ ردهٔ خطرِ hs-CRP (<۱ / ۱–۳ / >۳ mg/L) و ' +
+      'قاعدهٔ ابطالِ >۱۰ mg/L از بیانیهٔ مشترکِ CDC/AHA؛ باندهای هموسیستئین ' +
+      '(خفیف ۱۶–۳۰، متوسط ۳۰–۱۰۰، شدید >۱۰۰ µmol/L)؛ نقطهٔ تصمیمِ BNP=۱۰۰ pg/mL و ' +
+      'ردِ NT-proBNP<۳۰۰ pg/mL؛ و کات‌آفِ سن‌تعدیل‌شدهٔ D-dimer (۱۰×سن برای ≥۵۰ سال)',
+  },
 };
 
 /** یک شناسهٔ منبع → رکورد. شناسهٔ ناشناس → null (نه پرتاب خطا؛ متن نباید بشکند). */

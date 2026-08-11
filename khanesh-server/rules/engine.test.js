@@ -4753,3 +4753,411 @@ test("M82c: املاهای رایجِ Apo B همگی به یک کلید می‌�
       `«${name}» نگاشت نشد؛ unmapped: ${JSON.stringify(e.unmapped)}`);
   }
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// M83–M90 — نشانگرهای قلبی‌عروقی، هنری فصل ۱۹ (patterns_cardiac.js)
+//
+// هر بلوک با «کنترلِ منفی» می‌آید. طبقِ N10 هر کدام روی کدِ پیش از اصلاح
+// اجرا و قرمز شدنشان دیده شد؛ کدام‌یک با چه پیامی، در کامنتِ خودش نوشته است.
+// ═══════════════════════════════════════════════════════════════════
+
+const fired = (p) => (p.findings || []).map((f) => f.pattern);
+const findPat = (p, id) => (p.findings || []).find((f) => f.pattern === id);
+
+// ---------- M83: واحدِ تروپونین — کلاسِ N3، و جهتش اورژانسِ کاذب بود ----------
+//
+// 🔴 پیش از اصلاح: «8 ng/L» با محدودهٔ [0, 0.6] µg/L سنجیده می‌شد، یعنی
+//    عددِ ۸ در برابرِ ۰.۶ → «خیلی بالاتر از حد طبیعی» → troponin_positive →
+//    «همین حالا به اورژانس مراجعه کنید». روی یک تروپونینِ کاملاً طبیعی.
+//    اندازه‌گیری‌شده روی کدِ قدیم: fired = troponin_positive[emergency].
+test("M83: تروپونینِ ۸ ng/L طبیعی است و اورژانسِ کاذب نمی‌سازد", () => {
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "hs-cTnI", value: "8", unit: "ng/L" }],
+  });
+  const g = e.graded.find((x) => x.test === "TROPONIN_I");
+  assert.ok(g, "تروپونین باید گرید شود");
+  assert.equal(g.value, 0.008, "۸ ng/L باید ۰.۰۰۸ µg/L شود");
+  assert.equal(g.abnormal, false, `۸ ng/L نباید غیرطبیعی باشد؛ range=${g.range}`);
+  const p = runPatterns(e);
+  assert.ok(!fired(p).includes("troponin_positive"),
+    `اورژانسِ کاذب روی تروپونینِ طبیعی: ${fired(p).join(", ")}`);
+});
+
+test("M83b: تبدیلِ واحدِ تروپونین به بیمار گزارش می‌شود", () => {
+  // بدونِ این ردیف، بیمار روی برگه «۸» می‌بیند و در تفسیر «۰.۰۰۸» — و حق
+  // دارد فکر کند اشتباه شده. همان دلیلی که unitConversions برایش ساخته شد.
+  const e = runEngine({ tests: [{ name: "hs-cTnI", value: "8", unit: "ng/L" }] });
+  const row = (e.unitConversions || []).find((c) => c.test === "TROPONIN_I");
+  assert.ok(row, `ردیفِ تبدیل نیامد: ${JSON.stringify(e.unitConversions)}`);
+  assert.equal(row.raw, 8);
+  assert.equal(row.value, 0.008);
+  assert.equal(row.to, "µg/L");
+});
+
+test("M83c: pg/mL هم مثل ng/L تبدیل می‌شود (عددشان یکی است)", () => {
+  const e = runEngine({ tests: [{ name: "hs-cTnT", value: "25", unit: "pg/mL" }] });
+  const g = e.graded.find((x) => x.test === "TROPONIN_I");
+  assert.equal(g.value, 0.025, "۲۵ pg/mL باید ۰.۰۲۵ µg/L شود");
+});
+
+// ⚠️ نگهبانِ رگرسیون: اصلاحِ بالا نباید حالتی را که *کار می‌کرد* خراب کند.
+//    واحدِ نانوشته عمداً حدس زده نمی‌شود، پس ۰.۹ همان ۰.۹ µg/L می‌ماند.
+test("M83d: تروپونینِ ۰.۹ بدون واحد همچنان اورژانس است", () => {
+  const p = runPatterns(runEngine({
+    patient: { age: 60, sex: "M" },
+    tests: [{ name: "Troponin I", value: "0.9" }],
+  }));
+  const f = findPat(p, "troponin_positive");
+  assert.ok(f, `تروپونینِ واضحاً بالا اورژانس نداد: ${fired(p).join(", ")}`);
+  assert.equal(f.urgency, "emergency");
+});
+
+// ---------- M84: صدکِ ۹۹ سنجه‌های حساسیت‌بالا ----------
+//
+// 🔴 اندازه‌گیریِ واقعی روی کدِ HEAD: `hs-cTnI 45 ng/L` → `TROPONIN_I=45!` →
+//    `troponin_positive[emergency]`. یعنی کدِ قدیم *درست* هشدار می‌داد — ولی
+//    به دلیلِ کاملاً غلط: عددِ ۴۵ را با محدودهٔ ۰.۶ µg/L سنجیده بود، همان
+//    اشتباهی که در M83 روی تروپونینِ طبیعی اورژانسِ کاذب می‌ساخت.
+//
+// ⚠️ نکتهٔ مهمِ این تست همین است و نباید گم شود: دو نیمهٔ این اصلاح جدا از هم
+//    *بدترش* می‌کنند. تبدیلِ واحد به‌تنهایی، ۴۵ ng/L را به ۰.۰۴۵ می‌برد که
+//    داخلِ [0, 0.6] است → سکوتِ کامل روی آسیبِ میوکارد. قاعده به‌تنهایی هم
+//    بی‌فایده است چون عددِ خام هرگز به بازهٔ ۰.۰۳–۰.۶ نمی‌رسد.
+//    پس اگر روزی کسی خواست یکی از این دو را برگرداند، باید هر دو را برگرداند.
+test("M84: تروپونینِ ۴۵ ng/L روی سنجهٔ hs یافتهٔ اورژانسی می‌سازد", () => {
+  const p = runPatterns(runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "hs-cTnI", value: "45", unit: "ng/L" }],
+  }));
+  const f = findPat(p, "troponin_hs_above_99th");
+  assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${fired(p).join(", ") || "(هیچ)"}`);
+  assert.equal(f.urgency, "emergency");
+  // عددی که به بیمار نشان داده می‌شود باید همانی باشد که روی برگه‌اش چاپ شده
+  // (ng/L)، نه مقدارِ تبدیل‌شدهٔ داخلی — کلاسِ N5.
+  assert.match(f.must_say, /45 ng\/L/, `عددِ برگه در متن نیامد: ${f.must_say}`);
+  assert.ok(!/0\.045/.test(f.must_say), "مقدارِ داخلیِ تبدیل‌شده نباید به متن برسد");
+  assert.match(f.must_say, /نه لزوماً|و نه لزوماً/, "باید بگوید «آسیب» با «حملهٔ قلبی» یکی نیست");
+});
+
+test("M84b: کنترلِ منفی — ۲۵ ng/L زیرِ بالاترین صدکِ ۹۹ است و ساکت می‌ماند", () => {
+  // متن بازهٔ ۱۰ تا ۳۰ ng/L را می‌دهد و ما محافظه‌کارانه ۳۰ را برداشتیم؛ اگر
+  // کسی روزی آستانه را به ۱۰ کم کند، این تست است که می‌گوید تصمیم عوض شده.
+  const p = runPatterns(runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "hs-cTnI", value: "25", unit: "ng/L" }],
+  }));
+  assert.ok(!fired(p).includes("troponin_hs_above_99th"),
+    `نباید فعال می‌شد: ${fired(p).join(", ")}`);
+});
+
+// ⚠️ گیتِ نسلِ سنجه. سنجهٔ سنتی حدِ تشخیصش ۱۰–۵۰ ng/L است، پس «0.04 ng/mL»
+//    از یک سنجهٔ سنتی مرزِ نویزِ خودش است و نه «بالای صدک ۹۹».
+test("M84c: سنجهٔ غیر-hs همان عدد را نمی‌گیرد", () => {
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "Troponin I", value: "0.04", unit: "ng/mL" }],
+  });
+  assert.notEqual(e.indices?.trop_hs_assay, true, "نباید hs علامت بخورد");
+  assert.ok(!fired(runPatterns(e)).includes("troponin_hs_above_99th"));
+});
+
+// ⚠️ ناسازگاریِ ساختاری با troponin_positive. آن قاعده blocks_others دارد،
+//    پس اگر هر دو فعال می‌شدند این یکی بی‌صدا سرکوب می‌شد و کسی نمی‌فهمید.
+test("M84d: تروپونینِ خیلی بالا فقط یکی از دو قاعده را فعال می‌کند", () => {
+  const p = runPatterns(runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "hs-cTnI", value: "3000", unit: "ng/L" }],
+  }));
+  const both = fired(p).filter((x) => x === "troponin_positive" || x === "troponin_hs_above_99th");
+  assert.deepEqual(both, ["troponin_positive"],
+    `باید فقط troponin_positive باشد، شد: ${both.join(", ")}`);
+});
+
+// ---------- M85: hs-CRP و ردهٔ خطرِ ASCVD ----------
+//
+// 🔴 پیش از اصلاح: CRP=۳ داخلِ [0, 5] mg/L می‌افتاد و هیچ یافته‌ای نمی‌ساخت،
+//    در حالی که CDC/AHA همین عدد را «خطرِ بالا» می‌نامد.
+//    اندازه‌گیری‌شده روی کدِ قدیم: fired = (none).
+test("M85: CRP=۳ زیرِ حدِ التهاب است ولی ردهٔ خطرِ قلبی می‌سازد", () => {
+  const e = runEngine({ patient: { age: 50, sex: "M" }, tests: [{ name: "CRP", value: "3", unit: "mg/L" }] });
+  assert.equal(e.graded.find((g) => g.test === "CRP_Q").abnormal, false,
+    "CRP=۳ نباید به‌عنوانِ التهاب غیرطبیعی باشد");
+  const f = findPat(runPatterns(e), "hscrp_ascvd_risk");
+  assert.ok(f, "یافتهٔ ردهٔ خطر نیامد");
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /تشخیص نیست/, "باید صریح بگوید تشخیص نیست");
+});
+
+test("M85b: بالای ۳ ردهٔ «خطرِ بالا» و بین ۲ و ۳ «تقویت‌کنندهٔ خطر»", () => {
+  const hi = findPat(runPatterns(runEngine({ tests: [{ name: "hs-CRP", value: "4.2", unit: "mg/L" }] })), "hscrp_ascvd_risk");
+  assert.match(hi.must_say, /خطرِ بالا/, hi.must_say);
+  const mid = findPat(runPatterns(runEngine({ tests: [{ name: "hs-CRP", value: "2.4", unit: "mg/L" }] })), "hscrp_ascvd_risk");
+  assert.match(mid.must_say, /تقویت‌کنندهٔ خطر/, mid.must_say);
+});
+
+test("M85c: کنترلِ منفی — دو لبهٔ پنجره هیچ‌کدام فعال نمی‌شوند", () => {
+  // زیرِ ۲: طبقِ ACC/AHA اصلاً «تقویت‌کنندهٔ خطر» نیست.
+  const low = runPatterns(runEngine({ tests: [{ name: "CRP", value: "1.2", unit: "mg/L" }] }));
+  assert.ok(!fired(low).includes("hscrp_ascvd_risk"), `زیرِ ۲ نباید فعال شود: ${fired(low).join(", ")}`);
+  // بالای ۱۰: کادرِ ۱۹.۲ می‌گوید این نتیجه باید کنار گذاشته شود و دو هفته بعد
+  // تکرار شود — یعنی خواندنش به‌عنوانِ «ردهٔ خطر» غلط است. N19 برعکس: اینجا
+  // لبهٔ بالای باند عمداً به قاعدهٔ التهابیِ موجود واگذار شده.
+  const hi = runPatterns(runEngine({ tests: [{ name: "CRP", value: "12", unit: "mg/L" }] }));
+  assert.ok(!fired(hi).includes("hscrp_ascvd_risk"), `بالای ۱۰ نباید ردهٔ خطر بدهد: ${fired(hi).join(", ")}`);
+  assert.ok(fired(hi).length > 0, "بالای ۱۰ باید یافتهٔ التهابیِ خودش را داشته باشد، نه سکوت");
+});
+
+// ⚠️ خودِ منبع می‌گوید «غربالگریِ همگانیِ hs-CRP توجیه ندارد». پس گزارشِ عددی
+//    که اندازه‌گیری *شده* درست است و درخواستِ اندازه‌گیری‌اش نیست.
+test("M85d: قاعدهٔ hs-CRP هرگز خودِ CRP را پیشنهاد نمی‌دهد", () => {
+  const f = findPat(runPatterns(runEngine({ tests: [{ name: "CRP", value: "3", unit: "mg/L" }] })), "hscrp_ascvd_risk");
+  assert.ok(!f.suggest.some((s) => /CRP/i.test(s)), `CRP نباید پیشنهاد شود: ${JSON.stringify(f.suggest)}`);
+  assert.ok(f.warnings.some((w) => /برای همه توصیه نمی‌شود/.test(w)), "هشدارِ «غربالگری برای همه نیست» جا افتاد");
+});
+
+// ---------- M86: کات‌آفِ سن‌تعدیل‌شدهٔ D-dimer ----------
+//
+// 🔴 پیش از اصلاح: بیمارِ ۷۸ ساله با D-dimer=۷۰۰ فقط «بالاتر از حد طبیعی»
+//    می‌خواند، بدون اینکه بداند حدِ پیشنهادیِ سنِ خودش ۷۸۰ است.
+test("M86: در سن ۷۸، حدِ سن‌تعدیل‌شده (۷۸۰) در متن می‌آید", () => {
+  const f = findPat(runPatterns(runEngine({
+    patient: { age: 78, sex: "M" }, tests: [{ name: "D-dimer", value: "700", unit: "ng/mL" }],
+  })), "d_dimer_elevated");
+  assert.ok(f, "یافتهٔ D-dimer نیامد");
+  assert.match(f.must_say, /780/, `حدِ سن‌تعدیل‌شده در متن نیست: ${f.must_say}`);
+  assert.match(f.must_say, /زیرِ این حدِ تعدیل‌شده/, f.must_say);
+  assert.ok((f.sources || []).includes("HENRY_CARDIAC"), "منبعِ عدد ضمیمه نشده");
+});
+
+test("M86b: کنترلِ منفی — زیرِ ۵۰ سال نه جملهٔ سنی می‌آید نه منبعش", () => {
+  const f = findPat(runPatterns(runEngine({
+    patient: { age: 45, sex: "M" }, tests: [{ name: "D-dimer", value: "700", unit: "ng/mL" }],
+  })), "d_dimer_elevated");
+  assert.ok(!/ده برابرِ سن/.test(f.must_say), `جملهٔ سنی نباید بیاید: ${f.must_say}`);
+  // برچسبِ منبع فقط جایی که عددش استفاده شده — وگرنه ادعای منبعِ نخوانده است.
+  assert.ok(!(f.sources || []).includes("HENRY_CARDIAC"),
+    "منبع نباید به یافته‌ای بچسبد که هیچ عددی از آن نگرفته");
+});
+
+test("M86c: بالاتر از حدِ سن‌تعدیل‌شده، شاخهٔ دیگری از متن می‌آید", () => {
+  const f = findPat(runPatterns(runEngine({
+    patient: { age: 78, sex: "M" }, tests: [{ name: "D-dimer", value: "900", unit: "ng/mL" }],
+  })), "d_dimer_elevated");
+  assert.match(f.must_say, /حتی با حدِ تعدیل‌شده/, f.must_say);
+});
+
+// ⚠️ 🔴 این تست از یک باگِ واقعیِ همین تغییر درآمد. نسخهٔ اولِ کار، جملهٔ سنی
+//    را یک *قاعدهٔ جدا* با فوریتِ routine کرده بود؛ اندازه‌گیری روی همین پنل
+//    نشان داد هر دو با هم فعال می‌شوند و بیمار یک «این هفته به پزشک» و یک
+//    «برای سن شما عادی است» را کنار هم می‌خواند. کلاسِ N20، یک طبقه بالاتر.
+test("M86d: دربارهٔ D-dimer فقط یک یافته می‌آید، نه دو تا با دو فوریت", () => {
+  const p = runPatterns(runEngine({
+    patient: { age: 78, sex: "M" }, tests: [{ name: "D-dimer", value: "700", unit: "ng/mL" }],
+  }));
+  const dd = (p.findings || []).filter((f) => /d.?dimer|ddimer/i.test(f.pattern));
+  assert.equal(dd.length, 1, `دو یافتهٔ متناقض دربارهٔ یک عدد: ${dd.map((f) => `${f.pattern}[${f.urgency}]`).join(", ")}`);
+});
+
+// ---------- M87: BNP و NT-proBNP ----------
+//
+// 🔴 پیش از اصلاح: هیچ‌کدام کلیدِ موتور نداشتند، پس ردیفشان به unmapped
+//    می‌رفت و بیمار هیچ چیزی دربارهٔ آن نمی‌خواند — کلاسِ N2.
+test("M87: BNP=۴۵۰ یافته می‌سازد و کلیدِ خام به متن نمی‌رسد", () => {
+  const e = runEngine({
+    patient: { age: 70, sex: "M" },
+    tests: [{ name: "BNP", value: "450", unit: "pg/mL" }],
+  });
+  assert.deepEqual(e.unmapped, [], `BNP نباید unmapped شود: ${JSON.stringify(e.unmapped)}`);
+  const f = findPat(runPatterns(e), "natriuretic_peptide_elevated");
+  assert.ok(f, "یافتهٔ BNP نیامد");
+  assert.equal(f.urgency, "this_week");
+  assert.match(f.must_say, /450/, f.must_say);
+  assert.ok(!/NTPROBNP/.test(f.must_say + f.headline), "کلیدِ موتور نباید به متن برسد");
+});
+
+// ⚠️ دو آستانهٔ متفاوت (۱۰۰ و ۳۰۰). اگر NT-proBNP به کلیدِ BNP نگاشت می‌شد،
+//    عددِ ۲۵۰ که کاملاً طبیعی است «بالا» علامت می‌خورد.
+test("M87b: کنترلِ منفی — NT-proBNP=۲۵۰ طبیعی است و یافته نمی‌سازد", () => {
+  const e = runEngine({
+    patient: { age: 70, sex: "M" },
+    tests: [{ name: "NT-proBNP", value: "250", unit: "pg/mL" }],
+  });
+  assert.ok(e.graded.some((g) => g.test === "NTPROBNP"), "باید به کلیدِ جدا برود");
+  assert.equal(e.graded.find((g) => g.test === "NTPROBNP").abnormal, false);
+  assert.ok(!fired(runPatterns(e)).includes("natriuretic_peptide_elevated"));
+});
+
+test("M87c: «Pro BNP» به NT-proBNP می‌رود، نه به BNP", () => {
+  const e = runEngine({ patient: { age: 70, sex: "M" }, tests: [{ name: "Pro BNP", value: "850", unit: "pg/mL" }] });
+  assert.ok(e.graded.some((g) => g.test === "NTPROBNP"),
+    `به کلیدِ اشتباه رفت: ${JSON.stringify(e.graded.map((g) => g.test))}`);
+  assert.ok(!e.graded.some((g) => g.test === "BNP"), "نباید هم‌زمان BNP بسازد");
+});
+
+// ⚠️ سه‌شاخه — کلاسِ N4/N21. «طبیعی» و «روی برگه نیست» نباید یک جواب بگیرند.
+test("M87d: کراتینینِ غایب و کراتینینِ طبیعی دو جملهٔ متفاوت می‌گیرند", () => {
+  const bare = findPat(runPatterns(runEngine({
+    patient: { age: 70, sex: "M" }, tests: [{ name: "BNP", value: "450", unit: "pg/mL" }],
+  })), "natriuretic_peptide_elevated");
+  assert.match(bare.must_say, /کراتینین روی این برگه نیست/, bare.must_say);
+
+  const withCr = findPat(runPatterns(runEngine({
+    patient: { age: 70, sex: "M" },
+    tests: [{ name: "BNP", value: "450", unit: "pg/mL" }, { name: "Creatinine", value: "1.0" }],
+  })), "natriuretic_peptide_elevated");
+  assert.ok(!/کراتینین روی این برگه نیست/.test(withCr.must_say),
+    "وقتی کراتینین هست نباید بگوید نیست");
+  assert.match(withCr.must_say, /طبیعی/, withCr.must_say);
+});
+
+// ⚠️ جهتِ عکس هم باید گفته شود، وگرنه بیمارِ دارای اضافه‌وزن با BNPِ طبیعی
+//    خیالش راحت می‌شود — و متنِ منبع دقیقاً همین را رد می‌کند.
+test("M87e: هشدارِ «عددِ طبیعی هم قلب را تبرئه نمی‌کند» هست", () => {
+  const f = findPat(runPatterns(runEngine({
+    patient: { age: 70, sex: "M" }, tests: [{ name: "BNP", value: "450", unit: "pg/mL" }],
+  })), "natriuretic_peptide_elevated");
+  assert.ok(f.warnings.some((w) => /اضافه‌وزن/.test(w) && /طبیعی/.test(w)),
+    `هشدارِ جهتِ عکس نیست: ${JSON.stringify(f.warnings)}`);
+});
+
+// ---------- M88: هموسیستئین ----------
+//
+// 🔴 پیش از اصلاح: کلیدی وجود نداشت، پس هر عددی unmapped می‌شد.
+test("M88: هموسیستئینِ ۲۲ ردهٔ «خفیف» و فوریتِ routine می‌گیرد", () => {
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "Homocysteine", value: "22", unit: "umol/L" }],
+  });
+  assert.deepEqual(e.unmapped, [], `هموسیستئین unmapped شد: ${JSON.stringify(e.unmapped)}`);
+  const f = findPat(runPatterns(e), "homocysteine_elevated");
+  assert.ok(f, "یافته نیامد");
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /خفیف/, f.must_say);
+});
+
+// ⚠️ N20: فوریت و جملهٔ اقدام از یک تصمیم بیرون می‌آیند. اگر کسی یکی را عوض
+//    کند و دیگری را نه، اینجا قرمز می‌شود.
+test("M88b: هموسیستئینِ ۱۲۰ «شدید» است و جملهٔ اقدامش با فوریتش می‌خواند", () => {
+  const f = findPat(runPatterns(runEngine({
+    patient: { age: 45, sex: "M" }, tests: [{ name: "Homocysteine", value: "120", unit: "umol/L" }],
+  })), "homocysteine_elevated");
+  assert.equal(f.urgency, "this_week");
+  assert.match(f.must_say, /شدید/, f.must_say);
+  assert.match(f.action, /این هفته/, `جملهٔ اقدام با فوریت نمی‌خواند: ${f.action}`);
+});
+
+// ⚠️ N19 برعکس: لبهٔ *پایینِ* باند. متن پایین‌ترین ردهٔ افزایش را از ۱۶ شروع
+//    می‌کند، پس ۱۴ نباید چیزی بسازد و ۱۶ باید.
+test("M88c: کنترلِ منفی — ۱۴ ساکت است و ۱۶ (لبهٔ باند) فعال", () => {
+  const quiet = runPatterns(runEngine({ tests: [{ name: "Homocysteine", value: "14", unit: "umol/L" }] }));
+  assert.ok(!fired(quiet).includes("homocysteine_elevated"), `۱۴ نباید فعال شود: ${fired(quiet).join(", ")}`);
+  const edge = runPatterns(runEngine({ tests: [{ name: "Homocysteine", value: "16", unit: "umol/L" }] }));
+  assert.ok(fired(edge).includes("homocysteine_elevated"),
+    "۱۶ خودش «خفیف» است و باید فعال شود — باندهای متن از چپ بسته‌اند");
+});
+
+test("M88d: سه‌شاخهٔ B12/فولات — پایین، طبیعی، و اندازه‌گیری‌نشده", () => {
+  const t = (extra) => findPat(runPatterns(runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "Homocysteine", value: "22", unit: "umol/L" }, ...extra],
+  })), "homocysteine_elevated");
+
+  assert.match(t([]).must_say, /هیچ‌کدام روی این برگه اندازه‌گیری نشده/,
+    "شاخهٔ «اندازه‌گیری‌نشده» نیامد");
+  assert.match(t([{ name: "Vitamin B12", value: "120" }, { name: "Folate", value: "8" }]).must_say,
+    /پایین است/, "شاخهٔ «پایین» نیامد");
+  const normal = t([{ name: "Vitamin B12", value: "500" }, { name: "Folate", value: "12" }]);
+  assert.match(normal.must_say, /هر دو روی همین برگه طبیعی/, normal.must_say);
+  // و وقتی هر دو روی برگه‌اند، دیگر «درخواستشان» نباید پیشنهاد شود — N8.
+  assert.deepEqual(normal.suggest, [], `پیشنهادِ آزمایشی که روی برگه هست: ${JSON.stringify(normal.suggest)}`);
+});
+
+// ⚠️ همان منبع دو حکمِ منفیِ صریح دارد و هر دو باید به بیمار برسند، وگرنه
+//    این یافته او را به سمتِ خریدنِ مکمل هُل می‌دهد.
+test("M88e: هر دو حکمِ منفیِ منبع در هشدارها هستند", () => {
+  const f = findPat(runPatterns(runEngine({
+    tests: [{ name: "Homocysteine", value: "22", unit: "umol/L" }],
+  })), "homocysteine_elevated");
+  assert.ok(f.warnings.some((w) => /غربالگریِ عمومی/.test(w)), "حکمِ «غربالگری توصیه نمی‌شود» نیست");
+  assert.ok(f.warnings.some((w) => /خودسرانه شروع نکنید/.test(w)), "حکمِ «مکمل را خودسرانه شروع نکن» نیست");
+});
+
+// ---------- M89: علل غیر-ACS در troponin_positive — کلاسِ N21 ----------
+//
+// 🔴 پیش از اصلاح، کلِ متنِ این اورژانس یک جمله بود و هیچ‌کدام از علل
+//    جایگزین را نام نمی‌برد. چون blocks_others دارد، بیمار *فقط* همین را
+//    می‌بیند — پس چیزی که اینجا نوشته نشود، هیچ‌جا نوشته نمی‌شود.
+test("M89: تروپونینِ مثبت علل غیرقلبی‌ایسکمیک را هم نام می‌برد", () => {
+  const f = findPat(runPatterns(runEngine({
+    patient: { age: 60, sex: "M" }, tests: [{ name: "Troponin I", value: "1.4" }],
+  })), "troponin_positive");
+  assert.ok(f, "قاعده فعال نشد");
+  const all = [f.must_say, ...(f.warnings || [])].join(" ");
+  // ⚠️ عمداً روی واژه‌های بیمارمحور تطبیق می‌دهد و نه «میوکارد»/«پریکاردیت».
+  //    نسخهٔ اولِ همین تست دنبالِ «میوکارد» گشت و قرمز شد — و درست هم قرمز شد،
+  //    ولی خطا در ادعای تست بود نه در متن: متنِ قاعده «التهابِ پردهٔ قلب یا
+  //    خودِ عضلهٔ قلب» می‌گوید، که همان چیز است به زبانی که بیمار می‌فهمد.
+  //    اگر روزی کسی این تست را با اصطلاحِ تخصصی «تعمیر» کرد، در واقع دارد
+  //    متن را به سمتِ نامفهوم‌شدن هُل می‌دهد.
+  for (const cause of ["پردهٔ قلب", "عضلهٔ قلب", "لختهٔ ریه", "نارساییِ کلیه", "ورزش"]) {
+    assert.ok(all.includes(cause), `علتِ «${cause}» در متن نیست`);
+  }
+});
+
+// ⚠️ نگهبانِ خودِ ویرایشِ بالا: افزودنِ فهرستِ علل نباید فوریت را نرم کند.
+test("M89b: افزودنِ علل، فوریت و پوششِ اورژانس را دست نمی‌زند", () => {
+  const f = findPat(runPatterns(runEngine({
+    patient: { age: 60, sex: "M" }, tests: [{ name: "Troponin I", value: "1.4" }],
+  })), "troponin_positive");
+  assert.equal(f.urgency, "emergency");
+  assert.equal(f.blocks_others, true);
+  assert.match(f.action, /همین حالا/, f.action);
+});
+
+test("M89c: سه‌شاخه روی CK و کراتینین در همان یافته", () => {
+  const bare = findPat(runPatterns(runEngine({
+    patient: { age: 60, sex: "M" }, tests: [{ name: "Troponin I", value: "1.4" }],
+  })), "troponin_positive");
+  assert.match(bare.must_say, /کراتینین روی این برگه نیست/, bare.must_say);
+
+  const withCk = findPat(runPatterns(runEngine({
+    patient: { age: 60, sex: "M" },
+    tests: [{ name: "Troponin I", value: "1.4" }, { name: "CK", value: "90" }, { name: "Creatinine", value: "1.0" }],
+  })), "troponin_positive");
+  assert.match(withCk.must_say, /کراتین‌کینازِ \(CK\) شما روی همین برگه طبیعی است/, withCk.must_say);
+  assert.ok(!/کراتینین روی این برگه نیست/.test(withCk.must_say), "کراتینین هست، نباید بگوید نیست");
+});
+
+// ---------- M90: هیچ قاعده‌ای در ماژولِ جدید مرده نماند ----------
+//
+// ⚠️ همان استدلالِ M70: تستی که هیچ قاعده‌ای را فعال نکند، سبزِ بی‌معنا
+//    می‌دهد (N15). اینجا صراحتاً ثابت می‌کنیم هر شناسه دستِ‌کم با یک پنل
+//    از همین فایل فعال می‌شود، و شناسه‌ها از خودِ ماژول مشتق می‌شوند نه از
+//    فهرستی دستی — پس قاعدهٔ ششمی که فردا اضافه شود، این تست را قرمز می‌کند.
+test("M90: هر قاعدهٔ patterns_cardiac با دستِ‌کم یک پنل فعال می‌شود", async () => {
+  const { RULES_CARDIAC } = await import("./patterns_cardiac.js");
+  const panels = [
+    [{ age: 45, sex: "M" }, [{ name: "hs-cTnI", value: "45", unit: "ng/L" }]],
+    [{ age: 50, sex: "M" }, [{ name: "CRP", value: "3", unit: "mg/L" }]],
+    [{ age: 70, sex: "M" }, [{ name: "BNP", value: "450", unit: "pg/mL" }]],
+    [{ age: 45, sex: "M" }, [{ name: "Homocysteine", value: "22", unit: "umol/L" }]],
+  ];
+  const seen = new Set();
+  for (const [patient, tests] of panels) {
+    for (const f of runPatterns(runEngine({ patient, tests })).findings || []) seen.add(f.pattern);
+  }
+  const dead = RULES_CARDIAC.map((r) => r.id).filter((id) => !seen.has(id));
+  assert.deepEqual(dead, [], `این قاعده‌ها با هیچ پنلی فعال نشدند: ${dead.join("، ")}`);
+});
+
+// ⚠️ N16: حذفِ یک قاعده هیچ اثری در سورس نمی‌گذارد. این تست مجموعهٔ شناسه‌ها
+//    را قفل می‌کند تا حذفِ خاموش، خودش را نشان دهد.
+test("M90b: مجموعهٔ شناسه‌های ماژولِ قلبی همانی است که ثبت شده", async () => {
+  const { RULES_CARDIAC } = await import("./patterns_cardiac.js");
+  assert.deepEqual(
+    RULES_CARDIAC.map((r) => r.id).sort(),
+    ["homocysteine_elevated", "hscrp_ascvd_risk", "natriuretic_peptide_elevated", "troponin_hs_above_99th"],
+    "مجموعهٔ قاعده‌ها عوض شده — اگر عمدی است، این فهرست و MEDICAL_RULES.md را با هم به‌روز کن"
+  );
+});

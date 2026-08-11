@@ -27,6 +27,8 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `c4c28e7`, **before** the Henry ch.19 cardiac work (`npm test`) | 2026-08-10 | 319 | 319 | **0** | — |
+   | working tree on `c4c28e7`, after it — `M83`–`M90b`, 31 tests (`npm test`) | 2026-08-10 | 350 | 350 | **0** | — |
    | working tree on `c4c28e7`, **before** the Henry ch.18 lipid work (`npm test`) | 2026-08-10 | 302 | 302 | **0** | — |
    | working tree on `c4c28e7`, after it — `M78`–`M82c`, 17 tests (`npm test`) | 2026-08-10 | 319 | 319 | **0** | — |
    | `HEAD` at `e9d386e` (`isolated_ldh_elevation`, `M61`×5) | 2026-08-06 | 266 | 266 | **0** | — |
@@ -248,6 +250,7 @@ khanesh-project/
 │   │   ├── patterns_nephrology.js / _nephrology_new.js / _infectious.js
 │   │   ├── patterns_endocrine_rheum.js / _endocrine_new.js / _malignancy.js
 │   │   ├── patterns_mineral_bone.js  # ⭐ محور کلسیم/PTH — یک طبقه‌بند، ۱۳ قاعده
+│   │   ├── patterns_cardiac.js  # ⭐ فصل ۱۹ هنری — ۴ قاعده، همه روی عددِ «داخلِ محدوده»
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
@@ -326,9 +329,9 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **ten** `patterns_<system>.js` files and
-concatenates their `RULES_*` exports into the exported `RULES` array — **110 rules, measured
-2026-08-07** with the `node -e` one-liner under N16; it still owns `runPatterns()`,
+`patterns.js` no longer holds the rules. It imports **eleven** `patterns_<system>.js` files and
+concatenates their `RULES_*` exports into the exported `RULES` array — **116 rules, measured
+2026-08-10** with the `node -e` one-liner under N16; it still owns `runPatterns()`,
 `SUGGEST_TESTS`, and the suppression/dedup logic. So:
 
 - **Adding a clinical rule** → the right `patterns_<system>.js`, then confirm its `RULES_*` export
@@ -674,6 +677,23 @@ second one; a recurring entry is the strongest signal in the file.
   analyte. Normalize in `adapter.js` with a threshold set far above the highest clinically possible
   value (WBC 1000, PLT 3000, RBC 100) so a genuinely critical result is never halved. And never
   reintroduce the urea→BUN conversion — see [architecture.md](.claude/rules/architecture.md) step 4.
+- ⚠️ **Recurred on troponin, and this one sent a healthy patient to the emergency room**
+  (2026-08-10). `refs.js` holds `TROPONIN_I` in **µg/L** (`[0, 0.6]`) but high-sensitivity
+  assays print **ng/L** — and `adapter.js`'s troponin branch poured any number straight into the
+  key without looking at the unit, because it sat *above* the generic `toConventional()` call and
+  `continue`d past it. Measured on `HEAD`, not argued: `hs-cTnI 8 ng/L` — a completely normal
+  troponin — graded as `8` against `0.6`, fired `troponin_positive`, and told the patient
+  «همین حالا به اورژانس مراجعه کنید». Note the direction: unlike every other entry in N3, this
+  one failed toward a **false emergency**, and it failed on the *common* case, because most
+  troponins are normal.
+  **Two things generalize.** First, a key with a bespoke branch in `adapter.js` is *invisible* to
+  `units.js` by design (the table's own header says so) — so "units.js covers the SI table now"
+  is not true of `TROPONIN_I`, `DDIMER`, `ACR`, `T3`, `WBC/PLT/RBC` or `*_ABS`. When you add a
+  unit guard, check which list the key is on. Second, the fix's two halves are worthless apart:
+  converting the unit alone drops `45 ng/L` to `0.045`, which is inside `[0, 0.6]` — **silence on
+  real myocardial injury**. The conversion needed `troponin_hs_above_99th` in the same change.
+  Guards `M83`–`M83d`, `M84`–`M84d`; registered as `P37` in [MEDICAL_RULES.md](MEDICAL_RULES.md)
+  because the ULN itself is still a conventional-assay number and that is a reviewer's call.
 - **The per-test whack-a-mole was itself the bug** (2026-07-27, `rules/units.js`). Five analytes had
   a unit guard, each added after its own incident; every other analyte had none. The unguarded one
   that mattered most was HbA1c: IFCC units are mmol/mol, so a sheet printing `48` — exactly the ADA
@@ -1241,6 +1261,24 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   eGFR 15 is an `emergency` with `blocks_others`, so it correctly hides `this_week` mineral
   findings. Worth knowing before you debug a rule that "doesn't fire": check `suppressed` in
   `runPatterns`'s return before assuming the `match` is wrong.
+- ⚠️ **Same class one level up — two *findings* disagreeing, not two fields** (2026-08-10,
+  the Henry ch.19 D-dimer work). A new rule was written to add the age-adjusted D-dimer cutoff
+  («۱۰×سن برای بالای ۵۰ سال») as its own `routine` finding. Measured on `D-dimer 700` at age 78:
+  **both fired**, and the patient read «این هفته با پزشک مطرح کنید» from `d_dimer_elevated`
+  directly beside «برای سنِ شما افزایشِ چشمگیری نیست» from the new one. Nothing was factually
+  wrong in either sentence; the report as a whole was incoherent, which is worse than either
+  sentence alone because the reader has no way to pick.
+- **Rule:** before adding a rule that *qualifies* an existing one, ask what turns the existing
+  one off. `blocks_others` only suppresses findings of **lower** urgency, so a reassuring
+  `routine` rule can never quiet a `this_week` one — the mechanism runs the wrong way for this
+  shape. The fix was to delete the new rule and fold its sentence into the existing finding's
+  `build`, three-way branched on age, **leaving the urgency untouched** (the age-adjusted cutoff
+  is specifically about *PE rule-out in a low-pretest-probability patient*, not a general
+  reference range — so it earns a sentence, not a downgrade).
+- **And the cheap detector:** assert the *count*. `M86d` simply counts findings whose
+  `pattern` matches `/d.?dimer/` and requires exactly one. Any future rule that re-opens this
+  turns it red. A guard on "how many findings talk about this number" is worth writing whenever
+  two rules read the same analyte — no existing guard in this repo checks that.
 
 ### N21 — Listing the possible causes without saying which ones the same sheet already argues against
 2026-08-10, `isolated_ldh_elevation`. Found by running a real patient's sheet through the engine.
