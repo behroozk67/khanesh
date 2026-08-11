@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, albLowMarker } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -1513,8 +1513,10 @@ export const RULES_BIOCHEM = [
     id: "cirrhosis_pattern",
     match: (e) => {
       const t = val(e);
-      const alb = e.graded.find((g) => g.test === "ALB");
-      const albLow = alb?.abnormal && alb.dir === "low";
+      // ⚠️ عمداً albLowMarker و نه `abnormal && dir === "low"`: این قاعده با
+      //    حدِ پایینِ ۳.۵ نوشته شده بود و وقتی بازهٔ مرجع به هنری (۳.۹) رفت،
+      //    بی‌سروصدا شل شد. رجوع به توضیحِ ALB_LOW_MARKER_GDL در patterns_utils.js.
+      const albLow = albLowMarker(e);
       const plt = e.graded.find((g) => g.test === "PLT");
       const pltLow = plt?.abnormal && plt.dir === "low";
       const biliHigh = (() => {

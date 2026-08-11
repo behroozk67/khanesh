@@ -189,13 +189,46 @@ function urineGrade(e, nameRe) {
   return null;
 }
 
+/**
+ * آستانهٔ «آلبومینِ پایین» برای قاعده‌های چندنشانه‌ای — g/dL.
+ *
+ * ⚠️ این عددْ بازهٔ مرجع **نیست** و عمداً از آن جدا است. تا ۱۹ مرداد ۱۴۰۵
+ *    حدِ پایینِ `ADULT_REFS.ALB` همین ۳.۵ بود، و `isNephrotic` و
+ *    `cirrhosis_pattern` هر دو با `abnormal && dir === "low"` نوشته شده بودند —
+ *    یعنی بدونِ اینکه کسی تصمیم بگیرد، آستانهٔ بالینی‌شان به بازهٔ مرجع گره خورده بود.
+ *
+ *    وقتی بازهٔ مرجع به منبعِ هنری (۳.۹–۵.۱) رفت، هر دو قاعده **بی‌سروصدا شل شدند**:
+ *    اندازه‌گیری‌شده، نه حدس‌زده — `ALB 3.7 + PLT 120 + BILI_T 1.5` که دیروز
+ *    ۲ نشانه بود و ساکت، امروز ۳ نشانه می‌شد و `chronic_liver_disease_pattern`
+ *    می‌داد؛ و `پروتئینِ ادرار 3+ با ALB 3.7` که نفروتیک نبود، نفروتیک می‌شد.
+ *    هیچ‌کدام تصمیمِ بازبین نبود؛ عارضهٔ جانبیِ یک تغییرِ بازهٔ مرجع بود.
+ *
+ *    پس رفتارِ پیشین حفظ شد. این «هلد-د-لاین» است، نه آستانهٔ بالینیِ تازه:
+ *    هیچ ادعای جدیدی نمی‌کند و منبعِ تازه‌ای هم لازم ندارد. اگر بازبین تصمیم
+ *    بگیرد که آلبومینِ ۳.۵–۳.۸ باید نشانهٔ سیروز/نفروتیک به حساب بیاید، همین
+ *    یک عدد را بردارید — رجوع به MEDICAL_RULES.md بندِ P44-ج. گاردها: M94f، M94h.
+ *
+ *    درسِ عمومی (کلاسِ N22 از سمتِ مقابل): بازهٔ مرجع به «آیا این عدد برای یک
+ *    بزرگسالِ عادی غیرمعمول است؟» جواب می‌دهد. آستانهٔ عضویت در یک الگوی
+ *    چندنشانه‌ای سؤالِ دیگری است. هر جا قاعده‌ای `dir === "low"` را به‌عنوانِ
+ *    نشانهٔ یک تشخیصِ سنگین می‌شمارد، آن قاعده به بازهٔ مرجع وابسته است و
+ *    اولین تغییرِ بازه شلش می‌کند.
+ */
+const ALB_LOW_MARKER_GDL = 3.5;
+
+/** آیا آلبومین به‌قدرِ نشانه‌بودن در یک الگوی چندنشانه‌ای پایین است؟ */
+function albLowMarker(e) {
+  const alb = e.graded.find((g) => g.test === "ALB");
+  if (!alb || alb.value == null) return false;
+  // جهت از graded.dir می‌آید، نه از مقایسه با آستانه — N12. آستانه فقط شدت را می‌بُرد.
+  return alb.abnormal && alb.dir === "low" && alb.value < ALB_LOW_MARKER_GDL;
+}
+
 // آیا تصویر سندرم نفروتیک هست؟ (پروتئینوری شدید + آلبومین پایین)
 function isNephrotic(e) {
   const protGrade = urineGrade(e, /protein|پروتئین/i);
   const heavyProt = protGrade != null && protGrade >= 3;
-  const alb = e.graded.find((g) => g.test === "ALB");
-  const albLow = alb?.abnormal && alb.dir === "low";
-  return heavyProt && albLow;
+  return heavyProt && albLowMarker(e);
 }
 
 // آیا تصویر گلومرولونفریت هست؟ (هماچوری + پروتئینوری + درگیری کلیه)
@@ -248,4 +281,4 @@ function val(e) {
  */
 // پیشنهادهایی که «نام خالص یک آزمایش»‌اند → کلید(های) موتور.
 // ⚠️ فقط تطبیق دقیق. عمداً هیچ تطبیق فازی/زیررشته‌ای نیست، چون بخش بزرگی از
-export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE };
+export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL };

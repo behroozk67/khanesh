@@ -242,6 +242,13 @@ function textNamesTest(text, key) {
 
 export function runPatterns(engineOut) {
   const findings = [];
+  // ⚠️ قاعده‌ای که throw کند، یافته‌اش بی‌صدا از گزارشِ بیمار حذف می‌شود.
+  //    تا امروز فقط یک console.error می‌خورد — یعنی روی سرورِ پرودکشن هیچ‌کس
+  //    نمی‌فهمید، و خروجی همچنان «کامل» به نظر می‌رسید. این همان چیزی است که
+  //    انتهای N15 در CLAUDE.md می‌گوید: «گاردی که دادهٔ بد را بی‌شمارش رد کند،
+  //    خطای بلند را به خطای خاموش تبدیل می‌کند.» پس شمرده می‌شود و برمی‌گردد.
+  //    قفل: M93 (هیچ قاعده‌ای throw نمی‌کند) و M93b (شمارنده واقعاً می‌شمارد).
+  const rulesFailed = [];
   for (const rule of RULES) {
     if (!rule?.id) continue;
     try {
@@ -250,6 +257,7 @@ export function runPatterns(engineOut) {
       if (f) findings.push({ rule_id: rule.id, ...f });
     } catch (e) {
       console.error(`[Engine] Rule ${rule.id} failed:`, e.message);
+      rulesFailed.push({ rule_id: rule.id, error: String(e?.message ?? e) });
     }
   }
 
@@ -432,6 +440,10 @@ export function runPatterns(engineOut) {
     has_critical: shown.some((f) => f.urgency === "emergency"),
     // چند مورد کم‌اهمیت‌تر پنهان شد — برای شفافیت
     suppressed: hasBlocker ? findings.length - shown.length : 0,
+    // قاعده‌هایی که استثنا دادند و یافته‌شان از گزارش افتاد. آرایهٔ خالی یعنی
+    // هیچ‌کدام نیفتاده — نه اینکه کسی نگاه نکرده. ⚠️ اگر روزی ناخالی شد،
+    // یعنی بیمار یک گزارشِ ناقص گرفته و هیچ‌جای دیگری این را نمی‌گوید.
+    rules_failed: rulesFailed,
     // هشدارهای پیش‌تحلیلیِ بی‌صاحب (هدفشان در این پنل یافته‌ای نداشت)
     preanalytical,
   };

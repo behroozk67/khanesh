@@ -27,6 +27,8 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | `HEAD` at `c5700c0` (`git archive` + junction recipe below) | 2026-08-11 | 350 | 350 | **0** | — |
+   | working tree on `c5700c0`, after the glucose/liver fix — `M91`–`M92d`, 9 tests (`npm test`) | 2026-08-11 | 359 | 359 | **0** | — |
    | working tree on `c4c28e7`, **before** the Henry ch.19 cardiac work (`npm test`) | 2026-08-10 | 319 | 319 | **0** | — |
    | working tree on `c4c28e7`, after it — `M83`–`M90b`, 31 tests (`npm test`) | 2026-08-10 | 350 | 350 | **0** | — |
    | working tree on `c4c28e7`, **before** the Henry ch.18 lipid work (`npm test`) | 2026-08-10 | 302 | 302 | **0** | — |
@@ -330,8 +332,9 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 ### Where a pattern lives
 
 `patterns.js` no longer holds the rules. It imports **eleven** `patterns_<system>.js` files and
-concatenates their `RULES_*` exports into the exported `RULES` array — **116 rules, measured
-2026-08-10** with the `node -e` one-liner under N16; it still owns `runPatterns()`,
+concatenates their `RULES_*` exports into the exported `RULES` array — **115 rules, measured
+2026-08-11** with the `node -e` one-liner under N16 (it was 116 at `c5700c0`; `liver_injury_pattern`
+was deleted — see N20 and `P43`); it still owns `runPatterns()`,
 `SUGGEST_TESTS`, and the suppression/dedup logic. So:
 
 - **Adding a clinical rule** → the right `patterns_<system>.js`, then confirm its `RULES_*` export
@@ -583,6 +586,18 @@ deterministic code rather than another LLM opinion.
   Its code lives in `.claude/eval-gate/` (`run.mjs`, `lib/*.mjs`, `fixtures/`, `regressions/`);
   per-run evidence lands in `.claude/eval-gate/runs/`, which is gitignored on purpose.
   `node .claude/eval-gate/selftest.mjs` checks the gate itself.
+- `clinical-knowledge-extraction` (`.claude/skills/`, Persian) — turns raw academic medical text
+  (a Henry's chapter, a KDIGO/ADA guideline, a paper) into a structured extraction dossier:
+  IF-THEN rule specs, classification tables, reference/critical values **with units**, and
+  patient-facing pathophysiology. It deliberately **writes no code** — its output feeds
+  `add-medical-rule` and [MEDICAL_RULES.md](MEDICAL_RULES.md), because a threshold from a
+  textbook is a proposal until a human reviewer approves it. Its mandatory first step is
+  `node .claude/skills/clinical-knowledge-extraction/scripts/engine-inventory.mjs`, which reads
+  the live engine (116 rules, 89 graded keys, `NAME_MAP`, `CTCAE_MAP`, guideline ids, the 40
+  pending `P` items) so "already in the engine" is *measured*, not remembered — the same N15(b)
+  discipline as the test baseline. `--search <term>` answers "does the engine already know
+  this?"; search the **Latin analyte name or engine key**, not the Persian disease name
+  (`هیپرکلسمی` finds nothing, `CA` finds the whole mineral axis).
 - `add-medical-rule` (`.agents/skills/`, Persian) — step-by-step procedure for adding a new
   clinical rule or pattern. It overlaps [rules-engine.md](.claude/rules/rules-engine.md); where
   they disagree, this repo's own rules files win, and note that the skill predates the
@@ -694,6 +709,12 @@ second one; a recurring entry is the strongest signal in the file.
   real myocardial injury**. The conversion needed `troponin_hs_above_99th` in the same change.
   Guards `M83`–`M83d`, `M84`–`M84d`; registered as `P37` in [MEDICAL_RULES.md](MEDICAL_RULES.md)
   because the ULN itself is still a conventional-assay number and that is a reviewer's call.
+  ⚠️ **The false-emergency direction happened again on 2026-08-11**, by a different mechanism —
+  not a unit but a missing gate (`dka_hhs_emergency` fired `emergency` on any glucose ≥ 250).
+  Written up under N20, and noted here because the *direction* is what the two share: when a
+  rule errs toward an emergency it errs on the **common** case, so it reaches far more patients
+  than an under-read does. Check the failure direction of every new emergency rule against its
+  most ordinary input, not its worst one.
 - **The per-test whack-a-mole was itself the bug** (2026-07-27, `rules/units.js`). Five analytes had
   a unit guard, each added after its own incident; every other analyte had none. The unguarded one
   that mattered most was HbA1c: IFCC units are mmol/mol, so a sheet printing `48` — exactly the ADA
@@ -1279,6 +1300,44 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   `pattern` matches `/d.?dimer/` and requires exactly one. Any future rule that re-opens this
   turns it red. A guard on "how many findings talk about this number" is worth writing whenever
   two rules read the same analyte — no existing guard in this repo checks that.
+- ⚠️ **Recurred twice more, 2026-08-11, and both had been sitting in `patterns_biochem_new.js`
+  since it was written.** Found by re-reading the `_new` modules against the rules they duplicate.
+  Both are the same shape as the D-dimer case above — a second rule reading an analyte a
+  properly-gated rule already owns — and both are worse than that one, because the duplicate
+  carried `urgency: "emergency"`.
+  - **`dka_hhs_emergency`: an emergency on `glu >= 250` with no gate at all.** Measured on
+    `FBS 260` alone — an ordinary number in uncontrolled diabetes — the patient read «فوراً به
+    بخش اورژانس مراجعه کنید» and `has_critical` came back true. On a *real* DKA sheet it fired
+    **next to** `dka_pattern`, which is gated on ketones/bicarbonate, so the report carried two
+    near-identical emergency findings. And on `glu >= 600` it fired next to `hhs_pattern`, whose
+    600 threshold and hand-off to DKA had been written carefully (`M25` exists precisely to keep
+    520 from claiming HHS). Replaced by `severe_hyperglycemia_uncertain_ketosis`, which fires
+    **only when neither owner fires**, takes its urgency from `GLU_HIGH` in `ctcae.js` (G3 =
+    250–500 → `this_week`, G4 = >500 → `emergency`) rather than a new number, and states the
+    ketone/bicarbonate result three ways (positive / negative / not measured). Registered as
+    `P42`. Guards `M91`–`M91e`.
+  - **`liver_injury_pattern`: a strict subset of `liver_pattern`, deleted.** Every panel that
+    fired it fired `liver_pattern` too, so its only output was a *second* finding about the same
+    two enzymes. Three defects in one rule: a hardcoded `> 40` (ALT's ULN is 33 for women, 41 for
+    men, and `refs_ped.js` has its own — N3); `urgency` from `alt > 400 || ast > 400` while
+    `action` read `alt > 400` alone (the core of this entry); and, measured on
+    `CK 900 / AST 120 / ALT 30`, it printed «الگوی آسیب سلول‌های کبدی» directly beside
+    `muscle_origin_not_liver`'s «این از عضله می‌آید نه کبد». Registered as `P43`.
+    Guards `M92`–`M92d`.
+- **The rule that generalizes, and it is about where you look:** both of these were *additions*
+  to a `_new` module that never checked what the non-`_new` module already did. `patterns.js`
+  spreads both arrays into one `RULES`, so the two are siblings at runtime — the filename says
+  "new" and means nothing. **Before adding a rule, grep the analyte across every `patterns_*.js`,
+  not just the one you are editing**, and if something already reads it, the question is which
+  rule hands off to which — not whether yours is also correct. Two correct rules about one number
+  still produce an incoherent report.
+- **And the detector generalizes with it:** `M91e` sweeps nine glucose panels and asserts that
+  **exactly one** of the three glucose owners fires on each — it fails both when a panel falls
+  between the rules (silence) and when two claim it (contradiction). That two-sided assertion is
+  cheap and belongs anywhere a hand-off exists. Writing it is also what surfaced a real gap:
+  `dka_pattern` reads only `GLU_F`/`GLU_RANDOM`, never `GLU_2H`, so a two-hour glucose of 320
+  with positive ketones was owned by nobody. The hand-off condition is therefore written as
+  "does that rule actually fire", never "is the number past its threshold".
 
 ### N21 — Listing the possible causes without saying which ones the same sheet already argues against
 2026-08-10, `isolated_ldh_elevation`. Found by running a real patient's sheet through the engine.

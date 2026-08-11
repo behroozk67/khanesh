@@ -5161,3 +5161,382 @@ test("M90b: مجموعهٔ شناسه‌های ماژولِ قلبی همانی 
     "مجموعهٔ قاعده‌ها عوض شده — اگر عمدی است، این فهرست و MEDICAL_RULES.md را با هم به‌روز کن"
   );
 });
+
+// ═══ M91: قندِ بالا — اورژانسِ کاذب حذف شد، بدونِ اینکه سکوت جایش بنشیند ═══
+//
+// 🔴 باگ واقعی: `dka_hhs_emergency` شرطش فقط `glu >= 250` بود و فوریتش ثابت
+//    `emergency`. دیابتیِ کنترل‌نشده با قندِ ۲۶۰ «فوراً به اورژانس» می‌خواند.
+//    کلاسِ N3 (تروپونین): خطا به سمتِ اورژانسِ کاذب، روی شایع‌ترین حالت.
+
+test("M91: قندِ ۲۶۰ بدونِ شواهدِ کتواسیدوز اورژانس نیست — ولی «نوبتِ عادی» هم نیست", () => {
+  const e = runEngine({ patient: { age: 52, sex: "M" }, tests: [{ name: "FBS", value: "260" }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "severe_hyperglycemia_uncertain_ketosis");
+  assert.ok(f, `یافتهٔ قندِ بالا نیامد؛ آمده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
+  assert.equal(f.urgency, "this_week", "قندِ ۲۶۰ گریدِ ۳ CTCAE است، نه ۴");
+  assert.equal(f.key_number, 260);
+  assert.ok(!p.has_critical, "قندِ ۲۶۰ به‌تنهایی نباید has_critical بسازد");
+  // N4/N21: تستی که روی برگه نیست، باید *گفته شود* که نیست.
+  assert.match(f.must_say, /کتونِ ادرار روی این برگه اندازه‌گیری نشده/, f.must_say);
+  assert.match(f.must_say, /نمی‌شود کتواسیدوز را رد کرد/, f.must_say);
+  // N20: فوریت و جملهٔ اقدام نباید دو حرفِ متفاوت بزنند.
+  assert.ok(!/همین حالا به اورژانس/.test(f.action), f.action);
+});
+
+test("M91b: کتونِ منفی صریحاً گفته می‌شود، ولی بیش از اندازه آرام‌بخش نیست", () => {
+  const e = runEngine({
+    patient: { age: 52, sex: "M" },
+    tests: [
+      { name: "FBS", value: "300" },
+      { name: "Urine Ketone", value: "negative" },
+      { name: "HCO3", value: "25" },
+    ],
+  });
+  const f = runPatterns(e).findings.find((x) => x.pattern === "severe_hyperglycemia_uncertain_ketosis");
+  assert.ok(f, "با کتونِ منفی، قاعده باید همچنان فعال بماند");
+  assert.match(f.must_say, /کتونِ ادرارِ شما منفی است/, f.must_say);
+  assert.match(f.must_say, /بی‌کربناتِ خونتان طبیعی است/, f.must_say);
+  // نوارِ ادرار بتاهیدروکسی‌بوتیرات را نمی‌بیند — قیدی که hhs_pattern هم دارد.
+  assert.match(f.must_say, /بتاهیدروکسی‌بوتیرات/, f.must_say);
+});
+
+test("M91c: با کتونِ مثبت، فقط dka_pattern — نه دو اورژانس دربارهٔ یک عدد", () => {
+  const e = runEngine({
+    patient: { age: 40, sex: "F" },
+    tests: [
+      { name: "Blood Sugar", value: "420" },
+      { name: "Urine Ketone", value: "positive" },
+    ],
+  });
+  const p = runPatterns(e);
+  assert.ok(p.findings.some((x) => x.pattern === "dka_pattern"), "DKA باید فعال شود");
+  assert.ok(
+    !p.findings.some((x) => x.pattern === "severe_hyperglycemia_uncertain_ketosis"),
+    "قاعدهٔ عمومی باید به DKA واگذار کند"
+  );
+  // ⚠️ شمارش، نه حضور: N20 می‌گوید گاردِ درست روی «چند یافته دربارهٔ این عدد
+  //    حرف می‌زنند» است. قبل از این تغییر، اینجا دو اورژانس بود.
+  const emerg = p.findings.filter((x) => x.urgency === "emergency");
+  assert.equal(emerg.length, 1, `دو اورژانسِ هم‌زمان: ${emerg.map((x) => x.pattern).join("، ")}`);
+});
+
+test("M91d: قندِ ۵۲۰ اورژانس می‌شود ولی همچنان HHS نمی‌گیرد (سازگار با M25)", () => {
+  const e = runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "Glucose", value: "520" }] });
+  const p = runPatterns(e);
+  const f = p.findings.find((x) => x.pattern === "severe_hyperglycemia_uncertain_ketosis");
+  assert.ok(f, "قندِ ۵۲۰ باید یافته بدهد");
+  // آستانه از ctcae.js می‌آید (GLU_HIGH: گریدِ ۴ = بالای ۵۰۰)، نه از عددِ تازه.
+  assert.equal(f.urgency, "emergency");
+  assert.ok(!p.findings.some((x) => x.pattern === "hhs_pattern"), "HHS آستانه‌اش ۶۰۰ است");
+  // `glycemia` نباید پوشانده شود — یافتهٔ تشخیصیِ دیابت حرفِ دیگری می‌زند.
+  assert.ok(p.findings.some((x) => x.pattern === "diabetes_range"), "diabetes_range پوشانده شد");
+});
+
+// ⚠️ گاردِ رانش: شرطِ واگذاریِ این قاعده *آینهٔ* شرطِ dka_pattern است. اگر آن
+//    عوض شود و این نه، برگه‌ای بینِ دو قاعده می‌افتد و هیچ‌کدام فعال نمی‌شوند —
+//    سکوت روی کتواسیدوز. N16: «جایگزین وجود دارد» تا اندازه‌گیری نشود، ادعاست.
+test("M91e: هیچ برگهٔ قندِ ≥۲۵۰ بینِ سه قاعده نمی‌افتد", () => {
+  const OWNERS = ["dka_pattern", "hhs_pattern", "severe_hyperglycemia_uncertain_ketosis"];
+  const panels = [
+    ["قندِ تنها", [{ name: "FBS", value: "260" }]],
+    ["قند + کتونِ مثبت", [{ name: "FBS", value: "260" }, { name: "Urine Ketone", value: "positive" }]],
+    ["قند + کتونِ منفی", [{ name: "FBS", value: "260" }, { name: "Urine Ketone", value: "negative" }]],
+    ["قند + بی‌کربناتِ پایین", [{ name: "FBS", value: "300" }, { name: "HCO3", value: "14" }]],
+    ["قند + بی‌کربناتِ طبیعی", [{ name: "FBS", value: "300" }, { name: "HCO3", value: "25" }]],
+    ["قندِ ۷۰۰", [{ name: "Glucose", value: "700" }]],
+    ["قندِ ۷۰۰ + کتون", [{ name: "Glucose", value: "700" }, { name: "Urine Ketone", value: "positive" }]],
+    // ⚠️ dka_pattern فقط GLU_F و GLU_RANDOM را می‌خواند؛ قندِ دوساعته را نه.
+    //    این دو ردیف دقیقاً همان شکافی‌اند که واگذاریِ عددمحور می‌ساخت.
+    ["قندِ دوساعتهٔ ۳۲۰", [{ name: "2hpp", value: "320" }]],
+    ["قندِ دوساعتهٔ ۳۲۰ + کتون", [{ name: "2hpp", value: "320" }, { name: "Urine Ketone", value: "positive" }]],
+  ];
+  for (const [label, tests] of panels) {
+    const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests }));
+    const hit = p.findings.filter((f) => OWNERS.includes(f.pattern));
+    assert.ok(
+      hit.length >= 1,
+      `${label}: هیچ قاعده‌ای این قند را برنداشت؛ آمده‌ها: ${p.findings.map((f) => f.pattern).join("، ") || "هیچ"}`
+    );
+    assert.ok(
+      hit.length === 1,
+      `${label}: ${hit.length} قاعده هم‌زمان این قند را برداشتند: ${hit.map((f) => f.pattern).join("، ")}`
+    );
+  }
+});
+
+// ═══ M92: `liver_injury_pattern` حذف شد — جایگزینش از قبل فعال بود ═══
+//
+// 🔴 آن قاعده زیرمجموعهٔ محضِ `liver_pattern` بود: آستانهٔ هاردکدِ ۴۰ (در حالی
+//    که ULNِ ALT برای زن ۳۳ و برای مرد ۴۱ است)، فوریت و جملهٔ اقدام از دو
+//    شرطِ متفاوت (N20)، و متنی که هر دو آنزیم را «بالا» می‌نامید حتی وقتی
+//    یکی طبیعی بود.
+
+test("M92: روی پنلِ کبدی فقط یک یافته دربارهٔ آنزیم‌ها می‌آید", () => {
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    // ⚠️ ALP عمداً ۹۰ است (طبیعی، ولی زیرِ ALT). قاعدهٔ حذف‌شده شرطِ عجیبِ
+    //    `alt > alp` داشت — با ALP=۱۲۰ خودش خاموش می‌شد و این تست سبزِ
+    //    بی‌معنا می‌داد. کنترلِ منفی روی همین پنل قرمز می‌شود.
+    tests: [{ name: "ALT", value: "95" }, { name: "AST", value: "80" }, { name: "ALP", value: "90" }],
+  });
+  const p = runPatterns(e);
+  const liver = p.findings.filter((f) => /^liver_/.test(f.pattern));
+  assert.equal(liver.length, 1, `یافته‌های کبدی: ${liver.map((f) => f.pattern).join("، ")}`);
+  assert.ok(!p.findings.some((f) => f.pattern === "liver_injury_pattern"), "قاعدهٔ حذف‌شده برگشته");
+});
+
+test("M92b: CK بالا + AST بالا + ALT طبیعی → فقط پیامِ عضله، بدونِ ادعای کبدی", () => {
+  const e = runEngine({
+    patient: { age: 30, sex: "M" },
+    tests: [
+      { name: "CK", value: "900" },
+      { name: "AST", value: "120" },
+      { name: "ALT", value: "30" },
+      { name: "ALP", value: "100" },
+    ],
+  });
+  const p = runPatterns(e);
+  assert.ok(p.findings.some((f) => f.pattern === "muscle_origin_not_liver"), "پیامِ عضله نیامد");
+  // 🔴 قبل از حذف، این پنل هم‌زمان «آسیب سلول‌های کبدی» می‌گرفت — دو یافته،
+  //    دو حرفِ متضاد، پشتِ سرِ هم.
+  assert.ok(
+    !p.findings.some((f) => /کبد/.test(f.headline ?? "") && f.pattern !== "muscle_origin_not_liver"),
+    `ادعای کبدی کنارِ پیامِ عضله: ${p.findings.map((f) => f.pattern).join("، ")}`
+  );
+});
+
+// ⚠️ این یکی عمداً کنترلِ منفی *ندارد* و روی کدِ قبلی هم سبز است. کارش قفلِ
+//    رگرسیون نیست، بلکه ثبتِ همان چیزی است که N16 پیش از هر حذف می‌خواهد:
+//    اندازه‌گیریِ اینکه جایگزین واقعاً این حالت را می‌گیرد. حذف چیزی را از
+//    دست نداد؛ برعکس، آستانهٔ ۴۰ این زن را جا می‌انداخت و refs.js نمی‌اندازد.
+test("M92c: زنِ با ALT ۳۸ (بالای ULNِ ۳۳) پوشش دارد — آستانهٔ ۴۰ او را جا می‌انداخت", () => {
+  const e = runEngine({
+    patient: { age: 35, sex: "F" },
+    tests: [{ name: "ALT", value: "38" }, { name: "AST", value: "30" }, { name: "ALP", value: "100" }],
+  });
+  const p = runPatterns(e);
+  assert.ok(
+    p.findings.some((f) => /^liver_/.test(f.pattern)),
+    `ALT ۳۸ در زن بالای حد طبیعی است ولی یافته‌ای نیامد: ${p.findings.map((f) => f.pattern).join("، ")}`
+  );
+});
+
+// ═══ M93: قاعده‌ای که throw کند دیگر بی‌صدا نمی‌افتد ═══
+//
+// 🔴 `runPatterns` هر قاعده را در try/catch می‌گیرد. تا امروز فقط یک
+//    console.error می‌خورد، یعنی روی سرورِ پرودکشن هیچ‌کس نمی‌فهمید و خروجی
+//    همچنان «کامل» به نظر می‌رسید. انتهای N15: گاردی که بی‌شمارش رد کند،
+//    خطای بلند را به خطای خاموش تبدیل می‌کند.
+
+test("M93: هیچ قاعده‌ای روی محدودهٔ گستردهٔ ورودی‌ها استثنا نمی‌دهد", (t) => {
+  // هر کلیدِ گرید‌شده یک‌بار بالای بازه و یک‌بار پایینِ آن. نامِ تست همان کلیدِ
+  // موتور گذاشته می‌شود؛ کلیدهایی که این‌طور به adapter نمی‌رسند شمرده و
+  // گزارش می‌شوند تا پوششِ واقعیِ این جارو *دیده* شود، نه فرض شود.
+  let exercised = 0;
+  const skipped = [];
+  const failures = [];
+  for (const key of Object.keys(ADULT_REFS)) {
+    const r = ADULT_REFS[key];
+    const band = r.both ?? r.M ?? r.F;
+    if (!Array.isArray(band)) { skipped.push(key); continue; }
+    const [lo, hi] = band;
+    let reached = false;
+    for (const v of [hi * 1.5 + 1, Math.max(0, lo * 0.5)]) {
+      const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: key, value: String(v) }] });
+      if (e.graded.length === 0) continue;
+      reached = true;
+      const p = runPatterns(e);
+      for (const f of p.rules_failed ?? []) failures.push(`${key}=${v} → ${f.rule_id}: ${f.error}`);
+    }
+    if (reached) exercised++; else skipped.push(key);
+  }
+  t.diagnostic(`کلیدهای واقعاً آزموده‌شده: ${exercised} از ${Object.keys(ADULT_REFS).length}` +
+    (skipped.length ? ` — نرسیده به موتور: ${skipped.join("، ")}` : ""));
+  assert.ok(exercised > 40, `پوشش خیلی کم است (${exercised}) — این تست دارد سبزِ بی‌معنا می‌دهد`);
+  assert.deepEqual(failures, [], `قاعده‌هایی استثنا دادند:\n${failures.join("\n")}`);
+});
+
+// کنترلِ منفی: خودِ شمارنده باید کار کند، وگرنه M93 برای همیشه سبز است چون
+// هیچ‌وقت چیزی نمی‌بیند — دقیقاً همان تلهٔ N15 که این تست برای آن نوشته شده.
+test("M93b: قاعده‌ای که throw کند در rules_failed می‌نشیند، نه در سکوت", () => {
+  const boom = {
+    id: "_m93b_boom",
+    match: () => { throw new Error("انفجارِ عمدی"); },
+    build: () => ({ pattern: "_m93b_boom", urgency: "routine", headline: "", must_say: "", action: "" }),
+  };
+  RULES.push(boom);
+  try {
+    const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "HGB", value: "9" }] });
+    const p = runPatterns(e);
+    assert.equal(p.rules_failed.length, 1, "قاعدهٔ منفجرشده شمرده نشد");
+    assert.equal(p.rules_failed[0].rule_id, "_m93b_boom");
+    assert.match(p.rules_failed[0].error, /انفجارِ عمدی/);
+    // و بقیهٔ موتور نباید بایستد — یافته‌های دیگر سرِ جایشان‌اند.
+    assert.ok(p.findings.length > 0, "یک قاعدهٔ خراب نباید کلِ گزارش را ساکت کند");
+  } finally {
+    RULES.splice(RULES.indexOf(boom), 1);
+  }
+});
+
+// ⚠️ N16: حذفِ یک قاعده هیچ اثری در سورس نمی‌گذارد. مجموعهٔ شناسه‌ها قفل می‌شود.
+test("M92d: مجموعهٔ شناسه‌های patterns_biochem_new همانی است که ثبت شده", async () => {
+  const { RULES_BIOCHEM_NEW } = await import("./patterns_biochem_new.js");
+  assert.deepEqual(
+    RULES_BIOCHEM_NEW.map((r) => r.id).sort(),
+    [
+      "amylase_emergency",
+      "apob_elevated",
+      "bilirubin_emergency",
+      "diabetes_a1c_diagnostic",
+      "familial_hypercholesterolemia_youth",
+      "severe_hypercholesterolemia",
+      "severe_hyperglycemia_uncertain_ketosis",
+    ],
+    "مجموعهٔ قاعده‌ها عوض شده — اگر عمدی است، این فهرست و MEDICAL_RULES.md را با هم به‌روز کن"
+  );
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// M94 — فصل ۲۰ هنری «Specific Proteins»: دو بازهٔ مرجع، و دو قاعده‌ای که
+//       نباید با عوض‌شدنِ آن بازه‌ها شل می‌شدند.
+//       تصمیمِ بازبین ۱۹ مرداد ۱۴۰۵ — MEDICAL_RULES.md بندِ P43.
+// ═══════════════════════════════════════════════════════════════════════
+
+const _albPanel = (alb, extra = []) =>
+  runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "Albumin", value: String(alb) }, ...extra],
+  });
+
+test("M94: آلبومینِ ۳.۷ با بازهٔ هنری «پایین» است (با بازهٔ قبلیِ ۳.۵ «طبیعی» بود)", () => {
+  const alb = _albPanel(3.7).graded.find((g) => g.test === "ALB");
+  assert.ok(alb, "آلبومین باید نمره بگیرد");
+  assert.equal(alb.abnormal, true, "۳.۷ زیرِ حدِ پایینِ هنری (۳.۹) است");
+  assert.equal(alb.dir, "low");
+});
+
+test("M94b: آلبومینِ ۵.۰۵ با بازهٔ هنری «طبیعی» است (با سقفِ قبلیِ ۵.۰ «بالا» می‌شد)", () => {
+  const alb = _albPanel(5.05).graded.find((g) => g.test === "ALB");
+  assert.equal(alb.abnormal, false, "۵.۰۵ داخلِ سقفِ هنری (۵.۱) است");
+});
+
+test("M94c: هاپتوگلوبینِ ۵۰ با بازهٔ هنری «طبیعی» است (با کفِ قبلیِ ۶۰ «پایین» بود)", () => {
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "Haptoglobin", value: "50" }],
+  });
+  const h = e.graded.find((g) => g.test === "HAPTO");
+  assert.ok(h, "هاپتوگلوبین باید نمره بگیرد");
+  assert.equal(h.abnormal, false, "۵۰ داخلِ بازهٔ هنری [۴۰، ۲۹۰] است");
+});
+
+test("M94d: هاپتوگلوبینِ ۵۰ + LDHِ بالا دیگر «همولیز» صادر نمی‌کند", () => {
+  // پیش از تصحیحِ بازه، ۵۰ «پایین» خوانده می‌شد و با LDHِ بالا دو نشانه
+  // می‌ساخت و hemolysis_likely فعال می‌شد — بیش‌تشخیص روی عددی که
+  // منبع طبیعی می‌داند. N3 از سمتِ بازهٔ مرجع، نه واحد.
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [
+      { name: "Haptoglobin", value: "50" },
+      { name: "LDH", value: "400" },
+      { name: "Hemoglobin", value: "11.5" },
+    ],
+  });
+  const ids = runPatterns(e).findings.map((f) => f.pattern);
+  assert.ok(
+    !ids.includes("hemolysis_likely"),
+    `نباید همولیز اعلام شود؛ فعال‌شده‌ها: ${ids.join(", ")}`
+  );
+});
+
+test("M94e: هاپتوگلوبینِ واقعاً پایین (۳۵) هنوز غیرطبیعی است — بازه پهن شد، کور نشد", () => {
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [{ name: "Haptoglobin", value: "35" }],
+  });
+  const h = e.graded.find((g) => g.test === "HAPTO");
+  assert.equal(h.abnormal, true);
+  assert.equal(h.dir, "low");
+});
+
+test("M94f: بالا رفتنِ کفِ آلبومین قاعدهٔ سیروز را شل نکرد", () => {
+  // ALB 3.7 + PLT 120 + BILI_T 1.5 = دو نشانه، نه سه. اگر albLowMarker
+  // برداشته شود، آلبومینِ ۳.۷ نشانهٔ سوم می‌شود و این پنل — که می‌تواند
+  // ژیلبرِ بی‌خطر باشد — «بیماریِ مزمنِ کبد» می‌گیرد.
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [
+      { name: "Albumin", value: "3.7" },
+      { name: "Platelet", value: "120" },
+      { name: "Bilirubin Total", value: "1.5" },
+    ],
+  });
+  const ids = runPatterns(e).findings.map((f) => f.pattern);
+  assert.ok(
+    !ids.includes("chronic_liver_disease_pattern"),
+    `دو نشانه نباید سیروز بدهد؛ فعال‌شده‌ها: ${ids.join(", ")}`
+  );
+});
+
+test("M94g: سیروزِ واقعی (چهار نشانه) هنوز فعال می‌شود", () => {
+  const e = runEngine({
+    patient: { age: 45, sex: "M" },
+    tests: [
+      { name: "Albumin", value: "2.9" },
+      { name: "Platelet", value: "120" },
+      { name: "Bilirubin Total", value: "1.5" },
+      { name: "INR", value: "1.4" },
+    ],
+  });
+  const ids = runPatterns(e).findings.map((f) => f.pattern);
+  assert.ok(
+    ids.includes("chronic_liver_disease_pattern"),
+    `چهار نشانه باید سیروز بدهد؛ فعال‌شده‌ها: ${ids.join(", ")}`
+  );
+});
+
+test("M94h: پروتئینوریِ شدید با آلبومینِ ۳.۷ «نفروتیک» نیست، با ۲.۴ هست", () => {
+  const panel = (alb) =>
+    runPatterns(
+      runEngine({
+        patient: { age: 45, sex: "M" },
+        tests: [
+          { name: "Albumin", value: String(alb) },
+          { name: "Urine Protein", value: "3+" },
+        ],
+      })
+    ).findings.map((f) => f.pattern);
+
+  const mild = panel(3.7);
+  assert.ok(
+    !mild.includes("nephrotic_pattern"),
+    `آلبومینِ ۳.۷ نفروتیک نیست؛ فعال‌شده‌ها: ${mild.join(", ")}`
+  );
+  const real = panel(2.4);
+  assert.ok(
+    real.includes("nephrotic_pattern"),
+    `آلبومینِ ۲.۴ باید نفروتیک بدهد؛ فعال‌شده‌ها: ${real.join(", ")}`
+  );
+});
+
+test("M94i: بازه‌های هنری دقیقاً همان چیزی‌اند که Table 20.2 می‌گوید", () => {
+  // هنری ف.۲۰ Table 20.2: آلبومین 39–51 g/L، هاپتوگلوبین 0.4–2.9 g/L.
+  assert.deepEqual(ADULT_REFS.ALB.both, [3.9, 5.1], "آلبومین: 39–51 g/L → 3.9–5.1 g/dL");
+  assert.equal(ADULT_REFS.ALB.unit, "g/dL");
+  assert.deepEqual(ADULT_REFS.HAPTO.both, [40, 290], "هاپتوگلوبین: 0.4–2.9 g/L → 40–290 mg/dL");
+  assert.equal(ADULT_REFS.HAPTO.unit, "mg/dL");
+});
+
+test("M94j: ACR واحدش mg/g می‌ماند — «۳۰ µg/g»ِ هنری اعمال نشد", () => {
+  // KDIGO 2024 و ADA Standards of Care هر دو آستانهٔ ۳۰ mg/g می‌دهند.
+  // هنری ف.۲۰ ص ۲۸۲ «above 30 µg/g creatinine» نوشته که هزار برابر فرق دارد؛
+  // اعمالش هر فردِ سالمی را آلبومینوری می‌کرد. تصمیمِ بازبین: تغییر نکند.
+  assert.equal(ADULT_REFS.ACR.unit, "mg/g");
+  assert.deepEqual(ADULT_REFS.ACR.both, [0, 30]);
+});
+
+test("M94k: CRP و فیبرینوژن با تصمیمِ بازبین دستِ‌نخورده ماندند", () => {
+  // C4 و C3 در جدولِ تعارض‌ها: منبعْ موتور ماند، نه هنری.
+  assert.deepEqual(ADULT_REFS.CRP_Q.both, [0, 5], "CRP: عددِ موتور، نه 0.47–1.34 mg/L هنری");
+  assert.deepEqual(ADULT_REFS.FIB.both, [200, 400], "فیبرینوژن: عددِ موتور، نه 100–400 mg/dL هنری");
+});
