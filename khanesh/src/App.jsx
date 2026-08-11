@@ -24,6 +24,9 @@ const Landing = lazy(() => import("./Landing"));
 const Tests = lazy(() => import("./Tests"));
 const CategoryPage = lazy(() => import("./CategoryPage"));
 const TestPage = lazy(() => import("./TestPage"));
+const ReferenceRanges = lazy(() => import("./ReferenceRanges"));
+const UnitsGuide = lazy(() => import("./UnitsGuide"));
+const HowToCapture = lazy(() => import("./HowToCapture"));
 
 export default function App() {
   return (
@@ -40,6 +43,9 @@ export default function App() {
           {/* صفحهٔ یک دسته (۱۷ دسته) و صفحهٔ یک آزمایش (۴۶ آزمایشِ فرم). */}
           <Route path="/tests/:cat" element={<CategoryPage />} />
           <Route path="/test/:key" element={<TestPage />} />
+          <Route path="/reference-ranges" element={<ReferenceRanges />} />
+          <Route path="/units-guide" element={<UnitsGuide />} />
+          <Route path="/how-to-capture" element={<HowToCapture />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
