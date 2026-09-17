@@ -119,15 +119,29 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
     },
     overall_urgency: patterns.overall_urgency,
     overall_urgency_fa: URGENCY_FA[patterns.overall_urgency],
-    findings: patterns.findings.map((f) => ({
-      headline: f.headline,
-      must_say: f.must_say,
-      action: f.action,
-      urgency: f.urgency,
-      suggest: f.suggest,
-      forbid: f.forbid ?? [],
-      warnings: f.warnings ?? [],
-    })),
+    // ⚠️ فیلدها اینجا با نام برشمرده می‌شوند و این عمدی است — نه از سرِ
+    //    سلیقه. هر فیلدی که به finding اضافه شود، تا وقتی اسمش اینجا نیاید
+    //    به مدل نمی‌رسد. `protected` دقیقاً از همین خاصیت استفاده می‌کند:
+    //    نامِ دارو، دوز و راهِ مصرف هرگز وارد payload نمی‌شوند، پس مدل
+    //    نمی‌تواند بازنویسی‌شان کند. (rules/protected.js)
+    findings: patterns.findings.map((f) => {
+      // متنِ محافظت‌شده معمولاً *همان* رشته‌ای است که در warnings هم نشسته
+      // (یک ثابت، دو ارجاع — تا دو نسخه از یک تصمیم نداشته باشیم؛ کلاسِ N20).
+      // پس باید از warnings هم بیرون کشیده شود، وگرنه از همان در به مدل می‌رسد.
+      const guarded = new Set((f.protected ?? []).map((p) => p.text));
+      return {
+        headline: f.headline,
+        must_say: f.must_say,
+        action: f.action,
+        urgency: f.urgency,
+        suggest: f.suggest,
+        forbid: f.forbid ?? [],
+        warnings: (f.warnings ?? []).filter((w) => !guarded.has(w)),
+        // مدل باید بداند بلوکی هست که ننوشته‌ است، وگرنه ممکن است خودش
+        // دستورِ دارویی بسازد تا جای خالی را پر کند.
+        ...(guarded.size ? { has_protected_block: true } : {}),
+      };
+    }),
     abnormal_tests: abnormal,
     borderline_tests: borderline,
     qualitative: engineOut.qual,

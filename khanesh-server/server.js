@@ -37,7 +37,9 @@ import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
 import { createAvalAIClient, safeParseJson } from "./avalaiClient.js";
 import { extractMedlineTerms, formatMedlineContext } from "./rules/medline.js";
-import { missingFindingText, stripUnmeasuredClaims } from "./rules/coverage.js";
+import { missingFindingText, stripUnmeasuredClaims, splitSentences } from "./rules/coverage.js";
+import { collectProtected, engineStrings, inventedDosage } from "./rules/protected.js";
+import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
 import { createJob, reportPage, finishJob, getJob, jobView, jobCount } from "./jobStore.js";
 import authRouter, { requireAuth, authBootReport } from "./auth.js";
 import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById } from "./database.js";
@@ -659,8 +661,28 @@ function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImag
 // [۱۴] نقطه پایانی اصلی
 // ============================================================
 const analyzeHandler = async (req, res) => {
+  // ── ردیابی ──
+  // یک شناسه برای کلِ عبورِ این درخواست از یازده مرحله. وقتی خروجی با
+  // پاسخِ مرجعِ بالینی نمی‌خواند، این تنها راهِ تفکیکِ «موتور اشتباه تشخیص
+  // داد» از «یافته به مدل نرسید» از «مدل بازنویسی‌اش را خراب کرد» است.
+  // پیش‌فرض خاموش؛ خاموش که باشد beginTrace یک شیءِ بی‌اثر می‌دهد و هیچ
+  // شاخهٔ if‌ای در ادامهٔ این تابع لازم نمی‌شود. (trace.js)
+  const tr = beginTrace({ traceId: req.headers["x-trace-id"] || undefined, route: req.path });
+  req._trace = tr;
+  res.setHeader("X-Trace-Id", tr.id);
+
   try {
     const { patientInfo, testResults, imageDataUrl, imageDataUrls, tests, patient } = req.body || {};
+
+    tr.stage("intake", {
+      // بایتِ عکس ثبت نمی‌شود — فقط اینکه چند تا بود و چقدر
+      images: (Array.isArray(imageDataUrls) ? imageDataUrls : imageDataUrl ? [imageDataUrl] : [])
+        .map((u) => ({ bytes: typeof u === "string" ? u.length : 0 })),
+      text_len: typeof testResults === "string" ? testResults.length : 0,
+      manual_tests: Array.isArray(tests) ? tests : null,
+      patient: patient ?? null,
+      patient_info: patientInfo ?? null,
+    });
 
     // سازگاری عقب‌رو: فرانت قدیمی imageDataUrl تکی می‌فرستد و هنوز کار می‌کند
     let images = [];
@@ -695,7 +717,17 @@ const analyzeHandler = async (req, res) => {
       // req._onPage را فقط مسیرِ ناهمگام (job) ست می‌کند؛ مسیر همگام undefined است.
       // روی req نشسته نه در سطحِ ماژول، تا با چند درخواستِ همزمان قاطی نشود.
       const pages = await readImages(images, req._onPage);
+      tr.stage("ocr", { pages: pages.map((p) => ({ ok: !p.error, error: p.error ?? null, tests: p.tests ?? null, patient: p.patient ?? null })) });
+
       const merged = mergePages(pages);
+      tr.stage("merge", {
+        ok_count: merged.okCount,
+        failed_pages: merged.failedPages,
+        duplicates: merged.duplicates,
+        mismatch: merged.mismatch ?? null,
+        tests: merged.tests,
+        patient: merged.patient,
+      });
 
       if (merged.okCount === 0) {
         // ⚠️ باگ قبلی: هر شکستی «عکس ناخوانا» گزارش می‌شد.
@@ -830,6 +862,30 @@ const analyzeHandler = async (req, res) => {
     let engineCandidate = null;
     if (USE_ENGINE && lastMergedOcr) {
       engineCandidate = runEngine(lastMergedOcr);
+
+      // ⚠️ adapter و grade عمداً دو مرحلهٔ جدا ثبت می‌شوند، هرچند runEngine
+      //    یک فراخوان است. علتش انتسابِ خطاست: «نامِ تست نگاشت نشد» (N2) و
+      //    «مقدار در برابر واحدِ اشتباه سنجیده شد» (N3) دو نقصِ متفاوت‌اند و
+      //    اگر زیرِ یک مرحله بنشینند، مکان‌یاب نمی‌تواند تفکیکشان کند.
+      tr.stage("adapter", {
+        mapped: engineCandidate.graded.map((g) => ({ key: g.test, value: g.value })),
+        unmapped: engineCandidate.unmapped,
+        no_ref: engineCandidate.noRef,
+        unit_conversions: engineCandidate.unitConversions ?? [],
+        qual: engineCandidate.qual,
+        age: engineCandidate.age,
+        sex: engineCandidate.sex,
+      });
+      tr.stage("grade", {
+        graded: engineCandidate.graded.map((g) => ({
+          key: g.test, value: g.value, range: g.range, abnormal: !!g.abnormal,
+          dir: g.dir ?? null, level: g.level ?? null, ctcaeGrade: g.ctcaeGrade ?? null,
+          mode: g.mode ?? null, tag: g.tag ?? null, refSource: g.refSource ?? null,
+        })),
+        abnormal: engineCandidate.abnormal.map((a) => a.test),
+        indices: engineCandidate.indices,
+      });
+
       if (engineCandidate.graded.length === 0) {
         console.warn(
           "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
@@ -842,6 +898,20 @@ const analyzeHandler = async (req, res) => {
     if (engineCandidate) {
       engineOut = engineCandidate;
       patternOut = runPatterns(engineOut);
+
+      tr.stage("patterns", {
+        findings: patternOut.findings.map((f) => ({
+          rule_id: f.rule_id, urgency: f.urgency, headline: f.headline,
+          must_say: f.must_say, action: f.action, key_number: f.key_number ?? null,
+          suggest: f.suggest ?? [], forbid: f.forbid ?? [], warnings: f.warnings ?? [],
+          protected: f.protected ?? [],
+        })),
+        overall_urgency: patternOut.overall_urgency,
+        has_critical: patternOut.has_critical,
+        suppressed: patternOut.suppressed,
+        rules_failed: patternOut.rules_failed,
+      });
+      tr.stage("protected", { items: collectProtected(patternOut) });
 
       console.log(
         `موتور: ${engineOut.graded.length} تست ارزیابی شد | ` +
@@ -889,6 +959,11 @@ const analyzeHandler = async (req, res) => {
         //    که رابط کاربری هیچ داده‌ای برای رندرِ ردیف‌ها نداشت. همان
         //    drift‌ای که کامنتِ engineDebug ادعای جلوگیری‌اش را می‌کرد.
         out._engine = engineDebug(engineOut, patternOut);
+        // این مسیر اصلاً به مدل نمی‌رسد — ردِ آن هم باید همین را نشان بدهد،
+        // وگرنه «مدل صدا زده نشد» با «مدل چیزی برنگرداند» اشتباه می‌شود.
+        out._trace_id = tr.id;
+        tr.stage("response", { body: out, llm_called: false });
+        tr.finish({ path: "normal_result" });
         return res.json(out);
       }
 
@@ -1033,38 +1108,56 @@ const analyzeHandler = async (req, res) => {
       parsed.has_critical = patternOut.has_critical;
     }
 
+    // ⚠️ مسیرِ گراف هیچ‌کدام از تورهای مسیرِ کلاسیک را ندارد (N13، و همان
+    //    دلیلی که USE_GRAPH پیش‌فرض خاموش است). ردِ خطا باید همین را نشان
+    //    بدهد: مرحلهٔ prompt/llm_raw اینجا ثبت نمی‌شود چون دوازده عاملِ
+    //    جداگانه صدا زده شده‌اند، نه یک فراخوانِ واحد. مکان‌یاب با دیدنِ
+    //    path === "graph" از انتسابِ غلط به «بازنویسیِ مدل» خودداری می‌کند.
+    parsed._trace_id = tr.id;
+    tr.stage("response", { body: parsed, llm_called: true, graph: true });
+    tr.finish({ path: "graph" });
     return res.json(parsed);
     }
     // ═══ پایانِ مسیرِ گراف ═══
 
     if (engineCandidate) {
       // ═══ مسیر موتور ═══
+      const messages = [
+        { role: "system", content: ENGINE_SYSTEM_PROMPT },
+        // ورود دستی بارداری/بیماری زمینه‌ای را در patient می‌فرستد؛ فقط زمینهٔ لحن،
+        // نه ورودیِ گرید. مسیر عکس این‌ها را ندارد و null می‌ماند.
+        buildEnginePrompt(engineOut, patternOut, medlineContext, patient),
+      ];
+      // ⚠️ دقیقاً همان چیزی ثبت می‌شود که رفت، نه بازسازی‌اش. تفاوتِ
+      //    «یافته در patternOut بود» و «یافته در payload بود» همان مرزِ
+      //    «تحویل به مدل» است و بازسازی آن را محو می‌کند.
+      tr.stage("prompt", { model: TEXT_MODEL, temperature: 0, messages });
       raw = await callAvalAI({
         model: TEXT_MODEL,
         maxTokens: 2000,
         // کارِ این فراخوان بازنویسیِ یافته‌های موتور به فارسی است، نه قضاوت —
         // پس دمای صفر. مسیر قدیم عمداً روی ۰.۲ می‌ماند چون خودش قضاوت می‌کند.
         temperature: 0,
-        messages: [
-          { role: "system", content: ENGINE_SYSTEM_PROMPT },
-          // ورود دستی بارداری/بیماری زمینه‌ای را در patient می‌فرستد؛ فقط زمینهٔ لحن،
-          // نه ورودیِ گرید. مسیر عکس این‌ها را ندارد و null می‌ماند.
-          buildEnginePrompt(engineOut, patternOut, medlineContext, patient),
-        ],
+        messages,
       });
     } else {
       // ═══ مسیر قدیم — ورودی متنی یا USE_ENGINE=false ═══
+      const messages = [
+        { role: "system", content: SYSTEM_PROMPT },
+        buildAnalysisMessage(patientText, finalText, medlineContext, hasImage),
+      ];
+      tr.stage("prompt", { model: TEXT_MODEL, legacy_path: true, messages });
       raw = await callAvalAI({
         model: TEXT_MODEL,
         maxTokens: 2500,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          buildAnalysisMessage(patientText, finalText, medlineContext, hasImage),
-        ],
+        messages,
       });
     }
 
+    tr.stage("llm_raw", { raw });
+
     parsed = safeParseJson(raw);
+    tr.stage("parse", { ok: !!parsed, parsed: parsed ?? null });
     if (!parsed) {
       // ⚠️ در «مسیر موتور» یافته‌ها (از جمله اورژانس‌ها) قبلاً قطعی محاسبه شده‌اند.
       //    اگر خروجی مدل خراب باشد نباید has_critical/توصیه‌ها دور ریخته شوند.
@@ -1078,6 +1171,10 @@ const analyzeHandler = async (req, res) => {
         if (medlineSources.length) fb.sources = medlineSources;
         fb.parseErrorRecovered = true;
         fb._engine = engineDebug(engineOut, patternOut);
+        fb.critical_verbatim = collectProtected(patternOut);
+        fb._trace_id = tr.id;
+        tr.stage("response", { body: fb, llm_called: true, parse_failed: true });
+        tr.finish({ path: "engine_fallback" });
         return res.status(200).json(fb);
       }
       return res.status(200).json({
@@ -1110,7 +1207,13 @@ const analyzeHandler = async (req, res) => {
     if (engineOut) {
       const measured = [...new Set(engineOut.graded.map((g) => g.test))];
       for (const [k, v] of Object.entries(parsed)) {
-        if (typeof v === "string") parsed[k] = stripUnmeasuredClaims(v, measured);
+        if (typeof v !== "string") continue;
+        const after = stripUnmeasuredClaims(v, measured);
+        // ⚠️ این تور متن *حذف* می‌کند، برخلاف بقیه که اضافه می‌کنند. پس
+        //    وقتی یک جملهٔ درست گم می‌شود، اینجا جای اولِ نگاه‌کردن است —
+        //    و بدونِ ثبتِ before/after هیچ ردی از حذف نمی‌ماند.
+        tr.net(`stripUnmeasuredClaims:${k}`, v, after, { measured });
+        parsed[k] = after;
       }
     }
 
@@ -1120,16 +1223,19 @@ const analyzeHandler = async (req, res) => {
     // موتور خودش لیست را دارد، پس اگر مدل جا انداخت، از موتور پرش می‌کنیم.
     if (patternOut && patternOut.findings.length) {
       const recs = parsed.general_recommendations ?? parsed.recommendations;
+      const modelRecs = Array.isArray(recs) ? [...recs] : null;
       const chosen = (!Array.isArray(recs) || recs.length === 0)
         ? (console.warn("مدل general_recommendations نداد — از موتور ساخته شد"),
            buildEngineRecommendations(patternOut, engineOut))
         : recs;
+      tr.net("recommendations:rebuild", modelRecs, chosen, { rebuilt_from_engine: chosen !== recs });
       // حذف تکراری‌ها: دو finding ممکن است یک آزمایش را پیشنهاد دهند (مثلاً
       // کم‌خونی + همولیز هر دو «بیلی‌روبین»)، یا مدل یک سطر را دوبار بنویسد.
       // ⚠️ تمیزکاری باید روی فهرستِ مدل هم اجرا شود نه فقط مسیرِ موتور: مدل
       //    همان یافته‌ها را می‌بیند و همان «نوبت عادی…»های نزدیک‌به‌هم را بازتولید
       //    می‌کند. اینجا فقط new Set بود، پس تکرارِ نزدیک رد می‌شد.
       parsed.general_recommendations = tidyRecommendations(chosen);
+      tr.net("recommendations:tidy", chosen, parsed.general_recommendations);
       delete parsed.recommendations;
 
       // ⚠️ تورِ بالا فقط «مدل هیچ توصیه‌ای نداد» را می‌گیرد. حالتِ شایع‌تر و
@@ -1140,9 +1246,11 @@ const analyzeHandler = async (req, res) => {
       const addBack = missingSuggestions(parsed.general_recommendations, patternOut, engineOut);
       if (addBack.length) {
         console.warn(`تورِ توصیه‌ها: ${addBack.length} پیشنهادِ موتور در فهرستِ مدل نبود و برگردانده شد`);
+        const beforeAdd = parsed.general_recommendations;
         parsed.general_recommendations = tidyRecommendations([
           ...parsed.general_recommendations, ...addBack,
         ]);
+        tr.net("recommendations:addBack", beforeAdd, parsed.general_recommendations, { added: addBack });
       }
 
       // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
@@ -1182,8 +1290,16 @@ const analyzeHandler = async (req, res) => {
           .filter(Boolean);
         if (additions.length) {
           console.warn(`⚠️ ${additions.length} یافتهٔ عدددار ناقص منتقل شد — بخشِ افتاده اضافه شد`);
+          const beforeCov = parsed.interpretation;
           parsed.interpretation =
             (parsed.interpretation || "") + "\n\n" + additions.join(" ");
+          // ثبتِ اینکه *کدام* یافته ناقص منتقل شده بود: این دقیقاً همان
+          // سیگنالی است که «مدل جمله را انداخت» را از «موتور جمله را نساخت»
+          // جدا می‌کند، و بدونش هر دو یک‌شکل دیده می‌شوند.
+          tr.net("coverage:mustSayAddBack", beforeCov, parsed.interpretation, {
+            findings: numbered.filter((f) => missingFindingText(f, text)).map((f) => f.rule_id),
+            additions,
+          });
         }
       }
 
@@ -1204,18 +1320,56 @@ const analyzeHandler = async (req, res) => {
       }
       if (missingFacts.length) {
         console.warn(`⚠️ ${missingFacts.length} عددِ کلیدی در متن مدل نبود — به تفسیر اضافه شد`);
+        const beforeKey = parsed.interpretation;
         parsed.interpretation = `${missingFacts.join(" ")} ${parsed.interpretation || ""}`.trim();
+        tr.net("keyNumber:guarantee", beforeKey, parsed.interpretation, { facts: missingFacts });
       }
 
       // تست ممنوع اگر از دست مدل در رفت
       const forbidden = patternOut.findings.flatMap((f) => f.forbid ?? []);
       if (forbidden.length) {
+        const beforeForbid = parsed.general_recommendations;
         const before = parsed.general_recommendations.length;
         parsed.general_recommendations = parsed.general_recommendations.filter(
           (r) => !forbidden.some((w) => String(r).includes(w))
         );
         const dropped = before - parsed.general_recommendations.length;
         if (dropped) console.warn(`${dropped} توصیه حذف شد — تست ممنوع برای این الگو`);
+        tr.net("forbid:filter", beforeForbid, parsed.general_recommendations, { forbidden });
+      }
+
+      // ═══ کانالِ «عیناً» — محتوایی که از مدل رد نشده است ═══
+      //
+      // نامِ دارو، دوز و راهِ مصرف از payloadِ پرامپت بیرون مانده‌اند
+      // (buildEnginePrompt فقط فیلدهای مشخصی را می‌فرستد و `protected`
+      // جزوشان نیست)، پس مدل اصلاً ندیده‌شان که بتواند بازنویسی‌شان کند.
+      // اینجا مستقیم از موتور به پاسخ می‌چسبند. یکسان‌بودنشان با موتور یک
+      // خاصیتِ ساختاری است، نه نتیجهٔ یک تور — و دقیقاً به همین دلیل انتخاب
+      // شد: توری که «آیا مدل درست بازنویسی کرد؟» را بسنجد وجود ندارد.
+      // coverage.js با آستانهٔ توکنیِ ۰.۶ کار می‌کند و «وریدی»→«خوراکی» از
+      // آن رد می‌شود.
+      const verbatim = collectProtected(patternOut);
+      if (verbatim.length) parsed.critical_verbatim = verbatim;
+
+      // ⚠️ نیمهٔ دومِ همان تضمین: مدل نباید *از خودش* دوز یا راهِ مصرف
+      //    بنویسد. کانالِ بالا فقط تضمین می‌کند متنِ موتور دست‌نخورده برسد؛
+      //    جلوی «مدل یک دوز اختراع کرد» را نمی‌گیرد. جهتِ خطا اینجا حذف
+      //    است، پس شرط سخت‌گیرانه است: فقط نشانه‌ای که در *هیچ* رشتهٔ موتور
+      //    نیست حذف می‌شود.
+      const engineText = engineStrings(patternOut);
+      for (const field of ["summary", "interpretation"]) {
+        if (typeof parsed[field] !== "string") continue;
+        const bad = inventedDosage(parsed[field], engineText);
+        if (!bad.length) continue;
+        const beforeInv = parsed[field];
+        parsed[field] = splitSentences(beforeInv)
+          .filter((s) => !inventedDosage(s, engineText).length)
+          .join(" ");
+        console.warn(
+          `⚠️ مدل ${bad.length} نشانهٔ دوز/راهِ مصرف نوشت که در موتور نبود — جمله‌اش حذف شد: ` +
+          bad.map((b) => b.match).join(" | "),
+        );
+        tr.net(`inventedDosage:${field}`, beforeInv, parsed[field], { signals: bad });
       }
     }
 
@@ -1226,8 +1380,12 @@ const analyzeHandler = async (req, res) => {
       parsed.has_critical = patternOut.has_critical;
     }
 
+    parsed._trace_id = tr.id;
+    tr.stage("response", { body: parsed, llm_called: true });
+    tr.finish({ path: engineCandidate ? "engine" : "legacy" });
     res.json(parsed);
   } catch (err) {
+    tr.error("analyzeHandler", err);
     if (err.message === "upstream_timeout") {
       return res.status(504).json({
         error: "پاسخ سرویس هوش مصنوعی خیلی طول کشید. لطفاً دوباره تلاش کنید.",
@@ -1247,6 +1405,12 @@ const analyzeHandler = async (req, res) => {
     // ⚠️ err ممکن است بدنهٔ درخواست (دادهٔ بیمار) را داشته باشد
     console.error("Unhandled:", err.name, err.message);
     res.status(500).json({ error: "خطای داخلی سرور." });
+  } finally {
+    // ⚠️ در finally، نه در انتهای try: مسیرِ خطا هم باید ردِ ثبت‌شده داشته
+    //    باشد، وگرنه «۵۰۰ گرفتم» یک ردِ خالی می‌دهد و مکان‌یاب می‌گوید
+    //    «هیچ مرحله‌ای اجرا نشد» — که غلط است. finish دوباره‌فراخوانی را
+    //    بی‌خطر می‌پذیرد چون فقط فیلد می‌نویسد.
+    tr.finish({});
   }
 };
 
@@ -1386,6 +1550,9 @@ app.get("/health", (_req, res) =>
     rateLimit: `${RATE_LIMIT_MAX}/${RATE_LIMIT_WINDOW_MIN}min`,
     corsOrigins: ALLOWED_ORIGINS.length === 0 ? "any (⚠️ در پرودکشن ست کن)" : ALLOWED_ORIGINS,
     trustProxy: TRUST_PROXY || "off",
+    // ⚠️ روشن یعنی مقادیرِ بالینی در حافظه نگه داشته می‌شود. اینجا دیده
+    //    می‌شود تا کسی مجبور نباشد برای فهمیدنش به لاگِ بوت برگردد.
+    trace: isTraceEnabled() ? "on (⚠️ دادهٔ بالینی نگه داشته می‌شود)" : "off",
     // کارهای در حافظه. اگر مدام نزدیک سقف بود، یعنی TTL یا سقف کم است.
     jobsInMemory: jobCount(),
   })
@@ -1397,8 +1564,19 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'خطای سرور رخ داده است.' });
 });
 
-initDb().then(() => {
-  app.listen(PORT, () => {
+initDb()
+  .then(() => {
+    // ⚠️ باید *قبل از* app.listen صدای زده شود، نه بعدش. قبلاً درونِ
+    //    callbackِ listen بود؛ throwِ آن (کلیدِ JWT پیش‌فرض با احرازِ روشن)
+    //    از callback به promiseِ initDb نمی‌رسد، در .catch(console.error)
+    //    بلعیده می‌شد و سرور با توکن‌های جعل‌شدنی بالا می‌ماند — دقیقاً
+    //    کلاسِ «گاردی که بی‌صدا می‌بلعید». بیرونِ listen بودن یعنی
+    //    rejection به همین .catch می‌رسد و فرایند با کدِ غیرصفر خارج می‌شود.
+    console.log(authBootReport());
+    // ردیابی هم مثل احراز هویت باید در بوت دیده شود — روشن‌بودنش یعنی
+    // مقادیرِ بالینیِ بیمار نگه داشته می‌شود، و آن نباید بی‌صدا بماند.
+    traceBootReport();
+    app.listen(PORT, () => {
     console.log(`سرور واسط (با MedlinePlus) روی پورت ${PORT} در حال اجراست`);
     console.log(`مدل متن: ${TEXT_MODEL} | مدل بینایی: ${VISION_MODEL} | مهلت: ${AI_TIMEOUT_MS}ms`);
     console.log(`آپلود چند عکس: تا ${MAX_IMAGES} عکس | همزمانی ${IMAGE_CONCURRENCY} | ${OCR_RETRIES} تلاش مجدد`);
@@ -1416,8 +1594,8 @@ initDb().then(() => {
                    "یک آی‌پی می‌بیند و با یک کاربرِ پرمصرف همه بلاک می‌شوند. مقدار = تعداد hop.");
     }
     if (!AVALAI_API_KEY) console.warn("⚠️  هشدار: AVALAI_API_KEY تنظیم نشده! فایل .env را بساز.");
-    // احراز هویت: وضعیتش باید در بوت دیده شود. خاموش‌بودنش یعنی تاریخچهٔ
-    // آزمایش‌ها بینِ کاربران جدا نیست — چیزی که نباید بی‌صدا بماند.
-    console.log(authBootReport());
   });
-}).catch(console.error);
+}).catch((err) => {
+  console.error("❌ بوت سرور شکست خورد:", err.message);
+  process.exit(1);
+});

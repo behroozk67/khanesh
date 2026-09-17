@@ -18,3 +18,10 @@ labmat-prototype/node_modules/
 /khanesh-server/database.sqlite-journal
 /khanesh-server/database.sqlite-wal
 /khanesh-server/database.sqlite-shm
+
+# ── راز‌ها ──
+# labmat-prototype/.env با کلیدِ زندهٔ AvalAI داخلِ مخزن بود؛ از index بیرون
+# کشیده شد (فایلِ محلیِ کاری سرِ جایش می‌ماند). کلید باید در پنلِ AvalAI لغو/
+# بچرخد — تاریخچهٔ گیت هنوز آن را دارد. قاعدهٔ bare تا هیچ .envی دوباره
+# track نشود؛ کلیدِ واقعی همیشه از متغیرِ محیطی/.envِ محلی می‌آید.
+.env

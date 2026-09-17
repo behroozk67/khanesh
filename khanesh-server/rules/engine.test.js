@@ -28,6 +28,8 @@ import { GUIDELINE_IDS, sourceList } from "./guidelines.js";
 import { PREANALYTICAL_RULES } from "./preanalytical.js";
 import { rcv, hasLowIndividuality } from "./biovar.js";
 import { toConventional, ifccToNgsp, SI_CONVERSIONS } from "./units.js";
+import { collectProtected, dosageSignals, inventedDosage, engineStrings, verbatimIntegrity } from "./protected.js";
+import { beginTrace, setTraceEnabled, isTraceEnabled, stageOf, STAGES } from "../trace.js";
 
 // فقط برای M38 — تحلیل نحویِ سورسِ rules/. هر دو devDependency هستند و در
 // package.json اعلام شده‌اند، پس هیچ کدِ تولیدی به آن‌ها وابسته نیست.
@@ -5539,4 +5541,203 @@ test("M94k: CRP و فیبرینوژن با تصمیمِ بازبین دستِ‌
   // C4 و C3 در جدولِ تعارض‌ها: منبعْ موتور ماند، نه هنری.
   assert.deepEqual(ADULT_REFS.CRP_Q.both, [0, 5], "CRP: عددِ موتور، نه 0.47–1.34 mg/L هنری");
   assert.deepEqual(ADULT_REFS.FIB.both, [200, 400], "فیبرینوژن: عددِ موتور، نه 100–400 mg/dL هنری");
+});
+
+// ============================================================
+// M95 — کانالِ «عیناً» (rules/protected.js)، پیش از این بدونِ تست
+// ============================================================
+
+test("M95: collectProtected متنِ محافظت‌شده را از findings جمع می‌کند و تکراری‌ها را حذف می‌کند", () => {
+  const patternOut = {
+    findings: [
+      {
+        rule_id: "r1", urgency: "emergency",
+        protected: [{ kind: "dose", text: "وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید" }],
+      },
+      {
+        rule_id: "r2", urgency: "routine",
+        protected: [{ kind: "dose", text: "وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید" }], // تکراری
+      },
+    ],
+  };
+  const got = collectProtected(patternOut);
+  assert.equal(got.length, 1, "متنِ عیناً یکسان از دو یافته باید یک‌بار بماند");
+  assert.equal(got[0].from, "r1", "ترتیب باید ترتیبِ findings باشد");
+});
+
+test("M95b: collectProtected روی kindِ ناشناخته throw می‌کند، بی‌صدا رد نمی‌کند", () => {
+  // کلاسِ N15: گاردی که داده‌ی بد را بی‌شمار می‌اندازد شکستِ بلند را به سکوت تبدیل می‌کند.
+  assert.throws(
+    () => collectProtected({ findings: [{ rule_id: "rX", protected: [{ kind: "weird", text: "x" }] }] }),
+    /نوعِ محافظت‌شدهٔ ناشناخته/,
+  );
+});
+
+test("M95c: dosageSignals مرزِ فارسیِ «وریدی» را می‌گیرد (تلهٔ \\b در کامنتِ خودِ فایل)", () => {
+  // \b جاوااسکریپت فقط بین [A-Za-z0-9_] و بقیه تعریف می‌شود؛ حروفِ فارسی \w نیستند.
+  const hits = dosageSignals("وارفارین وریدی");
+  assert.deepEqual(hits, [{ kind: "route", match: "وریدی" }]);
+});
+
+test("M95d: واحدِ آزمایشگاهی («میلی‌گرم بر دسی‌لیتر») دوز شمرده نمی‌شود", () => {
+  const hits = dosageSignals("کلسترول ۱۳۰ میلی‌گرم بر دسی‌لیتر است");
+  assert.deepEqual(hits, [], "LAB_UNIT_TAIL باید این را از دوز رد کند");
+});
+
+test("M95e: dosageSignals دوز و بسامدِ واقعی را جدا تشخیص می‌دهد", () => {
+  // ⚠️ FREQ_RX فقط بسامدِ رقمی را می‌گیرد («روزی ۲ بار»)، نه نوشتاریِ حروفی
+  //    («روزی یک بار») — این یک محدودیتِ شناخته‌شده است، نه چیزی که این تست ادعا می‌کند پوشش می‌دهد.
+  const hits = dosageSignals("وارفارین ۵ میلی‌گرم روزی ۲ بار");
+  assert.ok(hits.some((h) => h.kind === "dose" && h.match.includes("۵")));
+  assert.ok(hits.some((h) => h.kind === "frequency"));
+});
+
+test("M95f: inventedDosage ساکت است وقتی دوزِ مدل عیناً در متنِ موتور بوده", () => {
+  const patternOut = {
+    findings: [{ rule_id: "r1", protected: [{ kind: "dose", text: "وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید" }] }],
+  };
+  const engineText = engineStrings(patternOut);
+  const bad = inventedDosage("وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید", engineText);
+  assert.deepEqual(bad, []);
+});
+
+test("M95g: inventedDosage دوزی را که مدل از خودش ساخته برمی‌گرداند", () => {
+  // جهتِ خطا عمداً سخت‌گیرانه است: نشانه‌ای که در هیچ رشتهٔ موتور نیست باید افتاده شود.
+  const patternOut = {
+    findings: [{ rule_id: "r1", protected: [{ kind: "dose", text: "وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید" }] }],
+  };
+  const engineText = engineStrings(patternOut);
+  const bad = inventedDosage("وارفارین ۱۰ میلی‌گرم روزی دو بار مصرف کنید", engineText);
+  assert.equal(bad.length, 1);
+  assert.equal(bad[0].match.includes("۱۰"), true, "دوزِ اختراعی («۱۰ میلی‌گرم») باید شناسایی شود");
+});
+
+test("M95h: verbatimIntegrity وقتی محتوای محافظت‌شده در پاسخ نیست missing می‌دهد", () => {
+  const patternOut = {
+    findings: [{ rule_id: "r1", protected: [{ kind: "dose", text: "وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید" }] }],
+  };
+  const result = verbatimIntegrity({ critical_verbatim: [], summary: "", interpretation: "" }, patternOut);
+  assert.equal(result.ok, false);
+  assert.equal(result.missing.length, 1);
+});
+
+test("M95i: verbatimIntegrity وقتی مدل همان عددِ دوز را در جملهٔ دیگری تکرار کند mangled می‌دهد", () => {
+  // دوزِ «۵ میلی‌گرم» عیناً در متنِ مدل هست، ولی جمله‌ی دربرگیرنده‌اش با اصل یکی نیست
+  // (بسامد عوض شده) — یعنی مدل چیزی غیر از رشتهٔ موتور را دربارهٔ همین دوز نوشته.
+  const patternOut = {
+    findings: [{ rule_id: "r1", protected: [{ kind: "dose", text: "وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید" }] }],
+  };
+  const result = verbatimIntegrity({
+    critical_verbatim: [{ text: "وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید" }],
+    summary: "وارفارین ۵ میلی‌گرم دو بار در روز مصرف کنید",
+    interpretation: "",
+  }, patternOut);
+  assert.equal(result.ok, false);
+  assert.equal(result.mangled.length, 1);
+});
+
+test("M95j: verbatimIntegrity وقتی متنِ عیناً درست منتقل شده ok می‌دهد", () => {
+  const patternOut = {
+    findings: [{ rule_id: "r1", protected: [{ kind: "dose", text: "وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید" }] }],
+  };
+  const result = verbatimIntegrity({
+    critical_verbatim: [{ text: "وارفارین ۵ میلی‌گرم روزی یک‌بار مصرف کنید" }],
+    summary: "", interpretation: "",
+  }, patternOut);
+  assert.deepEqual(result, { ok: true, missing: [], mangled: [] });
+});
+
+// ============================================================
+// M96 — ردیابیِ درخواست (trace.js)، پیش از این بدونِ تست
+//
+// ⚠️ enabled/toDisk حالتِ سطحِ ماژول‌اند، نه هر-تست. هر تستی که
+//    setTraceEnabled(true) می‌زند باید در finally به false برگرداند،
+//    وگرنه تست‌های بعدیِ همین فایل (که در یک فرایند اجرا می‌شوند) رد
+//    می‌گیرند بدون اینکه خودشان بخواهند.
+// ============================================================
+
+test("M96: وقتی ردیابی خاموش است beginTrace شیءِ بی‌اثر می‌دهد", () => {
+  assert.equal(isTraceEnabled(), false, "پیش‌فرضِ سراسری باید خاموش باشد");
+  const tr = beginTrace({ route: "/api/analyze" });
+  tr.stage("intake", { foo: 1 }); // نباید throw کند و نباید چیزی ثبت کند
+  assert.equal(tr.trace, null);
+  assert.equal(tr.finish({}), null);
+});
+
+test("M96b: با روشن‌بودنِ ردیابی، مراحل به ترتیب و با فیلدهای دست‌نخورده ثبت می‌شوند", () => {
+  setTraceEnabled(true);
+  try {
+    const tr = beginTrace({ route: "/api/analyze" });
+    tr.stage("intake", { a: 1 });
+    tr.stage("ocr", { b: 2 });
+    const finished = tr.finish({ path: "engine" });
+    assert.deepEqual(finished.stages.map((s) => s.stage), ["intake", "ocr"]);
+    assert.equal(stageOf(finished, "intake").a, 1);
+    assert.equal(finished.path, "engine");
+  } finally {
+    setTraceEnabled(false);
+  }
+});
+
+test("M96c: مرحلهٔ ناشناخته throw می‌کند — لیستِ STAGES تنها منبعِ حقیقت است", () => {
+  setTraceEnabled(true);
+  try {
+    const tr = beginTrace({});
+    assert.throws(() => tr.stage("not_a_real_stage", {}), /مرحلهٔ ناشناخته/);
+  } finally {
+    setTraceEnabled(false);
+  }
+});
+
+test("M96d: net() اختلاف را از مقایسهٔ واقعیِ before/after می‌سازد، نه از حدس", () => {
+  setTraceEnabled(true);
+  try {
+    const tr = beginTrace({});
+    tr.stage("intake", {}); // safety_nets باید بعد از این هم قابلِ درج باشد
+    tr.net("stripUnmeasuredClaims:summary", "متنِ قبلی", "متنِ قبلی"); // بدون تغییر واقعی
+    tr.net("stripUnmeasuredClaims:interpretation", "متنِ قبلی", "متنِ جدید"); // تغییرِ واقعی
+    const finished = tr.finish({});
+    const nets = stageOf(finished, "safety_nets").nets;
+    assert.equal(nets[0].changed, false);
+    assert.equal(nets[1].changed, true);
+  } finally {
+    setTraceEnabled(false);
+  }
+});
+
+test("M96e: shrink() بایتِ عکس را لاگ نمی‌کند — فقط طول را نشان می‌دهد", () => {
+  setTraceEnabled(true);
+  try {
+    const tr = beginTrace({});
+    tr.stage("intake", { secret: "data:image/png;base64,AAAAAAAAAAAAAAAAAAAAAAAA" });
+    const finished = tr.finish({});
+    const stored = stageOf(finished, "intake").secret;
+    assert.ok(!stored.includes("AAAA"), "بایتِ خامِ عکس نباید در رد بماند");
+    assert.match(stored, /حذف شد/);
+  } finally {
+    setTraceEnabled(false);
+  }
+});
+
+test("M96f: رشتهٔ خیلی بلند (مثلِ خروجیِ خامِ مدل) بریده و علامت‌گذاری می‌شود", () => {
+  setTraceEnabled(true);
+  try {
+    const tr = beginTrace({});
+    tr.stage("llm_raw", { raw: "x".repeat(21000) });
+    const finished = tr.finish({});
+    const stored = stageOf(finished, "llm_raw").raw;
+    assert.ok(stored.length < 21000, "باید بریده شود، نه کامل نگه داشته شود");
+    assert.match(stored, /بریده شد/, "بریدگی باید صریحاً علامت بخورد، نه بی‌صدا کوتاه شود");
+  } finally {
+    setTraceEnabled(false);
+  }
+});
+
+test("M96g: STAGES ترتیبِ خطِ لوله را می‌دهد — protected بعد از patterns و قبل از prompt می‌آید", () => {
+  // این ترتیب قراردادِ مکان‌یابیِ خطاست (کامنتِ خودِ فایل). اگر عضوی
+  // جابه‌جا شود، مکان‌یابِ خطا نتیجهٔ غلط می‌دهد بدون اینکه جایی خطا بدهد.
+  const patternsIdx = STAGES.indexOf("patterns");
+  const protectedIdx = STAGES.indexOf("protected");
+  const promptIdx = STAGES.indexOf("prompt");
+  assert.ok(patternsIdx < protectedIdx && protectedIdx < promptIdx);
 });
