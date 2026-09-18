@@ -309,7 +309,12 @@ export default function ResultView({ result, asText, asList }) {
   const eng = result._engine;
   const hasEngine = !!eng;
   const urgency = eng?.urgency ?? "none";
-  const unmatched = !!eng?.patterns?.includes("unmatched_abnormal");
+  // ⚠️ کلیدهایی که موتور صریحاً «بی‌توضیح» اعلام کرده. پیش‌تر اینجا فقط یک
+  //    بولینِ کل‌پنلی از `patterns` ساخته می‌شد و به هر ردیفِ غیرطبیعی
+  //    می‌خورد — توضیح در resultStates.js. پاسخِ سرورِ قدیمی این فیلد را
+  //    ندارد؛ آرایهٔ خالی یعنی هیچ ردیفی چیپِ «بی‌توضیح» نمی‌گیرد، که از
+  //    چسباندنش به ردیفِ توضیح‌داده‌شده بهتر است.
+  const uncoveredKeys = Array.isArray(eng?.uncovered) ? eng.uncovered : [];
 
   // ⚠️ نامِ خالی یعنی faName() چیزی نداشته. ردیف حذف می‌شود، ولی کلیدِ خام
   //    («HGB», «BILI_T») هرگز به‌جایش چاپ نمی‌شود — همان کلاسی که N8 است.
@@ -317,7 +322,7 @@ export default function ResultView({ result, asText, asList }) {
     (t) => t && typeof t.name === "string" && t.name.trim()
   );
 
-  const ctx = buildVerdictContext(tests, urgency, unmatched);
+  const ctx = buildVerdictContext(tests, urgency, uncoveredKeys);
 
   // گروه‌بندی به تفکیک دستگاه بدن؛ کلیدِ ناشناخته در «سایر» می‌افتد و
   // هرگز ناپدید نمی‌شود.
@@ -328,7 +333,8 @@ export default function ResultView({ result, asText, asList }) {
     rows: bucket[c],
   }));
 
-  const unmatchedRows = unmatched ? tests.filter((t) => t.abnormal) : [];
+  // فقط ردیف‌هایی که موتور نامشان را برده، نه هر ردیفِ غیرطبیعیِ پنل.
+  const unmatchedRows = tests.filter((t) => ctx.uncovered.has(t.key));
   const extracted = asList(result.extracted_tests);
 
   return (

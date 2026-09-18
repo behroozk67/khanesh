@@ -40,8 +40,8 @@ import { extractMedlineTerms, formatMedlineContext } from "./rules/medline.js";
 import { missingFindingText, stripUnmeasuredClaims, splitSentences } from "./rules/coverage.js";
 import { collectProtected, engineStrings, inventedDosage } from "./rules/protected.js";
 import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
-import { createJob, reportPage, finishJob, getJob, jobView, jobCount } from "./jobStore.js";
-import authRouter, { requireAuth, authBootReport } from "./auth.js";
+import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "./jobStore.js";
+import authRouter, { requireAuth, authBootReport, AUTH_REQUIRED } from "./auth.js";
 import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById } from "./database.js";
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
@@ -62,6 +62,12 @@ function engineDebug(engineOut, patternOut) {
     urgency: patternOut.overall_urgency,
     // ⚠️ قرارداد قبلی: عدد. عمداً حفظ شده تا کلاینت قدیمی نشکند.
     abnormal: engineOut.abnormal.length,
+    // ⚠️ کلیدهایی که هیچ قاعده‌ای برنداشت — همان‌هایی که تورِ
+    //    `unexplained_abnormal` نام می‌برد، ولی ساختاری. کلاینت باید بداند
+    //    *کدام* ردیف بی‌توضیح ماند، نه فقط اینکه «یکی در این پنل بود»:
+    //    چسباندنِ آن پرچمِ کل‌پنلی به هر ردیفِ غیرطبیعی، کنارِ یافته‌ای که با
+    //    اطمینان فقر آهن را توضیح می‌دهد، تناقض می‌سازد.
+    uncovered: patternOut.findings.flatMap((f) => f.uncovered ?? []),
     indices: engineOut.indices,
     tests: serializeGraded(engineOut),
     // ── منابعِ گایدلاینیِ یافته‌ها (شفافیت) ──
@@ -1434,7 +1440,7 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
     ? req.body.imageDataUrls
     : (typeof req.body?.imageDataUrl === "string" ? [req.body.imageDataUrl] : []);
 
-  const jobId = createJob({ pagesTotal: imgs.length });
+  const jobId = createJob({ pagesTotal: imgs.length, userId: req.user?.userId ?? null });
   
   // -- ثبت در دیتابیس --
   if (req.user && req.user.userId) {
@@ -1465,8 +1471,12 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
   });
 });
 
-app.get("/api/analyze/job/:id", requireAllowedOrigin, (req, res) => {
-  const job = getJob(req.params.id);
+// ⚠️ `requireAuth` اینجا لازم است، وگرنه عدم‌تقارن می‌سازد: /start احراز هویت
+//    می‌خواهد و این یکی نه، پس هر کسی با یک شناسهٔ کار تفسیرِ کاملِ بیمارِ
+//    دیگری را می‌خواند. با AUTH_REQUIRED خاموش، `requireAuth` کاربرِ ناشناس
+//    را ست می‌کند و رفتار عوض نمی‌شود.
+app.get("/api/analyze/job/:id", requireAllowedOrigin, requireAuth, (req, res) => {
+  const job = getJobFor(req.params.id, req.user?.userId ?? null);
   if (!job) {
     return res.status(404).json({
       error: "این تحلیل پیدا نشد یا منقضی شده. لطفاً دوباره شروع کنید.",
@@ -1478,7 +1488,16 @@ app.get("/api/analyze/job/:id", requireAllowedOrigin, (req, res) => {
 // ============================================================
 // اندپوینت مخصوص اجرای گراف 10 عامله (LabMat Agents)
 // ============================================================
-app.post("/api/labmat/analyze", requireAllowedOrigin, analyzeLimiter, async (req, res) => {
+// ⚠️ این روت مسیرِ گراف است و متنِ بیمارش از هیچ‌کدام از تورهای ایمنیِ مرحلهٔ ۸
+//    عبور نمی‌کند (N13). گیتِ `USE_GRAPH` تا امروز فقط داخلِ `analyzeHandler`
+//    بود، پس این در — بی‌احراز هویت — همان مسیری را باز می‌گذاشت که کلِ
+//    تصمیمِ «پیش‌فرض خاموش» برای بستنش گرفته شده بود.
+app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, async (req, res) => {
+  if (!USE_GRAPH) {
+    return res.status(503).json({
+      error: "مسیرِ گراف خاموش است. برای آزمایشِ محلی USE_GRAPH=true را ست کنید.",
+    });
+  }
   try {
     const rawData = req.body.rawData;
     if (!rawData) {
@@ -1502,19 +1521,25 @@ app.post("/api/labmat/analyze", requireAllowedOrigin, analyzeLimiter, async (req
     console.error("[LabMat API] Error during graph execution:", err);
     console.log("[LabMat API] Falling back to deterministic engine...");
     try {
-      const { runEngine } = await import("./rules/engine.js");
+      // 🔴 این بلوک تا امروز مرده بود: از `./rules/engine.js` ایمپورت می‌کرد
+      //    (وجود ندارد — `runEngine` در `adapter.js` است) و از
+      //    `generateInterpretation` در `interpret.js` (هیچ‌جا وجود ندارد). پس
+      //    هر خطای گراف به «Fallback failed» و ۵۰۰ می‌رسید، در حالی که
+      //    کامنتِ خودش وعدهٔ یک fallbackِ قطعی می‌داد.
+      const { runEngine } = await import("./rules/adapter.js");
       const { runPatterns } = await import("./rules/patterns.js");
-      const { generateInterpretation } = await import("./rules/interpret.js");
-      
+      const { buildEngineFallbackResult } = await import("./rules/prompt.js");
+
       const rawData = req.body.rawData || {};
       const { patientInfo, testResults } = rawData;
       const patient = patientInfo || { age: 30, sex: "M" };
       const tests = Array.isArray(testResults) ? testResults : [];
-      
+
       const engineOut = runEngine({ patient, tests });
       const patternsOut = runPatterns(engineOut);
-      const interpretation = await generateInterpretation(patternsOut, engineOut);
-      
+      // متنِ قطعیِ خودِ موتور — بدونِ LLM، پس مرزِ موتور دست‌نخورده می‌ماند.
+      const interpretation = buildEngineFallbackResult(engineOut, patternsOut);
+
       res.json({
         success: true,
         data: interpretation,
@@ -1545,6 +1570,12 @@ app.get("/health", (_req, res) =>
     // قبل از بالا بردن maxTokens اول اینجا را ببین.
     engine: USE_ENGINE ? "on" : "off",
     graph: USE_GRAPH ? "on" : "off",
+    // ⚠️ فرانت این را می‌خواند تا صفحهٔ ورود را نشان بدهد یا نه. پیش‌تر
+    //    `VITE_AUTH_REQUIRED` پرچمِ *زمانِ بیلد* و مستقل از این بود، پس دو
+    //    منبعِ حقیقت داشتیم که بی‌صدا از هم واگرا می‌شدند: یا بیمار کلِ فرم
+    //    را پر می‌کرد و آخرش ۴۰۱ می‌گرفت، یا برای سروری که احراز هویت
+    //    نمی‌خواست از او OTP خواسته می‌شد (و فرستندهٔ پیامک هنوز mock است).
+    authRequired: AUTH_REQUIRED,
     ocrMaxTokens: OCR_MAX_TOKENS,
     truncations: avalai.truncations,
     rateLimit: `${RATE_LIMIT_MAX}/${RATE_LIMIT_WINDOW_MIN}min`,

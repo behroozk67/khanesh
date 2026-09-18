@@ -64,10 +64,31 @@ export function clearResult() { safeDel(LS_RESULT); }
 
 /* ---------- شبکه ---------- */
 
-export async function startJob(payload, signal) {
+/**
+ * هدرِ احراز هویت.
+ *
+ * ⚠️ `pollJob` هم به این نیاز دارد، نه فقط `startJob`: روتِ
+ *    `GET /api/analyze/job/:id` از ۲۰۲۶-۰۹-۱۷ `requireAuth` دارد و نتیجه را
+ *    به مالکِ کار مقید می‌کند (پیش از آن، هر کسی با یک شناسه تفسیرِ کاملِ
+ *    بیمارِ دیگری را می‌خواند). بدونِ این تابع، شروعِ تحلیل موفق می‌شد و
+ *    poll ۴۰۱ می‌گرفت — یعنی تحلیلِ پرداخت‌شده روی زمین می‌ماند.
+ */
+function authHeaders(base = {}) {
   const token = localStorage.getItem('auth_token');
-  const headers = { "Content-Type": "application/json" };
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return token ? { ...base, Authorization: `Bearer ${token}` } : { ...base };
+}
+
+/** ۴۰۱ یعنی نشست منقضی/غایب است — توکنِ بی‌اثر باید پاک شود تا صفحهٔ ورود بیاید. */
+function authError(status, data) {
+  if (status !== 401) return null;
+  try { localStorage.removeItem('auth_token'); } catch { /* حالتِ خصوصی مرورگر */ }
+  const err = new Error(data?.error || "برای دیدن نتیجه باید وارد شوید. لطفاً دوباره وارد شوید.");
+  err.code = "auth_required";
+  return err;
+}
+
+export async function startJob(payload, signal) {
+  const headers = authHeaders({ "Content-Type": "application/json" });
 
   const res = await fetch(START_URL, {
     method: "POST",
@@ -78,6 +99,8 @@ export async function startJob(payload, signal) {
   let data = null;
   try { data = await res.json(); } catch { /* JSON نبود */ }
   if (!res.ok) {
+    const authErr = authError(res.status, data);
+    if (authErr) throw authErr;
     const err = new Error(data?.error || `خطای سرور (${res.status})`);
     if (data?.code) err.code = data.code;
     throw err;
@@ -108,7 +131,7 @@ export async function pollJob(id, { onProgress, signal } = {}) {
 
     let res, data = null;
     try {
-      res = await fetch(JOB_URL + encodeURIComponent(id), { signal });
+      res = await fetch(JOB_URL + encodeURIComponent(id), { headers: authHeaders(), signal });
       try { data = await res.json(); } catch { /* JSON نبود */ }
       failures = 0;
     } catch (e) {
@@ -125,6 +148,8 @@ export async function pollJob(id, { onProgress, signal } = {}) {
       clearJob();
       throw new Error(data?.error || "این تحلیل پیدا نشد یا منقضی شده.");
     }
+    const authErr = authError(res.status, data);
+    if (authErr) throw authErr;
     if (!res.ok) throw new Error(data?.error || `خطای سرور (${res.status})`);
 
     if (data.status === "running") {
@@ -150,13 +175,23 @@ export async function pollJob(id, { onProgress, signal } = {}) {
   }
 }
 
+// ⚠️ `{ once: true }` فقط وقتی listener را برمی‌دارد که رویدادِ abort *رخ دهد*.
+//    در مسیرِ عادی (تایمر تمام می‌شود، abort نمی‌آید) listener می‌ماند، و
+//    pollJob روی یک تحلیلِ ۹۰–۱۵۰ ثانیه‌ای ده‌ها بار sleep می‌کند — پس ده‌ها
+//    listenerِ مرده روی همان AbortController جمع می‌شد. اثرِ کاربری نداشت،
+//    ولی الگویش نشتی است، پس در هر دو مسیر پاک می‌شود.
 function sleep(ms, signal) {
   return new Promise((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => {
+    const onAbort = () => {
       clearTimeout(t);
+      signal?.removeEventListener("abort", onAbort);
       reject(new DOMException("aborted", "AbortError"));
-    }, { once: true });
+    };
+    const t = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 

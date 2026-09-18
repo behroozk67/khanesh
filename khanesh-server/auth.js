@@ -25,7 +25,9 @@ const JWT_SECRET = process.env.JWT_SECRET || DEV_SECRET;
 //    دست‌نیافتنی زیرش انجام شده بود، که بدترین شکلِ ممکن است: فایل طوری خوانده
 //    می‌شود که انگار محافظت برقرار است. حالا با متغیرِ محیطی صریح است و بوت
 //    دربارهٔ آن بلند هشدار می‌دهد.
-const AUTH_REQUIRED = String(process.env.AUTH_REQUIRED || '').toLowerCase() === 'true';
+// صادر می‌شود تا /health و فرانت از همین یک متغیر بخوانند. دوباره خواندنِ
+// process.env در server.js یک کپیِ دومِ همان تصمیم بود — کلاسِ N20.
+export const AUTH_REQUIRED = String(process.env.AUTH_REQUIRED || '').toLowerCase() === 'true';
 
 // کاربرِ ساختگیِ حالتِ خاموش. ⚠️ همهٔ درخواست‌ها یک userId می‌گیرند، پس
 // `getJobById(jobId, userId)` عملاً محدودیتی اعمال نمی‌کند و هر کسی می‌تواند

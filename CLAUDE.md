@@ -27,6 +27,11 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `3416d63`, after the N24 auth/scoping + `_engine.uncovered` work — `T14`–`T16`, `M100`–`M100b` | 2026-09-17 | 407 | 407 | **0** | — |
+   | `HEAD` at `3416d63` **with those 5 tests dropped in** (`git archive` + junction) | 2026-09-17 | 407 | 394 | **13** | — |
+   | working tree on `3416d63`, after the N20 amylase/bilirubin/thyroid fix — `M97`–`M99d`, 13 tests, **113 rules** | 2026-09-17 | 402 | 402 | **0** | — |
+   | `HEAD` at `3416d63` **with the 13 new tests dropped in** (`git archive` + junction recipe) — 115 rules | 2026-09-17 | 402 | 393 | **9** | — |
+   | working tree on `3416d63`, **before** that fix | 2026-09-17 | 389 | 389 | **0** | — |
    | `HEAD` at `90ac7d6` (`git archive` + junction recipe below) — **115 rules** | 2026-08-11 | 372 | 372 | **0** | — |
    | `HEAD` at `c5700c0` (same recipe) — 116 rules | 2026-08-11 | 350 | 350 | **0** | — |
    | working tree on `c5700c0`, mid-way — glucose/liver only, `M91`–`M92d` (`npm test`) | 2026-08-11 | 359 | 359 | **0** | — |
@@ -346,9 +351,10 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 ### Where a pattern lives
 
 `patterns.js` no longer holds the rules. It imports **eleven** `patterns_<system>.js` files and
-concatenates their `RULES_*` exports into the exported `RULES` array — **115 rules, measured
-2026-08-11** with the `node -e` one-liner under N16 (it was 116 at `c5700c0`; `liver_injury_pattern`
-was deleted — see N20 and `P43`); it still owns `runPatterns()`,
+concatenates their `RULES_*` exports into the exported `RULES` array — **113 rules, measured
+2026-09-17** with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
+`liver_injury_pattern` was deleted, then 113 once `overt_hypothyroidism` and
+`overt_thyrotoxicosis` went — see N20 with `P43` and `P45`); it still owns `runPatterns()`,
 `SUGGEST_TESTS`, and the suppression/dedup logic. So:
 
 - **Adding a clinical rule** → the right `patterns_<system>.js`, then confirm its `RULES_*` export
@@ -1248,6 +1254,22 @@ structural, not specific to that rule.
   they surface on nearly every anemia panel and dilute the output. The tempting fix is to suppress
   them when `MCV` is covered. Don't: an unsourced suppression list is how N16 happened. Give them
   real coverage inside the anemia rules instead. Logged as open in `MEDICAL_RULES.md` `E5`.
+- ⚠️ **Recurred 2026-09-17 on the rendering side, and the granularity is the new part.** Once the
+  net exists, its output has to be consumed at the right *grain*. `ResultView.jsx` built a single
+  boolean from `_engine.patterns.includes("unmatched_abnormal")` — true if **any** abnormal value
+  in the panel was uncovered — and `stateOf` applied it to **every** abnormal row. Measured
+  shape: an iron-deficiency panel (`Hb 9.5 · MCV 70 · ferritin 6`) plus one unrelated uncovered
+  value gave the Hb and MCV rows a «◌ نیازمند بررسی» chip, directly contradicting the
+  interpretation two sections above that explains iron deficiency with confidence. The frontend
+  could not do better: `_engine.tests[]` had no per-test coverage flag, so the panel flag was the
+  only signal there was. Fixed by having the engine attach the keys it already computed
+  (`orphans`) to the finding, and `server.js` expose them as `_engine.uncovered`. Guards `M100`,
+  `M100b`.
+- **Rule:** a signal that is true of the *panel* is false of an *item*. Before reusing an
+  aggregate flag per-row, ask whether the producer knows which item it was about — and if it does,
+  make it say so rather than making the consumer guess. Where the consumer cannot know, the safe
+  default is to mark **nothing**, not everything: a chip that says "we have no explanation for
+  this" is a claim, and putting it on a row the same page just explained is worse than omitting it.
 - **Guards:** `M58`, `M58b` (negative control), `M58c`. Verified against the pre-fix code in a temp
   copy — `M58` and `M58c` go red there. Note the copy needs `node_modules` junctioned in or the
   whole file dies on `Cannot find package 'acorn'`, the same trap the Commands section warns about.
@@ -1338,6 +1360,38 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
     `CK 900 / AST 120 / ALT 30`, it printed «الگوی آسیب سلول‌های کبدی» directly beside
     `muscle_origin_not_liver`'s «این از عضله می‌آید نه کبد». Registered as `P43`.
     Guards `M92`–`M92d`.
+- ⚠️ **Recurred a third and fourth time, 2026-09-17, and these two are the worst instances yet —
+  a direct emergency-vs-routine flip on the identical number.** Found by a full-codebase audit,
+  not by a test. Both had been sitting in `patterns_biochem_new.js` since it was written, both in
+  the *same file* as the two instances above, and both alongside
+  `severe_hyperglycemia_uncertain_ketosis` — which gets this exactly right and even cites N20 in
+  its own comment. Measured on the live engine:
+
+  | panel | finding one | finding two |
+  |---|---|---|
+  | `Amylase 800` alone | `amylase_emergency` — «فوراً به بخش اورژانس مراجعه کنید.» | `amylase_isolated` — «نوبت عادی، مگر علامت خاصی داشته باشید.» |
+  | `BiliT 18 / BiliD 12` | `bilirubin_emergency` — «بدون تأخیر به اورژانس» | `bilirubin_direct_dominant` — «این هفته با پزشک مطرح کنید.» |
+
+  Neither emergency rule set `blocks_others`, so the suppression logic never engaged
+  (`suppressed: 0`). A third pair in `patterns_endocrine_new.js` (`overt_hypothyroidism` vs the
+  `thyroid` rule's `thyroid_hypo_overt`) failed the other direction: a strict subset that
+  **downgraded** the card the patient reads from `this_week` to `routine`, while
+  `overall_urgency` stayed correct because it is a max — so nothing looked wrong from outside.
+  Fixed by closing the hand-off from the *lower*-urgency side (`amylaseEmergencyOwns`,
+  `biliEmergencyOwns` in `patterns_utils.js`, read by both the emergency `match` and the owner's
+  gate) and deleting the two thyroid duplicates. Registered as `P45`. Guards `M97`–`M99d`.
+- **Why `blocks_others` was the wrong instrument here, even though it would have worked:** it
+  suppresses *every* lower-urgency finding on the sheet, not just the contradicting one. The
+  bilirubin-18 patient would have lost their anemia finding too. Reach for a hand-off gate when
+  the conflict is about one analyte, and for `blocks_others` only when the emergency genuinely
+  should be the only thing the patient reads.
+- ⚠️ **And closing a hand-off orphans whatever the retired rule was also covering.** The moment
+  `pancreas_pattern` and `bilirubin_pattern` stood down, `LIPASE` and `BILI_D` had no owner and
+  fell to the N18 net («توضیحِ آمادهٔ اختصاصی نداریم») — on an emergency report. The root cause
+  was not the gate: both emergency rules *named* three or four possible causes while the value
+  that discriminates them was printed on the same sheet and never read. That is N21, and the gate
+  merely exposed it. Both were rewritten three ways (confirms / argues against / not measured).
+  **Before gating a rule off, list what else it was the only owner of.**
 - **The rule that generalizes, and it is about where you look:** both of these were *additions*
   to a `_new` module that never checked what the non-`_new` module already did. `patterns.js`
   spreads both arrays into one `RULES`, so the two are siblings at runtime — the filename says
@@ -1452,6 +1506,49 @@ it and no guard in the repo watches for it.**
   was doing two jobs.**
 - **Guards:** `M94f`, `M94g` (the real 4-marker cirrhosis still fires — a widened guard must not
   become a blindfold), `M94h` (both arms: 3.7 is not nephrotic, 2.4 still is).
+
+### N24 — Authenticating the write half of a route pair and not the read half
+2026-09-17, `GET /api/analyze/job/:id` and `POST /api/labmat/analyze`. Found by a full-codebase
+audit, not by a test. Not a clinical rule — it is the patient's whole interpretation.
+
+- **Tried:** put `requireAuth` on the routes that *start* work (`/api/analyze`,
+  `/api/analyze/start`) and leave the poll route open, because it takes an unguessable id and
+  returns "just" a job.
+- **Broke:** the poll route called `getJob(req.params.id)` and nothing else — no `requireAuth`, no
+  owner check — while `/start` handed that id to the client. So with `AUTH_REQUIRED=true`,
+  *starting* an analysis needed a token and *reading its result* did not, and the result is the
+  full interpretation of a named patient's lab sheet. `jobStore.js` had no concept of an owner at
+  all, so there was nothing to check against even if the route had wanted to. The sibling defect
+  in the same block: `POST /api/labmat/analyze` had no `requireAuth` **and** no `USE_GRAPH` gate
+  (the gate lived only inside `analyzeHandler`), so the one path the project deliberately keeps
+  off — LLM-authored patient text that bypasses every step-8 safety net, N13 — was reachable by
+  anyone, always.
+- **Why nothing caught it:** every test in `api-contract.test.js` exercises `/api/analyze`, and
+  `AUTH_REQUIRED` is unset in the test env, so `requireAuth` hands back the shared anonymous user
+  and *no route looks different from any other*. An auth asymmetry is invisible in a suite that
+  runs with auth off — and it will be invisible in production too, right up until someone turns
+  auth on and believes it.
+- **Rule:** authentication is a property of a **route pair**, not of a route. Whenever one
+  endpoint creates a resource and another reads it, check both, and check that the read is scoped
+  to an owner rather than merely to a hard-to-guess id — a job id travels in a response body, a
+  log, a `localStorage` entry and a support screenshot. "It's unguessable" is not an
+  authorization model.
+- **And the consequence you must fix in the same change:** adding auth to a read route breaks the
+  client that was polling it without a header. `analyzeJob.js`'s `pollJob()` sent none, so the fix
+  would have produced a 401 *after* a successful, billed 90–150s OCR run — the analysis paid for
+  and then thrown away. The header helper now serves both calls, and a 401 clears the dead token
+  and produces a real sentence instead of «خطای سرور (401)». **When you tighten a route, grep for
+  every caller of it before running the suite** — the suite passes either way, because it runs
+  with auth off.
+- **Guards:** `T14` (ownership in `jobStore`), `T15` (another user's job id gets a 404 and the
+  result body does not leak), `T16` (the graph route is 503 with `USE_GRAPH` off). All three red
+  against the committed tree; measured with the `git archive` + junction recipe.
+- **Also fixed here, and worth its own sentence because it was dead for months:** that route's
+  `catch` block promised a deterministic fallback and imported `./rules/engine.js` (does not
+  exist — `runEngine` is in `adapter.js`) and `generateInterpretation` from `rules/interpret.js`
+  (does not exist anywhere). Every graph failure therefore hit "Fallback failed" and a 500. It now
+  calls `buildEngineFallbackResult()`, which is the real engine-only path. **A fallback that has
+  never run is not a fallback**; if you write one, make a test take that branch.
 
 ---
 

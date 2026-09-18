@@ -83,9 +83,19 @@ export const STATES = {
  *      قرمز روی **همهٔ** ردیف‌های غیرطبیعی می‌رود. خطا همیشه به سمتِ
  *      بیش‌نمایی است، نه کم‌خوانی — کم‌خوانیِ خاموش بدترین شکستِ این پروژه است.
  */
-export function buildVerdictContext(tests, urgency, unmatched) {
+/*
+ * 🔴 باگِ واقعی (۲۰۲۶-۰۹-۱۷): پارامترِ سومِ این تابع یک بولینِ **کل‌پنلی** بود
+ *    (`patterns.includes("unmatched_abnormal")`) و `stateOf` آن را به *هر*
+ *    ردیفِ غیرطبیعی می‌چسباند. پس بیمارِ فقر آهن که یک ALPِ بالای بی‌ربط هم
+ *    داشت، کنارِ Hb و MCV — که همان صفحه با اطمینان توضیحشان داده بود —
+ *    چیپِ «نیازمند بررسی» می‌دید. سیگنالی که دربارهٔ پنل درست است دربارهٔ یک
+ *    تست غلط است. حالا سرور فهرستِ دقیقِ کلیدها را در `_engine.uncovered`
+ *    می‌فرستد و این تابع فقط عضویت را می‌سنجد.
+ */
+export function buildVerdictContext(tests, urgency, uncoveredKeys) {
   const list = Array.isArray(tests) ? tests : [];
   const emergencyKeys = new Set();
+  const uncovered = new Set(Array.isArray(uncoveredKeys) ? uncoveredKeys : []);
 
   if (urgency === "emergency") {
     const abnormal = list.filter((t) => t.abnormal);
@@ -98,7 +108,7 @@ export function buildVerdictContext(tests, urgency, unmatched) {
     for (const t of (severe.length ? severe : abnormal)) emergencyKeys.add(t.key);
   }
 
-  return { urgency: urgency ?? "none", unmatched: !!unmatched, emergencyKeys };
+  return { urgency: urgency ?? "none", uncovered, emergencyKeys };
 }
 
 /**
@@ -112,7 +122,8 @@ export function stateOf(t, ctx) {
   if (!t.abnormal) return t.nearLimit ? STATES.near : STATES.normal;
   if (ctx?.emergencyKeys?.has(t.key)) return STATES.emergency;
   // خارج از محدوده ولی هیچ قاعده‌ای نگرفتش → حالت سوم، نه زرد.
-  if (ctx?.unmatched) return STATES.unmatched;
+  // ⚠️ فقط برای همین کلید، نه برای کلِ پنل — توضیحِ بالای buildVerdictContext.
+  if (ctx?.uncovered?.has(t.key)) return STATES.unmatched;
   return STATES.out;
 }
 

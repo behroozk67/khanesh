@@ -1,8 +1,22 @@
-# React + Vite
+# Khanesh — frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 + Vite frontend for Khanesh/LabMate. See the [repo root README](../README.md) and
+[CLAUDE.md](../CLAUDE.md) for the project overview, architecture, and commands.
 
-Currently, two official plugins are available:
+```bash
+npm install
+npm run dev       # Vite dev server; proxies /api/* to http://localhost:8787
+npm run build
+npm run lint       # oxlint
+npm run preview
+```
+
+No test runner is configured for this project — trace UI logic by reading the code, per
+[.claude/rules/frontend.md](../.claude/rules/frontend.md).
+
+---
+
+Bootstrapped from the Vite React template. Two official plugins are available:
 
 - [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
 - [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)

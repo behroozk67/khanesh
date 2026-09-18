@@ -17,7 +17,7 @@ import { CTCAE_MAP } from "./ctcae.js";
 import { FA_NAMES, faName } from "./names.js";
 import { evaluate } from "./grade.js";
 import { runEngine, parseTitre } from "./adapter.js";
-import { runPatterns, RULES } from "./patterns.js";
+import { runPatterns, RULES, SUGGEST_TESTS } from "./patterns.js";
 import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT,
          tidyRecommendations, phraseSuggestion, buildNormalResult,
          missingSuggestions } from "./prompt.js";
@@ -5740,4 +5740,228 @@ test("M96g: STAGES ترتیبِ خطِ لوله را می‌دهد — protected
   const protectedIdx = STAGES.indexOf("protected");
   const promptIdx = STAGES.indexOf("prompt");
   assert.ok(patternsIdx < protectedIdx && protectedIdx < promptIdx);
+});
+
+// ═══ M97–M99: سه جفتِ قاعدهٔ متناقض روی یک آنالیت (کلاسِ N20) ═══
+//
+// اندازه‌گیری‌شده روی کدِ پیش از رفع، نه استنتاج‌شده:
+//   آمیلاز ۸۰۰ تنها        → amylase_emergency (فوراً اورژانس) + amylase_isolated (نوبت عادی)
+//   بیلی‌روبین ۱۸/مستقیم ۱۲ → bilirubin_emergency (بدون تأخیر اورژانس) + bilirubin_direct_dominant (این هفته)
+//   TSH ۶ / FT4 ۰.۷        → thyroid_hypo_overt (this_week) + overt_hypothyroidism (routine)
+// بیمار هر دو جمله را کنار هم می‌خواند و راهی برای انتخاب ندارد.
+
+test("M97: آمیلازِ ≥۵۰۰ فقط یک مالک دارد و آن مالک اورژانس است", () => {
+  const OWNERS = ["amylase_emergency", "pancreas_both_high", "lipase_high", "amylase_isolated"];
+  const panels = [
+    ["آمیلازِ ۸۰۰ تنها", [{ name: "Amylase", value: "800", unit: "U/L" }]],
+    ["آمیلازِ ۸۰۰ + لیپازِ بالا", [{ name: "Amylase", value: "800", unit: "U/L" }, { name: "Lipase", value: "600", unit: "U/L" }]],
+    ["آمیلازِ ۵۰۰ (مرزِ دقیق)", [{ name: "Amylase", value: "500", unit: "U/L" }]],
+  ];
+  for (const [label, tests] of panels) {
+    const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests }));
+    const hit = p.findings.filter((f) => OWNERS.includes(f.pattern));
+    assert.equal(hit.length, 1, `${label}: ${hit.length} قاعده هم‌زمان آمیلاز را برداشتند: ${hit.map((f) => f.pattern).join("، ")}`);
+    assert.equal(hit[0].urgency, "emergency", `${label}: مالک باید اورژانس باشد`);
+    const texts = p.findings.map((f) => String(f.action || "")).join(" ");
+    assert.ok(!/نوبت عادی/.test(texts), `${label}: «نوبت عادی» کنارِ اورژانس آمد`);
+  }
+});
+
+test("M97b: کنترلِ منفی — آمیلازِ بالا ولی زیرِ ۵۰۰ همچنان الگوی عادی را می‌گیرد", () => {
+  // گیتِ واگذاری نباید چشم‌بند شود (همان تذکرِ M94f).
+  const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Amylase", value: "200", unit: "U/L" }] }));
+  const ids = p.findings.map((f) => f.pattern);
+  assert.ok(ids.includes("amylase_isolated"), `الگوی آمیلازِ منفرد نیامد؛ آمده‌ها: ${ids.join("، ") || "هیچ"}`);
+  assert.ok(!ids.includes("amylase_emergency"), "آمیلازِ ۲۰۰ نباید اورژانس بسازد");
+});
+
+test("M97c: لیپازِ بالا با آمیلازِ طبیعی دست‌نخورده می‌ماند — گیت فقط به آمیلاز مربوط است", () => {
+  const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Lipase", value: "600", unit: "U/L" }, { name: "Amylase", value: "60", unit: "U/L" }] }));
+  const ids = p.findings.map((f) => f.pattern);
+  assert.ok(ids.includes("lipase_high"), `الگوی لیپاز نیامد؛ آمده‌ها: ${ids.join("، ") || "هیچ"}`);
+});
+
+test("M98: بیلی‌روبینِ تامِ ≥۱۵ فقط یک مالک دارد و آن مالک اورژانس است", () => {
+  const OWNERS = ["bilirubin_emergency", "bilirubin_direct_dominant", "bilirubin_indirect_dominant"];
+  const panels = [
+    ["تامِ ۱۸ + مستقیمِ ۱۲", [{ name: "Total Bilirubin", value: "18" }, { name: "Direct Bilirubin", value: "12" }]],
+    ["تامِ ۲۰ + غیرمستقیمِ ۱۵", [{ name: "Total Bilirubin", value: "20" }, { name: "Indirect Bilirubin", value: "15" }]],
+    ["تامِ ۱۵ (مرزِ دقیق) + مستقیمِ ۹", [{ name: "Total Bilirubin", value: "15" }, { name: "Direct Bilirubin", value: "9" }]],
+  ];
+  for (const [label, tests] of panels) {
+    const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests }));
+    const hit = p.findings.filter((f) => OWNERS.includes(f.pattern));
+    assert.equal(hit.length, 1, `${label}: ${hit.length} قاعده هم‌زمان بیلی‌روبین را برداشتند: ${hit.map((f) => f.pattern).join("، ")}`);
+    assert.equal(hit[0].urgency, "emergency", `${label}: مالک باید اورژانس باشد`);
+    const texts = p.findings.map((f) => String(f.action || "")).join(" ");
+    assert.ok(!/این هفته/.test(texts), `${label}: «این هفته» کنارِ اورژانس آمد`);
+  }
+});
+
+test("M98b: کنترلِ منفی — بیلی‌روبینِ ۳ با مستقیمِ ۲ همچنان الگوی عادی را می‌گیرد", () => {
+  const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Total Bilirubin", value: "3" }, { name: "Direct Bilirubin", value: "2" }] }));
+  const ids = p.findings.map((f) => f.pattern);
+  assert.ok(ids.includes("bilirubin_direct_dominant"), `الگوی بیلی‌روبینِ مستقیم نیامد؛ آمده‌ها: ${ids.join("، ") || "هیچ"}`);
+  assert.ok(!ids.includes("bilirubin_emergency"), "بیلی‌روبینِ ۳ نباید اورژانس بسازد");
+});
+
+test("M98c: بیلی‌روبینِ ۱۸ بدونِ اجزا هنوز اورژانس می‌دهد", () => {
+  // ⚠️ این پوششی است که «تا کردنِ آستانه در bilirubin_pattern» از بین می‌بُرد:
+  //    آن الگو بدونِ BILI_D/BILI_I اصلاً فعال نمی‌شود (شرطِ خودِ match)، و
+  //    در تصویرِ کاملِ همولیز هم عمداً کنار می‌رود. پس مالکِ اورژانس باید
+  //    قاعدهٔ مستقل بماند، نه شاخه‌ای داخلِ آن الگو.
+  const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Total Bilirubin", value: "18" }] }));
+  const hit = p.findings.filter((f) => f.pattern === "bilirubin_emergency");
+  assert.equal(hit.length, 1, `اورژانسِ بیلی‌روبین نیامد؛ آمده‌ها: ${p.findings.map((f) => f.pattern).join("، ") || "هیچ"}`);
+  assert.equal(p.overall_urgency, "emergency");
+});
+
+test("M99: کم‌کاریِ واضحِ تیروئید فقط یک یافته دارد و فوریتش this_week است", () => {
+  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.7" }] }));
+  const hit = p.findings.filter((f) => /thyroid|hypothyroid/.test(f.pattern));
+  assert.equal(hit.length, 1, `${hit.length} یافته دربارهٔ تیروئید آمد: ${hit.map((f) => `${f.pattern}(${f.urgency})`).join("، ")}`);
+  assert.equal(hit[0].pattern, "thyroid_hypo_overt");
+  assert.equal(hit[0].urgency, "this_week");
+});
+
+test("M99b: پرکاریِ واضح یک یافته است و هشدارِ طوفانِ تیروئیدی سرِ جایش می‌ماند", () => {
+  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "0.05" }, { name: "FT4", value: "2.5" }] }));
+  const hit = p.findings.filter((f) => /thyroid|thyrotoxicosis/.test(f.pattern));
+  assert.equal(hit.length, 1, `${hit.length} یافته دربارهٔ تیروئید آمد: ${hit.map((f) => f.pattern).join("، ")}`);
+  assert.equal(hit[0].pattern, "thyroid_hyper_overt");
+  const warns = (hit[0].warnings || []).join(" ");
+  assert.match(warns, /طوفان/, "هشدارِ طوفانِ تیروئیدی با حذفِ قاعدهٔ تکراری نباید از بین برود");
+});
+
+test("M99c: تیروتوکسیکوزِ T3 (FT4 طبیعی، FT3 بالا) هنوز پوشش دارد", () => {
+  // ⚠️ پیش از رفع، این پنل هم `thyroid_t3_toxicosis` می‌گرفت و هم
+  //    `overt_thyrotoxicosis`. حذفِ قاعدهٔ تکراری نباید پوشش را ببرد —
+  //    همان چیزی که N16 می‌خواهد پیش از هر حذف اندازه‌گیری شود.
+  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "0.05" }, { name: "FT4", value: "1.5" }, { name: "FT3", value: "5.0" }] }));
+  const hit = p.findings.filter((f) => /thyroid|thyrotoxicosis/.test(f.pattern));
+  assert.equal(hit.length, 1, `${hit.length} یافته دربارهٔ تیروئید آمد: ${hit.map((f) => f.pattern).join("، ")}`);
+  assert.equal(hit[0].pattern, "thyroid_t3_toxicosis");
+  assert.equal(hit[0].urgency, "this_week");
+});
+
+test("M99d: جملهٔ بارداری از قاعدهٔ حذف‌شده حفظ شد — و به مرد گفته نمی‌شود", () => {
+  const panel = [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.7" }];
+  const f = runPatterns(runEngine({ patient: { age: 30, sex: "F" }, tests: panel }));
+  const m = runPatterns(runEngine({ patient: { age: 30, sex: "M" }, tests: panel }));
+  const fText = f.findings.map((x) => String(x.must_say || "")).join(" ");
+  const mText = m.findings.map((x) => String(x.must_say || "")).join(" ");
+  assert.match(fText, /بارداری/, "جملهٔ بارداری برای زن باید بماند");
+  assert.ok(!/بارداری/.test(mText), "جملهٔ بارداری نباید به بیمارِ مرد گفته شود");
+});
+
+test("M97d: اورژانسِ آمیلاز نتیجهٔ لیپاز را سه‌شاخه می‌گوید — بالا / طبیعی / نبودن", () => {
+  // ⚠️ اثرِ جانبیِ گیتِ M97: با کنار رفتنِ `pancreas_pattern`، لیپاز بی‌مالک
+  //    می‌شد و به شبکهٔ N18 می‌افتاد. علتش این بود که این قاعده لیپاز را فقط
+  //    «پیشنهاد» می‌داد و نتیجه‌اش را نمی‌خواند — کلاسِ N21.
+  const mk = (tests) => runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests }));
+  const amy = { name: "Amylase", value: "800", unit: "U/L" };
+
+  const high = mk([amy, { name: "Lipase", value: "600", unit: "U/L" }]);
+  const hf = high.findings.find((f) => f.pattern === "amylase_emergency");
+  assert.match(hf.must_say, /لیپاز شما هم بالاست/);
+
+  const normal = mk([amy, { name: "Lipase", value: "30", unit: "U/L" }]);
+  const nf = normal.findings.find((f) => f.pattern === "amylase_emergency");
+  assert.match(nf.must_say, /لیپاز شما طبیعی است/, "لیپازِ طبیعی تنها جملهٔ مطمئن‌کنندهٔ برگه است و باید گفته شود");
+  assert.equal(nf.urgency, "emergency", "لیپازِ طبیعی نباید اورژانس را پایین بیاورد — تصمیمِ بازبین است، بندِ P45");
+
+  const absent = mk([amy]);
+  const af = absent.findings.find((f) => f.pattern === "amylase_emergency");
+  assert.match(af.must_say, /روی برگهٔ شما نیست/, "نبودنِ لیپاز یک اقدام است نه سکوت (N4)");
+
+  // هیچ‌کدام نباید لیپاز را به شبکهٔ «بی‌توضیح» بسپارد.
+  for (const [label, p] of [["بالا", high], ["طبیعی", normal]]) {
+    const orphan = p.findings.filter((f) => /unexplained|unmatched/.test(f.pattern));
+    assert.equal(orphan.length, 0, `${label}: لیپاز بی‌مالک ماند: ${orphan.map((f) => String(f.must_say || "").slice(0, 60)).join(" | ")}`);
+  }
+});
+
+test("M97e: لیپازی که روی برگه هست دوباره «درخواست» نمی‌شود — ردیفِ SUGGEST_TESTS", () => {
+  // N8: تطبیق دقیق است و ردیفِ غایب باز می‌شکند، پس «لیپاز» باید در
+  // SUGGEST_TESTS باشد وگرنه به بیمارِ دارای لیپاز «درخواست لیپاز» گفته می‌شود.
+  assert.deepEqual(SUGGEST_TESTS["لیپاز"], ["LIPASE"], "ردیفِ «لیپاز» در SUGGEST_TESTS نیست؛ alreadyMeasured برای رشتهٔ ناشناس false می‌دهد و باز می‌شکند");
+  const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Amylase", value: "800", unit: "U/L" }, { name: "Lipase", value: "600", unit: "U/L" }] }));
+  const sug = p.findings.flatMap((f) => f.suggest || []);
+  assert.ok(!sug.includes("لیپاز"), `لیپاز روی برگه بود و باز پیشنهاد شد: ${sug.join("، ")}`);
+});
+
+test("M98d: اورژانسِ بیلی‌روبین جزءِ غالب را می‌گوید — سه علتِ نام‌برده با همین عدد تفکیک می‌شوند", () => {
+  const mk = (tests) => runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests }));
+
+  const dir = mk([{ name: "Total Bilirubin", value: "18" }, { name: "Direct Bilirubin", value: "12" }]);
+  const df = dir.findings.find((f) => f.pattern === "bilirubin_emergency");
+  assert.match(df.must_say, /«مستقیم»/);
+  assert.match(df.must_say, /انسداد/, "جزءِ مستقیمِ غالب باید به انسداد اشاره کند نه همولیز");
+
+  const ind = mk([{ name: "Total Bilirubin", value: "20" }, { name: "Indirect Bilirubin", value: "15" }]);
+  const inf = ind.findings.find((f) => f.pattern === "bilirubin_emergency");
+  assert.match(inf.must_say, /«غیرمستقیم»/);
+  assert.match(inf.must_say, /همولیز/, "جزءِ غیرمستقیمِ غالب باید به همولیز اشاره کند");
+
+  const none = mk([{ name: "Total Bilirubin", value: "18" }]);
+  const nf = none.findings.find((f) => f.pattern === "bilirubin_emergency");
+  assert.match(nf.must_say, /روی برگهٔ شما نیست/, "نبودنِ اجزا یک اقدام است نه سکوت (N4)");
+
+  for (const [label, p] of [["مستقیم", dir], ["غیرمستقیم", ind]]) {
+    const orphan = p.findings.filter((f) => /unexplained|unmatched/.test(f.pattern));
+    assert.equal(orphan.length, 0, `${label}: جزءِ بیلی‌روبین بی‌مالک ماند: ${orphan.map((f) => String(f.must_say || "").slice(0, 60)).join(" | ")}`);
+  }
+});
+
+// ═══ M100: تورِ «بی‌توضیح» باید بگوید *کدام* کلید، نه فقط «یکی در این پنل» ═══
+//
+// 🔴 باگِ فرانت که این فیلد برای بستنش اضافه شد (۲۰۲۶-۰۹-۱۷): کلاینت از
+//    `patterns.includes("unmatched_abnormal")` یک بولینِ کل‌پنلی می‌ساخت و
+//    `stateOf` آن را به *هر* ردیفِ غیرطبیعی می‌چسباند. پس بیمارِ فقر آهن که
+//    یک ALPِ بالای بی‌ربط هم داشت، کنارِ Hb و MCVِ کاملاً توضیح‌داده‌شده هم
+//    چیپِ «نیازمند بررسی» می‌دید — در تناقض با متنی که دو بخش بالاتر با
+//    اطمینان از فقر آهن حرف می‌زد. سیگنالی که دربارهٔ پنل درست است دربارهٔ یک
+//    تست غلط است؛ همان کلاسِ N18/N16 یک لایه بالاتر، روی لایهٔ رندر.
+test("M100: `unexplained_abnormal` فهرستِ ساختاریِ کلیدهای بی‌مالک را می‌آورد", () => {
+  const p = runPatterns(runEngine({
+    patient: { age: 45, sex: "F" },
+    tests: [
+      { name: "Hb", value: "9.5" },
+      { name: "MCV", value: "70" },
+      { name: "Ferritin", value: "6" },
+      // ⚠️ MCH عمداً انتخاب شد: هیچ قاعده‌ای در هیچ `patterns_*.js` آن را
+      //    نمی‌خواند (بندِ E5 در MEDICAL_RULES.md، باز). ALP کار نمی‌کرد چون
+      //    قاعدهٔ خودش را دارد و چیزی بی‌مالک نمی‌ماند — اندازه‌گیری‌شده.
+      { name: "MCH", value: "18" },
+    ],
+  }));
+
+  const net = p.findings.find((f) => f.rule_id === "unexplained_abnormal");
+  assert.ok(net, `تور فعال نشد؛ آمده‌ها: ${p.findings.map((f) => f.pattern).join("، ") || "هیچ"}`);
+  assert.ok(Array.isArray(net.uncovered), "فیلدِ uncovered باید آرایه باشد");
+  assert.ok(net.uncovered.includes("MCH"), `MCH باید در فهرست باشد، بود: ${net.uncovered.join("، ")}`);
+
+  // و مهم‌ترِ این: کلیدهایی که *توضیح داده شده‌اند* نباید در فهرست باشند،
+  // وگرنه فرانت دوباره همان تناقض را چاپ می‌کند.
+  for (const covered of ["HGB", "MCV", "FERRITIN"]) {
+    assert.ok(
+      !net.uncovered.includes(covered),
+      `${covered} توضیح داده شده بود و نباید «بی‌توضیح» علامت بخورد؛ فهرست: ${net.uncovered.join("، ")}`
+    );
+  }
+
+  // هر کلیدِ فهرست باید واقعاً غیرطبیعی باشد — فهرست از engineOut.abnormal
+  // مشتق می‌شود، پس این عدمِ انحراف را قفل می‌کند.
+  const abnormalKeys = new Set(p.findings.flatMap((f) => f.uncovered ?? []));
+  assert.ok(abnormalKeys.size > 0);
+});
+
+test("M100b: پنلی که همه‌چیزش توضیح دارد فیلدِ uncovered نمی‌سازد", () => {
+  // کنترلِ منفی: اگر تور فعال نشود، هیچ کلیدی «بی‌توضیح» علامت نمی‌خورد.
+  const p = runPatterns(runEngine({
+    patient: { age: 45, sex: "F" },
+    tests: [{ name: "Hb", value: "9.5" }, { name: "MCV", value: "70" }, { name: "Ferritin", value: "6" }],
+  }));
+  const all = p.findings.flatMap((f) => f.uncovered ?? []);
+  assert.deepEqual(all, [], `هیچ کلیدی نباید بی‌مالک باشد، بود: ${all.join("، ")}`);
 });

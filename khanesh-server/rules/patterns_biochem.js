@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, albLowMarker } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, albLowMarker, amylaseEmergencyOwns, biliEmergencyOwns } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -1265,6 +1265,8 @@ export const RULES_BIOCHEM = [
   {
     id: "bilirubin_pattern",
     match: (e) => {
+      // بیلی‌روبینِ تامِ ≥۱۵ مالکِ اورژانس دارد (`bilirubin_emergency`) — کلاسِ N20.
+      if (biliEmergencyOwns(e)) return false;
       const bt = e.graded.find((g) => g.test === "BILI_T");
       // فقط وقتی بیلی‌روبین تام بالاست و اجزا موجودند
       const btHigh = bt?.abnormal && bt.dir === "high";
@@ -1418,6 +1420,10 @@ export const RULES_BIOCHEM = [
   {
     id: "pancreas_pattern",
     match: (e) => {
+      // آمیلازِ ≥۵۰۰ مالکِ اورژانس دارد (`amylase_emergency`). این الگو آنجا
+      // کنار می‌رود، وگرنه «نوبت عادی» کنارِ «فوراً به اورژانس» چاپ می‌شود —
+      // کلاسِ N20، توضیحِ کامل روی amylaseEmergencyOwns در patterns_utils.js.
+      if (amylaseEmergencyOwns(e)) return false;
       const amy = e.graded.find((g) => g.test === "AMYLASE");
       const lps = e.graded.find((g) => g.test === "LIPASE");
       const amyHigh = amy?.abnormal && amy.dir === "high";

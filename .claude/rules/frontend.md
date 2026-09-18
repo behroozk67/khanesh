@@ -10,6 +10,14 @@
   | `/tests`, `/tests/:cat`, `/test/:key` | the encyclopaedia: `Tests`, `CategoryPage`, `TestPage` (lazy) |
   | `*` | `Navigate` to `/` |
 
+  ⚠️ **`/app`, `/tafsir` and `/profile` are wrapped in `AuthGuard`** (`khanesh/src/AuthGuard.jsx`),
+  which an earlier version of this file did not mention at all. It renders a phone/OTP screen
+  instead of the tool when the **server** says authentication is required — it reads
+  `authRequired` from `GET /health` at runtime, not the build-time `VITE_AUTH_REQUIRED`, which is
+  now only the initial value. See [environment.md](environment.md); the guard is a convenience,
+  and the server's 401 is the actual enforcement (`analyzeJob.js` turns it into a real message and
+  clears the dead token).
+
   Content routes are `lazy()` for size, not taste — 17 categories and 46 tests of Persian body text
   is several hundred KB, and a patient on mobile who just wants one number read shouldn't download
   it. `/` is not lazy.
@@ -50,6 +58,7 @@ _engine = {
   patterns: [rule_id, …],   // e.g. ["microcytic_anemia", "unmatched_abnormal"]
   urgency:  "emergency" | "this_week" | "routine" | "none",
   abnormal: <number>,       // count only — kept for backward compat, prefer tests[]
+  uncovered: [engine_key, …],   // keys no rule picked up — see the warning below
   indices:  { egfr, ca_measured, ca_corrected, … },   // derived values, NOT on the patient's sheet
   tests:    [ { key, name, value, range, refSource,
                 abnormal, dir, fa, level, ctcaeGrade, nearLimit, source } ],
@@ -70,6 +79,14 @@ Each carries a constraint that is not obvious from the field name:
   source the engine never read. This block is deliberately separate from, and above, the MedlinePlus
   "برای مطالعهٔ بیشتر" list — that one is explicitly *not* the basis of the conclusions, and merging
   the two erases the distinction.
+- `uncovered` — the engine keys that no rule picked up, i.e. exactly the tests the
+  `unexplained_abnormal` net names. **Decide the "no explanation" chip per key from this array,
+  never from `patterns.includes("unmatched_abnormal")`.** That was a real bug (2026-09-17):
+  `patterns` carries a *panel-wide* flag and `stateOf` applied it to every abnormal row, so an
+  iron-deficiency patient with one unrelated high value saw «نیازمند بررسی» on the Hb and MCV rows
+  that the same page had just explained with confidence. A signal that is true of the panel is
+  false of an individual test. Absent on an older server response — treat that as an empty array,
+  which marks nothing, rather than falling back to the panel flag. Guards `M100`, `M100b`.
 - `preanalytical` — CLSI sample-quality caveats whose target finding wasn't shown. Advisory text
   only; they never carry urgency, so never style them as a warning banner.
 - `unitConversions` — every SI→conventional conversion the adapter applied. `raw`/`from` is what the

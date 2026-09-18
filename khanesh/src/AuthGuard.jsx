@@ -8,9 +8,24 @@ import { LabMateLogo } from "./LabMateLogo.jsx";
 //    است. اینجا یک بدیِ اضافه هم داشت: return پیش از هوک‌ها می‌آمد، پس هوک‌ها
 //    اصلاً اجرا نمی‌شدند و oxlint هشتاد بار no-unreachable می‌داد.
 //    قاعدهٔ هوک‌ها: همه بی‌قید و در بالا صدا زده می‌شوند، بعد شاخه‌بندی.
-const AUTH_REQUIRED = import.meta.env.VITE_AUTH_REQUIRED === 'true';
+//
+// 🔴 و باگِ دومی که ۲۰۲۶-۰۹-۱۷ پیدا شد: این پرچم *زمانِ بیلد* خوانده می‌شد و
+//    کاملاً مستقل از `AUTH_REQUIRED`ِ سرور بود، یعنی دو منبعِ حقیقت برای یک
+//    قابلیت — بدونِ هیچ جایی مثل REF_DIFF.md که واگرایی‌شان را ثبت کند. هر دو
+//    جهتش به بیمار می‌خورد: خاموش در فرانت و روشن در سرور → بیمار کلِ فرم را
+//    پر می‌کند یا عکس آپلود می‌کند و آخرش «خطای سرور (۴۰۱)» می‌گیرد؛ روشن در
+//    فرانت و خاموش در سرور → از او OTP خواسته می‌شود برای سروری که نمی‌خواهد،
+//    و فرستندهٔ پیامک هنوز mock است، پس کدی هم دریافت نمی‌کند.
+//
+//    حالا سرور منبعِ حقیقت است (`authRequired` در GET /health) و این متغیر فقط
+//    مقدارِ اولیه است تا صفحه بی‌دلیل بپرد. اگر /health در دسترس نبود، همین
+//    مقدار می‌ماند و *اجرای* واقعی جای دیگری است: سرور ۴۰۱ می‌دهد و
+//    analyzeJob.js آن را به پیامِ «باید وارد شوید» تبدیل می‌کند. گاردِ فرانت
+//    راحتیِ کاربر است، نه محافظت.
+const AUTH_REQUIRED_HINT = import.meta.env.VITE_AUTH_REQUIRED === 'true';
 
 export default function AuthGuard({ children }) {
+  const [authRequired, setAuthRequired] = useState(AUTH_REQUIRED_HINT);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -23,6 +38,21 @@ export default function AuthGuard({ children }) {
     if (token) {
       setIsAuthenticated(true);
     }
+  }, []);
+
+  // نیازِ احراز هویت را از خودِ سرور بپرس، نه از پرچمِ بیلد.
+  // ⚠️ StrictMode این افکت را دو بار اجرا می‌کند؛ `alive` جلوی setState پس از
+  //    unmount را می‌گیرد (همان درسِ N11). خطا عمداً بی‌صداست: اگر /health
+  //    نبود، مقدارِ اولیه می‌ماند و تصمیمِ نهایی با ۴۰۱ِ سرور است.
+  useEffect(() => {
+    let alive = true;
+    fetch('/health')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d && typeof d.authRequired === 'boolean') setAuthRequired(d.authRequired);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
   }, []);
 
   const handleRequestOtp = async (e) => {
@@ -66,7 +96,7 @@ export default function AuthGuard({ children }) {
   };
 
   // شاخه‌بندی *بعد از* همهٔ هوک‌ها.
-  if (!AUTH_REQUIRED || isAuthenticated) {
+  if (!authRequired || isAuthenticated) {
     return children;
   }
 

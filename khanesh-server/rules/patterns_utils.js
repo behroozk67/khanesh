@@ -224,6 +224,43 @@ function albLowMarker(e) {
   return alb.abnormal && alb.dir === "low" && alb.value < ALB_LOW_MARKER_GDL;
 }
 
+/*
+ * ── مالکیتِ اورژانسِ آمیلاز و بیلی‌روبین ─────────────────────────────────
+ *
+ * 🔴 باگِ واقعی (اندازه‌گیری‌شده، ۲۰۲۶-۰۹-۱۷، کلاسِ N20): دو قاعدهٔ اورژانسی در
+ *    patterns_biochem_new.js با دو الگوی قدیمی‌ترِ patterns_biochem.js روی
+ *    عددِ یکسان هم‌زمان فعال می‌شدند و هیچ‌کدام `blocks_others` نداشت، پس
+ *    منطقِ سرکوب هرگز درگیر نمی‌شد. بیمارِ آمیلاز ۸۰۰ هم‌زمان می‌خواند:
+ *      «فوراً به بخش اورژانس مراجعه کنید.»  و  «نوبت عادی، مگر علامت خاصی…»
+ *    و بیمارِ بیلی‌روبینِ ۱۸: «بدون تأخیر به اورژانس» و «این هفته با پزشک».
+ *    بدتر از موارد ثبت‌شدهٔ قبلیِ N20 (D-dimer، DKA، liver_injury_pattern):
+ *    آن‌ها تکرارِ جمله بودند، این یک چرخشِ کاملِ اورژانس/غیرفوری است.
+ *
+ *    واگذاری از سمتِ الگوی کم‌فوریت‌تر بسته شد، نه با `blocks_others` روی
+ *    اورژانس: آن پرچم هر یافتهٔ کم‌فوریت‌ترِ کلِ برگه را پنهان می‌کند، پس
+ *    بیمارِ بیلی‌روبینِ ۱۸ کم‌خونی‌اش را هم از دست می‌داد. این همان شکلی است
+ *    که `severe_hyperglycemia_uncertain_ketosis` برای DKA/HHS به کار می‌برد.
+ *
+ *    ⚠️ آستانه‌ها اینجا می‌مانند و از دو جا خوانده می‌شوند (قاعدهٔ اورژانسی و
+ *    گیتِ الگوی مالک)، چون N20 دقیقاً دربارهٔ یک تصمیمِ کپی‌شده در دو متغیر
+ *    است. عددها تازه نیستند — همان‌هایی‌اند که در درخت بودند؛ منبعشان ثبت
+ *    نشده و در MEDICAL_RULES.md بندِ P45 برای بازبین باز است. گاردها: M97، M98.
+ */
+const AMYLASE_EMERGENCY_UL = 500;
+const BILI_T_EMERGENCY_MGDL = 15.0;
+
+/** آیا قاعدهٔ اورژانسِ آمیلاز مالکِ این برگه است؟ */
+function amylaseEmergencyOwns(e) {
+  const amy = val(e).AMYLASE;
+  return amy != null && amy >= AMYLASE_EMERGENCY_UL;
+}
+
+/** آیا قاعدهٔ اورژانسِ بیلی‌روبین مالکِ این برگه است؟ */
+function biliEmergencyOwns(e) {
+  const bili = val(e).BILI_T;
+  return bili != null && bili >= BILI_T_EMERGENCY_MGDL;
+}
+
 // آیا تصویر سندرم نفروتیک هست؟ (پروتئینوری شدید + آلبومین پایین)
 function isNephrotic(e) {
   const protGrade = urineGrade(e, /protein|پروتئین/i);
@@ -281,4 +318,5 @@ function val(e) {
  */
 // پیشنهادهایی که «نام خالص یک آزمایش»‌اند → کلید(های) موتور.
 // ⚠️ فقط تطبیق دقیق. عمداً هیچ تطبیق فازی/زیررشته‌ای نیست، چون بخش بزرگی از
-export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL };
+export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
+         amylaseEmergencyOwns, biliEmergencyOwns, AMYLASE_EMERGENCY_UL, BILI_T_EMERGENCY_MGDL };

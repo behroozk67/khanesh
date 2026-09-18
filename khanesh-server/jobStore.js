@@ -42,6 +42,13 @@ export function createJob(meta = {}) {
   const id = newId();
   jobs.set(id, {
     id,
+    // ⚠️ مالکِ کار. بدونِ این، `getJob(id)` تنها چیزی که لازم داشت شناسهٔ کار
+    //    بود — و شناسه در پاسخِ /start به کلاینت می‌رود. یعنی با AUTH_REQUIRED
+    //    روشن هم، *شروعِ* تحلیل احراز هویت می‌خواست ولی *خواندنِ نتیجه‌اش* نه.
+    //    نتیجه، کلِ تفسیرِ یک بیمار است. `requireAuth` همیشه `req.user.userId`
+    //    را ست می‌کند (با احراز هویتِ خاموش، کاربرِ ناشناسِ مشترک)، پس این
+    //    امروز رفتار را عوض نمی‌کند و روزی که روشن شود درست کار می‌کند.
+    userId: meta.userId ?? null,
     status: "running",          // running | done | error
     createdAt: Date.now(),
     pagesTotal: meta.pagesTotal ?? 0,
@@ -77,6 +84,20 @@ export function getJob(id) {
     jobs.delete(id);
     return null;
   }
+  return j;
+}
+
+/**
+ * خواندنِ کار برای یک کاربرِ مشخص — تنها راهِ درستِ پاسخ به یک درخواستِ HTTP.
+ *
+ * ⚠️ عمداً «اگر مالک نداشت اجازه بده» ندارد: گاردی که در نبودِ داده باز
+ *    می‌شود همان کلاسِ N18 است. کارِ بی‌مالک فقط از مسیرهای قدیمی می‌آید و
+ *    نباید از این در خوانده شود.
+ */
+export function getJobFor(id, userId) {
+  const j = getJob(id);
+  if (!j) return null;
+  if (userId == null || j.userId !== userId) return null;
   return j;
 }
 

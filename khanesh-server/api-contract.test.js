@@ -602,3 +602,56 @@ test("T12b: وقتی مدل جملهٔ تصحیح را آورده، تور چی�
     `جملهٔ اولِ must_say باید دقیقاً یک بار در interpretation باشد، بود ${occurrences} بار. ` +
     `بیش از یک بار یعنی تور متنی را که مدل کامل منتقل کرده دوباره اضافه کرده (N7).`);
 });
+
+// ═══ T14–T16: حریمِ نتیجه، و درِ بازِ مسیرِ گراف ═══
+//
+// اندازه‌گیری‌شده روی کدِ پیش از رفع (۲۰۲۶-۰۹-۱۷):
+//   • GET /api/analyze/job/:id نه `requireAuth` داشت و نه مالک را می‌سنجید —
+//     فقط `getJob(id)`. پس با AUTH_REQUIRED روشن هم، *شروعِ* تحلیل احراز هویت
+//     می‌خواست و *خواندنِ نتیجه‌اش* نه؛ و نتیجه کلِ تفسیرِ یک بیمار است.
+//   • POST /api/labmat/analyze مستقل از USE_GRAPH همیشه گراف را اجرا می‌کرد و
+//     `requireAuth` نداشت — یعنی همان مسیری که N13 برای بستنش «پیش‌فرض خاموش»
+//     شد، زنده و بی‌احراز هویت باز بود.
+
+test("T14: نتیجهٔ یک کار به مالکش مقید است — شناسهٔ کار کافی نیست", async () => {
+  const { createJob, finishJob, getJobFor, getJob } = await import("./jobStore.js");
+
+  const id = createJob({ pagesTotal: 1, userId: 7 });
+  finishJob(id, 200, { interpretation: "متنِ بالینیِ بیمارِ شمارهٔ ۷" });
+
+  assert.ok(getJobFor(id, 7), "مالک باید کارِ خودش را ببیند");
+  assert.equal(getJobFor(id, 9), null, "کاربرِ دیگر با شناسهٔ کار نباید نتیجه را بخواند");
+  assert.equal(getJobFor(id, null), null, "درخواستِ بی‌کاربر نباید باز شود — گاردی که در نبودِ داده باز می‌شود همان کلاسِ N18 است");
+  assert.equal(getJobFor("شناسهٔ-ناموجود", 7), null);
+
+  // `getJob` خودش عمداً بی‌قید مانده (مصرفِ داخلی)، پس تنها راهِ درستِ پاسخ
+  // به HTTP همان getJobFor است. این assert آن تفکیک را ثبت می‌کند.
+  assert.ok(getJob(id), "مصرفِ داخلی دست‌نخورده است");
+});
+
+test("T15: poll فقط کارِ خودِ کاربر را برمی‌گرداند و شناسهٔ غریبه ۴۰۴ می‌گیرد", async () => {
+  const { createJob, finishJob } = await import("./jobStore.js");
+
+  // با AUTH_REQUIRED خاموش، requireAuth کاربرِ ناشناسِ مشترک را ست می‌کند؛
+  // پس کارِ ساخته‌شده توسط /start خوانده می‌شود و کارِ کاربرِ دیگر نه.
+  const foreign = createJob({ pagesTotal: 1, userId: 4242 });
+  finishJob(foreign, 200, { interpretation: "نتیجهٔ بیمارِ دیگر" });
+
+  const res = await realFetch(`${baseUrl}/api/analyze/job/${encodeURIComponent(foreign)}`);
+  assert.equal(res.status, 404, "کارِ کاربرِ دیگر نباید خوانده شود");
+  const body = await res.json();
+  assert.ok(!JSON.stringify(body).includes("نتیجهٔ بیمارِ دیگر"), "بدنهٔ نتیجه نباید لو برود");
+});
+
+test("T16: مسیرِ گراف با USE_GRAPH خاموش در دسترس نیست", async () => {
+  // ⚠️ تورهای ایمنیِ مرحلهٔ ۸ روی این مسیر اجرا نمی‌شوند (N13). گیت تا امروز
+  //    فقط داخلِ analyzeHandler بود، نه روی این روت.
+  const res = await realFetch(`${baseUrl}/api/labmat/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rawData: { patientInfo: { age: 40, sex: "M" }, testResults: [] } }),
+  });
+  assert.equal(res.status, 503, "با گرافِ خاموش باید ۵۰۳ بدهد، نه اینکه گراف را اجرا کند");
+  const body = await res.json();
+  assert.match(String(body.error || ""), /USE_GRAPH/, "پیام باید بگوید چه چیزی خاموش است");
+});

@@ -44,6 +44,25 @@ encryption at rest, and deletion are now open questions that the code does not a
   ⚠️ An earlier version disabled auth with an unconditional `return next()` and left the real
   check as unreachable code below it, so the file read as though protection were in force. If you
   need to disable auth again, flip the flag — never short-circuit the middleware.
+- **The frontend no longer decides this for itself** (2026-09-17). `GET /health` reports
+  `authRequired`, and `khanesh/src/AuthGuard.jsx` reads it at runtime. `VITE_AUTH_REQUIRED` still
+  exists but is only the *initial* value, so a correctly-configured deploy doesn't flash the wrong
+  screen. It was previously the sole, build-time source of truth and independent of this variable
+  — two sources for one decision, with nothing like `REF_DIFF.md` recording the divergence. Both
+  directions reached the patient: frontend off + server on meant filling in the whole form and
+  getting a bare `خطای سرور (401)`; frontend on + server off meant being asked for an OTP that
+  the mock SMS sender never sends.
+- **`GET /api/analyze/job/:id` is authenticated and owner-scoped** (2026-09-17). It previously had
+  neither: `getJob(id)` needed only the job id, which is handed to the client by `/start`. So with
+  `AUTH_REQUIRED=true`, *starting* an analysis required a token and *reading its result* did not
+  — and the result is a patient's entire interpretation. Jobs now carry `userId` and the route
+  uses `getJobFor(id, userId)`. ⚠️ With auth off, every job belongs to the shared anonymous user,
+  so this scoping still isolates nothing — that is the pre-existing warning above, not a new gap.
+  Guards `T14`, `T15`.
+- **`POST /api/labmat/analyze` is gated on `USE_GRAPH` and returns 503 when off** (2026-09-17).
+  The gate used to live only inside `analyzeHandler`, so this route ran the graph unconditionally
+  and without `requireAuth` — a live, unauthenticated door to exactly the path N13 made
+  default-off. Guard `T16`.
 - **`JWT_SECRET` is enforced, not warned about.** With auth on and the secret still the in-repo dev
   default, anyone who has read the source can mint a valid token, so `authBootReport()` throws
   instead of warning. This is the one place the server refuses to start.
