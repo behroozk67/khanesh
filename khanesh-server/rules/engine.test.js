@@ -5965,3 +5965,297 @@ test("M100b: پنلی که همه‌چیزش توضیح دارد فیلدِ unco
   const all = p.findings.flatMap((f) => f.uncovered ?? []);
   assert.deepEqual(all, [], `هیچ کلیدی نباید بی‌مالک باشد، بود: ${all.join("، ")}`);
 });
+
+// ============================================================
+// فصل ۲۵ هنری — پرولاکتین و کورتیزول/ACTH (P46، specs/001-endocrine-pituitary-rules)
+// ============================================================
+
+test("M103e: هر هفت کلیدِ تازهٔ غدد نامِ فارسی دارند — حتی CORTISOL که بازه ندارد", () => {
+  // 🔴 M32 فقط کلیدهای ADULT_REFS را می‌بیند. CORTISOL (کورتیزولِ بی‌زمان) عمداً
+  //    هرگز بازه نمی‌گیرد (P46)، پس اگر نامِ فارسی نداشته باشد، faName() خودِ کلید را
+  //    برمی‌گرداند و بیمار «CORTISOL» می‌خواند — کلاسِ N8. این آزمون همان شکاف را می‌بندد.
+  for (const key of ["PRL", "CORTISOL_AM", "CORTISOL", "CORTISOL_DST", "CORTISOL_SAL", "UFC", "ACTH"]) {
+    const fa = FA_NAMES[key];
+    assert.ok(fa, `${key} در FA_NAMES نیست`);
+    assert.notEqual(fa, key, `نامِ ${key} همان کلیدِ خام است`);
+    assert.match(fa, /[؀-ۿ]/, `نامِ ${key} فارسی نیست: ${fa}`);
+  }
+});
+
+// ── ابزارِ مشترکِ آزمون‌های فصل ۲۵ ──
+// ⚠️ آزمون‌هایی که `todo` دارند عمداً قرمزند: قاعده‌ها منتظرِ تأییدِ بازبین برای
+//    بندِ نام‌برده در P46 هستند (MEDICAL_RULES.md). todo یعنی شکستشان در هر اجرا
+//    دیده می‌شود ولی هوکِ pre-commit را نمی‌بندد. پس از تأییدِ هر بند، todo همان
+//    آزمون برداشته می‌شود — آزمون خودش عوض نمی‌شود.
+const pitRun = (tests, patient = { age: 40, sex: "F" }) => runPatterns(runEngine({ patient, tests }));
+const pitFired = (p) => p.findings.map((f) => f.pattern);
+const pitFind = (p, id) => p.findings.find((f) => f.pattern === id);
+const pitText = (f) => [f.headline, f.must_say, f.action, ...(f.suggest ?? []), ...(f.warnings ?? [])]
+  .filter(Boolean).join(" ");
+const PIT_ADRENAL = [
+  "adrenal_discordant", "cushing_likely", "cushing_screen_positive",
+  "adrenal_insufficiency_likely", "adrenal_insufficiency_indeterminate",
+  "cortisol_am_high_nonspecific", "cortisol_untimed",
+];
+const PIT_ALL = ["hyperprolactinemia", ...PIT_ADRENAL];
+// تجویز یا توصیه به قطعِ دارو — FR-018/FR-023. «قطع نکنید» مجاز است، «قطع کنید» نه.
+// ⚠️ «هیدروکورتیزون» عمداً ممنوع نیست: نام‌بردنش به‌عنوانِ مخدوش‌کننده (واکنشِ متقاطع در سنجش)
+//    تجویز نیست. «کنار بگذارید» هم تنها نیست، چون «این علت را کنار می‌گذارد» جملهٔ درستی است.
+const PIT_DRUG_ADVICE_RX = /کابرگولین|بروموکریپتین|میلی‌گرم|\bmg\b|(قطع|متوقف)\s*کنید|(مصرف|دارو)\S*\s*را\s*کنار\s*بگذارید/;
+
+test("M103: قواعدِ تکراریِ فصل ۲۵ هیچ یافتهٔ تازه‌ای نمی‌سازند — خروجیِ امروز منجمد", () => {
+  // 🔴 FR-014. هفت قاعدهٔ DSL (حالت‌های تیروئید، شکافِ اسمولال، اسمولالیتهٔ محاسبه‌شده)
+  //    کارِ امروزِ موتورند. این آزمون خروجیِ دقیقِ ۲۷ شهریور ۱۴۰۵ را قفل می‌کند تا هر
+  //    قاعدهٔ تازهٔ فصل ۲۵ که یکی از آن‌ها را تکرار کند (N20) قرمزش کند. آزمونِ «هیچ
+  //    چیز عوض نشد» است و عمداً روی هر دو درخت سبز است (سابقه: M94).
+  //    سه تعارضِ ثبت‌شده در P46 هم همین‌جا منجمدند: TSH 4.8 (آستانهٔ ۴.۵ در برابر ۵.۰)،
+  //    Na 128 / قند 400 (ضریبِ ۲.۴ در برابر ۱.۶)، TSH 1.0 / FT4 0.6 (شاخهٔ مرکزی).
+  const panels = [
+    [[["TSH", "6.0"], ["FT4", "0.7"]], ["thyroid_hypo_overt[this_week]"]],
+    [[["TSH", "4.8"], ["FT4", "1.2"]], ["thyroid_hypo_subclinical[routine]"]],
+    [[["TSH", "12"], ["FT4", "1.2"]], ["thyroid_hypo_subclinical[routine]"]],
+    [[["TSH", "1.0"], ["FT4", "0.6"]], ["thyroid_ft4_abnormal[routine]"]],
+    [[["TSH", "0.3"], ["FT4", "0.6"]], ["thyroid_central_hypo[this_week]"]],
+    [[["TSH", "0.05"], ["FT4", "3.0"]], ["thyroid_hyper_overt[this_week]"]],
+    [[["TSH", "0.05"], ["FT4", "1.2"], ["FT3", "6.0"]], ["thyroid_t3_toxicosis[this_week]"]],
+    [[["Na", "128"], ["Glucose", "400"]],
+      ["diabetes_range[this_week]", "severe_hyperglycemia_uncertain_ketosis[this_week]"]],
+    [[["Serum Osmolality", "310"], ["Na", "140"], ["Glucose", "90"], ["Urea", "30"]],
+      ["osmolal_gap_high[this_week]"]],
+  ];
+  for (const [tests, expected] of panels) {
+    const p = pitRun(tests.map(([name, value]) => ({ name, value })));
+    const got = p.findings.map((f) => `${f.pattern}[${f.urgency}]`);
+    assert.deepEqual(got, expected, `پنلِ ${JSON.stringify(tests)} عوض شد`);
+  }
+});
+
+// ═══ داستانِ ۱ — پرولاکتین (بندهای ۱، ۲، ۱۱ِ P46) ═══
+
+test("M101: پرولاکتینِ بالای تنها دیگر به «همه‌چیز طبیعی است» ختم نمی‌شود",
+  { todo: "P46 بند ۱ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 N2، اندازه‌گیری‌شده روی 3416d63: `Prolactin 80` تنها unmapped بود، صفر یافته،
+  //    و server.js در این حالت buildNormalResult() برمی‌گرداند.
+  const p = pitRun([{ name: "Prolactin", value: "80" }]);
+  assert.ok(p.findings.length > 0, "هیچ یافته‌ای نیامد — بیمار پاسخِ «طبیعی» می‌گیرد");
+  assert.ok(pitFind(p, "hyperprolactinemia"), `آمده‌ها: ${pitFired(p).join("، ") || "هیچ"}`);
+});
+
+test("M101b: حدِ پرولاکتین جنسیت‌محور است و جنسیتِ نامعلوم حدِ پایین‌تر را می‌گیرد",
+  { todo: "P46 بند ۱ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 getRef() برای جنسیتِ نامعلوم بازهٔ زن را برمی‌گرداند؛ برای پرولاکتین آن حدِ
+  //    بالاتر است (۲۵ در برابر ۲۰) و کم‌خوانی می‌کند — FR-005. prlRef باید مرد را بدهد.
+  const at = (sex) => pitRun([{ name: "Prolactin", value: "22" }], { age: 40, sex });
+  assert.ok(!pitFind(at("F"), "hyperprolactinemia"), "۲۲ برای زن طبیعی است");
+  assert.ok(pitFind(at("M"), "hyperprolactinemia"), "۲۲ برای مرد بالاست");
+  assert.ok(pitFind(at(null), "hyperprolactinemia"), "جنسیتِ نامعلوم باید حدِ پایین‌تر (مرد) را بگیرد");
+});
+
+test("M101c: یافتهٔ پرولاکتین وضعیتِ تیروئیدِ همان برگه را به چهار حالت می‌گوید",
+  { todo: "P46 بند ۱ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 N21/N4: کم‌کاری خودش پرولاکتین را بالا می‌برد. «نبودِ TSH» ≠ «TSHِ طبیعی».
+  const prl = { name: "Prolactin", value: "80" };
+  const arms = {
+    hypo: pitRun([prl, { name: "TSH", value: "8" }]),
+    normal: pitRun([prl, { name: "TSH", value: "2" }, { name: "FT4", value: "1.2" }]),
+    absent: pitRun([prl]),
+    low: pitRun([prl, { name: "TSH", value: "0.05" }, { name: "FT4", value: "1.2" }]),
+  };
+  const txt = {};
+  for (const [arm, p] of Object.entries(arms)) {
+    const f = pitFind(p, "hyperprolactinemia");
+    assert.ok(f, `شاخهٔ ${arm}: یافتهٔ پرولاکتین نیامد`);
+    txt[arm] = pitText(f);
+    assert.match(txt[arm], /تیروئید/, `شاخهٔ ${arm} دربارهٔ تیروئید چیزی نگفت`);
+  }
+  assert.match(txt.hypo, /کم‌کاری/, "شاخهٔ TSHِ بالا باید پیوندِ کم‌کاری با پرولاکتین را بگوید");
+  assert.match(txt.normal, /طبیعی/, "شاخهٔ TSHِ طبیعی باید این علت را کنار بگذارد");
+  assert.ok(pitFind(arms.absent, "hyperprolactinemia").suggest.includes("TSH و FT4"),
+    "شاخهٔ نبودِ TSH باید «TSH و FT4» را پیشنهاد دهد");
+  assert.ok(!pitFind(arms.normal, "hyperprolactinemia").suggest.includes("TSH و FT4"),
+    "TSH روی برگه هست؛ دوباره خواستنش N8 است");
+  assert.equal(new Set(Object.values(txt)).size, 4, "چهار شاخه باید چهار متنِ متفاوت بدهند");
+  // یافتهٔ تیروئید سرِ جایش می‌ماند و تکرار نمی‌شود (N20)
+  const thyroidCount = pitFired(arms.hypo).filter((id) => id.startsWith("thyroid")).length;
+  assert.equal(thyroidCount, 1, `یافته‌های تیروئید: ${pitFired(arms.hypo).join("، ")}`);
+});
+
+test("M101d: پرولاکتینِ بالای ۲۰۰ جملهٔ هیپوفیز دارد؛ ۲۰۰ ندارد؛ هیچ‌کدام تومور را قطعی نمی‌کند",
+  { todo: "P46 بند ۲ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 FR-007/FR-008/FR-009. لبهٔ باند (N19) هر دو طرف آزموده می‌شود.
+  const high = pitFind(pitRun([{ name: "Prolactin", value: "250" }]), "hyperprolactinemia");
+  const edge = pitFind(pitRun([{ name: "Prolactin", value: "200" }]), "hyperprolactinemia");
+  assert.ok(high && edge, "هر دو پنل باید یافتهٔ پرولاکتین بدهند");
+  assert.equal(high.urgency, "this_week");
+  assert.match(pitText(high), /هیپوفیز/);
+  assert.equal(edge.urgency, "routine");
+  assert.doesNotMatch(pitText(edge), /هیپوفیز/, "۲۰۰ هنوز جملهٔ هیپوفیز نمی‌گیرد");
+  for (const f of [high, edge]) {
+    const t = pitText(f);
+    assert.match(t, /بارداری/); assert.match(t, /شیردهی/); assert.match(t, /دارو/);
+    assert.doesNotMatch(t, /پرولاکتینوما\s*(دارید|است|قطعی)|تومور\s*(دارید|قطعی)/, "تشخیصِ قطعیِ تومور");
+    assert.doesNotMatch(t, /تومور.{0,30}(رد|منتفی)/, "ادعای ردِ تومور (اثرِ هوک)");
+    assert.doesNotMatch(t, PIT_DRUG_ADVICE_RX, "تجویز یا توصیهٔ دارویی");
+  }
+});
+
+test("M101e: پرولاکتین در همهٔ سنین با حدِ بزرگسال سنجیده می‌شود (تصمیمِ ثبت‌شده)",
+  { todo: "P46 بند ۱ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 تصمیمِ clarify: همهٔ سنین، حدودِ بزرگسال. هزینه‌اش (بیش‌خوانیِ نوزاد) در P46 ثبت
+  //    است. اگر روزی شاخهٔ کودکان بی‌تصمیمِ ثبت‌شده اضافه شود، این آزمون قرمز می‌شود.
+  assert.deepEqual(getRef("PRL", "M", 1), getRef("PRL", "M", 40));
+  assert.ok(pitFind(pitRun([{ name: "Prolactin", value: "30" }], { age: 1, sex: "M" }), "hyperprolactinemia"));
+});
+
+// ═══ داستانِ ۲ — کورتیزول و ACTH (بندهای ۳ تا ۱۰ و ۱۲ِ P46) ═══
+
+const PIT_ADRENAL_PANELS = [
+  ["adrenal_discordant", [["Cortisol (8 AM)", "2"], ["UFC", "1000"]]],
+  ["cushing_likely", [["UFC", "1000"]]],
+  ["cushing_screen_positive", [["UFC", "100"]]],
+  ["cushing_screen_positive", [["Cortisol after Dexamethasone", "3"]]],
+  ["cushing_screen_positive", [["Salivary Cortisol", "15", "nmol/L"]]],
+  ["adrenal_insufficiency_likely", [["Cortisol (8 AM)", "2"]]],
+  ["adrenal_insufficiency_indeterminate", [["Cortisol (8 AM)", "4"]]],
+  ["cortisol_am_high_nonspecific", [["Cortisol (8 AM)", "30"]]],
+  ["cortisol_untimed", [["Cortisol", "3"]]],
+];
+const pitPanel = (rows) => pitRun(rows.map(([name, value, unit]) => ({ name, value, unit })));
+
+test("M102: هر پنلِ کورتیزول دقیقاً یک یافتهٔ آدرنال می‌دهد، و هر برچسب دست‌کم یک بار می‌آید",
+  { todo: "P46 بندهای ۳ تا ۱۰ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 FR-015 و N20: هم سکوت (صفر یافته) و هم تناقض (دو یافته) شکست است — مثلِ M91e.
+  const reached = new Set();
+  for (const [label, rows] of PIT_ADRENAL_PANELS) {
+    const got = pitFired(pitPanel(rows)).filter((id) => PIT_ADRENAL.includes(id));
+    assert.deepEqual(got, [label], `پنلِ ${JSON.stringify(rows)}`);
+    reached.add(label);
+  }
+  assert.deepEqual([...reached].sort(), [...PIT_ADRENAL].sort(), "برچسبی هرگز نیامد");
+  // کورتیزولِ صبحِ طبیعی هیچ یافتهٔ آدرنالی نمی‌سازد
+  assert.deepEqual(pitFired(pitPanel([["Cortisol (8 AM)", "12"]])).filter((id) => PIT_ADRENAL.includes(id)), []);
+});
+
+test("M102b: کورتیزولِ بی‌زمان نمره نمی‌گیرد و هیچ حکمی نمی‌دهد",
+  { todo: "P46 — مرحلهٔ ب (کانالِ ungraded)" }, () => {
+  // 🔴 FR-010. کورتیزولِ عصر به‌طورِ طبیعی پایین است؛ سنجیدنش با بازهٔ صبح یعنی
+  //    «نارساییِ آدرنال» جعلی برای هر نمونهٔ بعدازظهر.
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "3" }] });
+  assert.ok(!e.graded.some((g) => g.test === "CORTISOL"), "CORTISOL نباید نمره بگیرد");
+  assert.ok(!e.abnormal.some((g) => g.test === "CORTISOL"));
+  const p = runPatterns(e);
+  const adrenal = pitFired(p).filter((id) => PIT_ADRENAL.includes(id));
+  assert.deepEqual(adrenal, ["cortisol_untimed"]);
+  const t = pitText(pitFind(p, "cortisol_untimed"));
+  assert.match(t, /(^|[^\d۰-۹.])(3|۳)([^\d۰-۹.]|$)/, "عدد باید نقل شود");
+  assert.match(t, /ساعت|زمان/, "باید بگوید تفسیر به ساعتِ نمونه‌گیری بستگی دارد");
+  assert.doesNotMatch(t, /نارسایی|کوشینگ/, "حکمِ بیماری");
+  assert.doesNotMatch(t, /کورتیزول\s*(شما\s*)?(پایین|بالا)\s*(است|تر)/, "حکمِ جهت");
+});
+
+test("M102c: کورتیزولِ پس از دگزامتازون هرگز یافتهٔ نارسایی نمی‌سازد",
+  { todo: "P46 بند ۹ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 FR-003: پایین بودنِ کورتیزول پس از دگزامتازون یعنی سرکوبِ طبیعی، نه نارسایی.
+  const p = pitPanel([["Cortisol after Dexamethasone", "1.5"]]);
+  assert.ok(!pitFired(p).some((id) => /insufficiency/.test(id)), `آمده‌ها: ${pitFired(p).join("، ")}`);
+  assert.ok(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol after Dexamethasone", value: "1.5" }] })
+    .graded.some((g) => g.test === "CORTISOL_DST"), "باید با آستانهٔ خودش نمره بگیرد");
+});
+
+test("M102d: یافتهٔ کوشینگ منشأ را از ACTHِ همان برگه به چهار حالت می‌گوید",
+  { todo: "P46 بندهای ۵ و ۸ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 FR-011، N21: ACTHِ اندازه‌گیری‌نشده ≠ ACTHِ طبیعی.
+  const ufc = ["UFC", "1000"];
+  const arms = {
+    low: pitPanel([ufc, ["ACTH", "5"]]),
+    high: pitPanel([ufc, ["ACTH", "50"]]),
+    mid: pitPanel([ufc, ["ACTH", "15"]]),
+    absent: pitPanel([ufc]),
+  };
+  const txt = {};
+  for (const [arm, p] of Object.entries(arms)) {
+    const f = pitFind(p, "cushing_likely");
+    assert.ok(f, `شاخهٔ ${arm}: آمده‌ها ${pitFired(p).join("، ")}`);
+    txt[arm] = pitText(f);
+  }
+  // ⚠️ «آدرنال» تنها کافی نیست: نامِ فارسیِ ACTH خودش «هورمونِ محرکِ آدرنال» است و
+  //    هر شاخه‌ای که ACTH را نام ببرد از آن رد می‌شد (بازبینیِ کد). جهت باید واقعاً دیده شود.
+  assert.match(txt.low, /فوق‌کلیوی/);
+  assert.doesNotMatch(txt.low, /هیپوفیز|نابجا/, "ACTHِ پایین منشأ را آدرنال می‌گوید، نه هیپوفیز");
+  assert.match(txt.high, /هیپوفیز|نابجا/);
+  assert.doesNotMatch(txt.high, /منشأ.{0,20}فوق‌کلیوی/, "ACTHِ بالا منشأ را آدرنال نمی‌گوید");
+  assert.ok(pitFind(arms.absent, "cushing_likely").suggest.includes("ACTH"), "باید ACTH را پیشنهاد دهد");
+  assert.ok(!pitFind(arms.low, "cushing_likely").suggest.includes("ACTH"), "ACTH روی برگه هست (N8)");
+  assert.equal(new Set(Object.values(txt)).size, 4);
+});
+
+test("M102e: کورتیزولِ صبحِ پایین + UFCِ بالا → فقط «نتایجِ متناقض»، نه دو حکم",
+  { todo: "P46 بندهای ۳ و ۷ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 N20: ترتیبِ قاعده‌ها نباید میانِ دو نتیجهٔ متضاد تصمیم بگیرد.
+  const p = pitPanel([["Cortisol (8 AM)", "2"], ["UFC", "100"]]);
+  assert.deepEqual(pitFired(p).filter((id) => PIT_ADRENAL.includes(id)), ["adrenal_discordant"]);
+});
+
+test("M102f: یافته‌های کورتیزول داروهای مخدوش‌کننده را نام می‌برند و هرگز توصیهٔ دارویی نمی‌کنند",
+  { todo: "P46 بندهای ۳ تا ۱۰ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 FR-023، SC-010 (تصمیمِ clarify): پایین → استروئید؛ بالا → استروژن/ضدبارداری؛
+  //    متناقض → هر دو؛ بی‌زمان → هیچ‌کدام. هیچ‌جا «قطع کنید».
+  const STEROID = /استروئید/, ESTROGEN = /استروژن|ضدبارداری/;
+  const low = ["adrenal_insufficiency_likely", "adrenal_insufficiency_indeterminate"];
+  const high = ["cushing_likely", "cushing_screen_positive", "cortisol_am_high_nonspecific"];
+  for (const [label, rows] of PIT_ADRENAL_PANELS) {
+    const f = pitFind(pitPanel(rows), label);
+    assert.ok(f, `${label} نیامد`);
+    const t = pitText(f);
+    if (low.includes(label)) assert.match(t, STEROID, `${label}: استروئید`);
+    if (high.includes(label)) assert.match(t, ESTROGEN, `${label}: استروژن`);
+    if (label === "adrenal_discordant") { assert.match(t, STEROID); assert.match(t, ESTROGEN); }
+    if (label === "cortisol_untimed") { assert.doesNotMatch(t, STEROID); assert.doesNotMatch(t, ESTROGEN); }
+    assert.doesNotMatch(t, PIT_DRUG_ADVICE_RX, `${label}: توصیهٔ دارویی`);
+  }
+});
+
+test("M103b: CORTISOL هرگز بازه نمی‌گیرد و از کانالِ ungraded به قاعده می‌رسد",
+  { todo: "P46 — مرحلهٔ ب (کانالِ ungraded)" }, () => {
+  // 🔴 اگر CORTISOL روزی به ADULT_REFS برود، کورتیزولِ عصرِ طبیعی «پایین» خوانده می‌شود.
+  assert.ok(!("CORTISOL" in ADULT_REFS), "CORTISOL نباید بازه داشته باشد");
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "3" }] });
+  assert.equal(e.ungraded?.CORTISOL, 3);
+  assert.ok(e.noRef.includes("CORTISOL"), "noRef نباید عوض شود");
+});
+
+test("M103c: کورتیزولِ nmol/L تبدیل می‌شود؛ کورتیزولِ بی‌واحدِ > ۱۰۰ نمره نمی‌گیرد",
+  { todo: "P46 بند ۴ — در انتظارِ تأییدِ بازبین" }, () => {
+  // 🔴 N3: حدس زدنِ واحد از بزرگیِ عدد ممنوع است؛ ولی هیچ کورتیزولِ سرمِ µg/dL بالای
+  //    ۱۰۰ نیست و nmol/L تقریباً همیشه هست — همان استثنای HBA1C_IMPLAUSIBLE_AS_PERCENT،
+  //    با این تفاوت که اینجا *تبدیل نمی‌کنیم*، فقط نمره نمی‌دهیم.
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol (8 AM)", value: "190", unit: "nmol/L" }] });
+  const row = e.unitConversions.find((r) => r.test === "CORTISOL_AM");
+  assert.ok(row && Math.abs(row.value - 6.9) < 0.05, `تبدیل: ${JSON.stringify(row)}`);
+  assert.match(faName(row.test), /[؀-ۿ]/, "نامِ ردیفِ تبدیل باید فارسی باشد (N8)");
+  const g = e.graded.find((x) => x.test === "CORTISOL_AM");
+  assert.ok(g && Math.abs(g.value - 6.9) < 0.05, "عددِ تبدیل‌شده باید نمره بگیرد");
+
+  const e2 = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol (8 AM)", value: "400" }] });
+  assert.ok(!e2.graded.some((x) => x.test === "CORTISOL_AM"), "۴۰۰ِ بی‌واحد نباید با µg/dL سنجیده شود");
+  const texts = runPatterns(e2).findings.map(pitText).join(" ");
+  assert.match(texts, /واحد/, "یافته باید بگوید واحد روشن نیست");
+});
+
+test("M103d: هیچ یافتهٔ فصل ۲۵ اورژانس نیست، و هر هشت الگو دست‌کم یک بار می‌آید",
+  { todo: "P46 — مرحلهٔ ب" }, () => {
+  // 🔴 FR-020. و شرطِ «هر الگو آمد» تا این آزمون با فعال نکردنِ هیچ‌چیز سبز نشود (N15).
+  const panels = [
+    ...PIT_ADRENAL_PANELS.map(([, rows]) => rows),
+    [["Prolactin", "80"]], [["Prolactin", "250"]], [["Prolactin", "250"], ["TSH", "8"]],
+    [["UFC", "1000"], ["ACTH", "5"]], [["Cortisol (8 AM)", "1"], ["ACTH", "300"]],
+  ];
+  const reached = new Set();
+  for (const rows of panels) {
+    for (const f of pitPanel(rows).findings.filter((x) => PIT_ALL.includes(x.pattern))) {
+      reached.add(f.pattern);
+      assert.notEqual(f.urgency, "emergency", `${f.pattern} روی ${JSON.stringify(rows)}`);
+    }
+  }
+  assert.deepEqual([...reached].sort(), [...PIT_ALL].sort());
+});

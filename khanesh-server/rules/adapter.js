@@ -236,6 +236,37 @@ const NAME_MAP = {
   homocysteine: "HCY", totalhomocysteine: "HCY", homocystine: "HCY",
   homocysteineserum: "HCY", hcy: "HCY", thcy: "HCY",
   هموسیستئین: "HCY", هموسیستین: "HCY",
+
+  // ── فصل ۲۵ هنری: پرولاکتین، کورتیزول، ACTH (P46) ──
+  // ⚠️ بازه‌ها هنوز تأیید نشده‌اند، پس این کلیدها فعلاً به noRef می‌روند — فقط
+  //    شناسایی است، ادعای بالینی نیست. املاها: تأییدشده از سایت‌های آزمایشگاهیِ
+  //    ایرانی (abtinmed، parsteblab، nanomedicallab) + گونه‌های رایج؛ برگهٔ چاپیِ
+  //    واقعی هنوز دیده نشده (N2) — هر املای تازه از برگهٔ واقعی اینجا بیاید.
+  prolactin: "PRL", prl: "PRL", serumprolactin: "PRL", پرولاکتین: "PRL",
+  // زمانِ نمونه‌گیری *فقط* از نامِ چاپی می‌آید (P46): «صبح/8AM» → CORTISOL_AM؛
+  //   هر کورتیزولِ سرمِ دیگر — بی‌زمان، عصر، 4PM — → CORTISOL که عمداً بازه
+  //   نمی‌گیرد. ⚠️ ستونِ جداگانهٔ ساعت در OCR گم می‌شود؛ زمان را از بازهٔ مرجعِ
+  //   برگه حدس نزن.
+  cortisol8am: "CORTISOL_AM", "cortisol8:00am": "CORTISOL_AM", cortisolam: "CORTISOL_AM",
+  morningcortisol: "CORTISOL_AM", cortisolmorning: "CORTISOL_AM", cortisol89am: "CORTISOL_AM",
+  amcortisol: "CORTISOL_AM", کورتیزولصبح: "CORTISOL_AM", "کورتیزول۸صبح": "CORTISOL_AM",
+  "کورتیزول8صبح": "CORTISOL_AM",
+  cortisol: "CORTISOL", serumcortisol: "CORTISOL", کورتیزول: "CORTISOL",
+  cortisol4pm: "CORTISOL", cortisolpm: "CORTISOL", cortisolevening: "CORTISOL",
+  کورتیزولعصر: "CORTISOL",
+  // ⚠️ «DST» تنها عمداً نگاشت نشده: نامِ آزمون است نه آنالیت.
+  cortisolafterdexamethasone: "CORTISOL_DST", cortisolpostdst: "CORTISOL_DST",
+  cortisolpostdex: "CORTISOL_DST", overnightdst: "CORTISOL_DST",
+  کورتیزولبعدازدگزامتازون: "CORTISOL_DST",
+  salivarycortisol: "CORTISOL_SAL", latenightsalivarycortisol: "CORTISOL_SAL",
+  cortisolsaliva: "CORTISOL_SAL", کورتیزولبزاق: "CORTISOL_SAL",
+  // ⚠️ «17-Hydroxycorticosteroids» و «هیدروکورتیزول» UFC نیستند، هرچند در
+  //    فهرستِ مترادفِ بعضی سایت‌ها آمده‌اند.
+  ufc: "UFC", urinefreecortisol: "UFC", urinaryfreecortisol: "UFC",
+  freecortisolurine: "UFC", cortisolurine: "UFC", "24hurinefreecortisol": "UFC",
+  "کورتیزولادرار۲۴ساعته": "UFC",
+  // ⚠️ «ACTH Stimulation Test» نگاشت نشده: نتیجه‌اش کورتیزول است، نه ACTH.
+  acth: "ACTH", adrenocorticotropichormone: "ACTH", acthplasma: "ACTH",
 };
 
 // ---------- نگاشتِ پشتیبان برای املاهای دیده‌نشده ----------

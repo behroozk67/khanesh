@@ -306,6 +306,17 @@ export const GUIDELINES = {
       'محدوده‌های کلسیم/فسفر/PTH/کلسیم ادرار، و تفکیک علل هایپر و هایپوکلسمی بر پایهٔ PTH (جدول‌های ۱۶.۱ و ۱۶.۲)',
   },
 
+  HENRY_ENDOCRINE: {
+    org: "Henry's Clinical Diagnosis",
+    fa: 'هنری — تشخیص بالینی و مدیریت با روش‌های آزمایشگاهی',
+    title: 'Endocrine and Pituitary Function (فصل ۲۵)',
+    year: 2022,
+    url: 'https://www.elsevier.com/books/henrys-clinical-diagnosis-and-management-by-laboratory-methods/mcpherson/978-0-323-67320-4',
+    access: 'open',
+    scope:
+      'پرولاکتین، کورتیزول (صبح، پس از دگزامتازون، بزاق، ادرارِ ۲۴ ساعته) و ACTH — اعداد در انتظارِ بازبین (P46)',
+  },
+
   HENRY_LIPID: {
     org: "Henry's Clinical Diagnosis",
     fa: 'هنری — تشخیص بالینی و مدیریت با روش‌های آزمایشگاهی',

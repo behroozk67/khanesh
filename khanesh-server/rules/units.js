@@ -94,6 +94,19 @@ export const SI_CONVERSIONS = {
   FT4: { si: /^pmol\/l$/, factor: 1 / 12.87, conv: 'ng/dL' },
   FT3: { si: /^pmol\/l$/, factor: 1 / 1.536, conv: 'pg/mL' },
   // T3 در adapter.js دستِ خودش تبدیل می‌شود (nmol/L → ng/dL) — اینجا تکرار نشود.
+
+  // ---- آدرنال (فصل ۲۵ هنری، P46) ----
+  // این سه ضریب از جرمِ مولی‌اند، نه از قراردادِ کیت — پس تصمیمِ بالینی نیستند:
+  //   کورتیزول ۳۶۲.۴۶ g/mol → ۱ µg/dL = ۲۷.۵۹ nmol/L؛ و µg/24h ↔ nmol/24h ضریبِ ۲.۷۵۹.
+  //   ACTH ‏۴۵۴۱ g/mol → ۱ pmol/L = ۴.۵۴۱ pg/mL (نه ۴.۵۱ که در پیش‌نویسِ طراحی آمده بود — غلطِ رقمی).
+  // ⚠️ پرولاکتین (mIU/L ÷ ۲۱.۲) عمداً اینجا نیست: آن ضریب به استانداردِ کیت
+  //    وابسته است و بندِ ۱۱ِ P46 است — تا تأییدِ بازبین وارد نمی‌شود.
+  CORTISOL_AM:  { si: /^nmol\/l$/, factor: 1 / 27.59, conv: 'µg/dL' },
+  CORTISOL:     { si: /^nmol\/l$/, factor: 1 / 27.59, conv: 'µg/dL' },
+  CORTISOL_DST: { si: /^nmol\/l$/, factor: 1 / 27.59, conv: 'µg/dL' },
+  CORTISOL_SAL: { si: /^nmol\/l$/, factor: 1 / 27.59, conv: 'µg/dL' },
+  UFC:  { si: /^nmol\/(24h|24hr|d|day)$/, factor: 1 / 2.759, conv: 'µg/24h' },
+  ACTH: { si: /^pmol\/l$/, factor: 4.541, conv: 'pg/mL' },
 };
 
 /** واحد را مثل adapter نرمال کن: حروف کوچک، بی‌فاصله. */

@@ -27,6 +27,8 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `3416d63`, after Stage A of Henry ch.25 (`P46`) — `M103`, `M103e`, `T17` live; `M101`–`M103d` as `todo` | 2026-09-18 | 424 | 410 | **0** | 14 todo |
+   | `HEAD` at `3416d63` **with that `engine.test.js` dropped in** (engine suite only, `git archive` + junction) | 2026-09-18 | 390 | 364 | **12** | 14 todo |
    | working tree on `3416d63`, after the N24 auth/scoping + `_engine.uncovered` work — `T14`–`T16`, `M100`–`M100b` | 2026-09-17 | 407 | 407 | **0** | — |
    | `HEAD` at `3416d63` **with those 5 tests dropped in** (`git archive` + junction) | 2026-09-17 | 407 | 394 | **13** | — |
    | working tree on `3416d63`, after the N20 amylase/bilirubin/thyroid fix — `M97`–`M99d`, 13 tests, **113 rules** | 2026-09-17 | 402 | 402 | **0** | — |
@@ -88,6 +90,10 @@ When the user asks for a change in this repo:
    adding a `patterns_*.js` file automatically adds a subtest to each. Useful to know before you
    conclude a count is off: **the total is a function of how many pattern files exist**, not just
    of how many `test()` calls are in the suite.
+   ⚠️ **No longer true — measured 2026-09-18.** Adding `patterns_endocrine_pituitary.js` moved the
+   count by exactly the one test written (407 → 408). `M37`/`M38` now loop over
+   `livePatternFiles()` inside a single `test()` each, so a new module is *scanned* but adds no
+   subtest. The file list is still derived from the imports; only the count coupling is gone.
 
    The `skipped` column names `patterns_anemia.js`, a dead file `M38` exempted by name. **That
    file was deleted in `ba144a7`** and nothing is exempt from any guard today — see
@@ -272,6 +278,8 @@ khanesh-project/
 │   │   ├── patterns_endocrine_rheum.js / _endocrine_new.js / _malignancy.js
 │   │   ├── patterns_mineral_bone.js  # ⭐ محور کلسیم/PTH — یک طبقه‌بند، ۱۳ قاعده
 │   │   ├── patterns_cardiac.js  # ⭐ فصل ۱۹ هنری — ۴ قاعده، همه روی عددِ «داخلِ محدوده»
+│   │   ├── patterns_endocrine_pituitary.js  # فصل ۲۵ هنری — عمداً خالی تا تأییدِ P46؛
+│   │   │                        #   پرولاکتین/کورتیزول/ACTH فقط شناخته می‌شوند (noRef)
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
@@ -813,6 +821,13 @@ second one; a recurring entry is the strongest signal in the file.
   missing table row: it is silent and it always errs toward the wrong side. Added as
   `["CHOL", "LDL", "HDL", "TG"]` — all four, because a three-key entry would make a sheet without
   LDL count as "complete" and delete a suggestion that was correct. Guards `M77`, `M77b`.
+- **Recurred a fourth time, 2026-09-18, on a surface that had been empty.** `server.js` joined
+  `engineOut.noRef` into the patient-facing `ocr_warnings` raw. Harmless for as long as `noRef`
+  was effectively empty; the moment Stage A of Henry ch.25 mapped prolactin and cortisol without
+  ranges, the patient would have read «برای این تست‌ها محدوده مرجع نداریم: PRL، CORTISOL_AM».
+  Caught before commit by reading every consumer of `noRef`. Fixed with `.map(faName)`; guard
+  `T17` (red before the fix, measured). **An empty list is not a safe list** — when your change
+  starts populating a field for the first time, read every place that renders it.
 - **Rule:** every key goes through `faName()`. For a test that was already measured, the phrasing is
   «تکرارِ …», not a fresh request. **And when a rule suggests a panel, add that exact string to
   `SUGGEST_TESTS` in the same commit** — the match is exact, and an absent row fails open. Deduplicate recommendations by first sentence and drop
