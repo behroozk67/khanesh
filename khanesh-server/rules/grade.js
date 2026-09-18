@@ -57,6 +57,19 @@ const FA = {
  * }}
  */
 export function evaluate(testKey, value, lln, uln, isCancer = false) {
+  // بازهٔ یک‌طرفه (فقط حدِ پایین) — برای شاخص‌هایی که «بالای حد» ندارند، مثلِ غلظت و تحرکِ
+  // اسپرم (P47). فقط «پایین» سنجیده می‌شود و «نزدیکِ حد» محاسبه نمی‌شود، چون عرضِ بازه تعریف
+  // ندارد. هیچ کلیدِ پیش از فصل ۲۶ بازهٔ یک‌طرفه ندارد، پس رفتارِ آن‌ها دست‌نخورده است.
+  if (value != null && lln != null && uln == null) {
+    if (value < lln) {
+      return { mode: MODE.BINARY, abnormal: true, dir: 'low', fa: 'پایین‌تر از حد طبیعی',
+               tag: 'out_of_range_low', patient: null, level: null,
+               ctcaeGrade: null, ctcaeTerm: null, source: 'محدوده مرجع', note: null };
+    }
+    return { mode: MODE.BINARY, abnormal: false, dir: null, fa: FA.normal,
+             tag: 'normal', nearLimit: false, patient: null, level: null,
+             ctcaeGrade: null, ctcaeTerm: null, source: 'محدوده مرجع', note: null };
+  }
   if (value == null || lln == null || uln == null) {
     return { mode: MODE.UNKNOWN, abnormal: false, dir: null, fa: FA.unknown,
              tag: null, patient: null, level: null,

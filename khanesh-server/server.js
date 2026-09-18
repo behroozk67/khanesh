@@ -29,7 +29,7 @@ import "dotenv/config";
 // gpt-4o می‌فهمید ولی ۳۵ برابر گران بود — و باز هم برای کم‌خونی
 // ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
-import { runEngine } from "./rules/adapter.js";
+import { runEngine, isSemenPage } from "./rules/adapter.js";
 import { runPatterns } from "./rules/patterns.js";
 import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions } from "./rules/prompt.js";
 import { faName } from "./rules/names.js";
@@ -521,7 +521,7 @@ function normName(s) {
     .trim();
 }
 
-function mergePages(pageResults) {
+export function mergePages(pageResults) {
   const ok      = pageResults.filter((p) => p.ok);
   const failed  = pageResults.filter((p) => !p.ok).map((p) => p.page);
   const tests   = [];
@@ -536,9 +536,14 @@ function mergePages(pageResults) {
     if (Array.isArray(o.unreadable_notes)) notes.push(...o.unreadable_notes.filter(Boolean));
     if (!Array.isArray(o.tests)) continue;
 
+    // 🔴 باگِ واقعی (P47، T18): «اولی برنده» ردیف‌های هم‌نامِ صفحه‌ها را یکی می‌کرد. برگهٔ CBC و
+    //    برگهٔ منی هر دو «WBC» دارند؛ اگر صفحهٔ منی اول بارگذاری می‌شد، WBCِ CBC بی‌صدا دور ریخته
+    //    می‌شد. ردیف‌های صفحهٔ منی با پیشوندِ «semen:» ادغام می‌شوند تا هر دو بمانند.
+    const semenPrefix = isSemenPage(o.tests) ? "semen:" : "";
+
     for (const t of o.tests) {
       if (!t || !t.name) continue;
-      const key = normName(t.name);
+      const key = semenPrefix + normName(t.name);
 
       if (seen.has(key)) {
         const prev = tests[seen.get(key)];
@@ -892,7 +897,14 @@ const analyzeHandler = async (req, res) => {
         indices: engineCandidate.indices,
       });
 
-      if (engineCandidate.graded.length === 0) {
+      // ⚠️ فصل ۲۶ (P47، research R6): برگه‌ای که *فقط* مقدارِ بی‌قضاوت یا آستانه‌دار دارد (FSHِ
+      //    بی‌روز، بتا اچ‌سی‌جی، پروژسترونِ روزِ ۲۱) هیچ تستِ نمره‌داری ندارد، ولی قاعده‌ای مالکش
+      //    است. پیش از این به مسیرِ قدیمِ بی‌موتور می‌رفت. «no_range» عمداً شمرده نمی‌شود: آن
+      //    کلیدها مالک ندارند و برگهٔ فقط-AMH در مسیرِ موتور «همه‌چیز طبیعی است» می‌گرفت (N2).
+      //    این شرط فقط *همراهِ* قاعدهٔ reproductive_hormone_context درست است — آزمونِ T19.
+      const ownedUngraded = Object.values(engineCandidate.ungraded ?? {})
+        .some((u) => u.reason !== "no_range");
+      if (engineCandidate.graded.length === 0 && !ownedUngraded) {
         console.warn(
           "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
           `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`

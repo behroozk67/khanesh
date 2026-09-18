@@ -107,6 +107,23 @@ export const SI_CONVERSIONS = {
   CORTISOL_SAL: { si: /^nmol\/l$/, factor: 1 / 27.59, conv: 'µg/dL' },
   UFC:  { si: /^nmol\/(24h|24hr|d|day)$/, factor: 1 / 2.759, conv: 'µg/24h' },
   ACTH: { si: /^pmol\/l$/, factor: 4.541, conv: 'pg/mL' },
+
+  // ── فصل ۲۶ هنری (P47) — فقط تبدیل‌های *دقیق* از جرمِ مولی؛ تصمیمِ بالینی نیستند ──
+  //   تستوسترون ۲۸۸.۴ g/mol → ۱ nmol/L = ۲۸.۸۴ ng/dL
+  //   استرادیول ۲۷۲.۴ → ۱ pmol/L = ۰.۲۷۲۴ pg/mL (÷ ۳.۶۷۱)
+  //   پروژسترون ۳۱۴.۵ → ۱ nmol/L = ۰.۳۱۴۵ ng/mL (÷ ۳.۱۸)
+  //   17-OHP ۳۳۰.۵ → ۱ nmol/L = ۰.۳۳۰۵ ng/mL (÷ ۳.۰۲۶)
+  //   DHEA-S ۳۶۸.۵ → ۱ µmol/L = ۳۶.۸۵ µg/dL
+  // ⚠️ AMH (pmol/L ÷ ۷.۱۴) عمداً اینجا نیست: آن ضریب از وزنِ *اسمیِ* ~۱۴۰ kDa می‌آید و
+  //    قرارداد است، نه اتحادِ مولی — بندِ ۱۷ِ P47، منتظرِ بازبین (M105c نگهبان است).
+  //    LH/FSH/hCG: IU/L و mIU/mL عددشان یکی است — تبدیلی لازم نیست.
+  TESTO:    { si: /^nmol\/l$/, factor: 28.84, conv: 'ng/dL' },
+  E2:       { si: /^pmol\/l$/, factor: 1 / 3.671, conv: 'pg/mL' },
+  E2_D3:    { si: /^pmol\/l$/, factor: 1 / 3.671, conv: 'pg/mL' },
+  PROG:     { si: /^nmol\/l$/, factor: 1 / 3.18, conv: 'ng/mL' },
+  PROG_D21: { si: /^nmol\/l$/, factor: 1 / 3.18, conv: 'ng/mL' },
+  OHP17:    { si: /^nmol\/l$/, factor: 1 / 3.026, conv: 'ng/mL' },
+  DHEAS:    { si: /^[µμu]mol\/l$/, factor: 36.85, conv: 'µg/dL' },
 };
 
 /** واحد را مثل adapter نرمال کن: حروف کوچک، بی‌فاصله. */

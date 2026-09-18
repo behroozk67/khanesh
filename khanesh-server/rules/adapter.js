@@ -8,7 +8,7 @@
 //   ۴. استنتاج سن و جنسیت
 // ============================================================
 
-import { getRef, getRefSource, ckdEpiEgfr } from "./refs.js";
+import { getRef, getRefSource, ckdEpiEgfr, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE } from "./refs.js";
 import { evaluate } from "./grade.js";
 import { toConventional } from "./units.js";
 
@@ -267,7 +267,128 @@ const NAME_MAP = {
   "کورتیزولادرار۲۴ساعته": "UFC",
   // ⚠️ «ACTH Stimulation Test» نگاشت نشده: نتیجه‌اش کورتیزول است، نه ACTH.
   acth: "ACTH", adrenocorticotropichormone: "ACTH", acthplasma: "ACTH",
+
+  // ── فصل ۲۶ هنری: هورمون‌های باروری و hCG (P47) ──
+  // ⚠️ فقط شناسایی — بازه‌ها منتظرِ بازبین‌اند، پس این کلیدها فعلاً به noRef می‌روند.
+  //    املاها از سایت‌های آزمایشگاهی/اورولوژیِ ایرانی؛ برگهٔ چاپیِ واقعی هنوز دیده نشده (N2).
+  // ⚠️ روزِ چرخه *فقط* از نامِ چاپی می‌آید (همان الگوی CORTISOL_AM): «FSH Day 3» → FSH_D3؛
+  //    FSHِ بی‌روز → FSH. ارقامِ فارسی را norm() تبدیل نمی‌کند، پس هر دو شکل آمده‌اند.
+  testosterone: "TESTO", totaltestosterone: "TESTO", testosteronetotal: "TESTO",
+  تستوسترون: "TESTO", تستوسترونتام: "TESTO",
+  lh: "LH", luteinizinghormone: "LH",
+  fsh: "FSH", folliclestimulatinghormone: "FSH",
+  lhday3: "LH_D3", day3lh: "LH_D3", lhd3: "LH_D3", "lhروز۳": "LH_D3", lhروز3: "LH_D3", lhروزسوم: "LH_D3",
+  fshday3: "FSH_D3", day3fsh: "FSH_D3", fshd3: "FSH_D3", "fshروز۳": "FSH_D3", fshروز3: "FSH_D3", fshروزسوم: "FSH_D3",
+  estradiol: "E2", e2: "E2", oestradiol: "E2", استرادیول: "E2",
+  estradiolday3: "E2_D3", e2day3: "E2_D3", day3estradiol: "E2_D3", day3e2: "E2_D3",
+  "استرادیولروز۳": "E2_D3", استرادیولروز3: "E2_D3", استرادیولروزسوم: "E2_D3",
+  progesterone: "PROG", پروژسترون: "PROG",
+  progesteroneday21: "PROG_D21", day21progesterone: "PROG_D21", progesteroned21: "PROG_D21",
+  "پروژسترونروز۲۱": "PROG_D21", پروژسترونروز21: "PROG_D21", پروژسترونروزبیستویکم: "PROG_D21",
+  amh: "AMH", antimullerianhormone: "AMH", "antimüllerianhormone": "AMH", هورمونآنتیمولرین: "AMH",
+  dheas: "DHEAS", dheasulfate: "DHEAS", dheasulphate: "DHEAS", dheaso4: "DHEAS",
+  dehydroepiandrosteronesulfate: "DHEAS",
+  // ⚠️ 17-OHP با پروژسترون هم‌پیشوند نیست ولی هم‌خانواده است — هرگز به PROG نرسد (M105).
+  "17ohprogesterone": "OHP17", "17hydroxyprogesterone": "OHP17", "17ohp": "OHP17",
+  "17αohp": "OHP17", "17alphahydroxyprogesterone": "OHP17", "۱۷هیدروکسیپروژسترون": "OHP17",
+  // ⚠️ «Free βhCG» (غربالگریِ سه‌ماههٔ اول، با MoM) و «Free Testosterone» و AFP (دو معنا:
+  //    غربالگریِ بارداری و نشانگرِ تومور) عمداً نگاشت *نشده‌اند* — M105.
+  betahcg: "HCG", bhcg: "HCG", "βhcg": "HCG", hcg: "HCG", serumhcg: "HCG", totalhcg: "HCG",
+  quantitativebhcg: "HCG", quantitativehcg: "HCG", betahcgquantitative: "HCG",
+  betahcgserum: "HCG", serumbetahcg: "HCG", bhcgserum: "HCG",
+  pregnancytest: "HCG", تستبارداری: "HCG", آزمایشبارداری: "HCG",
+  بتاhcg: "HCG", تستبارداری: "HCG", تستبارداریخون: "HCG",
 };
+
+// ═══════════ آنالیزِ مایع منی (P47) ═══════════
+// 🔴 باگِ واقعی: برگهٔ منی `pH`، `WBC`، `RBC` و `Volume` دارد — همان نام‌های آزمایش ادرار و CBC.
+//    pH به «Urine pH» می‌رفت و RBCِ «8-10» قاعدهٔ hematuria را فعال می‌کرد: بیمار می‌خواند «در
+//    آزمایش ادرار شما خون دیده شده است». نامِ ردیف هویت نیست؛ صفحه‌ای که ردیف رویش است هم بخشی
+//    از کلید است.
+// ⚠️ OCR فیلدِ «عنوانِ بخش» ندارد، پس صفحهٔ منی از دو نشانهٔ دیگر شناخته می‌شود (P47، کلاریفای Q4):
+//    یک ردیفِ مخصوصِ منی، یا یک واحدِ مخصوصِ منی. هر کدام کافی است.
+const SEMEN_ONLY_MARKERS = new Set([
+  "motility", "spermmotility", "totalmotility", "progressivemotility", "progressive",
+  "rapidprogressive", "slowprogressive", "nonprogressive", "nonprogressivemotility", "immotile",
+  "gradea", "gradeb", "gradec", "graded",
+  "morphology", "spermmorphology", "normalforms", "normalmorphology", "strictmorphology", "krugermorphology",
+  "liquefaction", "liquefactiontime", "viscosity", "vitality", "agglutination",
+  "sperm", "spermcount", "spermconcentration", "totalspermcount", "totalspermnumber",
+  "abstinence", "abstinencedays", "abstinenceperiod", "semenvolume", "semenanalysis", "spermogram",
+  "seminalfructose", "fructose",
+  "اسپرم", "تعداداسپرم", "غلظتاسپرم", "تحرک", "تحرککل", "تحرکپیشرونده", "مورفولوژی", "مرفولوژی",
+  "زمانمایعشدن", "مایعشدگی", "ویسکوزیته", "مدتپرهیز", "مایعمنی", "اسپرموگرام", "فروکتوز",
+]);
+// ⚠️ باید mL باشد، نه µL: RBCِ خون با «10*6/µL» چاپ می‌شود و اگر این الگو µL را هم بگیرد، هر
+//    برگهٔ CBC «منی» می‌شود (M104b).
+const SEMEN_UNIT_RE = /^(million|mil|mill|[x×*]?10\^?\*?6)\/ml$/;
+// 🔴 بازبینی: «×10⁶/ml» (بالانویسِ ۶) نمی‌خورد و صفحهٔ منی ادرار خوانده می‌شد (hematuria دوباره).
+const SUPERSCRIPT = { "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9" };
+function isSemenUnit(unit) {
+  const raw = String(unit || "").replace(/\s+/g, "").replace(/[⁰-⁹¹²³]/g, (c) => SUPERSCRIPT[c] ?? c);
+  // «M/mL» فقط با M بزرگ (میلیون) — حروفِ کوچک را نمی‌گیریم.
+  return SEMEN_UNIT_RE.test(raw.toLowerCase()) || /^M\/m[lL]$/.test(raw);
+}
+// 🔴 بازبینی: برگهٔ آزمایش ادرار اغلب ردیفِ «Sperm» (در میکروسکوپی) دارد، و «Morphology» روی
+//    لامِ خون هم می‌آید. یکی از این دو به‌تنهایی کلِ صفحه را «منی» می‌کرد: WBC/RBCِ ادرار به
+//    semenQual می‌رفت، hematuria گم می‌شد و pHِ ادرار «pHِ مایع منی» خوانده می‌شد. این نشانگرهای
+//    ضعیف فقط وقتی حساب‌اند که صفحه هیچ نشانگرِ ادرار یا خون ندارد.
+const WEAK_SEMEN_MARKERS = new Set(["sperm", "اسپرم", "morphology", "مورفولوژی", "مرفولوژی"]);
+// رنگ/ظاهر/پاس‌سل روی برگهٔ منی هم هست، پس شاهدِ «ادرار» نیستند.
+const URINE_EVIDENCE = new Set([
+  "specificgravity", "sg", "turbidity", "nitrite", "nitrites", "leukocyteesterase", "urobilinogen",
+  "casts", "crystals", "yeasts", "epithelialcells", "epithelial", "mucus", "bacteria", "urinalysis", "ua",
+]);
+
+// ردیف‌های صفحهٔ منی → کلید. عددی‌ها به tests (فعلاً بی‌بازه → noRef)، بقیه به semenQual.
+// ⚠️ semenQual عمداً از qual جداست: قاعده‌های ادرار qual را با /rbc/ و /wbc/ روی *هر* نامی
+//    جست‌وجو می‌کنند (urineCellCount)، پس «Semen RBC» در qual همان hematuria را می‌ساخت.
+const SEMEN_KEY = {
+  volume: "SEMEN_VOL", semenvolume: "SEMEN_VOL", حجم: "SEMEN_VOL", حجممنی: "SEMEN_VOL",
+  count: "SPERM_CONC", spermcount: "SPERM_CONC", concentration: "SPERM_CONC",
+  spermconcentration: "SPERM_CONC", تعداداسپرم: "SPERM_CONC", غلظتاسپرم: "SPERM_CONC",
+  totalcount: "SPERM_TOTAL", totalspermcount: "SPERM_TOTAL", totalspermnumber: "SPERM_TOTAL",
+  motility: "SPERM_MOT_TOTAL", totalmotility: "SPERM_MOT_TOTAL", spermmotility: "SPERM_MOT_TOTAL",
+  تحرک: "SPERM_MOT_TOTAL", تحرککل: "SPERM_MOT_TOTAL",
+  progressivemotility: "SPERM_MOT_PROG", progressive: "SPERM_MOT_PROG", pr: "SPERM_MOT_PROG",
+  تحرکپیشرونده: "SPERM_MOT_PROG",
+  morphology: "SPERM_MORPH", spermmorphology: "SPERM_MORPH", normalforms: "SPERM_MORPH",
+  normalmorphology: "SPERM_MORPH", strictmorphology: "SPERM_MORPH", krugermorphology: "SPERM_MORPH",
+  مورفولوژی: "SPERM_MORPH", مرفولوژی: "SPERM_MORPH",
+  ph: "SEMEN_PH",
+  abstinence: "SEMEN_ABSTINENCE", abstinencedays: "SEMEN_ABSTINENCE",
+  abstinenceperiod: "SEMEN_ABSTINENCE", مدتپرهیز: "SEMEN_ABSTINENCE",
+};
+const SEMEN_QUAL_KEY = {
+  wbc: "SEMEN_WBC", whitebloodcell: "SEMEN_WBC", puscell: "SEMEN_WBC", puscells: "SEMEN_WBC",
+  leukocytes: "SEMEN_WBC", wbchpf: "SEMEN_WBC",
+  rbc: "SEMEN_RBC", redbloodcell: "SEMEN_RBC", rbchpf: "SEMEN_RBC",
+  fructose: "SEMEN_FRUCTOSE", seminalfructose: "SEMEN_FRUCTOSE", فروکتوز: "SEMEN_FRUCTOSE",
+  acidphosphatase: "SEMEN_ACP", neutralalphaglucosidase: "SEMEN_NAG", nag: "SEMEN_NAG",
+};
+
+/** آیا این ردیف‌ها (یک صفحه) آنالیزِ منی‌اند؟ — صادر می‌شود تا mergePages هم از همین استفاده کند. */
+export function isSemenPage(pageTests) {
+  const rows = (pageTests || []).filter((t) => t?.name);
+  const keys = rows.map((t) => norm(t.name));
+  if (rows.some((t) => isSemenUnit(t.unit))) return true;
+  if (keys.some((k) => SEMEN_ONLY_MARKERS.has(k) && !WEAK_SEMEN_MARKERS.has(k))) return true;
+  const otherKind = keys.some((k) => URINE_EVIDENCE.has(k) || BLOOD_ONLY_MARKERS.has(k));
+  return !otherKind && keys.some((k) => WEAK_SEMEN_MARKERS.has(k));
+}
+
+function detectSemenPages(ocrTests) {
+  const byPage = new Map();
+  for (const t of ocrTests) {
+    if (!t?.name) continue;
+    const p = t._page ?? 0;
+    if (!byPage.has(p)) byPage.set(p, []);
+    byPage.get(p).push(t);
+  }
+  const pages = new Set();
+  for (const [p, rows] of byPage) if (isSemenPage(rows)) pages.add(p);
+  return pages;
+}
 
 // ---------- نگاشتِ پشتیبان برای املاهای دیده‌نشده ----------
 // ⚠️ NAME_MAP تطبیقِ دقیق می‌خواهد، پس هر املای تازه‌ای که روی برگه ظاهر شود
@@ -554,12 +675,67 @@ export function ocrToEngineInput(ocr) {
   const unitConversions = [];
   const urineOnlyPages = detectUrineOnlyPages(ocr?.tests || []);
   const abgPages = detectAbgPages(ocr?.tests || []);
+  // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
+  const semenQual = {};
+  // TESTO بی‌واحد یا با واحدِ ناشناخته: ng/dL و ng/mL صد برابر فرق دارند (N3) — قضاوت نمی‌شود.
+  const unitUnknown = new Set();
+  // مقدارِ خامِ «<2» / «>1000»: برای نقلِ درست در متن (N5)؛ عدد فقط برای حکم است.
+  const rawText = {};
+  const semenPages = detectSemenPages(ocr?.tests || []);
+  // صفحهٔ مخلوط: اگر همان صفحه نشانگرِ CBC هم دارد، WBC/RBCِ آن مالِ خون می‌ماند (M104c) —
+  // همان احتیاطِ صفحهٔ ادرار: «هر شاهدی از خون، دست نزن».
+  const bloodPages = new Set();
+  for (const t of ocr?.tests || []) {
+    if (t?.name && BLOOD_ONLY_MARKERS.has(norm(t.name))) bloodPages.add(t._page ?? 0);
+  }
 
   for (const t of ocr?.tests || []) {
     if (!t?.name) continue;
     const key = norm(t.name);
     const onUrinePage = urineOnlyPages.has(t._page ?? 0);
     const onAbgPage = abgPages.has(t._page ?? 0);
+
+    // ═══ لایهٔ ۰: صفحهٔ آنالیزِ منی — پیش از /hpf، چون WBC/RBCِ منی اغلب /hpf چاپ می‌شوند ═══
+    //    (research R2؛ M104، M104b). ترتیب مهم است: اگر بعد از لایهٔ ۱ بیاید هرگز اجرا نمی‌شود.
+    if (semenPages.has(t._page ?? 0)) {
+      const p = t._page ?? 0;
+      const cbcRow = bloodPages.has(p) && (key === "wbc" || key === "rbc");
+      if (!cbcRow) {
+        const u = String(t.unit || "").toLowerCase();
+        let sk = SEMEN_KEY[key];
+        // «Count» با واحدِ «در کلِ انزال» تعدادِ کل است، نه غلظت.
+        if (sk === "SPERM_CONC" && /ejac|انزال/.test(u)) sk = "SPERM_TOTAL";
+        const qk = SEMEN_QUAL_KEY[key];
+        if (sk) {
+          const rawV = String(t.value ?? "").trim();
+          // 🔴 بازبینی: «Azoospermia»/«Nil»/«دیده نشد» به‌جای عدد به semenQual می‌رفت، هیچ قاعده‌ای
+          //    نمی‌خواندش و برگهٔ بیمارِ بی‌اسپرم buildNormalResult («همه‌چیز طبیعی است») می‌گرفت —
+          //    N2 روی مهم‌ترین نتیجهٔ منی. «هیچ اسپرمی» همان عددِ صفر است، نه تفسیر.
+          const noSperm = (sk === "SPERM_CONC" || sk === "SPERM_TOTAL") &&
+            /^(nil|none|zero|absent|azoo|no\s*sperm|not\s*(seen|detected|found)|دیده\s*نشد|مشاهده\s*نشد|ندارد|صفر|-+|—)/i.test(rawV);
+          const nv = toNum(t.value);
+          if (noSperm) tests[sk] = 0;
+          // «<1» یا «>40» عدد نیست؛ toNum علامت را می‌انداخت و «کمتر از ۱» به «۱ میلیون» نقل می‌شد (N5).
+          else if (nv != null && !/[+<>≤≥]/.test(rawV)) tests[sk] = nv;
+          else semenQual[sk] = rawV;
+          continue;
+        }
+        if (qk) { semenQual[qk] = String(t.value); continue; }
+        if (SEMEN_ONLY_MARKERS.has(key) || /^(color|colour|appearance|رنگ|ظاهر)$/.test(key)) {
+          // شناخته‌شده ولی کلیدِ موتور ندارد (زمانِ مایع‌شدن، ویسکوزیته، رنگ…) — نمایش، بی‌تفسیر.
+          semenQual[t.name] = String(t.value);
+          continue;
+        }
+      }
+    }
+
+    // ═══ MoM غلظت نیست ═══
+    // «Free βhCG 1.8 MoM»، «AFP 2.5 MoM»: نسبت به میانهٔ همان هفتهٔ بارداری است، نه مقدار؛
+    // سنجیدنش با بازهٔ غلظت همیشه غلط است. خودِ آزمایشگاه خطر را محاسبه و چاپ کرده (P47، M105).
+    if (/^mom$/i.test(String(t.unit || "").trim())) {
+      unmapped.push(t.name);
+      continue;
+    }
 
     // ═══ لایه ۱: واحد /hpf یا /lpf → میکروسکوپی ادرار، نه شمارش خون ═══
     if (/\/?\s*[hl]pf/i.test(String(t.unit || ""))) {
@@ -722,6 +898,22 @@ export function ocrToEngineInput(ocr) {
       }
     }
 
+    // ═══ تستوسترون — ng/mL در برگه‌های ایرانی رایج است (بازبینی، N3) ═══
+    // 🔴 «Testosterone 4.5 ng/mL» (= ۴۵۰ ng/dL، طبیعی) با حدِ ۳۰۰ ng/dL سنجیده می‌شد و مردِ سالم
+    //    می‌خواند «تستوسترونِ شما 4.5 ng/dL است و از حدِ 300 کمتر است». ضریبِ ۱۰۰ تعریفِ واحد است.
+    //    بی‌واحد → حکم نه: ۴.۵ و ۴۵۰ هر دو محتمل‌اند و حدس زدن از روی عدد همان N3 است.
+    if (engineKey === "TESTO") {
+      const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
+      if (/^ng\/ml$/.test(u)) {
+        const nv = Math.round(v * 100);
+        unitConversions.push({ test: "TESTO", raw: v, from: "ng/mL", value: nv, to: "ng/dL" });
+        v = nv;
+      } else if (!/^(ng\/dl|nmol\/l)$/.test(u)) {
+        unitUnknown.add("TESTO");
+      }
+    }
+    if (/^\s*[<>≤≥]/.test(String(t.value ?? ""))) rawText[engineKey] = String(t.value).trim();
+
     // اوره را همان‌طور که هست نگه می‌داریم و با محدودهٔ مرجعِ خودِ اوره تفسیر می‌کنیم
     // (نه تبدیل به BUN). تبدیل ÷۲.۱۴ فقط داخلی و صرفاً برای شاخصِ BUN/Cr می‌ماند.
     if (engineKey === "UREA") {
@@ -867,6 +1059,9 @@ export function ocrToEngineInput(ocr) {
   return {
     tests,
     qual,
+    semenQual,
+    unitUnknown,
+    rawText,
     unmapped,
     unitConversions,
     diffFailed,
@@ -880,7 +1075,7 @@ export function ocrToEngineInput(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, unmapped, unitConversions, diffFailed, sex, age } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, unitUnknown, rawText, unmapped, unitConversions, diffFailed, sex, age } = ocrToEngineInput(ocr);
 
   const conditions = ocr?.patient?.conditions || [];
   const isCancerPatient = conditions.some((c) => /سرطان|شیمی.?درمانی|رادیوتراپی|ایمونوتراپی/.test(c));
@@ -932,17 +1127,52 @@ export function runEngine(ocr) {
 
   const graded = [];
   const noRef = [];
+  // ═══ کانالِ «شناخته‌شده ولی بی‌قضاوت» (فصل ۲۶، P47؛ طراحیِ مشترک با P46) ═══
+  // مقدارهایی که عمداً با بازه سنجیده نمی‌شوند ولی قاعده‌ای مالکشان است. هر ورودی دلیل دارد:
+  //   pediatric / sex_unknown / cycle_day_unknown / hcg_positive → reproductive_hormone_context
+  //   threshold → قاعدهٔ خودش با آستانهٔ تشخیصیِ تأییدشده (hCG، پروژسترونِ روزِ ۲۱)
+  //   context   → semen_analysis (مدتِ پرهیز، تعدادِ کل)
+  //   no_range  → بازه‌ای تأیید نشده؛ *در noRef هم می‌ماند* تا هشدارِ «تفسیر نشد» به بیمار برسد،
+  //               و فقط برای نقلِ عدد در یافتهٔ دیگر (مثلاً LH/FSH کنارِ تستوسترونِ پایین) اینجاست.
+  // ⚠️ این کانال به _engine سریال نمی‌شود و val(e) آن را نمی‌خواند (N17).
+  const ungraded = {};
+  const hcgPositive = (tests.HCG != null && tests.HCG > HCG_POSITIVE_ABOVE) ||
+    Object.entries(qual).some(([k, v]) => HCG_QUAL_NAME_RE.test(k) && /pos|positive|مثبت|\+/i.test(String(v)));
+  const FEMALE_CYCLE_KEYS = new Set(["LH", "FSH", "E2", "PROG"]);
 
   for (const [key, value] of Object.entries(tests)) {
     if (key.startsWith("_") || key.endsWith("_PCT")) continue;
+
+    if (key === "HCG") {
+      ungraded.HCG = { value, reason: "threshold", ...(rawText.HCG ? { raw: rawText.HCG } : {}) };
+      continue;
+    }
+    if (key === "SPERM_TOTAL" || key === "SEMEN_ABSTINENCE") { ungraded[key] = { value, reason: "context" }; continue; }
+    if (REPRO_HORMONE_KEYS.has(key)) {
+      const reason = (age != null && age < 16) ? "pediatric"
+        : !sex ? "sex_unknown"
+        : (key === "TESTO" && sex === "M" && unitUnknown.has("TESTO")) ? "unit_unknown"
+        : (sex === "F" && FEMALE_CYCLE_KEYS.has(key)) ? "cycle_day_unknown"
+        // آستانهٔ ۳ ng/mL فقط برای زن تأیید شده؛ PROG_D21ِ مرد بی‌مالک بود و بی‌صدا گم می‌شد
+        // (بازبینی) — حالا به noRef می‌رود و هشدارِ «تفسیر نشد» می‌گیرد.
+        : (key === "PROG_D21" && sex === "F") ? (hcgPositive ? "hcg_positive" : "threshold")
+        : null;
+      if (reason) { ungraded[key] = { value, reason }; continue; }
+    }
+
     const ref = getRef(key, sex, age);
-    if (!ref) { noRef.push(key); continue; }
+    if (!ref) {
+      noRef.push(key);
+      if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range" };
+      continue;
+    }
 
     const e = evaluate(key, value, ref[0], ref[1], isCancerPatient);
     graded.push({
       test: key,
       value,
-      range: `${ref[0]}–${ref[1]}`,
+      // بازهٔ یک‌طرفه (فقط حدِ پایین، P47) «≥ حد» نمایش داده می‌شود، نه «16–null».
+      range: ref[1] == null ? `≥ ${ref[0]}` : `${ref[0]}–${ref[1]}`,
       refSource: getRefSource(key, age),
       ...e,
     });
@@ -1011,6 +1241,10 @@ export function runEngine(ocr) {
     sex, age,
     graded,
     qual,
+    // ردیف‌های کیفی/بازه‌ایِ برگهٔ منی (P47). ⚠️ عمداً جدا از qual: قاعده‌های ادرار qual را با
+    // /rbc/ و /wbc/ می‌خوانند. هیچ قاعده‌ای در مرحلهٔ الف این را نمی‌خواند.
+    semenQual,
+    ungraded,
     indices: idx,
     unmapped,
     unitConversions,

@@ -27,6 +27,11 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `8ccd67d`, after Stage B of Henry ch.26 + the agent-review fixes (`M114`–`M120`) — 118 rules | 2026-09-19 | 459 | 442 | **0** | 17 todo |
+   | the Stage B rules dir **before** the review fixes, with the new `engine.test.js` dropped in (engine suite only) — red: exactly `M114`–`M120` (8) | 2026-09-19 | 423 | 398 | **8** | 17 todo |
+   | working tree on `8ccd67d`, after Stage A of Henry ch.26 (`P47`) — `M104`–`M105c`, `M111`, `T18` live; `M106`–`M111b`, `T19` as `todo` (13) | 2026-09-18 | 446 | 419 | **0** | 27 todo |
+   | `HEAD` at `8ccd67d` **with the 9 Stage A guards dropped in** (`git archive` + junction) — red: `M104`, `M104b`, `M105`, `M105b`, `M105c`, `T18`; freezes `M104c`, `M104d`, `M111` green | 2026-09-18 | 433 | 413 | **6** | 14 todo |
+   | working tree on `8ccd67d`, **before** the ch.26 work | 2026-09-18 | 424 | 410 | **0** | 14 todo |
    | working tree on `3416d63`, after Stage A of Henry ch.25 (`P46`) — `M103`, `M103e`, `T17` live; `M101`–`M103d` as `todo` | 2026-09-18 | 424 | 410 | **0** | 14 todo |
    | `HEAD` at `3416d63` **with that `engine.test.js` dropped in** (engine suite only, `git archive` + junction) | 2026-09-18 | 390 | 364 | **12** | 14 todo |
    | working tree on `3416d63`, after the N24 auth/scoping + `_engine.uncovered` work — `T14`–`T16`, `M100`–`M100b` | 2026-09-17 | 407 | 407 | **0** | — |
@@ -280,6 +285,9 @@ khanesh-project/
 │   │   ├── patterns_cardiac.js  # ⭐ فصل ۱۹ هنری — ۴ قاعده، همه روی عددِ «داخلِ محدوده»
 │   │   ├── patterns_endocrine_pituitary.js  # فصل ۲۵ هنری — عمداً خالی تا تأییدِ P46؛
 │   │   │                        #   پرولاکتین/کورتیزول/ACTH فقط شناخته می‌شوند (noRef)
+│   │   ├── patterns_reproductive.js  # فصل ۲۶ هنری — ۵ قاعده، فقط بندهای تأییدشدهٔ P47
+│   │   │                        #   (منی WHO 2021، تستوسترونِ مرد، پروژسترونِ روزِ ۲۱، hCG،
+│   │   │                        #   مقدارهای بی‌قضاوت)؛ ردیف‌های منی در semenQual، نه qual (N25)
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
@@ -358,9 +366,11 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **eleven** `patterns_<system>.js` files and
-concatenates their `RULES_*` exports into the exported `RULES` array — **113 rules, measured
-2026-09-17** with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
+`patterns.js` no longer holds the rules. It imports **thirteen** `patterns_<system>.js` files
+(one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
+2026-09-19) and
+concatenates their `RULES_*` exports into the exported `RULES` array — **118 rules, measured
+2026-09-19** (113 plus the five `P47` Stage B rules in `patterns_reproductive.js`) with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
 `liver_injury_pattern` was deleted, then 113 once `overt_hypothyroidism` and
 `overt_thyrotoxicosis` went — see N20 with `P43` and `P45`); it still owns `runPatterns()`,
 `SUGGEST_TESTS`, and the suppression/dedup logic. So:
@@ -1564,6 +1574,62 @@ audit, not by a test. Not a clinical rule — it is the patient's whole interpre
   (does not exist anywhere). Every graph failure therefore hit "Fallback failed" and a 500. It now
   calls `buildEngineFallbackResult()`, which is the real engine-only path. **A fallback that has
   never run is not a fallback**; if you write one, make a test take that branch.
+
+### N25 — A row name is not an identity; the page it sits on is part of the key
+2026-09-18, Henry ch.26 Stage A (`P47`). Found by probing the live engine before writing the spec,
+not by a test.
+
+- **Tried (implicitly, for as long as the adapter has existed):** resolve a row by its printed
+  name alone — `pH` is urine pH unless an ABG is present, `WBC`/`RBC` are blood unless the page
+  looks like a urinalysis.
+- **Broke:** a **semen analysis** prints `pH`, `WBC`, `RBC`, `Volume` and `Count`, the same words.
+  Measured on `8ccd67d`, the panel `Volume 2.5 · pH 8.4 · Count 40 million/mL · WBC 15-20 ·
+  RBC 8-10 · Motility 45 %` fired `hematuria`, and the patient read «در آزمایش ادرار شما خون
+  (گلبول قرمز) دیده شده است» about a sheet that is not a urine test. Not a silence: a
+  confidently wrong finding.
+- **The obvious fix was also wrong, and that's the reusable part.** Re-labelling the rows
+  «Semen RBC» and leaving them in `qual` would have changed nothing. The urine rules look in
+  `qual` with `/rbc/` and `/wbc/` on **any** key (`urineCellCount(e, /rbc|…/)`), so a
+  differently-named row matches just the same. The rows needed a **separate channel**
+  (`semenQual`), not a different name. Before re-labelling anything to hide it from a rule, read
+  how the rule looks it up.
+- **The same shape one layer up, in `mergePages`:** rows from different pages were deduplicated
+  by name, and the first one won. With a CBC page and a semen page both printing `WBC`, uploading
+  the semen page first **silently deleted the CBC's WBC**: the N2 class, on the most common test
+  in the app. It is fixed by prefixing semen-page rows with `semen:` in the merge key.
+- **Order mattered twice.** The semen layer has to run before the `/hpf` layer, because semen
+  WBC/RBC are usually printed per `/hpf` and would otherwise be taken as urine first. And the
+  semen-unit test has to require **mL**, never µL, because blood RBC is printed `10*6/µL`, and
+  matching that would turn every CBC into a semen page (`M104b`).
+- **Rule:** whenever two kinds of report share a vocabulary (urine / semen / CBC / ABG), the
+  identity of a row is `(page kind, name)`, not `name`. Adding a new kind of report means
+  checking three places: the adapter's layer order, every rule that searches `qual` by regex,
+  and the merge key.
+- **Known limit, by decision (clarify Q4):** a page counts as semen only when it has a
+  semen-only row name (Motility, Morphology, Sperm, …) or a semen-only unit. A page with *only*
+  `Volume/pH/Count/WBC/RBC` and neither signal is still read as urine. OCR returns no section
+  title, so there is nothing else to go on. Adding one to `OCR_PROMPT` is a recorded follow-up in
+  `P47`.
+- **Guards:** `M104`, `M104b`, `T18` (red on `8ccd67d`, measured with the archive + junction
+  recipe: `433 · 413 · 6 fail`, the 6 being these three plus `M105`–`M105c`); `M104c`, `M104d`
+  (freezes: mixed CBC+semen page, and 12 urine/CBC-only panels unchanged byte-for-byte).
+- ⚠️ **Recurred in Stage B, both directions, caught by the two review agents before commit
+  (2026-09-19).** The page detector was made too *eager*: a single `Sperm` row, which Iranian
+  urinalysis microscopy prints routinely, turned a urine page into a semen page. Its WBC/RBC left
+  `qual`, `hematuria` vanished, and the urine pH was graded as «pHِ مایع منی ۵.۵، پایین». It was
+  also too *strict*: `×10⁶/ml` with a superscript six didn't match the unit regex, so a real semen
+  page fell back to urine and its RBC fired `hematuria` again. **A page-kind detector has two error
+  directions; test a panel for each** (`M114`, `M118`). Words shared by two report kinds
+  (`Sperm`, `Morphology`) are *weak* evidence and count only when the page shows no sign of the
+  other kind.
+- **Same review, the N3 and N2 classes on the new analytes.** Testosterone printed in `ng/mL`
+  (common on Iranian sheets) was graded against a `ng/dL` limit, so a healthy man read «تستوسترونِ
+  شما 4.5 ng/dL است و از حدِ 300 کمتر است». It is now converted ×100, and **with no unit it is not
+  graded at all** (`unit_unknown`), because 4.5 and 450 are both plausible (`M115`). And
+  «Sperm Count: Azoospermia» as *text* went to `semenQual`, which nothing read, so an azoospermic
+  patient reached `buildNormalResult()` (`M116`). **Every row routed into a side channel needs a
+  reader, or the channel is a silent drop** (`M116b`: `/hpf` leukocytes and Grade a–d motility are
+  now named without a verdict).
 
 ---
 

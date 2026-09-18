@@ -6259,3 +6259,523 @@ test("M103d: هیچ یافتهٔ فصل ۲۵ اورژانس نیست، و هر �
   }
   assert.deepEqual([...reached].sort(), [...PIT_ALL].sort());
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// فصل ۲۶ هنری — باروری، ناباروری، hCG (P47) — مرحلهٔ الف
+// ═══════════════════════════════════════════════════════════════════════════
+// طراحی: specs/002-reproductive-fertility-rules/. مرحلهٔ الف هیچ ادعای بالینیِ تازه‌ای
+// نمی‌سازد: (۱) برگهٔ آنالیزِ منی دیگر آزمایش ادرار خوانده نمی‌شود، (۲) نام‌ها و واحدهای
+// دقیق شناخته می‌شوند و بی‌بازه به noRef می‌روند.
+import crypto from "node:crypto";
+
+const semRow = ([name, value, unit]) => ({ name, value, ...(unit ? { unit } : {}) });
+const semEngine = (rows, patient = { age: 35, sex: "M" }) => runEngine({ patient, tests: rows.map(semRow) });
+const semRun = (rows, patient) => runPatterns(semEngine(rows, patient));
+
+// اثرِ انگشتِ خروجی: یافته‌ها (با متن)، نمره‌ها و کیفی‌ها. ⚠️ noRef/unmapped عمداً بیرون‌اند:
+// این آزمون‌ها ثابت ماندنِ *تفسیر* را می‌سنجند، نه اینکه کلیدِ تازه‌ای شناخته شده یا نه.
+function semSnap([patient, rows]) {
+  const e = semEngine(rows, patient);
+  const p = runPatterns(e);
+  const f = p.findings.map((x) => [x.pattern, x.urgency, x.headline, x.must_say, x.action]);
+  const g = e.graded.map((x) => [x.test, x.value, !!x.abnormal]);
+  return crypto.createHash("sha1").update(JSON.stringify({ f, g, q: e.qual })).digest("hex").slice(0, 16);
+}
+
+// نمونهٔ اندازه‌گیری‌شدهٔ research R2 — روی 8ccd67d «hematuria» می‌ساخت.
+const SEM_PROBE = [["Volume", "2.5", "mL"], ["pH", "8.4"], ["Count", "40", "million/mL"],
+  ["WBC", "15-20"], ["RBC", "8-10"], ["Motility", "45", "%"]];
+const URINE_FINDING = /hematuria|pyuria|^uti|_uti|urine|proteinuria|glycosuria|ketonuria|bacteriuria|nitrite/i;
+
+test("M104: برگهٔ آنالیزِ منی هیچ یافتهٔ ادراری نمی‌سازد (pH/WBC/RBCِ منی ≠ ادرار)", () => {
+  // 🔴 باگِ واقعی (P47): روی برگهٔ منی `RBC 8-10` به «گلبول قرمزِ ادرار» تبدیل می‌شد و
+  //    بیمار می‌خواند «در آزمایش ادرار شما خون (گلبول قرمز) دیده شده است».
+  //    قاعده‌های ادرار qual را با /rbc/ و /wbc/ روی هر نامی جست‌وجو می‌کنند، پس ردیفِ منی
+  //    نباید حتی با نامِ «Semen RBC» به qual برود — کانالِ جدای semenQual.
+  for (const rows of [SEM_PROBE, [["Sperm Motility", "35", "%"], ["pH", "8.4"], ["WBC", "15-20"], ["RBC", "8-10"]]]) {
+    const e = semEngine(rows);
+    const p = runPatterns(e);
+    const bad = p.findings.filter((f) => URINE_FINDING.test(f.pattern) || /ادرار/.test(f.headline ?? ""));
+    assert.deepEqual(bad.map((f) => f.pattern), [], `یافتهٔ ادراری روی برگهٔ منی: ${bad.map((f) => f.pattern)}`);
+    const urineish = Object.keys(e.qual).filter((k) => /ph|rbc|wbc|pus/i.test(k));
+    assert.deepEqual(urineish, [], `ردیفِ منی در qual (که قاعده‌های ادرار می‌خوانند): ${urineish}`);
+    assert.equal(e.semenQual?.SEMEN_RBC, "8-10");
+    assert.equal(e.semenQual?.SEMEN_WBC, "15-20");
+    // مرحلهٔ ب (P47 #7): pHِ منی حالا بازه دارد و نمره می‌گیرد؛ پیش از آن در noRef بود.
+    assert.ok(e.noRef.includes("SEMEN_PH") || e.graded.some((g) => g.test === "SEMEN_PH"), `pHِ منی شناخته نشد: noRef=${e.noRef}`);
+  }
+});
+
+test("M104b: واحدِ million/mL صفحه را منی می‌کند؛ 10*6/µLِ CBC نه؛ ‎/hpfِ منی به ادرار نمی‌رود", () => {
+  // فقط واحد (بدونِ نامِ مخصوصِ منی): «Count 40 million/mL» کافی است.
+  const byUnit = semEngine([["Count", "40", "million/mL"], ["RBC", "8-10", "/hpf"], ["pH", "8.2"]]);
+  assert.equal(byUnit.semenQual?.SEMEN_RBC, "8-10", "RBC /hpf روی صفحهٔ منی به ادرار رفت (لایهٔ ۰ باید پیش از /hpf بیاید)");
+  assert.ok(!("Urine pH" in byUnit.qual), "pHِ صفحهٔ منی Urine pH شد");
+  assert.ok(byUnit.noRef.includes("SPERM_CONC") || byUnit.graded.some((g) => g.test === "SPERM_CONC"));
+  // ⚠️ RBCِ خون با 10*6/µL چاپ می‌شود؛ این صفحه منی نیست و RBC مثلِ امروز نمره می‌گیرد.
+  const cbc = semEngine([["RBC", "4.5", "10*6/µL"], ["Hb", "13"]], { age: 45, sex: "F" });
+  assert.equal(cbc.semenQual?.SEMEN_RBC, undefined);
+  assert.ok(cbc.graded.some((g) => g.test === "RBC" && g.value === 4.5), "RBCِ CBC دیگر نمره نگرفت");
+});
+
+test("M104c: صفحهٔ مخلوطِ CBC + ردیفِ منی — WBC/RBCِ خون دقیقاً مثلِ امروز می‌مانند", () => {
+  const cbc = [["WBC", "7.2"], ["RBC", "4.5", "10*6/µL"], ["Hb", "13"], ["MCV", "88"], ["PLT", "250"]];
+  // تحرکِ ۶۰٪ عمداً طبیعی است (WHO 2021 ≥ ۴۲): این آزمون فقط «دست نخوردنِ خون» را می‌سنجد.
+  const withSemen = [...cbc, ["Motility", "60", "%"]];
+  const a = semEngine(cbc, { age: 45, sex: "F" });
+  const b = semEngine(withSemen, { age: 45, sex: "F" });
+  // ردیف‌های منی (SPERM_*) از مرحلهٔ ب نمره می‌گیرند؛ این آزمون فقط ردیف‌های *خون* را می‌سنجد.
+  const blood = (e) => e.graded.filter((g) => !/^(SEMEN_|SPERM_)/.test(g.test)).map((g) => [g.test, g.value]);
+  assert.deepEqual(blood(b), blood(a));
+  assert.deepEqual(runPatterns(b).findings.map((f) => f.pattern), runPatterns(a).findings.map((f) => f.pattern));
+  assert.equal(b.semenQual?.SEMEN_WBC, undefined, "WBCِ CBC به منی منتقل شد");
+});
+
+test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر بایت‌به‌بایت همان امروز (انجماد)", () => {
+  // اثرِ انگشت‌ها روی 8ccd67d، پیش از هر تغییرِ این ویژگی، از اجرای موتور گرفته شد.
+  const P = {
+    U1: [{ age: 30, sex: "F" }, [["Color", "Yellow"], ["Appearance", "Clear"], ["Specific Gravity", "1.020"], ["pH", "6"], ["WBC", "15-20", "/hpf"], ["RBC", "8-10", "/hpf"]], "0989aab4e8a563d0"],
+    U2: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.015"], ["Nitrite", "Positive"], ["Leukocyte Esterase", "Positive"], ["WBC", "20-25"]], "2832a8a1c5b4e9c6"],
+    U3: [{ age: 50, sex: "M" }, [["Urine Protein", "3+"], ["Urine Glucose", "2+"], ["Ketone", "2+"]], "84811a0618256be2"],
+    U4: [{ age: 30, sex: "M" }, [["pH", "5"], ["Specific Gravity", "1.030"], ["Bacteria", "Many"]], "068beea39e49c8df"],
+    U5: [{ age: 60, sex: "M" }, [["Urine Blood", "2+"], ["RBC", "10-12", "/hpf"], ["Pus cells", "2-3"]], "562daaa177d9d3a6"],
+    U6: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.010"], ["pH", "7"]], "3dad4d8c56968631"],
+    C1: [{ age: 40, sex: "M" }, [["WBC", "7000"], ["RBC", "4.8"], ["Hb", "14"], ["PLT", "250000"], ["MCV", "88"]], "7dd79d6187162b00"],
+    C2: [{ age: 40, sex: "M" }, [["WBC", "15.2"], ["Neut %", "85"], ["PLT", "120"]], "edaafc0eb1d80fca"],
+    C3: [{ age: 35, sex: "F" }, [["Hb", "9.5"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "8116a638fd8de1b0"],
+    C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8"]], "a8529e980e227c50"],
+    C5: [{ age: 45, sex: "M" }, [["RBC", "6.4", "10*6/µL"], ["Hb", "17.5"], ["HCT", "53"]], "521210ad11ce80a9"],
+    C6: [{ age: 45, sex: "F" }, [["WBC", "7.2"], ["RBC", "4.5", "10*6/µL"], ["Hb", "13"], ["MCV", "88"], ["PLT", "250"]], "34fddffb77c6a593"],
+  };
+  for (const [id, [patient, rows, want]] of Object.entries(P)) {
+    assert.equal(semSnap([patient, rows]), want, `تفسیرِ پنلِ ${id} عوض شد`);
+  }
+});
+
+test("M105: املاهای تازه به کلیدِ درست می‌رسند — و برخوردهای نام بسته‌اند", () => {
+  const keyOf = (name, value = "5", unit, patient = { age: 30, sex: "F" }) => {
+    const e = runEngine({ patient, tests: [semRow([name, value, unit])] });
+    const g = e.graded.find(() => true)?.test;
+    // مرحلهٔ ب: کلیدِ شناخته‌شدهٔ بی‌قضاوت در ungraded است (LH/FSHِ بی‌روزِ زن، hCG، …).
+    return g ?? e.noRef[0] ?? Object.keys(e.ungraded ?? {})[0] ??
+      (e.unmapped.length ? "UNMAPPED" : Object.keys(e.qual)[0] ? "QUAL" : "NONE");
+  };
+  const want = {
+    Testosterone: "TESTO", "Total Testosterone": "TESTO", "تستوسترون": "TESTO",
+    LH: "LH", FSH: "FSH", "FSH Day 3": "FSH_D3", "Day 3 FSH": "FSH_D3", "FSH (روز ۳)": "FSH_D3",
+    "LH Day 3": "LH_D3", Estradiol: "E2", E2: "E2", "Estradiol Day 3": "E2_D3", "استرادیول": "E2",
+    Progesterone: "PROG", "پروژسترون": "PROG", "Progesterone Day 21": "PROG_D21", "پروژسترون روز ۲۱": "PROG_D21",
+    AMH: "AMH", "Anti Mullerian Hormone": "AMH", "DHEA-S": "DHEAS", "DHEA Sulfate": "DHEAS",
+    "17-OH Progesterone": "OHP17", "17 Hydroxyprogesterone": "OHP17",
+    "Beta HCG": "HCG", "B-HCG": "HCG", "β-hCG": "HCG", "Serum HCG": "HCG",
+  };
+  for (const [name, key] of Object.entries(want)) assert.equal(keyOf(name), key, `«${name}» → ${keyOf(name)}، باید ${key}`);
+  // برخوردها — هر کدام یک شکستِ واقعیِ ممکن است (N2)
+  assert.notEqual(keyOf("17-OH Progesterone"), "PROG", "17-OHP به پروژسترون نگاشت شد");
+  assert.equal(keyOf("Free Beta HCG"), "UNMAPPED", "βِ آزادِ غربالگری hCGِ سرم خوانده شد");
+  assert.equal(keyOf("Beta HCG", "1.8", "MoM"), "UNMAPPED", "مقدارِ MoM به‌عنوانِ غلظت خوانده شد");
+  assert.equal(keyOf("Free Testosterone"), "UNMAPPED", "تستوسترونِ آزاد تستوسترونِ تام خوانده شد");
+  assert.equal(keyOf("AFP"), "UNMAPPED", "AFP (دو معنا) نگاشت شد");
+  assert.equal(keyOf("Count", "40"), "UNMAPPED", "«Count» بیرون از صفحهٔ منی شمارشِ اسپرم شد");
+  // hCGِ کیفی کیفی می‌ماند (N6)
+  const q = runEngine({ patient: { age: 30, sex: "F" }, tests: [semRow(["Beta HCG", "Positive"])] });
+  assert.equal(Object.values(q.qual)[0], "Positive");
+  // روی صفحهٔ منی
+  const s = semEngine([["Sperm Count", "40", "million/mL"], ["Progressive Motility", "30", "%"],
+    ["Morphology", "5", "%"], ["Volume", "2.5", "mL"], ["Abstinence", "3"], ["Total Motility", "50", "%"]]);
+  for (const k of ["SPERM_CONC", "SPERM_MOT_PROG", "SPERM_MORPH", "SEMEN_VOL", "SEMEN_ABSTINENCE", "SPERM_MOT_TOTAL"]) {
+    const known = s.noRef.includes(k) || s.graded.some((g) => g.test === k) || k in (s.ungraded ?? {});
+    assert.ok(known, `${k} شناخته نشد: noRef=${s.noRef} unmapped=${s.unmapped}`);
+  }
+});
+
+test("M105b: همهٔ کلیدهای فصل ۲۶ نامِ فارسیِ مصوبِ قرارداد را دارند", () => {
+  // متن‌ها عیناً از specs/002-reproductive-fertility-rules/contracts/engine-output.md.
+  const want = {
+    SEMEN_VOL: "حجم مایع منی", SPERM_CONC: "غلظت اسپرم", SPERM_TOTAL: "تعداد کل اسپرم",
+    SPERM_MOT_TOTAL: "تحرک کل اسپرم", SPERM_MOT_PROG: "تحرک پیش‌رونده اسپرم",
+    SPERM_MORPH: "شکل طبیعی اسپرم (مورفولوژی)", SEMEN_PH: "pH مایع منی",
+    SEMEN_ABSTINENCE: "مدت پرهیز پیش از نمونه‌گیری", SEMEN_WBC: "گلبول سفید در مایع منی",
+    SEMEN_RBC: "گلبول قرمز در مایع منی", SEMEN_FRUCTOSE: "فروکتوز مایع منی",
+    SEMEN_ACP: "اسید فسفاتاز مایع منی", SEMEN_NAG: "آلفاگلوکوزیداز خنثی مایع منی",
+    TESTO: "تستوسترون", LH: "هورمون LH", FSH: "هورمون FSH",
+    LH_D3: "هورمون LH (روز سوم قاعدگی)", FSH_D3: "هورمون FSH (روز سوم قاعدگی)",
+    E2: "استرادیول", E2_D3: "استرادیول (روز سوم قاعدگی)", PROG: "پروژسترون",
+    PROG_D21: "پروژسترون (روز ۲۱ قاعدگی)", AMH: "هورمون AMH (ذخیره تخمدان)",
+    DHEAS: "DHEA-S", OHP17: "۱۷-هیدروکسی‌پروژسترون", HCG: "بتا اچ‌سی‌جی (تست بارداری خون)",
+  };
+  for (const [k, fa] of Object.entries(want)) assert.equal(FA_NAMES[k], fa, `FA_NAMES.${k}`);
+});
+
+test("M105c: تبدیل‌های دقیقِ واحد (جرمِ مولی) — و AMH عمداً تبدیل نمی‌شود", () => {
+  const conv = (name, value, unit) => {
+    const e = runEngine({ patient: { age: 30, sex: "F" }, tests: [semRow([name, value, unit])] });
+    return e.unitConversions[0]?.value ?? null;
+  };
+  const near = (a, b, msg) => assert.ok(a != null && Math.abs(a - b) < 0.02 * b, `${msg}: ${a} ≠ ${b}`);
+  near(conv("Testosterone", "10", "nmol/L"), 288.4, "تستوسترون nmol/L × ۲۸.۸۴");
+  near(conv("Estradiol", "367.1", "pmol/L"), 100, "استرادیول pmol/L ÷ ۳.۶۷۱");
+  near(conv("Progesterone", "31.8", "nmol/L"), 10, "پروژسترون nmol/L ÷ ۳.۱۸");
+  near(conv("17-OH Progesterone", "3.026", "nmol/L"), 1, "17-OHP nmol/L ÷ ۳.۰۲۶");
+  near(conv("DHEA-S", "5", "µmol/L"), 184.25, "DHEA-S µmol/L × ۳۶.۸۵");
+  // ⚠️ AMH pmol/L ÷ ۷.۱۴ قرارداد است، نه اتحادِ مولی — بندِ ۱۷ِ P47، منتظرِ بازبین.
+  assert.equal(conv("AMH", "20", "pmol/L"), null, "AMH بی‌تأییدِ بازبین تبدیل شد");
+  // بدونِ واحدِ چاپی هیچ تبدیلی نیست (N3).
+  assert.equal(conv("Testosterone", "10"), null);
+});
+
+test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ امروز منجمد؛ نه پره‌اکلامپسی، نه هیپرپرولاکتینمی", () => {
+  // DSL پره‌اکلامپسی، پروتئینوری و کم‌کاریِ تیروئید را دارد؛ موتور مؤلفه‌ها را همین حالا
+  // تفسیر می‌کند و شاخه‌های پرولاکتین مالِ P46 است. این آزمون ثابت می‌کند فصل ۲۶ به این‌ها
+  // هیچ یافتهٔ تازه‌ای اضافه نکرده است. اثرِ انگشت‌ها روی 8ccd67d گرفته شد.
+  const P = {
+    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2"], ["AST", "90"], ["ALT", "80"]], "aba7975a9da4b5eb"],
+    uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
+    thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6"]], "7ef4e21f6af2d814"],
+    prl_thyroid: [{ age: 29, sex: "F" }, [["Prolactin", "80"], ["TSH", "8"], ["FT4", "0.6"]], "7ef4e21f6af2d814"],
+  };
+  for (const [id, [patient, rows, want]] of Object.entries(P)) {
+    assert.equal(semSnap([patient, rows]), want, `تفسیرِ پنلِ تکراریِ ${id} عوض شد`);
+    const pats = semRun(rows, patient).findings.map((f) => f.pattern);
+    assert.ok(!pats.some((x) => /preeclamp|hyperprolactin/i.test(x)), `یافتهٔ ممنوع: ${pats}`);
+  }
+});
+
+
+// ── فصل ۲۶ — مرحلهٔ ب (P47، ۲۷ شهریور ۱۴۰۵): بندهای منبع‌دارِ تأییدشده زنده‌اند ──
+// تأییدِ بازبین: بندهای ۱–۱۰، ۱۵، ۲۱، ۲۲ (WHO 2021 برای منی). بندهای بی‌منبع (۱۱–۱۴، ۱۶–۲۰)
+// هنوز `todo`اند: تا تأیید قرمز می‌مانند و هوک را نمی‌بندند.
+const reproText = (f) => [f?.headline, f?.must_say, f?.action, ...(f?.suggest ?? []), ...(f?.warnings ?? [])]
+  .filter(Boolean).join(" ");
+const reproFind = (p, id) => p.findings.find((f) => f.pattern === id);
+const SEMEN_BASE = [["Volume", "3", "mL"], ["Sperm Count", "60", "million/mL"], ["Total Motility", "60", "%"],
+  ["Progressive Motility", "45", "%"], ["Morphology", "8", "%"], ["pH", "7.6"]];
+const semenWith = (over) => SEMEN_BASE.map(([n, v, u]) => (over[n] != null ? [n, over[n], u] : [n, v, u]))
+  .concat(Object.entries(over).filter(([n]) => !SEMEN_BASE.some(([b]) => b === n)).map(([n, v]) => [n, v]));
+const semenFinding = (over) => reproFind(semRun(semenWith(over)), "semen_analysis");
+const RULES_REPRODUCTIVE_LIVE = ["semen_analysis", "male_gonadal_axis", "luteal_progesterone",
+  "hcg_result", "reproductive_hormone_context"];
+
+test("M106: آنالیزِ منی (WHO 2021) — یک یافته، اصطلاحِ درست، بی «نابارور»", () => {
+  for (const [over, re] of [
+    [{ "Sperm Count": "8" }, /الیگواسپرمی/],
+    [{ "Total Motility": "35", "Progressive Motility": "20" }, /آستنواسپرمی/],
+    [{ Morphology: "2" }, /تراتواسپرمی/],
+  ]) {
+    const p = semRun(semenWith(over));
+    const fs_ = p.findings.filter((f) => f.pattern === "semen_analysis");
+    assert.equal(fs_.length, 1, `یک یافتهٔ منی انتظار می‌رفت: ${JSON.stringify(over)}`);
+    const t = reproText(fs_[0]);
+    assert.match(t, re);
+    assert.match(t, /یک نمونهٔ مایع منی برای قضاوت کافی نیست/);
+    // «متخصص ناباروری» مجاز است؛ «شما نابارورید» نه.
+    assert.doesNotMatch(t, /شما نابارور|نابارور هستید|نابارورید|باروری عالی/);
+    assert.equal(fs_[0].urgency, "routine");
+    assert.ok(!(p.findings.find((f) => f.pattern === "unmatched_abnormal")), "کلیدِ منی بی‌مالک ماند");
+  }
+  // حجمِ کم با غلظتِ طبیعی ≠ الیگواسپرمی (P47، ایرادِ ۲ِ DSL)
+  const lowVol = reproText(semenFinding({ Volume: "0.8" }));
+  assert.match(lowVol, /حجم/);
+  assert.doesNotMatch(lowVol, /الیگواسپرمی/, "حجمِ کم الیگواسپرمی نامیده شد");
+  // لبهٔ WHO 2021: غلظتِ ۱۶ طبیعی، ۱۵ کم (در WHO 2010 ۱۵ طبیعی بود — انتخابِ بازبین).
+  assert.equal(semenFinding({ "Sperm Count": "16" }), undefined);
+  assert.match(reproText(semenFinding({ "Sperm Count": "15" })), /الیگواسپرمی/);
+  // همه طبیعی → هیچ یافتهٔ منی، و برگه «طبیعی» است (نه مسیرِ قدیم).
+  assert.equal(semenFinding({}), undefined);
+});
+
+test("M106b: آزواسپرمی × فروکتوز سه‌حالته؛ پرهیز فقط وقتی چاپ شده؛ زنده‌مانی زیرِ ۳۰٪", () => {
+  const absent = reproText(semenFinding({ "Sperm Count": "0", Fructose: "Absent" }));
+  const present = reproText(semenFinding({ "Sperm Count": "0", Fructose: "Present" }));
+  const unmeasured = reproText(semenFinding({ "Sperm Count": "0" }));
+  assert.match(absent, /آزواسپرمی/);
+  assert.equal(new Set([absent, present, unmeasured]).size, 3, "سه حالتِ فروکتوز متنِ متمایز نساختند");
+  assert.match(absent, /مادرزادی/); assert.match(present, /کیسه‌های منی کار می‌کنند/);
+  assert.match(unmeasured, /فروکتوزِ مایع منی روی برگهٔ شما نیست/);
+  const t = (ab) => reproText(semenFinding({ "Sperm Count": "5", ...(ab != null ? { Abstinence: ab } : {}) }));
+  assert.match(t("1"), /کمتر از ۲|کمتر از 2/);
+  assert.match(t("9"), /بیشتر از ۵|بیشتر از 5/);
+  assert.doesNotMatch(t("3"), /پرهیز/);
+  assert.doesNotMatch(t(null), /پرهیز/, "پرهیزِ چاپ‌نشده ادعا ساخت");
+  assert.match(reproText(semenFinding({ "Total Motility": "20", "Progressive Motility": "10" })), /زنده‌مانی/);
+  assert.doesNotMatch(reproText(semenFinding({ "Total Motility": "35", "Progressive Motility": "20" })), /زنده‌مانی/);
+});
+
+test("M106c: ریخت‌شناسیِ دقیقاً ۴٪ طبیعی است، ۳٪ تراتو — شکافِ «۴» در DSL بسته (N19)", () => {
+  assert.equal(getRef("SPERM_MORPH", "M", 35)[0], 4);
+  assert.equal(semenFinding({ Morphology: "4" }), undefined, "ریخت‌شناسیِ ۴٪ غیرطبیعی خوانده شد");
+  assert.match(reproText(semenFinding({ Morphology: "3" })), /تراتواسپرمی/);
+});
+
+test("M106d: pHِ بالای منی + اسید فسفاتازِ کم → پروستات؛ اسید فسفاتازِ ناموجود → بی‌ادعا", () => {
+  assert.match(reproText(semenFinding({ pH: "8.5", "Acid Phosphatase": "Low" })), /پروستات/);
+  assert.doesNotMatch(reproText(semenFinding({ pH: "8.5" })), /پروستات/);
+});
+
+test("M107: تستوسترونِ پایینِ مرد — دو نمونهٔ صبحگاهی؛ LH/FSH سه‌حالته و بی‌حکمِ منشأ", () => {
+  const man = { age: 40, sex: "M" };
+  const t = (rows) => reproText(reproFind(semRun(rows, man), "male_gonadal_axis"));
+  const both = t([["Testosterone", "180", "ng/dL"], ["LH", "25"], ["FSH", "30"]]);
+  const one = t([["Testosterone", "180", "ng/dL"], ["LH", "25"]]);
+  const none = t([["Testosterone", "180", "ng/dL"]]);
+  assert.equal(new Set([both, one, none]).size, 3);
+  assert.match(both, /LHِ شما 25/); assert.match(one, /FSH روی برگهٔ شما نیست/);
+  assert.match(none, /LH و FSH .*روی برگهٔ شما نیست/);
+  for (const s of [both, one, none]) {
+    assert.match(s, /دو نمونهٔ صبحگاهی/);
+    assert.doesNotMatch(s, /تأیید شد|قطعی|نارسایی بیضه دارید/);
+  }
+  // بازهٔ LH/FSHِ مرد تأیید نشده (بند ۱۱) — منشأ حکم نمی‌شود.
+  assert.doesNotMatch(both, /علت در بیضه است\b|منشأ .* است\./);
+  assert.equal(reproFind(semRun([["Testosterone", "400", "ng/dL"]], man), "male_gonadal_axis"), undefined);
+  // تستوسترونِ زن بازهٔ تأییدشده ندارد (بند ۲۰) → noRef، بی‌یافته.
+  const w = semEngine([["Testosterone", "180", "ng/dL"]], { age: 30, sex: "F" });
+  assert.ok(w.noRef.includes("TESTO"));
+  assert.equal(reproFind(runPatterns(w), "male_gonadal_axis"), undefined);
+});
+
+test("M107b: آسیبِ لوله‌های منی‌ساز (FSHِ بالا + الیگواسپرمی)", { todo: "P47 #11 — بازهٔ FSHِ مرد منبع ندارد" }, () => {
+  const man = { age: 35, sex: "M" };
+  const p = semRun([...semenWith({ "Sperm Count": "3" }), ["Testosterone", "500", "ng/dL"], ["LH", "5"], ["FSH", "25"]], man);
+  assert.match(reproText(reproFind(p, "male_gonadal_axis")), /لوله/);
+});
+
+test("M108: محورِ زن — روزِ سوم؛ یائسگی در برابرِ نارسایی", { todo: "P47 #12–14 — بازه‌های روزِ سوم و سنِ یائسگی منبع ندارند" }, () => {
+  const young = semRun([["FSH Day 3", "45"], ["LH Day 3", "30"]], { age: 30, sex: "F" });
+  assert.match(reproText(reproFind(young, "female_ovarian_axis")), /تخمدان/);
+  const normal = semRun([["FSH Day 3", "6"], ["LH Day 3", "5"]], { age: 30, sex: "F" });
+  assert.equal(reproFind(normal, "female_ovarian_axis"), undefined, "زنِ سالم الگوی مرکزی گرفت");
+});
+
+test("M108b: AMH و آندروژن‌های زن — سه‌حالته، بی‌تشخیصِ قطعی", { todo: "P47 #16، #18–20 — بی‌منبع" }, () => {
+  const w = { age: 30, sex: "F" };
+  assert.doesNotMatch(reproText(reproFind(semRun([["AMH", "15"]], w), "amh_level")), /PCOS دارید/);
+  assert.match(reproText(reproFind(semRun([["DHEA-S", "900"]], w), "female_androgen_excess")), /آدرنال/);
+});
+
+test("M108c: FSHِ بی‌روزِ زن بی‌قضاوت، با جملهٔ مصوب — و در noRef نیست (بازه هست، روز نیست)", () => {
+  const e = semEngine([["FSH", "12"]], { age: 30, sex: "F" });
+  assert.equal(e.ungraded.FSH?.reason, "cycle_day_unknown");
+  assert.ok(!e.noRef.includes("FSH"), "FSHِ بی‌روز «محدوده مرجع نداریم» گرفت — که دروغ است");
+  const f = reproFind(runPatterns(e), "reproductive_hormone_context");
+  assert.ok(f);
+  assert.match(f.must_say, /مقدار این هورمون در روزهای مختلفِ چرخهٔ قاعدگی بسیار فرق می‌کند/);
+  assert.match(f.must_say, /هورمون FSH/, "نامِ فارسی نیامد");
+  assert.doesNotMatch(f.must_say, /\bFSH\b(?!\s*\()/.source === "" ? /$^/ : /\bFSH_/);
+});
+
+test("M108d: پروژسترونِ روزِ ۲۱ — > ۳ تخمک‌گذاری؛ ۳ و کمتر «پایین» با قیدِ زمان‌بندی", () => {
+  const w = { age: 30, sex: "F" };
+  const f = (v) => reproFind(semRun([["Progesterone Day 21", String(v)]], w), "luteal_progesterone");
+  assert.match(f(12).headline, /سازگار است/);
+  assert.match(f(3).headline, /پایین است/, "۳ خودش «بیشتر از ۳» نیست");
+  assert.match(reproText(f(1.5)), /چرخهٔ ۲۸ روزه/);
+  for (const v of [12, 1.5]) assert.equal(f(v).urgency, "routine");
+});
+
+test("M109: بتا اچ‌سی‌جی — زن مثبت/منفی (> ۵)، مرد this_week، جنسیتِ نامعلوم، MoM بیرون، بی‌واژهٔ ممنوع", () => {
+  const w = { age: 28, sex: "F" };
+  const f = (v, p = w, unit) => reproFind(semRun([["Beta HCG", String(v), unit]], p), "hcg_result");
+  assert.match(f(1200).headline, /مثبت/);
+  assert.match(f(5).headline, /منفی/, "۵ خودش «بیشتر از ۵» نیست");
+  assert.match(f(2).headline, /منفی/);
+  assert.match(f("Positive").headline, /مثبت/);
+  assert.match(f("Negative").headline, /منفی/);
+  const man = f(50, { age: 30, sex: "M" });
+  assert.equal(man.urgency, "this_week");
+  assert.doesNotMatch(reproText(man), /با بارداری سازگار است/);
+  assert.equal(f(2, { age: 30, sex: "M" }), undefined, "hCGِ منفیِ مرد یافته ساخت");
+  assert.match(reproText(f(50, { age: 30 })), /جنسیت روی برگه مشخص نیست/);
+  for (const v of [1200, 2, "Positive"]) {
+    assert.doesNotMatch(reproText(f(v)), /نابجا|سقط|سالم بودن بارداری|هفتهٔ بارداری|سنِ بارداری/);
+  }
+  assert.equal(f("1.8", w, "MoM"), undefined, "MoMِ غربالگری hCGِ سرم خوانده شد");
+  // برگهٔ فقط-hCG دیگر «بی‌کلیدِ نمره‌دار» نیست که به مسیرِ قدیم برود — مالک دارد.
+  assert.equal(semEngine([["Beta HCG", "1200"]], w).ungraded.HCG?.reason, "threshold");
+});
+
+test("M109b: پروژسترونِ روزِ ۲۱ کنارِ hCGِ مثبت بی‌قضاوت می‌ماند (کلاریفای Q6)", () => {
+  for (const hcg of ["Positive", "900"]) {
+    const p = semRun([["Beta HCG", hcg], ["Progesterone Day 21", "10"]], { age: 28, sex: "F" });
+    assert.equal(reproFind(p, "luteal_progesterone"), undefined, "کنارِ تستِ بارداریِ مثبت، تخمک‌گذاری اعلام شد");
+    assert.match(reproFind(p, "reproductive_hormone_context").must_say, /با تستِ بارداریِ مثبت روی همین برگه/);
+  }
+});
+
+test("M109d: زیرِ ۱۶ سال و جنسیتِ نامعلوم — هیچ هورمونِ جنسی قضاوت نمی‌شود", () => {
+  for (const [patient, re] of [[{ age: 12, sex: "M" }, /بلوغ/], [{ age: 12, sex: "F" }, /بلوغ/], [{ age: 30 }, /زن و مرد/]]) {
+    const p = semRun([["Testosterone", "20"], ["FSH", "0.5"], ["DHEA-S", "20"]], patient);
+    const judged = p.findings.filter((f) => f.pattern === "male_gonadal_axis");
+    assert.deepEqual(judged.map((f) => f.pattern), [], `قضاوت برای ${JSON.stringify(patient)}`);
+    assert.match(reproFind(p, "reproductive_hormone_context").must_say, re);
+  }
+  // ⚠️ پیش از P47، getRef برای جنسیتِ نامعلوم بازهٔ زن و برای کودک بازهٔ بزرگسال می‌داد.
+  assert.equal(getRef("TESTO", null, 30), null);
+  assert.equal(getRef("TESTO", "M", 12), null, "تستوسترونِ پسرِ ۱۲ ساله با حدِ ۳۰۰ سنجیده می‌شد");
+  assert.deepEqual(getRef("TESTO", "M", 40), [300, null]);
+});
+
+test("M110: هر کلیدِ زندهٔ فصل ۲۶ دقیقاً یک مالک دارد — نه سکوت، نه دو یافته (N18، N20)", () => {
+  const PANELS = [
+    [{ age: 35, sex: "M" }, semenWith({ "Sperm Count": "2" }), "semen_analysis"],
+    [{ age: 35, sex: "M" }, semenWith({ Volume: "0.8", Morphology: "1", "Total Motility": "20" }), "semen_analysis"],
+    [{ age: 40, sex: "M" }, [["Testosterone", "120", "ng/dL"], ["LH", "25"], ["FSH", "30"]], "male_gonadal_axis"],
+    [{ age: 30, sex: "F" }, [["Progesterone Day 21", "1"]], "luteal_progesterone"],
+    [{ age: 28, sex: "F" }, [["Beta HCG", "1200"]], "hcg_result"],
+    [{ age: 30, sex: "F" }, [["FSH", "12"], ["Estradiol", "40"]], "reproductive_hormone_context"],
+  ];
+  for (const [patient, rows, owner] of PANELS) {
+    const p = semRun(rows, patient);
+    const ids = p.findings.map((f) => f.pattern).filter((id) => RULES_REPRODUCTIVE_LIVE.includes(id));
+    assert.deepEqual(ids, [owner], `مالکِ ${owner} انتظار می‌رفت؛ آمد: ${ids}`);
+    assert.ok(!p.findings.some((f) => f.pattern === "unmatched_abnormal"), `بی‌مالک: ${JSON.stringify(rows)}`);
+  }
+});
+
+test("M111b: هیچ قاعدهٔ فصل ۲۶ اورژانس نمی‌دهد و دارو/دوز/اقدام تجویز نمی‌کند", () => {
+  const ids = RULES.map((r) => r.id).filter((id) => RULES_REPRODUCTIVE_LIVE.includes(id));
+  assert.deepEqual(ids.sort(), [...RULES_REPRODUCTIVE_LIVE].sort());
+  const panels = [
+    [{ age: 35, sex: "M" }, semenWith({ "Sperm Count": "0" })],
+    [{ age: 40, sex: "M" }, [["Testosterone", "50", "ng/dL"], ["LH", "40"], ["FSH", "50"]]],
+    [{ age: 30, sex: "M" }, [["Beta HCG", "5000"]]],
+    [{ age: 30, sex: "F" }, [["Beta HCG", "5000"], ["Progesterone Day 21", "0.2"]]],
+    [{ age: 12, sex: "F" }, [["FSH", "80"]]],
+  ];
+  for (const [patient, rows] of panels) {
+    for (const f of semRun(rows, patient).findings.filter((x) => RULES_REPRODUCTIVE_LIVE.includes(x.pattern))) {
+      assert.notEqual(f.urgency, "emergency", `${f.pattern} اورژانس داد`);
+      assert.doesNotMatch(reproText(f), /میلی‌گرم|قرص .*بخورید|بیوپسی|جراحی|آمنیوسنتز|مدروکسی|لووتیروکسین/);
+    }
+  }
+});
+
+test("M112: بازهٔ یک‌طرفه — فقط «پایین» سنجیده می‌شود؛ هیچ کلیدِ قدیمی بازهٔ یک‌طرفه ندارد", () => {
+  assert.equal(evaluate("SPERM_CONC", 10, 16, null).dir, "low");
+  const ok = evaluate("SPERM_CONC", 200, 16, null);
+  assert.equal(ok.abnormal, false); assert.equal(ok.nearLimit, false);
+  // رفتارِ کلیدهای پیش از فصل ۲۶ نباید عوض شود: هیچ‌کدام uln = null ندارند.
+  const NEW = new Set(["SEMEN_VOL", "SPERM_CONC", "SPERM_MOT_TOTAL", "SPERM_MOT_PROG", "SPERM_MORPH", "TESTO"]);
+  for (const [k, r] of Object.entries(ADULT_REFS)) {
+    if (NEW.has(k)) continue;
+    for (const band of [r.both, r.M, r.F].filter(Array.isArray)) assert.ok(band[1] != null, `${k} یک‌طرفه شد`);
+  }
+  // نمایش: «≥ ۱۶»، نه «16–null».
+  const e = semEngine(semenWith({ "Sperm Count": "10" }));
+  assert.equal(e.graded.find((x) => x.test === "SPERM_CONC").range, "≥ 16");
+});
+
+test("M113: کلیدهای بی‌منبع (AMH، DHEA-S، 17-OHP، FSHِ روزِ سوم، FSHِ مرد) هنوز «تفسیر نشد» می‌گیرند", () => {
+  for (const [patient, rows, key] of [
+    [{ age: 30, sex: "F" }, [["AMH", "0.1"]], "AMH"],
+    [{ age: 30, sex: "F" }, [["DHEA-S", "900"]], "DHEAS"],
+    [{ age: 30, sex: "F" }, [["17-OH Progesterone", "9"]], "OHP17"],
+    [{ age: 30, sex: "F" }, [["FSH Day 3", "45"]], "FSH_D3"],
+    [{ age: 40, sex: "M" }, [["FSH", "45"]], "FSH"],
+  ]) {
+    const e = semEngine(rows, patient);
+    assert.ok(e.noRef.includes(key), `${key} از noRef بیرون رفت بی‌آنکه بازه‌اش تأیید شده باشد`);
+    const pats = runPatterns(e).findings.map((f) => f.pattern).filter((x) => RULES_REPRODUCTIVE_LIVE.includes(x));
+    assert.deepEqual(pats, [], `${key} بی‌بازه یافته ساخت: ${pats}`);
+  }
+});
+
+// ═══════════ بازبینیِ ایجنت‌ها روی مرحلهٔ ب (code-reviewer + eval-medical-reviewer، P47) ═══════════
+// هر آزمونِ این بلوک روی کدِ پیش از اصلاح قرمز بود (اندازه‌گیری‌شده با کپیِ پیش از اصلاح).
+
+test("M114: ردیفِ «Sperm» روی برگهٔ ادرار صفحه را «منی» نمی‌کند — hematuria سرِ جایش می‌ماند", () => {
+  // 🔴 پیش از اصلاح: WBC/RBC به semenQual رفت، hematuria گم شد و pHِ ادرار «pHِ مایع منی ۵.۵، پایین» شد.
+  const rows = [["pH", "5.5"], ["WBC", "20-25", "/hpf"], ["RBC", "8-10", "/hpf"],
+    ["Bacteria", "Many"], ["Sperm", "Negative"], ["Color", "Yellow"]];
+  const e = semEngine(rows, { age: 30, sex: "M" });
+  assert.deepEqual(e.semenQual, {}, "برگهٔ ادرار به کانالِ منی رفت");
+  assert.equal(e.graded.find((x) => x.test === "SEMEN_PH"), undefined, "pHِ ادرار «pHِ منی» شد");
+  const pats = runPatterns(e).findings.map((f) => f.pattern);
+  assert.ok(pats.includes("hematuria"), `hematuria گم شد: ${pats}`);
+  assert.ok(!pats.includes("semen_analysis"), "روی برگهٔ ادرار یافتهٔ منی ساخته شد");
+  // «Morphology» روی لامِ خون هم صفحه را منی نمی‌کند.
+  const cbc = semEngine([["WBC", "7.0"], ["RBC", "4.8", "10*6/µL"], ["MCV", "88"], ["Morphology", "Normochromic"]]);
+  assert.deepEqual(cbc.semenQual, {});
+});
+
+test("M115: تستوسترونِ ng/mL ×۱۰۰ می‌شود؛ بی‌واحد قضاوت نمی‌شود (N3)", () => {
+  // 🔴 پیش از اصلاح: «4.5 ng/mL» (= ۴۵۰ ng/dL، طبیعی) → «تستوسترونِ شما 4.5 ng/dL است و از حدِ 300 کمتر است».
+  const ok = semEngine([["Testosterone", "4.5", "ng/mL"]], { age: 40, sex: "M" });
+  const t = ok.graded.find((x) => x.test === "TESTO");
+  assert.equal(t?.value, 450); assert.equal(t.abnormal, false);
+  assert.ok(ok.unitConversions.some((c) => c.test === "TESTO" && c.to === "ng/dL"), "تبدیل به بیمار نشان داده نمی‌شود");
+  assert.ok(!reproFind(runPatterns(ok), "male_gonadal_axis"), "مردِ سالم «تستوسترونِ پایین» خواند");
+  // بی‌واحد: نه «پایین»، بلکه جملهٔ بی‌قضاوت.
+  const nu = semEngine([["Testosterone", "4.5"]], { age: 40, sex: "M" });
+  assert.equal(nu.ungraded.TESTO?.reason, "unit_unknown");
+  const p = runPatterns(nu);
+  assert.ok(!reproFind(p, "male_gonadal_axis"));
+  assert.match(reproText(reproFind(p, "reproductive_hormone_context")), /واحدِ این آزمایش روی برگه خوانده نشد/);
+  // ng/dL و nmol/L همان رفتارِ قبلی.
+  assert.equal(semEngine([["Testosterone", "180", "ng/dL"]], { age: 40, sex: "M" }).graded.find((x) => x.test === "TESTO").dir, "low");
+  assert.equal(semEngine([["Testosterone", "20", "nmol/L"]], { age: 40, sex: "M" }).graded.find((x) => x.test === "TESTO").abnormal, false);
+});
+
+test("M116: «Azoospermia»/«Nil» به‌جای عدد همان آزواسپرمی است — نه «همه‌چیز طبیعی است» (N2)", () => {
+  for (const word of ["Azoospermia", "Nil", "No sperm seen", "دیده نشد"]) {
+    const e = semEngine([["Volume", "3", "ml"], ["Sperm Count", word], ["pH", "7.6"], ["Motility", "0", "%"]]);
+    assert.equal(e.graded.find((x) => x.test === "SPERM_CONC")?.value, 0, `«${word}» صفر خوانده نشد`);
+    const f = reproFind(runPatterns(e), "semen_analysis");
+    assert.equal(f?.headline, "در نمونهٔ مایع منی شما اسپرمی دیده نشد", `«${word}»: ${f?.headline}`);
+  }
+  // «Nil» + حجمِ کم + فروکتوزِ منفی: هر سه جمله، از جمله نبودنِ مادرزادیِ مجرا.
+  const f = reproFind(semRun([["Volume", "1.0", "ml"], ["Count", "Nil"], ["Fructose", "Negative"]]), "semen_analysis");
+  assert.match(f.must_say, /آزواسپرمی/); assert.match(f.must_say, /نبودنِ مادرزادیِ مجرای/); assert.match(f.must_say, /کم بودنِ حجم/);
+  // «<1» عدد نیست — «۱ میلیون» نقل نمی‌شود (N5).
+  const lt = semEngine([["Volume", "3", "ml"], ["Sperm Count", "<1", "million/ml"], ["Motility", "10", "%"]]);
+  assert.equal(lt.graded.find((x) => x.test === "SPERM_CONC"), undefined);
+  assert.match(reproFind(runPatterns(lt), "semen_analysis").must_say, /«<1»/);
+});
+
+test("M116b: ردیفِ منیِ ناخوانا (WBC /hpf، تحرکِ درجه‌ای) به بیمار نام برده می‌شود، نه «طبیعی»", () => {
+  // 🔴 پیش از اصلاح: اعدادِ طبیعی + «WBC 20-25» و «Grade D 75٪» هر دو urgency: none → buildNormalResult.
+  const leuko = semRun([["Volume", "3", "ml"], ["Count", "40", "million/ml"], ["Motility", "60", "%"],
+    ["Progressive", "45", "%"], ["Morphology", "6", "%"], ["pH", "7.6"], ["WBC", "20-25", "/hpf"]]);
+  const f = reproFind(leuko, "semen_analysis");
+  assert.ok(f, "برگهٔ منی با WBC به «همه‌چیز طبیعی است» رسید");
+  assert.equal(f.headline, "بعضی از ردیف‌های آنالیز مایع منی شما تفسیر نشده است");
+  assert.match(f.must_say, /گلبول سفید در مایع منی \(«20-25»\)/);
+  assert.doesNotMatch(reproText(f), /لکوسیتواسپرمی|عفونت/, "بی‌حدِ تأییدشده حکم داد");
+  const grades = reproFind(semRun([["Volume", "3", "ml"], ["Count", "40", "million/ml"],
+    ["Grade A", "5", "%"], ["Grade D", "75", "%"]]), "semen_analysis");
+  assert.match(grades?.must_say ?? "", /Grade D \(«75»\)/);
+});
+
+test("M117: «تست بارداری: مثبت» (فارسی/انگلیسی) پروژسترونِ روزِ ۲۱ را از قضاوت بیرون می‌برد (کلاریفای Q6)", () => {
+  // 🔴 پیش از اصلاح: adapter فقط /hcg/ را می‌دید → «تخمک‌گذاری انجام شده» کنارِ «با بارداری سازگار است».
+  for (const name of ["تست بارداری", "Pregnancy test"]) {
+    const e = semEngine([[name, name === "Pregnancy test" ? "Positive" : "مثبت"], ["Progesterone Day 21", "20", "ng/mL"]], { age: 30, sex: "F" });
+    assert.equal(e.ungraded.PROG_D21?.reason, "hcg_positive", name);
+    const p = runPatterns(e);
+    assert.ok(!reproFind(p, "luteal_progesterone"), `${name}: «تخمک‌گذاری» کنارِ بارداری`);
+    const h = reproFind(p, "hcg_result");
+    // نامِ ردیف نمی‌گوید خون است — «خون» ادعا نمی‌شود.
+    assert.equal(h?.headline, "تستِ بارداری مثبت است", name);
+  }
+});
+
+test("M118: واحدِ «×10⁶/ml» (بالانویس) صفحه را منی می‌کند — RBCِ منی hematuria نمی‌سازد", () => {
+  const e = semEngine([["Volume", "3", "ml"], ["Count", "8", "×10⁶/ml"], ["pH", "7.5"], ["RBC", "8-10", "/hpf"], ["WBC", "3-4", "/hpf"]]);
+  const p = runPatterns(e);
+  assert.ok(!p.findings.some((f) => f.pattern === "hematuria"), "RBCِ منی «خون در ادرار» شد");
+  assert.equal(e.graded.find((x) => x.test === "SPERM_CONC")?.dir, "low", "غلظتِ ۸ میلیون گم شد");
+});
+
+test("M119: پروژسترونِ روزِ ۲۱ِ مرد بی‌صدا گم نمی‌شود — noRef و هشدارِ «تفسیر نشد»", () => {
+  const e = semEngine([["Progesterone Day 21", "5", "ng/mL"]], { age: 30, sex: "M" });
+  assert.ok(e.noRef.includes("PROG_D21"));
+  assert.notEqual(e.ungraded.PROG_D21?.reason, "threshold", "آستانهٔ زنان روی مرد");
+});
+
+test("M120: عنوانِ منی جهت را از یافته‌ها می‌گیرد؛ «<2» همان‌طور نقل می‌شود (N12، N5)", () => {
+  const ph = reproFind(semRun([["Volume", "3", "ml"], ["Count", "40", "million/ml"], ["Motility", "60", "%"], ["pH", "8.4"]]), "semen_analysis");
+  assert.doesNotMatch(ph.headline, /کمتر/, "pHِ بالا «کمتر از حد مرجع» خوانده شد");
+  const h = reproFind(semRun([["Beta HCG", "<2", "mIU/mL"]], { age: 30, sex: "F" }), "hcg_result");
+  assert.match(h.must_say, /<2 mIU\/mL/);
+  assert.equal(h.headline, "تستِ بارداریِ خون (بتا اچ‌سی‌جی) منفی است");
+});

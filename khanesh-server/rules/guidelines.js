@@ -73,6 +73,16 @@ export const GUIDELINES = {
     scope: 'نقاط برشِ هموگلوبین برای تعریف کم‌خونی و شدت آن',
   },
 
+  WHO_SEMEN_2021: {
+    org: 'WHO',
+    fa: 'سازمان جهانی بهداشت',
+    title: 'WHO laboratory manual for the examination and processing of human semen, 6th edition',
+    year: 2021,
+    url: 'https://www.who.int/publications/i/item/9789240030787',
+    access: 'open',
+    scope: 'حدهای پایینِ مرجعِ آنالیزِ مایع منی (حجم، غلظت، تحرکِ کل و پیش‌رونده، ریخت‌شناسی) — P47',
+  },
+
   WHO_FERRITIN: {
     org: 'WHO',
     fa: 'سازمان جهانی بهداشت',
@@ -315,6 +325,17 @@ export const GUIDELINES = {
     access: 'open',
     scope:
       'پرولاکتین، کورتیزول (صبح، پس از دگزامتازون، بزاق، ادرارِ ۲۴ ساعته) و ACTH — اعداد در انتظارِ بازبین (P46)',
+  },
+
+  HENRY_REPRO: {
+    org: "Henry's Clinical Diagnosis",
+    fa: 'هنری — تشخیص بالینی و مدیریت با روش‌های آزمایشگاهی',
+    title: 'Reproductive Function and Pregnancy (فصل ۲۶)',
+    year: 2022,
+    url: 'https://www.elsevier.com/books/henrys-clinical-diagnosis-and-management-by-laboratory-methods/mcpherson/978-0-323-67320-4',
+    access: 'open',
+    scope:
+      'آنالیزِ مایع منی، محورِ تستوسترون/LH/FSH، هورمون‌های باروریِ زن (FSH/LH/استرادیولِ روزِ سوم، پروژسترونِ روزِ ۲۱، AMH، DHEA-S، 17-OHP) و hCG به‌عنوانِ تستِ بارداری — اعداد در انتظارِ بازبین (P47)',
   },
 
   HENRY_LIPID: {

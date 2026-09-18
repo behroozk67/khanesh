@@ -11,6 +11,7 @@ import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
 import { RULES_MINERAL_BONE } from "./patterns_mineral_bone.js";
 import { RULES_CARDIAC } from "./patterns_cardiac.js";
 import { RULES_ENDOCRINE_PITUITARY } from "./patterns_endocrine_pituitary.js";
+import { RULES_REPRODUCTIVE } from "./patterns_reproductive.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
@@ -34,7 +35,8 @@ export const RULES = [
   ...RULES_ENDOCRINE_NEW,
   ...RULES_MINERAL_BONE,
   ...RULES_CARDIAC,
-  ...RULES_ENDOCRINE_PITUITARY
+  ...RULES_ENDOCRINE_PITUITARY,
+  ...RULES_REPRODUCTIVE
 ];
 
 //    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ
@@ -116,6 +118,10 @@ export const SUGGEST_TESTS = {
   //    چهار کلید با همِ لازم است: با سه‌تا، برگه‌ای که LDL ندارد هم «کامل»
   //    شمرده می‌شد و پیشنهادِ درست حذف می‌شد.
   "پروفایل چربی": ["CHOL", "LDL", "HDL", "TG"],
+  // فصل ۲۶ (P47). ⚠️ LH/FSHِ مرد هنوز بازه ندارند و در graded نیستند، پس این ردیف امروز چیزی
+  //   را حذف نمی‌کند؛ male_gonadal_axis خودش فقط وقتی پیشنهاد می‌دهد که روی برگه نباشند.
+  //   ردیف برای روزی است که بازه‌شان تأیید شود (N8: ردیفِ غایب همیشه به سمتِ غلط می‌شکند).
+  "LH و FSH": ["LH", "FSH"],
 };
 
 /** آیا این پیشنهاد، آزمایشی است که همین حالا اندازه‌گیری شده؟ */

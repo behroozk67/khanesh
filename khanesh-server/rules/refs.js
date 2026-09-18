@@ -248,6 +248,25 @@ export const ADULT_REFS = {
   //   ثبت‌شده در MEDICAL_RULES.md ذیل P37.
   HCY:      { both: [0, 16], unit: 'µmol/L' },
 
+  // ---- فصل ۲۶ هنری — آنالیزِ مایع منی (P47 بندهای ۱–۷، تأییدِ بازبین ۲۷ شهریور ۱۴۰۵) ----
+  // حدهای پایینِ مرجع از WHO 2021 (ویرایشِ ششم، صدکِ پنجم؛ شناسهٔ WHO_SEMEN_2021).
+  // ⚠️ بازهٔ یک‌طرفه: [حدِ پایین، null]. این شاخص‌ها «بالای حدِ طبیعی» ندارند؛ grade.js
+  //    برای uln = null فقط «پایین» را می‌سنجد. عددِ ساختگیِ بالایی (Infinity یا ۹۹۹۹)
+  //    عمداً گذاشته نشد: هم محاسبهٔ «نزدیکِ حد» را خراب می‌کرد و هم به بیمار نمایش داده می‌شد.
+  // ⚠️ این کلیدها فقط از صفحهٔ آنالیزِ منی می‌آیند (adapter، لایهٔ ۰).
+  SEMEN_VOL:       { both: [1.4, null], unit: 'mL' },
+  SPERM_CONC:      { both: [16, null],  unit: 'million/mL' },
+  SPERM_MOT_TOTAL: { both: [42, null],  unit: '%' },
+  SPERM_MOT_PROG:  { both: [30, null],  unit: '%' },
+  // ریخت‌شناسی: ۴٪ خودش *طبیعی* است (≥ ۴) — شکافِ «۴ در هیچ دسته‌ای» در DSL (P47، ایرادِ ۱).
+  SPERM_MORPH:     { both: [4, null],   unit: '%' },
+  SEMEN_PH:        { both: [7.2, 8.0],  unit: '' },   // DSL/هنری (P47 بند ۷)
+
+  // ---- فصل ۲۶ — تستوسترونِ مرد (P47 بند ۱۰): فقط حدِ پایین (۳۰۰ ng/dL) تأیید شده ----
+  // ⚠️ حدِ بالا منبع ندارد، پس بالا بودنِ تستوسترونِ مرد سنجیده نمی‌شود. بازهٔ زن هم منبع
+  //    ندارد (بند ۲۰) و عمداً نیست؛ با جنسیتِ نامعلوم یا زیرِ ۱۶ سال getRef تهی برمی‌گرداند.
+  TESTO:           { M: [300, null], unit: 'ng/dL' },
+
   // ---- کیفی ----
   // ⚠️ ۰.۶ µg/L = ۶۰۰ ng/L، و این عددِ خانوادهٔ سنجه‌های «سنتی» است.
   //   هنری فصل ۱۹ صدکِ ۹۹ سنجه‌های حساسیت‌بالا را ۱۰ تا ۳۰ ng/L می‌دهد، یعنی
@@ -311,7 +330,26 @@ import { getPedRef, getPedRefSource, isPediatricRCPCH } from './refs_ped.js';
 // گرفتن محدوده برای یک تست
 // اطفال (< 16 سال) → اول جدول RCPCH، اگر نبود → بالغ (طبق دستور خود RCPCH)
 // سالمندان (>= 75 سال) → اول جدول GERIATRIC_REFS، اگر نبود → بالغ
+// هورمون‌های جنسیِ فصل ۲۶ (P47) — بازه‌شان به جنس و بلوغ وابسته است.
+// ⚠️ برای این‌ها «بازهٔ بزرگسال برای کودک» (قاعدهٔ عمومیِ RCPCH در پایین) و «بازهٔ زن برای
+//    جنسیتِ نامعلوم» (پیش‌فرضِ `sex === 'M' ? r.M : r.F`) هر دو غلط‌اند: تستوسترونِ طبیعیِ یک
+//    پسرِ ۱۲ ساله با حدِ ۳۰۰ «پایین» می‌شد. پس اینجا هیچ بازه‌ای داده نمی‌شود و adapter عدد را
+//    بی‌قضاوت گزارش می‌کند (کلاریفای Q5، FR-011، آزمونِ M109d).
+export const REPRO_HORMONE_KEYS = new Set([
+  'TESTO', 'LH', 'FSH', 'LH_D3', 'FSH_D3', 'E2', 'E2_D3', 'PROG', 'PROG_D21', 'AMH', 'DHEAS', 'OHP17',
+]);
+
+// آستانهٔ تشخیصیِ hCG به‌عنوانِ تستِ بارداری (P47 بند ۲۱، DSL/هنری: «hCG > 5 mIU/mL»).
+// ⚠️ این بازهٔ مرجع نیست — یک کار دارد: مثبت/منفی. منطقهٔ خاکستری (لبهٔ بالا) منبع ندارد و
+//    عمداً پیاده نشده؛ ۵ خودش «منفی» است چون متن «بیشتر از ۵» گفته.
+export const HCG_POSITIVE_ABOVE = 5;
+/** نامِ ردیفِ کیفیِ تستِ بارداری — *یک* الگو برای adapter (دروازهٔ پروژسترون) و hcg_result.
+ *  🔴 باگِ بازبینی: adapter فقط /hcg/ را می‌دید و قاعده /hcg|بارداری/ را، پس «تست بارداری: مثبت»
+ *     قاعدهٔ hCG را فعال می‌کرد ولی پروژسترونِ روزِ ۲۱ را از قضاوت بیرون نمی‌برد (کلاریفای Q6). */
+export const HCG_QUAL_NAME_RE = /hcg|بارداری|pregnan/i;
+
 export function getRef(testKey, sex, age) {
+  if (REPRO_HORMONE_KEYS.has(testKey) && ((age != null && age < 16) || !sex)) return null;
   if (isPediatricRCPCH(age)) {
     const ped = getPedRef(testKey, age);
     if (ped) return ped;
@@ -336,6 +374,9 @@ export function getRefSource(testKey, age) {
   //    ردیف‌های PED_REFS عددشان از هنری می‌آید و RCPCH نگفته است. قفل: M79c.
   if (isPediatricRCPCH(age) && getPedRef(testKey, age)) return getPedRefSource(testKey, age);
   if (age >= 75 && GERIATRIC_REFS[testKey]) return 'Geriatric Override';
+  // فصل ۲۶ (P47): حدهای منی از WHO 2021 است نه جدولِ A5ِ هنری — برچسبِ منبع باید راست بگوید.
+  if (/^(SEMEN_|SPERM_)/.test(testKey)) return testKey === 'SEMEN_PH' ? 'Henry ch.26' : 'WHO 2021';
+  if (testKey === 'TESTO') return 'Henry ch.26';
   return 'Henry A5';
 }
 

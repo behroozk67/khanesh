@@ -678,3 +678,31 @@ test("T17: هشدارِ «محدوده مرجع نداریم» نامِ فارس
   const noRefLine = (body?.ocr_warnings ?? []).find((x) => /محدوده مرجع نداریم/.test(x));
   assert.match(noRefLine, /پزشک/, `هشدارِ بی‌بازه بیمار را به پزشک نمی‌فرستد: ${noRefLine}`);
 });
+
+test("T18: mergePages — برگهٔ CBC و برگهٔ منی، به هر ترتیب، هر دو ردیفِ WBC را نگه می‌دارند", async () => {
+  // 🔴 باگِ واقعی (P47، research R3): ردیف‌های هم‌نامِ صفحه‌های مختلف با «اولی برنده» یکی
+  //    می‌شدند. اگر صفحهٔ منی اول بارگذاری می‌شد، WBCِ CBC بی‌صدا دور ریخته می‌شد — کمبودخوانیِ
+  //    کلاسِ N2 روی رایج‌ترین آزمایشِ برنامه.
+  const { mergePages } = await import("./server.js");
+  assert.equal(typeof mergePages, "function", "mergePages از server.js صادر نشده");
+  const cbc = { ok: true, page: 1, ocr: { patient: { age: "35", sex: "مرد" }, tests: [
+    { name: "WBC", value: "7.2", unit: "10*3/µL" }, { name: "Hb", value: "14" }, { name: "PLT", value: "250" }] } };
+  const semen = { ok: true, page: 2, ocr: { patient: { age: "35", sex: "مرد" }, tests: [
+    { name: "WBC", value: "3-4", unit: "/hpf" }, { name: "Motility", value: "40", unit: "%" },
+    { name: "Count", value: "40", unit: "million/mL" }] } };
+  for (const pages of [[cbc, semen], [semen, cbc]]) {
+    const m = mergePages(pages);
+    const wbcs = m.tests.filter((t) => t.name === "WBC").map((t) => t.value).sort();
+    assert.deepEqual(wbcs, ["3-4", "7.2"], `یک WBC حذف شد (ترتیب ${pages.map((p) => p.page)})`);
+    assert.ok(!m.duplicates.some((d) => d.name === "WBC"), "WBCِ منی «تکراریِ متناقض» گزارش شد");
+  }
+});
+
+test("T19: برگه‌ای که فقط هورمونِ بی‌قضاوت دارد مسیرِ موتور را می‌گیرد — هرگز «همه‌چیز طبیعی است»", async () => {
+  // ⚠️ امروز graded.length === 0 → مسیرِ قدیمِ بی‌موتور. اگر شرط بدونِ قاعدهٔ زمینه عوض شود،
+  //    برگهٔ FSHِ بی‌روز به buildNormalResult می‌رسد — همان کلاسِ N2.
+  const { status, body } = await analyze({ patient: { age: 30, sex: "F" }, tests: [{ name: "FSH", value: "12" }] });
+  assert.equal(status, 200);
+  assert.ok(body?._engine, "مسیرِ موتور گرفته نشد");
+  assert.ok(body._engine.patterns.includes("reproductive_hormone_context"), `patterns=${body._engine.patterns}`);
+});
