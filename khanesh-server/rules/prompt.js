@@ -393,10 +393,42 @@ export function buildEngineFallbackResult(engineOut, patterns) {
 }
 
 /**
+ * کلیدهای noRef که هیچ یافته‌ای توضیحشان نداده — همان‌هایی که خطِ «تفسیر نشدند» باید نام ببرد.
+ * یافته‌ای که مقدارِ بی‌بازه را تفسیر می‌کند (ویلسون، آنتی‌بادی کنارِ B12ِ پایین؛ P49) آن را در
+ * `explains` اعلام می‌کند؛ وگرنه بیمار زیرِ همان یافته می‌خواند «تفسیر نشدند» (N20).
+ */
+export function unexplainedNoRef(noRef, findings) {
+  const explained = new Set((findings ?? []).flatMap((f) => f.explains ?? []));
+  return [...new Set(noRef ?? [])].filter((k) => !explained.has(k));
+}
+
+/**
  * اگر موتور هیچ الگویی پیدا نکرد — همه‌چیز طبیعی
  */
 export function buildNormalResult(engineOut) {
   const borderline = engineOut.graded.filter((g) => g.nearLimit);
+  // ⚠️ specs/004 (FR-009، N2): مقدارِ بی‌بازه (noRef) قضاوت نشده، و قضاوت‌نشده «طبیعی» نیست.
+  //    پیش از این، برگهٔ «روی ۴۰» یا «پرولاکتین ۴۰» می‌خواند «نتایج آزمایش شما در محدوده طبیعی است».
+  const unjudged = [...new Set(engineOut.noRef ?? [])].map(faName);
+  if (unjudged.length) {
+    const judged = engineOut.graded.length > 0;
+    return {
+      summary: judged
+        ? "مقادیری که موتور می‌سنجد در محدودهٔ طبیعی‌اند، ولی چند مقدارِ این برگه تفسیر نشدند."
+        : "مقادیرِ این برگه خوانده شدند، ولی موتور هیچ‌کدام را تفسیر نکرد.",
+      interpretation:
+        (judged ? "هیچ‌کدام از مقادیری که موتور می‌سنجد خارج از محدودهٔ مرجع نیست. " : "") +
+        `برای این مقادیر محدودهٔ مرجعِ تأییدشده نداریم: ${unjudged.join("، ")}. ` +
+        "درباره‌شان «بالا» یا «پایین» نمی‌گوییم؛ تفسیرشان با پزشک است." +
+        (borderline.length
+          ? ` چند مورد نزدیک حد محدوده هستند: ${borderline.map((b) => faName(b.test)).join("، ")}. این به‌خودی‌خود معنایی ندارد، ولی اگر نتیجه قبلی دارید مقایسه کنید.`
+          : ""),
+      general_recommendations: ["این برگه را به پزشک نشان دهید تا مقادیرِ تفسیرنشده را بررسی کند."],
+      warnings: [],
+      has_critical: false,
+      disclaimer: "این تفسیر صرفاً جهت افزایش آگاهی است و جایگزین توصیه پزشک نیست.",
+    };
+  }
   return {
     summary: "نتایج آزمایش شما در محدوده طبیعی است.",
     interpretation:

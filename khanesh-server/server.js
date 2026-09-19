@@ -31,7 +31,7 @@ import "dotenv/config";
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
 import { runEngine, isSemenPage } from "./rules/adapter.js";
 import { runPatterns } from "./rules/patterns.js";
-import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef } from "./rules/prompt.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
@@ -904,7 +904,10 @@ const analyzeHandler = async (req, res) => {
       //    این شرط فقط *همراهِ* قاعدهٔ reproductive_hormone_context درست است — آزمونِ T19.
       const ownedUngraded = Object.values(engineCandidate.ungraded ?? {})
         .some((u) => u.reason !== "no_range");
-      if (engineCandidate.graded.length === 0 && !ownedUngraded) {
+      // specs/004 (FR-009): کلیدِ شناخته‌شدهٔ بی‌بازه (noRef) هم مسیرِ موتور را نگه می‌دارد. حالا که
+      //    buildNormalResult برای noRef «طبیعی است» نمی‌گوید، دلیلِ کامنتِ بالا («فقط-AMH ⇒ طبیعی») دیگر
+      //    برقرار نیست — و مسیرِ قدیم یعنی مدل خودش قضاوت کند (T21).
+      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length)) {
         console.warn(
           "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
           `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
@@ -954,11 +957,13 @@ const analyzeHandler = async (req, res) => {
             : `حتماً این مقادیر را با پزشک بررسی کنید.`)
         );
       }
-      if (engineOut.noRef.length) {
-        console.warn(`موتور: محدوده مرجع ندارد → ${engineOut.noRef.join(", ")}`);
+      // P49: مقداری که یافته‌ای تفسیرش کرده (ویلسون، آنتی‌بادی کنارِ B12ِ پایین) در این خط نمی‌آید.
+      const noRefShown = unexplainedNoRef(engineOut.noRef, patternOut.findings);
+      if (noRefShown.length) {
+        console.warn(`موتور: محدوده مرجع ندارد → ${noRefShown.join(", ")}`);
         ocrWarnings.push(
           // ⚠️ faName: noRef کلیدِ موتور است، نه نامِ چاپی (N8، آزمونِ T17).
-          `برای این تست‌ها محدوده مرجع نداریم: ${engineOut.noRef.map(faName).join("، ")}. ` +
+          `برای این تست‌ها محدوده مرجع نداریم: ${noRefShown.map(faName).join("، ")}. ` +
           `تفسیر نشدند. ` +
           // همان جملهٔ هشدارِ unmapped: این ردیف ممکن است کنارِ خلاصهٔ «طبیعی» بنشیند،
           // و تنها چیزی است که بیمار را به پزشک می‌فرستد (T17).

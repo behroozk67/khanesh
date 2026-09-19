@@ -20,7 +20,7 @@ import { runEngine, parseTitre } from "./adapter.js";
 import { runPatterns, RULES, SUGGEST_TESTS } from "./patterns.js";
 import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT,
          tidyRecommendations, phraseSuggestion, buildNormalResult,
-         missingSuggestions } from "./prompt.js";
+         missingSuggestions, unexplainedNoRef } from "./prompt.js";
 import { extractMedlineTerms, matchesMedlineKey, TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
 import { missingSentences, missingFindingText, normalizeFa, splitSentences, distinctiveTokens } from "./coverage.js";
 import { runPatterns as _rp, RULE_SOURCES } from "./patterns.js";
@@ -7221,4 +7221,366 @@ test("M140: جملهٔ «پزشکِ نوزاد / نمودارِ ساعتی» ف�
   // زیرِ یک ماه جمله همچنان هست
   const f = findPat(uuuRun([["Total Bilirubin", "5"]], { age: "3 days", sex: "M" }), "unit_unknown_values");
   assert.match(f?.must_say ?? "", /به ساعت بستگی/);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// specs/004 — داستانِ ۱: فولاتِ پایین یک مالک دارد و سه‌حالته خوانده می‌شود
+// هر آزمونِ این بلوک روی 2d32dd3 (پیش از تغییر) اجرا و قرمز دیده شد — baseline.md.
+// ═══════════════════════════════════════════════════════════════════════════
+// «یافته‌ای که دربارهٔ فولاتِ خودِ بیمار حرف می‌زند» — نه هشدارِ «فولات مصرف نکنید» در یافتهٔ B12.
+const talksFolate = (f) => /فولاتِ (سرمِ )?شما/.test(f.must_say ?? "");
+const folateOwners = (p) => (p.findings || []).filter(talksFolate).map((f) => f.pattern);
+
+test("M141: فولاتِ پایینِ تنها یافتهٔ خودش را دارد، نه «توضیحی نداریم» (specs/004، N1)", () => {
+  // 🔴 روی 2d32dd3: فقط unmatched_abnormal — «برای این ترکیب توضیح آماده‌ای نداریم».
+  const e = uuu([["Folate", "2", null, "ng/mL"]]);
+  const p = runPatterns(e);
+  const f = findPat(p, "folate_deficiency");
+  assert.ok(f, `یافتهٔ فولات نیامد: ${fired(p)}`);
+  assert.equal(f.urgency, "routine");
+  assert.ok(!fired(p).includes("unmatched_abnormal"), fired(p).join(","));
+  assert.match(f.must_say, /\b2\b/);
+  assert.match(f.must_say, /B12 روی این برگه اندازه‌گیری نشده/);
+  assert.match(f.must_say, /پیش از مصرفِ اسید فولیک/);
+  assert.doesNotMatch(f.action, /این هفته|همین حالا|اورژانس/);
+  assert.doesNotMatch(f.must_say + f.action, /\d+\s*(میلی‌گرم|میکروگرم|mg|µg|mcg)\b/, "دوز ممنوع (FR-002)");
+});
+
+test("M141b: فولاتِ nmol/L — متن عددِ چاپ‌شده و واحدِ برگه را هم می‌گوید (N5)", () => {
+  const f = findPat(uuuRun([["Folate", "5", null, "nmol/L"]]), "folate_deficiency");
+  assert.ok(f, "یافتهٔ فولات نیامد");
+  assert.match(f.must_say, /5 nmol\/L/);
+});
+
+test("M142: یافتهٔ فولات B12ِ همان برگه را چهارحالته می‌گوید: پایین / مرزی / پایین‌نیست / اندازه‌نشده", () => {
+  const cases = [
+    ["120", /B12 شما هم روی همین برگه پایین است/],
+    ["250", /نزدیکِ مرزِ پایین/],
+    ["450", /B12 شما روی همین برگه پایین نیست/],
+  ];
+  for (const [b12, re] of cases) {
+    const p = uuuRun([["Folate", "2", null, "ng/mL"], ["Vitamin B12", b12, null, "pg/mL"]]);
+    const f = findPat(p, "folate_deficiency");
+    assert.ok(f, `B12 ${b12}: ${fired(p)}`);
+    assert.match(f.must_say, re, `B12 ${b12}`);
+    assert.doesNotMatch(f.must_say, /اندازه‌گیری نشده/, `B12 ${b12}`);
+  }
+  assert.ok(fired(uuuRun([["Folate", "2", null, "ng/mL"], ["Vitamin B12", "120", null, "pg/mL"]])).includes("overt_b12_deficiency"));
+});
+
+test("M143: روی هر پنلِ فولات دقیقاً یک یافته از فولاتِ بیمار حرف می‌زند — نه سکوت، نه تکرار (SC-002، N20)", () => {
+  const F = ["Folate", "2", null, "ng/mL"], F8 = ["Folate", "8", null, "ng/mL"];
+  const HB = ["Hb", "9", null, "g/dL"], MCV = ["MCV", "110", null, "fL"];
+  const panels = {
+    تنها: [F],
+    "B12 پایین": [F, ["Vitamin B12", "120", null, "pg/mL"]],
+    "B12 طبیعی": [F, ["Vitamin B12", "450", null, "pg/mL"]],
+    "B12 مرزی": [F, ["Vitamin B12", "250", null, "pg/mL"]],
+    ماکروسیتیک: [F, HB, MCV],
+    "ماکروسیتیک + B12 پایین": [F, HB, MCV, ["Vitamin B12", "120", null, "pg/mL"]],
+    "فولاتِ طبیعی + ماکروسیتیک": [F8, HB, MCV],
+    "فولاتِ طبیعی تنها + Hb پایین": [F8, HB, ["MCV", "105", null, "fL"]],
+  };
+  for (const [name, rows] of Object.entries(panels)) {
+    const owners = folateOwners(uuuRun(rows));
+    assert.equal(owners.length, 1, `${name}: ${owners.join(",") || "هیچ"}`);
+  }
+  // ماکروسیتیک مالک است؛ یافتهٔ جداگانه نمی‌آید
+  assert.deepEqual(folateOwners(uuuRun([F, HB, MCV])), ["macrocytic_anemia"]);
+  // زیرِ اورژانس: پنهان شدن درست است، برگشتن به «توضیحی نداریم» نه (N18)
+  const k = uuuRun([F, ["K", "7.0", null, "mmol/L"]]);
+  assert.ok(folateOwners(k).length <= 1, folateOwners(k).join(","));
+  assert.ok(!(findPat(k, "unmatched_abnormal")?.orphans ?? []).includes("FOLATE"), "فولات به «توضیحی نداریم» برگشت");
+});
+
+test("M144: کم‌خونیِ ماکروسیتیک فولات و B12ِ همان برگه را سه‌حالته می‌خواند (N21، N4)", () => {
+  // 🔴 روی 2d32dd3: «اغلب از کمبود B12 یا فولات» — و هرگز نمی‌گفت فولاتِ همین برگه ۲ است.
+  const HB = ["Hb", "9", null, "g/dL"], MCV = ["MCV", "110", null, "fL"];
+  const m = (rows) => findPat(uuuRun([HB, MCV, ...rows]), "macrocytic_anemia")?.must_say ?? "";
+  assert.match(m([["Folate", "2", null, "ng/mL"]]), /فولاتِ شما روی همین برگه 2 و پایین است/);
+  const normal = m([["Folate", "8", null, "ng/mL"]]);
+  assert.match(normal, /فولاتِ شما روی همین برگه طبیعی است/);
+  assert.match(normal, /کمبودِ فولات علتِ محتمل‌تری نیست/);
+  const none = m([]);
+  assert.match(none, /فولات روی این برگه اندازه‌گیری نشده/);
+  assert.match(none, /B12 روی این برگه اندازه‌گیری نشده/);
+  assert.doesNotMatch(none, /طبیعی است/);
+  assert.match(m([["Vitamin B12", "120", null, "pg/mL"]]), /B12 شما روی همین برگه پایین است/);
+  assert.match(m([["Vitamin B12", "250", null, "pg/mL"]]), /نزدیکِ مرزِ پایین/);
+});
+
+test("M145: هشت املای رایجِ فولات / B12 / ویتامین D نگاشت می‌شوند (FR-005، N2)", () => {
+  // 🔴 روی 2d32dd3 هر هشت‌تا unmapped بودند.
+  const rows = [
+    ["Serum Folate", "8", "FOLATE", "ng/mL"], ["Folate (Serum)", "8", "FOLATE", "ng/mL"],
+    ["Vitamin B9", "8", "FOLATE", "ng/mL"], ["فولیک اسید", "8", "FOLATE", "ng/mL"],
+    ["Vit B12", "400", "B12", "pg/mL"], ["Cobalamin", "400", "B12", "pg/mL"],
+    ["ویتامین ب۱۲", "400", "B12", "pg/mL"], ["Vit.D3", "30", "VIT_D", "ng/mL"],
+  ];
+  for (const [name, v, key, unit] of rows) {
+    const e = uuu([[name, v, null, unit]]);
+    assert.deepEqual(e.unmapped, [], `${name} نگاشت نشد`);
+    assert.ok(e.graded.some((g) => g.test === key), `${name} → ${e.graded.map((g) => g.test)}`);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// specs/004 — داستانِ ۲: ۲۰ آنالیتِ تازه بی‌قضاوت شناخته می‌شوند (noRef)
+// هر آزمون روی درختِ پیش از داستانِ ۲ اجرا و قرمز دیده شد — baseline.md.
+// ═══════════════════════════════════════════════════════════════════════════
+const NEW_ANALYTES = [
+  ["Zinc", "80", "µg/dL", "ZINC"], ["Serum Copper", "100", "µg/dL", "COPPER"],
+  ["Ceruloplasmin", "25", "mg/dL", "CERULOPLASMIN"], ["Selenium", "12", "µg/dL", "SELENIUM"],
+  ["Vitamin A", "50", "µg/dL", "VIT_A"], ["Vitamin E", "10", "mg/L", "VIT_E"],
+  ["Vitamin C", "0.8", "mg/dL", "VIT_C"], ["Vitamin B1", "100", "nmol/L", "VIT_B1"],
+  ["Vitamin B6", "30", "nmol/L", "VIT_B6"], ["Methylmalonic acid", "0.3", "µmol/L", "MMA"],
+  ["RBC Folate", "300", "ng/mL", "RBC_FOLATE"], ["24h Urine Copper", "40", "µg/24h", "U_COPPER_24H"],
+  ["Manganese", "10", "µg/L", "MANGANESE"], ["Cobalt", "0.3", "µg/L", "COBALT"],
+  ["Chromium", "0.5", "µg/L", "CHROMIUM"], ["Molybdenum", "1", "µg/L", "MOLYBDENUM"],
+  ["Pantothenic acid", "100", "µg/dL", "VIT_B5"], ["Urine Iodine", "150", "µg/L", "U_IODINE"],
+  ["روی", "80", "µg/dL", "ZINC"], ["سرولوپلاسمین", "25", "mg/dL", "CERULOPLASMIN"],
+];
+
+test("M146: آنالیت‌های تازهٔ فصلِ ویتامین/عناصرِ کمیاب شناخته می‌شوند، بی‌قضاوت (FR-007، FR-008، FR-011b)", () => {
+  // 🔴 روی 2d32dd3 همه unmapped بودند — بیمار هیچ نشانی نمی‌دید که عددش خوانده شده.
+  for (const [name, v, unit, key] of [...NEW_ANALYTES, ["Zinc", "80", null, "ZINC"]]) {
+    const e = uuu([[name, v, null, unit]]);
+    const p = runPatterns(e);
+    assert.deepEqual(e.unmapped, [], `${name} نگاشت نشد`);
+    assert.ok(e.noRef.includes(key), `${name}: noRef=${e.noRef}`);
+    assert.equal(p.overall_urgency, "none", `${name}: ${fired(p)}`);
+    assert.deepEqual(fired(p), [], name);
+    assert.ok(FA_NAMES[key] && FA_NAMES[key] !== key, `${key} نامِ فارسی ندارد`);
+  }
+  for (const k of ["ANTI_IF", "APCA"]) assert.ok(FA_NAMES[k] && FA_NAMES[k] !== k, `${k} نامِ فارسی ندارد`);
+});
+
+test("M147: آنتی‌بادی‌های فاکتورِ داخلی و سلولِ جداری — کیفی، و در noRef نه qual (N6، N25)", () => {
+  // qual فقط وقتی به بیمار می‌رسد که قاعده‌ای مالکش باشد؛ تا تأییدِ P49-ج مالکی نیست ⇒ بی‌صدا گم می‌شد.
+  for (const [name, key] of [["Anti-Intrinsic Factor", "ANTI_IF"], ["Intrinsic Factor Antibody", "ANTI_IF"],
+    ["Parietal Cell Antibody", "APCA"], ["Anti-Parietal Cell Antibody", "APCA"]]) {
+    for (const v of ["Positive", "Negative", "12.5"]) {
+      const e = uuu([[name, v]]);
+      assert.deepEqual(e.unmapped, [], `${name} ${v}`);
+      assert.ok(e.noRef.includes(key), `${name} ${v}: noRef=${e.noRef}`);
+      assert.deepEqual(Object.keys(e.qual), [], `${name} ${v} به qual رفت`);
+      assert.ok(!e.graded.some((g) => g.test === key), `${name} ${v} عدد شد`);
+      assert.deepEqual(fired(runPatterns(e)), [], `${name} ${v}`);
+    }
+  }
+});
+
+test("M148: Zn/Cu/Se فقط با واحدِ سازگار؛ Cr کراتینین می‌ماند؛ Mn/Co/Mo نگاشت نمی‌شوند (FR-011، FR-011b، N2)", () => {
+  for (const [abbr, key, unit] of [["Zn", "ZINC", "µg/dL"], ["Cu", "COPPER", "µg/dL"], ["Se", "SELENIUM", "µg/L"], ["Zn", "ZINC", "µmol/L"]]) {
+    assert.ok(uuu([[abbr, "80", null, unit]]).noRef.includes(key), `${abbr} ${unit}`);
+    assert.deepEqual(uuu([[abbr, "80"]]).unmapped, [abbr], `${abbr} بی‌واحد نباید نگاشت شود`);
+    assert.deepEqual(uuu([[abbr, "2", null, "/hpf"]]).noRef, [], `${abbr} /hpf`);
+  }
+  const cr = uuu([["Cr", "1.1", null, "mg/dL"]]);
+  assert.ok(cr.graded.some((g) => g.test === "CREAT"), "Cr باید کراتینین بماند");
+  assert.ok(!cr.noRef.includes("CHROMIUM"));
+  for (const abbr of ["Mn", "Co", "Mo"]) assert.deepEqual(uuu([[abbr, "5", null, "µg/L"]]).unmapped, [abbr], abbr);
+  // «Vitamin» تنها ویتامین E نیست (قاعدهٔ «e پایانی» در resolveAlias)
+  assert.deepEqual(uuu([["Vitamin", "5"]]).unmapped, ["Vitamin"]);
+});
+
+test("M149: فولاتِ گلبولِ قرمز و مسِ ادرارِ ۲۴ساعته کلیدِ جدا دارند (FR-010، N3)", () => {
+  for (const name of ["RBC Folate", "Red Cell Folate", "Erythrocyte Folate", "فولات گلبول قرمز"]) {
+    const e = uuu([[name, "120", null, "ng/mL"]]);
+    assert.ok(e.noRef.includes("RBC_FOLATE"), `${name}: ${e.noRef} / ${e.unmapped}`);
+    assert.ok(!e.graded.some((g) => g.test === "FOLATE"), `${name} با بازهٔ فولاتِ سرم سنجیده شد`);
+  }
+  assert.ok(uuu([["Urine Copper 24h", "150", null, "µg/24h"]]).noRef.includes("U_COPPER_24H"));
+  assert.deepEqual(uuu([["Urine Copper", "150", null, "µg/L"]]).unmapped, ["Urine Copper"], "بی‌۲۴ ساعت نگاشت نشود");
+  // «Folate» بی‌پیشوند با عددِ بزرگ: هرگز «بالا» (research R8؛ پرسشِ باز در P49)
+  const f = uuu([["Folate", "300", null, "ng/mL"]]).graded.find((g) => g.test === "FOLATE");
+  assert.notEqual(f?.dir, "high");
+});
+
+test("M150: آنالیتِ تازه کنارِ CBC یافته‌های CBC را عوض نمی‌کند (سناریوی ۵)", () => {
+  const cbc = [["Hb", "9.5", null, "g/dL"], ["MCV", "70", null, "fL"], ["Ferritin", "6", null, "ng/mL"]];
+  const strip = (p) => JSON.stringify(p.findings.map(({ pattern, urgency, must_say }) => ({ pattern, urgency, must_say })));
+  assert.equal(strip(uuuRun([...cbc, ["Zinc", "50", null, "µg/dL"], ["Anti-Intrinsic Factor", "Positive"]])), strip(uuuRun(cbc)));
+});
+
+test("M146b: برگه‌ای که مقدارِ بی‌بازه دارد «همه‌چیز طبیعی است» نمی‌گیرد (FR-009، N2)", () => {
+  // 🔴 buildNormalResult «نتایج آزمایش شما در محدوده طبیعی است» می‌گفت، حتی کنارِ مقدارِ تفسیرنشده.
+  for (const rows of [[["Zinc", "40", null, "µg/dL"]], [["Zinc", "40", null, "µg/dL"], ["Hb", "14.5", null, "g/dL"]], [["Prolactin", "40"]]]) {
+    const out = buildNormalResult(uuu(rows));
+    const all = `${out.summary} ${out.interpretation}`;
+    assert.doesNotMatch(all, /در محدوده طبیعی است|هیچ‌کدام از مقادیر خارج از محدوده مرجع نیست/, JSON.stringify(rows));
+    assert.match(all, /تفسیرش?ان با پزشک است/, JSON.stringify(rows));
+    assert.doesNotMatch(all, /\b(ZINC|PRL)\b/, "کلیدِ خام");
+  }
+  // و پنلِ واقعاً طبیعی همان جملهٔ قبلی را می‌گیرد
+  assert.match(buildNormalResult(uuu([["Hb", "14.5", null, "g/dL"]])).summary, /در محدوده طبیعی است/);
+});
+
+// ─── specs/004، بازبینیِ پزشکی و کد (۲۰۲۶-۰۹-۱۹) — B1–B3 و موارد ۲، ۴، ۵ ───
+test("M155: کم‌خونیِ ماکروسیتیک + فولاتِ پایین + B12 نامعلوم/مرزی ⇒ هشدارِ «خودسرانه اسید فولیک نه» (بازبینی B1)", () => {
+  // 🔴 folate_deficiency که این هشدار را دارد زیرِ ماکروسیتیک کنار می‌رود، و ماکروسیتیک آن را نمی‌گفت —
+  //    یعنی هشدار دقیقاً در پنلی گم می‌شد که اسید فولیک کمبودِ B12 را می‌پوشاند.
+  const HB = ["Hb", "9.5", null, "g/dL"], MCV = ["MCV", "112", null, "fL"], F = ["Folate", "2", null, "ng/mL"];
+  for (const extra of [[], [["Vitamin B12", "250", null, "pg/mL"]], [["Vitamin B12", "120", null, "pg/mL"]]]) {
+    const p = uuuRun([HB, MCV, F, ...extra]);
+    const warns = p.findings.flatMap((f) => f.warnings ?? []).join(" ");
+    assert.match(warns, /اسید فولیک/, `${JSON.stringify(extra)}: ${fired(p)}`);
+  }
+  const m = findPat(uuuRun([HB, MCV, F]), "macrocytic_anemia");
+  assert.match(m.must_say, /پیش از مصرفِ اسید فولیک/);
+  // فولاتِ طبیعی: هشدارِ فولیک لازم نیست
+  const n = findPat(uuuRun([HB, MCV, ["Folate", "8", null, "ng/mL"], ["Vitamin B12", "500", null, "pg/mL"]]), "macrocytic_anemia");
+  assert.doesNotMatch((n.warnings ?? []).join(" "), /اسید فولیک/);
+});
+
+test("M156: B12ِ بالاتر از محدوده «فقط پایین نیست» گفته نمی‌شود — بالا بودنش گفته می‌شود (بازبینی B2، N18)", () => {
+  // 🔴 روی 2d32dd3 تورِ unexplained_abnormal B12 1500 را نام می‌برد؛ پس از 004 فقط «پایین نیست (1500)».
+  const B = ["Vitamin B12", "1500", null, "pg/mL"];
+  for (const rows of [[["Folate", "2", null, "ng/mL"], B, ["Hb", "14", null, "g/dL"], ["MCV", "90", null, "fL"]],
+                      [["Hb", "9", null, "g/dL"], ["MCV", "110", null, "fL"], B]]) {
+    const p = uuuRun(rows);
+    const text = p.findings.map((f) => f.must_say).join(" ");
+    const orphan = (findPat(p, "unexplained_abnormal")?.uncovered ?? []).includes("B12");
+    assert.ok(orphan || /B12[^.]*بالاتر از محدودهٔ طبیعی/.test(text), `${fired(p)}\n${text}`);
+  }
+});
+
+test("M157: فولاتِ پایین + B12 زیرِ ۱۵۰ — یک عددِ B12، یک زمان‌بندی (بازبینی B3، N20)", () => {
+  // 🔴 overt_b12_deficiency «این هفته» و folate_deficiency دربارهٔ همان B12 «در نوبتِ عادی».
+  const p = uuuRun([["Folate", "2", null, "ng/mL"], ["Vitamin B12", "100", null, "pg/mL"], ["Hb", "14", null, "g/dL"], ["MCV", "90", null, "fL"]]);
+  const f = findPat(p, "folate_deficiency");
+  assert.ok(f && findPat(p, "overt_b12_deficiency"), fired(p).join(","));
+  assert.equal(f.urgency, "this_week");
+  assert.match(f.action, /این هفته/);
+  assert.doesNotMatch(f.action, /نوبتِ عادی/);
+  // فولاتِ تنها همچنان routine (clarify Q4)
+  assert.equal(findPat(uuuRun([["Folate", "2", null, "ng/mL"]]), "folate_deficiency").urgency, "routine");
+});
+
+test("M158: فولاتِ بالاتر از محدوده در ماکروسیتیک «طبیعی» خوانده نمی‌شود (بازبینیِ کد ۲، N12)", () => {
+  // 🔴 «پایین نیست» با «طبیعی است» یکی شده بود؛ برای کودک (محدودهٔ ۳–۱۵) فولاتِ ۲۵ «طبیعی» گفته می‌شد.
+  const p = uuuRun([["Hb", "9", null, "g/dL"], ["MCV", "110", null, "fL"], ["Folate", "25", null, "ng/mL"], ["Vitamin B12", "500", null, "pg/mL"]], { age: 10, sex: "F" });
+  const m = findPat(p, "macrocytic_anemia");
+  assert.ok(m, fired(p).join(","));
+  assert.doesNotMatch(m.must_say, /فولاتِ شما روی همین برگه طبیعی است/);
+  assert.match(m.must_say, /فولاتِ شما روی همین برگه بالاتر از محدودهٔ طبیعی است/);
+});
+
+test("M159: فولاتِ بی‌واحد که واحدش از محدودهٔ مرجع تعیین شد — واحد کنارِ عددِ بیمار «چاپ‌شده» نوشته نمی‌شود (بازبینیِ کد ۴، N5)", () => {
+  const p = uuuRun([["Folate", "4", "7.0-45.0 nmol/L", null]]);
+  const f = findPat(p, "folate_deficiency");
+  assert.ok(f, fired(p).join(","));
+  assert.doesNotMatch(f.must_say, /4 nmol\/L/);
+  assert.match(f.must_say, /فولاتِ سرمِ شما 4 \(برابرِ/);
+});
+
+test("M160: شاخهٔ noRefِ buildNormalResult جملهٔ «نزدیکِ حد» را نمی‌اندازد (بازبینیِ کد ۵)", () => {
+  const out = buildNormalResult({ graded: [{ test: "HGB", value: 13.6, abnormal: false, nearLimit: true }], abnormal: [], noRef: ["ZINC"] });
+  assert.match(out.interpretation, /نزدیک حد محدوده/);
+  assert.ok(out.interpretation.includes(faName("HGB")));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// specs/004 — داستانِ ۳: قراردادِ یافته‌هایی که فقط پس از تأییدِ بازبین ساخته می‌شوند (P49)
+// هیچ کدی پشتِ این‌ها نیست (FR-015b). وقتی بندی تأیید شد، todo برداشته و قاعده نوشته می‌شود.
+// ═══════════════════════════════════════════════════════════════════════════
+test("M151: سرولوپلاسمینِ پایین ⇒ «ارزیابیِ ویلسون»، مسِ ادرار سه‌حالته، هرگز «ویلسون دارید»", () => {
+  const f = findPat(uuuRun([["Ceruloplasmin", "10", null, "mg/dL"]]), "wilson_evaluation");
+  assert.ok(f, "یافتهٔ ویلسون نیامد");
+  assert.match(f.must_say, /مسِ ادرارِ ۲۴ساعته اندازه‌گیری نشده/);
+  assert.doesNotMatch(f.must_say, /ویلسون دارید/);
+  assert.notEqual(f.urgency, "emergency");
+});
+
+test("M151b: مسِ ادرارِ ۲۴ساعته پشتیبان / ردکننده در یافتهٔ ویلسون", () => {
+  const hi = findPat(uuuRun([["Ceruloplasmin", "10", null, "mg/dL"], ["Urine Copper 24h", "150", null, "µg/24h"]]), "wilson_evaluation");
+  const lo = findPat(uuuRun([["Ceruloplasmin", "10", null, "mg/dL"], ["Urine Copper 24h", "40", null, "µg/24h"]]), "wilson_evaluation");
+  assert.ok(hi && lo);
+  assert.notEqual(hi.must_say, lo.must_say);
+});
+
+test("M151c: ویلسون زیرِ یک سال اعمال نمی‌شود؛ CRPِ بالا هشدارِ فازِ حاد می‌گیرد", () => {
+  assert.equal(findPat(uuuRun([["Ceruloplasmin", "10", null, "mg/dL"]], { age: "6 months", sex: "M" }), "wilson_evaluation"), undefined);
+  const f = findPat(uuuRun([["Ceruloplasmin", "22", null, "mg/dL"], ["CRP", "40", null, "mg/L"]]), "wilson_evaluation");
+  assert.match(f?.must_say ?? f?.warnings?.join(" ") ?? "", /التهاب/);
+});
+
+test("M152: MMAِ بالا کنارِ B12ِ مرزی در همان یافتهٔ B12 می‌آید، نه یافتهٔ دوم (FR-015)",
+  { todo: "P49-ب — در انتظارِ تأییدِ بازبین" }, () => {
+  const p = uuuRun([["Vitamin B12", "180", null, "pg/mL"], ["Methylmalonic acid", "0.8", null, "µmol/L"]]);
+  const b12 = p.findings.filter((f) => /b12/.test(f.pattern));
+  assert.equal(b12.length, 1, fired(p).join(","));
+  assert.match(b12[0].must_say, /MMA|متیل‌مالونیک/);
+});
+
+test("M153: آنتی‌بادیِ فاکتورِ داخلیِ مثبت کنارِ B12ِ پایین — احتمالِ پرنیشیوز در یافتهٔ موجودِ B12", () => {
+  const p = uuuRun([["Vitamin B12", "120", null, "pg/mL"], ["Anti-Intrinsic Factor", "Positive"]]);
+  const f = findPat(p, "overt_b12_deficiency");
+  assert.match(f?.must_say ?? "", /پرنیشیوز/);
+  assert.doesNotMatch(f?.must_say ?? "", /پرنیشیوز دارید/);
+});
+
+test("M151d: سرولوپلاسمین فقط با واحدِ چاپ‌شده سنجیده می‌شود؛ g/L تبدیل می‌شود، بی‌واحد حکم نمی‌گیرد (P49-الف، N3)", () => {
+  // 0.1 g/L = 10 mg/dL ⇒ ویلسون. «10» بی‌واحد می‌تواند 10 mg/dL یا 10 g/L باشد ⇒ بی‌حکم، در خطِ «تفسیر نشدند».
+  assert.ok(findPat(uuuRun([["Ceruloplasmin", "0.1", null, "g/L"]]), "wilson_evaluation"), "g/L تبدیل نشد");
+  const bare = uuu([["Ceruloplasmin", "10"]]);
+  assert.equal(findPat(runPatterns(bare), "wilson_evaluation"), undefined);
+  assert.ok(bare.noRef.includes("CERULOPLASMIN"));
+  // ۲۵ mg/dL بی CRPِ بالا: یافته‌ای نیست (سقفِ بازه تأیید نشده، پس «طبیعی» هم گفته نمی‌شود).
+  assert.equal(findPat(uuuRun([["Ceruloplasmin", "25", null, "mg/dL"]]), "wilson_evaluation"), undefined);
+  // مسِ ادرار با µmol/24h: 2.4 µmol ≈ 152 µg ⇒ همان جملهٔ «پشتیبان» که 150 µg می‌گیرد.
+  const umol = findPat(uuuRun([["Ceruloplasmin", "10", null, "mg/dL"], ["Urine Copper 24h", "2.4", null, "µmol/24h"]]), "wilson_evaluation");
+  const ug = findPat(uuuRun([["Ceruloplasmin", "10", null, "mg/dL"], ["Urine Copper 24h", "150", null, "µg/24h"]]), "wilson_evaluation");
+  assert.match(umol.must_say, /بالای ۱۰۰/);
+  assert.match(ug.must_say, /بالای ۱۰۰/);
+  const ubare = findPat(uuuRun([["Ceruloplasmin", "10", null, "mg/dL"], ["Urine Copper 24h", "150"]]), "wilson_evaluation");
+  assert.match(ubare.must_say, /واحدش خوانده نشد/);
+});
+
+test("M151e: مقداری که یافته‌ای توضیحش داده از خطِ «تفسیر نشدند» بیرون می‌رود (P49، N20)", () => {
+  // وگرنه بیمار زیرِ یافتهٔ ویلسون می‌خواند «برای سرولوپلاسمین محدوده مرجع نداریم، تفسیر نشدند».
+  const e = uuu([["Ceruloplasmin", "10", null, "mg/dL"], ["Urine Copper 24h", "150", null, "µg/24h"], ["Zinc", "80", null, "µg/dL"]]);
+  const p = runPatterns(e);
+  assert.deepEqual(unexplainedNoRef(e.noRef, p.findings), ["ZINC"]);
+  // وقتی یافته فعال نیست (بی‌واحد)، سرولوپلاسمین در خط می‌ماند
+  const b = uuu([["Ceruloplasmin", "10"]]);
+  assert.deepEqual(unexplainedNoRef(b.noRef, runPatterns(b).findings), ["CERULOPLASMIN"]);
+});
+
+test("M153b: آنتی‌بادیِ منفی/عددی تفسیر نمی‌شود؛ APCAِ مثبت «اختصاصی نیست» می‌گیرد (P49-ج، N6)", () => {
+  const B = ["Vitamin B12", "120", null, "pg/mL"];
+  // بازبینیِ P49 (C1، C2): «Undetected»/«Nondetected» و «+/-» «مثبت است» خوانده می‌شدند. فقط «مثبت»ِ
+  // صریح تأیید شده؛ مثبتِ ضعیف و مبهم تا تصمیمِ بازبین تفسیر نمی‌شوند.
+  for (const v of ["Negative", "منفی", "Non-reactive", "25", "Undetected", "Nondetected", "+/-", "±",
+                   "Weakly positive", "مثبت ضعیف", "1+", "Equivocal", "Negative (+/-)"]) {
+    const e = uuu([B, ["Anti-Intrinsic Factor", v]]);
+    const p = runPatterns(e);
+    assert.doesNotMatch(findPat(p, "overt_b12_deficiency").must_say, /پرنیشیوز/, v);
+    assert.deepEqual(unexplainedNoRef(e.noRef, p.findings), ["ANTI_IF"], v);
+  }
+  for (const v of ["Positive", "positive", "POS", "مثبت", "Reactive", "Detected", "Positive."]) {
+    assert.match(findPat(uuuRun([B, ["Anti-Intrinsic Factor", v]]), "overt_b12_deficiency").must_say, /پرنیشیوز/, v);
+  }
+  // واحدهای سرولوپلاسمین که units.js می‌شناسد (M126) — پیش‌تر به خطِ «تفسیر نشدند» می‌افتادند
+  for (const u of ["میلی گرم در دسی لیتر", "(mg/dL)", "mg/dL.", "mgdl"]) {
+    assert.ok(findPat(uuuRun([["Ceruloplasmin", "10", null, u]]), "wilson_evaluation"), u);
+  }
+  const e = uuu([B, ["Parietal Cell Antibody", "Positive"]]);
+  const p = runPatterns(e);
+  const f = findPat(p, "overt_b12_deficiency");
+  assert.match(f.must_say, /پرنیشیوز/);
+  assert.match(f.must_say, /اختصاصی نیست/);
+  assert.deepEqual(unexplainedNoRef(e.noRef, p.findings), []);
+  // آنتی‌بادیِ مثبت بی B12ِ پایین: یافته‌ای نمی‌سازد و در خط می‌ماند
+  const n = uuu([["Vitamin B12", "500", null, "pg/mL"], ["Anti-Intrinsic Factor", "Positive"]]);
+  assert.deepEqual(unexplainedNoRef(n.noRef, runPatterns(n).findings), ["ANTI_IF"]);
+});
+
+test("M154: روی/مس/سلنیوم/E/C/PLPِ پایین ⇒ یافتهٔ غیرفوری؛ مسِ پایین + رویِ بالا ⇒ جملهٔ جذب",
+  { todo: "P49-د — در انتظارِ تأییدِ بازبین؛ عددهای مس/E/C/PLP هنوز از جدولِ فصل استخراج نشده‌اند" }, () => {
+  const p = uuuRun([["Serum Copper", "40", null, "µg/dL"], ["Zinc", "250", null, "µg/dL"]]);
+  const f = p.findings.find((x) => /copper/.test(x.pattern));
+  assert.ok(f, fired(p).join(","));
+  assert.notEqual(f.urgency, "emergency");
+  assert.match(f.must_say, /روی/);
 });

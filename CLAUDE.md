@@ -27,6 +27,10 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `2d32dd3`, after P49-الف/ج (user-approved): `wilson_evaluation`, antibody sentence in `overt_b12_deficiency`, `unexplainedNoRef` — `M151`–`M151c`, `M153` un-todo’d; `M151d`, `M151e`, `M153b`, `T22` new (all red before; `T22` also red with only the server filter undone) — 121 rules | 2026-09-19 | 518 | 499 | **0** | 19 todo |
+   | working tree on `2d32dd3`, after specs/004 + its review fixes (B1–B3, code-review 2/4/5 — `M155`–`M160`, all red before the fix) — 120 rules | 2026-09-19 | 514 | 491 | **0** | 23 todo |
+   | working tree on `2d32dd3`, specs/004 before review (`M141`–`M150`, `T21`; 6 P49 `todo`s). `M141`–`M149` + `T21` red on `2d32dd3` (archive + junction, measured by the code reviewer: `508 · 473 · 12`); `M150` is a freeze, green on both | 2026-09-19 | 508 | 485 | **0** | 23 todo |
+   | `2d32dd3` working tree **before** specs/004 — 119 rules | 2026-09-19 | 489 | 472 | **0** | 17 todo |
    | working tree on `edec069`, after the fourth review round (B10 age parsing, B11 newborn text — `M139`, `M140`, both red before the fix) — 119 rules | 2026-09-19 | 489 | 472 | **0** | 17 todo |
    | working tree on `edec069`, after the third review round (B9, `M138` — red with the newborn rule removed) — 119 rules | 2026-09-19 | 487 | 470 | **0** | 17 todo |
    | working tree on `edec069`, after the **second** specs/003 review round (B6–B8 + code-review 1–7) — `M134`–`M137b`; `M121`, `M127` changed on purpose — 119 rules | 2026-09-19 | 486 | 469 | **0** | 17 todo |
@@ -276,6 +280,9 @@ khanesh-project/
 │   ├── *-guidelines.{json,md}   # anemia + biochem source extracts
 │   ├── rules/
 │   │   ├── adapter.js           # OCR text -> engine keys (NAME_MAP, unit conversion)
+│   │   │                        #   specs/004: UNIT_GATED_ALIASES (zn/cu/se map only with a
+│   │   │                        #   concentration unit; Cr stays creatinine), QUAL_NO_READER
+│   │   │                        #   (anti-IF/APCA -> noReader -> noRef, never qual — no rule reads them)
 │   │   ├── guidelines.js        # citation registry (CLSI/IFCC/EFLM/WHO/KDIGO/ADA/ESC/ACG/…)
 │   │   ├── units.js             # IFCC SI -> conventional units (HbA1c mmol/mol, mmol/L, µmol/L)
 │   │   ├── preanalytical.js     # CLSI sample-quality caveats (hemolysis, fasting, EDTA, stasis)
@@ -298,6 +305,8 @@ khanesh-project/
 │   │   │                        #   مقدارهای بی‌قضاوت)؛ ردیف‌های منی در semenQual، نه qual (N25)
 │   │   ├── patterns_unit_unknown.js  # یک قاعده: unit_unknown_values — عددی که واحدش نه چاپ شده
 │   │   │                        #   نه از محدودهٔ مرجعِ برگه تعیین شد (specs/003، P48، N3)
+│   │   ├── patterns_trace_elements.js  # P49-الف: wilson_evaluation — سرولوپلاسمین از e.ungraded،
+│   │   │                        #   فقط با واحدِ چاپ‌شده؛ explains ⇒ بیرون از خطِ «تفسیر نشدند»
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
@@ -376,12 +385,13 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **fourteen** `patterns_<system>.js` files
+`patterns.js` no longer holds the rules. It imports **fifteen** `patterns_<system>.js` files
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-19) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **119 rules, measured
+concatenates their `RULES_*` exports into the exported `RULES` array — **121 rules, measured
 2026-09-19** (113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
-`unit_unknown_values` in `patterns_unit_unknown.js` from specs/003) with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
+`unit_unknown_values` in `patterns_unit_unknown.js` from specs/003, plus `folate_deficiency` in
+`patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004) with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
 `liver_injury_pattern` was deleted, then 113 once `overt_hypothyroidism` and
 `overt_thyrotoxicosis` went — see N20 with `P43` and `P45`); it still owns `runPatterns()`,
 `SUGGEST_TESTS`, and the suppression/dedup logic. So:
@@ -857,6 +867,17 @@ second one; a recurring entry is the strongest signal in the file.
 - **Tried:** translate CRP «۳+» into mg/L so it could be graded on the numeric scale.
 - **Broke:** the conversion factor differs per kit and the qualitative plate has no formula at all.
   The output would have been fabricated data wearing a real number's clothes.
+- **Recurred 2026-09-19 as a *reading* error, caught by the medical review before commit (P49-ج).**
+  The antibody check in `overt_b12_deficiency` looked for a positive with a substring regex,
+  `/pos|مثبت|^react|detected|\+/`, after first ruling out negatives with `/neg|…|not.?detect/`. So
+  «Undetected» and «Nondetected» passed the negative check and then matched `detected`, and «+/-»
+  matched `\+`. For each of them the patient read «آنتی‌بادیِ ضدِ فاکتورِ داخلیِ شما مثبت است …
+  پرنیشیوز». Worse, the antibody was then listed in `explains`, so it dropped out of the «تفسیر
+  نشدند» line and the wrong reading became the only one shown. Fixed with a whitelist that must
+  match the **whole value**. Weak and equivocal results stay uninterpreted. Guard `M153b`.
+  **Rule:** a qualitative result is a closed set of words, not a pattern. Negation words contain the
+  positive word (`undetected` ⊃ `detected`, `+/-` ⊃ `+`), so ruling negatives out first never closes
+  the list.
 - **Rule:** qualitative stays qualitative — give it its own classifier and its own pattern. Titres
   get `parseTitre()` (`toNum("1/160")` returns 1160). Thresholds for Iran-specific serology come from
   the national guideline, not CDC, when the dominant species differs.
@@ -1365,6 +1386,21 @@ structural, not specific to that rule.
 - **Guards:** `M58`, `M58b` (negative control), `M58c`. Verified against the pre-fix code in a temp
   copy — `M58` and `M58c` go red there. Note the copy needs `node_modules` junctioned in or the
   whole file dies on `Cannot find package 'acorn'`, the same trap the Commands section warns about.
+- ⚠️ **Recurred twice in specs/004 (2026-09-19). Both are the same net, reached by different doors.**
+  - **A rule that *reads* a key takes it away from the net, whatever it says about it.** `covered`
+    comes from `RULE_READS`, the source scan. So once `folate_deficiency` read `B12` for its
+    three-way clause, `B12 1500` (above the 200–900 range) stopped reaching `unexplained_abnormal`.
+    The only B12 text left was «پایین نیست (1500)», which is true, and it drops the flag.
+    **Rule:** if your rule reads a key for context, every branch that key can land in needs a
+    sentence, including "above range" when your rule only cares about "low". Guard `M156`.
+  - **The "all normal" path had the same `=== 0` shape at a different grain.** A sheet whose only
+    values had no reference range (`Zinc 40`, `Prolactin 40`) produced no finding and no abnormal
+    value. So on the engine path `buildNormalResult` told the patient «نتایج آزمایش شما در محدوده
+    طبیعی است», and a sheet with nothing *graded* skipped the engine entirely and went down the legacy
+    LLM path (`server.js`), where the model judges severity itself. "Not judged" was read as
+    "normal" (N4). Fixed with a `noRef` branch in `buildNormalResult` and a `noRef` check in the
+    legacy fallback condition. This also moves prolactin-only and AMH-only sheets (`P46`/`P47`) onto
+    the engine path. Guards `M146b`, `T21`, `M160`.
 
 ### N19 — Covering the borderline case and not the frank one
 2026-08-06, `borderline_b12_deficiency`. Same session as N18, found by the same probe.
@@ -1484,6 +1520,17 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   that discriminates them was printed on the same sheet and never read. That is N21, and the gate
   merely exposed it. Both were rewritten three ways (confirms / argues against / not measured).
   **Before gating a rule off, list what else it was the only owner of.**
+  ⚠️ **Recurred 2026-09-19 (specs/004), and this time the orphan was a warning, not an analyte.**
+  `folate_deficiency` stands down whenever `macrocytic_anemia` fires, which is right: one finding
+  owns folate. But the folic-acid caution («خودسرانه اسید فولیک شروع نکنید») lived only in
+  `folate_deficiency`. So on `Hb 9.5 · MCV 112 · Folate 2` with no B12, the caution vanished. That is
+  the one panel where folic acid can hide a B12 deficiency while nerve damage continues, and the new
+  macrocytic text had just told the patient the low folate "fits". Caught by both review agents
+  before commit. Guard `M155`. The inventory has to cover **warnings and cautions too**, not only
+  keys.
+  The same review found **B3**: `folate_deficiency` stayed `routine` while `overt_b12_deficiency`
+  said «این هفته» about the same B12 it quoted. The fix takes the urgency from the existing rule
+  instead of adding a number (`M157`).
 - **The rule that generalizes, and it is about where you look:** both of these were *additions*
   to a `_new` module that never checked what the non-`_new` module already did. `patterns.js`
   spreads both arrays into one `RULES`, so the two are siblings at runtime — the filename says

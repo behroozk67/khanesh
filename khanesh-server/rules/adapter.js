@@ -11,7 +11,7 @@
 import { getRef, getRefSource, getUnit, ckdEpiEgfr, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE } from "./refs.js";
 import { evaluate } from "./grade.js";
 import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcrossSystems, BRANCH_FACTORS,
-         parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv } from "./units.js";
+         parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv, normUnit } from "./units.js";
 // فقط برای سنجیدنِ «هر خوانشِ ممکن»ِ عددِ بی‌واحد با خودِ موتور (specs/003، B3). patterns.js هیچ‌چیز از
 // adapter.js نمی‌خواند، پس چرخهٔ import نیست.
 import { runPatterns } from "./patterns.js";
@@ -128,8 +128,42 @@ const NAME_MAP = {
   tibc: "TIBC",
   transferrinsaturation: "TSAT", tsat: "TSAT",
   b12: "B12", vitaminb12: "B12", serumvitaminb12: "B12",
+  // specs/004 (FR-005): املاهایی که روی برگهٔ واقعی می‌آیند و unmapped می‌ماندند (N2)
+  vitb12: "B12", cobalamin: "B12", "ویتامینب۱۲": "B12", "ویتامینb12": "B12", "ویتامینب12": "B12",
   folate: "FOLATE", folicacid: "FOLATE", فولات: "FOLATE",
-  vitd: "VIT_D", vitamind: "VIT_D", "vitamind3": "VIT_D",
+  serumfolate: "FOLATE", folateserum: "FOLATE", vitaminb9: "FOLATE", فولیکاسید: "FOLATE", اسیدفولیک: "FOLATE",
+  vitd: "VIT_D", vitamind: "VIT_D", "vitamind3": "VIT_D", vitd3: "VIT_D",
+  // ═══ specs/004: ویتامین‌ها و عناصرِ کمیاب — شناخته‌شده، بی‌بازه (noRef) تا تأییدِ P49 ═══
+  // فقط نامِ کامل. مخففِ دوحرفی (zn/cu/se) فقط با واحدِ سازگار — UNIT_GATED_ALIASES پایین‌تر.
+  // mn/co/cr/mo هرگز: «Cr» روی برگهٔ ایرانی کراتینین است (N2).
+  zinc: "ZINC", serumzinc: "ZINC", zincserum: "ZINC", plasmazinc: "ZINC", روی: "ZINC", رویسرم: "ZINC", زینک: "ZINC",
+  copper: "COPPER", serumcopper: "COPPER", copperserum: "COPPER", مس: "COPPER", مسسرم: "COPPER",
+  ceruloplasmin: "CERULOPLASMIN", سرولوپلاسمین: "CERULOPLASMIN",
+  selenium: "SELENIUM", serumselenium: "SELENIUM", سلنیوم: "SELENIUM",
+  vitamina: "VIT_A", retinol: "VIT_A", ویتامینa: "VIT_A", ویتامینآ: "VIT_A",
+  vitamine: "VIT_E", alphatocopherol: "VIT_E", tocopherol: "VIT_E", ویتامینe: "VIT_E", ویتامینای: "VIT_E",
+  vitaminc: "VIT_C", ascorbicacid: "VIT_C", ویتامینc: "VIT_C", ویتامینث: "VIT_C", اسیداسکوربیک: "VIT_C",
+  vitaminb1: "VIT_B1", thiamine: "VIT_B1", thiamin: "VIT_B1", ویتامینb1: "VIT_B1", ویتامینب۱: "VIT_B1", ویتامینب1: "VIT_B1", تیامین: "VIT_B1",
+  vitaminb6: "VIT_B6", pyridoxalphosphate: "VIT_B6", pyridoxal5phosphate: "VIT_B6", "pyridoxal5'phosphate": "VIT_B6", plp: "VIT_B6",
+  ویتامینb6: "VIT_B6", ویتامینب۶: "VIT_B6", ویتامینب6: "VIT_B6",
+  mma: "MMA", methylmalonicacid: "MMA", serummma: "MMA", اسیدمتیلمالونیک: "MMA", متیلمالونیکاسید: "MMA",
+  // فولاتِ گلبولِ قرمز: بازه‌اش حدودِ ۳۰ برابرِ فولاتِ سرم است — کلیدِ جدا (FR-010، N3)
+  rbcfolate: "RBC_FOLATE", folaterbc: "RBC_FOLATE", redcellfolate: "RBC_FOLATE", redbloodcellfolate: "RBC_FOLATE",
+  erythrocytefolate: "RBC_FOLATE", فولاتگلبولقرمز: "RBC_FOLATE",
+  // مسِ ادرار فقط ۲۴ساعته؛ «Urine Copper» بی‌۲۴ عمداً نیست (FR-010)
+  urinecopper24h: "U_COPPER_24H", "24hurinecopper": "U_COPPER_24H", "24hoururinecopper": "U_COPPER_24H",
+  urinecopper24hr: "U_COPPER_24H", urinarycopper24h: "U_COPPER_24H", copper24hurine: "U_COPPER_24H",
+  "مسادرار24ساعته": "U_COPPER_24H", "مسادرار۲۴ساعته": "U_COPPER_24H",
+  // کیفی — مسیرشان QUAL_NO_READER است، نه qual (N25)
+  antiintrinsicfactor: "ANTI_IF", antiintrinsicfactorantibody: "ANTI_IF", antiintrinsicfactorab: "ANTI_IF",
+  intrinsicfactorantibody: "ANTI_IF", intrinsicfactorab: "ANTI_IF", antiif: "ANTI_IF", آنتیبادیفاکتورداخلی: "ANTI_IF",
+  parietalcellantibody: "APCA", antiparietalcellantibody: "APCA", antiparietalcell: "APCA", parietalcellab: "APCA",
+  gastricparietalcellantibody: "APCA", apca: "APCA", آنتیبادیسلولجداری: "APCA",
+  // عناصرِ نادر — فقط نامِ کامل (FR-011b)
+  manganese: "MANGANESE", منگنز: "MANGANESE", cobalt: "COBALT", کبالت: "COBALT",
+  chromium: "CHROMIUM", کروم: "CHROMIUM", molybdenum: "MOLYBDENUM", مولیبدن: "MOLYBDENUM",
+  pantothenicacid: "VIT_B5", vitaminb5: "VIT_B5", ویتامینb5: "VIT_B5", ویتامینب۵: "VIT_B5", ویتامینب5: "VIT_B5",
+  urineiodine: "U_IODINE", urinaryiodine: "U_IODINE", iodineurine: "U_IODINE", یدادرار: "U_IODINE",
   "25ohd": "VIT_D", "25ohvitamind": "VIT_D", "25hydroxyvitamind": "VIT_D",
   vitamind25oh: "VIT_D", "ویتامیند": "VIT_D",
   tsh: "TSH",
@@ -404,6 +438,8 @@ function detectSemenPages(ocrTests) {
 function resolveAlias(key) {
   // هیچ تستِ دیگری با esr شروع نمی‌شود؛ «ESR 1hrs»، «ESR 1st hour»، «ESR 2hrs»
   if (/^esr/.test(key)) return "ESR";
+  // «Vitamin» تنها ویتامینِ خاصی نیست؛ بدونِ این، قاعدهٔ «e پایانی» پایین آن را VIT_E می‌کرد (specs/004، M148).
+  if (key === "vitamin" || key === "ویتامین") return undefined;
   // جمعِ انگلیسی و «e» پایانیِ اختیاری: cholesterols → cholesterol
   if (key.endsWith("s") && NAME_MAP[key.slice(0, -1)]) return NAME_MAP[key.slice(0, -1)];
   if (NAME_MAP[key + "e"]) return NAME_MAP[key + "e"];
@@ -428,6 +464,26 @@ function resolveAlias(key) {
   }
   return undefined;
 }
+
+// ═══ specs/004 (FR-011): مخففِ دوحرفی فقط با واحدِ غلظتِ سرم/پلاسما ═══
+// «Cu»/«Zn» در کشت یا میکروسکوپیِ ادرار بی‌واحد یا /hpf می‌آیند؛ نگاشتِ غلط بدتر از نگاشت‌نکردن است (N2).
+const TRACE_CONC_UNIT = /^(µg|μg|ug|mcg|ng|mg)\/(dl|l|ml)$|^(µmol|μmol|umol|nmol)\/l$/;
+const UNIT_GATED_ALIASES = { zn: "ZINC", cu: "COPPER", se: "SELENIUM" };
+function unitGatedKey(key, unit) {
+  const k = UNIT_GATED_ALIASES[key];
+  return k && TRACE_CONC_UNIT.test(normUnit(unit)) ? k : undefined;
+}
+
+// ═══ specs/004 (FR-007، N25): کیفی — هرگز به عدد تبدیل نمی‌شوند (N6) و هرگز به qual نمی‌روند ═══
+// qual با regex روی *هر* کلید جست‌وجو می‌شود (N25)، پس «Anti-Intrinsic Factor: Positive» آنجا
+// خواننده‌های ناخواسته پیدا می‌کرد. به noRef ⇒ خطِ «تفسیر نشدند» با faName، و متنِ خامشان در
+// ungraded (reason: no_range) تا overt_b12_deficiency فقط «مثبت» را بخواند (P49-ج، تأییدِ ۲۰۲۶-۰۹-۱۹).
+// یافته‌ای که یکی را تفسیر کند آن را در explains می‌گذارد و از خط بیرون می‌رود (unexplainedNoRef).
+const QUAL_NO_READER = new Set(["ANTI_IF", "APCA"]);
+// ═══ P49-الف: کلیدهای بی‌پروفایلِ واحد که قاعده‌ای عددشان را می‌خواند ═══
+// سرولوپلاسمین mg/dL یا g/L چاپ می‌شود (۱۰ در برابرِ ۰.۱)، مسِ ادرار µg یا µmol در ۲۴ ساعت. هیچ‌کدام در
+// UNIT_PROFILE نیستند، پس واحدِ چاپ‌شده اینجا نگه داشته می‌شود و قاعده فقط با واحدِ چاپ‌شده حکم می‌دهد (N3).
+const UNIT_KEPT = new Set(["CERULOPLASMIN", "U_COPPER_24H"]);
 
 /** کلیدِ برگه → کلیدِ موتور (با پشتیبانِ املایی) */
 function mapKey(key) {
@@ -686,6 +742,10 @@ export function ocrToEngineInput(ocr) {
   const tests = {};
   const qual = {};
   const unmapped = [];
+  // کلیدهای QUAL_NO_READER که روی برگه بودند — در runEngine به noRef می‌روند (specs/004).
+  const noReader = [];
+  const noReaderValues = {};   // متنِ خامِ همان کلیدها («Positive»، «منفی»، «25») — P49-ج
+  const printedUnits = {};     // واحدِ چاپ‌شدهٔ UNIT_KEPT — P49-الف
   // تبدیل‌های واحدِ انجام‌شده — برای شفافیت به بیمار و برای اشکال‌زدایی.
   // «۴۸ mmol/mol → ۶.۵٪» باید جایی دیده شود، وگرنه عددِ روی برگه با عددِ
   // تفسیر نمی‌خواند و بیمار حق دارد فکر کند اشتباه شده.
@@ -919,10 +979,17 @@ export function ocrToEngineInput(ocr) {
         engineKey = engineKey.replace("_PCT", "_ABS");
       }
     }
+    if (!engineKey) engineKey = unitGatedKey(key, t.unit);
     if (!engineKey) {
       unmapped.push(t.name);
       continue;
     }
+    if (QUAL_NO_READER.has(engineKey)) {
+      if (!noReader.includes(engineKey)) noReader.push(engineKey);
+      if (noReaderValues[engineKey] == null) noReaderValues[engineKey] = String(t.value ?? "");
+      continue;
+    }
+    if (UNIT_KEPT.has(engineKey) && !(engineKey in printedUnits)) printedUnits[engineKey] = t.unit ?? null;
 
     let v = toNum(t.value);
     if (v == null) {
@@ -1133,6 +1200,9 @@ export function ocrToEngineInput(ocr) {
     unitUnknown,
     rawText,
     unmapped,
+    noReader,
+    noReaderValues,
+    printedUnits,
     unitConversions,
     diffFailed,
     sex: inferSex(ocr),
@@ -1145,7 +1215,7 @@ export function ocrToEngineInput(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, unitUnknown, rawText, unmapped, unitConversions, diffFailed, sex, age } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, sex, age } = ocrToEngineInput(ocr);
 
   const conditions = ocr?.patient?.conditions || [];
   const isCancerPatient = conditions.some((c) => /سرطان|شیمی.?درمانی|رادیوتراپی|ایمونوتراپی/.test(c));
@@ -1196,7 +1266,8 @@ export function runEngine(ocr) {
   if (tests._trop_hs) derived.trop_hs_assay = true;
 
   const graded = [];
-  const noRef = [];
+  // کیفی‌های بی‌خواننده (QUAL_NO_READER) از اول اینجا‌اند — خطِ «تفسیر نشدند»، نه qual (specs/004، N25).
+  const noRef = [...noReader];
   // ═══ کانالِ «شناخته‌شده ولی بی‌قضاوت» (فصل ۲۶، P47؛ طراحیِ مشترک با P46) ═══
   // مقدارهایی که عمداً با بازه سنجیده نمی‌شوند ولی قاعده‌ای مالکشان است. هر ورودی دلیل دارد:
   //   pediatric / sex_unknown / cycle_day_unknown / hcg_positive → reproductive_hormone_context
@@ -1206,6 +1277,7 @@ export function runEngine(ocr) {
   //               و فقط برای نقلِ عدد در یافتهٔ دیگر (مثلاً LH/FSH کنارِ تستوسترونِ پایین) اینجاست.
   // ⚠️ این کانال به _engine سریال نمی‌شود و val(e) آن را نمی‌خواند (N17).
   const ungraded = {};
+  for (const k of noReader) ungraded[k] = { value: noReaderValues[k], reason: "no_range" };
   const hcgPositive = (tests.HCG != null && tests.HCG > HCG_POSITIVE_ABOVE) ||
     Object.entries(qual).some(([k, v]) => HCG_QUAL_NAME_RE.test(k) && /pos|positive|مثبت|\+/i.test(String(v)));
   const FEMALE_CYCLE_KEYS = new Set(["LH", "FSH", "E2", "PROG"]);
@@ -1338,6 +1410,7 @@ export function runEngine(ocr) {
     if (!ref) {
       noRef.push(key);
       if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range" };
+      else if (UNIT_KEPT.has(key)) ungraded[key] = { value, reason: "no_range", unit: printedUnits[key] ?? null };
       continue;
     }
 

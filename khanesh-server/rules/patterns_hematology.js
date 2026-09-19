@@ -3,6 +3,94 @@ import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
+// ─── specs/004: فولات و B12 — سه‌حالته، مشترکِ macrocytic_anemia و folate_deficiency ───
+// شرطِ کم‌خونیِ ماکروسیتیک یک جا نوشته می‌شود؛ folate_deficiency با همین تابع کنار می‌رود (N20).
+export const macrocyticMatch = (e) => {
+  const hgb = e.graded.find((g) => g.test === "HGB");
+  return !!(hgb?.abnormal && hgb.dir === "low" && val(e).MCV > 100);
+};
+// فوریت و جملهٔ اقدام از یک تصمیم (N20) — همان کمکیِ patterns_cardiac.js، عمداً کپی.
+function actionFor(urgency, { week, routine }) {
+  return urgency === "this_week" ? week : routine;
+}
+// عددِ تازه‌ای نیست: همان مرزهای overt_b12_deficiency (< ۱۵۰) و borderline_b12_deficiency (۱۵۰ تا ۳۹۹)، P21.
+// حالتِ جمله: یافتهٔ خودِ فولات، یا بندی درونِ ماکروسیتیک (عدد، نه رشته — M38 رشته‌ها را متنِ بیمار می‌شمارد).
+const CLAUSE_FOR = { own: 0, macro: 1 };
+const B12_OVERT_BELOW = 150;
+const B12_BORDERLINE_MAX = 399;
+const FOLIC_CAUTION = "پیش از مصرفِ اسید فولیک باید B12 هم سنجیده شود، چون اسید فولیک می‌تواند کم‌خونیِ ناشی از کمبودِ B12 را بپوشاند در حالی که آسیبِ عصبیِ آن ادامه پیدا می‌کند.";
+const FOLIC_WARNING = "تا پزشک وضعیتِ ویتامین B12 را بررسی نکرده، خودسرانه اسید فولیک شروع نکنید.";
+// عددِ چاپ‌شده، نه فقط عددِ تبدیل‌شده (N5).
+function printedOf(e, key, value) {
+  const c = (e.unitConversions || []).find((x) => x.test === key);
+  if (!c) return `${value}`;
+  // واحدی که برگه چاپ نکرده (از محدودهٔ مرجع یا اندازه تعیین شد) کنارِ عددِ بیمار «چاپ‌شده» نوشته نمی‌شود —
+  // کارتِ «واحدها» در فرانت پایه‌اش را توضیح می‌دهد (بازبینیِ کدِ 004، مورد ۴).
+  if (c.basis && c.basis !== "printed") return `${c.raw}`;
+  // units.js واحد را کوچک‌شده نگه می‌دارد («nmol/l»)؛ لیتر را به شکلِ چاپیِ رایج برگردان.
+  return `${c.raw} ${String(c.from).replace(/\/l$/, "/L")}`;
+}
+// B12 از نگاهِ فولات: کمبودش رد نشده (اندازه‌نشده، واحدِ نامعلوم یا مرزی)؟ زیرِ ۱۵۰ را overt_b12_deficiency
+// با هشدارِ فولیکِ خودش می‌گوید.
+function b12Unsettled(e) {
+  const b = val(e).B12;
+  return b == null || (b >= B12_OVERT_BELOW && b <= B12_BORDERLINE_MAX);
+}
+// فولات: پایین / پایین‌نیست / واحدِ نامعلوم / اندازه‌نشده (N4). `mode`: CLAUSE_FOR.own = یافتهٔ فولات، CLAUSE_FOR.macro = ماکروسیتیک.
+function folateClause(e, mode) {
+  const f = e.graded.find((g) => g.test === "FOLATE");
+  if (!f) {
+    return e.ungraded?.FOLATE
+      ? "فولات روی برگه هست ولی واحدش خوانده نشد، پس درباره‌اش قضاوت نمی‌کنیم."
+      : "فولات روی این برگه اندازه‌گیری نشده است.";
+  }
+  const low = f.abnormal && f.dir === "low";
+  const shown = printedOf(e, "FOLATE", f.value);
+  if (mode === CLAUSE_FOR.own) {
+    const lo = String(f.range ?? "").split(/[–-]/)[0];
+    const conv = shown === `${f.value}` ? `${f.value} ng/mL` : `${shown} (برابرِ ${f.value} ng/mL)`;
+    return `فولاتِ سرمِ شما ${conv} است و از حدِ پایینِ طبیعی (${lo} ng/mL) کمتر است.`;
+  }
+  // سه‌حالته، نه دوحالته: «پایین نیست» با «طبیعی است» یکی نیست (N12؛ کودک: محدودهٔ ۳–۱۵).
+  if (low) return `فولاتِ شما روی همین برگه ${shown} و پایین است، که با این نوع کم‌خونی می‌خواند.`;
+  if (f.abnormal && f.dir === "high") {
+    return `فولاتِ شما روی همین برگه بالاتر از محدودهٔ طبیعی است (${shown}، طبیعی ${f.range})، پس کمبودِ فولات علتِ محتمل‌تری نیست.`;
+  }
+  return `فولاتِ شما روی همین برگه طبیعی است (${shown})، پس کمبودِ فولات علتِ محتمل‌تری نیست.`;
+}
+// B12: پایین / مرزی / پایین‌نیست / واحدِ نامعلوم / اندازه‌نشده.
+function b12Clause(e, mode) {
+  const b = val(e).B12;
+  if (b == null) {
+    return e.ungraded?.B12
+      ? "ویتامین B12 روی برگه هست ولی واحدش خوانده نشد، پس درباره‌اش قضاوت نمی‌کنیم."
+      : "ویتامین B12 روی این برگه اندازه‌گیری نشده است.";
+  }
+  const shown = printedOf(e, "B12", b);
+  // B12ِ بالاتر از محدوده: این قاعده B12 را «می‌خواند»، پس تورِ unexplained_abnormal دیگر نامش را نمی‌برد —
+  // پس جمله خودش باید بگوید بالاست، نه فقط «پایین نیست» (بازبینی B2، N18).
+  const g = e.graded.find((x) => x.test === "B12");
+  if (g?.abnormal && g.dir === "high") {
+    const high = `ویتامین B12 شما (${shown}) بالاتر از محدودهٔ طبیعی است (${g.range})`;
+    return mode === CLAUSE_FOR.own
+      ? `${high}؛ کمبودِ B12 نیست، ولی بالا بودنش را این یافته توضیح نمی‌دهد و باید با پزشک بررسی شود.`
+      : `${high}، پس کمبودِ B12 علتِ محتمل‌تری نیست؛ بالا بودنش را این یافته توضیح نمی‌دهد و باید با پزشک بررسی شود.`;
+  }
+  if (b < B12_OVERT_BELOW) {
+    return mode === CLAUSE_FOR.own
+      ? `ویتامین B12 شما هم روی همین برگه پایین است (${shown})؛ کمبودِ هم‌زمانِ این دو ویتامین را پزشک با هم بررسی می‌کند.`
+      : `ویتامین B12 شما روی همین برگه پایین است (${shown})، که با این نوع کم‌خونی می‌خواند.`;
+  }
+  if (b <= B12_BORDERLINE_MAX) {
+    return mode === CLAUSE_FOR.own
+      ? `ویتامین B12 شما (${shown}) نزدیکِ مرزِ پایین است؛ پیش از مصرفِ اسید فولیک، پزشک باید کمبودِ B12 را هم رد کند.`
+      : `ویتامین B12 شما (${shown}) نزدیکِ مرزِ پایین است و کمبود را کاملاً رد نمی‌کند.`;
+  }
+  return mode === CLAUSE_FOR.own
+    ? `ویتامین B12 شما روی همین برگه پایین نیست (${shown}).`
+    : `ویتامین B12 شما روی همین برگه پایین نیست (${shown})، پس کمبودِ B12 علتِ محتمل‌تری نیست.`;
+}
+
 export const RULES_HEMATOLOGY = [
   {
     id: "dic_pattern",
@@ -391,15 +479,15 @@ export const RULES_HEMATOLOGY = [
   },
   {
     id: "macrocytic_anemia",
-    match: (e) => {
-      const t = val(e);
-      const hgb = e.graded.find((g) => g.test === "HGB");
-      return hgb?.abnormal && hgb.dir === "low" && t.MCV > 100;
-    },
+    match: (e) => macrocyticMatch(e),
     build: (e) => {
       const t = val(e);
       const hgb = e.graded.find((g) => g.test === "HGB");
       const rdwHigh = t.RDW_CV > 15 || t.RDW_SD > 56;
+      // بازبینی B1: وقتی ماکروسیتیک مالکِ فولاتِ پایین است، folate_deficiency کنار می‌رود و هشدارِ
+      // اسید فولیک با آن — درست در پنلی که اسید فولیک کمبودِ B12 را می‌پوشاند. هشدار اینجا می‌آید.
+      const f = e.graded.find((g) => g.test === "FOLATE");
+      const folicRisk = !!(f?.abnormal && f.dir === "low") && b12Unsettled(e);
       return {
         pattern: "macrocytic_anemia",
         urgency: "this_week",
@@ -407,7 +495,11 @@ export const RULES_HEMATOLOGY = [
         must_say:
           (hgb ? `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range}) و ` : "") +
           `گلبول‌های قرمز بزرگ‌تر از حد معمول‌اند (MCV حدود ${t.MCV}). ` +
-          "این نوع کم‌خونی («ماکروسیتیک») اغلب از کمبود ویتامین B12 یا فولات می‌آید — این ویتامین‌ها برای ساخت درست سلول لازم‌اند و بدون آن‌ها گلبول‌ها بزرگ و ناقص ساخته می‌شوند. کم‌کاری تیروئید هم می‌تواند علت باشد. " +
+          "این نوع کم‌خونی («ماکروسیتیک») اغلب از کمبود ویتامین B12 یا فولات می‌آید — این ویتامین‌ها برای ساخت درست سلول لازم‌اند و بدون آن‌ها گلبول‌ها بزرگ و ناقص ساخته می‌شوند. " +
+          // specs/004، N21: علت‌ها را فهرست کردن بس نیست — عددی که میانشان داوری می‌کند روی همین برگه است.
+          `${folateClause(e, CLAUSE_FOR.macro)} ${b12Clause(e, CLAUSE_FOR.macro)} ` +
+          (folicRisk && t.B12 == null ? `${FOLIC_CAUTION} ` : "") +
+          "کم‌کاری تیروئید هم می‌تواند علت باشد. " +
           (rdwHigh
             ? "تفاوت اندازهٔ گلبول‌ها هم زیاد است (RDW بالا) که سرنخ مهمی است."
             : ""),
@@ -418,7 +510,46 @@ export const RULES_HEMATOLOGY = [
         forbid: ["آهن", "فریتین", "iron", "ferritin"],
         warnings: [
           "خودتان مکمل B12 شروع نکنید — اگر قبل از آزمایش مصرف کنید، نتیجه گمراه‌کننده می‌شود.",
+          ...(folicRisk ? [FOLIC_WARNING] : []),
         ],
+      };
+    },
+  },
+  // ─── specs/004: فولاتِ پایین — تا امروز فقط به «توضیحی نداریم» می‌رسید (N1) ───
+  // مالکیت (N20): وقتی macrocytic_anemia فعال است، فولات مالِ آن است و این قاعده کنار می‌رود.
+  // شرط از *همان* macrocyticMatch خوانده می‌شود، نه با بازنویسیِ «MCV > 100» — دو شرطِ هم‌معنا
+  // یک ویرایش تا دو یافتهٔ متناقض فاصله دارند. آستانه همان بازهٔ refs.js است؛ عددِ تازه‌ای نیست.
+  // فوریت همیشه routine (clarify ۲۰۲۶-۰۹-۱۹، P49) — موتور برای فولات درجهٔ CTCAE ندارد.
+  {
+    id: "folate_deficiency",
+    match: (e) => {
+      const f = e.graded.find((g) => g.test === "FOLATE");
+      return !!(f?.abnormal && f.dir === "low") && !macrocyticMatch(e);
+    },
+    build: (e) => {
+      const f = e.graded.find((g) => g.test === "FOLATE");
+      const b12 = val(e).B12;
+      // فولاتِ تنها همیشه routine است (clarify Q4). ولی کنارِ B12ِ زیرِ ۱۵۰، overt_b12_deficiency همین
+      // B12 را «این هفته» می‌گوید و این یافته هم از همان B12 حرف می‌زند — یک عدد، یک زمان‌بندی
+      // (بازبینی B3، N20). فوریت از قاعدهٔ موجود گرفته می‌شود، نه عددِ تازه.
+      const urgency = b12 != null && b12 < B12_OVERT_BELOW ? "this_week" : "routine";
+      return {
+        pattern: "folate_deficiency",
+        urgency,
+        headline: "فولاتِ خونِ شما پایین است",
+        must_say:
+          `${folateClause(e, CLAUSE_FOR.own)} ` +
+          "فولات یکی از ویتامین‌های گروهِ B است که بدن برای ساختنِ گلبول‌های قرمز و سلول‌های تازه لازم دارد. " +
+          b12Clause(e, CLAUSE_FOR.own) +
+          (b12 == null ? ` ${FOLIC_CAUTION}` : ""),
+        action: actionFor(urgency, {
+          week: "همراه با یافتهٔ ویتامین B12، این هفته با پزشک مطرح کنید و پیش از شروعِ هر مکملی این برگه را به پزشک نشان دهید.",
+          routine: "در نوبتِ عادی با پزشک مطرح کنید و پیش از شروعِ هر مکملی این برگه را به پزشک نشان دهید.",
+        }),
+        ...(b12 == null ? { suggest: ["ویتامین B12"] } : {}),
+        // زیرِ ۱۵۰ همان هشدار را overt_b12_deficiency (با همان فوریت) می‌دهد؛ بالای ۳۹۹ لازم نیست.
+        warnings: b12Unsettled(e) ? [FOLIC_WARNING] : [],
+        key_number: f.value,
       };
     },
   },

@@ -143,7 +143,7 @@ const FA_UNITS = [
  *    پیش از این، هر کدام «واحدِ ناشناخته» بود — و یعنی برگه‌ای که واحد را *داشت* مثلِ برگهٔ بی‌واحد
  *    رفتار می‌کرد (FR-009).
  */
-function normUnit(u) {
+export function normUnit(u) {
   let s = String(u ?? '').toLowerCase().replace(/[\s‌‏‎]+/g, '')
     .replace(/[()[\]{}]/g, '').replace(/\.+$/, '').trim();
   for (const [re, en] of FA_UNITS) if (re.test(s)) return en;

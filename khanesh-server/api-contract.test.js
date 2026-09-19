@@ -715,3 +715,31 @@ test("T20: برگه‌ای که فقط عددِ بی‌واحد دارد مسی�
   assert.ok(body._engine.patterns.includes("unit_unknown_values"), `patterns=${body._engine.patterns}`);
   assert.equal(body.has_critical, false, "کراتینینِ بی‌واحد هنوز بحرانی خوانده می‌شود");
 });
+
+test("T21: برگه‌ای که فقط آنالیتِ بی‌بازهٔ فصلِ ویتامین/عناصر دارد مسیرِ موتور را می‌گیرد — نه «طبیعی است»، نه کلیدِ خام (specs/004، FR-009)", async () => {
+  // 🔴 روی 2d32dd3: graded خالی ⇒ مسیرِ قدیمِ بی‌موتور (مدل خودش قضاوت می‌کند).
+  const { status, body } = await analyze({ patient: { age: 40, sex: "M" }, tests: [
+    // سرولوپلاسمینِ ۲۵ (زیرِ ۲۰ نیست، بی‌التهاب) عمداً: از ۲۰۲۶-۰۹-۱۹ عددِ زیرِ ۲۰ یافتهٔ ویلسون می‌گیرد (P49-الف، T22).
+    { name: "Zinc", value: "40", unit: "µg/dL" }, { name: "Ceruloplasmin", value: "25", unit: "mg/dL" }] });
+  // آنتی‌بادی‌ها اینجا نیستند: ورودِ دستی عمداً فقط عدد می‌پذیرد (server.js، manualTests)؛ مسیرِ عکسِ آن‌ها M147 است.
+  assert.equal(status, 200);
+  assert.ok(body?._engine, "مسیرِ موتور گرفته نشد");
+  assert.equal(body.has_critical, false);
+  assert.doesNotMatch(`${body.summary} ${body.interpretation}`, /در محدوده طبیعی است/);
+  const warn = (body.ocr_warnings || []).join(" ");
+  for (const fa of ["روی", "سرولوپلاسمین"]) assert.ok(warn.includes(fa), `«${fa}» در هشدار نیست: ${warn}`);
+  assert.doesNotMatch(JSON.stringify(body), /"(ZINC|CERULOPLASMIN|ANTI_IF)"|\b(ZINC|CERULOPLASMIN|ANTI_IF)\b(?!")/, "کلیدِ خام به پاسخ رسید");
+});
+
+test("T22: سرولوپلاسمینِ پایین یافتهٔ ویلسون می‌گیرد و از خطِ «تفسیر نشدند» بیرون می‌رود؛ رویِ بی‌بازه می‌ماند (P49-الف)", async () => {
+  // 🔴 پیش از P49: سرولوپلاسمینِ ۱۲ فقط «محدوده مرجع نداریم … تفسیر نشدند» می‌گرفت.
+  const { status, body } = await analyze({ patient: { age: 25, sex: "F" }, tests: [
+    { name: "Zinc", value: "80", unit: "µg/dL" }, { name: "Ceruloplasmin", value: "12", unit: "mg/dL" }] });
+  assert.equal(status, 200);
+  assert.ok(body?._engine?.patterns?.includes("wilson_evaluation"), JSON.stringify(body?._engine?.patterns));
+  assert.equal(body.has_critical, false);
+  const warn = (body.ocr_warnings || []).find((w) => /محدوده مرجع نداریم/.test(w)) ?? "";
+  assert.ok(warn.includes("روی"), `«روی» در هشدار نیست: ${warn}`);
+  assert.ok(!warn.includes("سرولوپلاسمین"), `سرولوپلاسمینِ تفسیرشده هنوز «تفسیر نشدند» است: ${warn}`);
+  assert.doesNotMatch(JSON.stringify(body), /\b(ZINC|CERULOPLASMIN|U_COPPER_24H)\b/, "کلیدِ خام به پاسخ رسید");
+});
