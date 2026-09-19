@@ -66,12 +66,22 @@ _engine = {
   // ── guideline layer (added 2026-07-27) ──
   guidelines:      [ { id, org, fa, title, year, url, substituted } ],
   preanalytical:   [ { text, sources } ],
-  unitConversions: [ { test, name, raw, from, value, to } ]
+  unitConversions: [ { test, name, raw, from, value, to, basis? } ]   // basis: specs/003
 }
 ```
 
-All three are rendered by `ResultView.jsx` (`GuidelineSources`, `Preanalytical`, `UnitConversions`).
-Each carries a constraint that is not obvious from the field name:
+⚠️ **Corrected 2026-09-19: an earlier version of this file said all three are rendered by
+`ResultView.jsx` (`GuidelineSources`, `Preanalytical`, `UnitConversions`). None of the three existed in
+`khanesh/src`** — they were dropped around `763c73d` and the server kept sending the fields to nobody.
+`UnitConversions` is back (specs/003, the «واحدها» card under the extracted numbers). It renders
+`name`, what the sheet printed, the graded value, and one Persian sentence per `basis`:
+`printed` (or absent, from an older server) / `reference` (the unit was decided from the lab's printed
+reference range) / `magnitude` (only one unit is possible for that number — reviewer-gated, `P48`).
+For `basis ≠ printed` it says the sheet printed the number **without** a unit; it must never write
+«روی برگهٔ شما ۸۰ µmol/L» for a unit the sheet didn't print (N5). **`GuidelineSources` and
+`Preanalytical` are still not rendered** — their constraints below describe what a renderer must do,
+not what one does today.
+Each field carries a constraint that is not obvious from its name:
 
 - `guidelines` — the published sources behind the findings shown. **Render `substituted` whenever
   it is non-null.** It means the original body is paywalled (UpToDate, BMJ Best Practice, CLSI's own

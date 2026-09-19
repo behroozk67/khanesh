@@ -12,6 +12,7 @@ import { RULES_MINERAL_BONE } from "./patterns_mineral_bone.js";
 import { RULES_CARDIAC } from "./patterns_cardiac.js";
 import { RULES_ENDOCRINE_PITUITARY } from "./patterns_endocrine_pituitary.js";
 import { RULES_REPRODUCTIVE } from "./patterns_reproductive.js";
+import { RULES_UNIT_UNKNOWN } from "./patterns_unit_unknown.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
@@ -36,7 +37,8 @@ export const RULES = [
   ...RULES_MINERAL_BONE,
   ...RULES_CARDIAC,
   ...RULES_ENDOCRINE_PITUITARY,
-  ...RULES_REPRODUCTIVE
+  ...RULES_REPRODUCTIVE,
+  ...RULES_UNIT_UNKNOWN
 ];
 
 //    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ

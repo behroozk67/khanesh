@@ -27,6 +27,14 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `edec069`, after the fourth review round (B10 age parsing, B11 newborn text — `M139`, `M140`, both red before the fix) — 119 rules | 2026-09-19 | 489 | 472 | **0** | 17 todo |
+   | working tree on `edec069`, after the third review round (B9, `M138` — red with the newborn rule removed) — 119 rules | 2026-09-19 | 487 | 470 | **0** | 17 todo |
+   | working tree on `edec069`, after the **second** specs/003 review round (B6–B8 + code-review 1–7) — `M134`–`M137b`; `M121`, `M127` changed on purpose — 119 rules | 2026-09-19 | 486 | 469 | **0** | 17 todo |
+   | the pre-review-fix copy with that `engine.test.js` dropped in (engine suite only) — `M134`–`M137b` all red | 2026-09-19 | 449 | 415 | **17** | 17 todo |
+   | working tree on `edec069`, after the specs/003 review fixes (B1–B5 + 10 items) — `M126`–`M133`; `M121`, `M123d` changed on purpose — 119 rules | 2026-09-19 | 481 | 464 | **0** | 17 todo |
+   | the working tree **before** those fixes (copy) with the new `engine.test.js` dropped in (engine suite only) — red: exactly the 10 new (`M126`–`M126c`, `M127`–`M133`) + `M121`, `M123d` | 2026-09-19 | 444 | 415 | **12** | 17 todo |
+   | working tree on `edec069`, after specs/003 (unitless values) — `M121`–`M125`, `T20`; 342 fixture rows given the unit they always assumed — 119 rules | 2026-09-19 | 471 | 454 | **0** | 17 todo |
+   | `edec069` rules (`git archive` + junction) with that new `engine.test.js`/`api-contract.test.js` dropped in — red: exactly the 11 new tests + `G1b`, `M115` (intended behaviour changes) | 2026-09-19 | 470 | 440 | **13** | 17 todo |
    | working tree on `8ccd67d`, after Stage B of Henry ch.26 + the agent-review fixes (`M114`–`M120`) — 118 rules | 2026-09-19 | 459 | 442 | **0** | 17 todo |
    | the Stage B rules dir **before** the review fixes, with the new `engine.test.js` dropped in (engine suite only) — red: exactly `M114`–`M120` (8) | 2026-09-19 | 423 | 398 | **8** | 17 todo |
    | working tree on `8ccd67d`, after Stage A of Henry ch.26 (`P47`) — `M104`–`M105c`, `M111`, `T18` live; `M106`–`M111b`, `T19` as `todo` (13) | 2026-09-18 | 446 | 419 | **0** | 27 todo |
@@ -288,6 +296,8 @@ khanesh-project/
 │   │   ├── patterns_reproductive.js  # فصل ۲۶ هنری — ۵ قاعده، فقط بندهای تأییدشدهٔ P47
 │   │   │                        #   (منی WHO 2021، تستوسترونِ مرد، پروژسترونِ روزِ ۲۱، hCG،
 │   │   │                        #   مقدارهای بی‌قضاوت)؛ ردیف‌های منی در semenQual، نه qual (N25)
+│   │   ├── patterns_unit_unknown.js  # یک قاعده: unit_unknown_values — عددی که واحدش نه چاپ شده
+│   │   │                        #   نه از محدودهٔ مرجعِ برگه تعیین شد (specs/003، P48، N3)
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
@@ -366,11 +376,12 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **thirteen** `patterns_<system>.js` files
+`patterns.js` no longer holds the rules. It imports **fourteen** `patterns_<system>.js` files
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-19) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **118 rules, measured
-2026-09-19** (113 plus the five `P47` Stage B rules in `patterns_reproductive.js`) with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
+concatenates their `RULES_*` exports into the exported `RULES` array — **119 rules, measured
+2026-09-19** (113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
+`unit_unknown_values` in `patterns_unit_unknown.js` from specs/003) with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
 `liver_injury_pattern` was deleted, then 113 once `overt_hypothyroidism` and
 `overt_thyrotoxicosis` went — see N20 with `P43` and `P45`); it still owns `runPatterns()`,
 `SUGGEST_TESTS`, and the suppression/dedup logic. So:
@@ -759,6 +770,62 @@ second one; a recurring entry is the strongest signal in the file.
   diabetes threshold, 6.5% — was graded against `[4, 5.6]`. `units.js` now covers the whole SI
   table, still refusing to convert unless the sheet states the unit. Adding a numeric test without
   asking "which unit systems print this analyte?" is the same mistake in a new place.
+- ⚠️ **Recurred 2026-09-19 through the unit nobody printed** (specs/003, `P48`). "Refusing to convert
+  unless the sheet states the unit" had a hidden other half: with **no** unit, the number was graded
+  as conventional without saying so. Measured on `edec069`, one unitless row each: creatinine 80,
+  calcium 2.4, bilirubin 17 and troponin 8 (all normal in SI) → **emergency**; FBS 15 (high, mmol/L)
+  → «قند شما **پایین** است», which is the direction reversed; cholesterol 8 (high, mmol/L) → **no finding at all**.
+  Now `decideUnit` in `units.js` uses the row's own printed reference range, and anything it can't
+  settle is **not graded** and goes to `unit_unknown_values`. That finding is never an emergency,
+  never says «بالا/پایین», and is `this_week` only if the number is out of range under both units.
+  Guards `M121`–`M125`, `T20`.
+  **The generalizing lesson is about defaults, not units:** "we only convert when told" is only safe if
+  "not told" leads to *not grading*. A default that silently picks one interpretation is a guess
+  without the word "guess" in it. It also hid in the test suite: 342 fixture rows had no unit and
+  passed only because of that guess. When a default changes, the fixtures that leaned on it are part
+  of the change. Give them the assumption explicitly (an insertion-only codemod, verified by
+  stripping the insertions back out), or the suite stays green on meaning it no longer has.
+- ⚠️ **The first specs/003 fix overcorrected. The medical review failed it, and the way it failed is the
+  reusable part** (2026-09-19). "Without a unit, severity is unknowable, so never an emergency" was written
+  as a ceiling. Measured: calcium 15, Hb 5.5, creatinine 8 and 900, FBS 600 and troponin 2000 all went
+  from emergency to «این هفته». Each of them is dangerous under *every* reading that can happen (calcium
+  15 mmol/L = 60 mg/dL, which no one survives). Troponin 45 printed next to the lab's own «<19» went to
+  «در نوبتِ عادی». The premise only holds when the readings *disagree*. The fix derives urgency from the
+  engine itself: the **minimum** across the possible readings, or a single reading scaled to the printed
+  range, since that range is always in the same unit as the value. Guards `M127`, `M130`.
+  **Rule:** when you remove a false alarm, give the new path a floor, not a ceiling. Then run it against
+  the worst real input, not just the ordinary one the bug was about. N20 checks the ordinary case for a
+  new emergency rule; this is the same check turned round for a new *non*-emergency rule.
+  The same review found two more bugs in the same class. Neither fired on the panels the fix was written for:
+  - Age 0 was read as "unknown" (`!raw`), so a neonate's bilirubin was compared against the adult band
+    and 14 mg/dL came out as «0.82, normal». That is N4 at the input: `M129`.
+  - The new finding was hidden under any `blocks_others` emergency. That is N18: `M128`.
+- ⚠️ **The second round failed as well, on one table doing two jobs** (N23 again). `SURVIVAL_LIMITS` answered
+  both "can this reading be ruled out?" and "can we believe a printed range that pushes the value this far?".
+  - The first question needs *wide* bounds. At 400, urea 450 (real uraemia) was dismissed as "maybe misread" (B8).
+  - The second needs *tight* bounds. At a wide limit, "FBS 95" next to a neighbouring row's HbA1c range
+    «4-5.6» became 1712 mg/dL and fired `hhs_pattern` (B7).
+  - The fix was to split the table in two: `SURVIVAL_LIMITS` for ruling readings out, `DECIDE_LIMITS` for
+    trusting a range. A printed range also has to sit within ×3 of the engine band before it is trusted.
+
+  The same round found two more bugs:
+  - A reference that prints both units («0.6-1.2 mg/dL (53-106 µmol/L)», typical of SI labs) let the first
+    unit win, and creatinine 80 became an emergency again.
+  - An adult range printed beside a newborn sample made bilirubin 1.5 on day 3 an emergency.
+
+  **Rule:** evidence that can come from a neighbouring row, or that names two answers at once, is not evidence.
+  Before a parsed range or unit is allowed to *raise* urgency, check that it could belong to this test.
+  Guards `M134`–`M137b`.
+- ⚠️ **The fourth round found that the newborn fix depended on an input nobody had checked: age.** `inferAge`
+  had no hours or weeks and read no Persian digits. So «48 h» became 48 years, «2 weeks» became 2 years, and
+  «۳ روزه» became an unknown age. A newborn's bilirubin 20 then got «در نوبتِ عادی», which is lower than before
+  the fix. The same round found that the newborn sentence («پزشکِ نوزاد، نمودارِ ساعتی») was shown up to age 1,
+  although the hourly charts only cover the first weeks. Guards `M139`, `M140`.
+  The age fix then caused a bug of its own in round 5 (B12). It checked hours and weeks first and took the first
+  match, so «1 month 1 week» was read as one week and the whole sheet was graded against newborn ranges. The parts
+  of an age are now added up, not picked.
+  **Rule:** when a fix is gated on an input (age, sex, unit), test it with that input written the way real sheets
+  write it, not with the number your test fixture happens to pass.
 
 ### N4 — Telling the patient about a test they didn't have
 `9c93319`

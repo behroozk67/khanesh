@@ -262,6 +262,58 @@ function DerivedValues({ indices }) {
   );
 }
 
+/* ---------- واحدها ---------- */
+
+// چرا این واحد؟ متن‌ها عیناً از specs/003-unitless-lab-values/contracts/engine-output.md
+// نبودنِ basis (پاسخِ سرورِ قدیمی) یعنی «printed».
+const BASIS_TEXT = {
+  printed: "واحد روی برگه نوشته شده بود.",
+  reference: "واحد روی برگه نبود؛ از محدودهٔ مرجعی که آزمایشگاه کنارِ این عدد چاپ کرده تعیین شد.",
+  magnitude: "واحد روی برگه نبود؛ این عدد فقط با یک واحد ممکن است، پس همان در نظر گرفته شد.",
+};
+
+// «۴۸ mmol/mol» روی برگه و «۶.۵۴٪» در تفسیر بدونِ این سطر شبیهِ اشتباه است. سرور این فهرست را
+// همیشه می‌فرستاد (_engine.unitConversions) ولی از 763c73d هیچ جزئی رندرش نمی‌کرد.
+// ⚠️ `name` رندر می‌شود، هرگز `test` — `test` کلیدِ خامِ موتور است (N8).
+function UnitConversions({ rows, asText, asList }) {
+  const list = asList(rows).filter((r) => r && r.name);
+  if (!list.length) return null;
+  return (
+    <section className="card">
+      <h2 className="block-title">واحدها</h2>
+      <p className="hint">
+        این آزمایش‌ها با واحدی غیر از واحدِ مرجعِ ما گزارش شده بودند یا واحدشان روی برگه نبود.
+      </p>
+      <ul className="derived-list">
+        {list.map((r, i) => {
+          // «mg/dl» و «mg/dL» یک واحدند — سطرِ «برای مقایسه» فقط وقتی عدد یا واحد واقعاً عوض شده باشد.
+          const sameUnit = String(r.from ?? "").toLowerCase().replace(/μ/g, "µ") === String(r.to ?? "").toLowerCase().replace(/μ/g, "µ");
+          const changed = r.value !== r.raw || !sameUnit;
+          return (
+            <li key={`${r.test}-${i}`} className="derived-row">
+              {/* ⚠️ واحدِ تعیین‌شده «روی برگه» نبود — نوشتنِ «روی برگهٔ شما ۸۰ µmol/L» ادعای غلط است (N5). */}
+              <span className="derived-parent">
+                {r.basis && r.basis !== "printed" ? (
+                  <>{asText(r.name)}: روی برگهٔ شما <Num>{r.raw}</Num> بدونِ واحد — واحدِ تعیین‌شده: {r.from}</>
+                ) : (
+                  <>{asText(r.name)}: روی برگهٔ شما <Num>{r.raw}</Num> {r.from}</>
+                )}
+              </span>
+              {changed && (
+                <span className="derived-child">
+                  <span>برای مقایسه با محدودهٔ مرجع:</span>
+                  <Num>{r.value}</Num> <span>{r.to}</span>
+                </span>
+              )}
+              <span className="hint">{BASIS_TEXT[r.basis] ?? BASIS_TEXT.printed}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 /* ---------- منشأ تفسیر ---------- */
 
 function Provenance({ hasEngine }) {
@@ -379,6 +431,7 @@ export default function ResultView({ result, asText, asList }) {
 
       {/* ۲. تأیید اعداد */}
       <ExtractedTests list={extracted} pages={result.pages} asText={asText} />
+      {hasEngine && <UnitConversions rows={eng?.unitConversions} asText={asText} asList={asList} />}
 
       {/* ۳. خروجی گراف LabMat (بیمار و پزشک) */}
       {result.labmat && (

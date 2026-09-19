@@ -7,7 +7,7 @@ describe("Geriatric Logic", () => {
   it("should apply geriatric reference ranges for a 75-year old", () => {
     const testOcr = {
       tests: [
-        { name: "Hb", value: "12.3", reference: "14-17.5" },
+        { name: "Hb", value: "12.3", unit: "g/dL", reference: "14-17.5" },
         { name: "RBC", value: "3.82" },
         { name: "HCT", value: "38.6" },
         { name: "MCV", value: "101" },

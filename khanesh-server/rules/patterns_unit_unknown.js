@@ -1,0 +1,104 @@
+// ============================================================
+// LabMate — عددی که واحدش معلوم نیست (specs/003-unitless-lab-values، P48)
+// ============================================================
+// 🔴 باگِ واقعی، کلاسِ N3: موتور هر عددِ بی‌واحد را بی‌صدا «متعارف» فرض می‌کرد. روی برگهٔ SI این
+//    چهار اورژانسِ کاذب (کراتینینِ ۸۰، کلسیمِ ۲.۴، بیلی‌روبینِ ۱۷، تروپونینِ ۸)، یک جهتِ وارونه (قندِ
+//    ۱۵ mmol/L → «قند پایین») و یک سکوت (کلسترولِ ۸ mmol/L) می‌ساخت. حالا adapter واحد را از
+//    شواهدِ خودِ ردیف تعیین می‌کند (units.js → decideUnit)، و آنچه تعیین نشد اینجا می‌آید.
+//
+// این قاعده *تنها* مالکِ ungraded با دلیلِ `unit_unknown` است — برای همهٔ کلیدها (N20).
+// (تا P47 دلیلِ تستوسترون را reproductive_hormone_context می‌خواند؛ منتقل شد.)
+//
+// اصل‌ها:
+//  • هرگز «بالا» یا «پایین»: در ناحیهٔ مبهم دو تفسیر جهتِ مخالف می‌دهند (قندِ ۱۵).
+//  • فوریت را این فایل حساب نمی‌کند — adapter برای هر ردیف `urgency` را از خودِ موتور گرفته است
+//    (کمینه روی خوانش‌های ممکن، یا عدد نسبت به محدودهٔ چاپ‌شده). اینجا فقط بیشینهٔ ردیف‌ها، و همان
+//    یک مقدار هم فیلدِ urgency را می‌سازد هم جملهٔ action را (N20).
+//  • اورژانس فقط وقتی هر خوانشِ ممکن اورژانس است، یا عدد بیرون از محدودهٔ خودِ آزمایشگاه به حدِ
+//    اورژانس است (بازبینیِ پزشکی B3، B5) — باز هم بی‌جهت.
+//  • فقط عددِ برگه نقل می‌شود، نه عددِ تبدیل‌شده (N5).
+//  • `always_show`: زیرِ یک اورژانسِ دیگر پنهان نمی‌شود (B4؛ همان کلاسِ N18).
+// ============================================================
+
+import { faName } from "./names.js";
+
+const fmt = (n) => String(+Number(n).toFixed(2));
+const UNITS_FA = { 2: "دو", 3: "سه" };
+
+const CLAUSE = {
+  base: (n) => `واحد روی برگه خوانده نشد و این آزمایش با ${UNITS_FA[n] ?? "چند"} واحدِ رایج گزارش می‌شود که عددشان خیلی فرق دارد؛ برای همین دربارهٔ آن قضاوت نمی‌کنیم.`,
+  some: "بسته به واحد، ممکن است خارج از محدودهٔ طبیعی باشد.",
+  all: (n) => `با هر کدام از ${UNITS_FA[n] ?? "چند"} واحد که خوانده شود، خارج از محدودهٔ طبیعی است.`,
+  danger: "واحد روی برگه خوانده نشد، ولی با هر واحدی که خوانده شود، این عدد در محدودهٔ خطرناک است.",
+  impossible: "واحد روی برگه خوانده نشد و این عدد با هیچ واحدِ رایجی جور درنمی‌آید؛ ممکن است عدد درست خوانده نشده باشد.",
+  outside: (r) => `واحد روی برگه خوانده نشد، ولی این عدد بیرون از محدودهٔ مرجعی است که خودِ آزمایشگاه کنارش چاپ کرده (${r}).`,
+  within: (r) => `واحد روی برگه خوانده نشد، ولی این عدد در محدودهٔ مرجعی است که خودِ آزمایشگاه کنارش چاپ کرده (${r}).`,
+  onlyOne: "واحد روی برگه خوانده نشد، ولی این عدد فقط با یکی از واحدهای رایج ممکن است، و با همان واحد خارج از محدودهٔ طبیعی است.",
+  onlyOneDanger: "واحد روی برگه خوانده نشد، ولی این عدد فقط با یکی از واحدهای رایج ممکن است، و با همان واحد در محدودهٔ خطرناک است.",
+  worstNeonatal: "واحد روی برگه خوانده نشد؛ با یکی از دو واحدِ رایج این عدد برای نوزاد در محدودهٔ خطرناک است، و تا واحد روشن نشده باید همین را فرض کرد.",
+  // نوزاد: جمله از همان فوریتی ساخته می‌شود که action را می‌سازد (B6، N20) — «همین امروز» فقط کنارِ اورژانس.
+  neonatal: {
+    emergency: "برای نوزاد، این عدد را همین امروز به پزشکِ نوزاد نشان دهید؛ بیلی‌روبینِ نوزاد به سنِ او به ساعت بستگی دارد.",
+    other: "بیلی‌روبینِ نوزاد به سنِ او به ساعت بستگی دارد و پزشکِ نوزاد باید آن را با نمودارِ مخصوصِ نوزاد بسنجد.",
+  },
+};
+const CLOSING = "این اعداد را با برگهٔ اصلی به پزشک نشان دهید؛ واحد معمولاً کنارِ عدد یا در ستونِ واحد چاپ می‌شود.";
+const TROPONIN_WARNING = "اگر دردِ قفسهٔ سینه، تنگیِ نفس یا تعریقِ ناگهانی دارید، منتظر نمانید و همین حالا به اورژانس بروید.";
+const ACTION = {
+  emergency: "همین حالا به اورژانس مراجعه کنید.",
+  this_week: "این هفته با پزشک مطرح کنید.",
+  routine: "در نوبتِ عادی با پزشک مطرح کنید.",
+};
+const RANK = { none: 0, routine: 1, this_week: 2, emergency: 3 };
+
+/** محدودهٔ چاپ‌شده از *عددهای تجزیه‌شده* — نه متنِ خامِ OCR، که به پرامپت می‌رود. */
+function rangeText(p) {
+  if (!p) return "";
+  if (p.lo != null && p.hi != null) return `${fmt(p.lo)} تا ${fmt(p.hi)}`;
+  return p.hi != null ? `کمتر از ${fmt(p.hi)}` : `بیشتر از ${fmt(p.lo)}`;
+}
+
+function clauseFor(u, urgency) {
+  // `urgency` = فوریتِ نهاییِ یافته (همان که action را می‌سازد)، نه فوریتِ این ردیف.
+  const neo = u.neonatal ? ` ${urgency === "emergency" ? CLAUSE.neonatal.emergency : CLAUSE.neonatal.other}` : "";
+  if (u.basis === "printed_range") {
+    return (u.position === "within" ? CLAUSE.within(rangeText(u.printed)) : CLAUSE.outside(rangeText(u.printed))) + neo;
+  }
+  if (u.level === "impossible") return CLAUSE.impossible + neo;
+  // «با هر واحدی … خطرناک» فقط وقتی هر خوانشِ ممکن خطرناک است — نه وقتی اورژانس از جای دیگری آمده (B6).
+  // نوزاد، اورژانس از بدترین خوانش (B9): «با هر واحدی خطرناک» غلط است — فقط یکی از خوانش‌ها خطرناک است.
+  if (u.worstReading && urgency === "emergency") return CLAUSE.worstNeonatal + neo;
+  if (u.possible === 1 && u.level === "all") return (u.urgency === "emergency" ? CLAUSE.onlyOneDanger : CLAUSE.onlyOne) + neo;
+  if (u.urgency === "emergency") return CLAUSE.danger + neo;
+  const tail = u.level === "some" ? ` ${CLAUSE.some}` : u.level === "all" ? ` ${CLAUSE.all(u.possible ?? u.units)}` : "";
+  return CLAUSE.base(u.units) + tail + neo;
+}
+
+export const RULES_UNIT_UNKNOWN = [
+  {
+    id: "unit_unknown_values",
+    match: (e) => Object.values(e.ungraded ?? {}).some((u) => u.reason === "unit_unknown"),
+    build: (e) => {
+      const rows = Object.entries(e.ungraded ?? {}).filter(([, u]) => u.reason === "unit_unknown");
+      // یک تصمیم → هم فیلدِ urgency هم جملهٔ action (N20)
+      const top = rows.map(([, u]) => u.urgency ?? "routine").reduce((a, b) => (RANK[a] >= RANK[b] ? a : b), "routine");
+      const urgency = top === "none" ? "routine" : top;
+      const clauses = rows.map(([k, u]) => `${faName(k)} (${fmt(u.value)}): ${clauseFor(u, urgency)}`);
+      const warnings = rows.some(([k]) => k === "TROPONIN_I") ? [TROPONIN_WARNING] : [];
+      const names = rows.map(([k]) => faName(k)).join("، ");
+      return {
+        pattern: "unit_unknown_values",
+        urgency,
+        headline: "واحدِ بعضی از آزمایش‌های برگهٔ شما مشخص نبود",
+        must_say: [...clauses, CLOSING].join(" "),
+        action: ACTION[urgency],
+        warnings,
+        suggest: [],
+        // زیرِ اورژانسِ دیگری هم دیده شود (B4) — نسخهٔ کوتاه تا پیامِ اورژانس شلوغ نشود.
+        always_show: true,
+        brief: `واحدِ ${names} روی برگه خوانده نشد؛ این اعداد را با برگهٔ اصلی به پزشک نشان دهید.`,
+        sources: ["AMA_SI_UNITS", "LOINC"],
+      };
+    },
+  },
+];

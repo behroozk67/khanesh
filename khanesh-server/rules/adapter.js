@@ -8,9 +8,13 @@
 //   ۴. استنتاج سن و جنسیت
 // ============================================================
 
-import { getRef, getRefSource, ckdEpiEgfr, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE } from "./refs.js";
+import { getRef, getRefSource, getUnit, ckdEpiEgfr, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE } from "./refs.js";
 import { evaluate } from "./grade.js";
-import { toConventional } from "./units.js";
+import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcrossSystems, BRANCH_FACTORS,
+         parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv } from "./units.js";
+// فقط برای سنجیدنِ «هر خوانشِ ممکن»ِ عددِ بی‌واحد با خودِ موتور (specs/003، B3). patterns.js هیچ‌چیز از
+// adapter.js نمی‌خواند، پس چرخهٔ import نیست.
+import { runPatterns } from "./patterns.js";
 
 // بیشترین مقدار قندِ موجود (ناشتا/تصادفی/دوساعته) — برای تصحیح سدیم
 function maxGlucose(tests) {
@@ -650,15 +654,28 @@ function inferSex(ocr) {
 // ---------- استنتاج سن (سال) ----------
 function inferAge(ocr) {
   const raw = ocr?.patient?.age;
-  if (!raw) return null;
-  const s = String(raw);
-  let m = s.match(/([\d.]+)\s*(?:سال|year|yr|y)/i);
-  if (m) return Number(m[1]);
-  m = s.match(/([\d.]+)\s*(?:ماه|month|mo)/i);
-  if (m) return Number(m[1]) / 12;
-  m = s.match(/([\d.]+)\s*(?:روز|day|d)/i);
-  if (m) return Number(m[1]) / 365;
-  m = s.match(/([\d.]+)/);
+  // ⚠️ سنِ ۰ (نوزاد) سنِ معلوم است، نه «نامعلوم». `!raw` صفر را هم دور می‌انداخت و بیلی‌روبینِ نوزاد با
+  //    بازهٔ بزرگسال سنجیده و واحدش از آن تعیین می‌شد (specs/003، بازبینیِ پزشکی B1) — N4.
+  if (raw == null || String(raw).trim() === "") return null;
+  // 🔴 بازبینی B10: رقمِ فارسی/عربی خوانده نمی‌شد («۳ روزه» ⇒ سنِ نامعلوم)، و ساعت/هفته نبود («48 h» ⇒ ۴۸ سال،
+  //    «2 weeks» ⇒ ۲ سال) — بیلی‌روبینِ نوزاد از همین سن فوریت می‌گیرد، پس هر دو به «در نوبتِ عادی» می‌رسید.
+  const s = String(raw)
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660));
+  // 🔴 بازبینی B12: سنِ چندبخشی («۳ ماه و ۲ هفته»، «1 y 2 w») جمع می‌شود. «اولین بخش برنده» بخشِ کوچک را به‌تنهایی
+  //    می‌خواند ⇒ شیرخوار نوزاد شمرده می‌شد و همهٔ برگه با بازه‌های نوزادی سنجیده می‌شد.
+  //    هر الگو عدد را فقط وقتی می‌گیرد که واحد بلافاصله پس از آن بیاید، پس یک عدد دو بار شمرده نمی‌شود.
+  const PARTS = [
+    [/([\d.]+)\s*(?:سال|year|yr|y)/gi, 1],
+    [/([\d.]+)\s*(?:ماه|month|mo)/gi, 1 / 12],
+    [/([\d.]+)\s*(?:هفته|weeks?|wks?|w)(?![a-z])/gi, 7 / 365],
+    [/([\d.]+)\s*(?:روز|day|d)/gi, 1 / 365],
+    [/([\d.]+)\s*(?:ساعت|hours?|hrs?|h)(?![a-z])/gi, 1 / 8760],
+  ];
+  let total = 0, hit = false;
+  for (const [re, f] of PARTS) for (const p of s.matchAll(re)) { total += Number(p[1]) * f; hit = true; }
+  if (hit) return total;
+  const m = s.match(/([\d.]+)/);
   return m ? Number(m[1]) : null;
 }
 
@@ -677,8 +694,38 @@ export function ocrToEngineInput(ocr) {
   const abgPages = detectAbgPages(ocr?.tests || []);
   // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
   const semenQual = {};
-  // TESTO بی‌واحد یا با واحدِ ناشناخته: ng/dL و ng/mL صد برابر فرق دارند (N3) — قضاوت نمی‌شود.
-  const unitUnknown = new Set();
+  // ردیف‌هایی که واحدشان نه چاپ شده، نه از محدودهٔ مرجع/اندازه تعیین شد (specs/003، P48):
+  //   کلید → عددِ خام. سنجیده نمی‌شوند؛ مالک: unit_unknown_values.
+  const unitUnknown = {};
+  // تعیینِ واحد از شواهد (نه چاپ‌شده): کلید → { basis, raw, from } — برای سطرِ «واحد» به بیمار.
+  const unitResolved = {};
+  const sexHint = inferSex(ocr), ageHint = inferAge(ocr);
+  // 🔴 واحدِ نانوشته (کلاسِ N3): پیش از این هر عددِ بی‌واحد بی‌صدا «متعارف» فرض می‌شد — کراتینینِ
+  //    ۸۰ µmol/L (طبیعی) → اورژانس، قندِ ۱۵ mmol/L (بالا) → «قند پایین». حالا: اگر واحدِ چاپ‌شده
+  //    شناخته‌شده است، همان راهِ امروز (دست‌نخورده)؛ وگرنه decideUnit در units.js از شواهدِ خودِ
+  //    ردیف تصمیم می‌گیرد، و اگر نتوانست، عدد *اصلاً* سنجیده نمی‌شود.
+  //    خروجی: ردیفی با واحدِ متعارفِ سیستمِ انتخاب‌شده (تا شاخه‌های پایین همان تبدیلِ همیشگی را
+  //    بکنند)، یا null یعنی «نامعلوم».
+  const BRANCH_KEYS = new Set(["TROPONIN_I", "CRP_Q", "TESTO", "T3"]);
+  const resolveRowUnit = (key, row, v) => {
+    if (!UNIT_PROFILE[key]) return row;
+    const rec = recognizedUnit(key, row.unit);
+    if (rec) {
+      // «(mg/dL)»، «mgdl»، «میلی گرم در دسی لیتر»: شناخته شد، ولی شاخه‌های پایین (تروپونین، تستوسترون،
+      // CRP) واحد را با regexِ خودشان می‌خوانند — پس املای قانونی را به آن‌ها بده (FR-009). املایی که
+      // همین حالا هم کار می‌کرد دست نمی‌خورد، تا خروجیِ برگه‌های سالم بایت‌به‌بایت یکی بماند (M125).
+      // ⚠️ کلیدهای شاخه‌دار *همیشه* املای قانونی می‌گیرند: «CRP 3 mg%» سیستمِ mg/dL شناخته می‌شد ولی شاخهٔ CRP
+      //    فقط /mg\/dl/ را می‌خواند و ۳ را mg/L می‌گرفت — ده برابر کم (بازبینیِ کد).
+      if (BRANCH_KEYS.has(key)) return { ...row, unit: rec.unit };
+      const plain = String(row.unit).toLowerCase().replace(/\s+/g, "");
+      return rec.match(plain) ? row : { ...row, unit: rec.unit };
+    }
+    const d = decideUnit(key, v, row.reference, sexHint, ageHint);
+    if (!d.system) { unitUnknown[key] = { value: v, reference: row.reference ?? null }; return null; }
+    unitResolved[key] = { basis: d.basis, raw: v, from: d.system.unit };
+    // `_basis` روی *همین ردیف* — تا تبدیلِ ردیفِ واحددارِ هم‌کلید برچسبِ «بدونِ واحد» نگیرد (N5).
+    return { ...row, unit: d.system.unit, _basis: d.basis };
+  };
   // مقدارِ خامِ «<2» / «>1000»: برای نقلِ درست در متن (N5)؛ عدد فقط برای حکم است.
   const rawText = {};
   const semenPages = detectSemenPages(ocr?.tests || []);
@@ -689,7 +736,7 @@ export function ocrToEngineInput(ocr) {
     if (t?.name && BLOOD_ONLY_MARKERS.has(norm(t.name))) bloodPages.add(t._page ?? 0);
   }
 
-  for (const t of ocr?.tests || []) {
+  for (let t of ocr?.tests || []) {
     if (!t?.name) continue;
     const key = norm(t.name);
     const onUrinePage = urineOnlyPages.has(t._page ?? 0);
@@ -773,6 +820,8 @@ export function ocrToEngineInput(ocr) {
     if (/troponin|ctn[it]|hs.?ctn|^tn[it]$|cardiactroponin/.test(key)) {
       const tv = toNum(t.value);
       if (tv != null) {
+        t = resolveRowUnit("TROPONIN_I", t, tv);
+        if (!t) continue;
         // 🔴 باگ واقعی، کلاسِ N3 — و جهتش «اورژانسِ کاذب» بود، نه سکوت.
         //    refs.js تروپونین را بر حسب µg/L می‌خواهد ([0, 0.6]) ولی سنجه‌های
         //    حساسیت‌بالا روی برگه با ng/L (یا pg/mL، که عددشان یکی است) چاپ
@@ -792,8 +841,8 @@ export function ocrToEngineInput(ocr) {
 
         if (hsUnit) {
           // ۴ رقمِ اعشار: ۸ ng/L → ۰.۰۰۸ µg/L. گردکردنِ کمتر، مقدارِ طبیعی را صفر می‌کند.
-          const conv = +(tv / 1000).toFixed(4);
-          unitConversions.push({ test: "TROPONIN_I", raw: tv, from: u, value: conv, to: "µg/L" });
+          const conv = +(tv * BRANCH_FACTORS.TROPONIN_NGL_TO_UGL).toFixed(4);
+          unitConversions.push({ test: "TROPONIN_I", raw: tv, from: u, value: conv, to: "µg/L", basis: t._basis ?? "printed" });
           tests.TROPONIN_I = conv;
         } else {
           // ng/mL و µg/L عددشان یکی است → دست‌نخورده.
@@ -832,9 +881,10 @@ export function ocrToEngineInput(ocr) {
       // «3+» و «+++» عدد نیستند حتی اگر toNum رقمی از آن‌ها دربیاورد.
       const looksGraded = /\+/.test(String(t.value));
       if (nv != null && !looksGraded) {
+        if (ek === "CRP_Q") { t = resolveRowUnit("CRP_Q", t, nv); if (!t) continue; }
         // mg/dL → mg/L برای CRP (برگه‌های ایرانی هر دو را می‌دهند)
         tests[ek] = (ek === "CRP_Q" && /mg\/dl/i.test(String(t.unit || "")))
-          ? +(nv * 10).toFixed(1)
+          ? +(nv * BRANCH_FACTORS.CRP_MGDL_TO_MGL).toFixed(1)
           : nv;
       } else {
         qual[t.name] = String(t.value);
@@ -880,6 +930,10 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
+    // ═══ واحدِ نانوشته (specs/003) — پیش از هر تبدیلی، تا شاخه‌های پایین واحدِ قطعی ببینند ═══
+    t = resolveRowUnit(engineKey, t, v);
+    if (!t) continue;
+
     // ═══ IFCC — واحدِ SI روی برگه → واحدِ متعارفی که refs.js می‌فهمد ═══
     // ⚠️ کلاسِ N3: «درجه‌بندیِ عددِ برگه با واحدی که برگه استفاده نکرده».
     //    تا امروز فقط پنج تست محافظ داشتند و هرکدام بعد از یک باگِ واقعی.
@@ -893,6 +947,8 @@ export function ocrToEngineInput(ocr) {
       if (c.converted) {
         unitConversions.push({
           test: engineKey, raw: v, from: c.from, value: c.value, to: c.to,
+          // HbA1cِ بی‌واحدِ > ۲۰ از *اندازه* mmol/mol شد، نه از برگه — «printed» ادعای غلط بود.
+          basis: t._basis ?? (c.inferred ? "magnitude" : "printed"),
         });
         v = c.value;
       }
@@ -905,12 +961,11 @@ export function ocrToEngineInput(ocr) {
     if (engineKey === "TESTO") {
       const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
       if (/^ng\/ml$/.test(u)) {
-        const nv = Math.round(v * 100);
-        unitConversions.push({ test: "TESTO", raw: v, from: "ng/mL", value: nv, to: "ng/dL" });
+        const nv = Math.round(v * BRANCH_FACTORS.TESTO_NGML_TO_NGDL);
+        unitConversions.push({ test: "TESTO", raw: v, from: "ng/mL", value: nv, to: "ng/dL", basis: t._basis ?? "printed" });
         v = nv;
-      } else if (!/^(ng\/dl|nmol\/l)$/.test(u)) {
-        unitUnknown.add("TESTO");
       }
+      // بی‌واحد/ناشناخته دیگر اینجا نمی‌رسد: resolveRowUnit بالا آن را «نامعلوم» کرده است.
     }
     if (/^\s*[<>≤≥]/.test(String(t.value ?? ""))) rawText[engineKey] = String(t.value).trim();
 
@@ -927,7 +982,7 @@ export function ocrToEngineInput(ocr) {
     //    مثل ۲.۲ با محدودهٔ ng/dL [80–200] سنجیده می‌شد و «پایین» کاذب می‌داد.
     //    ۱ nmol/L ≈ ۶۵.۱ ng/dL (وزن مولکولی T3 = ۶۵۱).
     if (engineKey === "T3" && /nmol/i.test(String(t.unit || ""))) {
-      tests.T3 = Math.round(v * 65.1);
+      tests.T3 = Math.round(v * BRANCH_FACTORS.T3_NMOL_TO_NGDL);
       continue;
     }
 
@@ -990,7 +1045,7 @@ export function ocrToEngineInput(ocr) {
     if (engineKey === "ACR") {
       const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
       if (/mg\/mmol|mmol/.test(u)) {
-        tests.ACR = +(v * 8.84).toFixed(1);          // mg/mmol → mg/g
+        tests.ACR = +(v * BRANCH_FACTORS.ACR_MGMMOL_TO_MGG).toFixed(1);          // mg/mmol → mg/g
       } else {
         tests.ACR = v;                               // mg/g یا µg/mg (معادل)
       }
@@ -998,6 +1053,21 @@ export function ocrToEngineInput(ocr) {
     }
 
     tests[engineKey] = v;
+  }
+
+  // ═══ یک آزمایش، یک مالک ═══
+  // 🔴 بازبینی: دو ردیفِ یک کلید (مثلاً «Creatinine 1.0 mg/dL» و «Creatinine 88» بی‌واحد — برگه‌هایی که
+  //    هر دو واحد را چاپ می‌کنند و OCR واحدِ دومی را نخوانده) هم سنجیده می‌شد و هم «واحد نامعلوم»
+  //    می‌گرفت: دو یافته دربارهٔ یک عدد (N20). ردیفِ واحددار مالک است.
+  for (const k of Object.keys(unitUnknown)) if (tests[k] != null) delete unitUnknown[k];
+
+  // ═══ سطرِ «واحد» برای بیمار (FR-006) ═══
+  // هر تبدیل می‌گوید واحد از کجا آمد. تعیینِ واحد از شواهد، حتی بی‌تبدیلِ عددی (سیستمِ متعارف)،
+  // سطر می‌گیرد — چون خودِ «واحد روی برگه نبود و ما تعیینش کردیم» باید دیده شود.
+  for (const c of unitConversions) c.basis ??= "printed";
+  for (const [k, r] of Object.entries(unitResolved)) {
+    if (tests[k] == null || unitConversions.some((c) => c.test === k)) continue;
+    unitConversions.push({ test: k, raw: r.raw, from: r.from, value: tests[k], to: getUnit(k), basis: r.basis });
   }
 
   // ═══ تشخیص شکست دیف دستگاه ═══
@@ -1140,6 +1210,111 @@ export function runEngine(ocr) {
     Object.entries(qual).some(([k, v]) => HCG_QUAL_NAME_RE.test(k) && /pos|positive|مثبت|\+/i.test(String(v)));
   const FEMALE_CYCLE_KEYS = new Set(["LH", "FSH", "E2", "PROG"]);
 
+  // واحدِ نامعلوم (specs/003): سنجیده نمی‌شود. `alt` حکمِ «طبیعی/غیرطبیعی» در *هر* سیستمِ واحد است
+  // — فقط برای فوریتِ unit_unknown_values (هر دو غیرطبیعی → این هفته). جهت عمداً نگه داشته نمی‌شود:
+  // قندِ ۱۵ در mg/dL پایین و در mmol/L بالاست.
+  //
+  // 🔴 بازبینیِ پزشکی (B1–B5): «بی‌واحد، شدت دانستنی نیست» فقط وقتی درست است که خوانش‌ها اختلاف کنند.
+  //    کلسیمِ ۱۵ (۱۵ mg/dL بحرانی؛ ۱۵ mmol/L = ۶۰ mg/dL ناممکن)، Hbِ ۵.۵، کراتینینِ ۸ یا ۹۰۰ با *هر*
+  //    خوانشِ ممکن خطرناک‌اند و سقفِ «این هفته» روی آن‌ها توصیهٔ غلط بود. و محدودهٔ مرجعِ چاپ‌شده، حتی وقتی
+  //    واحد را تعیین نکند، هم‌واحدِ خودِ عدد است: تروپونینِ ۴۵ کنارِ «<19» با هر واحدی بالای صدکِ ۹۹ِ همان
+  //    آزمایشگاه است. پس فوریت از یک محاسبه می‌آید (N20)، و آن محاسبه *خودِ موتور* است، نه جدولِ تازه:
+  //      الف) محدودهٔ چاپ‌شده هست ⇒ عدد به نسبتِ کرانِ همان محدوده به بازهٔ موتور برده و یک‌بار سنجیده
+  //           می‌شود (شدت‌بندیِ CTCAE هم مضربِ ULN است، پس این همان سنجه است).
+  //      ب)  نیست ⇒ هر خوانشِ *ممکن* (SURVIVAL_LIMITS) سنجیده می‌شود و کمینهٔ فوریت‌ها برنده است. اگر
+  //           همه اورژانس‌اند، اورژانس — بی‌جهت. عددی که در یک واحد طبیعی است هرگز در همه بحرانی نیست،
+  //           پس اورژانسِ کاذبی که specs/003 بست برنمی‌گردد.
+  //    استثناها: نوزاد (بازهٔ موتور برای بیلی‌روبینِ نوزاد نوزادی نیست ⇒ الف ممنوع؛ بالای محدودهٔ چاپ‌شده ⇒
+  //    اورژانس، وگرنه اگر خوانشی غیرطبیعی است دست‌کم «این هفته»)، و تروپونینِ بی‌محدوده (دست‌کم «این هفته»
+  //    اگر خوانشی غیرطبیعی است؛ پرسشِ ۲ِ P48).
+  const URG_RANK = { none: 0, routine: 1, this_week: 2, emergency: 3 };
+  const maxUrg = (a, b) => (URG_RANK[a] >= URG_RANK[b] ? a : b);
+  const urgencyOfReading = (key, conv) => {
+    const ref = getRef(key, sex, age);
+    if (!ref) return "none";
+    const probe = {
+      sex, age, qual: {}, semenQual: {}, ungraded: {}, indices: {}, unmapped: [], unitConversions: [],
+      noRef: [], diffFailed: false,
+      graded: [{ test: key, value: conv, range: `${ref[0]}–${ref[1]}`, refSource: getRefSource(key, age),
+        ...evaluate(key, conv, ref[0], ref[1], isCancerPatient) }],
+    };
+    probe.abnormal = probe.graded.filter((g) => g.abnormal);
+    return runPatterns(probe).overall_urgency;
+  };
+  for (const [key, { value, reference }] of Object.entries(unitUnknown)) {
+    const band = getRef(key, sex, age ?? 40);
+    const printed = parseReference(reference, sex);
+    const neonatalBili = /^BILI_/.test(key) && age != null && age < 1;
+    const entry = { value, reason: "unit_unknown", alt: verdictsAcrossSystems(key, value, sex, age),
+      units: UNIT_PROFILE[key].systems.length };
+    // 🔴 بازبینیِ پزشکی B7: OCR گاهی محدودهٔ ردیفِ *کناری* را به عدد می‌چسباند («Urea 40» کنارِ «0.6-1.4»ِ
+    //    کراتینین ⇒ ×۳۲ ⇒ اورژانسِ کاذب). پس محدوده فقط وقتی مقیاس می‌دهد که (۱) با بازهٔ موتور در دست‌کم یک
+    //    سیستمِ واحد هم‌خانواده باشد (≤ ×۳)، و (۲) عددِ مقیاس‌شده ممکن باشد (SURVIVAL_LIMITS).
+    //    تروپونین از (۱) معاف است: بازهٔ موتور مالِ سنجهٔ سنتی است (P37) و صدکِ ۹۹ِ سنجه‌ها تا ×۳۰ از آن دور است.
+    let scale = !printed || !band || neonatalBili ? null
+      : printed.hi > 0 && band[1] > 0 ? band[1] / printed.hi
+      : printed.lo > 0 && band[0] > 0 ? band[0] / printed.lo : null;
+    if (scale != null && key !== "TROPONIN_I" && !printedRangeFits(key, printed, band)) scale = null;
+    if (scale != null && !possibleConv(key, value * scale, true)) scale = null;
+    if (scale != null) {
+      entry.basis = "printed_range";
+      entry.printed = { lo: printed.lo, hi: printed.hi };
+      entry.position = printedVerdict(reference, value, sex);
+      entry.urgency = entry.position === "within" ? "none" : urgencyOfReading(key, value * scale);
+      // بیرون از محدودهٔ خودِ آزمایشگاه هرگز «بی‌اهمیت» نیست
+      if (entry.position !== "within") entry.urgency = maxUrg(entry.urgency, "routine");
+    } else {
+      const possible = readingsAcrossSystems(key, value, sex, age).filter((r) => !r.impossible);
+      entry.basis = "readings";
+      const verdicts = possible.map((r) => r.verdict);
+      // متن «با هر کدام از N واحد» باید از خوانش‌های *ممکن* بشمارد، نه از همهٔ واحدها (B6).
+      entry.possible = possible.length;
+      // هشدارِ «ممکن است خارج…» فقط وقتی خوانشِ غیرطبیعی *باورپذیر* است (مرزِ DECIDE)، نه صرفاً «زنده‌ماندنی»:
+      // «FBS 90» با خوانشِ ۹۰ mmol/L (۱۶۲۱ mg/dL) زیرِ مرزِ بقای ۳۰۰۰ است، ولی گفتنِ «ممکن است خارج باشد»
+      // روی قندِ ۹۰ نویز است (بازبینی NB1). فوریت عوض نمی‌شود — کمینه‌اش همین حالا هم «عادی» است.
+      const hedgeAbn = possible.some((r) => r.verdict === "abnormal" && possibleConv(key, r.conv, true));
+      entry.level = verdicts.length === 0 ? "impossible"
+        : verdicts.every((v) => v === "normal") ? "none"
+        : verdicts.every((v) => v === "abnormal") ? "all" : hedgeAbn ? "some" : "none";
+      // هیچ خوانشِ ممکنی نیست ⇒ به‌احتمالِ زیاد خطای OCR؛ نه اورژانس، نه سکوت.
+      const urgs = possible.map((r) => urgencyOfReading(key, r.conv));
+      entry.urgency = possible.length === 0 ? "this_week"
+        : urgs.reduce((a, b) => (URG_RANK[a] <= URG_RANK[b] ? a : b));
+      const anyAbnormal = verdicts.includes("abnormal");
+      // با هر واحدِ ممکن غیرطبیعی ⇒ دست‌کم «این هفته» (طراحیِ R7؛ M123d) — بیمار نمی‌داند کدام خوانش درست است.
+      // ⚠️ فقط وقتی *بیش از یک* خوانش ممکن است: با یک خوانشِ ممکن واحد عملاً معلوم است و بالا بردنِ فوریت
+      //    یعنی نبودِ واحد عدد را خطرناک‌تر از بودنش نشان دهد (Hbِ ۱۲.۵، بازبینیِ کد).
+      if (entry.level === "all" && possible.length > 1) entry.urgency = maxUrg(entry.urgency, "this_week");
+      if ((neonatalBili || key === "TROPONIN_I") && anyAbnormal) entry.urgency = maxUrg(entry.urgency, "this_week");
+      if (neonatalBili) {
+        // 🔴 نوزاد (B1، B6، بازبینیِ کد ۲): بازهٔ موتور نوزادی نیست، و محدودهٔ چاپ‌شده کنارِ نمونهٔ نوزاد گاهی
+        //    محدودهٔ *بزرگسال* است («0.3-1.2» کنارِ ۱.۵ در روزِ سوم ⇒ اورژانس، در حالی که ۱.۵ فیزیولوژیک است).
+        //    پس محدوده به‌تنهایی اورژانس نمی‌سازد: فقط وقتی عدد بالای محدودهٔ خودِ آزمایشگاه است، فوریت به
+        //    *بدترین* خوانشِ ممکن می‌رسد — یعنی اورژانس فقط اگر خودِ موتور با آن خوانش اورژانس بدهد (۱۸ ⇒ آری،
+        //    ۱.۵ ⇒ نه). نبودِ واحد هرگز فوریت را از همان عدد با واحدِ چاپ‌شده بالاتر نمی‌برد.
+        // 🔴 بازبینی B11: جملهٔ «پزشکِ نوزاد / نمودارِ ساعتی» فقط زیرِ یک ماه — نمودارِ ساعتی مالِ هفته‌های اول است
+        //    و شیرخوارِ ۲ تا ۱۱ ماهه را پزشکِ کودک می‌بیند. کفِ فوریتِ بالا برای زیرِ یک سال دست نخورده است.
+        const newborn = age < 1 / 12;
+        entry.neonatal = newborn;
+        // متن از محدودهٔ خودِ آزمایشگاه حرف بزند، نه از بازهٔ بزرگسالِ موتور («۱۵۰ کنارِ <205» داخلِ محدوده است).
+        if (printed) Object.assign(entry, { basis: "printed_range", printed: { lo: printed.lo, hi: printed.hi },
+          position: printedVerdict(reference, value, sex) });
+        // 🔴 بازبینی B9: نوزادِ زیرِ یک ماه، بی‌محدوده — «کمینهٔ خوانش‌ها» ۲۰ را «این هفته» می‌کرد، در حالی که همان
+        //    ۲۰ با mg/dL چاپ‌شده bilirubin_emergency است. خوانشِ µmol/L با بازه‌ای سنجیده می‌شود که نوزادی نیست
+        //    (ریشهٔ B1)، پس کمینه اینجا کم‌خوانی است. بدترین خوانش برنده است. هزینهٔ آگاهانه: عددِ بی‌واحدِ ۱۲.۵ تا ۶۰
+        //    (اگر µmol/L باشد، اورژانس نیست) هم اورژانس می‌گیرد — برای نوزاد، کم‌خوانی بدتر است (P48 بندِ ۶).
+        if (newborn && !printed && urgs.length) {
+          const worst = urgs.reduce((a, b) => (URG_RANK[a] >= URG_RANK[b] ? a : b));
+          if (worst === "emergency" && possible.length > 1) entry.worstReading = true;
+          entry.urgency = maxUrg(entry.urgency, worst);
+        } else if (printedVerdict(reference, value, sex) === "above" && urgs.length) {
+          entry.urgency = maxUrg(entry.urgency, urgs.reduce((a, b) => (URG_RANK[a] >= URG_RANK[b] ? a : b)));
+        }
+      }
+    }
+    ungraded[key] = entry;
+  }
+
   for (const [key, value] of Object.entries(tests)) {
     if (key.startsWith("_") || key.endsWith("_PCT")) continue;
 
@@ -1151,7 +1326,6 @@ export function runEngine(ocr) {
     if (REPRO_HORMONE_KEYS.has(key)) {
       const reason = (age != null && age < 16) ? "pediatric"
         : !sex ? "sex_unknown"
-        : (key === "TESTO" && sex === "M" && unitUnknown.has("TESTO")) ? "unit_unknown"
         : (sex === "F" && FEMALE_CYCLE_KEYS.has(key)) ? "cycle_day_unknown"
         // آستانهٔ ۳ ng/mL فقط برای زن تأیید شده؛ PROG_D21ِ مرد بی‌مالک بود و بی‌صدا گم می‌شد
         // (بازبینی) — حالا به noRef می‌رود و هشدارِ «تفسیر نشد» می‌گیرد.

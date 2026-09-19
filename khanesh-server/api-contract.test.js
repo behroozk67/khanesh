@@ -97,10 +97,10 @@ const PANEL_NORMAL = {
   patient: { age: 35, sex: "M" },
   tests: [
     { name: "WBC", value: 7000 },
-    { name: "Hemoglobin", value: 15.0 },
+    { name: "Hemoglobin", value: 15.0, unit: "g/dL" },
     { name: "Platelet", value: 250000 },
-    { name: "Creatinine", value: 1.0 },
-    { name: "FBS", value: 90 },
+    { name: "Creatinine", value: 1.0, unit: "mg/dL" },
+    { name: "FBS", value: 90, unit: "mg/dL" },
     { name: "Potassium", value: 4.2 },
     { name: "Sodium", value: 140 },
   ],
@@ -111,7 +111,7 @@ const PANEL_CRITICAL = {
   patient: { age: 40, sex: "M" },
   tests: [
     { name: "Potassium", value: 7.1 },
-    { name: "Creatinine", value: 1.0 },
+    { name: "Creatinine", value: 1.0, unit: "mg/dL" },
     { name: "Sodium", value: 140 },
   ],
 };
@@ -120,9 +120,9 @@ const PANEL_CRITICAL = {
 const PANEL_ABNORMAL_NONCRITICAL = {
   patient: { age: 35, sex: "M" },
   tests: [
-    { name: "Cholesterol", value: 245 },
-    { name: "Triglyceride", value: 210 },
-    { name: "HDL", value: 38 },
+    { name: "Cholesterol", value: 245, unit: "mg/dL" },
+    { name: "Triglyceride", value: 210, unit: "mg/dL" },
+    { name: "HDL", value: 38, unit: "mg/dL" },
   ],
 };
 
@@ -141,7 +141,7 @@ const PANEL_MISSING_CREATININE = {
 const PANEL_FORBID = {
   patient: { age: 40, sex: "M" },
   tests: [
-    { name: "Hemoglobin", value: 6.2 },
+    { name: "Hemoglobin", value: 6.2, unit: "g/dL" },
     { name: "MCV", value: 70 },
     { name: "Ferritin", value: 5 },
   ],
@@ -491,11 +491,11 @@ test("T10: دربارهٔ تستِ اندازه‌گیری‌نشده ادعای
 // ════════════════════════════════════════════════════════════
 const PANEL_ANEMIA_CANCER = {
   patient: { age: 50, sex: "F", conditions: ["سرطان پستان"] },
-  tests: [{ name: "Hemoglobin", value: 7.2 }, { name: "Creatinine", value: 0.9 }],
+  tests: [{ name: "Hemoglobin", value: 7.2, unit: "g/dL" }, { name: "Creatinine", value: 0.9, unit: "mg/dL" }],
 };
 const PANEL_ANEMIA_NO_CANCER = {
   patient: { age: 50, sex: "F" },
-  tests: [{ name: "Hemoglobin", value: 7.2 }, { name: "Creatinine", value: 0.9 }],
+  tests: [{ name: "Hemoglobin", value: 7.2, unit: "g/dL" }, { name: "Creatinine", value: 0.9, unit: "mg/dL" }],
 };
 
 const hgbOf = (body) => (body?._engine?.tests ?? []).find((t) => t.key === "HGB");
@@ -505,7 +505,7 @@ test("T11: conditions از ورودِ دستی به موتور می‌رسد و 
   // دربارهٔ سرورِ چیزی ثابت نمی‌کند.
   const direct = runEngine({
     patient: { age: "50 سال", sex: "زن", conditions: ["سرطان پستان"] },
-    tests: [{ name: "Hemoglobin", value: 7.2 }],
+    tests: [{ name: "Hemoglobin", value: 7.2, unit: "g/dL" }],
   }).graded.find((g) => g.test === "HGB");
   assert.equal(typeof direct.ctcaeGrade, "number",
     "پیش‌شرط: موتور با conditions باید ctcaeGrade عددی بدهد");
@@ -548,8 +548,8 @@ test("T11b: بدونِ conditions درجهٔ CTCAE داده نمی‌شود (و�
 const PANEL_CORRECTED_CALCIUM = {
   patient: { age: 45, sex: "F" },
   tests: [
-    { name: "Calcium", value: 6.2 },
-    { name: "Albumin", value: 2.1 },
+    { name: "Calcium", value: 6.2, unit: "mg/dL" },
+    { name: "Albumin", value: 2.1, unit: "g/dL" },
   ],
 };
 
@@ -666,7 +666,7 @@ test("T17: هشدارِ «محدوده مرجع نداریم» نامِ فارس
   const { status, body } = await analyze({
     patient: { age: 40, sex: "F" },
     // Hb طبیعی لازم است: بدونِ هیچ تستِ نمره‌دار، server.js کلِ برگه را به مسیرِ قدیم می‌فرستد.
-    tests: [{ name: "Hemoglobin", value: 14 }, { name: "Prolactin", value: 80 }, { name: "Cortisol (8 AM)", value: 12 }],
+    tests: [{ name: "Hemoglobin", value: 14, unit: "g/dL" }, { name: "Prolactin", value: 80 }, { name: "Cortisol (8 AM)", value: 12, unit: "µg/dL" }],
   });
   assert.equal(status, 200);
   const w = (body?.ocr_warnings ?? []).join(" ");
@@ -686,7 +686,7 @@ test("T18: mergePages — برگهٔ CBC و برگهٔ منی، به هر ترت
   const { mergePages } = await import("./server.js");
   assert.equal(typeof mergePages, "function", "mergePages از server.js صادر نشده");
   const cbc = { ok: true, page: 1, ocr: { patient: { age: "35", sex: "مرد" }, tests: [
-    { name: "WBC", value: "7.2", unit: "10*3/µL" }, { name: "Hb", value: "14" }, { name: "PLT", value: "250" }] } };
+    { name: "WBC", value: "7.2", unit: "10*3/µL" }, { name: "Hb", value: "14", unit: "g/dL" }, { name: "PLT", value: "250" }] } };
   const semen = { ok: true, page: 2, ocr: { patient: { age: "35", sex: "مرد" }, tests: [
     { name: "WBC", value: "3-4", unit: "/hpf" }, { name: "Motility", value: "40", unit: "%" },
     { name: "Count", value: "40", unit: "million/mL" }] } };
@@ -705,4 +705,13 @@ test("T19: برگه‌ای که فقط هورمونِ بی‌قضاوت دارد
   assert.equal(status, 200);
   assert.ok(body?._engine, "مسیرِ موتور گرفته نشد");
   assert.ok(body._engine.patterns.includes("reproductive_hormone_context"), `patterns=${body._engine.patterns}`);
+});
+
+test("T20: برگه‌ای که فقط عددِ بی‌واحد دارد مسیرِ موتور را می‌گیرد — نه اورژانس، نه «همه‌چیز طبیعی است»", async () => {
+  // 🔴 روی edec069: «Creatinine 80» بی‌واحد → ۸۰ mg/dL → has_critical: true (specs/003، SC-001).
+  const { status, body } = await analyze({ patient: { age: 40, sex: "M" }, tests: [{ name: "Creatinine", value: "80" }] });
+  assert.equal(status, 200);
+  assert.ok(body?._engine, "مسیرِ موتور گرفته نشد");
+  assert.ok(body._engine.patterns.includes("unit_unknown_values"), `patterns=${body._engine.patterns}`);
+  assert.equal(body.has_critical, false, "کراتینینِ بی‌واحد هنوز بحرانی خوانده می‌شود");
 });

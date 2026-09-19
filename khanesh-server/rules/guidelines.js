@@ -327,6 +327,30 @@ export const GUIDELINES = {
       'پرولاکتین، کورتیزول (صبح، پس از دگزامتازون، بزاق، ادرارِ ۲۴ ساعته) و ACTH — اعداد در انتظارِ بازبین (P46)',
   },
 
+  // ---- واحدِ ردیف‌های بی‌واحد (specs/003، P48) ----
+  AMA_SI_UNITS: {
+    org: 'AMA Manual of Style',
+    fa: 'راهنمای سبکِ انجمنِ پزشکیِ آمریکا — جدولِ تبدیلِ واحدهای SI',
+    title: 'Units of Measure — SI conversion table (11th ed.)',
+    year: 2020,
+    url: 'https://academic.oup.com/amamanualofstyle/si-conversion-calculator',
+    access: 'paywalled',
+    // خودِ کتاب پولی است. ضریب‌ها با نسخهٔ بازِ برگرفته از آن مقایسه شد (۲۲ آنالیت، همه سازگار؛
+    // specs/003-unitless-lab-values/research.md R2) — همان نسخه مبناست.
+    substitutedBy: 'Laboratory Units Conversion Table (Adapted from AMA Manual of Style)',
+    substitutedUrl: 'https://www.cmeinfo.com/wp-content/uploads/2021/09/0.-Laboratory-Units-Conversion-Table.pdf',
+    scope: 'ضریبِ تبدیلِ واحدِ متعارف ↔ SI؛ پایهٔ تعیینِ واحدِ ردیفِ بی‌واحد',
+  },
+  LOINC: {
+    org: 'Regenstrief Institute',
+    fa: 'LOINC — نام‌گذاریِ بین‌المللیِ آزمایش‌ها',
+    title: 'LOINC — Logical Observation Identifiers Names and Codes (via NLM Clinical Tables API)',
+    year: 2026,
+    url: 'https://clinicaltables.nlm.nih.gov/apidoc/loinc/v3/doc.html',
+    access: 'open',
+    scope: 'وجودِ دو سیستمِ واحد برای هر آنالیت: یک کدِ جرم/حجم (متعارف) و یک کدِ مول/حجم (SI)',
+  },
+
   HENRY_REPRO: {
     org: "Henry's Clinical Diagnosis",
     fa: 'هنری — تشخیص بالینی و مدیریت با روش‌های آزمایشگاهی',

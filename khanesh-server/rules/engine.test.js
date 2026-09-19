@@ -52,7 +52,7 @@ test("A1: getRef('CREAT') با سن null → بالغِ جنس‌محور", () =
 });
 
 test("A1: کراتینین ۱.۰ با سن نامعلوم غیرطبیعی شمرده نمی‌شود", () => {
-  const e = runEngine({ tests: [{ name: "Creatinine", value: "1.0" }] });
+  const e = runEngine({ tests: [{ name: "Creatinine", value: "1.0", unit: "mg/dL" }] });
   const cr = e.graded.find((g) => g.test === "CREAT");
   assert.ok(cr, "کراتینین باید نگاشت شود");
   assert.equal(cr.abnormal, false);
@@ -140,7 +140,7 @@ test("A8: هنگام وجود blocker اورژانسی، selected خالی نم�
   // تروپونین بالا = اورژانس (blocks_others) در کنار یک تست کم‌اهمیت‌تر.
   const e = runEngine({
     patient: { age: 50, sex: "M" },
-    tests: [{ name: "Troponin I", value: "5" }, { name: "Cholesterol", value: "260" }],
+    tests: [{ name: "Troponin I", value: "5", unit: "µg/l" }, { name: "Cholesterol", value: "260", unit: "mg/dL" }],
   });
   const p = runPatterns(e);
   assert.ok(p.findings.length > 0, "selected نباید خالی باشد");
@@ -150,7 +150,7 @@ test("A8: هنگام وجود blocker اورژانسی، selected خالی نم�
 
 // ---------- ارقام فارسی/عربی (toNum از طریق موتور) ----------
 test("locale: ارقام فارسی درست پارس می‌شوند", () => {
-  const e = runEngine({ patient: { sex: "F", age: 30 }, tests: [{ name: "Hb", value: "۱۰" }] });
+  const e = runEngine({ patient: { sex: "F", age: 30 }, tests: [{ name: "Hb", value: "۱۰", unit: "g/dL" }] });
   const hb = e.graded.find((g) => g.test === "HGB");
   assert.ok(hb, "هموگلوبین باید نگاشت شود");
   assert.equal(hb.value, 10);
@@ -188,7 +188,7 @@ test("C1: HbA1c بزرگسال درجه‌بندی و در الگوی قند د�
 // ---------- C2: قند تصادفی (BS) در الگوهای قند لحاظ می‌شود ----------
 test("C2: قند تصادفی ۳۲۰ → محدودهٔ دیابت", () => {
   // «Blood Sugar»/«BS» به GLU_RANDOM نگاشت می‌شود
-  const e = runEngine({ patient: { age: 50, sex: "F" }, tests: [{ name: "Blood Sugar", value: "320" }] });
+  const e = runEngine({ patient: { age: 50, sex: "F" }, tests: [{ name: "Blood Sugar", value: "320", unit: "mg/dL" }] });
   const p = runPatterns(e);
   assert.ok(p.findings.some((f) => f.pattern === "diabetes_range"),
     "قند تصادفی ۳۲۰ باید محدودهٔ دیابت را فعال کند، نه اینکه فقط تور ایمنی عمومی بگیرد");
@@ -198,7 +198,7 @@ test("C2: قند تصادفی بالا + کتون → DKA اورژانسی", () 
   const e = runEngine({
     patient: { age: 30, sex: "M" },
     tests: [
-      { name: "Blood Sugar", value: "520" },
+      { name: "Blood Sugar", value: "520", unit: "mg/dL" },
       { name: "Urine Ketone", value: "positive" },
     ],
   });
@@ -209,7 +209,7 @@ test("C2: قند تصادفی بالا + کتون → DKA اورژانسی", () 
 });
 
 test("C2: قند تصادفی پایین → هایپوگلیسمی", () => {
-  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Blood Sugar", value: "48" }] });
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Blood Sugar", value: "48", unit: "mg/dL" }] });
   const p = runPatterns(e);
   assert.ok(p.findings.some((f) => String(f.pattern).startsWith("hypoglycemia")),
     "قند تصادفی ۴۸ باید هایپوگلیسمی بدهد");
@@ -219,7 +219,7 @@ test("C2: قند تصادفی پایین → هایپوگلیسمی", () => {
 test("R1: کلسیم ۸.۰ با آلبومین ۲.۰ تصحیح می‌شود و هیپوکلسمی کاذب نمی‌دهد", () => {
   const e = runEngine({
     patient: { age: 50, sex: "M" },
-    tests: [{ name: "Calcium", value: "8.0" }, { name: "Albumin", value: "2.0" }],
+    tests: [{ name: "Calcium", value: "8.0", unit: "mg/dL" }, { name: "Albumin", value: "2.0", unit: "g/dL" }],
   });
   const ca = e.graded.find((g) => g.test === "CA");
   // 🔴 ۲۰۲۶-۰۸-۰۶: عدد از ۹.۶ به ۹.۹ رفت چون آلبومینِ مرجعِ فرمول از ۴.۰
@@ -237,7 +237,7 @@ test("R1: کلسیم ۸.۰ با آلبومین ۲.۰ تصحیح می‌شود و
 test("R1: با آلبومین طبیعی، کلسیم پایین همچنان پایین می‌ماند", () => {
   const e = runEngine({
     patient: { age: 50, sex: "M" },
-    tests: [{ name: "Calcium", value: "8.0" }, { name: "Albumin", value: "4.0" }],
+    tests: [{ name: "Calcium", value: "8.0", unit: "mg/dL" }, { name: "Albumin", value: "4.0", unit: "g/dL" }],
   });
   const ca = e.graded.find((g) => g.test === "CA");
   // ⚠️ ادعای قبلی `ca_correction_applied === undefined` بود. آن، *عارضهٔ*
@@ -270,7 +270,7 @@ test("R3: ckdEpiEgfr مقدار معقول می‌دهد", () => {
 });
 
 test("R3: eGFR پایین با کراتینین طبیعی، الگوی کلیه را فعال می‌کند", () => {
-  const e = runEngine({ patient: { age: 80, sex: "F" }, tests: [{ name: "Creatinine", value: "1.1" }] });
+  const e = runEngine({ patient: { age: 80, sex: "F" }, tests: [{ name: "Creatinine", value: "1.1", unit: "mg/dL" }] });
   const cr = e.graded.find((g) => g.test === "CREAT");
   assert.equal(cr.abnormal, false, "کراتینین ۱.۱ برای بزرگسال طبیعی است");
   assert.ok(e.indices.egfr < 60, `eGFR باید < ۶۰ باشد، شد ${e.indices.egfr}`);
@@ -294,7 +294,7 @@ test("R4: پتاسیم ۶.۲ اکنون اورژانس است (قبلاً this_w
 test("R6: سدیم ۱۲۸ با قند ۶۰۰ تصحیح می‌شود و هیپوناترمی کاذب نمی‌دهد", () => {
   const e = runEngine({
     patient: { age: 45, sex: "M" },
-    tests: [{ name: "Sodium", value: "128" }, { name: "Blood Sugar", value: "600" }],
+    tests: [{ name: "Sodium", value: "128" }, { name: "Blood Sugar", value: "600", unit: "mg/dL" }],
   });
   const na = e.graded.find((g) => g.test === "NA");
   assert.equal(e.indices.na_correction_applied, true);
@@ -308,7 +308,7 @@ test("R6: سدیم ۱۲۸ با قند ۶۰۰ تصحیح می‌شود و هیپ�
 test("R7: کم‌خونی نورموسیتیک با رتیکولوسیت بالا به همولیز/خونریزی اشاره می‌کند", () => {
   const e = runEngine({
     patient: { age: 30, sex: "F" },
-    tests: [{ name: "Hemoglobin", value: "10" }, { name: "MCV", value: "90" }, { name: "Retic", value: "3.0" }],
+    tests: [{ name: "Hemoglobin", value: "10", unit: "g/dL" }, { name: "MCV", value: "90" }, { name: "Retic", value: "3.0" }],
   });
   const p = runPatterns(e);
   const nc = p.findings.find((f) => f.pattern === "normocytic_anemia");
@@ -386,7 +386,7 @@ test("U1: برگهٔ ترکیبی (CBC + ادرار) تست‌های خون را
     tests: [
       { name: "Color", value: "Yellow" }, { name: "Specific Gravity", value: "1.015" },
       { name: "WBC", value: "6.2" }, { name: "RBC", value: "4.7" },
-      { name: "Hgb", value: "13" }, { name: "MCV", value: "88" }, { name: "PLT", value: "250" },
+      { name: "Hgb", value: "13", unit: "g/dL" }, { name: "MCV", value: "88" }, { name: "PLT", value: "250" },
     ],
   });
   assert.ok(e.graded.find((g) => g.test === "WBC"), "WBC خون باید حفظ شود");
@@ -609,7 +609,7 @@ test("M7: کمبود ویتامین D قاعدهٔ اختصاصی دارد، ن�
 test("M8: قندِ برگهٔ ترکیبی بیوشیمی+ادرار گرید می‌شود، نه قند ادرار", () => {
   const e = runEngine({ patient: { age: 50, sex: "M" }, tests: [
     { name: "Glucose", value: 320, unit: "mg/dL" },
-    { name: "Urea", value: 40 }, { name: "Creatinine", value: 1.1 },
+    { name: "Urea", value: 40, unit: "mg/dL" }, { name: "Creatinine", value: 1.1, unit: "mg/dL" },
     { name: "Color", value: "Yellow" }, { name: "Specific Gravity", value: 1.02 },
     { name: "Nitrite", value: "Negative" }, { name: "pH", value: 5.5 },
   ]});
@@ -684,7 +684,7 @@ test("M10: کراتینین ۰.۵۵ برای زن نرمال است، برای �
 // routine می‌گذاشت. قاعدهٔ calcium فقط CA≥13/≤7.0 را می‌گرفت.
 test("M11: کلسیم ۱۲.۵ هایپرکلسمی this_week است، نه unmatched routine", () => {
   const e = runEngine({ patient: { age: 60, sex: "F" },
-    tests: [{ name: "Ca", value: 12.5 }, { name: "Albumin", value: 4.0 }] });
+    tests: [{ name: "Ca", value: 12.5, unit: "mg/dL" }, { name: "Albumin", value: 4.0, unit: "g/dL" }] });
   const p = runPatterns(e);
   assert.equal(p.findings[0]?.pattern, "hypercalcemia");
   assert.equal(p.overall_urgency, "this_week");
@@ -692,12 +692,12 @@ test("M11: کلسیم ۱۲.۵ هایپرکلسمی this_week است، نه unmat
     "نباید به تور ایمنی عمومی بیفتد");
   // بحرانی همچنان اورژانس
   const crit = runPatterns(runEngine({ patient: { age: 60, sex: "F" },
-    tests: [{ name: "Ca", value: 14.5 }, { name: "Albumin", value: 4.0 }] }));
+    tests: [{ name: "Ca", value: 14.5, unit: "mg/dL" }, { name: "Albumin", value: 4.0, unit: "g/dL" }] }));
   assert.equal(crit.overall_urgency, "emergency");
   assert.equal(crit.has_critical, true);
   // خفیف عادی
   const mild = runPatterns(runEngine({ patient: { age: 60, sex: "F" },
-    tests: [{ name: "Ca", value: 10.8 }, { name: "Albumin", value: 4.0 }] }));
+    tests: [{ name: "Ca", value: 10.8, unit: "mg/dL" }, { name: "Albumin", value: 4.0, unit: "g/dL" }] }));
   assert.equal(mild.findings[0]?.pattern, "hypercalcemia");
   assert.equal(mild.overall_urgency, "routine");
 });
@@ -712,7 +712,7 @@ test("M12: پرامپت و must_say نام فارسی می‌دهند، نه ک�
   assert.equal(faName("HGB"), "هموگلوبین");
   assert.equal(faName("BILI_T"), "بیلی‌روبین تام");
   const e = runEngine({ patient: { age: 25, sex: "M" },
-    tests: [{ name: "Hb", value: 8.5 }, { name: "LDH", value: 600 }, { name: "Bilirubin Total", value: 3.2 }] });
+    tests: [{ name: "Hb", value: 8.5, unit: "g/dL" }, { name: "LDH", value: 600 }, { name: "Bilirubin Total", value: 3.2, unit: "mg/dL" }] });
   const p = runPatterns(e);
   // پرامپت نباید کلید خام داشته باشد
   const pl = JSON.parse(buildEnginePrompt(e, p, "").content);
@@ -730,7 +730,7 @@ test("M12: پرامپت و must_say نام فارسی می‌دهند، نه ک�
 // همچنین تفسیر «ابتدایی» بود: نه eAG می‌گفت، نه هشدار علائم بحران هایپرگلیسمی.
 test("M13: دیابتِ دو-آزمایشی قطعی است (نه «تکرار کن») + eAG + هشدار علائم", () => {
   const e = runEngine({ patient: { age: 45, sex: "M" },
-    tests: [{ name: "FBS", value: 400 }, { name: "HbA1c", value: 12 }] });
+    tests: [{ name: "FBS", value: 400, unit: "mg/dL" }, { name: "HbA1c", value: 12 }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "diabetes_range");
   assert.ok(f, "باید الگوی دیابت فعال شود");
@@ -747,7 +747,7 @@ test("M13: دیابتِ دو-آزمایشی قطعی است (نه «تکرار �
 
 // تک‌آزمایشِ منفرد همچنان باید تکرار بخواهد (تشخیص هنوز قطعی نیست)
 test("M13: قند ناشتای منفرد ۱۳۰ هنوز نیاز به تکرار دارد", () => {
-  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "FBS", value: 130 }] });
+  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "FBS", value: 130, unit: "mg/dL" }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "diabetes_range");
   assert.ok(f, "باید الگوی دیابت فعال شود");
@@ -766,7 +766,7 @@ test("M13: قند ناشتای منفرد ۱۳۰ هنوز نیاز به تکرا
 // جهتِ خطا مهم است: تشخیصِ قطعیِ زودهنگام یعنی بیمار متنِ «دیابت دارید» را
 // می‌خواند بدون آنکه معیارِ تأیید برقرار باشد.
 test("M42: قند ناشتای ۲۴۰ به‌تنهایی «قطعی» نیست و تکرار می‌خواهد", () => {
-  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "FBS", value: 240 }] });
+  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "FBS", value: 240, unit: "mg/dL" }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "diabetes_range");
   assert.ok(f, "باید الگوی دیابت فعال شود");
@@ -775,7 +775,7 @@ test("M42: قند ناشتای ۲۴۰ به‌تنهایی «قطعی» نیست 
 });
 
 test("M42: قندِ تصادفیِ ۳۱۰ به‌تنهایی هم «قطعی» نیست", () => {
-  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Random Blood Sugar", value: 310 }] });
+  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Random Blood Sugar", value: 310, unit: "mg/dL" }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "diabetes_range");
   assert.ok(f, "باید الگوی دیابت فعال شود");
@@ -788,7 +788,7 @@ test("M42: قندِ تصادفیِ ۳۱۰ به‌تنهایی هم «قطعی» 
 test("M42: ناشتای ۲۴۰ + HbA1c ۹ قطعی است و تکرار نمی‌خواهد", () => {
   const e = runEngine({
     patient: { age: 45, sex: "M" },
-    tests: [{ name: "FBS", value: 240 }, { name: "HbA1c", value: 9 }],
+    tests: [{ name: "FBS", value: 240, unit: "mg/dL" }, { name: "HbA1c", value: 9 }],
   });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "diabetes_range");
@@ -802,7 +802,7 @@ test("M42: ناشتای ۲۴۰ + HbA1c ۹ قطعی است و تکرار نمی�
 // کراتینین» می‌دید). تور ایمنی سرور به key_number تکیه می‌کند تا عدد را برگرداند؛
 // پس قاعده‌ها باید این عدد را در finding بگذارند و اولین جملهٔ must_say همان را داشته باشد.
 test("M14: قاعدهٔ کلیه eGFR را به‌عنوان key_number و در جملهٔ اول must_say می‌آورد", () => {
-  const e = runEngine({ patient: { age: 68, sex: "M" }, tests: [{ name: "Creatinine", value: 1.9 }] });
+  const e = runEngine({ patient: { age: 68, sex: "M" }, tests: [{ name: "Creatinine", value: 1.9, unit: "mg/dL" }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "kidney_impairment");
   assert.ok(f, "باید الگوی کلیه فعال شود");
@@ -812,7 +812,7 @@ test("M14: قاعدهٔ کلیه eGFR را به‌عنوان key_number و در 
 });
 
 test("M14: دیابتِ قطعی eAG را به‌عنوان key_number می‌آورد", () => {
-  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "FBS", value: 400 }, { name: "HbA1c", value: 12 }] });
+  const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "FBS", value: 400, unit: "mg/dL" }, { name: "HbA1c", value: 12 }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "diabetes_range");
   assert.equal(f.key_number, 298, "key_number باید eAG (~۲۹۸) باشد");
@@ -885,7 +885,7 @@ test("M15: D-dimerِ µg/mL هم تبدیل می‌شود و بدون واحد �
 // نمی‌شود بلکه نسخهٔ کوتاهش نمایش داده می‌شود؛ فوریت کلی همچنان emergency می‌ماند.
 test("M15: D-dimer زیر اورژانس با نسخهٔ کوتاه نمایش داده می‌شود، نه پنهان", () => {
   const e = runEngine({ tests: [
-    { name: "WBC", value: 2.0 }, { name: "Hemoglobin", value: 7 }, { name: "PLT", value: 40 },
+    { name: "WBC", value: 2.0 }, { name: "Hemoglobin", value: 7, unit: "g/dL" }, { name: "PLT", value: 40 },
     { name: "D-Dimer", value: 600 },
   ] });
   const p = runPatterns(e);
@@ -902,7 +902,7 @@ test("M15: D-dimer زیر اورژانس با نسخهٔ کوتاه نمایش �
 
 test("M16: کم‌خونی میکروسیتیک مقدار Hb و MCV و شدت را می‌آورد + key_number", () => {
   const e = runEngine({ patient: { age: 30, sex: "F" },
-    tests: [{ name: "Hemoglobin", value: 9 }, { name: "MCV", value: 70 }, { name: "RBC", value: 4 }] });
+    tests: [{ name: "Hemoglobin", value: 9, unit: "g/dL" }, { name: "MCV", value: 70 }, { name: "RBC", value: 4 }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "microcytic_ida_likely");
   assert.ok(f, "باید کم‌خونیِ فقر آهن فعال شود (منتزر ۱۷.۵ > ۱۳)");
@@ -914,7 +914,7 @@ test("M16: کم‌خونی میکروسیتیک مقدار Hb و MCV و شدت �
 });
 
 test("M16: پروفایل چربی عددِ LDL و هدف درمانی و قید ناشتا را می‌آورد + key_number", () => {
-  const e = runEngine({ patient: { age: 50, sex: "M" }, tests: [{ name: "LDL", value: 190 }] });
+  const e = runEngine({ patient: { age: 50, sex: "M" }, tests: [{ name: "LDL", value: 190, unit: "mg/dL" }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "dyslipidemia");
   assert.ok(f, "باید دیس‌لیپیدمی فعال شود");
@@ -943,7 +943,7 @@ test("M16: سدیم و کلسیمِ غیرطبیعی مقدار خود بیما�
   assert.ok(naF.must_say.includes("سدیم خون شما 118"), "باید مقدار سدیم را بیاورد");
   assert.equal(naF.key_number, 118);
 
-  const ca = runEngine({ tests: [{ name: "Calcium", value: 12.5 }] });
+  const ca = runEngine({ tests: [{ name: "Calcium", value: 12.5, unit: "mg/dL" }] });
   const caF = runPatterns(ca).findings.find((x) => x.pattern === "hypercalcemia");
   assert.ok(caF, "باید هایپرکلسمی فعال شود");
   assert.ok(caF.must_say.includes("کلسیم خون شما 12.5"), "باید مقدار کلسیم را بیاورد");
@@ -956,7 +956,7 @@ test("M16: سدیم و کلسیمِ غیرطبیعی مقدار خود بیما�
 // KDIGO: A1<30، A2 30–300، A3 ≥300 mg/g.
 
 test("M17: ACR ۴۵ → A2 (میکروآلبومینوری)، تفسیر نفروپاتی زودرس + key_number", () => {
-  const e = runEngine({ patient: { age: 60, sex: "M" }, tests: [{ name: "ACR", value: 45 }] });
+  const e = runEngine({ patient: { age: 60, sex: "M" }, tests: [{ name: "ACR", value: 45, unit: "mg/g" }] });
   const g = e.graded.find((x) => x.test === "ACR");
   assert.equal(g.tag, "A2", "۴۵ mg/g باید A2 باشد");
   assert.ok(g.abnormal, "A2 باید غیرطبیعی باشد");
@@ -970,11 +970,11 @@ test("M17: ACR ۴۵ → A2 (میکروآلبومینوری)، تفسیر نفر�
 });
 
 test("M17: ACR ۳۵۰ → A3 (افزایش شدید)؛ ACR ۲۰ → A1 (طبیعی، بدون یافته)", () => {
-  const a3 = runEngine({ tests: [{ name: "UACR", value: 350 }] });
+  const a3 = runEngine({ tests: [{ name: "UACR", value: 350, unit: "mg/g" }] });
   assert.equal(a3.graded.find((x) => x.test === "ACR").tag, "A3", "۳۵۰ باید A3 باشد");
   assert.ok(runPatterns(a3).findings.some((x) => x.pattern === "albuminuria_A3"));
 
-  const a1 = runEngine({ tests: [{ name: "ACR", value: 20 }] });
+  const a1 = runEngine({ tests: [{ name: "ACR", value: 20, unit: "mg/g" }] });
   assert.equal(a1.graded.find((x) => x.test === "ACR").tag, "A1", "۲۰ باید A1 باشد");
   assert.ok(a1.graded.find((x) => x.test === "ACR").abnormal === false, "A1 نباید غیرطبیعی باشد");
   assert.ok(!runPatterns(a1).findings.some((x) => /albuminuria/.test(x.pattern)), "A1 نباید یافته بسازد");
@@ -989,7 +989,7 @@ test("M17: ACR واحدِ SI (mg/mmol) به mg/g تبدیل می‌شود", () =
 });
 
 test("M17: «albumin» تنها به ALB سرم می‌رود، نه ACR (جلوگیری از خطای واحد)", () => {
-  const e = runEngine({ tests: [{ name: "Albumin", value: 4.2 }] });
+  const e = runEngine({ tests: [{ name: "Albumin", value: 4.2, unit: "g/dL" }] });
   assert.ok(!e.graded.some((x) => x.test === "ACR"), "«albumin» نباید به ACR نگاشت شود");
 });
 
@@ -999,7 +999,7 @@ test("M17: «albumin» تنها به ALB سرم می‌رود، نه ACR (جلو
 
 test("M18: بیلی‌روبین غیرمستقیمِ خفیف با آنزیم طبیعی → ژیلبر (خوش‌خیم) + عدد", () => {
   const e = runEngine({ patient: { age: 22, sex: "M" },
-    tests: [{ name: "Total Bilirubin", value: 2.4 }, { name: "Direct Bilirubin", value: 0.3 }] });
+    tests: [{ name: "Total Bilirubin", value: 2.4, unit: "mg/dL" }, { name: "Direct Bilirubin", value: 0.3, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "bilirubin_indirect_dominant");
   assert.ok(f, "باید الگوی غیرمستقیم فعال شود");
   assert.equal(f.urgency, "routine", "ژیلبرِ خفیف باید routine باشد");
@@ -1011,7 +1011,7 @@ test("M18: بیلی‌روبین غیرمستقیمِ خفیف با آنزیم �
 
 test("M18: بیلی‌روبینِ مستقیم‌غالبِ بالا → عدد + آستانهٔ زردی + پرچمِ کلانژیت", () => {
   const e = runEngine({ patient: { age: 58, sex: "F" },
-    tests: [{ name: "Total Bilirubin", value: 8 }, { name: "Direct Bilirubin", value: 6 }] });
+    tests: [{ name: "Total Bilirubin", value: 8, unit: "mg/dL" }, { name: "Direct Bilirubin", value: 6, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "bilirubin_direct_dominant");
   assert.ok(f, "باید الگوی مستقیم فعال شود");
   assert.equal(f.key_number, 8);
@@ -1035,19 +1035,19 @@ test("M18: الگوی کبدِ الکلی نسبت De Ritis را عددی می�
 // تبدیل ÷۲.۱۴ فقط داخلی برای شاخصِ BUN/Cr می‌ماند.
 
 test("M19: اورهٔ واردشده نصف نمی‌شود و با محدودهٔ اوره سنجیده می‌شود", () => {
-  const e = runEngine({ tests: [{ name: "Urea", value: 90 }] });
+  const e = runEngine({ tests: [{ name: "Urea", value: 90, unit: "mg/dL" }] });
   const u = e.graded.find((x) => x.test === "UREA");
   assert.ok(u, "اوره باید کلید UREA بگیرد، نه UREA_N");
   assert.equal(u.value, 90, "مقدار اوره باید ۹۰ بماند (نه ۴۲ِ نصف‌شده)");
   assert.ok(u.abnormal && u.dir === "high", "۹۰ بالای محدودهٔ اوره (۱۵–۴۳) است");
   assert.ok(!e.graded.some((x) => x.test === "UREA_N"), "نباید UREA_Nِ کاذب ساخته شود");
   // اوره ۳۰ در محدودهٔ اوره طبیعی است (قبلاً ۳۰÷۲.۱۴=۱۴ می‌شد که هنوز نرمال بود، ولی عددش گمراه‌کننده)
-  const norm = runEngine({ tests: [{ name: "اوره", value: 30 }] }).graded.find((x) => x.test === "UREA");
+  const norm = runEngine({ tests: [{ name: "اوره", value: 30, unit: "mg/dL" }] }).graded.find((x) => x.test === "UREA");
   assert.ok(norm && norm.value === 30 && norm.abnormal === false, "اوره ۳۰ باید نرمال و بدون تغییر باشد (نامِ فارسی هم نگاشت شود)");
 });
 
 test("M19: BUN همچنان به‌عنوان BUN تفسیر می‌شود (بدون دو برابر شدن)", () => {
-  const e = runEngine({ tests: [{ name: "BUN", value: 40 }] });
+  const e = runEngine({ tests: [{ name: "BUN", value: 40, unit: "mg/dL" }] });
   const b = e.graded.find((x) => x.test === "UREA_N");
   assert.ok(b && b.value === 40, "BUN باید ۴۰ بماند");
   assert.ok(b.abnormal && b.dir === "high", "BUN ۴۰ بالای محدودهٔ ۷–۲۰ است");
@@ -1055,7 +1055,7 @@ test("M19: BUN همچنان به‌عنوان BUN تفسیر می‌شود (بد
 
 test("M19: شاخصِ BUN/Cr وقتی فقط اوره داریم از اوره÷۲.۱۴ ساخته می‌شود", () => {
   // اوره ۱۲۰ → BUNِ داخلی ~۵۶؛ با کراتینین ۲.۵ نسبت ~۲۲ (>۲۰ = پیش‌کلیوی)
-  const e = runEngine({ tests: [{ name: "Urea", value: 120 }, { name: "Creatinine", value: 2.5 }] });
+  const e = runEngine({ tests: [{ name: "Urea", value: 120, unit: "mg/dL" }, { name: "Creatinine", value: 2.5, unit: "mg/dL" }] });
   assert.equal(e.indices.bun_cr, 22, "BUN/Cr باید از اورهٔ ÷۲.۱۴ محاسبه شود، نه از خودِ اوره");
   const f = runPatterns(e).findings.find((x) => x.pattern === "prerenal_pattern");
   assert.ok(f, "نسبت BUN/Cr بالای ۲۰ باید الگوی پیش‌کلیوی را همچنان فعال کند");
@@ -1067,7 +1067,7 @@ test("M19: شاخصِ BUN/Cr وقتی فقط اوره داریم از اوره÷
 
 test("M20: کم‌کاریِ واضح (TSH بالا + FT4 پایین) عدد هر دو را می‌آورد + key_number + علائم", () => {
   const e = runEngine({ patient: { age: 45, sex: "F" },
-    tests: [{ name: "TSH", value: 12 }, { name: "FT4", value: 0.5 }] });
+    tests: [{ name: "TSH", value: 12 }, { name: "FT4", value: 0.5, unit: "ng/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "thyroid_hypo_overt");
   assert.ok(f, "باید کم‌کاریِ واضح فعال شود");
   assert.equal(f.key_number, 12, "key_number باید TSH باشد");
@@ -1079,8 +1079,8 @@ test("M20: کم‌کاریِ واضح (TSH بالا + FT4 پایین) عدد ه�
 test("M20: کم‌کاری تیروئید همراه هیپوناترمی/کم‌خونی، نکتهٔ علتِ ثانویه را می‌دهد", () => {
   // فصل ص.۲۳: کم‌کاری تیروئید خودش می‌تواند سدیم پایین و کم‌خونی بسازد.
   const e = runEngine({ patient: { age: 50, sex: "M" },
-    tests: [{ name: "TSH", value: 12 }, { name: "FT4", value: 0.5 },
-            { name: "Sodium", value: 128 }, { name: "Hemoglobin", value: 10 }] });
+    tests: [{ name: "TSH", value: 12 }, { name: "FT4", value: 0.5, unit: "ng/dL" },
+            { name: "Sodium", value: 128 }, { name: "Hemoglobin", value: 10, unit: "g/dL" }] });
   const f = runPatterns(e).findings.find((x) => /thyroid_hypo/.test(x.pattern));
   assert.ok(f, "باید کم‌کاری تیروئید فعال شود");
   assert.ok(/سدیم پایین/.test(f.must_say) && /کم‌خونی/.test(f.must_say),
@@ -1091,7 +1091,7 @@ test("M20: کم‌کاری تیروئید همراه هیپوناترمی/کم�
 
 test("M20: پرکاریِ واضح (TSH پایین + FT4 بالا) پرچمِ طوفان تیروئیدی + TRAb می‌دهد", () => {
   const e = runEngine({ patient: { age: 35, sex: "F" },
-    tests: [{ name: "TSH", value: 0.05 }, { name: "FT4", value: 3.0 }] });
+    tests: [{ name: "TSH", value: 0.05 }, { name: "FT4", value: 3.0, unit: "ng/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "thyroid_hyper_overt");
   assert.ok(f, "باید پرکاریِ واضح فعال شود");
   assert.equal(f.key_number, 0.05, "key_number باید TSH باشد");
@@ -1105,7 +1105,7 @@ test("M20: نقصِ رفع‌شده — FT4ِ بالا با TSHِ طبیعی «�
   // در پرکاریِ اولیهٔ واقعی TSH سرکوب می‌شود؛ FT4ِ بالا با TSHِ طبیعی اغلب
   // خطای پیش‌تحلیلی/بیوتین است — نباید بیمار را با «پرکاری واضح» بترساند.
   const e = runEngine({ patient: { age: 40, sex: "M" },
-    tests: [{ name: "TSH", value: 2.0 }, { name: "FT4", value: 3.0 }] });
+    tests: [{ name: "TSH", value: 2.0 }, { name: "FT4", value: 3.0, unit: "ng/dL" }] });
   const finds = runPatterns(e).findings;
   assert.ok(!finds.some((x) => x.pattern === "thyroid_hyper_overt"),
     "TSHِ طبیعی نباید «پرکاریِ واضح» بسازد");
@@ -1125,7 +1125,7 @@ test("M20: نقصِ رفع‌شده — FT4ِ بالا با TSHِ طبیعی «�
 
 test("M21: TSH بالا + FT4 بالا → پرکاریِ ثانویه، نه کم‌کاریِ تحت‌بالینیِ کاذب", () => {
   const e = runEngine({ patient: { age: 38, sex: "F" },
-    tests: [{ name: "TSH", value: 8 }, { name: "FT4", value: 3.0 }] });
+    tests: [{ name: "TSH", value: 8 }, { name: "FT4", value: 3.0, unit: "ng/dL" }] });
   const finds = runPatterns(e).findings;
   assert.ok(!finds.some((x) => /thyroid_hypo/.test(x.pattern)),
     "نباید کم‌کاری (تحت‌بالینی یا واضح) برچسب بخورد");
@@ -1146,7 +1146,7 @@ test("M21: TSH بالا + FT4 بالا → پرکاریِ ثانویه، نه ک
 
 test("M23: منیزیمِ پایین + پتاسیمِ پایین عددِ Mg و پرچمِ آریتمی/دیگوکسین را می‌آورد", () => {
   const e = runEngine({ patient: { age: 55, sex: "F" },
-    tests: [{ name: "Magnesium", value: 1.2 }, { name: "Potassium", value: 3.0 }] });
+    tests: [{ name: "Magnesium", value: 1.2, unit: "mg/dL" }, { name: "Potassium", value: 3.0 }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "magnesium_depletion_pattern");
   assert.ok(f, "باید الگوی زنجیره‌ای منیزیم فعال شود");
   assert.equal(f.key_number, 1.2, "key_number باید منیزیم باشد");
@@ -1165,8 +1165,8 @@ test("M23: منیزیمِ پایین + پتاسیمِ پایین عددِ Mg و 
 test("M24: non-HDL محاسبه و در تفسیر با هدفِ زیر ۱۳۰ آورده می‌شود", () => {
   // کلسترول ۲۹۵، HDL ۳۵ → non-HDL = ۲۶۰
   const e = runEngine({ patient: { age: 47, sex: "F" },
-    tests: [{ name: "Cholesterol", value: 295 }, { name: "HDL", value: 35 },
-            { name: "Triglycerides", value: 200 }] });
+    tests: [{ name: "Cholesterol", value: 295, unit: "mg/dL" }, { name: "HDL", value: 35, unit: "mg/dL" },
+            { name: "Triglycerides", value: 200, unit: "mg/dL" }] });
   assert.equal(e.indices.non_hdl, 260, "non-HDL باید ۲۹۵−۳۵ باشد");
   const f = runPatterns(e).findings.find((x) => x.pattern === "dyslipidemia");
   assert.ok(f, "باید الگوی چربی فعال شود");
@@ -1176,8 +1176,8 @@ test("M24: non-HDL محاسبه و در تفسیر با هدفِ زیر ۱۳۰ �
 
 test("M24: با TG>۴۰۰ هشدارِ نامعتبر بودنِ LDLِ محاسبه‌ای داده می‌شود", () => {
   const e = runEngine({ patient: { age: 50, sex: "M" },
-    tests: [{ name: "Triglycerides", value: 450 }, { name: "LDL", value: 120 },
-            { name: "Cholesterol", value: 260 }, { name: "HDL", value: 40 }] });
+    tests: [{ name: "Triglycerides", value: 450, unit: "mg/dL" }, { name: "LDL", value: 120, unit: "mg/dL" },
+            { name: "Cholesterol", value: 260, unit: "mg/dL" }, { name: "HDL", value: 40, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "dyslipidemia");
   assert.ok(f, "باید الگوی چربی فعال شود");
   assert.ok(f.warnings.some((w) => /قابل اعتماد نیست|محاسبه‌ای/.test(w) && /۴۰۰/.test(w)),
@@ -1186,7 +1186,7 @@ test("M24: با TG>۴۰۰ هشدارِ نامعتبر بودنِ LDLِ محاس�
 
 test("M24: با TG طبیعی هشدارِ فریدوالد داده نمی‌شود (هشدار کاذب)", () => {
   const e = runEngine({ patient: { age: 50, sex: "M" },
-    tests: [{ name: "Triglycerides", value: 180 }, { name: "LDL", value: 160 }] });
+    tests: [{ name: "Triglycerides", value: 180, unit: "mg/dL" }, { name: "LDL", value: 160, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "dyslipidemia");
   assert.ok(f, "باید الگوی چربی فعال شود");
   assert.ok(!f.warnings.some((w) => /قابل اعتماد نیست/.test(w)),
@@ -1198,8 +1198,8 @@ test("M24: با TG طبیعی هشدارِ فریدوالد داده نمی‌ش
 // «diabetes_range / این هفته وقت بگیرید» می‌گرفت — برای وضعیتی با مرگ‌ومیرِ بالا.
 test("M25: قندِ ۹۵۰ بدونِ کتون/اسیدوز → اورژانسِ هایپراسمولار، نه «این هفته»", () => {
   const e = runEngine({ patient: { age: 58, sex: "M" },
-    tests: [{ name: "Glucose", value: 950 }, { name: "BUN", value: 48 },
-            { name: "Creatinine", value: 1.6 }] });
+    tests: [{ name: "Glucose", value: 950, unit: "mg/dL" }, { name: "BUN", value: 48, unit: "mg/dL" },
+            { name: "Creatinine", value: 1.6, unit: "mg/dL" }] });
   const out = runPatterns(e);
   assert.equal(out.overall_urgency, "emergency", "قندِ ۹۵۰ باید اورژانس باشد");
   assert.equal(out.has_critical, true);
@@ -1214,7 +1214,7 @@ test("M25: قندِ ۹۵۰ بدونِ کتون/اسیدوز → اورژانسِ
 
 test("M25: قندِ بالا + کتونِ مثبت → DKA می‌ماند، HHS دوباره‌گویی نمی‌کند", () => {
   const e = runEngine({ patient: { age: 18, sex: "M" },
-    tests: [{ name: "Urine Ketone", value: "Positive" }, { name: "Glucose", value: 700 }] });
+    tests: [{ name: "Urine Ketone", value: "Positive" }, { name: "Glucose", value: 700, unit: "mg/dL" }] });
   const finds = runPatterns(e).findings;
   assert.ok(finds.some((x) => x.pattern === "dka_pattern"), "باید DKA بگیرد");
   assert.ok(!finds.some((x) => x.pattern === "hhs_pattern"),
@@ -1222,7 +1222,7 @@ test("M25: قندِ بالا + کتونِ مثبت → DKA می‌ماند، HHS
 });
 
 test("M25: قندِ ۵۲۰ (زیرِ آستانهٔ ۶۰۰) نباید HHS بگیرد — هشدارِ کاذب", () => {
-  const e = runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "Glucose", value: 520 }] });
+  const e = runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "Glucose", value: 520, unit: "mg/dL" }] });
   const finds = runPatterns(e).findings;
   assert.ok(!finds.some((x) => x.pattern === "hhs_pattern"));
   assert.ok(finds.some((x) => x.pattern === "diabetes_range"));
@@ -1232,7 +1232,7 @@ test("M25: قندِ ۵۲۰ (زیرِ آستانهٔ ۶۰۰) نباید HHS بگ�
 // را که ~۷۸٪ کتون‌هاست؛ پس کتونِ منفی کتواسیدوز را رد نمی‌کند (فصل ۹، Ketones).
 test("M25: کتونِ منفیِ اندازه‌گیری‌شده → هشدارِ محدودیتِ نوارِ ادرار", () => {
   const e = runEngine({ patient: { age: 62, sex: "F" },
-    tests: [{ name: "Urine Ketone", value: "Negative" }, { name: "Glucose", value: 820 }] });
+    tests: [{ name: "Urine Ketone", value: "Negative" }, { name: "Glucose", value: 820, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "hhs_pattern");
   assert.ok(f, "باید HHS فعال شود");
   // عمداً در must_say است نه warnings — چون فقط must_sayِ اورژانسی ضامنِ سرور دارد
@@ -1241,7 +1241,7 @@ test("M25: کتونِ منفیِ اندازه‌گیری‌شده → هشدار
 });
 
 test("M25: بدونِ اندازه‌گیریِ کتون، هشدارِ نوارِ کتون داده نمی‌شود", () => {
-  const e = runEngine({ patient: { age: 62, sex: "F" }, tests: [{ name: "Glucose", value: 820 }] });
+  const e = runEngine({ patient: { age: 62, sex: "F" }, tests: [{ name: "Glucose", value: 820, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "hhs_pattern");
   assert.ok(f);
   assert.ok(!/بتاهیدروکسی/.test(f.must_say),
@@ -1251,7 +1251,7 @@ test("M25: بدونِ اندازه‌گیریِ کتون، هشدارِ نوار
 // ── M25: کلیدِ GLU_RANDOM در الگوی آلبومینوری (پیش‌تر GLU_R بود و هرگز وجود نداشت) ──
 test("M25: قندِ تصادفیِ ۳۲۰ + ACR → زمینهٔ دیابت تشخیص داده می‌شود", () => {
   const e = runEngine({ patient: { age: 55, sex: "M" },
-    tests: [{ name: "ACR", value: 150 }, { name: "BS", value: 320 }] });
+    tests: [{ name: "ACR", value: 150, unit: "mg/g" }, { name: "BS", value: 320, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => /albuminuria/.test(x.pattern));
   assert.ok(f, "باید الگوی آلبومینوری فعال شود");
   assert.ok(/قند شما هم بالاست/.test(f.action),
@@ -1301,7 +1301,7 @@ test("M26: با پتاسیمِ بالا، عددِ پتاسیم و پرچمِ آ
 test("M26: با کراتینینِ طبیعی، ادعای درگیریِ کلیه نمی‌کند ولی هشدارِ تأخیر می‌دهد", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 6000 }, { name: "Urine Blood", value: "+2" },
-            { name: "Creatinine", value: 0.9 }] });
+            { name: "Creatinine", value: 0.9, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
   assert.ok(f, "باید الگوی رابدومیولیز فعال شود");
   assert.ok(!/کلیه‌ها هم درگیر شده‌اند/.test(f.must_say),
@@ -1327,7 +1327,7 @@ test("M26: بدونِ کراتینین روی برگه، نباید بگوید �
 test("M26: کراتینینِ پایین هم «طبیعی» اعلام نمی‌شود", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 8200 }, { name: "Urine Blood", value: "+2" },
-            { name: "Creatinine", value: 0.35 }] });
+            { name: "Creatinine", value: 0.35, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
   assert.ok(!/اندازه‌گیری نشده/.test(f.must_say), "کراتینین داده شده، پس «نداریم» غلط است");
   assert.ok(/خارج از محدوده نیست/.test(f.must_say),
@@ -1358,7 +1358,7 @@ test("M26: پتاسیمِ ۵.۱ «فوری‌ترین بخش» نیست ولی �
 test("M26: کلسیمِ پایین بدونِ عددِ تصحیح‌شده گفته می‌شود + هشدارِ مکملِ خودسرانه", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
-            { name: "Calcium", value: 6.2 }, { name: "Albumin", value: 2.6 }] });
+            { name: "Calcium", value: 6.2, unit: "mg/dL" }, { name: "Albumin", value: 2.6, unit: "g/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
   const ca = e.graded.find((g) => g.test === "CA");
   assert.ok(/کلسیم شما هم پایین است/.test(f.must_say), "باید کلسیمِ پایین را بگوید");
@@ -1382,8 +1382,8 @@ test("M26: بلندترین must_say از سقفِ جملهٔ ENGINE_SYSTEM_PROM
   // بدترین حالت: همهٔ شاخه‌های شرطیِ رابدومیولیز فعال
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
-            { name: "Potassium", value: 6.4 }, { name: "Creatinine", value: 2.4 },
-            { name: "Calcium", value: 6.2 }, { name: "Albumin", value: 2.6 }] });
+            { name: "Potassium", value: 6.4 }, { name: "Creatinine", value: 2.4, unit: "mg/dL" },
+            { name: "Calcium", value: 6.2, unit: "mg/dL" }, { name: "Albumin", value: 2.6, unit: "g/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
   assert.ok(f, "باید الگوی رابدومیولیز فعال شود");
   // همان تقسیم‌بندیِ جمله که server.js برای تورِ ایمنی استفاده می‌کند
@@ -1458,7 +1458,7 @@ test("M29: سرولوژیِ کاملاً منفی هیچ یافته‌ای نم�
 
 test("M29: CRPِ کیفی «3+» دیگر بی‌صدا نمی‌افتد", () => {
   const e = runEngine({ patient: { age: 32, sex: "F" },
-    tests: [{ name: "Hemoglobin", value: 13.5 }, { name: "CRP", value: "3+" }] });
+    tests: [{ name: "Hemoglobin", value: 13.5, unit: "g/dL" }, { name: "CRP", value: "3+" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "crp_elevated");
   assert.ok(f, "CRPِ کیفیِ مثبت باید یافته بسازد");
   assert.ok(f.must_say.includes("3+"), "همان چیزی که برگه نوشته باید نقل شود");
@@ -1513,7 +1513,7 @@ test("M30: توصیه‌های هم‌سرآغاز ادغام می‌شوند ب
 
 test("M30: پیشنهادِ زیرمجموعه حذف می‌شود («پنل کامل آهن» ⊃ «آهن سرم»)", () => {
   const e = runEngine({ patient: { age: 32, sex: "F" },
-    tests: [{ name: "Hemoglobin", value: 8.1 }, { name: "MCV", value: 68 },
+    tests: [{ name: "Hemoglobin", value: 8.1, unit: "g/dL" }, { name: "MCV", value: 68 },
             { name: "Ferritin", value: 6 }] });
   const recs = buildEngineRecommendations(runPatterns(e), e);
   const has = (s) => recs.some((r) => r.includes(s));
@@ -1524,8 +1524,8 @@ test("M30: پیشنهادِ زیرمجموعه حذف می‌شود («پنل ک
 
 test("M30: تستی که همین حالا روی برگه است دوباره درخواست نمی‌شود", () => {
   const e = runEngine({ patient: { age: 32, sex: "F" },
-    tests: [{ name: "FBS", value: 108 }, { name: "HDL", value: 35 },
-            { name: "Cholesterol", value: 240 }] });
+    tests: [{ name: "FBS", value: 108, unit: "mg/dL" }, { name: "HDL", value: 35, unit: "mg/dL" },
+            { name: "Cholesterol", value: 240, unit: "mg/dL" }] });
   const recs = buildEngineRecommendations(runPatterns(e), e);
   assert.ok(!recs.some((r) => r === "درخواست آزمایش قند خون از پزشک"),
     "قند همین حالا اندازه‌گیری شده — درخواستش همان باگِ فریتین است");
@@ -1539,9 +1539,9 @@ test("M30: تستی که همین حالا روی برگه است دوباره �
 
 test("M31: املاهای واقعیِ برگه unmapped نمی‌مانند", () => {
   const e = runEngine({ patient: { age: 32, sex: "F" }, tests: [
-    { name: "Creatinin", value: "1.0" },
-    { name: "cholestrol", value: "107" },
-    { name: "Triglicerde", value: "70" },
+    { name: "Creatinin", value: "1.0", unit: "mg/dL" },
+    { name: "cholestrol", value: "107", unit: "mg/dL" },
+    { name: "Triglicerde", value: "70", unit: "mg/dL" },
     { name: "ESR 1hrs", value: "85" },
   ]});
   assert.deepEqual(e.unmapped, [], "هیچ‌کدام نباید unmapped بماند");
@@ -1561,7 +1561,7 @@ test("M31: هر شکلی از ESR به ESR نگاشت می‌شود", () => {
 
 test("M31: ESRِ بالا تفسیر می‌گیرد، نه «توضیح آماده‌ای نداریم»", () => {
   const e = runEngine({ patient: { age: 32, sex: "F" },
-    tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "13.2" }] });
+    tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "13.2", unit: "g/dL" }] });
   const fs = runPatterns(e).findings;
   assert.ok(!fs.some((f) => f.pattern === "unmatched_abnormal"),
     "نباید به تورِ «توضیح نداریم» بیفتد");
@@ -1573,14 +1573,14 @@ test("M31: ESRِ بالا تفسیر می‌گیرد، نه «توضیح آما�
 
 test("M31: در بیمارِ کم‌خون، نکتهٔ «کم‌خونی خودش ESR را بالا می‌برد» گفته می‌شود", () => {
   const anemic = runPatterns(runEngine({ patient: { age: 32, sex: "F" },
-    tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "7.4" },
+    tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "7.4", unit: "g/dL" },
             { name: "M.C.V", value: "74.1" }] })).findings
     .find((x) => x.pattern === "esr_elevated");
   assert.ok(/کم‌خونی ESR را بالا می‌برد/.test(anemic.must_say),
     "بدون این نکته بیمار دنبال علتِ دومی می‌گردد که وجود ندارد");
 
   const notAnemic = runPatterns(runEngine({ patient: { age: 32, sex: "F" },
-    tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "13.2" }] })).findings
+    tests: [{ name: "ESR 1hrs", value: "85" }, { name: "Hb", value: "13.2", unit: "g/dL" }] })).findings
     .find((x) => x.pattern === "esr_elevated");
   assert.ok(!/کم‌خونی ESR را بالا می‌برد/.test(notAnemic.must_say),
     "بدون کم‌خونی نباید این نکته بیاید (هشدارِ کاذب)");
@@ -1662,8 +1662,8 @@ const MODEL_TEXT_RHABDO =
 test("M27: جمله‌ای که مدل بازنویسی کرده دوباره append نمی‌شود", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
-            { name: "Potassium", value: 6.4 }, { name: "Creatinine", value: 2.4 },
-            { name: "Calcium", value: 6.2 }, { name: "Albumin", value: 2.6 }] });
+            { name: "Potassium", value: 6.4 }, { name: "Creatinine", value: 2.4, unit: "mg/dL" },
+            { name: "Calcium", value: 6.2, unit: "mg/dL" }, { name: "Albumin", value: 2.6, unit: "g/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
 
   const missing = missingSentences(f.must_say, MODEL_TEXT_RHABDO);
@@ -1713,7 +1713,7 @@ test("M27: نرمال‌سازی — ارقام فارسی و نیم‌فاصل�
 test("M26: در رابدومیولیز عددِ eGFR در متن نمی‌آید", () => {
   const e = runEngine({ patient: { age: 34, sex: "M" },
     tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
-            { name: "Creatinine", value: 2.4 }] });
+            { name: "Creatinine", value: 2.4, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
   assert.ok(/کراتینین شما 2.4/.test(f.must_say), "کراتینینِ بالا باید با عدد بیاید");
   assert.ok(!/برآوردِ کارِ کلیه/.test(f.must_say),
@@ -1799,7 +1799,7 @@ test("M33: غربالگریِ واکنش‌گر this_week است، نه اورژ
 // N10 توصیف می‌کند (باید روی کدِ قبل بشکنند) اشتباه گرفته نشوند.
 // ═══════════════════════════════════════════════════════════
 test("پوشش/قلبی: تروپونینِ مثبت (کیفی و عددی) اورژانس است و بقیه را می‌پوشاند", () => {
-  for (const t of [{ name: "Troponin I", value: "Positive" }, { name: "hs-cTnI", value: 2.5 }]) {
+  for (const t of [{ name: "Troponin I", value: "Positive" }, { name: "hs-cTnI", value: 2.5, unit: "µg/l" }]) {
     const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" }, tests: [t] }));
     const f = p.findings.find((x) => x.rule_id === "troponin_positive");
     assert.ok(f, `${t.name} باید troponin_positive بدهد`);
@@ -1989,9 +1989,15 @@ test("G1b: کراتینین ۱۰۶ µmol/L طبیعی است، نه نارسای
 
 test("G1b: بدونِ واحدِ صریحِ SI هیچ تبدیلی انجام نمی‌شود", () => {
   // «تبدیلِ غلط بدتر از نبودِ تبدیل است» — همان قاعدهٔ N2.
-  const e = runEngine({ tests: [{ name: "Creatinine", value: "1.1" }] });
+  const e = runEngine({ tests: [{ name: "Creatinine", value: "1.1", unit: "mg/dL" }] });
   assert.equal(e.graded.find((g) => g.test === "CREAT").value, 1.1);
   assert.equal(e.unitConversions.length, 0);
+  // ⚠️ specs/003: *بی‌واحد و بی‌محدوده* دیگر «متعارف» فرض نمی‌شود — نه تبدیل، نه نمره؛ «نامعلوم».
+  //    (پیش از این همین عدد بی‌صدا mg/dL سنجیده می‌شد؛ کراتینینِ ۸۰ µmol/L اورژانس می‌گرفت — M122.)
+  const u = runEngine({ tests: [{ name: "Creatinine", value: "1.1" }] });
+  assert.equal(u.unitConversions.length, 0);
+  assert.equal(u.graded.find((g) => g.test === "CREAT"), undefined);
+  assert.equal(u.ungraded.CREAT?.reason, "unit_unknown");
 });
 
 // ---------- G2: WHO — فریتینِ «طبیعی» که التهاب پنهانش کرده ----------
@@ -2145,7 +2151,7 @@ test("G7: هیچ کلیدِ خامی از راهِ تبدیلِ واحد به ب
 test("M33: کم‌خونی با MCV بالا و پلاکت پایین الگوی MDS را فعال می‌کند", () => {
   const e = runPatterns(runEngine({
     patient: { age: 70, gender: "male" },
-    tests: [{ name: "HGB", value: 10 }, { name: "MCV", value: 106 }, { name: "PLT", value: 130 }],
+    tests: [{ name: "HGB", value: 10, unit: "g/dL" }, { name: "MCV", value: 106 }, { name: "PLT", value: 130 }],
   }));
   const mds = e.findings.find((f) => f.pattern === "anemia_macrocytic_mds");
   assert.ok(mds, "باید الگوی MDS پیدا شود");
@@ -2227,7 +2233,7 @@ test("M45: هموگلوبین ۵.۰ با CBC کامل اورژانس است", ()
   const e = runEngine({
     patient: { age: "45 سال", sex: "مرد" },
     tests: [
-      { name: "Hb", value: 5.0 }, { name: "MCV", value: 85 },
+      { name: "Hb", value: 5.0, unit: "g/dL" }, { name: "MCV", value: 85 },
       { name: "PLT", value: 240000 }, { name: "WBC", value: 6500 },
       { name: "RBC", value: 2.1 },
     ],
@@ -2241,7 +2247,7 @@ test("M45: هموگلوبین ۵.۰ با CBC کامل اورژانس است", ()
 });
 
 test("M45: هموگلوبین ۶.۵ به‌تنهایی اورژانس است، نه unmatched_abnormal", () => {
-  const e = runEngine({ patient: { age: "45 سال", sex: "مرد" }, tests: [{ name: "Hb", value: 6.5 }] });
+  const e = runEngine({ patient: { age: "45 سال", sex: "مرد" }, tests: [{ name: "Hb", value: 6.5, unit: "g/dL" }] });
   const p = runPatterns(e);
   const fired = p.findings.map((x) => x.pattern);
   assert.ok(fired.includes("severe_anemia_crisis"), `فعال‌شده‌ها: ${fired.join("، ")}`);
@@ -2254,7 +2260,7 @@ test("M45: هموگلوبین ۶.۵ به‌تنهایی اورژانس است، 
 // که مثلاً ۸.۰ را هم اورژانس کند بی‌صدا رد می‌شود و هر کم‌خونیِ متوسط
 // بیمار را به اورژانس می‌فرستد.
 test("M45: هموگلوبین ۷.۵ اورژانس نیست", () => {
-  const e = runEngine({ patient: { age: "45 سال", sex: "مرد" }, tests: [{ name: "Hb", value: 7.5 }, { name: "MCV", value: 88 }] });
+  const e = runEngine({ patient: { age: "45 سال", sex: "مرد" }, tests: [{ name: "Hb", value: 7.5, unit: "g/dL" }, { name: "MCV", value: 88 }] });
   const p = runPatterns(e);
   assert.equal(p.findings.some((x) => x.pattern === "severe_anemia_crisis"), false,
     "۷.۵ بالای آستانهٔ ۷.۰ است");
@@ -2265,14 +2271,14 @@ test("M45: هموگلوبین ۷.۵ اورژانس نیست", () => {
 test("M45: قاعده‌های موجودِ کم‌خونی همچنان شلیک می‌کنند", () => {
   const severe = runPatterns(runEngine({
     patient: { age: "45 سال", sex: "مرد" },
-    tests: [{ name: "Hb", value: 5.0 }, { name: "MCV", value: 85 }, { name: "PLT", value: 240000 }],
+    tests: [{ name: "Hb", value: 5.0, unit: "g/dL" }, { name: "MCV", value: 85 }, { name: "PLT", value: 240000 }],
   }));
   assert.ok(severe.findings.some((x) => x.pattern === "normocytic_anemia"),
     `normocytic_anemia باید کنارِ اورژانس بماند؛ فعال‌شده‌ها: ${severe.findings.map((x) => x.pattern).join("، ")}`);
 
   const mild = runPatterns(runEngine({
     patient: { age: "45 سال", sex: "مرد" },
-    tests: [{ name: "Hb", value: 9.5 }, { name: "MCV", value: 88 }],
+    tests: [{ name: "Hb", value: 9.5, unit: "g/dL" }, { name: "MCV", value: 88 }],
   }));
   assert.ok(mild.findings.some((x) => x.pattern === "normocytic_anemia"),
     "کم‌خونیِ متوسط باید مثل قبل رفتار کند");
@@ -2430,7 +2436,7 @@ test("M37: فایل‌های زندهٔ patterns متنِ نابودشده ند�
 test("M37: خروجیِ موتور برای پنلِ N15 رشتهٔ خراب ندارد", () => {
   const e = runEngine({
     patient: { age: 45, sex: "M" },
-    tests: [{ name: "WBC", value: "114" }, { name: "PLT", value: "46" }, { name: "HGB", value: "8.1" }],
+    tests: [{ name: "WBC", value: "114" }, { name: "PLT", value: "46" }, { name: "HGB", value: "8.1", unit: "g/dL" }],
   });
   const p = runPatterns(e);
 
@@ -2784,7 +2790,7 @@ test("M41: MCHC بالا با RDW بالا و کم‌خونی، الگوی اس�
 // (muscleTrap | haptoLow && ≥۲ | ≥۳) دست‌نخورده‌اند.
 
 const HEMOLYSIS_BASE = [
-  { name: "Hb", value: "9.0" }, { name: "MCV", value: "90" },
+  { name: "Hb", value: "9.0", unit: "g/dL" }, { name: "MCV", value: "90" },
   { name: "RBC", value: "3.2" }, { name: "Retic", value: "8" },
   { name: "LDH", value: "600" },
 ];
@@ -2793,7 +2799,7 @@ const hemolysisRun = (extra) =>
     tests: [...HEMOLYSIS_BASE, ...extra] }));
 
 test("M46: پنل A — بیلی‌روبین غیرمستقیمِ چاپ‌شده الگوی همولیز را فعال می‌کند", () => {
-  const fired = hemolysisRun([{ name: "Bilirubin Indirect", value: "2.0" }])
+  const fired = hemolysisRun([{ name: "Bilirubin Indirect", value: "2.0", unit: "mg/dL" }])
     .findings.map((f) => f.pattern);
   assert.ok(fired.includes("hemolysis_likely"),
     `الگوی همولیز فعال نشد؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
@@ -2801,7 +2807,7 @@ test("M46: پنل A — بیلی‌روبین غیرمستقیمِ چاپ‌شد
 
 test("M46: پنل B — مسیرِ قدیمیِ تام منهای مستقیم نباید بشکند", () => {
   const fired = hemolysisRun([
-    { name: "Bilirubin Total", value: "3.0" }, { name: "Bilirubin Direct", value: "0.4" },
+    { name: "Bilirubin Total", value: "3.0", unit: "mg/dL" }, { name: "Bilirubin Direct", value: "0.4", unit: "mg/dL" },
   ]).findings.map((f) => f.pattern);
   assert.ok(fired.includes("hemolysis_likely"),
     `مسیرِ BILI_T−BILI_D شکست؛ فعال‌شده‌ها: ${fired.join("، ") || "هیچ"}`);
@@ -2809,14 +2815,14 @@ test("M46: پنل B — مسیرِ قدیمیِ تام منهای مستقیم �
 
 test("M46: بیلی‌روبین غیرمستقیمِ طبیعی الگوی همولیز نمی‌سازد (مثبتِ کاذب)", () => {
   // غیرمستقیمِ ۰.۵ زیر آستانهٔ ۱.۰ است → فقط LDH و Retic می‌مانند = ۲ نشانگر.
-  const fired = hemolysisRun([{ name: "Bilirubin Indirect", value: "0.5" }])
+  const fired = hemolysisRun([{ name: "Bilirubin Indirect", value: "0.5", unit: "mg/dL" }])
     .findings.map((f) => f.pattern);
   assert.ok(!fired.includes("hemolysis_likely"),
     `با غیرمستقیمِ طبیعی نباید همولیز اعلام شود؛ فعال‌شده‌ها: ${fired.join("، ")}`);
 });
 
 test("M46: کم‌خونیِ نورموسیتیک کنارِ الگوی همولیز خفه نمی‌شود", () => {
-  const fired = hemolysisRun([{ name: "Bilirubin Indirect", value: "2.0" }])
+  const fired = hemolysisRun([{ name: "Bilirubin Indirect", value: "2.0", unit: "mg/dL" }])
     .findings.map((f) => f.pattern);
   assert.ok(fired.includes("normocytic_anemia"),
     `normocytic_anemia از دست رفت؛ فعال‌شده‌ها: ${fired.join("، ")}`);
@@ -2836,7 +2842,7 @@ test("M47: RBC و HCT پایین با هموگلوبینِ طبیعی، دیگر
     patient: { age: "78", sex: "M" },
     tests: [
       { name: "R.B.C", value: 3.82 },
-      { name: "Hb", value: 12.3 },
+      { name: "Hb", value: 12.3, unit: "g/dL" },
       { name: "H.C.T", value: 38.6 },
       { name: "M.C.V", value: 101.0 },
       { name: "M.C.H", value: 32.2 },
@@ -2898,7 +2904,7 @@ test("M47c: با هموگلوبینِ پایین، قاعدهٔ «بدون کم�
   const e = runEngine({
     patient: { age: "29", sex: "F" },
     tests: [
-      { name: "Hb", value: 9.4 },
+      { name: "Hb", value: 9.4, unit: "g/dL" },
       { name: "MCV", value: 68 },
       { name: "R.B.C", value: 3.6 },
       { name: "H.C.T", value: 30.0 },
@@ -3502,8 +3508,8 @@ test("M55: اسمولالیتهٔ سرم نگاشت می‌شود و شکافِ 
     tests: [
       { name: "Serum Osmolality", value: "330", unit: "mOsm/kg" },
       { name: "Sodium", value: "140" },
-      { name: "Glucose", value: "90" },
-      { name: "BUN", value: "14" },
+      { name: "Glucose", value: "90", unit: "mg/dL" },
+      { name: "BUN", value: "14", unit: "mg/dL" },
     ],
   });
   assert.ok(e.graded.some((g) => g.test === "OSM"), "OSM باید نگاشت و درجه‌بندی شود");
@@ -3539,8 +3545,8 @@ test("M55c: شکافِ اسمولالِ طبیعی هیچ یافته‌ای نم
     tests: [
       { name: "Serum Osmolality", value: "292", unit: "mOsm/kg" },
       { name: "Sodium", value: "140" },
-      { name: "Glucose", value: "90" },
-      { name: "BUN", value: "14" },
+      { name: "Glucose", value: "90", unit: "mg/dL" },
+      { name: "BUN", value: "14", unit: "mg/dL" },
     ],
   });
   assert.equal(e.indices.osm_gap, 2);
@@ -3582,8 +3588,8 @@ test("M55e: متنِ شکافِ اسمولال نه تشخیص می‌دهد ن�
     tests: [
       { name: "Serum Osmolality", value: "330", unit: "mOsm/kg" },
       { name: "Sodium", value: "140" },
-      { name: "Glucose", value: "90" },
-      { name: "BUN", value: "14" },
+      { name: "Glucose", value: "90", unit: "mg/dL" },
+      { name: "BUN", value: "14", unit: "mg/dL" },
     ],
   });
   const f = runPatterns(e).findings.find((x) => x.rule_id === "osmolal_gap_high");
@@ -3615,7 +3621,7 @@ test("M55e: متنِ شکافِ اسمولال نه تشخیص می‌دهد ن�
 test("M56: با ACR بالا و بدونِ کراتینین، ادعای «eGFR طبیعی» نمی‌کند", () => {
   const e = runEngine({
     patient: { age: "45", sex: "M" },
-    tests: [{ name: "ACR", value: "45" }],
+    tests: [{ name: "ACR", value: "45", unit: "mg/g" }],
   });
   // پیش‌شرطِ خودِ تست: اگر eGFR واقعاً محاسبه شده باشد، این تست چیزی را ثابت نمی‌کند.
   assert.equal(e.indices.egfr, undefined, "برای این پنل eGFR نباید محاسبه شود");
@@ -3637,8 +3643,8 @@ test("M56b: وقتی کراتینین هست، عددِ واقعیِ eGFR در �
   const e = runEngine({
     patient: { age: "60", sex: "M" },
     tests: [
-      { name: "ACR", value: "45" },
-      { name: "Creatinine", value: "1.9" },
+      { name: "ACR", value: "45", unit: "mg/g" },
+      { name: "Creatinine", value: "1.9", unit: "mg/dL" },
     ],
   });
   assert.ok(e.indices.egfr != null, "برای این پنل eGFR باید محاسبه شود");
@@ -3709,10 +3715,10 @@ test("M58: تستِ ناهنجارِ بی‌قاعده زیر یافتهٔ دی�
   const e = runEngine({
     patient: { age: "40", sex: "F" },
     tests: [
-      { name: "Hemoglobin", value: "9.5" }, { name: "MCV", value: "70" },
-      { name: "Ferritin", value: "6" }, { name: "Iron", value: "25" },
-      { name: "TIBC", value: "450" }, { name: "WBC", value: "7000" },
-      { name: "Platelet", value: "280000" }, { name: "Phosphorus", value: "1.0" },
+      { name: "Hemoglobin", value: "9.5", unit: "g/dL" }, { name: "MCV", value: "70" },
+      { name: "Ferritin", value: "6" }, { name: "Iron", value: "25", unit: "µg/dL" },
+      { name: "TIBC", value: "450", unit: "µg/dL" }, { name: "WBC", value: "7000" },
+      { name: "Platelet", value: "280000" }, { name: "Phosphorus", value: "1.0", unit: "mg/dL" },
     ],
   });
   const p = runPatterns(e);
@@ -3737,9 +3743,9 @@ test("M58b: وقتی همهٔ ناهنجاری‌ها توضیح دارند، ت
   const e = runEngine({
     patient: { age: "45", sex: "M" },
     tests: [
-      { name: "FBS", value: "180" }, { name: "HbA1c", value: "8.2" },
-      { name: "Cholesterol", value: "260" }, { name: "LDL", value: "180" },
-      { name: "HDL", value: "35" }, { name: "Triglyceride", value: "320" },
+      { name: "FBS", value: "180", unit: "mg/dL" }, { name: "HbA1c", value: "8.2" },
+      { name: "Cholesterol", value: "260", unit: "mg/dL" }, { name: "LDL", value: "180", unit: "mg/dL" },
+      { name: "HDL", value: "35", unit: "mg/dL" }, { name: "Triglyceride", value: "320", unit: "mg/dL" },
     ],
   });
   const p = runPatterns(e);
@@ -3757,8 +3763,8 @@ test("M58c: تور دوم هیچ‌وقت blocks_others نمی‌شود", () => 
   const e = runEngine({
     patient: { age: "50", sex: "M" },
     tests: [
-      { name: "Creatinine", value: "2.4" }, { name: "Urea", value: "95" },
-      { name: "Uric acid", value: "12" }, { name: "Potassium", value: "5.9" },
+      { name: "Creatinine", value: "2.4", unit: "mg/dL" }, { name: "Urea", value: "95", unit: "mg/dL" },
+      { name: "Uric acid", value: "12", unit: "mg/dL" }, { name: "Potassium", value: "5.9" },
     ],
   });
   const p = runPatterns(e);
@@ -3781,7 +3787,7 @@ test("M59: B12 برابر ۸۰ قاعدهٔ کمبودِ آشکار را فعا�
   const e = runEngine({
     patient: { age: "45", sex: "M" },
     tests: [
-      { name: "Vitamin B12", value: "80" }, { name: "Hemoglobin", value: "14" },
+      { name: "Vitamin B12", value: "80", unit: "pg/mL" }, { name: "Hemoglobin", value: "14", unit: "g/dL" },
       { name: "MCV", value: "88" }, { name: "WBC", value: "7000" },
       { name: "Platelet", value: "250000" },
     ],
@@ -3808,7 +3814,7 @@ test("M59b: با CBC طبیعی، متن کمبود را رد‌شده جلوه 
   const e = runEngine({
     patient: { age: "45", sex: "M" },
     tests: [
-      { name: "Vitamin B12", value: "80" }, { name: "Hemoglobin", value: "14" },
+      { name: "Vitamin B12", value: "80", unit: "pg/mL" }, { name: "Hemoglobin", value: "14", unit: "g/dL" },
       { name: "MCV", value: "88" },
     ],
   });
@@ -3826,7 +3832,7 @@ test("M59b: با CBC طبیعی، متن کمبود را رد‌شده جلوه 
 test("M59c: B12 برابر ۱۸۰ همچنان مالِ قاعدهٔ مرزی است", () => {
   const e = runEngine({
     patient: { age: "45", sex: "M" },
-    tests: [{ name: "Vitamin B12", value: "180" }],
+    tests: [{ name: "Vitamin B12", value: "180", unit: "pg/mL" }],
   });
   const fired = runPatterns(e).findings.map((f) => f.rule_id);
   assert.ok(fired.includes("borderline_b12_deficiency"), `فعال‌شده‌ها: ${fired.join("، ")}`);
@@ -3920,8 +3926,8 @@ test("M60e: LDHِ بالا به‌تنهایی ادعای همولیز نمی‌
   const e = runEngine({
     patient: { age: "45", sex: "M" },
     tests: [
-      { name: "LDH", value: "260" }, { name: "Total bilirubin", value: "2.2" },
-      { name: "Direct bilirubin", value: "0.3" }, { name: "Hemoglobin", value: "15" },
+      { name: "LDH", value: "260" }, { name: "Total bilirubin", value: "2.2", unit: "mg/dL" },
+      { name: "Direct bilirubin", value: "0.3", unit: "mg/dL" }, { name: "Hemoglobin", value: "15", unit: "g/dL" },
       { name: "ALT", value: "20" }, { name: "AST", value: "22" },
     ],
   });
@@ -3946,8 +3952,8 @@ test("M60e: LDHِ بالا به‌تنهایی ادعای همولیز نمی‌
 // خونِ محیطی *پس از* تأیید. این تست‌ها روی کدِ پیش از قاعده قرمز می‌شوند (N10).
 // ============================================================
 const LDH_HEALTHY = [
-  { name: "Hemoglobin", value: "14.5" }, { name: "WBC", value: "6.5" },
-  { name: "PLT", value: "250" }, { name: "Creatinine", value: "0.9" },
+  { name: "Hemoglobin", value: "14.5", unit: "g/dL" }, { name: "WBC", value: "6.5" },
+  { name: "PLT", value: "250" }, { name: "Creatinine", value: "0.9", unit: "mg/dL" },
 ];
 const ldhRun = (tests, patient) =>
   runPatterns(runEngine({ patient: patient ?? { age: "45", sex: "M" }, tests }));
@@ -3996,7 +4002,7 @@ test("M61c: سه‌شاخهٔ «هست / نیست» — نه ادعای طبیع
   const all = ldhRun([
     ...LDH_HEALTHY, { name: "LDH", value: "300" },
     { name: "Haptoglobin", value: "150" }, { name: "Retic", value: "1.0" },
-    { name: "Total bilirubin", value: "0.8" }, { name: "Direct bilirubin", value: "0.2" },
+    { name: "Total bilirubin", value: "0.8", unit: "mg/dL" }, { name: "Direct bilirubin", value: "0.2", unit: "mg/dL" },
   ]).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
   assert.equal(all.suggest.length, 0, `تستِ اندازه‌گیری‌شده نباید درخواست شود: ${JSON.stringify(all.suggest)}`);
   // و چون بیلی‌روبینِ غیرمستقیم از کسر به دست آمده، متن باید همین را بگوید — N5.
@@ -4016,7 +4022,7 @@ test("M61d: هاپتوگلوبینِ طبیعی، «همولیز رد شد» ت�
 test("M61e: کنترلِ منفی — هرگز هم‌زمان با قاعدهٔ همولیز فعال نمی‌شود", () => {
   // همولیزِ واقعی: هاپتوگلوبینِ پایین + رتیکولوسیتِ بالا + LDHِ بالا.
   const real = ldhRun([
-    { name: "Hemoglobin", value: "9" }, { name: "MCV", value: "90" },
+    { name: "Hemoglobin", value: "9", unit: "g/dL" }, { name: "MCV", value: "90" },
     { name: "LDH", value: "400" }, { name: "Haptoglobin", value: "20" }, { name: "Retic", value: "8" },
   ]).findings.map((x) => x.rule_id);
   assert.ok(real.includes("hemolysis_pattern"), `فعال‌شده‌ها: ${real.join("، ")}`);
@@ -4056,9 +4062,9 @@ const allText = (p) =>
 
 test("M62: کلسیم بالا + PTH بالا → هایپرپاراتیروئیدی اولیه، نه پیام عمومیِ کلسیم", () => {
   const p = mineralRun([
-    { name: "Calcium", value: "11.4" },
+    { name: "Calcium", value: "11.4", unit: "mg/dL" },
     { name: "PTH", value: "120" },
-    { name: "Phosphorus", value: "2.1" },
+    { name: "Phosphorus", value: "2.1", unit: "mg/dL" },
   ]);
   const ids = ruleIds(p);
   assert.ok(ids.includes("hpt_primary"), `فعال‌شده‌ها: ${ids.join("، ")}`);
@@ -4073,7 +4079,7 @@ test("M62: کلسیم بالا + PTH بالا → هایپرپاراتیروئی
 
 test("M62b: بدون کلسیم ادرار، متن صریحاً می‌گوید تفکیک از حالت ارثی انجام نشده (N4)", () => {
   const p = mineralRun([
-    { name: "Calcium", value: "11.4" },
+    { name: "Calcium", value: "11.4", unit: "mg/dL" },
     { name: "PTH", value: "120" },
   ]);
   const txt = allText(p);
@@ -4085,9 +4091,9 @@ test("M62b: بدون کلسیم ادرار، متن صریحاً می‌گوید
 
 test("M63: همان کلسیم و PTH، ولی کلسیم ادرار پایین → FHH، نه اولیه", () => {
   const p = mineralRun([
-    { name: "Calcium", value: "11.4" },
+    { name: "Calcium", value: "11.4", unit: "mg/dL" },
     { name: "PTH", value: "120" },
-    { name: "Urine Calcium", value: "60" },
+    { name: "Urine Calcium", value: "60", unit: "mg/24h" },
   ]);
   const ids = ruleIds(p);
   assert.ok(ids.includes("fhh_pattern"), `فعال‌شده‌ها: ${ids.join("، ")}`);
@@ -4099,7 +4105,7 @@ test("M63: همان کلسیم و PTH، ولی کلسیم ادرار پایین 
 
 test("M64: کلسیم بالا + PTH پایین → شاخهٔ مستقل از پاراتیروئید، با فوریتِ بالاتر", () => {
   const p = mineralRun([
-    { name: "Calcium", value: "11.2" },
+    { name: "Calcium", value: "11.2", unit: "mg/dL" },
     { name: "PTH", value: "4" },
   ]);
   const ids = ruleIds(p);
@@ -4108,7 +4114,7 @@ test("M64: کلسیم بالا + PTH پایین → شاخهٔ مستقل از �
   assert.equal(f.urgency, "this_week");
   // ⚠️ کنترلِ N12 — جهت. همین کلسیم با PTHِ بالا نباید این شاخه را بدهد.
   const other = ruleIds(mineralRun([
-    { name: "Calcium", value: "11.2" }, { name: "PTH", value: "120" },
+    { name: "Calcium", value: "11.2", unit: "mg/dL" }, { name: "PTH", value: "120" },
   ]));
   assert.ok(!other.includes("hypercalcemia_pth_independent"),
     `شاخهٔ PTH-پایین با PTHِ بالا فعال شد: ${other.join("، ")}`);
@@ -4116,7 +4122,7 @@ test("M64: کلسیم بالا + PTH پایین → شاخهٔ مستقل از �
 
 test("M65: کلسیم بالا + PTH طبیعی → هیچ تشخیصی ادعا نمی‌شود، فقط اعلامِ تفکیک‌نشدن", () => {
   const p = mineralRun([
-    { name: "Calcium", value: "10.9" },
+    { name: "Calcium", value: "10.9", unit: "mg/dL" },
     { name: "PTH", value: "40" },
   ]);
   const ids = ruleIds(p);
@@ -4131,9 +4137,9 @@ test("M65: کلسیم بالا + PTH طبیعی → هیچ تشخیصی ادعا
 
 test("M66: کلسیم پایین + PTH پایین + منیزیم پایین → علتِ برگشت‌پذیر نام برده می‌شود", () => {
   const p = mineralRun([
-    { name: "Calcium", value: "7.4" },
+    { name: "Calcium", value: "7.4", unit: "mg/dL" },
     { name: "PTH", value: "5" },
-    { name: "Magnesium", value: "1.1" },
+    { name: "Magnesium", value: "1.1", unit: "mg/dL" },
   ]);
   const ids = ruleIds(p);
   assert.ok(ids.includes("hypoparathyroidism"), `فعال‌شده‌ها: ${ids.join("، ")}`);
@@ -4146,9 +4152,9 @@ test("M66: کلسیم پایین + PTH پایین + منیزیم پایین → 
 
 test("M66b: همان تصویر با منیزیمِ طبیعی، ادعای برگشت‌پذیری نمی‌کند", () => {
   const txt = allText(mineralRun([
-    { name: "Calcium", value: "7.4" },
+    { name: "Calcium", value: "7.4", unit: "mg/dL" },
     { name: "PTH", value: "5" },
-    { name: "Magnesium", value: "2.0" },
+    { name: "Magnesium", value: "2.0", unit: "mg/dL" },
   ]));
   // ⚠️ نسخهٔ اولِ این ادعا «هیچ جای متن کلمهٔ برگشت‌پذیر نباشد» بود و روی کدِ
   //    درست شکست: شاخهٔ منیزیمِ طبیعی صریحاً می‌گوید «علتِ برگشت‌پذیرِ شایع
@@ -4160,10 +4166,10 @@ test("M66b: همان تصویر با منیزیمِ طبیعی، ادعای بر
 
 test("M67: کلسیم پایین + PTH بالا + کلیهٔ مختل → شاخهٔ کلیوی، نه غیرکلیوی", () => {
   const p = mineralRun([
-    { name: "Calcium", value: "7.8" },
+    { name: "Calcium", value: "7.8", unit: "mg/dL" },
     { name: "PTH", value: "210" },
-    { name: "Phosphorus", value: "6.2" },
-    { name: "Creatinine", value: "3.4" },
+    { name: "Phosphorus", value: "6.2", unit: "mg/dL" },
+    { name: "Creatinine", value: "3.4", unit: "mg/dL" },
   ], { age: 60, sex: "M" });
   const ids = ruleIds(p);
   assert.ok(ids.includes("hpt_secondary_renal"), `فعال‌شده‌ها: ${ids.join("، ")}`);
@@ -4174,9 +4180,9 @@ test("M67: کلسیم پایین + PTH بالا + کلیهٔ مختل → شاخ
 
 test("M67b: همان کلسیم و PTH با کراتینین طبیعی → شاخهٔ غیرکلیوی و پیگیریِ ویتامین D", () => {
   const p = mineralRun([
-    { name: "Calcium", value: "7.8" },
+    { name: "Calcium", value: "7.8", unit: "mg/dL" },
     { name: "PTH", value: "210" },
-    { name: "Creatinine", value: "0.8" },
+    { name: "Creatinine", value: "0.8", unit: "mg/dL" },
   ]);
   const ids = ruleIds(p);
   assert.ok(ids.includes("hpt_secondary_nonrenal"), `فعال‌شده‌ها: ${ids.join("، ")}`);
@@ -4190,7 +4196,7 @@ test("M68: کلسیمِ بحرانی، پیامِ اورژانس را از دس�
   // اگر محور بی‌قید calcium_abnormal را خاموش می‌کرد، Ca=۱۵ به‌جای
   // «همین حالا به اورژانس» یافتهٔ «این هفته وقت بگیرید» می‌گرفت.
   const p = mineralRun([
-    { name: "Calcium", value: "15.0" },
+    { name: "Calcium", value: "15.0", unit: "mg/dL" },
     { name: "PTH", value: "300" },
   ]);
   const ids = ruleIds(p);
@@ -4202,7 +4208,7 @@ test("M68: کلسیمِ بحرانی، پیامِ اورژانس را از دس�
 
 test("M68b: کنترلِ منفی — بدونِ PTH، رفتار قبلیِ موتور دست‌نخورده می‌ماند", () => {
   // افزودنِ این ماژول نباید هیچ برگه‌ای را که PTH ندارد عوض کند.
-  const ids = ruleIds(mineralRun([{ name: "Calcium", value: "11.4" }]));
+  const ids = ruleIds(mineralRun([{ name: "Calcium", value: "11.4", unit: "mg/dL" }]));
   assert.ok(ids.includes("calcium_abnormal"), `رفتار قبلی شکست: ${ids.join("، ")}`);
   for (const id of ["hpt_primary", "fhh_pattern", "hypercalcemia_pth_independent",
                     "hypercalcemia_pth_indeterminate"]) {
@@ -4217,8 +4223,8 @@ test("M68b: کنترلِ منفی — بدونِ PTH، رفتار قبلیِ م�
 test("M69: فسفر ۰.۹ کنارِ فقر آهن دیگر ناپدید نمی‌شود (N18)", () => {
   // پنلِ عیناً همان چیزی که N18 اندازه گرفت و ساکت ماند.
   const p = mineralRun([
-    { name: "Hemoglobin", value: "9.5" }, { name: "MCV", value: "70" },
-    { name: "Ferritin", value: "6" }, { name: "Phosphorus", value: "0.9" },
+    { name: "Hemoglobin", value: "9.5", unit: "g/dL" }, { name: "MCV", value: "70" },
+    { name: "Ferritin", value: "6" }, { name: "Phosphorus", value: "0.9", unit: "mg/dL" },
   ]);
   const ids = ruleIds(p);
   assert.ok(ids.includes("hypophosphatemia_severe"), `فعال‌شده‌ها: ${ids.join("، ")}`);
@@ -4228,11 +4234,11 @@ test("M69: فسفر ۰.۹ کنارِ فقر آهن دیگر ناپدید نمی�
 
 test("M69b: آستانهٔ ۰.۹۹ mg/dL دو طرفش را درست جدا می‌کند", () => {
   // ۰.۳۲ mmol/L × ۳.۰۹۷ = ۰.۹۹ mg/dL — از خودِ متنِ منبع، گرد نشده.
-  const below = ruleIds(mineralRun([{ name: "Phosphorus", value: "0.95" }]));
+  const below = ruleIds(mineralRun([{ name: "Phosphorus", value: "0.95", unit: "mg/dL" }]));
   assert.ok(below.includes("hypophosphatemia_severe"), `زیر آستانه نگرفت: ${below.join("، ")}`);
   assert.ok(!below.includes("phosphate_abnormal"), `هر دو قاعدهٔ فسفر: ${below.join("، ")}`);
 
-  const above = ruleIds(mineralRun([{ name: "Phosphorus", value: "1.8" }]));
+  const above = ruleIds(mineralRun([{ name: "Phosphorus", value: "1.8", unit: "mg/dL" }]));
   assert.ok(above.includes("phosphate_abnormal"), `فسفرِ خفیف بی‌قاعده ماند: ${above.join("، ")}`);
   assert.ok(!above.includes("hypophosphatemia_severe"), `اورژانسِ کاذب: ${above.join("، ")}`);
 });
@@ -4242,7 +4248,7 @@ test("M69c: PTH و کلسیمِ ادرارِ غیرطبیعیِ منفرد به 
     ["PTH", "150", "pth_isolated_abnormal"],
     ["Urine Calcium", "480", "urine_calcium_abnormal"],
   ]) {
-    const ids = ruleIds(mineralRun([{ name, value }]));
+    const ids = ruleIds(mineralRun([{ name, value, ...(name === "Urine Calcium" ? { unit: "mg/24h" } : {}) }]));
     assert.ok(ids.includes(expect), `${name} → ${ids.join("، ")}`);
     assert.ok(!ids.includes("unmatched_abnormal"), `${name} به تور افتاد: ${ids.join("، ")}`);
     assert.ok(!ids.includes("unexplained_abnormal"), `${name} بی‌اشاره ماند: ${ids.join("، ")}`);
@@ -4258,7 +4264,7 @@ test("M69d: PTHِ منفرد بدونِ کلسیم، ادعای «کلسیم ط�
 test("M69e: کلسیمِ سرم هرگز به کلسیمِ ادرار نگاشت نمی‌شود", () => {
   // بازه‌ها (۸.۸–۱۰.۳ و ۱۰۰–۳۰۰) هیچ همپوشانی ندارند، پس نگاشتِ اشتباه
   // یک FHHِ جعلی می‌ساخت — کلسیمِ ۹.۵ به‌عنوان کلسیمِ ادرارِ «خیلی پایین».
-  const e = runEngine({ patient: { age: 50, sex: "F" }, tests: [{ name: "Calcium", value: "9.5" }] });
+  const e = runEngine({ patient: { age: 50, sex: "F" }, tests: [{ name: "Calcium", value: "9.5", unit: "mg/dL" }] });
   assert.ok(e.graded.some((g) => g.test === "CA"), "کلسیم سرم نگاشت نشد");
   assert.ok(!e.graded.some((g) => g.test === "U_CA"), "کلسیم سرم به کلسیم ادرار رفت");
 });
@@ -4285,28 +4291,28 @@ test("M70: فوریتِ یافته با متنِ اقدامش نمی‌جنگد 
   // پنل‌ها طوری چیده شده‌اند که هر سیزده قاعده دست‌کم یک‌بار فعال شود، و
   // کلسیم‌ها عمداً هم گریدِ ۱ (routine) و هم گریدِ ۲+ (this_week) را بپوشانند.
   const PANELS = [
-    [{ name: "Calcium", value: "11.4" }, { name: "PTH", value: "138" }],                       // گرید ۱
-    [{ name: "Calcium", value: "12.9" }, { name: "PTH", value: "138" }],                       // گرید ۲
-    [{ name: "Calcium", value: "11.4" }, { name: "PTH", value: "138" }, { name: "Urine Calcium", value: "60" }],
-    [{ name: "Calcium", value: "12.9" }, { name: "PTH", value: "138" }, { name: "Urine Calcium", value: "60" }],
-    [{ name: "Calcium", value: "11.2" }, { name: "PTH", value: "4" }],
-    [{ name: "Calcium", value: "10.9" }, { name: "PTH", value: "40" }],
-    [{ name: "Calcium", value: "7.9" },  { name: "PTH", value: "5" }],
-    [{ name: "Calcium", value: "7.2" },  { name: "PTH", value: "5" }, { name: "Magnesium", value: "1.1" }],
-    [{ name: "Calcium", value: "7.9" },  { name: "PTH", value: "210" }],
-    [{ name: "Calcium", value: "7.2" },  { name: "PTH", value: "210" }],
-    [{ name: "Calcium", value: "7.9" },  { name: "PTH", value: "40" }],
+    [{ name: "Calcium", value: "11.4", unit: "mg/dL" }, { name: "PTH", value: "138" }],                       // گرید ۱
+    [{ name: "Calcium", value: "12.9", unit: "mg/dL" }, { name: "PTH", value: "138" }],                       // گرید ۲
+    [{ name: "Calcium", value: "11.4", unit: "mg/dL" }, { name: "PTH", value: "138" }, { name: "Urine Calcium", value: "60", unit: "mg/24h" }],
+    [{ name: "Calcium", value: "12.9", unit: "mg/dL" }, { name: "PTH", value: "138" }, { name: "Urine Calcium", value: "60", unit: "mg/24h" }],
+    [{ name: "Calcium", value: "11.2", unit: "mg/dL" }, { name: "PTH", value: "4" }],
+    [{ name: "Calcium", value: "10.9", unit: "mg/dL" }, { name: "PTH", value: "40" }],
+    [{ name: "Calcium", value: "7.9", unit: "mg/dL" },  { name: "PTH", value: "5" }],
+    [{ name: "Calcium", value: "7.2", unit: "mg/dL" },  { name: "PTH", value: "5" }, { name: "Magnesium", value: "1.1", unit: "mg/dL" }],
+    [{ name: "Calcium", value: "7.9", unit: "mg/dL" },  { name: "PTH", value: "210" }],
+    [{ name: "Calcium", value: "7.2", unit: "mg/dL" },  { name: "PTH", value: "210" }],
+    [{ name: "Calcium", value: "7.9", unit: "mg/dL" },  { name: "PTH", value: "40" }],
     // ⚠️ کراتینینِ این دو عمداً ۱.۵ است نه ۳.۴ (eGFR ۴۰ نه ۱۵). با ۳.۴ قاعدهٔ
     //    `kidney` فوریتِ emergency و `blocks_others` می‌گیرد و هر دو یافتهٔ
     //    مینرالِ this_week را زیر خود می‌پوشاند — که رفتارِ *درستِ* موتور است،
     //    ولی این تست را به یک سبزِ بی‌معنا تبدیل می‌کرد. اندازه‌گیری‌شده، نه حدس.
-    [{ name: "Calcium", value: "7.8" },  { name: "PTH", value: "210" }, { name: "Creatinine", value: "1.5" }],
-    [{ name: "Calcium", value: "11.4" }, { name: "PTH", value: "210" }, { name: "Creatinine", value: "1.5" }],
+    [{ name: "Calcium", value: "7.8", unit: "mg/dL" },  { name: "PTH", value: "210" }, { name: "Creatinine", value: "1.5", unit: "mg/dL" }],
+    [{ name: "Calcium", value: "11.4", unit: "mg/dL" }, { name: "PTH", value: "210" }, { name: "Creatinine", value: "1.5", unit: "mg/dL" }],
     [{ name: "PTH", value: "150" }],
-    [{ name: "Phosphorus", value: "0.8" }],
-    [{ name: "Phosphorus", value: "1.9" }],
-    [{ name: "Phosphorus", value: "6.5" }],
-    [{ name: "Urine Calcium", value: "480" }],
+    [{ name: "Phosphorus", value: "0.8", unit: "mg/dL" }],
+    [{ name: "Phosphorus", value: "1.9", unit: "mg/dL" }],
+    [{ name: "Phosphorus", value: "6.5", unit: "mg/dL" }],
+    [{ name: "Urine Calcium", value: "480", unit: "mg/24h" }],
   ];
 
   const seen = new Set();
@@ -4343,7 +4349,7 @@ test("M70: فوریتِ یافته با متنِ اقدامش نمی‌جنگد 
 
 test("M71: فسفرِ کودکِ ۱۲ ساله با باندِ ۴.۰–۷.۰ سنجیده می‌شود، نه با ۲.۸–۵.۶", () => {
   const phos = (v, age) => {
-    const e = runEngine({ patient: { age, sex: "M" }, tests: [{ name: "Phosphorus", value: v }] });
+    const e = runEngine({ patient: { age, sex: "M" }, tests: [{ name: "Phosphorus", value: v, unit: "mg/dL" }] });
     return e.graded.find((g) => g.test === "PHOS");
   };
 
@@ -4375,7 +4381,7 @@ test("M71b: باندِ زیرِ یک سال عمداً RCPCH ماند و عوض 
 
 test("M72: منیزیمِ زیرِ آستانهٔ علامت‌دار (۱.۲) جملهٔ هشدارِ اختصاصی می‌گیرد", () => {
   const mgRun = (v) => runPatterns(runEngine({
-    patient: { age: 45, sex: "F" }, tests: [{ name: "Magnesium", value: v }],
+    patient: { age: 45, sex: "F" }, tests: [{ name: "Magnesium", value: v, unit: "mg/dL" }],
   }));
   const txt = (p) => p.findings.map((f) => `${f.must_say} ${(f.warnings ?? []).join(" ")}`).join(" ");
 
@@ -4509,7 +4515,7 @@ test("M75c: منبعِ ADA فقط روی شاخهٔ خودش می‌نشیند،
   //    به کلِ قاعده وصل شود، بیمارِ بدونِ دیابت هم ارجاعِ ADA می‌بیند.
   const f = runPatterns(runEngine({
     patient: { age: 54, sex: "M" },
-    tests: [{ name: "LDL cholesterol", value: "175" }, { name: "Triglycerides", value: "94" }],
+    tests: [{ name: "LDL cholesterol", value: "175", unit: "mg/dL" }, { name: "Triglycerides", value: "94", unit: "mg/dL" }],
   })).findings.find((x) => x.rule_id === "lipid_profile");
   assert.ok(f, "قاعدهٔ چربی با LDL=۱۷۵ فعال نشد");
   assert.ok(!(f.sources ?? []).includes("ADA_SOC_CVD"), `منبعِ ADA بی‌جا چسبید: ${JSON.stringify(f.sources)}`);
@@ -4560,10 +4566,10 @@ test("M77b: با LDLِ نبوده، همان پیشنهاد باید بماند"
   const e = runEngine({
     patient: { age: 54, sex: "M" },
     tests: [
-      { name: "Fasting Blood Sugar", value: "209" },
-      { name: "Cholesterol", value: "194" },
-      { name: "HDL Cholesterol", value: "56" },
-      { name: "Triglycerides", value: "94" },
+      { name: "Fasting Blood Sugar", value: "209", unit: "mg/dL" },
+      { name: "Cholesterol", value: "194", unit: "mg/dL" },
+      { name: "HDL Cholesterol", value: "56", unit: "mg/dL" },
+      { name: "Triglycerides", value: "94", unit: "mg/dL" },
     ],
   });
   const recs = buildEngineRecommendations(runPatterns(e), e);
@@ -4581,7 +4587,7 @@ test("M77b: با LDLِ نبوده، همان پیشنهاد باید بماند"
 // جایی که پانکراتیت واقعاً رخ می‌دهد — فقط یافتهٔ عمومیِ چربی می‌گرفت.
 const tgSheet = (tg, extra = []) => ({
   patient: { age: 44, sex: "M" },
-  tests: [{ name: "Triglycerides", value: String(tg) }, ...extra],
+  tests: [{ name: "Triglycerides", value: String(tg), unit: "mg/dL" }, ...extra],
 });
 
 test("M78: تری‌گلیسرید ۵۲۰ یافتهٔ خطر پانکراتیت می‌سازد", () => {
@@ -4617,7 +4623,7 @@ test("M78c: مرزِ دقیقِ ۵۰۰ داخلِ شاخهٔ پانکراتیت 
 const kidSheet = (age, tests) => ({ patient: { age, sex: "M" }, tests });
 
 test("M79: کودکِ ۱۰ ساله با کلسترول ۲۲۰ غیرطبیعی است", () => {
-  const e = runEngine(kidSheet(10, [{ name: "Cholesterol", value: "220" }]));
+  const e = runEngine(kidSheet(10, [{ name: "Cholesterol", value: "220", unit: "mg/dL" }]));
   const g = e.graded.find((x) => x.test === "CHOL");
   assert.ok(g?.abnormal, `کلسترول ۲۲۰ در ۱۰ سالگی طبیعی شمرده شد: ${JSON.stringify(g)}`);
   assert.equal(g.dir, "high");
@@ -4629,21 +4635,21 @@ test("M79: کودکِ ۱۰ ساله با کلسترول ۲۲۰ غیرطبیعی 
 });
 
 test("M79b: LDL اطفال — ۱۲۰ غیرطبیعی، ۱۰۰ طبیعی", () => {
-  const hi = runEngine(kidSheet(10, [{ name: "LDL", value: "120" }]))
+  const hi = runEngine(kidSheet(10, [{ name: "LDL", value: "120", unit: "mg/dL" }]))
     .graded.find((x) => x.test === "LDL");
   assert.ok(hi?.abnormal, `LDL=۱۲۰ در ۱۰ سالگی طبیعی شمرده شد: ${JSON.stringify(hi)}`);
   assert.equal(hi.range, "0–110", "بازهٔ اعمال‌شده جدول ۱۸.۱۰ نیست");
-  const ok = runEngine(kidSheet(10, [{ name: "LDL", value: "100" }]))
+  const ok = runEngine(kidSheet(10, [{ name: "LDL", value: "100", unit: "mg/dL" }]))
     .graded.find((x) => x.test === "LDL");
   assert.ok(!ok.abnormal, `LDL=۱۰۰ نباید غیرطبیعی باشد: ${JSON.stringify(ok)}`);
 });
 
 test("M79c: منبعِ ردیفِ اطفال دیگر به‌غلط «RCPCH 2016» برچسب نمی‌خورد", () => {
-  const g = runEngine(kidSheet(10, [{ name: "Cholesterol", value: "220" }]))
+  const g = runEngine(kidSheet(10, [{ name: "Cholesterol", value: "220", unit: "mg/dL" }]))
     .graded.find((x) => x.test === "CHOL");
   assert.match(g.refSource, /Henry ch\.18/, `منبعِ اشتباه به بیمار نشان داده می‌شود: ${g.refSource}`);
   // ردیف‌های دست‌نخوردهٔ RCPCH باید همان برچسب را نگه دارند.
-  const hgb = runEngine(kidSheet(10, [{ name: "Hemoglobin", value: "12.5" }]))
+  const hgb = runEngine(kidSheet(10, [{ name: "Hemoglobin", value: "12.5", unit: "g/dL" }]))
     .graded.find((x) => x.test === "HGB");
   assert.equal(hgb.refSource, "RCPCH 2016");
 });
@@ -4651,14 +4657,14 @@ test("M79c: منبعِ ردیفِ اطفال دیگر به‌غلط «RCPCH 2016
 test("M79d: نگهبانِ منفی — زیرِ سنِ غربالگری هنوز RCPCH است", () => {
   // منبع غربالگری را از ۲ سالگی شروع می‌کند و برای شیرخوار آستانه‌ای نمی‌دهد؛
   // پس آستانهٔ ۱۷۰ نباید به عقب کشیده شود.
-  const g = runEngine(kidSheet(1.5, [{ name: "Cholesterol", value: "200" }]))
+  const g = runEngine(kidSheet(1.5, [{ name: "Cholesterol", value: "200", unit: "mg/dL" }]))
     .graded.find((x) => x.test === "CHOL");
   assert.ok(!g.abnormal, `آستانهٔ اطفال بی‌جا به زیرِ ۲ سال کشیده شد: ${JSON.stringify(g)}`);
   assert.equal(g.refSource, "RCPCH 2016");
 });
 
 test("M79e: عددِ «مطلوب» در متن همان عددی است که تست را غیرطبیعی کرد", () => {
-  const f = runPatterns(runEngine(kidSheet(10, [{ name: "Cholesterol", value: "180" }])))
+  const f = runPatterns(runEngine(kidSheet(10, [{ name: "Cholesterol", value: "180", unit: "mg/dL" }])))
     .findings.find((x) => x.pattern === "dyslipidemia");
   assert.ok(f, "کلسترولِ ۱۸۰ در ۱۰ سالگی یافته نساخت");
   assert.match(f.must_say, /مطلوب زیر ۱۷۰ در این سن/, `متن با آستانهٔ گریدینگ نمی‌خواند: ${f.must_say}`);
@@ -4671,7 +4677,7 @@ test("M79e: عددِ «مطلوب» در متن همان عددی است که ت
 test("M80: بدونِ LDL روی برگه، non-HDL ≥ ۲۲۰ قاعدهٔ FH را فعال می‌کند", () => {
   const p = runPatterns(runEngine({
     patient: { age: 46, sex: "F" },
-    tests: [{ name: "Cholesterol", value: "300" }, { name: "HDL", value: "40" }],
+    tests: [{ name: "Cholesterol", value: "300", unit: "mg/dL" }, { name: "HDL", value: "40", unit: "mg/dL" }],
   }));
   const f = p.findings.find((x) => x.pattern === "severe_hypercholesterolemia");
   assert.ok(f, `با non-HDL=۲۶۰ فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
@@ -4683,7 +4689,7 @@ test("M80: بدونِ LDL روی برگه، non-HDL ≥ ۲۲۰ قاعدهٔ FH �
 test("M80b: نگهبانِ منفی — non-HDL=۲۰۵ زیرِ آستانه است", () => {
   const pats = runPatterns(runEngine({
     patient: { age: 46, sex: "F" },
-    tests: [{ name: "Cholesterol", value: "250" }, { name: "HDL", value: "45" }],
+    tests: [{ name: "Cholesterol", value: "250", unit: "mg/dL" }, { name: "HDL", value: "45", unit: "mg/dL" }],
   })).findings.map((x) => x.pattern);
   assert.ok(!pats.includes("severe_hypercholesterolemia"),
     `۲۰۵ نباید FH بسازد؛ فعال‌شده‌ها: ${pats.join("، ")}`);
@@ -4691,7 +4697,7 @@ test("M80b: نگهبانِ منفی — non-HDL=۲۰۵ زیرِ آستانه ا�
 });
 
 test("M80c: نوجوانِ ۱۴ ساله متنِ بزرگسال نمی‌گیرد", () => {
-  const pats = runPatterns(runEngine(kidSheet(14, [{ name: "LDL", value: "195" }])))
+  const pats = runPatterns(runEngine(kidSheet(14, [{ name: "LDL", value: "195", unit: "mg/dL" }])))
     .findings.map((x) => x.pattern);
   assert.ok(!pats.includes("severe_hypercholesterolemia"),
     `قاعدهٔ بزرگسال روی نوجوان فعال شد؛ فعال‌شده‌ها: ${pats.join("، ")}`);
@@ -4701,7 +4707,7 @@ test("M80c: نوجوانِ ۱۴ ساله متنِ بزرگسال نمی‌گیر
 
 // ---------- M81: FH زیرِ ۲۰ سال ----------
 test("M81: LDL=۱۷۰ در ۱۴ سالگی شکِ FH است", () => {
-  const p = runPatterns(runEngine(kidSheet(14, [{ name: "LDL", value: "170" }])));
+  const p = runPatterns(runEngine(kidSheet(14, [{ name: "LDL", value: "170", unit: "mg/dL" }])));
   const f = p.findings.find((x) => x.pattern === "familial_hypercholesterolemia_youth");
   assert.ok(f, `فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
   assert.equal(f.key_number, 170);
@@ -4711,7 +4717,7 @@ test("M81: LDL=۱۷۰ در ۱۴ سالگی شکِ FH است", () => {
 
 test("M81b: سنِ نامعلوم قاعدهٔ اطفال را فعال نمی‌کند", () => {
   const pats = runPatterns(runEngine({
-    patient: {}, tests: [{ name: "LDL", value: "170" }],
+    patient: {}, tests: [{ name: "LDL", value: "170", unit: "mg/dL" }],
   })).findings.map((x) => x.pattern);
   assert.ok(!pats.includes("familial_hypercholesterolemia_youth"),
     `بدون سن، متنِ کودک به بزرگسال چسبید؛ فعال‌شده‌ها: ${pats.join("، ")}`);
@@ -4719,7 +4725,7 @@ test("M81b: سنِ نامعلوم قاعدهٔ اطفال را فعال نمی�
 
 test("M81c: نگهبانِ منفی — بزرگسالِ ۲۵ ساله با LDL=۱۷۰ هیچ FHـی نمی‌گیرد", () => {
   const pats = runPatterns(runEngine({
-    patient: { age: 25, sex: "M" }, tests: [{ name: "LDL", value: "170" }],
+    patient: { age: 25, sex: "M" }, tests: [{ name: "LDL", value: "170", unit: "mg/dL" }],
   })).findings.map((x) => x.pattern);
   assert.ok(!pats.includes("severe_hypercholesterolemia") &&
             !pats.includes("familial_hypercholesterolemia_youth"),
@@ -4742,7 +4748,7 @@ test("M82: Apo B=۱۵۰ یافته می‌سازد و کلیدِ خام به م�
 test("M82b: با LDLِ به‌ظاهر طبیعی، متن دلیلِ اهمیتِ apoB را می‌گوید", () => {
   const f = runPatterns(runEngine({
     patient: { age: 52, sex: "M" },
-    tests: [{ name: "Apolipoprotein B", value: "150" }, { name: "LDL", value: "110" }],
+    tests: [{ name: "Apolipoprotein B", value: "150" }, { name: "LDL", value: "110", unit: "mg/dL" }],
   })).findings.find((x) => x.pattern === "apob_elevated");
   assert.ok(f, "با نامِ کاملِ آزمایش نگاشت نشد");
   assert.match(f.must_say, /کمتر از آنچه هست/, `شاخهٔ کم‌برآوردِ LDL نیامد: ${f.must_say}`);
@@ -4804,11 +4810,14 @@ test("M83c: pg/mL هم مثل ng/L تبدیل می‌شود (عددشان یکی
 });
 
 // ⚠️ نگهبانِ رگرسیون: اصلاحِ بالا نباید حالتی را که *کار می‌کرد* خراب کند.
-//    واحدِ نانوشته عمداً حدس زده نمی‌شود، پس ۰.۹ همان ۰.۹ µg/L می‌ماند.
-test("M83d: تروپونینِ ۰.۹ بدون واحد همچنان اورژانس است", () => {
+//    ⚠️ specs/003: این آزمون پیش‌تر «بدونِ واحد» بود و می‌گفت واحدِ نانوشته «حدس زده نمی‌شود» — در واقع
+//    بی‌صدا µg/L فرض می‌شد، و همان فرض تروپونینِ طبیعیِ ۸ ng/L را اورژانس می‌کرد. حالا تروپونینِ
+//    بی‌واحد «نامعلوم» است با هشدارِ شرطیِ درد قفسهٔ سینه (M122c؛ ریسکِ باقی‌مانده در P48). این
+//    آزمون همان نگهبان را برای واحدِ *چاپ‌شدهٔ* µg/L نگه می‌دارد.
+test("M83d: تروپونینِ ۰.۹ µg/L همچنان اورژانس است", () => {
   const p = runPatterns(runEngine({
     patient: { age: 60, sex: "M" },
-    tests: [{ name: "Troponin I", value: "0.9" }],
+    tests: [{ name: "Troponin I", value: "0.9", unit: "µg/l" }],
   }));
   const f = findPat(p, "troponin_positive");
   assert.ok(f, `تروپونینِ واضحاً بالا اورژانس نداد: ${fired(p).join(", ")}`);
@@ -5006,7 +5015,7 @@ test("M87d: کراتینینِ غایب و کراتینینِ طبیعی دو ج
 
   const withCr = findPat(runPatterns(runEngine({
     patient: { age: 70, sex: "M" },
-    tests: [{ name: "BNP", value: "450", unit: "pg/mL" }, { name: "Creatinine", value: "1.0" }],
+    tests: [{ name: "BNP", value: "450", unit: "pg/mL" }, { name: "Creatinine", value: "1.0", unit: "mg/dL" }],
   })), "natriuretic_peptide_elevated");
   assert.ok(!/کراتینین روی این برگه نیست/.test(withCr.must_say),
     "وقتی کراتینین هست نباید بگوید نیست");
@@ -5067,9 +5076,9 @@ test("M88d: سه‌شاخهٔ B12/فولات — پایین، طبیعی، و ا
 
   assert.match(t([]).must_say, /هیچ‌کدام روی این برگه اندازه‌گیری نشده/,
     "شاخهٔ «اندازه‌گیری‌نشده» نیامد");
-  assert.match(t([{ name: "Vitamin B12", value: "120" }, { name: "Folate", value: "8" }]).must_say,
+  assert.match(t([{ name: "Vitamin B12", value: "120", unit: "pg/mL" }, { name: "Folate", value: "8", unit: "ng/mL" }]).must_say,
     /پایین است/, "شاخهٔ «پایین» نیامد");
-  const normal = t([{ name: "Vitamin B12", value: "500" }, { name: "Folate", value: "12" }]);
+  const normal = t([{ name: "Vitamin B12", value: "500", unit: "pg/mL" }, { name: "Folate", value: "12", unit: "ng/mL" }]);
   assert.match(normal.must_say, /هر دو روی همین برگه طبیعی/, normal.must_say);
   // و وقتی هر دو روی برگه‌اند، دیگر «درخواستشان» نباید پیشنهاد شود — N8.
   assert.deepEqual(normal.suggest, [], `پیشنهادِ آزمایشی که روی برگه هست: ${JSON.stringify(normal.suggest)}`);
@@ -5092,7 +5101,7 @@ test("M88e: هر دو حکمِ منفیِ منبع در هشدارها هستن�
 //    می‌بیند — پس چیزی که اینجا نوشته نشود، هیچ‌جا نوشته نمی‌شود.
 test("M89: تروپونینِ مثبت علل غیرقلبی‌ایسکمیک را هم نام می‌برد", () => {
   const f = findPat(runPatterns(runEngine({
-    patient: { age: 60, sex: "M" }, tests: [{ name: "Troponin I", value: "1.4" }],
+    patient: { age: 60, sex: "M" }, tests: [{ name: "Troponin I", value: "1.4", unit: "µg/l" }],
   })), "troponin_positive");
   assert.ok(f, "قاعده فعال نشد");
   const all = [f.must_say, ...(f.warnings || [])].join(" ");
@@ -5110,7 +5119,7 @@ test("M89: تروپونینِ مثبت علل غیرقلبی‌ایسکمیک ر
 // ⚠️ نگهبانِ خودِ ویرایشِ بالا: افزودنِ فهرستِ علل نباید فوریت را نرم کند.
 test("M89b: افزودنِ علل، فوریت و پوششِ اورژانس را دست نمی‌زند", () => {
   const f = findPat(runPatterns(runEngine({
-    patient: { age: 60, sex: "M" }, tests: [{ name: "Troponin I", value: "1.4" }],
+    patient: { age: 60, sex: "M" }, tests: [{ name: "Troponin I", value: "1.4", unit: "µg/l" }],
   })), "troponin_positive");
   assert.equal(f.urgency, "emergency");
   assert.equal(f.blocks_others, true);
@@ -5119,13 +5128,13 @@ test("M89b: افزودنِ علل، فوریت و پوششِ اورژانس را
 
 test("M89c: سه‌شاخه روی CK و کراتینین در همان یافته", () => {
   const bare = findPat(runPatterns(runEngine({
-    patient: { age: 60, sex: "M" }, tests: [{ name: "Troponin I", value: "1.4" }],
+    patient: { age: 60, sex: "M" }, tests: [{ name: "Troponin I", value: "1.4", unit: "µg/l" }],
   })), "troponin_positive");
   assert.match(bare.must_say, /کراتینین روی این برگه نیست/, bare.must_say);
 
   const withCk = findPat(runPatterns(runEngine({
     patient: { age: 60, sex: "M" },
-    tests: [{ name: "Troponin I", value: "1.4" }, { name: "CK", value: "90" }, { name: "Creatinine", value: "1.0" }],
+    tests: [{ name: "Troponin I", value: "1.4", unit: "µg/l" }, { name: "CK", value: "90" }, { name: "Creatinine", value: "1.0", unit: "mg/dL" }],
   })), "troponin_positive");
   assert.match(withCk.must_say, /کراتین‌کینازِ \(CK\) شما روی همین برگه طبیعی است/, withCk.must_say);
   assert.ok(!/کراتینین روی این برگه نیست/.test(withCk.must_say), "کراتینین هست، نباید بگوید نیست");
@@ -5171,7 +5180,7 @@ test("M90b: مجموعهٔ شناسه‌های ماژولِ قلبی همانی 
 //    کلاسِ N3 (تروپونین): خطا به سمتِ اورژانسِ کاذب، روی شایع‌ترین حالت.
 
 test("M91: قندِ ۲۶۰ بدونِ شواهدِ کتواسیدوز اورژانس نیست — ولی «نوبتِ عادی» هم نیست", () => {
-  const e = runEngine({ patient: { age: 52, sex: "M" }, tests: [{ name: "FBS", value: "260" }] });
+  const e = runEngine({ patient: { age: 52, sex: "M" }, tests: [{ name: "FBS", value: "260", unit: "mg/dL" }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "severe_hyperglycemia_uncertain_ketosis");
   assert.ok(f, `یافتهٔ قندِ بالا نیامد؛ آمده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
@@ -5189,7 +5198,7 @@ test("M91b: کتونِ منفی صریحاً گفته می‌شود، ولی ب�
   const e = runEngine({
     patient: { age: 52, sex: "M" },
     tests: [
-      { name: "FBS", value: "300" },
+      { name: "FBS", value: "300", unit: "mg/dL" },
       { name: "Urine Ketone", value: "negative" },
       { name: "HCO3", value: "25" },
     ],
@@ -5206,7 +5215,7 @@ test("M91c: با کتونِ مثبت، فقط dka_pattern — نه دو اورژ
   const e = runEngine({
     patient: { age: 40, sex: "F" },
     tests: [
-      { name: "Blood Sugar", value: "420" },
+      { name: "Blood Sugar", value: "420", unit: "mg/dL" },
       { name: "Urine Ketone", value: "positive" },
     ],
   });
@@ -5223,7 +5232,7 @@ test("M91c: با کتونِ مثبت، فقط dka_pattern — نه دو اورژ
 });
 
 test("M91d: قندِ ۵۲۰ اورژانس می‌شود ولی همچنان HHS نمی‌گیرد (سازگار با M25)", () => {
-  const e = runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "Glucose", value: "520" }] });
+  const e = runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "Glucose", value: "520", unit: "mg/dL" }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "severe_hyperglycemia_uncertain_ketosis");
   assert.ok(f, "قندِ ۵۲۰ باید یافته بدهد");
@@ -5240,17 +5249,17 @@ test("M91d: قندِ ۵۲۰ اورژانس می‌شود ولی همچنان HHS
 test("M91e: هیچ برگهٔ قندِ ≥۲۵۰ بینِ سه قاعده نمی‌افتد", () => {
   const OWNERS = ["dka_pattern", "hhs_pattern", "severe_hyperglycemia_uncertain_ketosis"];
   const panels = [
-    ["قندِ تنها", [{ name: "FBS", value: "260" }]],
-    ["قند + کتونِ مثبت", [{ name: "FBS", value: "260" }, { name: "Urine Ketone", value: "positive" }]],
-    ["قند + کتونِ منفی", [{ name: "FBS", value: "260" }, { name: "Urine Ketone", value: "negative" }]],
-    ["قند + بی‌کربناتِ پایین", [{ name: "FBS", value: "300" }, { name: "HCO3", value: "14" }]],
-    ["قند + بی‌کربناتِ طبیعی", [{ name: "FBS", value: "300" }, { name: "HCO3", value: "25" }]],
-    ["قندِ ۷۰۰", [{ name: "Glucose", value: "700" }]],
-    ["قندِ ۷۰۰ + کتون", [{ name: "Glucose", value: "700" }, { name: "Urine Ketone", value: "positive" }]],
+    ["قندِ تنها", [{ name: "FBS", value: "260", unit: "mg/dL" }]],
+    ["قند + کتونِ مثبت", [{ name: "FBS", value: "260", unit: "mg/dL" }, { name: "Urine Ketone", value: "positive" }]],
+    ["قند + کتونِ منفی", [{ name: "FBS", value: "260", unit: "mg/dL" }, { name: "Urine Ketone", value: "negative" }]],
+    ["قند + بی‌کربناتِ پایین", [{ name: "FBS", value: "300", unit: "mg/dL" }, { name: "HCO3", value: "14" }]],
+    ["قند + بی‌کربناتِ طبیعی", [{ name: "FBS", value: "300", unit: "mg/dL" }, { name: "HCO3", value: "25" }]],
+    ["قندِ ۷۰۰", [{ name: "Glucose", value: "700", unit: "mg/dL" }]],
+    ["قندِ ۷۰۰ + کتون", [{ name: "Glucose", value: "700", unit: "mg/dL" }, { name: "Urine Ketone", value: "positive" }]],
     // ⚠️ dka_pattern فقط GLU_F و GLU_RANDOM را می‌خواند؛ قندِ دوساعته را نه.
     //    این دو ردیف دقیقاً همان شکافی‌اند که واگذاریِ عددمحور می‌ساخت.
-    ["قندِ دوساعتهٔ ۳۲۰", [{ name: "2hpp", value: "320" }]],
-    ["قندِ دوساعتهٔ ۳۲۰ + کتون", [{ name: "2hpp", value: "320" }, { name: "Urine Ketone", value: "positive" }]],
+    ["قندِ دوساعتهٔ ۳۲۰", [{ name: "2hpp", value: "320", unit: "mg/dL" }]],
+    ["قندِ دوساعتهٔ ۳۲۰ + کتون", [{ name: "2hpp", value: "320", unit: "mg/dL" }, { name: "Urine Ketone", value: "positive" }]],
   ];
   for (const [label, tests] of panels) {
     const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests }));
@@ -5368,7 +5377,7 @@ test("M93b: قاعده‌ای که throw کند در rules_failed می‌نشی�
   };
   RULES.push(boom);
   try {
-    const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "HGB", value: "9" }] });
+    const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "HGB", value: "9", unit: "g/dL" }] });
     const p = runPatterns(e);
     assert.equal(p.rules_failed.length, 1, "قاعدهٔ منفجرشده شمرده نشد");
     assert.equal(p.rules_failed[0].rule_id, "_m93b_boom");
@@ -5407,7 +5416,7 @@ test("M92d: مجموعهٔ شناسه‌های patterns_biochem_new همانی �
 const _albPanel = (alb, extra = []) =>
   runEngine({
     patient: { age: 45, sex: "M" },
-    tests: [{ name: "Albumin", value: String(alb) }, ...extra],
+    tests: [{ name: "Albumin", value: String(alb), unit: "g/dL" }, ...extra],
   });
 
 test("M94: آلبومینِ ۳.۷ با بازهٔ هنری «پایین» است (با بازهٔ قبلیِ ۳.۵ «طبیعی» بود)", () => {
@@ -5441,7 +5450,7 @@ test("M94d: هاپتوگلوبینِ ۵۰ + LDHِ بالا دیگر «همولی
     tests: [
       { name: "Haptoglobin", value: "50" },
       { name: "LDH", value: "400" },
-      { name: "Hemoglobin", value: "11.5" },
+      { name: "Hemoglobin", value: "11.5", unit: "g/dL" },
     ],
   });
   const ids = runPatterns(e).findings.map((f) => f.pattern);
@@ -5468,9 +5477,9 @@ test("M94f: بالا رفتنِ کفِ آلبومین قاعدهٔ سیروز ر
   const e = runEngine({
     patient: { age: 45, sex: "M" },
     tests: [
-      { name: "Albumin", value: "3.7" },
+      { name: "Albumin", value: "3.7", unit: "g/dL" },
       { name: "Platelet", value: "120" },
-      { name: "Bilirubin Total", value: "1.5" },
+      { name: "Bilirubin Total", value: "1.5", unit: "mg/dL" },
     ],
   });
   const ids = runPatterns(e).findings.map((f) => f.pattern);
@@ -5484,9 +5493,9 @@ test("M94g: سیروزِ واقعی (چهار نشانه) هنوز فعال می
   const e = runEngine({
     patient: { age: 45, sex: "M" },
     tests: [
-      { name: "Albumin", value: "2.9" },
+      { name: "Albumin", value: "2.9", unit: "g/dL" },
       { name: "Platelet", value: "120" },
-      { name: "Bilirubin Total", value: "1.5" },
+      { name: "Bilirubin Total", value: "1.5", unit: "mg/dL" },
       { name: "INR", value: "1.4" },
     ],
   });
@@ -5503,7 +5512,7 @@ test("M94h: پروتئینوریِ شدید با آلبومینِ ۳.۷ «نفر
       runEngine({
         patient: { age: 45, sex: "M" },
         tests: [
-          { name: "Albumin", value: String(alb) },
+          { name: "Albumin", value: String(alb), unit: "g/dL" },
           { name: "Urine Protein", value: "3+" },
         ],
       })
@@ -5784,9 +5793,9 @@ test("M97c: لیپازِ بالا با آمیلازِ طبیعی دست‌نخو
 test("M98: بیلی‌روبینِ تامِ ≥۱۵ فقط یک مالک دارد و آن مالک اورژانس است", () => {
   const OWNERS = ["bilirubin_emergency", "bilirubin_direct_dominant", "bilirubin_indirect_dominant"];
   const panels = [
-    ["تامِ ۱۸ + مستقیمِ ۱۲", [{ name: "Total Bilirubin", value: "18" }, { name: "Direct Bilirubin", value: "12" }]],
-    ["تامِ ۲۰ + غیرمستقیمِ ۱۵", [{ name: "Total Bilirubin", value: "20" }, { name: "Indirect Bilirubin", value: "15" }]],
-    ["تامِ ۱۵ (مرزِ دقیق) + مستقیمِ ۹", [{ name: "Total Bilirubin", value: "15" }, { name: "Direct Bilirubin", value: "9" }]],
+    ["تامِ ۱۸ + مستقیمِ ۱۲", [{ name: "Total Bilirubin", value: "18", unit: "mg/dL" }, { name: "Direct Bilirubin", value: "12", unit: "mg/dL" }]],
+    ["تامِ ۲۰ + غیرمستقیمِ ۱۵", [{ name: "Total Bilirubin", value: "20", unit: "mg/dL" }, { name: "Indirect Bilirubin", value: "15", unit: "mg/dL" }]],
+    ["تامِ ۱۵ (مرزِ دقیق) + مستقیمِ ۹", [{ name: "Total Bilirubin", value: "15", unit: "mg/dL" }, { name: "Direct Bilirubin", value: "9", unit: "mg/dL" }]],
   ];
   for (const [label, tests] of panels) {
     const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests }));
@@ -5799,7 +5808,7 @@ test("M98: بیلی‌روبینِ تامِ ≥۱۵ فقط یک مالک دار�
 });
 
 test("M98b: کنترلِ منفی — بیلی‌روبینِ ۳ با مستقیمِ ۲ همچنان الگوی عادی را می‌گیرد", () => {
-  const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Total Bilirubin", value: "3" }, { name: "Direct Bilirubin", value: "2" }] }));
+  const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Total Bilirubin", value: "3", unit: "mg/dL" }, { name: "Direct Bilirubin", value: "2", unit: "mg/dL" }] }));
   const ids = p.findings.map((f) => f.pattern);
   assert.ok(ids.includes("bilirubin_direct_dominant"), `الگوی بیلی‌روبینِ مستقیم نیامد؛ آمده‌ها: ${ids.join("، ") || "هیچ"}`);
   assert.ok(!ids.includes("bilirubin_emergency"), "بیلی‌روبینِ ۳ نباید اورژانس بسازد");
@@ -5810,14 +5819,14 @@ test("M98c: بیلی‌روبینِ ۱۸ بدونِ اجزا هنوز اورژا
   //    آن الگو بدونِ BILI_D/BILI_I اصلاً فعال نمی‌شود (شرطِ خودِ match)، و
   //    در تصویرِ کاملِ همولیز هم عمداً کنار می‌رود. پس مالکِ اورژانس باید
   //    قاعدهٔ مستقل بماند، نه شاخه‌ای داخلِ آن الگو.
-  const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Total Bilirubin", value: "18" }] }));
+  const p = runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: "Total Bilirubin", value: "18", unit: "mg/dL" }] }));
   const hit = p.findings.filter((f) => f.pattern === "bilirubin_emergency");
   assert.equal(hit.length, 1, `اورژانسِ بیلی‌روبین نیامد؛ آمده‌ها: ${p.findings.map((f) => f.pattern).join("، ") || "هیچ"}`);
   assert.equal(p.overall_urgency, "emergency");
 });
 
 test("M99: کم‌کاریِ واضحِ تیروئید فقط یک یافته دارد و فوریتش this_week است", () => {
-  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.7" }] }));
+  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.7", unit: "ng/dL" }] }));
   const hit = p.findings.filter((f) => /thyroid|hypothyroid/.test(f.pattern));
   assert.equal(hit.length, 1, `${hit.length} یافته دربارهٔ تیروئید آمد: ${hit.map((f) => `${f.pattern}(${f.urgency})`).join("، ")}`);
   assert.equal(hit[0].pattern, "thyroid_hypo_overt");
@@ -5825,7 +5834,7 @@ test("M99: کم‌کاریِ واضحِ تیروئید فقط یک یافته د
 });
 
 test("M99b: پرکاریِ واضح یک یافته است و هشدارِ طوفانِ تیروئیدی سرِ جایش می‌ماند", () => {
-  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "0.05" }, { name: "FT4", value: "2.5" }] }));
+  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "0.05" }, { name: "FT4", value: "2.5", unit: "ng/dL" }] }));
   const hit = p.findings.filter((f) => /thyroid|thyrotoxicosis/.test(f.pattern));
   assert.equal(hit.length, 1, `${hit.length} یافته دربارهٔ تیروئید آمد: ${hit.map((f) => f.pattern).join("، ")}`);
   assert.equal(hit[0].pattern, "thyroid_hyper_overt");
@@ -5837,7 +5846,7 @@ test("M99c: تیروتوکسیکوزِ T3 (FT4 طبیعی، FT3 بالا) هنو
   // ⚠️ پیش از رفع، این پنل هم `thyroid_t3_toxicosis` می‌گرفت و هم
   //    `overt_thyrotoxicosis`. حذفِ قاعدهٔ تکراری نباید پوشش را ببرد —
   //    همان چیزی که N16 می‌خواهد پیش از هر حذف اندازه‌گیری شود.
-  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "0.05" }, { name: "FT4", value: "1.5" }, { name: "FT3", value: "5.0" }] }));
+  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "0.05" }, { name: "FT4", value: "1.5", unit: "ng/dL" }, { name: "FT3", value: "5.0", unit: "pg/mL" }] }));
   const hit = p.findings.filter((f) => /thyroid|thyrotoxicosis/.test(f.pattern));
   assert.equal(hit.length, 1, `${hit.length} یافته دربارهٔ تیروئید آمد: ${hit.map((f) => f.pattern).join("، ")}`);
   assert.equal(hit[0].pattern, "thyroid_t3_toxicosis");
@@ -5845,7 +5854,7 @@ test("M99c: تیروتوکسیکوزِ T3 (FT4 طبیعی، FT3 بالا) هنو
 });
 
 test("M99d: جملهٔ بارداری از قاعدهٔ حذف‌شده حفظ شد — و به مرد گفته نمی‌شود", () => {
-  const panel = [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.7" }];
+  const panel = [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.7", unit: "ng/dL" }];
   const f = runPatterns(runEngine({ patient: { age: 30, sex: "F" }, tests: panel }));
   const m = runPatterns(runEngine({ patient: { age: 30, sex: "M" }, tests: panel }));
   const fText = f.findings.map((x) => String(x.must_say || "")).join(" ");
@@ -5893,17 +5902,17 @@ test("M97e: لیپازی که روی برگه هست دوباره «درخواس
 test("M98d: اورژانسِ بیلی‌روبین جزءِ غالب را می‌گوید — سه علتِ نام‌برده با همین عدد تفکیک می‌شوند", () => {
   const mk = (tests) => runPatterns(runEngine({ patient: { age: 45, sex: "M" }, tests }));
 
-  const dir = mk([{ name: "Total Bilirubin", value: "18" }, { name: "Direct Bilirubin", value: "12" }]);
+  const dir = mk([{ name: "Total Bilirubin", value: "18", unit: "mg/dL" }, { name: "Direct Bilirubin", value: "12", unit: "mg/dL" }]);
   const df = dir.findings.find((f) => f.pattern === "bilirubin_emergency");
   assert.match(df.must_say, /«مستقیم»/);
   assert.match(df.must_say, /انسداد/, "جزءِ مستقیمِ غالب باید به انسداد اشاره کند نه همولیز");
 
-  const ind = mk([{ name: "Total Bilirubin", value: "20" }, { name: "Indirect Bilirubin", value: "15" }]);
+  const ind = mk([{ name: "Total Bilirubin", value: "20", unit: "mg/dL" }, { name: "Indirect Bilirubin", value: "15", unit: "mg/dL" }]);
   const inf = ind.findings.find((f) => f.pattern === "bilirubin_emergency");
   assert.match(inf.must_say, /«غیرمستقیم»/);
   assert.match(inf.must_say, /همولیز/, "جزءِ غیرمستقیمِ غالب باید به همولیز اشاره کند");
 
-  const none = mk([{ name: "Total Bilirubin", value: "18" }]);
+  const none = mk([{ name: "Total Bilirubin", value: "18", unit: "mg/dL" }]);
   const nf = none.findings.find((f) => f.pattern === "bilirubin_emergency");
   assert.match(nf.must_say, /روی برگهٔ شما نیست/, "نبودنِ اجزا یک اقدام است نه سکوت (N4)");
 
@@ -5926,7 +5935,7 @@ test("M100: `unexplained_abnormal` فهرستِ ساختاریِ کلیدهای 
   const p = runPatterns(runEngine({
     patient: { age: 45, sex: "F" },
     tests: [
-      { name: "Hb", value: "9.5" },
+      { name: "Hb", value: "9.5", unit: "g/dL" },
       { name: "MCV", value: "70" },
       { name: "Ferritin", value: "6" },
       // ⚠️ MCH عمداً انتخاب شد: هیچ قاعده‌ای در هیچ `patterns_*.js` آن را
@@ -5960,7 +5969,7 @@ test("M100b: پنلی که همه‌چیزش توضیح دارد فیلدِ unco
   // کنترلِ منفی: اگر تور فعال نشود، هیچ کلیدی «بی‌توضیح» علامت نمی‌خورد.
   const p = runPatterns(runEngine({
     patient: { age: 45, sex: "F" },
-    tests: [{ name: "Hb", value: "9.5" }, { name: "MCV", value: "70" }, { name: "Ferritin", value: "6" }],
+    tests: [{ name: "Hb", value: "9.5", unit: "g/dL" }, { name: "MCV", value: "70" }, { name: "Ferritin", value: "6" }],
   }));
   const all = p.findings.flatMap((f) => f.uncovered ?? []);
   assert.deepEqual(all, [], `هیچ کلیدی نباید بی‌مالک باشد، بود: ${all.join("، ")}`);
@@ -6011,20 +6020,20 @@ test("M103: قواعدِ تکراریِ فصل ۲۵ هیچ یافتهٔ تازه
   //    سه تعارضِ ثبت‌شده در P46 هم همین‌جا منجمدند: TSH 4.8 (آستانهٔ ۴.۵ در برابر ۵.۰)،
   //    Na 128 / قند 400 (ضریبِ ۲.۴ در برابر ۱.۶)، TSH 1.0 / FT4 0.6 (شاخهٔ مرکزی).
   const panels = [
-    [[["TSH", "6.0"], ["FT4", "0.7"]], ["thyroid_hypo_overt[this_week]"]],
-    [[["TSH", "4.8"], ["FT4", "1.2"]], ["thyroid_hypo_subclinical[routine]"]],
-    [[["TSH", "12"], ["FT4", "1.2"]], ["thyroid_hypo_subclinical[routine]"]],
-    [[["TSH", "1.0"], ["FT4", "0.6"]], ["thyroid_ft4_abnormal[routine]"]],
-    [[["TSH", "0.3"], ["FT4", "0.6"]], ["thyroid_central_hypo[this_week]"]],
-    [[["TSH", "0.05"], ["FT4", "3.0"]], ["thyroid_hyper_overt[this_week]"]],
-    [[["TSH", "0.05"], ["FT4", "1.2"], ["FT3", "6.0"]], ["thyroid_t3_toxicosis[this_week]"]],
-    [[["Na", "128"], ["Glucose", "400"]],
+    [[["TSH", "6.0"], ["FT4", "0.7", "ng/dL"]], ["thyroid_hypo_overt[this_week]"]],
+    [[["TSH", "4.8"], ["FT4", "1.2", "ng/dL"]], ["thyroid_hypo_subclinical[routine]"]],
+    [[["TSH", "12"], ["FT4", "1.2", "ng/dL"]], ["thyroid_hypo_subclinical[routine]"]],
+    [[["TSH", "1.0"], ["FT4", "0.6", "ng/dL"]], ["thyroid_ft4_abnormal[routine]"]],
+    [[["TSH", "0.3"], ["FT4", "0.6", "ng/dL"]], ["thyroid_central_hypo[this_week]"]],
+    [[["TSH", "0.05"], ["FT4", "3.0", "ng/dL"]], ["thyroid_hyper_overt[this_week]"]],
+    [[["TSH", "0.05"], ["FT4", "1.2", "ng/dL"], ["FT3", "6.0", "pg/mL"]], ["thyroid_t3_toxicosis[this_week]"]],
+    [[["Na", "128"], ["Glucose", "400", "mg/dL"]],
       ["diabetes_range[this_week]", "severe_hyperglycemia_uncertain_ketosis[this_week]"]],
-    [[["Serum Osmolality", "310"], ["Na", "140"], ["Glucose", "90"], ["Urea", "30"]],
+    [[["Serum Osmolality", "310"], ["Na", "140"], ["Glucose", "90", "mg/dL"], ["Urea", "30", "mg/dL"]],
       ["osmolal_gap_high[this_week]"]],
   ];
   for (const [tests, expected] of panels) {
-    const p = pitRun(tests.map(([name, value]) => ({ name, value })));
+    const p = pitRun(tests.map(([name, value, unit]) => ({ name, value, unit })));
     const got = p.findings.map((f) => `${f.pattern}[${f.urgency}]`);
     assert.deepEqual(got, expected, `پنلِ ${JSON.stringify(tests)} عوض شد`);
   }
@@ -6057,9 +6066,9 @@ test("M101c: یافتهٔ پرولاکتین وضعیتِ تیروئیدِ هم�
   const prl = { name: "Prolactin", value: "80" };
   const arms = {
     hypo: pitRun([prl, { name: "TSH", value: "8" }]),
-    normal: pitRun([prl, { name: "TSH", value: "2" }, { name: "FT4", value: "1.2" }]),
+    normal: pitRun([prl, { name: "TSH", value: "2" }, { name: "FT4", value: "1.2", unit: "ng/dL" }]),
     absent: pitRun([prl]),
-    low: pitRun([prl, { name: "TSH", value: "0.05" }, { name: "FT4", value: "1.2" }]),
+    low: pitRun([prl, { name: "TSH", value: "0.05" }, { name: "FT4", value: "1.2", unit: "ng/dL" }]),
   };
   const txt = {};
   for (const [arm, p] of Object.entries(arms)) {
@@ -6110,15 +6119,15 @@ test("M101e: پرولاکتین در همهٔ سنین با حدِ بزرگسا�
 // ═══ داستانِ ۲ — کورتیزول و ACTH (بندهای ۳ تا ۱۰ و ۱۲ِ P46) ═══
 
 const PIT_ADRENAL_PANELS = [
-  ["adrenal_discordant", [["Cortisol (8 AM)", "2"], ["UFC", "1000"]]],
-  ["cushing_likely", [["UFC", "1000"]]],
-  ["cushing_screen_positive", [["UFC", "100"]]],
-  ["cushing_screen_positive", [["Cortisol after Dexamethasone", "3"]]],
+  ["adrenal_discordant", [["Cortisol (8 AM)", "2", "µg/dL"], ["UFC", "1000", "µg/24h"]]],
+  ["cushing_likely", [["UFC", "1000", "µg/24h"]]],
+  ["cushing_screen_positive", [["UFC", "100", "µg/24h"]]],
+  ["cushing_screen_positive", [["Cortisol after Dexamethasone", "3", "µg/dL"]]],
   ["cushing_screen_positive", [["Salivary Cortisol", "15", "nmol/L"]]],
-  ["adrenal_insufficiency_likely", [["Cortisol (8 AM)", "2"]]],
-  ["adrenal_insufficiency_indeterminate", [["Cortisol (8 AM)", "4"]]],
-  ["cortisol_am_high_nonspecific", [["Cortisol (8 AM)", "30"]]],
-  ["cortisol_untimed", [["Cortisol", "3"]]],
+  ["adrenal_insufficiency_likely", [["Cortisol (8 AM)", "2", "µg/dL"]]],
+  ["adrenal_insufficiency_indeterminate", [["Cortisol (8 AM)", "4", "µg/dL"]]],
+  ["cortisol_am_high_nonspecific", [["Cortisol (8 AM)", "30", "µg/dL"]]],
+  ["cortisol_untimed", [["Cortisol", "3", "µg/dL"]]],
 ];
 const pitPanel = (rows) => pitRun(rows.map(([name, value, unit]) => ({ name, value, unit })));
 
@@ -6133,14 +6142,14 @@ test("M102: هر پنلِ کورتیزول دقیقاً یک یافتهٔ آدر
   }
   assert.deepEqual([...reached].sort(), [...PIT_ADRENAL].sort(), "برچسبی هرگز نیامد");
   // کورتیزولِ صبحِ طبیعی هیچ یافتهٔ آدرنالی نمی‌سازد
-  assert.deepEqual(pitFired(pitPanel([["Cortisol (8 AM)", "12"]])).filter((id) => PIT_ADRENAL.includes(id)), []);
+  assert.deepEqual(pitFired(pitPanel([["Cortisol (8 AM)", "12", "µg/dL"]])).filter((id) => PIT_ADRENAL.includes(id)), []);
 });
 
 test("M102b: کورتیزولِ بی‌زمان نمره نمی‌گیرد و هیچ حکمی نمی‌دهد",
   { todo: "P46 — مرحلهٔ ب (کانالِ ungraded)" }, () => {
   // 🔴 FR-010. کورتیزولِ عصر به‌طورِ طبیعی پایین است؛ سنجیدنش با بازهٔ صبح یعنی
   //    «نارساییِ آدرنال» جعلی برای هر نمونهٔ بعدازظهر.
-  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "3" }] });
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "3", unit: "µg/dL" }] });
   assert.ok(!e.graded.some((g) => g.test === "CORTISOL"), "CORTISOL نباید نمره بگیرد");
   assert.ok(!e.abnormal.some((g) => g.test === "CORTISOL"));
   const p = runPatterns(e);
@@ -6156,20 +6165,20 @@ test("M102b: کورتیزولِ بی‌زمان نمره نمی‌گیرد و ه
 test("M102c: کورتیزولِ پس از دگزامتازون هرگز یافتهٔ نارسایی نمی‌سازد",
   { todo: "P46 بند ۹ — در انتظارِ تأییدِ بازبین" }, () => {
   // 🔴 FR-003: پایین بودنِ کورتیزول پس از دگزامتازون یعنی سرکوبِ طبیعی، نه نارسایی.
-  const p = pitPanel([["Cortisol after Dexamethasone", "1.5"]]);
+  const p = pitPanel([["Cortisol after Dexamethasone", "1.5", "µg/dL"]]);
   assert.ok(!pitFired(p).some((id) => /insufficiency/.test(id)), `آمده‌ها: ${pitFired(p).join("، ")}`);
-  assert.ok(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol after Dexamethasone", value: "1.5" }] })
+  assert.ok(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol after Dexamethasone", value: "1.5", unit: "µg/dL" }] })
     .graded.some((g) => g.test === "CORTISOL_DST"), "باید با آستانهٔ خودش نمره بگیرد");
 });
 
 test("M102d: یافتهٔ کوشینگ منشأ را از ACTHِ همان برگه به چهار حالت می‌گوید",
   { todo: "P46 بندهای ۵ و ۸ — در انتظارِ تأییدِ بازبین" }, () => {
   // 🔴 FR-011، N21: ACTHِ اندازه‌گیری‌نشده ≠ ACTHِ طبیعی.
-  const ufc = ["UFC", "1000"];
+  const ufc = ["UFC", "1000", "µg/24h"];
   const arms = {
-    low: pitPanel([ufc, ["ACTH", "5"]]),
-    high: pitPanel([ufc, ["ACTH", "50"]]),
-    mid: pitPanel([ufc, ["ACTH", "15"]]),
+    low: pitPanel([ufc, ["ACTH", "5", "pg/mL"]]),
+    high: pitPanel([ufc, ["ACTH", "50", "pg/mL"]]),
+    mid: pitPanel([ufc, ["ACTH", "15", "pg/mL"]]),
     absent: pitPanel([ufc]),
   };
   const txt = {};
@@ -6192,7 +6201,7 @@ test("M102d: یافتهٔ کوشینگ منشأ را از ACTHِ همان برگ
 test("M102e: کورتیزولِ صبحِ پایین + UFCِ بالا → فقط «نتایجِ متناقض»، نه دو حکم",
   { todo: "P46 بندهای ۳ و ۷ — در انتظارِ تأییدِ بازبین" }, () => {
   // 🔴 N20: ترتیبِ قاعده‌ها نباید میانِ دو نتیجهٔ متضاد تصمیم بگیرد.
-  const p = pitPanel([["Cortisol (8 AM)", "2"], ["UFC", "100"]]);
+  const p = pitPanel([["Cortisol (8 AM)", "2", "µg/dL"], ["UFC", "100", "µg/24h"]]);
   assert.deepEqual(pitFired(p).filter((id) => PIT_ADRENAL.includes(id)), ["adrenal_discordant"]);
 });
 
@@ -6219,7 +6228,7 @@ test("M103b: CORTISOL هرگز بازه نمی‌گیرد و از کانالِ u
   { todo: "P46 — مرحلهٔ ب (کانالِ ungraded)" }, () => {
   // 🔴 اگر CORTISOL روزی به ADULT_REFS برود، کورتیزولِ عصرِ طبیعی «پایین» خوانده می‌شود.
   assert.ok(!("CORTISOL" in ADULT_REFS), "CORTISOL نباید بازه داشته باشد");
-  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "3" }] });
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "3", unit: "µg/dL" }] });
   assert.equal(e.ungraded?.CORTISOL, 3);
   assert.ok(e.noRef.includes("CORTISOL"), "noRef نباید عوض شود");
 });
@@ -6248,7 +6257,7 @@ test("M103d: هیچ یافتهٔ فصل ۲۵ اورژانس نیست، و هر �
   const panels = [
     ...PIT_ADRENAL_PANELS.map(([, rows]) => rows),
     [["Prolactin", "80"]], [["Prolactin", "250"]], [["Prolactin", "250"], ["TSH", "8"]],
-    [["UFC", "1000"], ["ACTH", "5"]], [["Cortisol (8 AM)", "1"], ["ACTH", "300"]],
+    [["UFC", "1000", "µg/24h"], ["ACTH", "5", "pg/mL"]], [["Cortisol (8 AM)", "1", "µg/dL"], ["ACTH", "300", "pg/mL"]],
   ];
   const reached = new Set();
   for (const rows of panels) {
@@ -6313,13 +6322,13 @@ test("M104b: واحدِ million/mL صفحه را منی می‌کند؛ 10*6/µL
   assert.ok(!("Urine pH" in byUnit.qual), "pHِ صفحهٔ منی Urine pH شد");
   assert.ok(byUnit.noRef.includes("SPERM_CONC") || byUnit.graded.some((g) => g.test === "SPERM_CONC"));
   // ⚠️ RBCِ خون با 10*6/µL چاپ می‌شود؛ این صفحه منی نیست و RBC مثلِ امروز نمره می‌گیرد.
-  const cbc = semEngine([["RBC", "4.5", "10*6/µL"], ["Hb", "13"]], { age: 45, sex: "F" });
+  const cbc = semEngine([["RBC", "4.5", "10*6/µL"], ["Hb", "13", "g/dL"]], { age: 45, sex: "F" });
   assert.equal(cbc.semenQual?.SEMEN_RBC, undefined);
   assert.ok(cbc.graded.some((g) => g.test === "RBC" && g.value === 4.5), "RBCِ CBC دیگر نمره نگرفت");
 });
 
 test("M104c: صفحهٔ مخلوطِ CBC + ردیفِ منی — WBC/RBCِ خون دقیقاً مثلِ امروز می‌مانند", () => {
-  const cbc = [["WBC", "7.2"], ["RBC", "4.5", "10*6/µL"], ["Hb", "13"], ["MCV", "88"], ["PLT", "250"]];
+  const cbc = [["WBC", "7.2"], ["RBC", "4.5", "10*6/µL"], ["Hb", "13", "g/dL"], ["MCV", "88"], ["PLT", "250"]];
   // تحرکِ ۶۰٪ عمداً طبیعی است (WHO 2021 ≥ ۴۲): این آزمون فقط «دست نخوردنِ خون» را می‌سنجد.
   const withSemen = [...cbc, ["Motility", "60", "%"]];
   const a = semEngine(cbc, { age: 45, sex: "F" });
@@ -6340,12 +6349,12 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
     U4: [{ age: 30, sex: "M" }, [["pH", "5"], ["Specific Gravity", "1.030"], ["Bacteria", "Many"]], "068beea39e49c8df"],
     U5: [{ age: 60, sex: "M" }, [["Urine Blood", "2+"], ["RBC", "10-12", "/hpf"], ["Pus cells", "2-3"]], "562daaa177d9d3a6"],
     U6: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.010"], ["pH", "7"]], "3dad4d8c56968631"],
-    C1: [{ age: 40, sex: "M" }, [["WBC", "7000"], ["RBC", "4.8"], ["Hb", "14"], ["PLT", "250000"], ["MCV", "88"]], "7dd79d6187162b00"],
+    C1: [{ age: 40, sex: "M" }, [["WBC", "7000"], ["RBC", "4.8"], ["Hb", "14", "g/dL"], ["PLT", "250000"], ["MCV", "88"]], "7dd79d6187162b00"],
     C2: [{ age: 40, sex: "M" }, [["WBC", "15.2"], ["Neut %", "85"], ["PLT", "120"]], "edaafc0eb1d80fca"],
-    C3: [{ age: 35, sex: "F" }, [["Hb", "9.5"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "8116a638fd8de1b0"],
-    C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8"]], "a8529e980e227c50"],
-    C5: [{ age: 45, sex: "M" }, [["RBC", "6.4", "10*6/µL"], ["Hb", "17.5"], ["HCT", "53"]], "521210ad11ce80a9"],
-    C6: [{ age: 45, sex: "F" }, [["WBC", "7.2"], ["RBC", "4.5", "10*6/µL"], ["Hb", "13"], ["MCV", "88"], ["PLT", "250"]], "34fddffb77c6a593"],
+    C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "8116a638fd8de1b0"],
+    C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8", "g/dL"]], "a8529e980e227c50"],
+    C5: [{ age: 45, sex: "M" }, [["RBC", "6.4", "10*6/µL"], ["Hb", "17.5", "g/dL"], ["HCT", "53"]], "521210ad11ce80a9"],
+    C6: [{ age: 45, sex: "F" }, [["WBC", "7.2"], ["RBC", "4.5", "10*6/µL"], ["Hb", "13", "g/dL"], ["MCV", "88"], ["PLT", "250"]], "34fddffb77c6a593"],
   };
   for (const [id, [patient, rows, want]] of Object.entries(P)) {
     assert.equal(semSnap([patient, rows]), want, `تفسیرِ پنلِ ${id} عوض شد`);
@@ -6429,10 +6438,10 @@ test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ ام
   // تفسیر می‌کند و شاخه‌های پرولاکتین مالِ P46 است. این آزمون ثابت می‌کند فصل ۲۶ به این‌ها
   // هیچ یافتهٔ تازه‌ای اضافه نکرده است. اثرِ انگشت‌ها روی 8ccd67d گرفته شد.
   const P = {
-    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2"], ["AST", "90"], ["ALT", "80"]], "aba7975a9da4b5eb"],
+    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "aba7975a9da4b5eb"],
     uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
-    thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6"]], "7ef4e21f6af2d814"],
-    prl_thyroid: [{ age: 29, sex: "F" }, [["Prolactin", "80"], ["TSH", "8"], ["FT4", "0.6"]], "7ef4e21f6af2d814"],
+    thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "7ef4e21f6af2d814"],
+    prl_thyroid: [{ age: 29, sex: "F" }, [["Prolactin", "80"], ["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "7ef4e21f6af2d814"],
   };
   for (const [id, [patient, rows, want]] of Object.entries(P)) {
     assert.equal(semSnap([patient, rows]), want, `تفسیرِ پنلِ تکراریِ ${id} عوض شد`);
@@ -6550,7 +6559,7 @@ test("M108: محورِ زن — روزِ سوم؛ یائسگی در برابرِ
 test("M108b: AMH و آندروژن‌های زن — سه‌حالته، بی‌تشخیصِ قطعی", { todo: "P47 #16، #18–20 — بی‌منبع" }, () => {
   const w = { age: 30, sex: "F" };
   assert.doesNotMatch(reproText(reproFind(semRun([["AMH", "15"]], w), "amh_level")), /PCOS دارید/);
-  assert.match(reproText(reproFind(semRun([["DHEA-S", "900"]], w), "female_androgen_excess")), /آدرنال/);
+  assert.match(reproText(reproFind(semRun([["DHEA-S", "900", "µg/dL"]], w), "female_androgen_excess")), /آدرنال/);
 });
 
 test("M108c: FSHِ بی‌روزِ زن بی‌قضاوت، با جملهٔ مصوب — و در noRef نیست (بازه هست، روز نیست)", () => {
@@ -6566,7 +6575,7 @@ test("M108c: FSHِ بی‌روزِ زن بی‌قضاوت، با جملهٔ مص
 
 test("M108d: پروژسترونِ روزِ ۲۱ — > ۳ تخمک‌گذاری؛ ۳ و کمتر «پایین» با قیدِ زمان‌بندی", () => {
   const w = { age: 30, sex: "F" };
-  const f = (v) => reproFind(semRun([["Progesterone Day 21", String(v)]], w), "luteal_progesterone");
+  const f = (v) => reproFind(semRun([["Progesterone Day 21", String(v), "ng/mL"]], w), "luteal_progesterone");
   assert.match(f(12).headline, /سازگار است/);
   assert.match(f(3).headline, /پایین است/, "۳ خودش «بیشتر از ۳» نیست");
   assert.match(reproText(f(1.5)), /چرخهٔ ۲۸ روزه/);
@@ -6596,7 +6605,7 @@ test("M109: بتا اچ‌سی‌جی — زن مثبت/منفی (> ۵)، مرد
 
 test("M109b: پروژسترونِ روزِ ۲۱ کنارِ hCGِ مثبت بی‌قضاوت می‌ماند (کلاریفای Q6)", () => {
   for (const hcg of ["Positive", "900"]) {
-    const p = semRun([["Beta HCG", hcg], ["Progesterone Day 21", "10"]], { age: 28, sex: "F" });
+    const p = semRun([["Beta HCG", hcg], ["Progesterone Day 21", "10", "ng/mL"]], { age: 28, sex: "F" });
     assert.equal(reproFind(p, "luteal_progesterone"), undefined, "کنارِ تستِ بارداریِ مثبت، تخمک‌گذاری اعلام شد");
     assert.match(reproFind(p, "reproductive_hormone_context").must_say, /با تستِ بارداریِ مثبت روی همین برگه/);
   }
@@ -6604,7 +6613,7 @@ test("M109b: پروژسترونِ روزِ ۲۱ کنارِ hCGِ مثبت بی�
 
 test("M109d: زیرِ ۱۶ سال و جنسیتِ نامعلوم — هیچ هورمونِ جنسی قضاوت نمی‌شود", () => {
   for (const [patient, re] of [[{ age: 12, sex: "M" }, /بلوغ/], [{ age: 12, sex: "F" }, /بلوغ/], [{ age: 30 }, /زن و مرد/]]) {
-    const p = semRun([["Testosterone", "20"], ["FSH", "0.5"], ["DHEA-S", "20"]], patient);
+    const p = semRun([["Testosterone", "20", "ng/dL"], ["FSH", "0.5"], ["DHEA-S", "20", "µg/dL"]], patient);
     const judged = p.findings.filter((f) => f.pattern === "male_gonadal_axis");
     assert.deepEqual(judged.map((f) => f.pattern), [], `قضاوت برای ${JSON.stringify(patient)}`);
     assert.match(reproFind(p, "reproductive_hormone_context").must_say, re);
@@ -6620,9 +6629,9 @@ test("M110: هر کلیدِ زندهٔ فصل ۲۶ دقیقاً یک مالک د
     [{ age: 35, sex: "M" }, semenWith({ "Sperm Count": "2" }), "semen_analysis"],
     [{ age: 35, sex: "M" }, semenWith({ Volume: "0.8", Morphology: "1", "Total Motility": "20" }), "semen_analysis"],
     [{ age: 40, sex: "M" }, [["Testosterone", "120", "ng/dL"], ["LH", "25"], ["FSH", "30"]], "male_gonadal_axis"],
-    [{ age: 30, sex: "F" }, [["Progesterone Day 21", "1"]], "luteal_progesterone"],
+    [{ age: 30, sex: "F" }, [["Progesterone Day 21", "1", "ng/mL"]], "luteal_progesterone"],
     [{ age: 28, sex: "F" }, [["Beta HCG", "1200"]], "hcg_result"],
-    [{ age: 30, sex: "F" }, [["FSH", "12"], ["Estradiol", "40"]], "reproductive_hormone_context"],
+    [{ age: 30, sex: "F" }, [["FSH", "12"], ["Estradiol", "40", "pg/mL"]], "reproductive_hormone_context"],
   ];
   for (const [patient, rows, owner] of PANELS) {
     const p = semRun(rows, patient);
@@ -6639,7 +6648,7 @@ test("M111b: هیچ قاعدهٔ فصل ۲۶ اورژانس نمی‌دهد و �
     [{ age: 35, sex: "M" }, semenWith({ "Sperm Count": "0" })],
     [{ age: 40, sex: "M" }, [["Testosterone", "50", "ng/dL"], ["LH", "40"], ["FSH", "50"]]],
     [{ age: 30, sex: "M" }, [["Beta HCG", "5000"]]],
-    [{ age: 30, sex: "F" }, [["Beta HCG", "5000"], ["Progesterone Day 21", "0.2"]]],
+    [{ age: 30, sex: "F" }, [["Beta HCG", "5000"], ["Progesterone Day 21", "0.2", "ng/mL"]]],
     [{ age: 12, sex: "F" }, [["FSH", "80"]]],
   ];
   for (const [patient, rows] of panels) {
@@ -6668,8 +6677,8 @@ test("M112: بازهٔ یک‌طرفه — فقط «پایین» سنجیده م
 test("M113: کلیدهای بی‌منبع (AMH، DHEA-S، 17-OHP، FSHِ روزِ سوم، FSHِ مرد) هنوز «تفسیر نشد» می‌گیرند", () => {
   for (const [patient, rows, key] of [
     [{ age: 30, sex: "F" }, [["AMH", "0.1"]], "AMH"],
-    [{ age: 30, sex: "F" }, [["DHEA-S", "900"]], "DHEAS"],
-    [{ age: 30, sex: "F" }, [["17-OH Progesterone", "9"]], "OHP17"],
+    [{ age: 30, sex: "F" }, [["DHEA-S", "900", "µg/dL"]], "DHEAS"],
+    [{ age: 30, sex: "F" }, [["17-OH Progesterone", "9", "ng/mL"]], "OHP17"],
     [{ age: 30, sex: "F" }, [["FSH Day 3", "45"]], "FSH_D3"],
     [{ age: 40, sex: "M" }, [["FSH", "45"]], "FSH"],
   ]) {
@@ -6710,7 +6719,9 @@ test("M115: تستوسترونِ ng/mL ×۱۰۰ می‌شود؛ بی‌واحد 
   assert.equal(nu.ungraded.TESTO?.reason, "unit_unknown");
   const p = runPatterns(nu);
   assert.ok(!reproFind(p, "male_gonadal_axis"));
-  assert.match(reproText(reproFind(p, "reproductive_hormone_context")), /واحدِ این آزمایش روی برگه خوانده نشد/);
+  // مالکِ «واحد نامعلوم» از specs/003 به بعد unit_unknown_values است (یک مالک برای همهٔ کلیدها، N20).
+  assert.ok(!reproFind(p, "reproductive_hormone_context"), "دو مالک برای یک عدد");
+  assert.match(reproText(reproFind(p, "unit_unknown_values")), /واحد روی برگه خوانده نشد/);
   // ng/dL و nmol/L همان رفتارِ قبلی.
   assert.equal(semEngine([["Testosterone", "180", "ng/dL"]], { age: 40, sex: "M" }).graded.find((x) => x.test === "TESTO").dir, "low");
   assert.equal(semEngine([["Testosterone", "20", "nmol/L"]], { age: 40, sex: "M" }).graded.find((x) => x.test === "TESTO").abnormal, false);
@@ -6778,4 +6789,436 @@ test("M120: عنوانِ منی جهت را از یافته‌ها می‌گیر
   const h = reproFind(semRun([["Beta HCG", "<2", "mIU/mL"]], { age: 30, sex: "F" }), "hcg_result");
   assert.match(h.must_say, /<2 mIU\/mL/);
   assert.equal(h.headline, "تستِ بارداریِ خون (بتا اچ‌سی‌جی) منفی است");
+});
+
+// ═══════════ واحدِ ردیف‌های بی‌واحد (specs/003-unitless-lab-values، P48) ═══════════
+// 🔴 کلاسِ N3 — واحدِ *نانوشته*: هر عددِ بی‌واحد بی‌صدا «متعارف» فرض می‌شد. روی `edec069`:
+//    کراتینینِ ۸۰ / کلسیمِ ۲.۴ / بیلی‌روبینِ ۱۷ / تروپونینِ ۸ (همه طبیعیِ SI) → اورژانس؛ قندِ ۱۵ mmol/L
+//    (بالا) → «قند پایین»؛ کلسترولِ ۸ mmol/L (بالا) → هیچ یافته‌ای. هر آزمونِ این بلوک روی کپیِ پیش
+//    از اصلاح (prefix003) قرمز بود. units.js با import پویا خوانده می‌شود تا در آن کپی هر آزمون جدا
+//    قرمز شود، نه کلِ فایل.
+const uu = (rows, patient = { age: 40, sex: "M" }) =>
+  runEngine({ patient, tests: rows.map(([name, value, reference]) => ({ name, value, ...(reference ? { reference } : {}) })) });
+const uuRun = (rows, patient) => runPatterns(uu(rows, patient));
+const uuFind = (p, id) => p.findings.find((f) => f.pattern === id);
+const uuText = (f) => [f?.headline, f?.must_say, f?.action, ...(f?.warnings ?? [])].join(" ");
+
+test("M121: decideUnit — واحدِ چاپ‌شده، محدودهٔ چاپ‌شده، ارقامِ فارسی، و «نامعلوم»", async () => {
+  const U = await import("./units.js");
+  assert.equal(typeof U.decideUnit, "function", "decideUnit وجود ندارد");
+  // گامِ ۱: واحدِ چاپ‌شده (املاهای رایج) شناخته می‌شود — decideUnit اصلاً لازم نیست
+  for (const u of ["mg/dl", "mg%", "mgr/dl", "MG/DL", "mg / dl"]) assert.equal(U.recognizedUnit("CREAT", u)?.id, "conv", u);
+  for (const u of ["µmol/l", "umol/L", "μmol/l"]) assert.equal(U.recognizedUnit("CREAT", u)?.id, "si", u);
+  for (const u of ["", "-", null, undefined]) assert.equal(U.recognizedUnit("CREAT", u), null, String(u));
+  // گامِ ۲: محدودهٔ مرجعِ چاپ‌شده
+  const d = (k, v, r) => U.decideUnit(k, v, r, "M", 40);
+  assert.deepEqual([d("CREAT", 80, "53-115").system?.id, d("CREAT", 80, "53-115").basis], ["si", "reference"]);
+  assert.equal(d("CREAT", 1.1, "0.6-1.2").system?.id, "conv");
+  assert.equal(d("CREAT", 80, "۵۳-۱۱۵").system?.id, "si", "ارقامِ فارسی");
+  assert.equal(d("CHOL", 180, "< 200").system?.id, "conv", "محدودهٔ یک‌طرفه");
+  assert.equal(d("CHOL", 8, "<5.2").system?.id, "si");
+  // شاهد نیست ⇒ نامعلوم (مرحلهٔ الف: plausible برای همه null است)
+  assert.equal(d("CREAT", 80, "see note").system, null);
+  // دو محدوده روی یک خط: پیش‌تر «شاهد نیست» بود (FR-009)؛ حالا محدودهٔ همان جنس خوانده می‌شود (M126).
+  assert.equal(d("CREAT", 1.0, "M: 0.7-1.3 F: 0.6-1.1").system?.id, "conv", "دو محدوده روی یک خط");
+  // ۸۰ کنارِ محدودهٔ mg/dL ناسازگار است (۸۰ mg/dL ناممکن) ⇒ تعیین نمی‌شود (M135)
+  assert.equal(d("CREAT", 80, "M: 0.7-1.3 F: 0.6-1.1").system, null);
+  assert.equal(d("CREAT", 80, null).system, null);
+  for (const [k, p] of Object.entries(U.UNIT_PROFILE)) assert.equal(p.plausible, null, `${k}: مرزِ اندازه پیش از تأییدِ P48`);
+});
+
+test("M121b: هر کلیدِ دو‌سیستمی ردیفِ واحد با LOINC دارد و ضریب را تکرار نمی‌کند (SC-003)", async () => {
+  const U = await import("./units.js");
+  const keys = [...Object.keys(SI_CONVERSIONS), "TROPONIN_I", "T3", "CRP_Q", "ACR", "TESTO"];
+  for (const k of keys) {
+    const p = U.UNIT_PROFILE?.[k];
+    assert.ok(p, `${k} ردیفِ واحد ندارد`);
+    assert.ok(p.systems.length >= 2 && p.systems[0].id === "conv" && p.systems[0].factor === 1, `${k}: سیستم‌ها`);
+    assert.match(p.loinc?.mass ?? "", /^\d+-\d$/, `${k}: کدِ LOINCِ جرمی`);
+    assert.ok(p.loinc.substance === null ? !!p.loinc.note : /^\d+-\d$/.test(p.loinc.substance), `${k}: کدِ LOINCِ مولی یا توضیحِ نبودنش`);
+    // «یک عدد، یک کار»: ضریبِ SI همان SI_CONVERSIONS است، نه کپی
+    if (SI_CONVERSIONS[k]) assert.equal(p.systems.find((s) => s.id === "si").factor, SI_CONVERSIONS[k].factor, `${k}: ضریب کپی شده`);
+  }
+  // و منبع‌ها در رجیستری هستند (G6)
+  assert.ok(GUIDELINE_IDS.has("AMA_SI_UNITS") && GUIDELINE_IDS.has("LOINC"));
+});
+
+test("M121c: محدودهٔ چاپ‌شده فقط وقتی شاهد است که دو سیستم دست‌کم ۲.۲۵ برابر فاصله دارند (B12 و FT3 نه)", async () => {
+  const U = await import("./units.js");
+  const below = Object.keys(U.UNIT_PROFILE).filter((k) => U.minSystemRatio(k) < U.REFERENCE_DECISIVE_RATIO ** 2).sort();
+  // اگر کلیدِ تازه‌ای زیرِ ۲.۲۵ برود، این آزمون قرمز می‌شود تا کسی تصمیمش را بگیرد.
+  assert.deepEqual(below, ["B12", "FT3"]);
+  assert.equal(U.decideUnit("B12", 300, "148-664", "M", 40).system, null, "B12: pg/mL و pmol/L فقط ۱.۳۶ برابر فرق دارند");
+  assert.equal(U.decideUnit("FT3", 5, "3.1-6.8", "M", 40).system, null);
+});
+
+test("M122: چهار عددِ طبیعیِ SIِ بی‌واحد دیگر اورژانس نمی‌سازند (SC-001)", () => {
+  // 🔴 روی edec069: kidney_impairment+creatinine_emergency، hypocalcemia، bilirubin_emergency، troponin_positive
+  for (const [name, v] of [["Creatinine", "80"], ["Calcium", "2.4"], ["Total Bilirubin", "17"], ["Troponin I", "8"]]) {
+    const p = uuRun([[name, v]]);
+    const em = p.findings.filter((f) => f.urgency === "emergency").map((f) => f.pattern);
+    assert.deepEqual(em, [], `${name} ${v} بی‌واحد → اورژانس: ${em}`);
+    const f = uuFind(p, "unit_unknown_values");
+    assert.ok(f, `${name}: یافتهٔ «واحد نامعلوم» نیامد — ${p.findings.map((x) => x.pattern)}`);
+    assert.doesNotMatch(uuText(f), /بالا|پایین/, "بی‌واحد، جهت گفته نمی‌شود");
+  }
+  // هر چهار در یک برگه → یک یافته، چهار نامِ فارسی، و هیچ کلیدِ خام (N8)
+  const f = uuFind(uuRun([["Creatinine", "80"], ["Calcium", "2.4"], ["Total Bilirubin", "17"], ["Troponin I", "8"]]), "unit_unknown_values");
+  for (const k of ["CREAT", "CA", "BILI_T", "TROPONIN_I"]) {
+    assert.ok(f.must_say.includes(faName(k)), `${k} در متن نیست`);
+    assert.ok(!new RegExp(`\\b${k}\\b`).test(f.must_say), `کلیدِ خام ${k}`);
+  }
+});
+
+test("M122b: محدودهٔ مرجعِ چاپ‌شده واحد را تعیین می‌کند و به بیمار نشان داده می‌شود (FR-002، FR-006)", () => {
+  const e = uu([["Creatinine", "80", "53-115"]]);
+  const cr = e.graded.find((g) => g.test === "CREAT");
+  assert.ok(cr && Math.abs(cr.value - 0.9) < 0.02 && !cr.abnormal, `کراتینینِ ۸۰ µmol/L: ${JSON.stringify(cr)}`);
+  const row = e.unitConversions.find((c) => c.test === "CREAT");
+  assert.equal(row?.basis, "reference");
+  assert.equal(row.raw, 80);
+  const ca = uu([["Calcium", "2.4", "2.1-2.6"]]).graded.find((g) => g.test === "CA");
+  assert.ok(ca && Math.abs(ca.value - 9.6) < 0.05 && !ca.abnormal, `کلسیمِ ۲.۴ mmol/L: ${JSON.stringify(ca)}`);
+  // سیستمِ متعارف از روی محدوده هم سطر می‌گیرد، بی‌تغییرِ عدد
+  const c2 = uu([["Creatinine", "1.1", "0.6-1.2"]]).unitConversions.find((c) => c.test === "CREAT");
+  assert.equal(c2?.basis, "reference"); assert.equal(c2.raw, c2.value);
+  // واحدِ چاپ‌شده: basis «printed»
+  const p = runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name: "Creatinine", value: "80", unit: "µmol/L" }] });
+  assert.equal(p.unitConversions.find((c) => c.test === "CREAT")?.basis, "printed");
+});
+
+test("M122c: تروپونینِ بی‌واحد اورژانس نمی‌گیرد ولی هشدارِ دردِ قفسهٔ سینه را می‌گیرد؛ ng/Lِ چاپ‌شده بی‌تغییر", () => {
+  const f = uuFind(uuRun([["Troponin I", "8"]]), "unit_unknown_values");
+  assert.ok(f.warnings.includes("اگر دردِ قفسهٔ سینه، تنگیِ نفس یا تعریقِ ناگهانی دارید، منتظر نمانید و همین حالا به اورژانس بروید."));
+  assert.notEqual(f.urgency, "emergency");
+  const hs = runPatterns(runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name: "hs-cTnI", value: "8", unit: "ng/L" }] }));
+  assert.equal(hs.findings.length, 0, `تروپونینِ طبیعیِ ng/L یافته ساخت: ${hs.findings.map((x) => x.pattern)}`);
+  // و بدونِ تروپونین هشدار نمی‌آید
+  assert.deepEqual(uuFind(uuRun([["Creatinine", "80"]]), "unit_unknown_values").warnings, []);
+});
+
+test("M123: قندِ ۱۵ِ بی‌واحد دیگر «قند پایین» نیست — «این هفته»، چون با هر دو واحد غیرطبیعی است", () => {
+  // 🔴 روی edec069: hypoglycemia_significant «قند خون شما پایین‌تر از حد طبیعی است»
+  const p = uuRun([["FBS", "15"]]);
+  assert.ok(!p.findings.some((f) => /hypoglyc/.test(f.pattern)), `جهتِ وارونه: ${p.findings.map((x) => x.pattern)}`);
+  const f = uuFind(p, "unit_unknown_values");
+  assert.equal(f?.urgency, "this_week");
+  assert.equal(f.action, "این هفته با پزشک مطرح کنید.");
+  assert.match(f.must_say, /با هر کدام از دو واحد که خوانده شود، خارج از محدودهٔ طبیعی است\./);
+});
+
+test("M123b: قندِ ۱۵ با محدودهٔ «3.9-6.1» mmol/L خوانده می‌شود و «بالا»ست — دقیقاً یک مالکِ قند", () => {
+  const e = uu([["FBS", "15", "3.9-6.1"]]);
+  const g = e.graded.find((x) => x.test === "GLU_F");
+  assert.ok(g && g.value > 250 && g.dir === "high", `قند: ${JSON.stringify(g)}`);
+  const p = runPatterns(e);
+  const owners = p.findings.map((f) => f.pattern).filter((id) => /glyc|diabet|dka|hhs/.test(id));
+  assert.ok(owners.length >= 1, `قندِ ۲۷۰ هیچ مالکی نگرفت: ${p.findings.map((x) => x.pattern)}`);
+  assert.ok(!owners.some((id) => /hypoglyc/.test(id)));
+  assert.ok(!uuFind(p, "unit_unknown_values"), "واحد تعیین شد، پس «نامعلوم» نیست");
+});
+
+test("M123c: کلسترولِ ۸ِ بی‌واحد گم نمی‌شود — نامش در یافته هست (N2)", () => {
+  // 🔴 روی edec069: هیچ یافته‌ای (۸ mg/dL «طبیعی» سنجیده شد)
+  const f = uuFind(uuRun([["Cholesterol", "8"]]), "unit_unknown_values");
+  assert.ok(f, "کلسترولِ بی‌واحد بی‌صدا ماند");
+  assert.ok(f.must_say.includes(faName("CHOL")));
+});
+
+// ⚠️ پیش‌تر «هرگز emergency» بود؛ بازبینیِ پزشکی (B3) نشان داد کلسیمِ ۵ با هر دو خوانش خطرناک است
+//    (۵ mg/dL هیپوکلسمیِ شدید، ۵ mmol/L = ۲۰ mg/dL هایپرکلسمیِ شدید) — حالا اورژانس، بی‌جهت (M127).
+test("M123d: فوریتِ «نامعلوم» — هر دو طبیعی/یکی/هر دو غیرطبیعی ⇒ routine/routine/this_week؛ همه‌خطرناک ⇒ emergency", () => {
+  const cases = [
+    // [نام، عدد، انتظار]  — هر دو تفسیر با بازهٔ موتور سنجیده می‌شوند
+    ["Creatinine", "1.0", "routine"],   // ۱.۰ mg/dL طبیعی؛ ۱.۰ µmol/L (۰.۰۱ mg/dL) پایین ⇒ یکی
+    ["Creatinine", "80", "routine"],    // ۸۰ mg/dL بالا؛ ۸۰ µmol/L طبیعی ⇒ یکی
+    ["Calcium", "2.4", "routine"],
+    ["Calcium", "5.0", "emergency"],    // ۵ mg/dL پایینِ بحرانی؛ ۵ mmol/L (۲۰ mg/dL) بالای بحرانی ⇒ هر دو خطرناک
+    ["FBS", "5.5", "routine"],
+    ["FBS", "15", "this_week"],
+    ["Total Bilirubin", "17", "routine"],
+    ["Total Bilirubin", "60", "this_week"], // ۶۰ mg/dL و ۶۰ µmol/L (۳.۵ mg/dL) هر دو بالا
+  ];
+  for (const [name, v, want] of cases) {
+    const f = uuFind(uuRun([[name, v]]), "unit_unknown_values");
+    assert.equal(f?.urgency, want, `${name} ${v}`);
+  }
+  // و شاخهٔ «هر دو طبیعی» واقعاً وجود دارد (عددی که با هر دو واحد در بازه است)
+  const U = runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name: "Albumin", value: "4.5" }] }).ungraded.ALB;
+  assert.deepEqual(U?.alt, ["normal", "abnormal"], "آلبومینِ ۴.۵: g/dL طبیعی، g/L پایین");
+});
+
+test("M125: واحدِ چاپ‌شده بایت‌به‌بایت بی‌تغییر — ۱۵ پنلِ متعارف و SI (FR-009)", () => {
+  // هش‌ها از کپیِ پیش از specs/003 (prefix003) گرفته شده‌اند؛ روی هر دو درخت یکسان بودند.
+  // basis عمداً از هش بیرون است — فیلدِ تازه‌ای است که فقط اضافه شده.
+  const PANELS = [
+    [["FBS", "126", "mg/dL"]], [["FBS", "7.2", "mmol/L"]], [["HbA1c", "48", "mmol/mol"]],
+    [["Cholesterol", "240", "mg/dL"], ["LDL", "160", "mg/dL"], ["HDL", "35", "mg/dL"], ["Triglycerides", "300", "mg/dL"]],
+    [["Cholesterol", "6.2", "mmol/L"], ["Triglycerides", "2.1", "mmol/L"]],
+    [["Creatinine", "1.9", "mg/dL"], ["Urea", "70", "mg/dL"]], [["Creatinine", "168", "µmol/L"]],
+    [["Calcium", "11.4", "mg/dL"], ["Albumin", "4.0", "g/dL"]], [["Calcium", "2.85", "mmol/L"]],
+    [["Total Bilirubin", "3.2", "mg/dL"], ["Direct Bilirubin", "2.1", "mg/dL"]], [["Total Bilirubin", "40", "µmol/L"]],
+    [["TSH", "8.5", "mIU/L"], ["FT4", "0.6", "ng/dL"]], [["hs-cTnI", "45", "ng/L"]], [["D-dimer", "1.5", "mg/L"]],
+    [["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["Ferritin", "6", "ng/mL"]],
+  ];
+  const EXPECTED = ["f665faa0048dbdf5", "c1d5e82d7ddbc3e0", "92ca4fb75ab86370", "bd45550d31afb2f3", "4436e94e10c7ae54",
+    "81ff9d916b808907", "e4d91c9257556a36", "285da43aacfe795b", "e8bcbab1b2b3f21b", "bebcb999b3e71f23",
+    "e2aade88461d5429", "0851945cd9782082", "09889f9ef3323ae1", "47ef5a64951b1422", "5c5aff02c21e5683"];
+  const snap = (rows) => {
+    const e = runEngine({ patient: { age: 50, sex: "M" }, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
+    const p = runPatterns(e);
+    return JSON.stringify({
+      g: e.graded.map((x) => [x.test, x.value, x.abnormal, x.dir]),
+      f: p.findings.map((x) => [x.pattern, x.urgency, x.headline, x.must_say]),
+      u: p.overall_urgency,
+      c: e.unitConversions.map(({ basis, ...rest }) => rest),
+    });
+  };
+  PANELS.forEach((rows, i) => {
+    const h = crypto.createHash("sha256").update(snap(rows)).digest("hex").slice(0, 16);
+    assert.equal(h, EXPECTED[i], `پنلِ ${JSON.stringify(rows)} عوض شد`);
+  });
+});
+
+// ═══════════ specs/003 — اصلاحاتِ بازبینیِ پزشکی و کد (medical_review.md: B1–B5 و ۱۰ بند) ═══════════
+// هر آزمونِ این بلوک روی کپیِ درختِ کاری پیش از این اصلاح (old003) قرمز بود.
+const uuu = (rows, patient = { age: 40, sex: "M" }) => runEngine({
+  patient, tests: rows.map(([name, value, reference, unit]) => ({ name, value, ...(reference ? { reference } : {}), ...(unit ? { unit } : {}) })),
+});
+const uuuRun = (rows, patient) => runPatterns(uuu(rows, patient));
+
+test("M126: واحدِ چاپ‌شده با قاب، نقطه، بی‌خط‌مورب یا فارسی هم شناخته می‌شود (FR-009)", async () => {
+  // 🔴 پیش‌تر هر کدام «واحدِ ناشناخته» بود، یعنی برگه‌ای که واحد را *داشت* «نامعلوم» می‌گرفت.
+  const U = await import("./units.js");
+  for (const u of ["(mg/dL)", "[mg/dL]", "mg/dL.", "mgdl", "mg/di", "میلی گرم در دسی لیتر", "میلی‌گرم در دسی‌لیتر"]) {
+    assert.equal(U.recognizedUnit("CREAT", u)?.id, "conv", u);
+  }
+  assert.equal(U.recognizedUnit("CREAT", "(µmol/L)")?.id, "si");
+  // و روی موتور: کراتینینِ ۱.۹ «(mg/dL)» سنجیده می‌شود، «نامعلوم» نیست
+  const p = uuuRun([["Creatinine", "1.9", null, "(mg/dL)"]]);
+  assert.ok(!findPat(p, "unit_unknown_values"), fired(p).join(", "));
+  assert.ok(findPat(p, "kidney_impairment"), fired(p).join(", "));
+  // تروپونینِ «(ng/L)»: شاخهٔ تروپونین املای قانونی را می‌گیرد — ۸ ng/L طبیعی است، نه اورژانس و نه نامعلوم
+  const t = uuuRun([["hs-cTnI", "8", null, "(ng/L)"]]);
+  assert.equal(t.findings.length, 0, fired(t).join(", "));
+});
+
+test("M126b: محدودهٔ مرجع با واحد، پرانتز، برچسب و خطِ دوجنسی خوانده می‌شود؛ واحدِ داخلِ مرجع شاهد است", async () => {
+  const U = await import("./units.js");
+  assert.deepEqual(U.parseReference("(13.5-17.5)"), { lo: 13.5, hi: 17.5 });
+  assert.deepEqual(U.parseReference("Desirable:<200"), { lo: null, hi: 200 });
+  assert.deepEqual(U.parseReference("0.6-1.2 mg/dL"), { lo: 0.6, hi: 1.2 });
+  assert.deepEqual(U.parseReference("M: 0.7-1.3 F: 0.6-1.1", "F"), { lo: 0.6, hi: 1.1 });
+  assert.deepEqual(U.parseReference("M: 0.7-1.3 F: 0.6-1.1"), { lo: 0.6, hi: 1.3 }, "جنسِ نامعلوم ⇒ پوششِ هر دو");
+  // واحدِ نوشته‌شده در ستونِ مرجع، همان واحدِ چاپ‌شده است
+  assert.equal(U.decideUnit("CREAT", 80, "53-115 µmol/L", "M", 40).system?.id, "si");
+  assert.equal(U.decideUnit("CREAT", 1.1, "0.6-1.2 mg/dL", "M", 40).system?.id, "conv");
+});
+
+test("M126c: U_CA و UFC — واحدِ قانونیِ SI دوباره شناخته می‌شود (رفت‌وبرگشت)؛ املاهای mcg/day و µg/mg creatinine", async () => {
+  // 🔴 canonicalFromRe واحدِ «mmol/(24h» می‌ساخت؛ ردیفی که واحدش از مرجع تعیین می‌شد هرگز تبدیل نمی‌شد
+  //    و ۷.۵ mmol/day با بازهٔ ۱۰۰–۳۰۰ mg/day سنجیده می‌شد (← FHH جعلی).
+  const U = await import("./units.js");
+  for (const [k, p] of Object.entries(U.UNIT_PROFILE)) {
+    for (const s of p.systems) assert.equal(U.recognizedUnit(k, s.unit)?.id, s.id, `${k}: «${s.unit}» رفت‌وبرگشت نمی‌شود`);
+  }
+  const g = uuu([["24h Urine Calcium", "7.5", "2.5-7.5"]]).graded.find((x) => x.test === "U_CA");
+  assert.ok(g && Math.abs(g.value - 300) < 2, `کلسیمِ ادرار: ${JSON.stringify(g)}`);
+  assert.equal(U.recognizedUnit("UFC", "mcg/day")?.id, "conv");
+  assert.equal(U.recognizedUnit("ACR", "µg/mg creatinine")?.id, "conv");
+});
+
+test("M127: عددی که با هر خوانشِ ممکن خطرناک است اورژانس می‌گیرد — بی‌جهت (B3)", () => {
+  // 🔴 پیش‌تر سقفِ «این هفته»: کلسیمِ ۱۵، Hbِ ۵.۵، کراتینینِ ۸ و ۹۰۰، قندِ ۶۰۰، تروپونینِ ۲۰۰۰.
+  const cases = [["Calcium", "3.5"], ["Calcium", "15"], ["Hb", "5.5"], ["Creatinine", "8"], ["Creatinine", "900"],
+    ["FBS", "600"], ["Troponin I", "2000"]];
+  for (const [name, v] of cases) {
+    const f = findPat(uuuRun([[name, v]]), "unit_unknown_values");
+    assert.equal(f?.urgency, "emergency", `${name} ${v}`);
+    assert.equal(f.action, "همین حالا به اورژانس مراجعه کنید.");
+    // دو جملهٔ درست: «هر خوانشِ ممکن خطرناک» یا «فقط یک خوانش ممکن است و آن خطرناک است» (M136)
+    assert.match(f.must_say, /(با هر واحدی که خوانده شود، این عدد|فقط با یکی از واحدهای رایج ممکن است، و با همان واحد) در محدودهٔ خطرناک است\./);
+    assert.doesNotMatch(f.must_say, /بالا|پایین/, `${name}: جهت گفته شد`);
+  }
+  // و اورژانسِ کاذبِ specs/003 برنمی‌گردد: عددی که در یک واحد طبیعی است هرگز «همه‌خطرناک» نیست
+  const n = uuuRun([["Creatinine", "80"], ["Calcium", "2.4"], ["Total Bilirubin", "17"]]);
+  assert.deepEqual(n.findings.filter((x) => x.urgency === "emergency").map((x) => x.pattern), []);
+});
+
+test("M128: «واحد نامعلوم» زیرِ اورژانسِ دیگر پنهان نمی‌شود (B4، کلاسِ N18)", () => {
+  // 🔴 پیش‌تر suppressed:1 — قندِ ۳۰ و Hbِ ۵.۵ِ بیمارِ پان‌سیتوپنیک هرگز گفته نمی‌شد.
+  const a = uuuRun([["Potassium", "7", null, "mEq/L"], ["FBS", "30"]]);
+  assert.ok(findPat(a, "hyperkalemia"));
+  assert.ok(findPat(a, "unit_unknown_values"), `قند گم شد: ${fired(a).join(", ")}`);
+  assert.match(uuText(findPat(a, "unit_unknown_values")), new RegExp(faName("GLU_F")));
+  const b = uuuRun([["WBC", "1200"], ["PLT", "15000"], ["Hb", "5.5"]]);
+  assert.ok(findPat(b, "unit_unknown_values"), `Hb گم شد: ${fired(b).join(", ")}`);
+});
+
+test("M129: بیلی‌روبین — «0.3-1.2» واحد را تعیین می‌کند؛ نوزاد با بازهٔ بزرگسال سنجیده نمی‌شود (B1، B2)", () => {
+  // 🔴 پیش‌تر: بزرگسال ۱۴ کنارِ «0.3-1.2» ⇒ «نامعلوم، routine»؛ نوزادِ ۱۴ کنارِ «<15» ⇒ ۰.۸۲ mg/dL، بی‌یافته.
+  const e = uuu([["Total Bilirubin", "14", "0.3-1.2"]]);
+  assert.equal(e.graded.find((g) => g.test === "BILI_T")?.value, 14);
+  assert.equal(runPatterns(e).overall_urgency, "emergency");
+  assert.equal(uuuRun([["Total Bilirubin", "1.0", "0.3-1.2"]]).findings.length, 0, "بیلی‌روبینِ طبیعی «ممکن است خارج…» گرفت");
+  const neo = { age: 0, sex: "M" };
+  const n14 = uuu([["Total Bilirubin", "14", "<15"]], neo);
+  assert.ok(!n14.graded.some((g) => g.test === "BILI_T"), `نوزاد با بازهٔ بزرگسال سنجیده شد: ${JSON.stringify(n14.graded)}`);
+  const f14 = findPat(runPatterns(n14), "unit_unknown_values");
+  assert.ok(f14 && ["this_week", "emergency"].includes(f14.urgency), JSON.stringify(f14?.urgency));
+  assert.equal(findPat(uuuRun([["Total Bilirubin", "18", "up to 12"]], neo), "unit_unknown_values")?.urgency, "emergency");
+});
+
+test("M130: تروپونینِ بی‌واحد — بالای محدودهٔ چاپ‌شدهٔ خودِ آزمایشگاه اورژانس است (B5، نگهبانِ M83d)", () => {
+  // 🔴 پیش‌تر ۴۵ کنارِ «<19» ⇒ «در نوبتِ عادی».
+  for (const [v, ref] of [["45", "<19"], ["0.9", "<0.04"], ["60", "0-34"]]) {
+    const f = findPat(uuuRun([["Troponin I", v, ref]], { age: 61, sex: "M" }), "unit_unknown_values");
+    assert.equal(f?.urgency, "emergency", `${v} / ${ref}`);
+    assert.doesNotMatch(f.must_say, /بالا|پایین/);
+  }
+  // بی‌محدوده: دست‌کم «این هفته» با هشدارِ اورژانس، چون یکی از خوانش‌ها غیرطبیعی است
+  const f = findPat(uuuRun([["Troponin I", "2"]], { age: 61, sex: "M" }), "unit_unknown_values");
+  assert.equal(f?.urgency, "this_week");
+  assert.equal(f.warnings.length, 1);
+  // و داخلِ محدودهٔ چاپ‌شده اورژانس نمی‌سازد
+  assert.notEqual(findPat(uuuRun([["Troponin I", "8", "<19"]]), "unit_unknown_values")?.urgency, "emergency");
+});
+
+test("M131: یک آزمایش، دو ردیف (واحددار و بی‌واحد) ⇒ یک مالک (N20)", () => {
+  const e = uuu([["Creatinine", "1.0", null, "mg/dL"], ["Creatinine", "88"]]);
+  assert.ok(!e.ungraded.CREAT, `هم سنجیده شد هم نامعلوم: ${JSON.stringify(e.ungraded)}`);
+  assert.equal(e.graded.filter((g) => g.test === "CREAT").length, 1);
+  const e2 = uuu([["Creatinine", "88"], ["Creatinine", "1.0", null, "mg/dL"]]);
+  assert.ok(!e2.ungraded.CREAT, "ترتیبِ برعکس");
+});
+
+test("M132: HbA1cِ بی‌واحدی که از اندازه mmol/mol شد، «magnitude» برچسب می‌خورد نه «printed» (N5)", () => {
+  const c = uuu([["HbA1c", "48"]]).unitConversions.find((x) => x.test === "HBA1C");
+  assert.equal(c?.basis, "magnitude");
+  assert.equal(c.from, "mmol/mol");
+  assert.equal(runEngine({ tests: [{ name: "HbA1c", value: "48", unit: "mmol/mol" }] }).unitConversions[0].basis, "printed");
+});
+
+test("M133: عددِ طبیعی «ممکن است خارج…» نمی‌گیرد؛ تستوسترون «سه واحد» است نه «دو»", () => {
+  // 🔴 پیش‌تر FBS ۹۰ · کلسترول ۱۸۰ · کراتینین ۰.۹ ⇒ سه بار «ممکن است خارج از محدودهٔ طبیعی باشد»،
+  //    در حالی که تنها خوانشی که آن‌ها را غیرطبیعی می‌کند (۹۰ mmol/L قند …) ناممکن است.
+  const f = findPat(uuuRun([["FBS", "90"], ["Cholesterol", "180"], ["Creatinine", "0.9"]]), "unit_unknown_values");
+  assert.ok(f);
+  assert.doesNotMatch(f.must_say, /ممکن است خارج/);
+  const t = findPat(uuuRun([["Testosterone", "450"]]), "unit_unknown_values");
+  assert.match(t.must_say, /با سه واحدِ رایج/);
+  assert.doesNotMatch(t.must_say, /دو واحد/);
+});
+
+// ═══════════ specs/003 — دورِ دومِ بازبینی (medical_review.md B6–B8 + بازبینیِ کد) ═══════════
+// روی درختِ پس از دورِ اول قرمز بودند؛ پنل‌ها همان‌هایی‌اند که دو بازبین اندازه گرفتند.
+
+test("M134: نوزاد — جملهٔ یافته و action یک فوریت دارند؛ محدودهٔ بزرگسال کنارِ نوزاد اورژانس نمی‌سازد (B6، N20)", () => {
+  const d3 = { age: "3 days", sex: "M" }, neo = { age: 0, sex: "M" };
+  for (const [v, ref, pat] of [["14", "<15", neo], ["5", null, neo], ["150", "<205", neo], ["1.5", "0.3-1.2", d3], ["18", "up to 12", neo]]) {
+    const f = findPat(uuuRun([["Total Bilirubin", v, ref]], pat), "unit_unknown_values");
+    assert.ok(f, `${v}/${ref}`);
+    // «همین امروز» فقط کنارِ اورژانس
+    assert.equal(/همین امروز/.test(f.must_say), f.urgency === "emergency", `${v}/${ref}: ${f.urgency} — ${f.must_say}`);
+    // «با هر واحدی … خطرناک» فقط وقتی هر خوانشِ ممکن خطرناک است — نه وقتی اورژانس از محدودهٔ چاپ‌شده آمده
+    if (ref) assert.doesNotMatch(f.must_say, /با هر واحدی که خوانده شود/, `${v}/${ref}`);
+  }
+  // ۱.۵ در روزِ سوم کنارِ «0.3-1.2»ِ بزرگسال: نبودِ واحد فوریت را از بودنش بالاتر نمی‌برد
+  const noUnit = findPat(uuuRun([["Total Bilirubin", "1.5", "0.3-1.2"]], d3), "unit_unknown_values");
+  assert.notEqual(noUnit.urgency, "emergency");
+  // ۱۵۰ کنارِ «<205» داخلِ محدودهٔ خودِ آزمایشگاه است — «خارج از محدوده» گفته نمی‌شود
+  const f150 = findPat(uuuRun([["Total Bilirubin", "150", "<205"]], neo), "unit_unknown_values");
+  assert.match(f150.must_say, /در محدودهٔ مرجعی است که خودِ آزمایشگاه/);
+  assert.doesNotMatch(f150.must_say, /خارج از محدوده/);
+  // و ۱۸ کنارِ «up to 12» اورژانس می‌ماند (B1)
+  assert.equal(findPat(uuuRun([["Total Bilirubin", "18", "up to 12"]], neo), "unit_unknown_values").urgency, "emergency");
+});
+
+test("M135: محدودهٔ ردیفِ کناری (OCR) عددِ طبیعی را اورژانس نمی‌کند (B7)", () => {
+  // 🔴 «FBS 95» کنارِ «4-5.6»ِ HbA1c ⇒ ۹۵ mmol/L ⇒ ۱۷۱۲ ⇒ hhs_pattern؛ «Urea 40» کنارِ «0.6-1.4»ِ کراتینین ⇒ ×۳۲ ⇒ اورژانس.
+  for (const [name, v, ref] of [["FBS", "95", "4-5.6"], ["Urea", "40", "0.6-1.4"], ["Urea", "20", "0.6-1.4"]]) {
+    const p = uuuRun([[name, v, ref]]);
+    assert.notEqual(p.overall_urgency, "emergency", `${name} ${v} / ${ref}: ${fired(p)}`);
+  }
+});
+
+test("M136: مرزِ «ناممکن» مقدارِ بحرانیِ واقعی را کنار نمی‌گذارد (B8)", () => {
+  // 🔴 اورهٔ ۴۵۰ (اورمیِ واقعی) ⇒ «این هفته، شاید غلطِ خوانش»؛ قندِ ۱۶۰۰ همین‌طور.
+  for (const [name, v] of [["Urea", "450"], ["FBS", "1600"], ["Calcium", "21"]]) {
+    const f = findPat(uuuRun([[name, v]]), "unit_unknown_values");
+    assert.equal(f?.urgency, "emergency", `${name} ${v}`);
+    assert.doesNotMatch(f.must_say, /درست خوانده نشده/);
+    assert.doesNotMatch(f.must_say, /قضاوت نمی‌کنیم/, "«قضاوت نمی‌کنیم» کنارِ اورژانس");
+  }
+});
+
+test("M137: مرجعِ دوواحدی شاهد نیست؛ جداکنندهٔ هزارگان؛ یک خوانشِ ممکن فوریت را بالا نمی‌برد (بازبینیِ کد)", async () => {
+  // 🔴 «Creatinine 80» کنارِ «0.6-1.2 mg/dL (53-106 µmol/L)» ⇒ ۸۰ mg/dL ⇒ اورژانس (نخستین واحد برنده می‌شد).
+  for (const [name, v, ref] of [["Creatinine", "80", "0.6-1.2 mg/dL (53-106 µmol/L)"],
+    ["FBS", "6.1", "70-100 mg/dL (3.9-5.6 mmol/L)"], ["Total Bilirubin", "17", "0.3-1.2 mg/dL / 5-21 µmol/L"]]) {
+    const p = uuuRun([[name, v, ref]]);
+    assert.notEqual(p.overall_urgency, "emergency", `${name}: ${fired(p)}`);
+    assert.ok(!p.findings.some((f) => /hypoglyc/.test(f.pattern)), `${name}: جهتِ وارونه`);
+  }
+  const U = await import("./units.js");
+  assert.deepEqual(U.parseReference("1,000-5,000"), { lo: 1000, hi: 5000 });
+  assert.deepEqual(U.parseReference("< 1,000"), { lo: null, hi: 1000 });
+  // Hbِ ۱۲.۵: خوانشِ g/L (۱.۲۵ g/dL) ناممکن است ⇒ همان فوریتِ «با واحدِ چاپ‌شده»، نه بالاتر
+  for (const [name, v, unit] of [["Hb", "12.5", "g/dL"], ["Triglycerides", "180", "mg/dL"], ["Calcium", "10.6", "mg/dL"]]) {
+    const withUnit = uuuRun([[name, v, null, unit]], { age: 40, sex: "M" }).overall_urgency;
+    const without = findPat(uuuRun([[name, v]]), "unit_unknown_values")?.urgency;
+    const R = { none: 0, routine: 1, this_week: 2, emergency: 3 };
+    assert.ok(R[without] <= Math.max(R[withUnit], 1), `${name} ${v}: بی‌واحد ${without} > با واحد ${withUnit}`);
+  }
+});
+
+test("M137b: CRPِ «mg%» mg/dL است؛ برچسبِ basis مالِ همان ردیف است (بازبینیِ کد، N5)", () => {
+  // 🔴 «CRP 3 mg%» ⇒ ۳ mg/L (ده برابر کم)؛ ردیفِ «Creatinine 88 µmol/L» برچسبِ «reference»ِ ردیفِ دیگر را می‌گرفت.
+  assert.equal(uuu([["CRP", "3", null, "mg%"]]).graded.find((g) => g.test === "CRP_Q")?.value, 30);
+  const c = uuu([["Creatinine", "88", null, "µmol/L"], ["Creatinine", "1.0", "0.6-1.2"]]).unitConversions
+    .find((x) => x.test === "CREAT" && x.raw === 88);
+  assert.equal(c?.basis, "printed");
+});
+
+test("M138: نوزادِ زیرِ یک ماه، بیلی‌روبینِ بی‌واحد و بی‌محدوده — بدترین خوانش، نه کمینه (B9)", () => {
+  // 🔴 سن ۰ با بیلی‌روبینِ ۲۰ و ۲۵، و «2 days» با ۱۶ ⇒ «این هفته»؛ همان عدد با mg/dL ⇒ bilirubin_emergency.
+  for (const [v, age] of [["20", 0], ["25", 0], ["16", "2 days"]]) {
+    const p = uuuRun([["Total Bilirubin", v]], { age, sex: "M" });
+    const f = findPat(p, "unit_unknown_values");
+    assert.equal(f?.urgency, "emergency", `${v} @ ${age}: ${fired(p)}`);
+    assert.match(f.must_say, /همین امروز/);
+    assert.doesNotMatch(f.must_say, /با هر واحدی که خوانده شود/, "فقط یکی از خوانش‌ها خطرناک است");
+    assert.doesNotMatch(f.must_say, /بالا|پایین/);
+  }
+  // و بزرگسال همان عدد را هنوز «کمینه» می‌خواند — اورژانسِ کاذبِ specs/003 برنمی‌گردد
+  assert.notEqual(findPat(uuuRun([["Total Bilirubin", "20"]]), "unit_unknown_values")?.urgency, "emergency");
+});
+
+test("M139: سنِ نوزاد به ساعت، هفته یا با رقمِ فارسی — همان نوزاد است، نه ۴۸ ساله (بازبینی B10)", () => {
+  // 🔴 «48 h» ⇒ ۴۸ سال، «2 weeks» ⇒ ۲ سال، «۳ روزه» ⇒ سنِ نامعلوم؛ بیلی‌روبینِ ۲۰ ⇒ «در نوبتِ عادی».
+  for (const age of ["48 h", "48 hours", "48 ساعت", "۴۸ ساعت", "2 weeks", "2 wk", "2 هفته", "3 weeks", "۳ روزه", "۳ روز", "٣ روز"]) {
+    const p = uuuRun([["Total Bilirubin", "20"]], { age, sex: "M" });
+    assert.equal(findPat(p, "unit_unknown_values")?.urgency, "emergency", `«${age}»: ${fired(p)}`);
+  }
+  // مرزِ یک ماه: «5 weeks» دیگر نوزادِ زیرِ یک ماه نیست؛ و سنِ دوبخشی جمع می‌شود، نه «بخشِ کوچک به‌تنهایی» (B12:
+  // «1 month 1 week» ⇒ ۱ هفته ⇒ بازه‌های نوزادی برای همهٔ برگه + جملهٔ «پزشکِ نوزاد»).
+  for (const age of ["5 weeks", "1 month 1 week", "3 months 2 weeks", "۳ ماه و ۲ هفته", "1 y 2 w", "۱ سال و ۲ هفته", "45 Y 2 W"]) {
+    const f = findPat(uuuRun([["Total Bilirubin", "20"]], { age, sex: "M" }), "unit_unknown_values");
+    assert.notEqual(f?.urgency, "emergency", `«${age}»`);
+    assert.doesNotMatch(f?.must_say ?? "", /پزشکِ نوزاد/, `«${age}»`);
+  }
+  // و سنِ بزرگسال با رقمِ فارسی همچنان بزرگسال است
+  assert.notEqual(findPat(uuuRun([["Total Bilirubin", "20"]], { age: "۴۵ سال", sex: "M" }), "unit_unknown_values")?.urgency, "emergency");
+});
+
+test("M140: جملهٔ «پزشکِ نوزاد / نمودارِ ساعتی» فقط زیرِ یک ماه، نه برای شیرخوارِ ۲ تا ۱۱ ماهه (بازبینی B11)", () => {
+  // 🔴 نمودارِ ساعتی (Bhutani، AAP 2022) فقط هفته‌های اول است؛ شیرخوارِ ۲ ماهه را به «پزشکِ نوزاد» فرستادن غلط است.
+  for (const [v, age] of [["20", "2 months"], ["5", "2 months"], ["250", "11 months"]]) {
+    const f = findPat(uuuRun([["Total Bilirubin", v]], { age, sex: "M" }), "unit_unknown_values");
+    assert.ok(f, `${v} @ ${age}: یافته‌ای نیست`);
+    assert.doesNotMatch(f.must_say, /پزشکِ نوزاد|به ساعت بستگی/, `${v} @ ${age}`);
+  }
+  // زیرِ یک ماه جمله همچنان هست
+  const f = findPat(uuuRun([["Total Bilirubin", "5"]], { age: "3 days", sex: "M" }), "unit_unknown_values");
+  assert.match(f?.must_say ?? "", /به ساعت بستگی/);
 });
