@@ -27,6 +27,7 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `a34e4d2`, after the decimal-comma fix (`toNum` → `commaToDot`; `M161`–`M161c`; `M161`, `M161c` and `M161b`'s `0,500` case red before, `M161b`'s thousands cases green before as the guard) — 121 rules | 2026-09-20 | 521 | 502 | **0** | 19 todo |
    | working tree on `2d32dd3`, after P49-الف/ج (user-approved): `wilson_evaluation`, antibody sentence in `overt_b12_deficiency`, `unexplainedNoRef` — `M151`–`M151c`, `M153` un-todo’d; `M151d`, `M151e`, `M153b`, `T22` new (all red before; `T22` also red with only the server filter undone) — 121 rules | 2026-09-19 | 518 | 499 | **0** | 19 todo |
    | working tree on `2d32dd3`, after specs/004 + its review fixes (B1–B3, code-review 2/4/5 — `M155`–`M160`, all red before the fix) — 120 rules | 2026-09-19 | 514 | 491 | **0** | 23 todo |
    | working tree on `2d32dd3`, specs/004 before review (`M141`–`M150`, `T21`; 6 P49 `todo`s). `M141`–`M149` + `T21` red on `2d32dd3` (archive + junction, measured by the code reviewer: `508 · 473 · 12`); `M150` is a freeze, green on both | 2026-09-19 | 508 | 485 | **0** | 23 todo |
@@ -836,6 +837,29 @@ second one; a recurring entry is the strongest signal in the file.
   of an age are now added up, not picked.
   **Rule:** when a fix is gated on an input (age, sex, unit), test it with that input written the way real sheets
   write it, not with the number your test fixture happens to pass.
+
+- ⚠️ **Recurred 2026-09-20, through the decimal comma** (found by the specs/003 review, and present in
+  `HEAD` since the adapter was written). `toNum` stripped every comma as a thousands separator, so a
+  sheet that writes the decimal as a comma turned **K 5,5** into 55 (a hyperkalaemia emergency),
+  **Creatinine 1,2** into 12 (emergency) and **0,500** into 500. That is the false-emergency direction
+  again, and on ordinary values. `parseReference` in `units.js` already had the right rule, so the
+  same sheet was parsed two different ways by two functions.
+  - **The fix is `commaToDot` in `adapter.js`, the same rule as `parseReference`:**
+    - a comma is a thousands separator only before groups of exactly three digits, with no leading
+      zero (`250,000`, `1,250,000`);
+    - with a dot in the number, a comma is a thousands separator (`1,234.5`);
+    - a single other comma is a decimal point;
+    - anything else (`5,5,5`) is ambiguous. It goes to `unmapped`, not to `qual` where no rule would read it.
+  - **The manual form had the same bug.** `normalizeDigits` in `khanesh/src/digits.js` now treats the
+    Latin comma as a decimal point, like «،». Every count in that form is ×10³/µL, so no value needs a
+    thousands separator.
+  - **An unreadable manual value is now flagged, not silently skipped.** `Tafsir.jsx` used to do
+    `if (isNaN(v)) return`, which is the N2 class in the form.
+  - Guards: `M161`, `M161b` (thousands still work; this is the guard for the other direction),
+    `M161c`. The frontend has no tests, so its change was checked with a `node` probe of `toNumber`.
+  - Remaining ambiguity: `1,200` is always read as 1200.
+  **Rule:** when two functions parse the same printed number, they must share one rule. The
+  second copy is where the bug lives.
 
 ### N4 — Telling the patient about a test they didn't have
 `9c93319`

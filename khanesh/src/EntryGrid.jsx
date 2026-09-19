@@ -76,7 +76,7 @@ export default function EntryGrid({
           const rawPrev = prevVals[k] ?? "";
           const v = toNumber(raw);
           const [mn, mx] = m.hard;
-          const bad = raw !== "" && !isNaN(v) && (v < mn || v > mx);
+          const bad = raw !== "" && (isNaN(v) || v < mn || v > mx);
           const st = raw !== "" && !isNaN(v) && !bad ? statusOf(k, v, sex, months) : null;
           const r = m.range(sex, months);
           const S = st ? LOCAL_STATES[st] : null;
@@ -149,8 +149,14 @@ export default function EntryGrid({
           <ul className="bullet-list">
             {errs.map((e) => (
               <li key={e.key}>
-                {e.label}: مقدار <span className="num">{e.value}</span> بیرون از بازهٔ ممکن
-                (<span className="num">{e.min}–{e.max}</span>) است.
+                {e.unreadable ? (
+                  <>{e.label}: مقدارِ <span className="num">{e.value}</span> به‌صورتِ عدد خوانده نشد.</>
+                ) : (
+                  <>
+                    {e.label}: مقدار <span className="num">{e.value}</span> بیرون از بازهٔ ممکن
+                    (<span className="num">{e.min}–{e.max}</span>) است.
+                  </>
+                )}
               </li>
             ))}
           </ul>

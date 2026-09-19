@@ -663,17 +663,32 @@ function isQualitative(key) {
 const ureaToBUN = (u) => u / 2.14;
 
 // ---------- تبدیل عدد ----------
-// ارقام فارسی/عربی و ممیز عربی را اول به لاتین تبدیل می‌کنیم؛ سپس فقط رقم/نقطه/علامت
-// می‌مانَد (کاما به‌عنوان جداکنندهٔ هزارگان حذف می‌شود — قرارداد رایج برگه‌های ایرانی).
+// ارقام فارسی/عربی و ممیز عربی را اول به لاتین تبدیل می‌کنیم؛ سپس فقط رقم/نقطه/علامت می‌مانَد.
+//
+// 🔴 کاما (بازبینیِ specs/003؛ HEAD هم همین بود): هر کاما جداکنندهٔ هزارگان حساب می‌شد، پس برگه‌ای که
+//    ممیز را کاما می‌نویسد «K 5,5» → ۵۵ (هیپرکالمیِ کشنده، اورژانسِ کاذب) و «Creatinine 1,2» → ۱۲ می‌گرفت.
+//    حالا همان قاعدهٔ parseReference در units.js: کاما فقط وقتی هزارگان است که پیش از گروه‌های دقیقاً
+//    سه‌رقمی بیاید و عدد با صفر شروع نشود («250,000»، «1,250,000»)؛ با نقطه در عدد، کاما هزارگان است
+//    («1,234.5»)؛ یک کامای دیگر ممیز است («5,5»، «0,500»)؛ هر شکلِ دیگر («5,5,5») مبهم ⇒ null، نه حدس.
+//    ⚠️ ابهامِ باقی‌مانده: «1,200» همیشه ۱۲۰۰ خوانده می‌شود، حتی اگر منظور ۱٫۲۰۰ بوده باشد.
 const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+function commaToDot(s) {
+  const run = s.match(/[\d.,]*\d/)?.[0] ?? "";
+  if (!run.includes(",")) return s;
+  if (run.includes(".") || /^[1-9]\d{0,2}(,\d{3})+$/.test(run)) return s.replace(/,/g, "");
+  if (/^\d+,\d+$/.test(run)) return s.replace(",", ".");
+  return null;
+}
 function toNum(v) {
   if (v == null) return null;
-  const s = String(v)
+  const pre = commaToDot(String(v)
     .replace(/[۰-۹]/g, (d) => FA_DIGITS.indexOf(d))
     .replace(/[٠-٩]/g, (d) => AR_DIGITS.indexOf(d))
-    .replace(/٫/g, ".")           // ممیز عربی → نقطه
-    .replace(/[^\d.\-+]/g, "");
+    .replace(/٬/g, ",")           // جداکنندهٔ هزارگانِ عربی → کاما (همان قاعدهٔ بالا)
+    .replace(/٫/g, "."));         // ممیز عربی → نقطه
+  if (pre == null) return null;
+  const s = pre.replace(/[^\d.\-+]/g, "");
   if (!s) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
@@ -993,6 +1008,12 @@ export function ocrToEngineInput(ocr) {
 
     let v = toNum(t.value);
     if (v == null) {
+      // عددِ کامادارِ مبهم («5,5,5») متن نیست که قاعده‌ای در qual بخواند — بی‌صدا گم می‌شد (N2).
+      // به unmapped ⇒ «این تست‌ها … تفسیرشان نمی‌کند … با پزشک بررسی کنید».
+      if (/^\s*[<>≤≥]?\s*[\d۰-۹٠-٩][\d۰-۹٠-٩.,٫٬\s]*$/.test(String(t.value ?? "")) && /[,٬]/.test(String(t.value))) {
+        unmapped.push(t.name);
+        continue;
+      }
       qual[t.name] = String(t.value);   // مقدار غیرعددی
       continue;
     }

@@ -140,7 +140,11 @@ export default function Tafsir() {
       // onChange رد نشده، پس ممکن است هنوز رقم فارسی داشته باشد. با
       // parseFloat خام NaN می‌شد و ردیف بی‌صدا از تحلیل می‌افتاد بیرون.
       const v = toNumber(raw);
-      if (isNaN(v)) return;
+      // عددِ ناخوانا («1.250.000») بی‌صدا از تحلیل بیرون نمی‌افتد (N2) — در همان کادرِ «فرستاده نمی‌شوند».
+      if (isNaN(v)) {
+        errs.push({ key: k, label: REF[k].label, value: raw, unreadable: true });
+        return;
+      }
       const [mn, mx] = REF[k].hard;
       if (v < mn || v > mx) {
         // ⚠️ ساختاریافته، نه رشتهٔ آماده: عدد و بازه باید هنگام رندر داخلِ

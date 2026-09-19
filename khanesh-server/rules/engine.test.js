@@ -7584,3 +7584,38 @@ test("M154: روی/مس/سلنیوم/E/C/PLPِ پایین ⇒ یافتهٔ غی�
   assert.notEqual(f.urgency, "emergency");
   assert.match(f.must_say, /روی/);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ویرگولِ اعشاری — برگه‌هایی که «5,5» می‌نویسند (یافتهٔ بازبینیِ specs/003؛ HEAD هم همین بود)
+// ═══════════════════════════════════════════════════════════════════════════
+test("M161: کامای اعشاری عدد را ده برابر نمی‌کند — K 5,5 اورژانس نیست، کراتینین 1,2 اورژانس نیست (N3)", () => {
+  // 🔴 toNum هر کاما را جداکنندهٔ هزارگان می‌گرفت: «5,5» → 55 (هیپرکالمیِ کشنده)، «1,2» → 12.
+  const g = (rows) => { const e = uuu(rows); return { e, p: runPatterns(e) }; };
+  const k = g([["K", "5,5", null, "mmol/L"]]);
+  assert.equal(k.e.graded.find((x) => x.test === "K")?.value, 5.5);
+  assert.notEqual(k.p.overall_urgency, "emergency", fired(k.p).join(","));
+  const cr = g([["Creatinine", "1,2", null, "mg/dL"]]);
+  assert.equal(cr.e.graded.find((x) => x.test === "CREAT")?.value, 1.2);
+  assert.notEqual(cr.p.overall_urgency, "emergency", fired(cr.p).join(","));
+  assert.equal(uuu([["Hb", "13,8", null, "g/dL"]]).graded.find((x) => x.test === "HGB")?.value, 13.8);
+  assert.equal(uuu([["TSH", "0,85", null, "mIU/L"]]).graded.find((x) => x.test === "TSH")?.value, 0.85);
+  // ممیزِ عربی (٬ هزارگان، ٫ اعشار) و ارقامِ فارسی
+  assert.equal(uuu([["K", "۵,۵", null, "mmol/L"]]).graded.find((x) => x.test === "K")?.value, 5.5);
+});
+
+test("M161b: کامای هزارگان همچنان هزارگان است — 250,000 پلاکت، 7,000 گلبولِ سفید (N3)", () => {
+  // نگهبانِ سمتِ مقابل: اصلاحِ کامای اعشاری نباید شمارش‌های خامِ CBC را هزار بار کوچک کند.
+  assert.equal(uuu([["PLT", "250,000", null, "/µL"]]).graded.find((x) => x.test === "PLT")?.value, 250);
+  assert.equal(uuu([["WBC", "7,000", null, "/µL"]]).graded.find((x) => x.test === "WBC")?.value, 7);
+  assert.equal(uuu([["PLT", "1,250,000", null, "/µL"]]).graded.find((x) => x.test === "PLT")?.value, 1250);
+  assert.equal(uuu([["Glucose", "1,234.5", null, "mg/dL"]]).graded.find((x) => /^GLU/.test(x.test))?.value, 1234.5);
+  // «0,500» هزارگان نیست (صفرِ پیشرو) ⇒ 0.5
+  assert.equal(uuu([["Creatinine", "0,500", null, "mg/dL"]]).graded.find((x) => x.test === "CREAT")?.value, 0.5);
+});
+
+test("M161c: عددِ مبهم («5,5,5») حدس زده نمی‌شود — ۵۵۵ نمی‌شود (N3)", () => {
+  const e = uuu([["K", "5,5,5", null, "mmol/L"]]);
+  assert.equal(e.graded.find((x) => x.test === "K"), undefined, JSON.stringify(e.graded));
+  // و بی‌صدا به qual نمی‌رود (N2) — در unmapped می‌آید تا خطِ «تفسیرشان نمی‌کند … با پزشک» را بگیرد.
+  assert.ok(e.unmapped.includes("K"), `unmapped: ${JSON.stringify(e.unmapped)} qual: ${JSON.stringify(e.qual)}`);
+});
