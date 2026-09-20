@@ -7118,8 +7118,10 @@ test("M134: نوزاد — جملهٔ یافته و action یک فوریت دا�
   for (const [v, ref, pat] of [["14", "<15", neo], ["5", null, neo], ["150", "<205", neo], ["1.5", "0.3-1.2", d3], ["18", "up to 12", neo]]) {
     const f = findPat(uuuRun([["Total Bilirubin", v, ref]], pat), "unit_unknown_values");
     assert.ok(f, `${v}/${ref}`);
-    // «همین امروز» فقط کنارِ اورژانس
-    assert.equal(/همین امروز/.test(f.must_say), f.urgency === "emergency", `${v}/${ref}: ${f.urgency} — ${f.must_say}`);
+    // P48 (تصمیمِ کاربر، ۲۰۲۶-۰۹-۲۰): جملهٔ نوزاد دیگر دو نسخه ندارد و هیچ
+    // زمان‌بندی درونِ خود ندارد؛ دستور فقط در action است. همان حفاظتِ B6،
+    // ساده‌تر: وقتی فقط یک جمله هست، نمی‌تواند با action اختلاف پیدا کند. گارد: M163.
+    assert.doesNotMatch(f.must_say, /همین امروز/, `${v}/${ref}: ${f.urgency} — ${f.must_say}`);
     // «با هر واحدی … خطرناک» فقط وقتی هر خوانشِ ممکن خطرناک است — نه وقتی اورژانس از محدودهٔ چاپ‌شده آمده
     if (ref) assert.doesNotMatch(f.must_say, /با هر واحدی که خوانده شود/, `${v}/${ref}`);
   }
@@ -7186,7 +7188,8 @@ test("M138: نوزادِ زیرِ یک ماه، بیلی‌روبینِ بی‌�
     const p = uuuRun([["Total Bilirubin", v]], { age, sex: "M" });
     const f = findPat(p, "unit_unknown_values");
     assert.equal(f?.urgency, "emergency", `${v} @ ${age}: ${fired(p)}`);
-    assert.match(f.must_say, /همین امروز/);
+    // جملهٔ نوزاد هست — پیش‌تر «همین امروز» بود؛ از P48 فقط توضیحِ نمودارِ ساعتی ماند (M163).
+    assert.match(f.must_say, /به ساعت بستگی/);
     assert.doesNotMatch(f.must_say, /با هر واحدی که خوانده شود/, "فقط یکی از خوانش‌ها خطرناک است");
     assert.doesNotMatch(f.must_say, /بالا|پایین/);
   }
@@ -7618,4 +7621,75 @@ test("M161c: عددِ مبهم («5,5,5») حدس زده نمی‌شود — ۵�
   assert.equal(e.graded.find((x) => x.test === "K"), undefined, JSON.stringify(e.graded));
   // و بی‌صدا به qual نمی‌رود (N2) — در unmapped می‌آید تا خطِ «تفسیرشان نمی‌کند … با پزشک» را بگیرد.
   assert.ok(e.unmapped.includes("K"), `unmapped: ${JSON.stringify(e.unmapped)} qual: ${JSON.stringify(e.qual)}`);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// هموگلوبینِ زیرِ ۷ — یک عدد، یک دستور (N20)
+// هر سه آزمون روی 607b419 قرمز دیده شدند.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// جمله‌هایی که زمان‌بندیِ دوم می‌سازند — کنارِ «فوراً به اورژانس» هیچ‌کدام نباید بیاید.
+const RIVAL_TIMELINE = /این هفته|همین چند روز|همین امروز|هفته‌های پیشِ رو|نوبت عادی|نوبت با پزشک/;
+const anemiaPanel = (extra, hb = "6.2") => uuuRun(
+  [["Hemoglobin", hb, null, "g/dL"], ...extra],
+  { age: 45, sex: "F" },
+);
+
+test("M162: با Hb زیرِ ۷، هیچ یافته‌ای دربارهٔ همان هموگلوبین زمان‌بندیِ دوم نمی‌دهد (N20)", () => {
+  // 🔴 روی 607b419: severe_anemia_crisis «فوراً به اورژانس» و در همان برگه
+  //    macrocytic_anemia «این هفته»، microcytic/normocytic «همین چند روز»،
+  //    pancytopenia «همین امروز» — سه زمان‌بندی برای یک عدد.
+  const OWNERS = ["macrocytic_anemia", "microcytic_ida_likely", "normocytic_anemia", "spherocytosis_likely", "pancytopenia"];
+  const panels = {
+    macro: [["MCV", "112", null, "fL"], ["MCH", "36", null, "pg"]],
+    micro: [["MCV", "68", null, "fL"], ["Ferritin", "5", null, "ng/mL"]],
+    normo: [["MCV", "88", null, "fL"]],
+    sphero: [["MCV", "88", null, "fL"], ["MCHC", "37", null, "g/dL"], ["MCH", "30", null, "pg"], ["RDW-CV", "16.5", null, "%"]],
+    pancyto: [["WBC", "2.1", null, "10*3/uL"], ["Platelet", "60", null, "10*3/uL"]],
+  };
+  let reached = 0;
+  for (const [name, extra] of Object.entries(panels)) {
+    const p = anemiaPanel(extra);
+    assert.ok(findPat(p, "severe_anemia_crisis"), `${name}: بحران فعال نشد — ${fired(p).join(",")}`);
+    for (const f of p.findings) {
+      if (!OWNERS.includes(f.pattern)) continue;
+      reached++;
+      assert.doesNotMatch(f.action ?? "", RIVAL_TIMELINE, `${name} ← ${f.pattern}: ${f.action}`);
+      assert.match(f.action ?? "", /دستورِ فوریِ بالا/, `${name} ← ${f.pattern}`);
+    }
+  }
+  // بدونِ این، آزمون می‌تواند بدونِ دیدنِ هیچ یافته‌ای سبز شود (N15).
+  assert.ok(reached >= 5, `فقط ${reached} یافتهٔ مالک دیده شد`);
+});
+
+test("M162b: محتوای بالینی حذف نمی‌شود — یافتهٔ ماکروسیتیک و آزمایش‌هایش سرِ جایش است", () => {
+  // نگهبانِ سمتِ مقابل: راه‌حلِ blocks_others همین متن را پاک می‌کرد.
+  const p = anemiaPanel([["MCV", "112", null, "fL"], ["MCH", "36", null, "pg"]]);
+  const f = findPat(p, "macrocytic_anemia");
+  assert.ok(f, fired(p).join(","));
+  assert.match(f.must_say, /MCV/);
+  assert.ok(f.suggest.includes("ویتامین B12") && f.suggest.includes("فولات"), JSON.stringify(f.suggest));
+  assert.equal(p.overall_urgency, "emergency");
+});
+
+test("M162c: با Hb بالای ۷، جملهٔ اقدام دقیقاً همان است که بود (کنترلِ منفی)", () => {
+  // همان پنل‌ها با Hb ۹.۵: هیچ‌کدام نباید به جملهٔ کناررویِ بحران بیفتد.
+  const macro = findPat(anemiaPanel([["MCV", "112", null, "fL"], ["MCH", "36", null, "pg"]], "9.5"), "macrocytic_anemia");
+  assert.ok(macro);
+  assert.match(macro.action, /این هفته با پزشک عمومی یا داخلی/);
+  const normo = findPat(anemiaPanel([["MCV", "88", null, "fL"]], "9.5"), "normocytic_anemia");
+  assert.ok(normo);
+  assert.doesNotMatch(normo.action, /دستورِ فوریِ بالا/);
+});
+
+test("M163: نوزاد، بیلی‌روبینِ اورژانسی — یک دستور، نه «اورژانس» کنارِ «همین امروز» (P48)", () => {
+  // 🔴 روی 607b419: action = «همین حالا به اورژانس مراجعه کنید» و در must_say
+  //    «این عدد را همین امروز به پزشکِ نوزاد نشان دهید» — دو زمان‌بندی برای یک عدد.
+  const f = findPat(uuuRun([["Total Bilirubin", "20"]], { age: "3 days", sex: "M" }), "unit_unknown_values");
+  assert.ok(f, "یافتهٔ واحدِ نامعلوم نیامد");
+  assert.equal(f.urgency, "emergency");
+  assert.doesNotMatch(f.must_say, /همین امروز/, f.must_say);
+  // توضیحِ نمودارِ ساعتی می‌ماند — حذفِ جمله نبود، حذفِ دستورِ دوم بود.
+  assert.match(f.must_say, /به ساعت بستگی/);
+  assert.match(f.action, /همین حالا به اورژانس/);
 });

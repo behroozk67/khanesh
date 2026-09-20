@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, anemiaCrisisOwns, actionUnlessAnemiaCrisis } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -362,14 +362,14 @@ export const RULES_HEMATOLOGY = [
         t.PLT != null && t.PLT < 150
       );
     },
-    build: () => ({
+    build: (e) => ({
       pattern: "pancytopenia",
       urgency: "emergency",
       headline: "هر سه نوع سلول خونی کمتر از حد طبیعی هستند",
       must_say:
         "گلبول قرمز، گلبول سفید و پلاکت — هر سه پایین هستند. " +
         "وقتی هر سه ردهٔ سلولی با هم افت می‌کنند، معمولاً مشکل از خودِ مغز استخوان (کارخانهٔ ساخت سلول‌های خونی) یا تخریب گستردهٔ آن‌هاست و نیاز به بررسی فوری دارد.",
-      action: "همین امروز با پزشک تماس بگیرید.",
+      action: actionUnlessAnemiaCrisis(e, "همین امروز با پزشک تماس بگیرید."),
       suggest: [],
       warnings: [],
       blocks_others: true,
@@ -459,11 +459,9 @@ export const RULES_HEMATOLOGY = [
   //    کامنتِ «یا زیر ۸.۰ برای بیماران پرخطر» عمداً پیاده نشد.
   {
     id: "severe_anemia_crisis",
-    match: (e) => {
-      const hgb = e.graded.find((g) => g.test === "HGB");
-      // اگر هموگلوبین زیر ۷.۰ باشد (یا زیر ۸.۰ برای بیماران پرخطر)
-      return hgb && hgb.value !== null && Number(hgb.value) < 7.0;
-    },
+    // شرط از patterns_utils خوانده می‌شود، نه اینجا نوشته: قاعده‌هایی که کنار
+    // می‌روند باید دقیقاً همین شرط را ببینند، وگرنه دو نسخه از یک تصمیم می‌شود (N20).
+    match: (e) => anemiaCrisisOwns(e),
     build: (e) => {
       const hgb = e.graded.find((g) => g.test === "HGB");
       return {
@@ -503,8 +501,10 @@ export const RULES_HEMATOLOGY = [
           (rdwHigh
             ? "تفاوت اندازهٔ گلبول‌ها هم زیاد است (RDW بالا) که سرنخ مهمی است."
             : ""),
-        action:
+        action: actionUnlessAnemiaCrisis(
+          e,
           "این هفته با پزشک عمومی یا داخلی وقت بگیرید و این آزمایش‌ها را بخواهید.",
+        ),
         // ⚠️ آهن اینجا نیست — مدل قبلاً اشتباهاً پیشنهاد می‌داد
         suggest: ["ویتامین B12", "فولات", "رتیکولوسیت", "TSH"],
         forbid: ["آهن", "فریتین", "iron", "ferritin"],
@@ -624,9 +624,12 @@ export const RULES_HEMATOLOGY = [
           mag +
           "این یعنی کم‌خونیِ میکروسیتیک (گلبولِ کوچک). " +
           (thal ? mechThal : mechIda),
-        action: thal
-          ? "نوبت عادی با پزشک. آزمایش فریتین و الکتروفورز هموگلوبین را مطرح کنید."
-          : `${sev === "شدید" ? "چون کم‌خونی شدید است، همین چند روز با پزشک وقت بگیرید" : "این هفته با پزشک وقت بگیرید"}؛ در بزرگسالان، کمبود آهن باید علت‌یابی شود (به‌ویژه منبع خونریزی پنهان گوارشی).`,
+        action: actionUnlessAnemiaCrisis(
+          e,
+          thal
+            ? "نوبت عادی با پزشک. آزمایش فریتین و الکتروفورز هموگلوبین را مطرح کنید."
+            : `${sev === "شدید" ? "چون کم‌خونی شدید است، همین چند روز با پزشک وقت بگیرید" : "این هفته با پزشک وقت بگیرید"}؛ در بزرگسالان، کمبود آهن باید علت‌یابی شود (به‌ویژه منبع خونریزی پنهان گوارشی).`,
+        ),
         suggest: thal
           ? ["فریتین", "الکتروفورز هموگلوبین"]
           : ["فریتین", "آهن سرم", "TIBC", "بررسی خون مخفی در مدفوع (FOBT)"],
@@ -681,10 +684,12 @@ export const RULES_HEMATOLOGY = [
           mag +
           "گلبول‌ها اندازهٔ طبیعی دارند ولی تعدادشان کم است (کم‌خونیِ نورموسیتیک)." + extra +
           " شمارش رتیکولوسیت (گلبول‌های تازه‌ساز) کلید تعیین علت است و برای پیدا کردن ریشهٔ کم‌خونی چند آزمایش دیگر لازم است.",
-        action:
+        action: actionUnlessAnemiaCrisis(
+          e,
           sev === "شدید"
             ? "چون کم‌خونی شدید است، همین چند روز با پزشک وقت بگیرید."
             : "نوبت با پزشک بگیرید.",
+        ),
         suggest,
         warnings:
           sev === "شدید"
@@ -806,7 +811,10 @@ export const RULES_HEMATOLOGY = [
         urgency: "this_week",
         headline: "غلظت هموگلوبین داخل گلبول‌های قرمز بالاتر از حد طبیعی است",
         must_say: `غلظت هموگلوبین در گلبول‌های قرمز (MCHC) بالاتر از حد طبیعی است، با مقدار ${mchc.value}. وقتی با RDW بالا، کم‌خونی خفیف و گلبول‌های قرمز طبیعی یا کوچک همراه باشد، به‌شدت نشان‌دهندهٔ نیاز به بررسی شکل‌های غیرطبیعی گلبول قرمز (مانند اسفروسیتوز) است. لام خون محیطی به‌شدت توصیه می‌شود.`,
-        action: "در همین هفته‌های پیشِ رو با پزشک وقت بگیرید تا لام خون محیطی بررسی شود.",
+        action: actionUnlessAnemiaCrisis(
+          e,
+          "در همین هفته‌های پیشِ رو با پزشک وقت بگیرید تا لام خون محیطی بررسی شود.",
+        ),
         suggest: ["لام خون محیطی", "بیلی‌روبین", "تکرار CBC"],
         warnings: [],
       };

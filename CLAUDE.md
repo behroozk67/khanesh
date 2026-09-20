@@ -27,6 +27,7 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `607b419`, after the Hb<7 hand-off + the neonatal wording decision (`M162`–`M162c`, `M163`; `M162` and `M163` red before, `M162b`/`M162c` freezes; `M134` and `M138` changed on purpose) — 121 rules | 2026-09-20 | 525 | 506 | **0** | 19 todo |
    | working tree on `a34e4d2`, after the decimal-comma fix (`toNum` → `commaToDot`; `M161`–`M161c`; `M161`, `M161c` and `M161b`'s `0,500` case red before, `M161b`'s thousands cases green before as the guard) — 121 rules | 2026-09-20 | 521 | 502 | **0** | 19 todo |
    | working tree on `2d32dd3`, after P49-الف/ج (user-approved): `wilson_evaluation`, antibody sentence in `overt_b12_deficiency`, `unexplainedNoRef` — `M151`–`M151c`, `M153` un-todo’d; `M151d`, `M151e`, `M153b`, `T22` new (all red before; `T22` also red with only the server filter undone) — 121 rules | 2026-09-19 | 518 | 499 | **0** | 19 todo |
    | working tree on `2d32dd3`, after specs/004 + its review fixes (B1–B3, code-review 2/4/5 — `M155`–`M160`, all red before the fix) — 120 rules | 2026-09-19 | 514 | 491 | **0** | 23 todo |
@@ -361,14 +362,23 @@ qualitative `3+` → N6; CTCAE only for cancer patients → the `isCancer` gate 
 [grade.js:76](khanesh-server/rules/grade.js#L76), tested at `engine.test.js:405`; `Anti-HIV`
 spellings → N2. Nothing was lost that wasn't already enforced somewhere that runs.
 
-⚠️ **`labmat-prototype/` is still there, and it is the one item that was not cleaned up.** It is
-a superseded copy of `khanesh-server/labmat-agents/` — and it has **5110 tracked files**, of which
-**5101 are `node_modules`**, plus a tracked `labmat-prototype/.env` **containing a live
-`AVALAI_API_KEY`**. `.gitignore` lists `labmat-prototype/node_modules/`, which does nothing,
-because an ignore rule has no effect on files that were already tracked — the same mechanism as
-N14, in the opposite direction. Deleting the directory would **not** remove the key from history;
-the key has to be rotated at AvalAI regardless, and that is a decision plus a 5110-file commit,
-so it was flagged rather than folded into a cleanup.
+✅ **`labmat-prototype/` is gone (2026-09-20)** — 5109 tracked files removed, of which 5101 were
+`node_modules`. It was a superseded copy of `khanesh-server/labmat-agents/`. Deleting it was a
+user decision, and two things about it are worth keeping:
+
+- ⚠️ **The live `AVALAI_API_KEY` is still in git history and deleting the directory did not touch
+  it.** Measured rather than assumed: `labmat-prototype/.env` was added in `763c73d` and *untracked
+  again* in `3416d63`, so it was **not** in the index at the time of the deletion — an earlier
+  version of this file, and of `note.md`, said it was, and both were wrong. What is true is worse
+  in the way that matters: the `AVALAI_API_KEY` committed in `763c73d`, the copy that was on disk,
+  and the one `khanesh-server/.env` uses today all have the **same fingerprint**. Anyone who can
+  read this repo's history has the key the production server is using. **It has to be rotated at
+  AvalAI**; no amount of deleting files in the working tree does it, and `.gitignore` never could.
+- **"It's in `.gitignore`" proves nothing about what is tracked, in either direction.** N14 is the
+  case where an ignore rule ate files the app needed; this is the mirror image, where an ignore
+  rule (`labmat-prototype/node_modules/`) sat over 5101 files that were already tracked and did
+  nothing at all. The question "is this file in the repo?" is answered by `git ls-files`, never by
+  reading `.gitignore`.
 
 ### Routes (`App.jsx`)
 
@@ -1569,6 +1579,53 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   `dka_pattern` reads only `GLU_F`/`GLU_RANDOM`, never `GLU_2H`, so a two-hour glucose of 320
   with positive ketones was owned by nobody. The hand-off condition is therefore written as
   "does that rule actually fire", never "is the number past its threshold".
+- ⚠️ **Recurred 2026-09-20, and this one had been in the tree since `severe_anemia_crisis`
+  was written.** `severe_anemia_crisis` fires at Hb < 7 with «فوراً و بدون اتلاف وقت به بخش
+  اورژانس». Every rule that *classifies* the same anaemia kept its own timeline beside it.
+  Measured on `607b419`, one panel each, all with Hb 6.2:
+
+  | panel | the emergency says | the second finding says |
+  |---|---|---|
+  | + MCV 112 | «فوراً … به اورژانس» | `macrocytic_anemia` — «این هفته با پزشک … وقت بگیرید» |
+  | + MCV 68 | same | `microcytic_ida_likely` — «همین چند روز …» |
+  | + MCV 88 | same | `normocytic_anemia` — «همین چند روز …» |
+  | + MCHC 37 | same | `spherocytosis_likely` — «در همین هفته‌های پیشِ رو …» |
+  | + WBC 2.1, PLT 60 | same | `pancytopenia` — «همین امروز با پزشک تماس بگیرید» |
+
+  Note `pancytopenia`: it is *also* an emergency and it *already* carries `blocks_others`, which is
+  why nobody caught it — `blocks_others` only suppresses **lower** urgency, so two emergencies with
+  two different instructions sit side by side untouched. A patient bleeding out at Hb 6.2 got to
+  choose between "now", "today", "a few days" and "this week", and the most reassuring one is the
+  easiest to act on.
+- **The instrument was a hand-off, and the reason not to reach for `blocks_others` is concrete
+  here:** the macrocytic/microcytic findings carry the *content* (cell size, the B12/folate or
+  ferritin workup, the «خودتان مکمل شروع نکنید» warnings). Suppressing them to silence one
+  sentence would delete all of it. Only the `action` field defers: `actionUnlessAnemiaCrisis(e, …)`
+  in `patterns_utils.js`, with the Hb < 7 predicate defined **once** (`anemiaCrisisOwns`) and read by
+  `severe_anemia_crisis`'s own `match`, so the hand-off asks "does that rule fire" rather than
+  re-stating the threshold — the `M91e` lesson.
+- ⚠️ **The scope is deliberately narrow, and the narrowness is a decision, not an oversight.**
+  Only findings about *that haemoglobin* defer. `overt_b12_deficiency`, `iron_deficiency`,
+  `crp_elevated` and `ldh_high_nonspecific` keep their own timelines, because they are about their
+  own analyte and widening the gate to "anything on an emergency sheet" is the blanket suppression
+  this entry warns against two bullets up. If you add an anaemia-classification rule, add it to the
+  `OWNERS` list in `M162` — the guard sweeps five panels and fails both when a rule keeps a rival
+  timeline and when fewer than five owner findings were reached (N15's meaningless green).
+- **Guards:** `M162` (five panels, red before), `M162b` (the content survives — the negative
+  control against "just use `blocks_others`"), `M162c` (Hb 9.5: every action byte-for-byte as it
+  was). Registered in `MEDICAL_RULES.md` under `P49`.
+
+- ⚠️ **And the same class in `patterns_unit_unknown.js`, on a newborn** (2026-09-20, `P48`). The
+  neonatal bilirubin clause had an `emergency` variant reading «این عدد را همین امروز به
+  پزشکِ نوزاد نشان دهید» — printed directly beside its own `action`, «همین حالا به
+  اورژانس مراجعه کنید». It was *introduced* by a previous N20 fix (B6), which branched the
+  clause on urgency so the two would agree — and they still didn't, because agreeing on the
+  *urgency level* is not the same as agreeing on the *instruction*. User decision: the ER wins.
+  The clause is now one string with no timeline in it at all, so it cannot branch and cannot
+  disagree. **A sentence that explains should not also instruct** — that is what leaves room for a
+  second instruction to appear. Guard `M163`; `M134` and `M138` were asserting the retired wording
+  and were updated on purpose.
+
 
 ### N21 — Listing the possible causes without saying which ones the same sheet already argues against
 2026-08-10, `isolated_ldh_elevation`. Found by running a real patient's sheet through the engine.

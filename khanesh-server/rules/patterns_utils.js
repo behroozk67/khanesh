@@ -261,6 +261,40 @@ function biliEmergencyOwns(e) {
   return bili != null && bili >= BILI_T_EMERGENCY_MGDL;
 }
 
+/*
+ * ─── N20: هموگلوبینِ زیر ۷ — یک عدد، یک دستور ───────────────────────────────
+ * severe_anemia_crisis «فوراً به اورژانس» می‌گوید و قاعده‌های طبقه‌بندیِ کم‌خونی
+ * که *همان* هموگلوبین را می‌خوانند در کنارش «این هفته» یا «همین چند روز» یا
+ * «همین امروز» می‌گفتند. بیمار سه زمان‌بندیِ متفاوت برای یک عدد می‌خواند و هیچ
+ * راهی برای انتخاب ندارد. blocks_others ابزارِ درستی نیست: یافتهٔ ماکروسیتیک/
+ * میکروسیتیک *محتوای* بالینی دارد (اندازهٔ گلبول، آزمایش‌های بعدی) که نباید حذف
+ * شود — فقط جملهٔ اقدامش باید کنار برود.
+ *
+ * آستانه اینجا یک بار تعریف می‌شود و match خودِ severe_anemia_crisis هم از همین
+ * تابع می‌خواند، تا شرط «آن قاعده واقعاً فعال است» باشد نه «عدد از آستانه گذشته»
+ * — همان درسی که M91e در گلوکز ثبت کرد.
+ *
+ * ⚠️ دامنه عمدی است: فقط قاعده‌هایی که دربارهٔ *همین* هموگلوبین‌اند. یافته‌های
+ *    علت‌شناسی (کمبود B12، کمبود آهن، CRP) زمان‌بندیِ آنالیتِ خودشان را دارند و
+ *    دست‌نخورده می‌مانند؛ پهن‌کردنِ این گیت روی آن‌ها همان خاموش‌کردنِ فراگیری است
+ *    که N20 دربارهٔ blocks_others هشدار می‌دهد.
+ */
+const HGB_CRISIS_GDL = 7.0;
+
+/** آیا قاعدهٔ اورژانسِ کم‌خونیِ شدید مالکِ دستورِ این برگه است؟ */
+function anemiaCrisisOwns(e) {
+  const hgb = e.graded.find((g) => g.test === "HGB");
+  return !!(hgb && hgb.value !== null && Number(hgb.value) < HGB_CRISIS_GDL);
+}
+
+const ANEMIA_CRISIS_DEFER =
+  "همان دستورِ فوریِ بالا را دنبال کنید و این برگه را همراه ببرید؛ ادامهٔ بررسی با پزشک است.";
+
+/** جملهٔ اقدام، مگر آنکه بحرانِ کم‌خونی مالکِ برگه باشد. */
+function actionUnlessAnemiaCrisis(e, action) {
+  return anemiaCrisisOwns(e) ? ANEMIA_CRISIS_DEFER : action;
+}
+
 // آیا تصویر سندرم نفروتیک هست؟ (پروتئینوری شدید + آلبومین پایین)
 function isNephrotic(e) {
   const protGrade = urineGrade(e, /protein|پروتئین/i);
@@ -319,4 +353,5 @@ function val(e) {
 // پیشنهادهایی که «نام خالص یک آزمایش»‌اند → کلید(های) موتور.
 // ⚠️ فقط تطبیق دقیق. عمداً هیچ تطبیق فازی/زیررشته‌ای نیست، چون بخش بزرگی از
 export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
-         amylaseEmergencyOwns, biliEmergencyOwns, AMYLASE_EMERGENCY_UL, BILI_T_EMERGENCY_MGDL };
+         amylaseEmergencyOwns, biliEmergencyOwns, AMYLASE_EMERGENCY_UL, BILI_T_EMERGENCY_MGDL,
+         anemiaCrisisOwns, actionUnlessAnemiaCrisis, ANEMIA_CRISIS_DEFER, HGB_CRISIS_GDL };
