@@ -119,11 +119,173 @@ const RF_RE  = /^rf$|rheumatoid|rafactor|ralatex|rflatex|فاکتوررومات�
 // مقادیر ادراری در e.qual با کلید نام خام ذخیره می‌شوند.
 // مقدار می‌تواند باشد: negative/trace/+1/+2/+3، positive/مثبت، یا عدد/بازه («۵-۱۰»).
 
+// ═══ سیلندر (cast) — نوعی دیگر از ردیفِ ادرار، نه سلولِ آزاد (specs/005، N25) ═══
+// 🔴 باگِ واقعی روی 395a5d7: «RBC Casts 5-8 /lpf» با کلیدِ «Urine RBC Casts» در qual می‌نشست و
+//    هر جست‌وجوی /rbc/ آن را شمارشِ گلبولِ قرمزِ *آزاد* می‌خواند ⇒ hematuria («خون در ادرار»)؛
+//    «Leukocyte Casts» هم نوارِ استراز را مثبت می‌کرد و هم شمارشِ WBC را ⇒ uti_likely.
+//    سیلندر یعنی منشأ از *درونِ کلیه* — خواندنش به‌جای سلولِ آزاد، کم‌خوانی است.
+// اصلاح عمداً در این کمکی‌هاست، نه در هشت محلِ فراخوانی: هر قاعدهٔ تازه‌ای هم که فردا /rbc/ بجوید ارث می‌برد.
+// «کست» فقط به‌صورتِ واژهٔ جدا — «شکست» نباید جور شود.
+// ⚠️ بازبینی #۸: «کست‌ گلبول قرمز» با نیم‌فاصله، «کستِ …» با کسره و «کست‌ها» هم سیلندرند (M169h).
+const CAST_KEY_RE = /\bcasts?\b|cylind|سیلندر|(^|[\s‌])کست(?=$|[\s‌ِ]|ها)/i;
+function isCastKey(key) {
+  return CAST_KEY_RE.test(String(key));
+}
+// نوارِ استراز شمارشِ سلول نیست. /leukocyt/ در عبارتِ شمارشِ WBC ردیفِ «Leukocyte Esterase» را هم
+// می‌گرفت و «+1» را «۱ گلبول در میدان» می‌خواند — و ردیفِ اول برنده بود (M164e).
+const PAD_ROW_RE = /esterase|استراز/i;
+
+// نوعِ سیلندر، به ترتیبِ اختصاصیتِ بالینی (data-model §3): هرچه جای مشکل در کلیه را دقیق‌تر بگوید، بالاتر.
+// «hyaline» عمداً آخر است: برگه‌ای که فقط «Casts» می‌نویسد معمولاً همین را منظور دارد.
+const CAST_TYPES = [
+  ["rbc", /rbc|red\s*(blood\s*)?cell|erythrocyt|گلبول\s*قرمز/i],
+  ["wbc", /wbc|white\s*(blood\s*)?cell|leukocyt|pus|گلبول\s*سفید/i],
+  ["tubular", /epithelial|tubular|\brte\b|اپی\s*تلیال|اپیتلیال|توبولار/i],
+  ["waxy_broad", /waxy|broad|مومی|پهن/i],
+  ["fatty", /fatty|\bfat\b|lipid|چرب/i],
+  ["granular", /granular|گرانول/i],
+  ["hyaline", /hyalin|هیالن|هیالین/i],
+];
+/** نوعِ سیلندرِ یک ردیف، اول از نام و بعد از مقدار («Casts: Hyaline, few»)؛ ناشناخته ⇒ null. */
+function castTypeOf(key, value) {
+  for (const src of [String(key), String(value ?? "")]) {
+    for (const [type, re] of CAST_TYPES) if (re.test(src)) return type;
+  }
+  return null;
+}
+/** همهٔ نوع‌هایی که یک متن نام می‌برد — «Hyaline 0-1, RBC cast 0» دو نوع است، نه یکی. */
+function castTypesIn(text) {
+  const s = String(text ?? "");
+  return new Set(CAST_TYPES.filter(([, re]) => re.test(s)).map(([t]) => t));
+}
+
+/**
+ * مقدارِ یک ردیفِ سیلندر: "absent" | "present" | "unknown" (بازبینی #۱، B1).
+ * 🔴 نسخهٔ اول فقط فهرستِ کوتاهی از منفی‌ها را می‌شناخت و هر متنِ بی‌عددِ دیگر را «حاضر» می‌گرفت ⇒
+ *    «RBC Casts: Absent» / «مشاهده نشد» / «Nil seen» ⇒ urine_cast_rbc «این هفته» روی برگهٔ طبیعی.
+ * N6: نتیجهٔ کیفی مجموعه‌ای بسته از واژه‌هاست؛ ردکردنِ منفی‌ها اول، فهرست را هرگز نمی‌بندد. پس «حاضر»
+ * فقط عددِ مثبت یا واژه‌ای از فهرستِ *حضور* است، و هرچه نه این باشد نه منفیِ شناخته، «نامعلوم» است و
+ * آداپتر آن را به «تفسیر نشدند» می‌فرستد — نه به یافته.
+ * نفی پیش از حضور سنجیده می‌شود: «Nil seen» و «not seen» و «ندارد» هر سه واژهٔ حضور را در خود دارند.
+ */
+const CAST_ABSENT_RE = /\b(neg(ative)?|nil+|none|absent|no|not\s*(seen|found|detected|observed))\b|-ve\b|^-+$|منفی|دیده\s*نشد|مشاهده\s*نشد|یافت\s*نشد|ندارد|وجود\s*ندارد/i;
+const CAST_PRESENT_RE = /\b(rare|few|occasional|many|moderate|numerous|present|seen|positive|plenty|full\s*field|loaded)\b|\+|نادر|اندک|کم|گاه|زیاد|فراوان|متوسط|انبوه|مثبت|دیده\s*شد|مشاهده\s*شد|دارد/i;
+function castValueState(value) {
+  const s = String(value ?? "").trim().replace(/[.,;:،؛]+$/, "").trim();
+  if (!s) return "unknown";
+  if (/^<|کمتر|less\s*than/i.test(s)) return "absent";   // «<1»، «کمتر از ۱» — زیرِ حدِ شمارش، مثلِ urineCellCount
+  if (CAST_ABSENT_RE.test(s)) return "absent";
+  const nums = (s.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
+  if (nums.length) return Math.max(...nums) > 0 ? "present" : "absent";   // «0-0» غایب، «0-1» حاضر (مرجع ۰)
+  return CAST_PRESENT_RE.test(s) ? "present" : "unknown";
+}
+/**
+ * سرنوشتِ یک ردیفِ سیلندر در آداپتر: "qual" یا "unmapped" (V6، بازبینی #۵ و #۷).
+ * - ردیفِ بی‌نوع که مقدارش چند نوع را نام می‌برد («Hyaline 0-1, RBC cast 0») ⇒ unmapped؛ شمارشِ هر نوع
+ *   از هم جدا نمی‌شود و بیشینهٔ کل به اختصاصی‌ترین نوع نسبت داده می‌شد.
+ * - مقدارِ نامعلوم ⇒ unmapped. منفی ⇒ qual، حتی بی‌نوع («Casts: Not seen» نبودِ همه است، مبهم نیست).
+ * - حاضر و بی‌نوع («Casts: few») ⇒ unmapped.
+ */
+function castRoute(name, value) {
+  const nameType = castTypeOf(name, "");
+  const valueTypes = castTypesIn(value);
+  if (!nameType && valueTypes.size > 1) return "unmapped";
+  const st = castValueState(value);
+  if (st === "unknown") return "unmapped";
+  if (st === "absent") return "qual";
+  return nameType || valueTypes.size === 1 ? "qual" : "unmapped";
+}
+
+/**
+ * وضعیتِ یک شمارشِ سلولیِ ادرار نسبت به حدِ بالای طبیعی: "absent" | "low" | "high" | "unknown".
+ * 🔴 بازبینی #۲: urineCellCount برای مقدارِ بی‌عدد null می‌دهد، و شاخه‌های تازه null را «ردیف روی برگه نیست»
+ *    می‌خواندند ⇒ «Blood +3 · RBC: Many» ⇒ «شمارشِ میکروسکوپی روی این برگه نیست» دربارهٔ ردیفی که چاپ شده بود،
+ *    و «LE +2 · WBC: Many» ⇒ «نشانهٔ عفونت نیست». «نیست» فقط وقتی گفته می‌شود که ردیف واقعاً نیست (N4).
+ * همان کنارگذاشتن‌های urineCellCount را دارد (سیلندر، نوارِ استراز).
+ */
+const CELL_HIGH_RE = /many|numerous|moderate|full|loaded|plenty|packed|tntc|فراوان|زیاد|انبوه|متوسط|(^|\s)پر(\s|$)/i;
+const CELL_LOW_RE = /^(neg|negative|nil|none|no|rare|few|occasional|منفی|نادر|کم|اندک)$|not\s*seen|دیده\s*نشد|مشاهده\s*نشد/i;
+function urineCellState(e, nameRe, upper) {
+  for (const [k, v] of Object.entries(e?.qual || {})) {
+    if (isCastKey(k) || PAD_ROW_RE.test(k) || !nameRe.test(k)) continue;
+    const s = String(v).trim().replace(/[.,;:،؛]+$/, "").trim();
+    if (/^<|کمتر|less\s*than/i.test(s)) return "low";
+    const nums = (s.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
+    if (nums.length) return Math.max(...nums) > upper ? "high" : "low";
+    if (CELL_LOW_RE.test(s)) return "low";
+    if (CELL_HIGH_RE.test(s)) return "high";
+    return "unknown";
+  }
+  return "absent";
+}
+/** همهٔ ردیف‌های سیلندرِ برگه — همان‌هایی که کمکی‌های زیر کنار می‌گذارند.
+ *  ⚠️ اصلِ چهارم: محافظی که داده را رد می‌کند باید بشمارد چه رد کرد. این فهرست همان شمارش است و
+ *  M165g شرط می‌کند هر ردیفش را castAxis مصرف کرده باشد — ردیفی که هم کنار گذاشته شود و هم خوانده نشود،
+ *  باید آزمون را قرمز کند، نه بی‌صدا گم شود. */
+function castRows(e) {
+  return Object.entries(e?.qual || {}).filter(([k]) => isCastKey(k));
+}
+
+// حدِ بالای طبیعیِ سیلندرِ هیالن — Henry فصل ۲۹ (۰–۲ در میدانِ کم‌بزرگ‌نمایی). ⚠️ در انتظارِ بازبین: P50.
+const HYALINE_CAST_UPPER_LPF = 2;
+const CAST_MANY_RE = /many|moderate|numerous|زیاد|فراوان|متوسط|\+{2,}/i;
+const CAST_LABEL = {
+  rbc: "rbc_cast", wbc: "wbc_cast", tubular: "tubular_cast", waxy_broad: "waxy_or_broad_cast",
+  fatty: "fatty_cast", granular: "granular_cast",
+};
+/** نامِ فارسیِ هر نوع — برای جملهٔ «سیلندرهای دیگرِ همین برگه» (B4). */
+const CAST_FA = {
+  rbc: "گلبولِ قرمز", wbc: "گلبولِ سفید", tubular: "سلول‌های اپی‌تلیالِ کلیه", waxy_broad: "مومی یا پهن",
+  fatty: "چربی", granular: "گرانولار",
+};
+/**
+ * محورِ سیلندر: یک برچسب برای کلِ برگه، یا null (data-model §3؛ شکلِ mineralAxis).
+ * دو *یافتهٔ* سیلندر روی یک گزارش ناممکن است، نه چون matchها با دقت نوشته شده‌اند، بلکه چون این تابع
+ * یک برچسب برمی‌گرداند. read = هر ردیفی که *قضاوت* شد — منفی و هیالنِ طبیعی هم.
+ * others = نوع‌های بیماری‌زای حاضرِ دیگر (هیالن نه): 🔴 بازبینیِ پزشکی B4 — «RBC Casts · Waxy Casts» فقط
+ *   یافتهٔ گلبولِ قرمز می‌داد و سیلندرِ مومی هیچ‌جا نبود؛ و چون «خوانده» شده بود به «تفسیر نشدند» هم نمی‌رفت
+ *   (N18). یافتهٔ برنده نامِ این‌ها را می‌برد (othersSentence).
+ */
+function castAxis(e) {
+  const read = [];
+  const present = new Map();   // نوع → بیشینهٔ شمارش؛ Infinity = حاضر با مقدارِ توصیفی
+  for (const [k, v] of castRows(e)) {
+    read.push(k);
+    if (castValueState(v) !== "present") continue;         // منفی = غایب (V5)؛ نامعلوم را آداپتر نگه نمی‌دارد
+    const type = castTypeOf(k, v);
+    if (!type) continue;                                    // بی‌نوعِ منفی («Casts: Not seen»)
+    const s = String(v ?? "");
+    const nums = (s.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
+    let n = nums.length ? Math.max(...nums) : Infinity;     // «۵-۸» ⇒ سقفِ بازه، مثلِ urineCellCount
+    // هیالنِ توصیفی: «few/rare» طبیعی است، «many/moderate» نه.
+    if (type === "hyaline" && !nums.length) n = CAST_MANY_RE.test(s) ? Infinity : 0;
+    present.set(type, Math.max(present.get(type) ?? 0, n));
+  }
+  const types = [...present.keys()];
+  for (const [type] of CAST_TYPES) {
+    if (!present.has(type)) continue;
+    if (type === "hyaline") {
+      return { label: present.get(type) > HYALINE_CAST_UPPER_LPF ? "hyaline_cast_raised" : "hyaline_cast_normal", read, types, others: [] };
+    }
+    const others = types.filter((t) => t !== type && t !== "hyaline");
+    return { label: CAST_LABEL[type], read, types, others };
+  }
+  return { label: null, read, types, others: [] };
+}
+/** جملهٔ «سیلندرهای دیگرِ همین برگه» — با یک پیشوندِ فاصله؛ اگر چیزی نیست، رشتهٔ خالی (B4). */
+function othersSentence(e) {
+  const o = castAxis(e).others.map((t) => CAST_FA[t]);
+  if (!o.length) return "";
+  const list = o.length === 1 ? `سیلندرِ ${o[0]}` : `سیلندرهای ${o.slice(0, -1).join("، ")} و ${o[o.length - 1]}`;
+  return ` در همین برگه ${list} هم گزارش شده است؛ پزشک همه را کنارِ هم می‌خواند.`;
+}
+
 // آیا یک تست ادراری (نامش با nameRe جور است) «مثبت/غیرطبیعی» است؟
 // negative/trace/منفی را رد می‌کند. +1 به بالا یا positive/مثبت را می‌گیرد.
 function urinePositive(e, nameRe, { traceCounts = false } = {}) {
   if (!e.qual) return false;
   return Object.entries(e.qual).some(([k, v]) => {
+    if (isCastKey(k)) return false;   // سیلندر نوار نیست (N25، M164c)
     if (!nameRe.test(k)) return false;
     const s = String(v).trim().toLowerCase();
     // منفی صریح
@@ -148,6 +310,8 @@ function urinePositive(e, nameRe, { traceCounts = false } = {}) {
 function urineCellCount(e, nameRe) {
   if (!e.qual) return null;
   for (const [k, v] of Object.entries(e.qual)) {
+    if (isCastKey(k)) continue;       // سیلندر سلولِ آزاد نیست (N25، M164)
+    if (PAD_ROW_RE.test(k)) continue; // نوارِ استراز شمارشِ سلول نیست (M164e)
     if (!nameRe.test(k)) continue;
     const s = String(v).trim();
     // «<5» یا «کمتر از ۵» → زیر آستانه، صفر برگردان
@@ -165,6 +329,7 @@ function urineCellCount(e, nameRe) {
 function urineGrade(e, nameRe) {
   if (!e.qual) return null;
   for (const [k, v] of Object.entries(e.qual)) {
+    if (isCastKey(k)) continue;       // سیلندر نوار نیست (N25)
     if (!nameRe.test(k)) continue;
     const s = String(v).trim().toLowerCase();
     if (/^(neg|negative|منفی|nil|none|no|clear|-)$/i.test(s)) return 0;
@@ -352,6 +517,8 @@ function val(e) {
  */
 // پیشنهادهایی که «نام خالص یک آزمایش»‌اند → کلید(های) موتور.
 // ⚠️ فقط تطبیق دقیق. عمداً هیچ تطبیق فازی/زیررشته‌ای نیست، چون بخش بزرگی از
+export { isCastKey, castTypeOf, castTypesIn, castValueState, castRoute, castRows, castAxis, othersSentence,
+  urineCellState, CAST_TYPES, HYALINE_CAST_UPPER_LPF };
 export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
          amylaseEmergencyOwns, biliEmergencyOwns, AMYLASE_EMERGENCY_UL, BILI_T_EMERGENCY_MGDL,
          anemiaCrisisOwns, actionUnlessAnemiaCrisis, ANEMIA_CRISIS_DEFER, HGB_CRISIS_GDL };

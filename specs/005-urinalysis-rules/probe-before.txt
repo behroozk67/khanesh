@@ -1,0 +1,5 @@
+D1 rbc cast misread    → hematuria/this_week
+D2 wbc cast misread    → uti_likely/this_week
+D2 other spelling      → (nothing)
+X1 blood argues        → hematuria/this_week
+X2 esterase argues     → (nothing)

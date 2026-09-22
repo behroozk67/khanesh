@@ -27,6 +27,10 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `395a5d7`, after the specs/005 review round (medical FAIL B1–B4 + code review #1–#8 — `M169`–`M169k`, 11 tests, all red before the fix; `M167d` changed on purpose) — 129 rules | 2026-09-22 | 558 | 539 | **0** | 19 todo |
+   | working tree on `395a5d7`, after specs/005 Stage A (urinalysis: cast misread, esterase-pad misread, dipstick/microscope cross-checks — `M164`–`M168c`, 22 tests, 19 red before + 3 freezes) — 129 rules | 2026-09-22 | 547 | 528 | **0** | 19 todo |
+   | `HEAD` at `395a5d7` (`git archive` + junction) with that `engine.test.js` dropped in (engine suite only) — red: exactly the 19 behavioural guards | 2026-09-22 | 508 | 470 | **19** | 19 todo |
+   | working tree on `395a5d7`, **before** specs/005 — 121 rules | 2026-09-22 | 525 | 506 | **0** | 19 todo |
    | working tree on `607b419`, after the Hb<7 hand-off + the neonatal wording decision (`M162`–`M162c`, `M163`; `M162` and `M163` red before, `M162b`/`M162c` freezes; `M134` and `M138` changed on purpose) — 121 rules | 2026-09-20 | 525 | 506 | **0** | 19 todo |
    | working tree on `a34e4d2`, after the decimal-comma fix (`toNum` → `commaToDot`; `M161`–`M161c`; `M161`, `M161c` and `M161b`'s `0,500` case red before, `M161b`'s thousands cases green before as the guard) — 121 rules | 2026-09-20 | 521 | 502 | **0** | 19 todo |
    | working tree on `2d32dd3`, after P49-الف/ج (user-approved): `wilson_evaluation`, antibody sentence in `overt_b12_deficiency`, `unexplainedNoRef` — `M151`–`M151c`, `M153` un-todo’d; `M151d`, `M151e`, `M153b`, `T22` new (all red before; `T22` also red with only the server filter undone) — 121 rules | 2026-09-19 | 518 | 499 | **0** | 19 todo |
@@ -309,6 +313,8 @@ khanesh-project/
 │   │   │                        #   نه از محدودهٔ مرجعِ برگه تعیین شد (specs/003، P48، N3)
 │   │   ├── patterns_trace_elements.js  # P49-الف: wilson_evaluation — سرولوپلاسمین از e.ungraded،
 │   │   │                        #   فقط با واحدِ چاپ‌شده؛ explains ⇒ بیرون از خطِ «تفسیر نشدند»
+│   │   ├── patterns_urine_casts.js  # فصل ۲۹ هنری، مرحلهٔ الف (P50) — ۷ قاعدهٔ سیلندر، یک طبقه‌بند
+│   │   │                        #   (castAxis در utils)؛ شکلِ mineral_bone: یک برگه، یک یافتهٔ سیلندر
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
@@ -396,13 +402,15 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **fifteen** `patterns_<system>.js` files
+`patterns.js` no longer holds the rules. It imports **sixteen** `patterns_<system>.js` files
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
-2026-09-19) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **121 rules, measured
-2026-09-19** (113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
+2026-09-22) and
+concatenates their `RULES_*` exports into the exported `RULES` array — **129 rules, measured
+2026-09-22** (113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
 `unit_unknown_values` in `patterns_unit_unknown.js` from specs/003, plus `folate_deficiency` in
-`patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004) with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
+`patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004, plus
+the seven `urine_cast_*` rules in `patterns_urine_casts.js` and `urine_esterase_without_cells` in
+`patterns_nephrology.js` from specs/005) with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
 `liver_injury_pattern` was deleted, then 113 once `overt_hypothyroidism` and
 `overt_thyrotoxicosis` went — see N20 with `P43` and `P45`); it still owns `runPatterns()`,
 `SUGGEST_TESTS`, and the suppression/dedup logic. So:
@@ -1825,6 +1833,43 @@ not by a test.
   patient reached `buildNormalResult()` (`M116`). **Every row routed into a side channel needs a
   reader, or the channel is a silent drop** (`M116b`: `/hpf` leukocytes and Grade a–d motility are
   now named without a verdict).
+- ⚠️ **Recurred 2026-09-22 inside the urine page itself (specs/005, Henry ch.29 Stage A).** This entry
+  already named the mechanism ("the urine rules look in `qual` with `/rbc/` and `/wbc/` on **any**
+  key"); this time the colliding rows were urine rows too. Measured on `395a5d7`:
+  - `RBC Casts 5-8 /lpf` fired `hematuria`: «در آزمایش ادرار شما خون (گلبول قرمز) دیده شده است». A
+    red-cell **cast** forms inside the kidney, so the bleeding is renal, not bladder. The patient got the
+    milder reading. That is an under-read, not silence.
+  - `Leukocyte Casts 8-10` fired `uti_likely` on a sheet with a normal WBC of 2-3, while the same row
+    spelled `WBC Casts` fired nothing. One row gave two different reports and neither was right (the N2
+    two-printed-names class).
+  - Found while freezing the fixtures: the WBC **count** regex contains `leukocyt`, so it read the
+    leukocyte-**esterase pad** row, took its `+1` as "1 cell/hpf", and whichever row came first won.
+    Iranian sheets print the dipstick before microscopy, so in the usual layout `LE +1 · WBC 8-10`
+    fired nothing.
+  **Where the fix went:** it is one exclusion inside `urineCellCount`/`urinePositive`/`urineGrade`
+  (`isCastKey`, plus a pad-row skip in `urineCellCount` only), not eight edits at eight call sites. A
+  helper-level fix also covers the next rule someone writes with `/rbc/`. That exclusion is a guard
+  that *skips* rows, which is exactly what N15 warns about, so it comes with a count: `castRows(e)`
+  lists what was skipped and `M165g` fails if any skipped row goes unread by `castAxis`.
+  **Rule, sharpened:** within one page kind, "is this row about loose cells, a cast, or a dipstick pad?"
+  is a separate identity question from the page-kind one above. Before a regex search over `qual`,
+  list which *other* row types contain its fragment (`rbc` is in «RBC Casts», `leukocyt` is in
+  «Leukocyte Esterase»). Guards `M164`–`M164e`, `M165`–`M165g`; register `P50`.
+  ⚠️ **The fix shipped two regressions of its own, and a medical review caught them (FAIL, B1).** Both
+  are classes already in this file:
+  - **N6.** The new cast reader treated any value without digits as "present" unless it was on a short
+    list of negatives. So `RBC Casts: Absent`, «مشاهده نشد» and `Nil seen` (the usual way to write "not
+    seen") produced «سیلندرِ گلبولِ قرمز … منشأ خون درونِ کلیه … این هفته» on a normal sheet. My
+    freeze guard for negatives (`M165d`) passed because it only tried the six spellings in my own list.
+    That is N3's fourth-round rule again: test the input as real sheets write it, not as your fixture
+    happens to. The fix is a closed *presence* list; anything unrecognised goes to «تفسیر نشدند»
+    (`M169`, 18 spellings).
+  - **N4.** "Not on the sheet" was derived from `urineCellCount() == null`, which also returns `null`
+    for a printed but non-numeric value. So «RBC: Many» was reported as «روی این برگه نیست».
+    `urineCellState` now separates absent / low / high / unknown (`M169b`, `M169c`).
+  The same review also found a new N21 pair: a red-cell cast finding said «نه از مثانه», and next to it
+  the haematuria finding said «عفونت و سنگ … قاعدگی». Haematuria now hands off to the cast finding
+  (`M169e`, `M169i`).
 
 ---
 

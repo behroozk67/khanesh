@@ -1,0 +1,5 @@
+D1 rbc cast misread    → urine_cast_rbc/this_week
+D2 wbc cast misread    → urine_cast_wbc/this_week
+D2 other spelling      → urine_cast_wbc/this_week
+X1 blood argues        → hematuria/this_week
+X2 esterase argues     → urine_esterase_without_cells/routine

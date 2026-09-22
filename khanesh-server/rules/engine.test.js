@@ -7693,3 +7693,422 @@ test("M163: نوزاد، بیلی‌روبینِ اورژانسی — یک دس�
   assert.match(f.must_say, /به ساعت بستگی/);
   assert.match(f.action, /همین حالا به اورژانس/);
 });
+
+// ═══════════ specs/005 مرحلهٔ الف — سیلندرِ ادرار و ناهمخوانیِ نوار با میکروسکوپ (P50، N25) ═══════════
+// ⚠️ واردکردنِ فضای‌نامی، نه نام‌دار: تابعی که هنوز نوشته نشده (castAxis) با importِ نام‌دار کلِ این فایل
+//    را قرمز می‌کرد و «قرمز پیش از اصلاح» بی‌معنا می‌شد. با PU.x فقط همان تستی که صدایش می‌زند می‌شکند.
+import * as PU from "./patterns_utils.js";
+
+const UA_RBC_RE = /rbc|گلبول\s*قرمز/i;
+const UA_WBC_RE = /wbc|puscell|پوسسل|leukocyt/i;
+const UA_LE_RE = /leukocyte|استراز|esterase/i;
+
+// برگهٔ ادرارِ واقعی. ⚠️ پنلِ دوسطری کافی نیست: «Blood» تنها روی صفحه‌ای که آداپتر «ادرارِ خالص»
+// نشناسد به unmapped می‌رود (research R5) و تست به دلیلِ غلط سبز می‌شد.
+const uaRows = (extra, { nitrite = "Negative", bacteria = "Few" } = {}) => [
+  ["Color", "Yellow"], ["Specific Gravity", "1.020"], ["pH", "6.0"],
+  ["Nitrite", nitrite], ["Urobilinogen", "Normal"], ["Bacteria", bacteria], ...extra,
+];
+const uaRun = (rows, patient = { age: 40, sex: "M" }) =>
+  runPatterns(runEngine({ patient, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) }));
+const uaIds = (p) => p.findings.map((f) => f.pattern);
+// عکسِ کاملِ خروجی — همهٔ فیلدهای متنی، نه فقط شناسه: جملهٔ ناهمخوانی *داخلِ* قاعدهٔ موجود می‌نشیند،
+// پس «همان قاعده‌ها فعال شدند» چیزی را ثابت نمی‌کند.
+const uaSnap = (rows) => {
+  const p = uaRun(rows);
+  const s = { f: p.findings.map((x) => [x.pattern, x.urgency, x.headline, x.must_say, x.action, x.suggest, x.warnings]), u: p.overall_urgency };
+  return crypto.createHash("sha256").update(JSON.stringify(s)).digest("hex").slice(0, 16);
+};
+
+test("M164: سیلندرِ گلبولِ قرمز دیگر «خون در ادرار» خوانده نمی‌شود (N25)", () => {
+  // 🔴 روی 395a5d7: «RBC Casts 5-8 /lpf» در qual با کلیدِ «Urine RBC Casts» می‌نشست و
+  //    urineCellCount(/rbc/) آن را شمارشِ گلبولِ قرمزِ آزاد (۸) می‌خواند ⇒ hematuria:
+  //    «در آزمایش ادرار شما خون (گلبول قرمز) دیده شده است».
+  //    سیلندرِ گلبولِ قرمز یعنی خون از *درونِ خودِ کلیه* می‌آید — یافته‌ای جدی‌تر با علت و قدمِ بعدیِ دیگر.
+  //    بیمار نسخهٔ خفیف‌ترِ «مثانه‌ای» را می‌خواند: کم‌خوانی، نه سکوت.
+  const p = uaRun([["Nitrite", "Negative"], ["WBC", "2-3", "/hpf"], ["RBC Casts", "5-8", "/lpf"]]);
+  assert.ok(!uaIds(p).includes("hematuria"), `سیلندر هنوز خونِ آزاد خوانده می‌شود: ${uaIds(p)}`);
+});
+
+test("M164b: سیلندرِ گلبولِ سفید دیگر «عفونتِ ادراری» خوانده نمی‌شود (N25)", () => {
+  // 🔴 روی 395a5d7: «Leukocyte Casts 8-10» هم استرازِ نوار را مثبت می‌کرد (/leukocyte/) و هم
+  //    شمارشِ WBC را ۱۰ ⇒ دو نشانه ⇒ uti_likely در «این هفته» — روی برگه‌ای که WBCِ واقعی‌اش ۲-۳ طبیعی است.
+  //    سیلندرِ گلبولِ سفید تنها یافته‌ای است که عفونتِ *کلیه* را از مثانه جدا می‌کند.
+  const p = uaRun(uaRows([["Leukocyte Casts", "8-10", "/lpf"], ["WBC", "2-3", "/hpf"]]));
+  assert.ok(!uaIds(p).includes("uti_likely"), `سیلندر هنوز عفونتِ ادراری خوانده می‌شود: ${uaIds(p)}`);
+});
+
+test("M164c: هیچ کمکیِ شمارشِ سلول یا نوار، ردیفِ سیلندر را نمی‌خواند — برای همهٔ املاها", () => {
+  // اصلاح در کمکیِ مشترک است، نه در هشت محلِ فراخوانی (research R2) — پس این آزمون خودِ کمکی را می‌سنجد.
+  for (const name of ["Urine RBC Casts", "Urine WBC Casts", "Urine Leukocyte Casts",
+                      "Urine Granular Casts", "Urine Epithelial Casts", "سیلندر گلبول قرمز"]) {
+    const e = { qual: { [name]: "8-10" }, graded: [] };
+    assert.equal(PU.urineCellCount(e, UA_RBC_RE), null, `${name} ⇒ شمارشِ RBC`);
+    assert.equal(PU.urineCellCount(e, UA_WBC_RE), null, `${name} ⇒ شمارشِ WBC`);
+    assert.equal(PU.urinePositive(e, UA_LE_RE), false, `${name} ⇒ نوارِ استراز`);
+  }
+});
+
+test("M164d: برگه‌های بی‌سیلندر بایت‌به‌بایت همان‌اند (freeze، FR-004b)", () => {
+  // هش‌ها روی درختِ کاریِ 395a5d7 پیش از هر تغییر گرفته شدند (specs/005.../frozen-before.json).
+  // این آزمون باید پیش از اصلاح هم سبز باشد — قرمز بودنش یعنی پنل غلط است، نه موتور.
+  const PANELS = {
+    F1: [uaRows([["Blood", "+3"], ["RBC", "20-30", "/hpf"], ["Protein", "+2"]]), "3e7cffff98ebb543"],
+    F2: [uaRows([["Leukocyte Esterase", "+2"], ["WBC", "15-20", "/hpf"]], { nitrite: "Positive", bacteria: "Many" }), "0c01081d2bd2a9c9"],
+    F3: [[["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["WBC", "7.2"], ["PLT", "250"], ["Ferritin", "6", "ng/mL"]], "4813c62a8307e26b"],
+    F4: [[["Hb", "13.5", "g/dL"], ["MCV", "88", "fL"], ["PLT", "250"], ["Creatinine", "1.0", "mg/dL"],
+          ["FBS", "95", "mg/dL"], ...uaRows([["RBC", "1-2", "/hpf"], ["WBC", "2-3", "/hpf"]])], "b2d1f1b03a6f0341"],
+    F7: [uaRows([["WBC", "1-2", "/hpf"]], { bacteria: "Many" }), "fa883df5ac4f000c"],
+  };
+  for (const [k, [rows, h]] of Object.entries(PANELS)) assert.equal(uaSnap(rows), h, `پنلِ ${k} عوض شد`);
+});
+
+test("M164e: ردیفِ نوارِ استراز شمارشِ گلبولِ سفید نیست (N25، ترتیبِ ردیف‌ها)", () => {
+  // 🔴 روی 395a5d7: عبارتِ شمارشِ WBC شاملِ /leukocyt/ است، پس ردیفِ «Leukocyte Esterase» را هم
+  //    می‌گرفت و درجهٔ «+1» را «۱ گلبول در میدان» می‌خواند — و هر ردیفی که *اول* بیاید برنده بود.
+  //    برگه‌های ایرانی بخشِ نوار را پیش از میکروسکوپی چاپ می‌کنند ⇒ روی چیدمانِ معمول، WBCِ واقعی
+  //    هرگز خوانده نمی‌شد و «LE +1 · WBC 8-10» هیچ یافته‌ای نمی‌داد.
+  assert.equal(PU.urineCellCount({ qual: { "Leukocyte Esterase": "+1", "Urine WBC": "8-10" } }, UA_WBC_RE), 10);
+  assert.equal(PU.urineCellCount({ qual: { "Leukocyte Esterase": "+2" } }, UA_WBC_RE), null,
+    "بی‌ردیفِ WBC، شمارش «نامعلوم» است نه ۲ — وگرنه شاخهٔ «انجام نشده» به «مخالف است» می‌افتد (V10)");
+  const p = uaRun(uaRows([["Leukocyte Esterase", "+1"], ["WBC", "8-10", "/hpf"]]));
+  assert.ok(uaIds(p).includes("uti_likely"), `دو نشانهٔ عفونت، ولی: ${uaIds(p)}`);
+});
+
+// ─── US1: سیلندرها خوانده می‌شوند (specs/005، data-model §3) ───
+const uaCasts = (p) => p.findings.filter((f) => /^urine_cast_/.test(f.pattern));
+const uaEngine = (rows, patient = { age: 40, sex: "M" }) =>
+  runEngine({ patient, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
+
+test("M165: سیلندرِ گلبولِ قرمز یافتهٔ خودش را دارد — خون از درونِ کلیه، نه «خون در ادرار»", () => {
+  // 🔴 روی 395a5d7 همین پنل hematuria می‌داد (M164)؛ پس از پایه، هیچ. حالا باید یافتهٔ درست بیاید.
+  const p = uaRun([["Nitrite", "Negative"], ["WBC", "2-3", "/hpf"], ["RBC Casts", "5-8", "/lpf"]]);
+  const f = findPat(p, "urine_cast_rbc");
+  assert.ok(f, `یافتهٔ سیلندرِ گلبولِ قرمز نیامد: ${uaIds(p)}`);
+  assert.equal(f.urgency, "this_week");
+  assert.match(f.must_say, /سیلندر/);
+  assert.match(f.must_say, /درونِ خودِ کلیه|از خودِ کلیه/, "باید بگوید منشأ خودِ کلیه است");
+  assert.doesNotMatch(f.headline + f.must_say, /خون \(گلبول قرمز\) دیده شده/);
+});
+
+test("M165b: دو املای یک ردیف، یک گزارش — «Leukocyte Casts» و «WBC Casts» (N2)", () => {
+  // 🔴 روی 395a5d7: املای اول «عفونتِ ادراری» می‌داد، دومی هیچ — یک ردیف، دو گزارشِ متفاوت، و هیچ‌کدام درست.
+  const a = uaRun(uaRows([["Leukocyte Casts", "8-10", "/lpf"], ["WBC", "2-3", "/hpf"]]));
+  const b = uaRun(uaRows([["WBC Casts", "8-10", "/lpf"], ["WBC", "2-3", "/hpf"]]));
+  for (const p of [a, b]) {
+    assert.ok(findPat(p, "urine_cast_wbc"), `یافتهٔ سیلندرِ گلبولِ سفید نیامد: ${uaIds(p)}`);
+    assert.ok(!uaIds(p).includes("uti_likely"), `هنوز عفونتِ ادراری: ${uaIds(p)}`);
+  }
+  assert.deepEqual(findPat(a, "urine_cast_wbc"), findPat(b, "urine_cast_wbc"), "دو املا دو متن دادند");
+});
+
+test("M165c: یک برگه، یک یافتهٔ سیلندر — اختصاصی‌ترین نوع برنده است (V7)", () => {
+  const p = uaRun(uaRows([["RBC Casts", "3-5", "/lpf"], ["Granular Casts", "2-3", "/lpf"], ["Hyaline Casts", "4-6", "/lpf"]]));
+  const c = uaCasts(p);
+  assert.equal(c.length, 1, `باید دقیقاً یک یافتهٔ سیلندر باشد: ${c.map((f) => f.pattern)}`);
+  assert.equal(c[0].pattern, "urine_cast_rbc");
+});
+
+test("M165d: سیلندرِ منفی حاضر نیست — هیچ یافته‌ای (freeze، V5)", () => {
+  // پیش از اصلاح هم سبز بود (۲۰۲۶-۰۹-۲۲، هر شش مقدار): کارش این است که قاعده‌های تازه این را خراب نکنند.
+  for (const v of ["Negative", "none", "nil", "0", "-", "منفی"]) {
+    const p = uaRun(uaRows([["RBC Casts", v, "/lpf"]]));
+    assert.equal(uaCasts(p).length, 0, `«${v}»: ${uaIds(p)}`);
+    assert.ok(!uaIds(p).includes("hematuria"), `«${v}»: ${uaIds(p)}`);
+  }
+});
+
+test("M165e: سیلندرِ هیالن — ۱-۲ طبیعی و بی‌یافته، ۵-۸ یافتهٔ «نوبتِ عادی» (P50)", () => {
+  // هیالنِ طبیعی عمداً یافته نمی‌سازد: هر یافته برگه را از پاسخِ آمادهٔ «طبیعی» (buildNormalResult)
+  // بیرون می‌برد و به مسیرِ پولیِ مدل می‌فرستد — روی شایع‌ترین برگهٔ ادرارِ طبیعی (data-model §3).
+  assert.equal(uaCasts(uaRun(uaRows([["Hyaline Casts", "1-2", "/lpf"]]))).length, 0);
+  const f = findPat(uaRun(uaRows([["Hyaline Casts", "5-8", "/lpf"]])), "urine_cast_hyaline");
+  assert.ok(f, "هیالنِ ۵-۸ یافته نداد");
+  assert.equal(f.urgency, "routine");
+});
+
+test("M165f: سیلندرِ بی‌واحد خوانده می‌شود؛ بی‌نوع صادقانه «تفسیر نشد» می‌ماند (R4، V6)", () => {
+  // 🔴 روی 395a5d7: «Casts: Waxy, few» بی واحدِ /lpf به unmapped می‌رفت و هیچ قاعده‌ای آن را نمی‌دید.
+  const p = uaRun(uaRows([["Casts", "Waxy, few"]]));
+  assert.ok(findPat(p, "urine_cast_waxy_broad"), `سیلندرِ مومیِ بی‌واحد خوانده نشد: ${uaIds(p)}`);
+  const e = uaEngine(uaRows([["Casts", "few"]]));
+  assert.ok(e.unmapped.includes("Casts"), `سیلندرِ بی‌نوع باید unmapped باشد: ${JSON.stringify(e.unmapped)}`);
+  assert.equal(uaCasts(runPatterns(e)).length, 0, "سیلندرِ بی‌نوع نباید به نزدیک‌ترین نوع نگاشت شود");
+});
+
+test("M165g: هر ردیفِ سیلندری که از شمارشِ سلول کنار رفت، واقعاً خوانده شد (V3، اصلِ چهارم)", () => {
+  // کنار گذاشتنِ ردیف در urineCellCount همان «محافظِ بی‌صدا»یی است که N15 از آن هشدار می‌دهد.
+  // این آزمون شمارش می‌کند: هر کلیدِ castRows باید در castAxis(e).read باشد — وگرنه ردیف گم شده.
+  const panels = [
+    [["Nitrite", "Negative"], ["WBC", "2-3", "/hpf"], ["RBC Casts", "5-8", "/lpf"]],
+    uaRows([["Leukocyte Casts", "8-10", "/lpf"]]), uaRows([["WBC Casts", "8-10", "/lpf"]]),
+    uaRows([["RBC Casts", "3-5", "/lpf"], ["Granular Casts", "2-3", "/lpf"], ["Hyaline Casts", "4-6", "/lpf"]]),
+    uaRows([["Hyaline Casts", "1-2", "/lpf"]]), uaRows([["RBC Casts", "Negative", "/lpf"]]),
+    uaRows([["Casts", "Waxy, few"]]), uaRows([["Epithelial Casts", "2-3", "/lpf"]]),
+    uaRows([["Fatty Casts", "1-2", "/lpf"]]), uaRows([["سیلندر گلبول قرمز", "2-3", "/lpf"]]),
+  ];
+  for (const rows of panels) {
+    const e = uaEngine(rows);
+    const read = new Set(PU.castAxis(e).read);
+    for (const [k] of PU.castRows(e)) assert.ok(read.has(k), `«${k}» کنار رفت و خوانده نشد`);
+    assert.ok(PU.castRows(e).length > 0, `پنل هیچ ردیفِ سیلندری به qual نرساند: ${JSON.stringify(rows)}`);
+  }
+});
+
+test("M166: واگذاری به گلومرولونفریت دوطرفه است — دقیقاً یک یافته از سیلندر می‌گوید (V13–V14)", () => {
+  // (الف) فقط ادرار: GN به کراتینین یا Hb نیاز دارد، پس نمی‌تواند فعال شود — یافتهٔ مستقل باید بیاید.
+  //      این مسیرِ *معمول* است (research R6)، نه جایگزینِ اضطراری.
+  const urine = [["RBC Casts", "5-8", "/lpf"], ["RBC", "20-30", "/hpf"], ["Protein", "+2"]];
+  const a = uaRun(uaRows(urine));
+  assert.ok(findPat(a, "urine_cast_rbc"), `برگهٔ فقط‌ادرار: ${uaIds(a)}`);
+  assert.ok(!uaIds(a).includes("glomerulonephritis_pattern"));
+  // (ب) با کراتینینِ بالا GN فعال است و مالکِ زمان‌بندی: جملهٔ سیلندر در متنِ آن، یافتهٔ مستقل نه.
+  const b = uaRun([["Creatinine", "2.4", "mg/dL"], ...uaRows(urine)]);
+  const gn = findPat(b, "glomerulonephritis_pattern");
+  assert.ok(gn, `GN فعال نشد: ${uaIds(b)}`);
+  assert.ok(!uaIds(b).includes("urine_cast_rbc"), "دو یافته دربارهٔ یک سیلندر");
+  assert.match(gn.must_say, /سیلندر/);
+  for (const p of [a, b]) {
+    const n = p.findings.filter((f) => /سیلندر/.test(f.headline + f.must_say)).length;
+    assert.equal(n, 1, `باید دقیقاً یک یافته از سیلندر بگوید، نه ${n}: ${uaIds(p)}`);
+  }
+});
+
+test("M166b: جملهٔ سیلندر GN را جز همان جمله دست نمی‌زند؛ پیشنهادِ «بررسیِ کست» فقط وقتی سیلندر سنجیده نشده (V15، N8)", () => {
+  const urine = [["RBC", "20-30", "/hpf"], ["Protein", "+2"]];
+  const without = findPat(uaRun([["Creatinine", "2.4", "mg/dL"], ...uaRows(urine)]), "glomerulonephritis_pattern");
+  const withCast = findPat(uaRun([["Creatinine", "2.4", "mg/dL"], ...uaRows([["RBC Casts", "5-8", "/lpf"], ...urine])]), "glomerulonephritis_pattern");
+  assert.ok(without && withCast);
+  for (const k of ["urgency", "headline", "action"]) assert.equal(withCast[k], without[k], `${k} عوض شد`);
+  assert.ok(withCast.must_say.startsWith(without.must_say), "متنِ قبلیِ GN حذف یا دست‌کاری شد");
+  // 🔴 روی 395a5d7: وقتی سیلندر روی همان برگه بود، باز «آزمایش کامل ادرار با بررسی کست» درخواست می‌شد.
+  assert.ok(!withCast.suggest.includes("آزمایش کامل ادرار با بررسی کست"), "آزمایشی که روی برگه هست دوباره خواسته شد");
+  assert.ok(without.suggest.includes("آزمایش کامل ادرار با بررسی کست"), "بی‌سیلندر، این پیشنهاد باید بماند");
+});
+
+test("M166c: فوریت و جملهٔ اقدامِ هر یافتهٔ سیلندر با هم می‌خوانند — و هر هفت قاعده رسیده‌اند (N20، M70)", () => {
+  const PANELS = [
+    uaRows([["RBC Casts", "5-8", "/lpf"]]), uaRows([["WBC Casts", "3-5", "/lpf"]]),
+    uaRows([["Epithelial Casts", "2-3", "/lpf"]]), uaRows([["Waxy Casts", "1-2", "/lpf"]]),
+    uaRows([["Fatty Casts", "1-2", "/lpf"]]), uaRows([["Granular Casts", "2-3", "/lpf"]]),
+    uaRows([["Hyaline Casts", "5-8", "/lpf"]]),
+  ];
+  const seen = new Set();
+  for (const rows of PANELS) for (const f of uaCasts(uaRun(rows))) {
+    seen.add(f.pattern);
+    if (f.urgency === "routine") assert.doesNotMatch(f.action, /این هفته|همین حالا/, `${f.pattern}: ${f.action}`);
+    if (f.urgency === "this_week") assert.match(f.action, /این هفته/, `${f.pattern}: ${f.action}`);
+    assert.notEqual(f.urgency, "emergency", f.pattern);
+  }
+  // بی این شرط، آزمون می‌توانست بی هیچ یافته‌ای سبز شود (N15).
+  const ALL = ["urine_cast_rbc", "urine_cast_wbc", "urine_cast_tubular", "urine_cast_waxy_broad",
+    "urine_cast_fatty", "urine_cast_granular", "urine_cast_hyaline"];
+  assert.deepEqual([...seen].sort(), [...ALL].sort(), "همهٔ قاعده‌های سیلندر فعال نشدند");
+});
+
+// ─── US2: نوار و میکروسکوپ که با هم نمی‌خوانند (specs/005، data-model §4) ───
+// هر جفت سه حالت دارد و «انجام نشده» هیچ‌وقت یکی از دو حالتِ دیگر خوانده نمی‌شود (FR-011، اصلِ دوم).
+const uaEsterase = (p) => p.findings.filter((f) => /استراز/.test(f.headline + f.must_say));
+
+test("M167: نوارِ خون مثبت، میکروسکوپ بی‌گلبول — «گلبول دیده شد» گفته نمی‌شود (V9)", () => {
+  // 🔴 روی 395a5d7: «Blood +2 · RBC 0-2» ⇒ «در آزمایش ادرار شما خون (گلبول قرمز) دیده شده است» —
+  //    دربارهٔ برگه‌ای که میکروسکوپش گلبولِ قرمزِ قابل‌توجهی ندید. نوار به رنگدانه واکنش می‌دهد، نه به سلول.
+  const f = findPat(uaRun(uaRows([["Blood", "+2"], ["RBC", "0-2", "/hpf"]])), "hematuria");
+  assert.ok(f, "قاعدهٔ میزبان فعال نشد");
+  assert.equal(f.urgency, "this_week", "ناهمخوانی جمله اضافه می‌کند، فوریت را پایین نمی‌آورد (V12)");
+  assert.doesNotMatch(f.headline + f.must_say, /خون \(گلبول قرمز\) دیده شده/);
+  assert.match(f.must_say, /هموگلوبینِ آزاد|هموگلوبین آزاد/);
+  assert.match(f.must_say, /میوگلوبین|رنگدانهٔ عضله/);
+});
+
+test("M167b: نوارِ خون مثبت، شمارشِ میکروسکوپی روی برگه نیست — «انجام نشده»، نه حکم (V10)", () => {
+  // 🔴 روی 395a5d7: همان «گلبول دیده شده» — ادعایی که فقط میکروسکوپ می‌تواند بکند و روی برگه نبود.
+  const f = findPat(uaRun(uaRows([["Blood", "+2"]])), "hematuria");
+  assert.ok(f);
+  assert.doesNotMatch(f.headline + f.must_say, /خون \(گلبول قرمز\) دیده شده/);
+  assert.match(f.must_say, /میکروسکوپ/);
+  assert.match(f.must_say, /روی این برگه نیست/);
+});
+
+test("M167c: نوار و میکروسکوپ هم‌نظرند — یافتهٔ خون بایت‌به‌بایت همان است (freeze، V8)", () => {
+  // هش روی درختِ کاریِ 395a5d7 پیش از هر تغییر گرفته شد (F5 در frozen-before.json).
+  assert.equal(uaSnap(uaRows([["Blood", "+2"], ["RBC", "20-30", "/hpf"]])), "79c3b1c3edcc6952");
+});
+
+test("M167d: سیلندرِ گلبولِ قرمز جای شمارشِ گلبولِ آزاد را نمی‌گیرد — و یافتهٔ خون به سیلندر واگذار می‌کند (V11، B2)", () => {
+  // پیش از اصلاحِ پایه، «RBC Casts 5-8» جفتِ خون را در حالتِ «هم‌نظر» می‌گذاشت («خون (گلبول قرمز) دیده شده»).
+  // ⚠️ عمداً تغییر کرد (بازبینیِ پزشکی B2): این آزمون قبلاً می‌خواست hematuria با شاخهٔ «انجام نشده» بیاید.
+  //    ولی سیلندرِ گلبولِ قرمز خودش نوارِ خون را توضیح می‌دهد؛ یافتهٔ دوم دربارهٔ همان نوار یا «قاعدگی/مثانه»
+  //    می‌گفت (کنارِ «نه از مثانه») یا «شاید رنگدانه» (کنارِ «گلبول در سیلندر»). حالا یک مالک: urine_cast_rbc.
+  const p = uaRun(uaRows([["Blood", "+2"], ["RBC Casts", "5-8", "/lpf"]]));
+  assert.ok(findPat(p, "urine_cast_rbc"), `${uaIds(p)}`);
+  assert.ok(!uaIds(p).includes("hematuria"), `${uaIds(p)}`);
+  assert.equal(p.findings.filter((f) => /خون (گلبول قرمز) دیده شده/.test(f.headline)).length, 0, "سیلندر به حالتِ «هم‌نظر» افتاد");
+});
+
+test("M168: استراز مثبت، میکروسکوپ بی‌گلبولِ سفید — ناهمخوانی گفته می‌شود، نه عفونت (V9)", () => {
+  // 🔴 روی 395a5d7: این برگه هیچ یافته‌ای نمی‌داد — uti_pattern دو نشانه می‌خواهد و اینجا یکی است، و
+  //    هیچ قاعده‌ای استراز را به‌تنهایی نمی‌خواند. میزبانی برای تا‌کردنِ جمله وجود نداشت (data-model §4).
+  const p = uaRun(uaRows([["Leukocyte Esterase", "+1"], ["WBC", "0-1", "/hpf"]]));
+  const f = findPat(p, "urine_esterase_without_cells");
+  assert.ok(f, `یافتهٔ ناهمخوانیِ استراز نیامد: ${uaIds(p)}`);
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /نمونه/, "علتِ نمونه‌برداری باید نام برده شود");
+  assert.match(f.must_say, /بدونِ عفونتِ باکتریایی/, "علتِ غیرباکتریایی باید نام برده شود");
+  assert.match(f.must_say, /نشانهٔ عفونتِ ادراری نیست/);
+  assert.ok(!uaIds(p).includes("uti_likely"));
+});
+
+test("M168b: استراز مثبت، شمارشِ گلبولِ سفید روی برگه نیست — «انجام نشده» (V10)", () => {
+  // پیش از M164e، عبارتِ شمارشِ WBC خودِ ردیفِ استراز را «۲ گلبول» می‌خواند ⇒ این حالت به «مخالف» می‌افتاد.
+  const f = findPat(uaRun(uaRows([["Leukocyte Esterase", "+2"]])), "urine_esterase_without_cells");
+  assert.ok(f);
+  assert.match(f.must_say, /روی این برگه نیست/);
+  assert.doesNotMatch(f.must_say, /دیده نشده/, "شمارشی که نیست «دیده نشده» خوانده شد");
+});
+
+test("M168c: واگذاریِ استراز دوطرفه است — ناهمخوانی نه گم می‌شود نه دوبار گفته می‌شود", () => {
+  // (الف) عفونتِ معمول: uti_pattern مالک است و قاعدهٔ تازه کنار می‌رود. متنِ uti نامِ استراز را نمی‌برد
+  //       و نباید عوض شود (freeze F2)، پس اینجا شرط «حداکثر یک» است.
+  const a = uaRun(uaRows([["Leukocyte Esterase", "+2"], ["WBC", "15-20", "/hpf"]], { nitrite: "Positive", bacteria: "Many" }));
+  assert.ok(uaIds(a).includes("uti_likely"));
+  assert.ok(!uaIds(a).includes("urine_esterase_without_cells"));
+  assert.ok(uaEsterase(a).length <= 1, `دوبار: ${uaIds(a)}`);
+  // (ب) فقط ناهمخوانی: قاعدهٔ تازه تنها صاحب است.
+  const b = uaRun(uaRows([["Leukocyte Esterase", "+1"], ["WBC", "0-1", "/hpf"]]));
+  assert.equal(uaEsterase(b).length, 1, `${uaIds(b)}`);
+  // (ج) باکتریِ زیاد: bacteriuria_no_inflammation مالک است و جملهٔ استراز در متنِ *آن* می‌نشیند.
+  const c = uaRun(uaRows([["Leukocyte Esterase", "+1"], ["WBC", "0-1", "/hpf"]], { bacteria: "Many" }));
+  const bact = findPat(c, "bacteriuria_no_inflammation");
+  assert.ok(bact, `${uaIds(c)}`);
+  assert.ok(!uaIds(c).includes("urine_esterase_without_cells"), "دو یافته دربارهٔ یک نوار");
+  assert.match(bact.must_say, /استراز/, "ناهمخوانی گم شد");
+  assert.equal(uaEsterase(c).length, 1);
+});
+
+// ─── specs/005 — اصلاحاتِ بازبینیِ کد (code-reviewer، ۲۰۲۶-۰۹-۲۲) ───
+// هشت یافته، همه روی درختِ کاری بازتولید شدند. #۱ و #۲ پس‌رفتِ خودِ این تغییر بودند: فهرستِ منفی‌ها را
+// فقط با املاهای خودم آزمودم، نه آن‌طور که برگه‌های واقعی می‌نویسند (درسِ دورِ چهارمِ N3، تکرار شد).
+
+test("M169: سیلندرِ منفی به هر املای رایج، غایب است — نه یافتهٔ «این هفته» (بازبینی #۱، B1، N6)", () => {
+  // اصلاح فهرستِ *حضور* است، نه فهرستِ بلندترِ منفی‌ها (N6: «ردکردنِ منفی‌ها اول، فهرست را هرگز نمی‌بندد»).
+  // مقداری که نه عددِ مثبت است نه واژهٔ حضور، تفسیر نمی‌شود — «N/S» به «تفسیر نشد» می‌رود، نه به یافته.
+  // 🔴 پس از M165 و پیش از این اصلاح: «RBC Casts: Absent» ⇒ urine_cast_rbc/this_week — «سیلندرِ گلبولِ قرمز
+  //    دیده شده … منشأ خون درونِ کلیه» روی برگه‌ای که نوشته بود *نیست*. روی HEAD هیچ یافته‌ای نبود.
+  for (const v of ["Absent", "Not found", "Nil.", "None seen", "Not detected", "not seen", "<1", "0-0",
+                   "مشاهده نشد", "یافت نشد", "دیده نشد", "ندارد", "منفی.", "-ve", "Nill", "Nil seen", "N/S", "Negative ."]) {
+    for (const name of ["RBC Casts", "WBC Casts", "Granular Cast"]) {
+      const p = uaRun(uaRows([[name, v, "/lpf"]]));
+      assert.equal(uaCasts(p).length, 0, `«${name}: ${v}» ⇒ ${uaIds(p)}`);
+    }
+  }
+});
+
+test("M169b: شمارشِ گلبولِ قرمزِ توصیفی («Many») «روی برگه نیست» خوانده نمی‌شود (بازبینی #۲، N4)", () => {
+  // 🔴 «Blood +3 · RBC: Many» ⇒ «شمارشِ میکروسکوپیِ گلبولِ قرمز روی این برگه نیست» — دربارهٔ ردیفی که
+  //    روی برگه چاپ شده بود. روی HEAD متنِ عادیِ «خون دیده شده» بود: پس‌رفت.
+  for (const v of ["Many", "Numerous", "Full field", "فراوان", "زیاد"]) {
+    const f = findPat(uaRun(uaRows([["Blood", "+3"], ["RBC", v, "/hpf"]])), "hematuria");
+    assert.ok(f, v);
+    assert.doesNotMatch(f.must_say, /روی این برگه نیست/, `«RBC: ${v}»: ${f.must_say}`);
+    assert.equal(f.headline, "در آزمایش ادرار شما خون (گلبول قرمز) دیده شده است", `«${v}» یعنی نوار و میکروسکوپ هم‌نظرند`);
+  }
+  // و «Few» یعنی میکروسکوپ گلبولِ قابل‌توجهی ندید ⇒ حالتِ «مخالف»، نه «انجام نشده».
+  const few = findPat(uaRun(uaRows([["Blood", "+2"], ["RBC", "Few", "/hpf"]])), "hematuria");
+  assert.match(few.must_say, /هموگلوبینِ آزاد/);
+});
+
+test("M169c: پیوریِ توصیفی («WBC: Many») «نشانهٔ عفونت نیست» خوانده نمی‌شود (بازبینی #۲)", () => {
+  // 🔴 «LE +2 · WBC: Many» ⇒ urine_esterase_without_cells: «… روی این برگه نیست … نشانهٔ عفونتِ ادراری نیست» —
+  //    کم‌جلوه‌دادنِ پیوریِ آشکار. روی HEAD: هیچ.
+  for (const v of ["Many", "Full field", "فراوان"]) {
+    const p = uaRun(uaRows([["Leukocyte Esterase", "+2"], ["WBC", v, "/hpf"]]));
+    assert.ok(!uaIds(p).includes("urine_esterase_without_cells"), `«WBC: ${v}» ⇒ ${uaIds(p)}`);
+  }
+});
+
+test("M169d: سیلندرِ گلبولِ سفید و ناهمخوانیِ استراز دو حکمِ متضاد نمی‌دهند (بازبینی #۳، N20)", () => {
+  // 🔴 «LE +1 · WBC 0-2 · WBC Casts 2-3» ⇒ هم «التهاب به خودِ کلیه رسیده … این هفته» و هم
+  //    «به‌تنهایی نشانهٔ عفونت نیست … نوبتِ عادی» — دو زمان‌بندی و دو حکم دربارهٔ یک تصویر.
+  const p = uaRun(uaRows([["Leukocyte Esterase", "+1"], ["WBC", "0-2", "/hpf"], ["WBC Casts", "2-3", "/lpf"]]));
+  assert.ok(findPat(p, "urine_cast_wbc"), `${uaIds(p)}`);
+  assert.ok(!uaIds(p).includes("urine_esterase_without_cells"), `${uaIds(p)}`);
+});
+
+test("M169e: سیلندرِ گلبولِ قرمز که نوارِ خون را توضیح می‌دهد، کنارِ «شاید رنگدانه باشد» نمی‌آید (بازبینی #۴)", () => {
+  // 🔴 «Blood +2 · RBC 0-2 · RBC Casts 3-5» ⇒ hematuria («شاید هموگلوبینِ آزاد یا میوگلوبین») کنارِ
+  //    urine_cast_rbc («خون از درونِ کلیه») — یک نوار، دو توضیحِ ناسازگار. سیلندر خودِ گلبول است.
+  const p = uaRun(uaRows([["Blood", "+2"], ["RBC", "0-2", "/hpf"], ["RBC Casts", "3-5", "/lpf"]]));
+  assert.ok(findPat(p, "urine_cast_rbc"), `${uaIds(p)}`);
+  assert.equal(p.findings.filter((f) => /هموگلوبینِ آزاد|میوگلوبین/.test(f.must_say)).length, 0, `${uaIds(p)}`);
+});
+
+test("M169f: یک ردیفِ «Casts» که چند نوع را نام می‌برد، بیشترین نوع را نمی‌گیرد (بازبینی #۵، V6)", () => {
+  // 🔴 «Casts: Hyaline 0-1, RBC cast 0» ⇒ urine_cast_rbc/this_week روی برگه‌ای کاملاً طبیعی.
+  //    شمارشِ هر نوع از هم جدا نمی‌شد و بیشینهٔ کلِ مقدار (۱) به «RBC» نسبت داده می‌شد.
+  for (const v of ["Hyaline 0-1, RBC cast 0", "Hyaline 0-2, Granular: Nil"]) {
+    const e = uaEngine(uaRows([["Casts", v]]));
+    assert.equal(uaCasts(runPatterns(e)).length, 0, `«Casts: ${v}» ⇒ ${uaIds(runPatterns(e))}`);
+    assert.ok(e.unmapped.includes("Casts"), "ردیفِ چندنوعی صادقانه «تفسیر نشد» است");
+  }
+});
+
+test("M169g: «Casts: Not seen» روی برگهٔ طبیعی هشدارِ «تفسیر نشد» نمی‌سازد (بازبینی #۷)", () => {
+  // 🔴 سیلندرِ بی‌نوعِ *منفی* به unmapped می‌رفت ⇒ «این تست‌ها … تفسیرشان نمی‌کند: Casts … حتماً با پزشک
+  //    بررسی کنید» روی برگه‌ای کاملاً طبیعی. منفیِ بی‌نوع مبهم نیست — نبودِ همهٔ سیلندرهاست.
+  for (const v of ["Not seen", "Negative", "Nil", "مشاهده نشد"]) {
+    const e = uaEngine(uaRows([["Casts", v, "/lpf"]]));
+    assert.ok(!e.unmapped.includes("Casts"), `«Casts: ${v}» ⇒ unmapped`);
+    assert.equal(uaCasts(runPatterns(e)).length, 0);
+  }
+});
+
+test("M169h: «کست» با نیم‌فاصله یا کسره هم سیلندر است، نه خونِ آزاد (بازبینی #۸، N25)", () => {
+  // 🔴 «کست‌ گلبول قرمز 5-8» (با ZWNJ) از CAST_KEY_RE رد می‌شد ⇒ hematuria — همان باگِ M164 به فارسی.
+  for (const name of ["کست‌ گلبول قرمز", "کستِ گلبول قرمز", "کست‌های گلبول قرمز"]) {
+    const p = uaRun(uaRows([[name, "5-8", "/lpf"]]));
+    assert.ok(!uaIds(p).includes("hematuria"), `«${name}» ⇒ ${uaIds(p)}`);
+    assert.ok(findPat(p, "urine_cast_rbc"), `«${name}» ⇒ ${uaIds(p)}`);
+  }
+  // و «شکست» هنوز سیلندر نیست.
+  assert.equal(PU.isCastKey("شکست"), false);
+});
+
+test("M169i: سیلندرِ گلبولِ قرمز با گلبولِ آزادِ بالا — یافتهٔ خون کنار می‌رود، «مثانه» کنارِ «نه از مثانه» نمی‌آید (B2، N21)", () => {
+  // 🔴 «Blood +3 · RBC 10-15 · RBC Casts 3-5» ⇒ hematuria («عفونت و سنگ کلیه … قاعدگی») کنارِ
+  //    urine_cast_rbc («نه از مثانه یا مجرای ادرار»). سیلندر منشأ را تعیین کرده؛ hematuria به آن واگذار می‌کند،
+  //    همان‌طور که امروز به گلومرولونفریت واگذار می‌کند.
+  const p = uaRun(uaRows([["Blood", "+3"], ["RBC", "10-15", "/hpf"], ["RBC Casts", "3-5", "/lpf"]]));
+  assert.ok(findPat(p, "urine_cast_rbc"), `${uaIds(p)}`);
+  assert.ok(!uaIds(p).includes("hematuria"), `${uaIds(p)}`);
+});
+
+test("M169j: نوارِ خون با میکروسکوپِ بی‌گلبول — راهِ «همین امروز» دارد و CK سه‌شاخه گفته می‌شود (B3)", () => {
+  // 🔴 متنِ «مخالف» میوگلوبین (رابدومیولیز) و همولیز را نام می‌برد ولی تنها اقدامش «این هفته» بود؛ و
+  //    rhabdomyolysis_pattern به CK > ۱۰۰۰ نیاز دارد، پس برگهٔ فقط‌ادرار هرگز به آن نمی‌رسد.
+  const base = uaRows([["Blood", "+3"], ["RBC", "0-1", "/hpf"]]);
+  const noCk = findPat(uaRun(base), "hematuria");
+  assert.equal(noCk.urgency, "this_week");
+  assert.match(noCk.action, /این هفته/);
+  assert.match(noCk.action, /همین امروز/, "علائمِ هشدار باید راهِ زودتر داشته باشند");
+  assert.match(noCk.must_say, /CK روی این برگه نیست/);
+  const ckNormal = findPat(uaRun([["CK", "100", "U/L"], ...base]), "hematuria");
+  assert.match(ckNormal.must_say, /CK.*طبیعی/, ckNormal.must_say);
+  const ckHigh = findPat(uaRun([["CK", "800", "U/L"], ...base]), "hematuria");
+  assert.match(ckHigh.must_say, /CK.*بالا/, ckHigh.must_say);
+});
+
+test("M169k: سیلندرِ رده‌پایین‌تر گم نمی‌شود — در یافتهٔ برنده نام برده می‌شود (B4، N18)", () => {
+  // 🔴 «RBC Casts · Waxy Casts» ⇒ فقط urine_cast_rbc؛ سیلندرِ مومی هیچ‌جا نبود — و چون «خوانده» شده بود
+  //    به «تفسیر نشدند» هم نمی‌رفت. M165g «خوانده‌شده» را می‌سنجد، نه «گزارش‌شده».
+  const a = findPat(uaRun(uaRows([["RBC Casts", "3-5", "/lpf"], ["Waxy Casts", "1-2", "/lpf"]])), "urine_cast_rbc");
+  assert.match(a.must_say, /مومی/);
+  const b = findPat(uaRun(uaRows([["RBC Casts", "3-5", "/lpf"], ["Fatty Casts", "1-2", "/lpf"], ["Protein", "+3"]])), "urine_cast_rbc");
+  assert.match(b.must_say, /چربی/);
+  // و در متنِ GN هم (وقتی مالک اوست).
+  const gn = findPat(uaRun([["Creatinine", "2.4", "mg/dL"], ...uaRows([["RBC Casts", "3-5", "/lpf"], ["WBC Casts", "2-3", "/lpf"],
+    ["RBC", "20-30", "/hpf"], ["Protein", "+2"]])]), "glomerulonephritis_pattern");
+  assert.match(gn.must_say, /گلبولِ سفید/);
+  // تک‌سیلندر: جملهٔ «هم گزارش شده» نمی‌آید.
+  assert.doesNotMatch(findPat(uaRun(uaRows([["RBC Casts", "3-5", "/lpf"]])), "urine_cast_rbc").must_say, /هم گزارش شده/);
+});

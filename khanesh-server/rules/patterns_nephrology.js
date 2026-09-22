@@ -1,7 +1,69 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
+
+// ═══ نوار در برابرِ میکروسکوپ (specs/005، data-model §4) ═══
+// حدهای بالای طبیعی در میدانِ پربزرگ‌نمایی — Henry فصل ۲۹. ⚠️ در انتظارِ بازبین: P50.
+// (پرسشِ بازِ P50: آیا برای زنان حدِ گشادترِ ۸–۱۰ برای WBC به کار رود؟ فعلاً یک حد برای همه.)
+const URINE_RBC_UPPER_HPF = 2;
+const URINE_WBC_UPPER_HPF = 5;
+const LE_RE = /leukocyte|استراز|esterase/i;
+const NIT_RE = /nitrite|نیتریت/i;
+const WBC_RE = /wbc|puscell|پوسسل|leukocyt/i;
+const BLOOD_RE = /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i;
+const RBC_RE = /rbc|گلبول\s*قرمز/i;
+
+// matchهای uti_pattern و bacteriuria_no_inflammation به‌صورتِ تابعِ نام‌دار، تا قاعدهٔ استراز بپرسد
+// «آن قاعده فعال شد؟» به‌جای بازنویسیِ شرطش (الگوی anemiaCrisisOwns، درسِ M91e). رفتار بی‌تغییر است.
+function utiFires(e) {
+  const le = urinePositive(e, LE_RE);
+  const nit = urinePositive(e, NIT_RE);
+  const wbc = urineCellCount(e, WBC_RE);
+  const wbcHigh = wbc != null && wbc > 5;
+  // حداقل دو نشانه برای احتیاط
+  return [le, nit, wbcHigh].filter(Boolean).length >= 2;
+}
+function bacteriuriaFires(e) {
+  // باکتری قابل‌توجه؟ (many یا moderate — few را نمی‌گیریم)
+  const bactSignificant = Object.entries(e.qual || {}).some(
+    ([k, v]) => /bacteria|باکتری/i.test(k) &&
+                /many|moderate|numerous|زیاد|فراوان|متوسط|\+{2,}/i.test(String(v))
+  );
+  if (!bactSignificant) return false;
+  // نشانه‌های عفونت — اگر باشند، UTI فعال است و این الگو نباید بیاید
+  return !utiFires(e);
+}
+
+/** جملهٔ ناهمخوانیِ استراز برای bacteriuria_no_inflammation — سه‌شاخه؛ بی‌استراز، رشتهٔ خالی (بایت‌به‌بایت). */
+function esteraseInBacteriuria(e) {
+  if (!urinePositive(e, LE_RE)) return "";
+  const wbc = urineCellState(e, WBC_RE, URINE_WBC_UPPER_HPF);
+  // شمارشِ بالا یا نامفهوم: ناهمخوانی‌ای نیست که گفته شود (بازبینی #۲).
+  if (wbc === "high" || wbc === "unknown") return "";
+  return wbc === "absent"
+    ? " نوارِ لکوسیت‌استرازِ همین برگه هم مثبت است، ولی شمارشِ میکروسکوپیِ گلبولِ سفید روی این برگه نیست؛ تکرارِ درستِ آزمایش هر دو را روشن می‌کند."
+    : " نوارِ لکوسیت‌استرازِ همین برگه هم مثبت است، ولی در میکروسکوپ گلبولِ سفیدِ قابل‌توجهی دیده نشده؛ این ناهمخوانی هم با آلودگیِ نمونه جور است و تکرارِ درستِ آزمایش هر دو را روشن می‌کند.";
+}
+
+// یافتهٔ خونِ ادرار همان‌طور که تا 395a5d7 بود — حالتِ «هم‌نظر» باید بایت‌به‌بایت همین بماند (V8، M167c).
+// ⚠️ تابع، نه ثابت: preanalytical.js روی f.warnings درجا push می‌کند؛ یک شیءِ مشترک کاوئاتِ برگهٔ یک
+//    بیمار را به گزارشِ بیمارِ بعدی می‌برد.
+const hematuriaBase = () => ({
+  pattern: "hematuria",
+  urgency: "this_week",
+  headline: "در آزمایش ادرار شما خون (گلبول قرمز) دیده شده است",
+  must_say:
+    "وجود خون در ادرار می‌تواند علت‌های متعددی داشته باشد — از عفونت و سنگ کلیه تا علل دیگر. " +
+    "گاهی هم موقتی است (مثلاً در دوره‌ی قاعدگی نمونه آلوده می‌شود). یک نمونه به‌تنهایی قطعی نیست، ولی باید پیگیری شود.",
+  action: "این هفته با پزشک مطرح کنید تا علت بررسی شود.",
+  suggest: [
+    "تکرار آزمایش ادرار (در خانم‌ها بهتر است خارج از دوره قاعدگی)",
+    "کشت ادرار",
+    "بررسی تصویربرداری کلیه و مجاری ادرار در صورت صلاحدید پزشک",
+  ],
+  warnings: [],
+});
 
 export const RULES_NEPHROLOGY = [
 
@@ -12,14 +74,7 @@ export const RULES_NEPHROLOGY = [
   // لکوسیت‌استراز مثبت + نیتریت مثبت + WBC بالا در ادرار = تصویر کلاسیک.
   {
     id: "uti_pattern",
-    match: (e) => {
-      const le = urinePositive(e, /leukocyte|استراز|esterase/i);
-      const nit = urinePositive(e, /nitrite|نیتریت/i);
-      const wbc = urineCellCount(e, /wbc|puscell|پوسسل|leukocyt/i);
-      const wbcHigh = wbc != null && wbc > 5;
-      // حداقل دو نشانه برای احتیاط
-      return [le, nit, wbcHigh].filter(Boolean).length >= 2;
-    },
+    match: utiFires,
     build: (e) => {
       const nit = urinePositive(e, /nitrite|نیتریت/i);
       return {
@@ -45,22 +100,8 @@ export const RULES_NEPHROLOGY = [
   // فقط وقتی فعال می‌شود که UTI فعال نشده باشد.
   {
     id: "bacteriuria_no_inflammation",
-    match: (e) => {
-      // باکتری قابل‌توجه؟ (many یا moderate — few را نمی‌گیریم)
-      const bactSignificant = Object.entries(e.qual || {}).some(
-        ([k, v]) => /bacteria|باکتری/i.test(k) &&
-                    /many|moderate|numerous|زیاد|فراوان|متوسط|\+{2,}/i.test(String(v))
-      );
-      if (!bactSignificant) return false;
-      // نشانه‌های عفونت — اگر باشند، UTI فعال است و این الگو نباید بیاید
-      const le = urinePositive(e, /leukocyte|استراز|esterase/i);
-      const nit = urinePositive(e, /nitrite|نیتریت/i);
-      const wbc = urineCellCount(e, /wbc|puscell|پوسسل|leukocyt/i);
-      const wbcHigh = wbc != null && wbc > 5;
-      const inflammation = [le, nit, wbcHigh].filter(Boolean).length >= 2;
-      return !inflammation;
-    },
-    build: () => ({
+    match: bacteriuriaFires,
+    build: (e) => ({
       pattern: "bacteriuria_no_inflammation",
       urgency: "routine",
       headline: "در آزمایش ادرار شما باکتری دیده شده است",
@@ -68,13 +109,62 @@ export const RULES_NEPHROLOGY = [
         "در نمونه‌ی ادرار شما باکتری گزارش شده است. " +
         "یکی از دلایل شایع این موضوع می‌تواند آلوده شدن نمونه هنگام جمع‌آوری باشد — " +
         "مثلاً وقتی نمونه وسط ادرار و در ظرف استریل گرفته نشده باشد. " +
-        "برای تفسیر درست، بهتر است با پزشک مطرح شود.",
+        "برای تفسیر درست، بهتر است با پزشک مطرح شود." +
+        // ناهمخوانیِ استراز اینجا گفته می‌شود، نه در یافتهٔ جدا (specs/005، M168c): یک نوار، یک یافته.
+        esteraseInBacteriuria(e),
       action: "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، یا اگر باردار هستید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است.",
       suggest: ["تکرار آزمایش ادرار با نمونه‌ی وسط ادرار (midstream) و ظرف استریل"],
       warnings: [
         "⚠️ اگر باردار هستید، وجود باکتری در ادرار حتی بدون علامت مهم است و باید حتماً با پزشک زنان مطرح شود.",
       ],
     }),
+  },
+
+  // ── استراز مثبت بدونِ گلبولِ سفید (specs/005، data-model §4) ──
+  // 🔴 تا 395a5d7 این برگه هیچ یافته‌ای نمی‌داد: uti_pattern دو نشانه می‌خواهد و اینجا یکی است، و هیچ
+  //    قاعده‌ای نوارِ استراز را به‌تنهایی نمی‌خواند — پس جمله‌ای برای تا‌کردن در قاعدهٔ موجود هم نبود.
+  // واگذاری دوطرفه (M168c): اگر uti_pattern فعال است، مالک اوست؛ اگر bacteriuria_no_inflammation فعال است،
+  // جملهٔ استراز در متنِ *آن* می‌نشیند (esteraseInBacteriuria). این فقط وقتی می‌آید که هیچ‌کدام نیامده باشند.
+  {
+    id: "urine_esterase_without_cells",
+    match: (e) => {
+      if (!urinePositive(e, LE_RE)) return false;
+      if (utiFires(e) || bacteriuriaFires(e)) return false;
+      // 🔴 بازبینی #۳: کنارِ سیلندرِ گلبولِ سفید («التهاب به خودِ کلیه رسیده … این هفته») این یافته
+      //    «نشانهٔ عفونت نیست … نوبتِ عادی» می‌گفت — دو حکم دربارهٔ یک تصویر (N20، M169d).
+      if (castAxis(e).types.includes("wbc")) return false;
+      // فقط «غایب» یا «پایین»: «WBC: Many» پیوریِ آشکار است، نه ناهمخوانی (بازبینی #۲، M169c).
+      const wbc = urineCellState(e, WBC_RE, URINE_WBC_UPPER_HPF);
+      return wbc === "absent" || wbc === "low";
+    },
+    build: (e) => {
+      const urgency = "routine";
+      const wbc = urineCellState(e, WBC_RE, URINE_WBC_UPPER_HPF) === "absent" ? null : "low";
+      const lead =
+        "نوارِ آزمایشِ ادرارِ شما (لکوسیت‌استراز) آنزیمی را نشان می‌دهد که از گلبول‌های سفید می‌آید. ";
+      const body = wbc == null
+        // انجام نشده (V10، M168b)
+        ? "شمارشِ میکروسکوپیِ گلبولِ سفید روی این برگه نیست؛ همان است که نشان می‌دهد گلبول‌ها واقعاً در ادرار هستند یا نه. " +
+          "این نوار به‌تنهایی نشانهٔ عفونتِ ادراری نیست."
+        // مخالف (V9، M168)
+        : "ولی در بخشِ میکروسکوپیِ همین برگه گلبولِ سفیدِ قابل‌توجهی دیده نشده است. این ناهمخوانی شایع است و علت‌های " +
+          "گوناگون دارد: گلبول‌ها ممکن است در ادرارِ رقیق یا نمونه‌ای که مدتی مانده از هم پاشیده باشند، نمونه ممکن است " +
+          "هنگامِ جمع‌آوری آلوده شده باشد، یا التهابی بدونِ عفونتِ باکتریایی در کار باشد. " +
+          "این به‌تنهایی نشانهٔ عفونتِ ادراری نیست.";
+      return {
+        pattern: "urine_esterase_without_cells",
+        urgency,
+        headline: wbc == null
+          ? "نوارِ ادرارِ شما به لکوسیت‌استراز واکنش نشان داده است"
+          : "نوارِ ادرارِ شما به لکوسیت‌استراز واکنش داده، ولی در میکروسکوپ گلبولِ سفیدِ قابل‌توجهی دیده نشده",
+        must_say: lead + body,
+        action: urgency === "this_week"
+          ? "این هفته با پزشک مطرح کنید."
+          : "در نوبتِ عادی با پزشک مطرح کنید. اگر سوزش یا تکررِ ادرار، تب یا درد پهلو دارید، زودتر مراجعه کنید.",
+        suggest: ["کامل ادرار — تکرار با نمونهٔ وسطِ ادرار در ظرفِ استریل"],
+        warnings: ["خودسرانه آنتی‌بیوتیک شروع نکنید — انتخاب و دوز درست را پزشک تعیین می‌کند."],
+      };
+    },
   },
 
   // ── پروتئینوری ──
@@ -167,27 +257,69 @@ export const RULES_NEPHROLOGY = [
       if (!(blood || rbcHigh)) return false;
       // اگر تصویر خاص‌تر (گلومرولونفریت) هست، واگذار کن
       if (isGlomerulonephritis(e)) return false;
+      // سیلندرِ گلبولِ قرمز منشأ را تعیین کرده (درونِ کلیه) — به urine_cast_rbc واگذار کن، همان‌طور که به GN.
+      // 🔴 بازبینیِ پزشکی B2: کنارِ آن، این یافته یا «عفونت و سنگ … قاعدگی» می‌گفت (کنارِ «نه از مثانه»، N21)
+      //    یا «شاید هموگلوبینِ آزاد/میوگلوبین» (کنارِ «گلبول داخلِ سیلندر گیر افتاده»). M169e، M169i، M167d.
+      if (castAxis(e).label === "rbc_cast") return false;
       // رابدومیولیز: CK خیلی بالا + خون ادرار → آن الگو پوشش می‌دهد
       const ck = e.graded.find((g) => g.test === "CK");
       const ckVeryHigh = ck?.abnormal && ck.dir === "high" && ck.value > 1000;
       if (ckVeryHigh && blood) return false;
       return true;
     },
-    build: () => ({
-      pattern: "hematuria",
-      urgency: "this_week",
-      headline: "در آزمایش ادرار شما خون (گلبول قرمز) دیده شده است",
-      must_say:
-        "وجود خون در ادرار می‌تواند علت‌های متعددی داشته باشد — از عفونت و سنگ کلیه تا علل دیگر. " +
-        "گاهی هم موقتی است (مثلاً در دوره‌ی قاعدگی نمونه آلوده می‌شود). یک نمونه به‌تنهایی قطعی نیست، ولی باید پیگیری شود.",
-      action: "این هفته با پزشک مطرح کنید تا علت بررسی شود.",
-      suggest: [
-        "تکرار آزمایش ادرار (در خانم‌ها بهتر است خارج از دوره قاعدگی)",
-        "کشت ادرار",
-        "بررسی تصویربرداری کلیه و مجاری ادرار در صورت صلاحدید پزشک",
-      ],
-      warnings: [],
-    }),
+    // 🔴 تا 395a5d7 این یافته بی‌توجه به میکروسکوپ همیشه «خون (گلبول قرمز) دیده شده» می‌گفت — حتی وقتی
+    //    فقط نوار مثبت بود و میکروسکوپ گلبولی ندیده بود. نوار به *رنگدانه* واکنش می‌دهد، نه به سلول.
+    //    سه حالت (FR-011، اصلِ دوم)؛ فوریت در هر سه this_week می‌ماند (V12).
+    build: (e) => {
+      const blood = urinePositive(e, BLOOD_RE);
+      // وضعیت، نه عدد: «RBC: Many» ردیفِ *چاپ‌شده* است، نه «روی برگه نیست» (بازبینی #۲، M169b).
+      // سیلندر اینجا شمرده نمی‌شود (V11).
+      const rbc = urineCellState(e, RBC_RE, URINE_RBC_UPPER_HPF);
+      // هم‌نظر، یا فقط میکروسکوپ بالا، یا مقدارِ نامفهوم ⇒ دقیقاً همان یافتهٔ قبلی (M167c)
+      if (!blood || rbc === "high" || rbc === "unknown") return hematuriaBase();
+      if (rbc === "absent") {
+        // انجام نشده: نه «گلبول دیده شد» و نه «دیده نشد» (V10، M167b)
+        return {
+          ...hematuriaBase(),
+          headline: "نوارِ آزمایشِ ادرارِ شما به خون واکنش نشان داده است",
+          must_say:
+            "نوارِ آزمایشِ ادرارِ شما به خون واکنش نشان داده است. این واکنش می‌تواند علت‌های متعددی داشته باشد — " +
+            "از عفونت و سنگ کلیه تا علل دیگر — و گاهی هم موقتی است (مثلاً در دوره‌ی قاعدگی نمونه آلوده می‌شود). " +
+            "شمارشِ میکروسکوپیِ گلبولِ قرمز روی این برگه نیست؛ همان است که نشان می‌دهد این واکنش از خودِ گلبول‌هاست " +
+            "یا از رنگدانه‌ای که بدونِ گلبول به ادرار رسیده. یک نمونه به‌تنهایی قطعی نیست، ولی باید پیگیری شود.",
+        };
+      }
+      // مخالف: نوار مثبت، میکروسکوپ بی‌گلبولِ قابل‌توجه (V9، M167)
+      const ck = e.graded.find((g) => g.test === "CK");
+      // CK پنج‌شاخه (B3، اصلِ دوم). CK > ۱۰۰۰ با خونِ ادرار را rhabdomyolysis_pattern گرفته و این قاعده کنار رفته.
+      const ckText =
+        ck?.abnormal && ck.dir === "high" ? "CK (آنزیمِ عضله) در همین برگه بالاست، که احتمالِ علتِ عضلانی را پررنگ‌تر می‌کند."
+        : ck?.abnormal && ck.dir === "low" ? "CK (آنزیمِ عضله) در همین برگه کمی پایین است، که دربارهٔ علتِ عضلانی چیزی نمی‌گوید."
+        : ck ? "CK (آنزیمِ عضله) در همین برگه طبیعی است، که علتِ عضلانی را کم‌احتمال‌تر می‌کند."
+        : e.ungraded?.CK ? "CK (آنزیمِ عضله) روی برگه هست ولی واحدش مشخص نیست، پس اینجا سنجیده نشد."
+        : "CK روی این برگه نیست؛ همان آزمایشی است که علتِ عضلانی را روشن می‌کند.";
+      return {
+        ...hematuriaBase(),
+        headline: "نوارِ ادرارِ شما به خون واکنش داده، ولی در میکروسکوپ گلبولِ قرمزِ قابل‌توجهی دیده نشده",
+        must_say:
+          "نوارِ آزمایشِ ادرار به رنگدانهٔ هموگلوبین واکنش می‌دهد، نه لزوماً به خودِ گلبولِ قرمز. " +
+          "در بخشِ میکروسکوپیِ همین برگه گلبولِ قرمزِ قابل‌توجهی دیده نشده است؛ پس این واکنش می‌تواند از هموگلوبینِ آزاد " +
+          "(وقتی گلبول‌های قرمز درونِ رگ‌ها می‌شکنند) یا میوگلوبین (رنگدانهٔ عضله، پس از آسیبِ عضلانی) باشد — " +
+          "یا از گلبول‌هایی که در ادرارِ رقیق یا نمونه‌ای که مدتی مانده از هم پاشیده‌اند. " +
+          "تکرارِ آزمایش و چند آزمایشِ خون این‌ها را از هم جدا می‌کند. " +
+          ckText,
+        // 🔴 B3: میوگلوبین و همولیز نام برده می‌شدند ولی تنها اقدام «این هفته» بود، و برگهٔ فقط‌ادرار هرگز به
+        //    rhabdomyolysis_pattern (CK > ۱۰۰۰) نمی‌رسد. فوریت this_week می‌ماند؛ علائمِ هشدار راهِ «همین امروز» دارند.
+        action:
+          "این هفته با پزشک مطرح کنید تا علت بررسی شود. اگر ادرارِ تیره یا قهوه‌ای‌رنگ، دردِ شدید یا ضعفِ عضلانی " +
+          "(به‌ویژه پس از ورزشِ سنگین یا ضربه)، زردی یا کم‌شدنِ ادرار دارید، همین امروز مراجعه کنید.",
+        suggest: [
+          "کامل ادرار — تکرار با نمونهٔ تازه، برای دیدنِ پایداریِ یافته",
+          ...(ck ? [] : ["CK — برای بررسیِ آسیبِ عضلانی"]),
+          "هاپتوگلوبین",
+        ],
+      };
+    },
   },
 
   // ── گلوکوزوری (قند در ادرار) ──
@@ -514,6 +646,10 @@ export const RULES_NEPHROLOGY = [
     build: (e) => {
       const cr = e.graded.find((g) => g.test === "CREAT");
       const crHigh = cr?.abnormal && cr.dir === "high";
+      // سیلندرِ گلبولِ قرمز روی همین برگه (specs/005، V13–V15): این قاعده مالکِ زمان‌بندی است، پس جملهٔ
+      // سیلندر اینجا می‌نشیند و urine_cast_rbc کنار می‌رود — یک یافته، یک دستور. فوریت/سرخط/اقدام دست نمی‌خورند.
+      const cast = castAxis(e);
+      const rbcCast = cast.label === "rbc_cast";
       return {
         pattern: "glomerulonephritis_pattern",
         urgency: "this_week",
@@ -521,9 +657,16 @@ export const RULES_NEPHROLOGY = [
         must_say:
           "هم خون و هم پروتئین در ادرار دیده می‌شود" +
           (crHigh ? " و شاخص کار کلیه هم بالاست" : "") +
-          ". این ترکیب می‌تواند نشانه‌ی نوعی التهاب در کلیه (گلومرولونفریت) باشد که باید حتماً و به‌زودی بررسی شود.",
+          ". این ترکیب می‌تواند نشانه‌ی نوعی التهاب در کلیه (گلومرولونفریت) باشد که باید حتماً و به‌زودی بررسی شود." +
+          (rbcCast
+            ? " در همین برگه «سیلندرِ گلبولِ قرمز» هم گزارش شده — قالب‌هایی که فقط درونِ لوله‌های خودِ کلیه شکل می‌گیرند — و این از منشأِ کلیویِ خون پشتیبانی می‌کند." +
+              othersSentence(e)   // B4: سیلندرهای دیگر گم نمی‌شوند
+            : ""),
         action: "این هفته با پزشک مطرح کنید. این برگه را همراه ببرید. اگر ورم، کاهش ادرار یا فشار خون بالا دارید، زودتر مراجعه کنید.",
-        suggest: ["بررسی توسط پزشک (احتمالاً نفرولوژی)", "عملکرد کلیه", "آزمایش کامل ادرار با بررسی کست"],
+        // بررسیِ سیلندر روی این برگه انجام شده (هر ردیفِ سیلندری، حتی منفی) ⇒ درخواستِ دوباره‌اش همان
+        // کلاسِ N8 است: «آزمایشی که روی برگه هست».
+        suggest: ["بررسی توسط پزشک (احتمالاً نفرولوژی)", "عملکرد کلیه",
+          ...(cast.read.length ? [] : ["آزمایش کامل ادرار با بررسی کست"])],
         warnings: [],
       };
     },

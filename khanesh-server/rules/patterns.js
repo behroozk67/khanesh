@@ -14,6 +14,7 @@ import { RULES_ENDOCRINE_PITUITARY } from "./patterns_endocrine_pituitary.js";
 import { RULES_REPRODUCTIVE } from "./patterns_reproductive.js";
 import { RULES_UNIT_UNKNOWN } from "./patterns_unit_unknown.js";
 import { RULES_TRACE_ELEMENTS } from "./patterns_trace_elements.js";
+import { RULES_URINE_CASTS } from "./patterns_urine_casts.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
@@ -40,7 +41,8 @@ export const RULES = [
   ...RULES_ENDOCRINE_PITUITARY,
   ...RULES_REPRODUCTIVE,
   ...RULES_UNIT_UNKNOWN,
-  ...RULES_TRACE_ELEMENTS
+  ...RULES_TRACE_ELEMENTS,
+  ...RULES_URINE_CASTS
 ];
 
 //    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ

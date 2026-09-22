@@ -15,6 +15,8 @@ import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcros
 // فقط برای سنجیدنِ «هر خوانشِ ممکن»ِ عددِ بی‌واحد با خودِ موتور (specs/003، B3). patterns.js هیچ‌چیز از
 // adapter.js نمی‌خواند، پس چرخهٔ import نیست.
 import { runPatterns } from "./patterns.js";
+// سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
+import { isCastKey, castRoute } from "./patterns_utils.js";
 
 // بیشترین مقدار قندِ موجود (ناشتا/تصادفی/دوساعته) — برای تصحیح سدیم
 function maxGlucose(tests) {
@@ -861,7 +863,20 @@ export function ocrToEngineInput(ocr) {
 
     // ═══ لایه ۱: واحد /hpf یا /lpf → میکروسکوپی ادرار، نه شمارش خون ═══
     if (/\/?\s*[hl]pf/i.test(String(t.unit || ""))) {
+      // سیلندری که نوع یا مقدارش معلوم نیست («Mixed Casts»، «RBC Casts: N/S»، «Casts: Hyaline 0-1, RBC 0»)
+      // به نزدیک‌ترین نوع نگاشت نمی‌شود — به unmapped می‌رود تا بیمار سطرِ صادقِ «تفسیر نشدند» را ببیند (V6).
+      if (isCastKey(t.name) && castRoute(t.name, t.value) === "unmapped") { unmapped.push(t.name); continue; }
       qual[/urine|ادرار|^u/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value);
+      continue;
+    }
+
+    // ═══ لایه ۱ب: سیلندرِ بی‌واحد («Casts: Hyaline, few») — specs/005 ═══
+    // بی واحدِ /lpf این ردیف از همهٔ لایه‌ها رد می‌شد و در NAME_MAP نبود ⇒ unmapped، و قاعده‌های سیلندر
+    // هرگز آن را نمی‌دیدند (research R4). تصمیم در castRoute است: نوعِ شناخته یا منفی ⇒ qual؛
+    // بی‌نوعِ حاضر («Casts: few»)، چندنوعی، یا مقدارِ نامعلوم ⇒ unmapped (V6، بازبینی #۵ و #۷).
+    if (isCastKey(t.name)) {
+      if (castRoute(t.name, t.value) === "qual") qual[/urine|ادرار|^u/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value);
+      else unmapped.push(t.name);
       continue;
     }
 
