@@ -560,7 +560,7 @@ test("M5: پیشنهادِ آزمایشِ موجود حذف می‌شود ولی
     { findings: [{ suggest: ["تکرار CBC", "پایش دوره‌ای TSH", "فریتین"] }] },
     { graded: [{ test: "FERRITIN" }, { test: "TSH" }] }
   );
-  assert.ok(repeats.includes("درخواست آزمایش تکرار CBC از پزشک"), "«تکرار CBC» باید بماند");
+  assert.ok(repeats.includes("درخواست تکرار CBC از پزشک"), "«تکرار CBC» باید بماند"); // عمداً عوض شد — M170
   assert.ok(repeats.includes("درخواست آزمایش پایش دوره‌ای TSH از پزشک"), "«پایش دوره‌ای TSH» باید بماند");
   assert.ok(!repeats.includes("درخواست آزمایش فریتین از پزشک"), "فریتینِ موجود باید حذف شود");
 });
@@ -8111,4 +8111,25 @@ test("M169k: سیلندرِ رده‌پایین‌تر گم نمی‌شود — 
   assert.match(gn.must_say, /گلبولِ سفید/);
   // تک‌سیلندر: جملهٔ «هم گزارش شده» نمی‌آید.
   assert.doesNotMatch(findPat(uaRun(uaRows([["RBC Casts", "3-5", "/lpf"]])), "urine_cast_rbc").must_say, /هم گزارش شده/);
+});
+
+// باگ واقعی (N8، ثبت در P50): «تکرار X» خودش فعل دارد، ولی phraseSuggestion آن را هم
+// در قالبِ آزمایش می‌پیچید و بیمار می‌خواند «درخواست آزمایش تکرار آزمایش ادرار (…) از پزشک».
+// حدودِ ۵۰ پیشنهادِ «تکرار …» در قواعد همین را می‌ساختند (تکرار CBC، تکرار قند ناشتا، …).
+test("M170: پیشنهادِ «تکرار …» به «درخواست آزمایش تکرار …» تبدیل نمی‌شود", () => {
+  assert.equal(phraseSuggestion("تکرار آزمایش ادرار (در خانم‌ها بهتر است خارج از دوره قاعدگی)"),
+    "درخواست تکرار آزمایش ادرار (در خانم‌ها بهتر است خارج از دوره قاعدگی) از پزشک");
+  assert.equal(phraseSuggestion("تکرار CBC"), "درخواست تکرار CBC از پزشک");
+  assert.equal(phraseSuggestion("تکرارِ آزمایش پتاسیم"), "درخواست تکرارِ آزمایش پتاسیم از پزشک");
+  assert.equal(phraseSuggestion("تکرار HBsAg همراه با تست تأییدی تخصصی — برای رد کردن احتمال مثبت کاذب"),
+    "درخواست تکرار HBsAg همراه با تست تأییدی تخصصی از پزشک — برای رد کردن احتمال مثبت کاذب");
+  // کنترلِ منفی: نامِ آزمایش همان قالبِ قبلی را دارد
+  assert.equal(phraseSuggestion("فریتین"), "درخواست آزمایش فریتین از پزشک");
+  // روی متنِ واقعیِ موتور: هیچ توصیه‌ای «درخواست آزمایش تکرار» نمی‌گوید
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: uaRows([["Blood", "+2"], ["RBC", "10-15", "/hpf"]]).map(([name, value, unit]) => ({ name, value, unit })) });
+  const p = runPatterns(e);
+  const recs = buildEngineRecommendations(p, e);
+  assert.ok(uaIds(p).includes("hematuria"), `hematuria باید فعال شود: ${uaIds(p)}`);
+  assert.ok(recs.some((r) => r.includes("درخواست تکرار آزمایش ادرار")), `توصیهٔ تکرار نیامد: ${recs.join(" | ")}`);
+  assert.ok(!recs.some((r) => /درخواست آزمایش تکرار/.test(r)), `هنوز شکسته است: ${recs.join(" | ")}`);
 });

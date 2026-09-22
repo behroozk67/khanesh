@@ -61,7 +61,7 @@ export const ENGINE_SYSTEM_PROMPT = `
   "interpretation": "متن اصلی. must_say را در آن بگنجان. حداکثر ۱۰ جمله.",
   "general_recommendations": [
     "اقدام اصلی — از فیلد action",
-    "برای هر تست در suggest یک مورد: «درخواست آزمایش ... از پزشک»",
+    "برای هر تست در suggest یک مورد: «درخواست آزمایش ... از پزشک» (برای «تکرار ...»: «درخواست تکرار ... از پزشک»)",
     "هشدارهای warnings را هم اینجا بیاور"
   ],
   "has_critical": false,
@@ -224,10 +224,12 @@ export function phraseSuggestion(s) {
   const text = String(s).trim();
   // اگر خودش پزشک را نام برده، یک دستورِ کامل است نه نامِ آزمایش
   if (/پزشک|مراجعه|مشاوره/.test(text)) return text;
+  // «تکرار X» خودش فعل دارد — «درخواست آزمایش تکرار آزمایش ادرار» فارسیِ شکسته بود (N8، M170)
+  const verb = /^تکرارِ?\s/.test(text) ? "درخواست" : "درخواست آزمایش";
   // «GGT — برای مشخص شدن منبع ALP» → «درخواست آزمایش GGT از پزشک — برای …»
   const dash = text.match(/^(.+?)\s+[—–-]\s+(.+)$/);
-  if (dash) return `درخواست آزمایش ${dash[1].trim()} از پزشک — ${dash[2].trim()}`;
-  return `درخواست آزمایش ${text} از پزشک`;
+  if (dash) return `${verb} ${dash[1].trim()} از پزشک — ${dash[2].trim()}`;
+  return `${verb} ${text} از پزشک`;
 }
 
 /**

@@ -968,6 +968,10 @@ second one; a recurring entry is the strongest signal in the file.
   Caught before commit by reading every consumer of `noRef`. Fixed with `.map(faName)`; guard
   `T17` (red before the fix, measured). **An empty list is not a safe list** — when your change
   starts populating a field for the first time, read every place that renders it.
+- **Recurred a fifth time, and it had been live for every «تکرار …» suggestion** (2026-09-22, found in
+  specs/005). `phraseSuggestion` wrapped «تکرار آزمایش ادرار» as «درخواست آزمایش تکرار آزمایش ادرار … از پزشک»; about 50
+  suggestions (`تکرار CBC`, `تکرار قند ناشتا`, …) read that way. Fixed once in the helper: a suggestion that already
+  starts with «تکرار» gets «درخواست … از پزشک» without «آزمایش». Guard `M170`; `M5` changed on purpose.
 - **Rule:** every key goes through `faName()`. For a test that was already measured, the phrasing is
   «تکرارِ …», not a fresh request. **And when a rule suggests a panel, add that exact string to
   `SUGGEST_TESTS` in the same commit** — the match is exact, and an absent row fails open. Deduplicate recommendations by first sentence and drop

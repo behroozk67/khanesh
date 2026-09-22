@@ -117,6 +117,6 @@ Both reviews were reproduced on the working tree before any fix. All 12 findings
 **Pre-existing, found by the code review and recorded, not fixed:**
 - `uti_pattern` does not read descriptive WBC («WBC: Many»).
 - The «Leukocytes: +2» pad label is unmapped.
-- «تکرار آزمایش ادرار» is phrased as «درخواست آزمایش تکرار آزمایش ادرار».
+- «تکرار آزمایش ادرار» is phrased as «درخواست آزمایش تکرار آزمایش ادرار». ✅ Fixed after the Stage A commit (`phraseSuggestion`, `M170`).
 
 **Final state:** `npm test` gives `558 · 539 · 0 fail · 19 todo`, working tree on `395a5d7`.
