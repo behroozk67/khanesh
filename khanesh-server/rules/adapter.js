@@ -1512,8 +1512,8 @@ export function runEngine(ocr) {
       if (reason) { ungraded[key] = { value, reason }; continue; }
     }
 
-    // specs/007: RETIC_ABS بازهٔ تأییدشده ندارد (۲۵–۱۰۰ ×10⁹/L در P52) — در هیچ سنی سنجیده نمی‌شود، پس
-    // ردیفِ نوزادیِ PED_REFS.RETIC_ABS با واحدِ نامعلومش هرگز حکم نمی‌دهد.
+    // specs/007: RETIC_ABS بازهٔ تأییدشده ندارد (۲۵–۱۰۰ ×10⁹/L در P52) — در هیچ سنی سنجیده نمی‌شود. ردیفِ نوزادیِ
+    // بی‌منبعِ PED_REFS حذف شد (P52 پرسش ۴)؛ این گیت می‌ماند تا بازه‌ای که کسی بی‌تأیید بیفزاید حکم ندهد.
     const ref = key === "RETIC_ABS" ? null : getRef(key, sex, age);
     if (!ref) {
       noRef.push(key);

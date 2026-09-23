@@ -8610,7 +8610,8 @@ test("M179c: مرزهای بحرانِ هماتوکریت — Hb حاکم است
     assert.deepEqual(fired(p), ["low_rbc_hct_without_anemia"], v);
     assert.match(findPat(p, "low_rbc_hct_without_anemia").action, /در نوبت عادی/);
   }
-  assert.ok(!findPat(hctOnly("18", { age: 6, sex: "M" }), "severe_anemia_crisis"));
+  // ⚠️ عمداً عوض شد (تصمیمِ کاربر ۱۴۰۵/۰۷/۰۱، P52 پرسش ۵): کودک هم بحران می‌گیرد — M183c.
+  assert.ok(findPat(hctOnly("18", { age: 6, sex: "M" }), "severe_anemia_crisis"));
   assert.notEqual(uuuRun([["Hct", "0.18"]], F30).overall_urgency, "emergency");
   const g4 = uuuRun([["Hb", "21", null, "g/dL"], ["Hct", "63", null, "%"], ["RBC", "6.8", null, "10*6/uL"], ["MCV", "92", null, "fL"]], M40);
   assert.ok(fired(g4).includes("erythrocytosis"));
@@ -8643,7 +8644,8 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   assert.deepEqual(fired(uuuRun([["Hb", "15", null, "g/dL"], ["MCHC", "40", null, "g/dL"]], M40)), ["unmatched_abnormal"]);
   assert.deepEqual(fired(uuuRun([["Hct", "44", null, "%"], ["MCHC", "40", null, "g/dL"]], M40)), ["unmatched_abnormal"]);
   assert.deepEqual(fired(uuuRun([["Hb", "5.5", null, "g/dL"], ["Hct", "15", null, "%"], ["MCHC", "38", null, "g/dL"]], M40)),
-    ["severe_anemia_crisis", "unexplained_abnormal"]);
+    // ⚠️ عمداً عوض شد (تصمیمِ کاربر ۱۴۰۵/۰۷/۰۱، P52 پرسش ۱): یادداشت زیرِ بحران هم می‌آید، با متنِ بحران — M183.
+    ["severe_anemia_crisis", "rbc_indices_implausible"]);
   assert.deepEqual(fired(uuuRun([["Hb", "10.5", null, "g/dL"], ["MCV", "88", null, "fL"], ["MCH", "30", null, "pg"], ["MCHC", "37", null, "g/dL"], ["RDW-CV", "16.5", null, "%"]], F30)),
     ["normocytic_anemia", "spherocytosis_likely"]);
   assert.deepEqual(fired(uuuRun([["Hb", "9.5", null, "g/dL"], ["Hct", "34", null, "%"], ["MCV", "68", null, "fL"], ["MCHC", "28", null, "g/dL"]], F30)),
@@ -8769,4 +8771,58 @@ test("M182f: Hbِ بی‌واحدِ خطرناک + هماتوکریتِ پایی
     }
   }
   assert.ok(reached >= 3, `فقط ${reached} پنلِ فوری دیده شد`);
+});
+
+// ═══════════ specs/007 — تصمیم‌های کاربر روی پرسش‌های باز P52 (۱۴۰۵/۰۷/۰۱) ═══════════
+// ۱: یادداشتِ MCHC کنارِ بحرانِ Hb هم بیاید · ۳: MCV در همان یادداشت · ۴: ردیفِ نوزادیِ RETIC_ABS حذف · ۵: بحرانِ
+// هماتوکریت برای کودک هم. (۲: سنِ نامعلوم = بزرگسال — همان رفتار، بی‌آزمونِ تازه.) هر آزمون پیش از تغییر قرمز دیده شد.
+
+test("M183: یادداشتِ MCHC کنارِ بحرانِ Hb هم می‌آید، ولی دستورِ اورژانس را نمی‌شکند (P52 پرسش ۱)", () => {
+  // 🔴 پیش‌تر زیرِ بحران ساکت بود و MCHC به «توضیح داده نشدند» می‌رفت. تصمیمِ کاربر: یادداشت شود —
+  //    به شرطِ آنکه «در نوبتِ عادی» و «نتیجه‌ای دربارهٔ کم‌خونی گرفته نمی‌شود» کنارِ «فوراً به اورژانس» ننشیند (N20).
+  const p = uuuRun([["Hb", "5.5", null, "g/dL"], ["Hct", "15", null, "%"], ["MCHC", "38", null, "g/dL"]], M40);
+  assert.ok(findPat(p, "severe_anemia_crisis"), fired(p).join(","));
+  const n = findPat(p, "rbc_indices_implausible");
+  assert.ok(n, fired(p).join(","));
+  assert.equal(p.overall_urgency, "emergency");
+  assert.equal(p.findings.filter((f) => f.urgency === "emergency").length, 1);
+  assert.match(n.action, /دستورِ فوریِ بالا/);
+  assert.doesNotMatch(n.must_say, /نتیجه‌ای دربارهٔ کم‌خونی گرفته نمی‌شود|می‌تواند علتش باشد/);
+  assert.doesNotMatch(n.must_say + n.action, RIVAL_TIMELINE);
+  assert.match(n.must_say, /دستورِ فوریِ بالا را عوض نمی‌کند/);
+  // B1 سرِ جایش: کم‌خونیِ غیربحرانی هنوز یادداشت نمی‌گیرد.
+  assert.ok(!findPat(uuuRun([["Hb", "9", null, "g/dL"], ["Hct", "24", null, "%"], ["MCV", "88", null, "fL"], ["MCHC", "37.5", null, "g/dL"]], { age: 50, sex: "M" }), "rbc_indices_implausible"));
+});
+
+test("M183b: MCVِ بالا کنارِ MCHCِ ناممکن در همان یادداشت گفته می‌شود و بی‌توضیح نمی‌ماند (P52 پرسش ۳)", () => {
+  // 🔴 پنلِ آگلوتینینِ سرد: MCV 100 به unexplained_abnormal می‌رفت، جدا از یادداشتی که همان خطا را توضیح می‌داد.
+  const p = uuuRun(g7Panel, M40);
+  const n = findPat(p, "rbc_indices_implausible");
+  assert.ok(n, fired(p).join(","));
+  assert.match(n.must_say, /MCV/);
+  assert.ok(!findPat(p, "unexplained_abnormal"), fired(p).join(","));
+  // MCVِ طبیعی نام برده نمی‌شود.
+  const q = uuuRun([["Hb", "15", null, "g/dL"], ["Hct", "44", null, "%"], ["MCV", "90", null, "fL"], ["MCHC", "36.6", null, "g/dL"]], M40);
+  assert.doesNotMatch(findPat(q, "rbc_indices_implausible").must_say, /MCV/);
+});
+
+test("M183c: بحرانِ هماتوکریتِ بی‌Hb برای کودک و نوزاد هم (P52 پرسش ۵، N19)", () => {
+  // 🔴 پیش‌تر زیرِ ۱۶ سال: Hct 18 بی‌Hb ⇒ «در نوبت عادی».
+  const hbAction = findPat(anemiaPanel([]), "severe_anemia_crisis").action;
+  for (const pt of [{ age: 6, sex: "M" }, { age: 0.01, sex: "F" }, { age: 12, sex: "F" }]) {
+    const p = hctOnly("18", pt);
+    const f = findPat(p, "severe_anemia_crisis");
+    assert.ok(f, `${JSON.stringify(pt)}: ${fired(p).join(",")}`);
+    assert.equal(f.action, hbAction);
+    assert.ok(!findPat(p, "low_rbc_hct_without_anemia"), JSON.stringify(pt));
+  }
+  assert.ok(!findPat(hctOnly("25", { age: 6, sex: "M" }), "severe_anemia_crisis"));
+});
+
+test("M183d: ردیفِ نوزادیِ بی‌منبعِ PED_REFS.RETIC_ABS حذف شد (P52 پرسش ۴)", async () => {
+  const { PED_REFS } = await import("./refs_ped.js");
+  assert.ok(!("RETIC_ABS" in PED_REFS));
+  // و شمارشِ مطلق هنوز شناخته و «تفسیر نشدند» است (M181).
+  const e = uuu([["ARC", "150", null, "10*9/L"]], { age: 0.001, sex: "M" });
+  assert.ok(e.noRef.includes("RETIC_ABS"));
 });

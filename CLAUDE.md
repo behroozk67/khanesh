@@ -27,6 +27,8 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `aeb2ff3`, after the user's decisions on P52 questions 1–5 (MCHC note under an Hb crisis, MCV in the note, `PED_REFS.RETIC_ABS` deleted, Hct-only crisis at every age — `M183`–`M183d`; `M179c`, `M180b` changed on purpose) — 135 rules | 2026-09-23 | 618 | 599 | **0** | 19 todo |
+   | `aeb2ff3` (`git archive` + junction) with that `engine.test.js` (engine suite only) — red: exactly `M183`–`M183d` + `M179c`, `M180b` | 2026-09-23 | 579 | 554 | **6** | 19 todo |
    | working tree on `b9068df` (specs/006 still uncommitted), after specs/007 + its review round (Henry ch.31: RBC-F range, Hct-only crisis, MCHC artefact note, `RETIC_ABS`, HCT L/L + MCHC g/L units — `M177`–`M181`, 10 tests; review fixes `M182`–`M182f`, 6 tests, all red on the pre-fix tree; `M104d` C3 changed on purpose) — 135 rules | 2026-09-23 | 614 | 595 | **0** | 19 todo |
    | copy of that working tree taken **before** specs/007, with the final `engine.test.js` dropped in (engine suite only) — red: `M177`, `M178`, `M179`, `M179b`, `M180`, `M181`, `M182`, `M182b`, `M182c`, `M182e`, `M182f` + `M104d`; green: freezes `M177b`/`M178b`/`M179c`/`M180b`, and `M182d` (guards a rule that didn't exist yet) | 2026-09-23 | 575 | 544 | **12** | 19 todo |
    | working tree on `b9068df`, after the specs/006 review round (medical FAIL B1–B4 + code review #1–#9 — `M176`–`M176l`, 12 tests, all red on the pre-fix Stage B tree; `M173`, `M173d`, `M175c`, `M104d` U4 changed on purpose) — 134 rules | 2026-09-22 | 598 | 579 | **0** | 19 todo |
