@@ -128,6 +128,21 @@ export const SI_CONVERSIONS = {
   DHEAS:    { si: /^[µμu]mol\/l$/, factor: 36.85, conv: 'µg/dL' },
 };
 
+/**
+ * تبدیل‌هایی که *فقط* با واحدِ چاپ‌شده انجام می‌شوند (specs/007، کلاسِ N3).
+ *
+ * 🔴 پیش از 007: «Hct 0.39 L/L» (طبیعی) ۰.۳۹٪ سنجیده می‌شد و «پایین» می‌خورد، و «MCHC 366 g/L»
+ *    (۳۶.۶ g/dL) در برابرِ بازهٔ ۳۲–۳۶ «بالا». با بحرانِ هماتوکریتِ بی‌هموگلوبین (Hct < ۲۱) اولی
+ *    اورژانسِ کاذب می‌شد، و با یادداشتِ MCHC > ۳۶.۵ دومی روی هر برگهٔ SI می‌نشست.
+ * ⚠️ عمداً در SI_CONVERSIONS نیستند: آنجا بودن یعنی ردیفِ UNIT_PROFILE (M121b)، و آن‌وقت decideUnit
+ *    سراغِ عددِ *بی‌واحد* هم می‌رود — «Hct 39»ِ بی‌واحد، رایج‌ترین شکلِ برگه، بی‌محدودهٔ چاپ‌شده دیگر
+ *    سنجیده نمی‌شد. عددِ بی‌واحدِ ناممکن (هماتوکریتِ ≤ ۱، MCHCِ > ۱۰۰) را adapter به unmapped می‌فرستد.
+ */
+export const PRINTED_ONLY_CONVERSIONS = {
+  HCT:  { si: /^(l\/l|fraction)$/, factor: 100, conv: '%' },
+  MCHC: { si: /^g\/l$/, factor: 0.1, conv: 'g/dL' },
+};
+
 // املای فارسیِ واحد (پس از حذفِ فاصله و نیم‌فاصله) → املای لاتین
 const FA_UNITS = [
   [/میکروگرمدردسیلیتر/, 'µg/dl'], [/میلیگرمدردسیلیتر/, 'mg/dl'], [/نانوگرمدردسیلیتر/, 'ng/dl'],
@@ -211,7 +226,7 @@ export function toConventional(engineKey, value, unit) {
     return { value: r.value, converted: r.converted, from: r.from, to: '%', ...(r.inferred ? { inferred: true } : {}) };
   }
 
-  const rule = SI_CONVERSIONS[engineKey];
+  const rule = SI_CONVERSIONS[engineKey] ?? PRINTED_ONLY_CONVERSIONS[engineKey];
   if (!rule) return { value, converted: false, from: null, to: null };
 
   const u = normUnit(unit);

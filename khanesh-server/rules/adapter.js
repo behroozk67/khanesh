@@ -47,6 +47,12 @@ const NAME_MAP = {
   mcv: "MCV", mch: "MCH", mchc: "MCHC",
   plt: "PLT", platelet: "PLT", plateletcount: "PLT", پلاکت: "PLT",
   retic: "RETIC", reticulocyte: "RETIC",
+  // specs/007 (G8): شمارشِ *مطلقِ* رتیکولوسیت (×10⁹/L) کلیدِ جدای خود را دارد و هرگز RETIC ِ درصدی نیست.
+  // بی‌بازه (P52) ⇒ همیشه noRef، حتی نوزاد — ردیفِ PED_REFS.RETIC_ABS واحدِ نامعلوم دارد (REF_DIFF.md).
+  // پیش از این هر چهار املا به unmapped می‌رفتند (M181). «arc»/«reticabs» با هیچ کلیدِ دیگری برخورد ندارند.
+  arc: "RETIC_ABS", reticabs: "RETIC_ABS", retabs: "RETIC_ABS", absoluteretic: "RETIC_ABS",
+  absolutereticulocyte: "RETIC_ABS", absolutereticulocytes: "RETIC_ABS", reticulocyteabsolute: "RETIC_ABS",
+  reticulocytecountabsolute: "RETIC_ABS", رتیکولوسیتمطلق: "RETIC_ABS",
   rdwcv: "RDW_CV", rdw: "RDW_CV",
   rdwsd: "RDW_SD",
   mpv: "MPV",
@@ -1075,6 +1081,28 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
+    // ═══ specs/007 (N3): هماتوکریتِ بی‌واحدِ ≤ ۱ کسری است (0.39 = ۳۹٪) و MCHCِ بی‌واحدِ > ۱۰۰ g/L است ═══
+    //    هیچ‌کدام با واحدِ متعارف ممکن نیست، ولی تبدیل از روی اندازه تا تأییدِ P48/P52 ممنوع است — پس
+    //    سنجیده نمی‌شوند و به unmapped می‌روند («تفسیرشان نمی‌کند … با پزشک»). بی‌این، «Hct 0.39»ِ طبیعی
+    //    «پایین» می‌شد و با بحرانِ هماتوکریت (patterns_utils، crisisArm) اورژانسِ کاذب. عددِ معمولی دست نمی‌خورد (M177b).
+    // «ARC 1.2 %» ردیفِ RETIC ِ درصدیِ بدنام‌گذاری‌شده است، نه شمارشِ مطلق — حدس نمی‌زنیم کدام (M181).
+    if (engineKey === "RETIC_ABS" && /%/.test(String(t.unit ?? ""))) {
+      unmapped.push(t.name);
+      continue;
+    }
+    // بازبینیِ کد N-c و پزشکی: واحدِ چاپ‌شده‌ای که با عدد نمی‌خواند هم حدس زده نمی‌شود — «Hct 0.39 %» کسری است،
+    // «Hct 39 L/L» ۳۹۰۰ می‌شد و «MCHC 34 g/L» ۳.۴ (M182b، M182e). نه تبدیل، نه سنجش: unmapped.
+    const hu = String(t.unit ?? "").trim().toLowerCase().replace(/\s+/g, "");
+    if ((engineKey === "HCT" && ((hu === "%" && v <= 1) || (/^(l\/l|fraction)$/.test(hu) && v > 1))) ||
+        (engineKey === "MCHC" && hu === "g/l" && v < 100)) {
+      unmapped.push(t.name);
+      continue;
+    }
+    if (!String(t.unit ?? "").trim() && ((engineKey === "HCT" && v <= 1) || (engineKey === "MCHC" && v > 100))) {
+      unmapped.push(t.name);
+      continue;
+    }
+
     // ═══ واحدِ نانوشته (specs/003) — پیش از هر تبدیلی، تا شاخه‌های پایین واحدِ قطعی ببینند ═══
     t = resolveRowUnit(engineKey, t, v);
     if (!t) continue;
@@ -1484,7 +1512,9 @@ export function runEngine(ocr) {
       if (reason) { ungraded[key] = { value, reason }; continue; }
     }
 
-    const ref = getRef(key, sex, age);
+    // specs/007: RETIC_ABS بازهٔ تأییدشده ندارد (۲۵–۱۰۰ ×10⁹/L در P52) — در هیچ سنی سنجیده نمی‌شود، پس
+    // ردیفِ نوزادیِ PED_REFS.RETIC_ABS با واحدِ نامعلومش هرگز حکم نمی‌دهد.
+    const ref = key === "RETIC_ABS" ? null : getRef(key, sex, age);
     if (!ref) {
       noRef.push(key);
       if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range" };

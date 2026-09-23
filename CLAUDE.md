@@ -27,6 +27,8 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `b9068df` (specs/006 still uncommitted), after specs/007 + its review round (Henry ch.31: RBC-F range, Hct-only crisis, MCHC artefact note, `RETIC_ABS`, HCT L/L + MCHC g/L units — `M177`–`M181`, 10 tests; review fixes `M182`–`M182f`, 6 tests, all red on the pre-fix tree; `M104d` C3 changed on purpose) — 135 rules | 2026-09-23 | 614 | 595 | **0** | 19 todo |
+   | copy of that working tree taken **before** specs/007, with the final `engine.test.js` dropped in (engine suite only) — red: `M177`, `M178`, `M179`, `M179b`, `M180`, `M181`, `M182`, `M182b`, `M182c`, `M182e`, `M182f` + `M104d`; green: freezes `M177b`/`M178b`/`M179c`/`M180b`, and `M182d` (guards a rule that didn't exist yet) | 2026-09-23 | 575 | 544 | **12** | 19 todo |
    | working tree on `b9068df`, after the specs/006 review round (medical FAIL B1–B4 + code review #1–#9 — `M176`–`M176l`, 12 tests, all red on the pre-fix Stage B tree; `M173`, `M173d`, `M175c`, `M104d` U4 changed on purpose) — 134 rules | 2026-09-22 | 598 | 579 | **0** | 19 todo |
    | `b9068df` (`git archive` + junction) with that final `engine.test.js` — red: 22 Stage B guards + 10 review guards + `M104d` (`M176e`/`M176l` green there: no reader existed) | 2026-09-22 | 559 | 507 | **33** | 19 todo |
    | working tree on `b9068df`, after specs/006 Stage B (urinalysis: specific gravity, crystals, epithelial cells, dipstick bilirubin/urobilinogen — `M171`–`M175g`, 27 tests; 22 red on `b9068df` + `M104d` changed on purpose + 5 freezes) — 134 rules | 2026-09-22 | 586 | 567 | **0** | 19 todo |
@@ -412,8 +414,8 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 `patterns.js` no longer holds the rules. It imports **seventeen** `patterns_<system>.js` files
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-22) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **134 rules, measured
-2026-09-22** (113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
+concatenates their `RULES_*` exports into the exported `RULES` array — **135 rules, measured
+2026-09-23** (the 135th is `rbc_indices_implausible` in `patterns_hematology.js`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
 `unit_unknown_values` in `patterns_unit_unknown.js` from specs/003, plus `folate_deficiency` in
 `patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004, plus
 the seven `urine_cast_*` rules in `patterns_urine_casts.js` and `urine_esterase_without_cells` in
@@ -885,6 +887,22 @@ second one; a recurring entry is the strongest signal in the file.
   - Remaining ambiguity: `1,200` is always read as 1200.
   **Rule:** when two functions parse the same printed number, they must share one rule. The
   second copy is where the bug lives.
+
+- ⚠️ **Recurred 2026-09-23 on HCT and MCHC (specs/007), found by the plan's probe before any rule could use it.**
+  Neither key had a unit row:
+  - `Hct 0.39 L/L` (normal) was graded as 0.39 % and read «پایین».
+  - `MCHC 366 g/L` (normal) was graded as 366 against 32–36.
+
+  Harmless-looking today, a routine false flag. But the same feature added `Hct < 21` as an emergency trigger and
+  `MCHC > 36.5` as a note trigger, so without the fix, a normal SI-unit sheet would become a **false emergency**.
+
+  **The fix is a separate table, `PRINTED_ONLY_CONVERSIONS` in `units.js`, not `SI_CONVERSIONS`.** A key in
+  `SI_CONVERSIONS` gets a `UNIT_PROFILE` row (`M121b`), which sends its *unitless* values through `decideUnit`. A
+  unitless `Hct 39`, the most common way sheets print it, would then stop being graded. Unitless impossible values
+  (Hct ≤ 1, MCHC > 100) go to `unmapped` rather than being converted by magnitude (P48/P52). Guards `M177`, `M177b`.
+
+  **Rule:** before a new rule reads a key as a trigger, run the key's *ordinary* value through every unit a sheet
+  prints it in. A threshold is only as safe as the grading of the number fed into it.
 
 ### N4 — Telling the patient about a test they didn't have
 `9c93319`
@@ -1469,6 +1487,14 @@ structural, not specific to that rule.
   non-zero lower bound is claiming someone else owns the region below it — verify that someone
   exists, exactly as N16 asks you to verify a replacement exists before deleting a rule.
 - **Guards:** `M59`, `M59b`, `M59c` (hand-off at 180, so two rules never fire on one value).
+- ⚠️ **Recurred 2026-09-23 as the missing-partner version (specs/007, `P52`).** An adult sheet with `Hct 18` and **no Hb**
+  got `low_rbc_hct_without_anemia` and «در نوبت عادی». The same blood with Hb printed (≈ 6) was an emergency. So the less
+  the sheet printed, the less the patient was told. The fix is a second arm of the **same** predicate
+  (`crisisArm` in `patterns_utils.js`): Hct < `HGB_CRISIS_GDL × 3`, and only when Hb is not graded. It is not a parallel
+  rule, and 21 is never written as a literal. The retired rule's sole content (a low RBC) moved into the crisis text so it
+  isn't orphaned (N20). Guards `M179`–`M179c`.
+  **Rule:** when the patient's severity is decided by analyte A, ask what the report says when A is absent but B, which
+  tracks A, is printed at a critical value. "Not measured" must not turn into "not urgent".
 
 ### N20 — A finding's `urgency` and its action sentence are two copies of one decision, and only one of them is read
 2026-08-07, `patterns_mineral_bone.js`. Caught by a smoke test before commit, logged because the

@@ -12,7 +12,7 @@
 export const FA_NAMES = {
   HGB: "هموگلوبین", HCT: "هماتوکریت", RBC: "گلبول قرمز", WBC: "گلبول سفید",
   MCV: "MCV (حجم گلبول قرمز)", MCH: "MCH", MCHC: "MCHC", PLT: "پلاکت",
-  RETIC: "رتیکولوسیت", RDW_CV: "RDW", RDW_SD: "RDW", MPV: "MPV", ESR: "ESR (سرعت رسوب)",
+  RETIC: "رتیکولوسیت", RETIC_ABS: "شمارشِ مطلقِ رتیکولوسیت", RDW_CV: "RDW", RDW_SD: "RDW", MPV: "MPV", ESR: "ESR (سرعت رسوب)",
   NEUT_ABS: "نوتروفیل", LYMPH_ABS: "لنفوسیت", MONO_ABS: "مونوسیت",
   EOS_ABS: "ائوزینوفیل", BASO_ABS: "بازوفیل", BAND_ABS: "باند",
   UREA: "اوره", UREA_N: "BUN (نیتروژن اورهٔ خون)", CREAT: "کراتینین", NA: "سدیم", K: "پتاسیم", CL: "کلر",

@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -89,6 +89,41 @@ function b12Clause(e, mode) {
   return mode === CLAUSE_FOR.own
     ? `ویتامین B12 شما روی همین برگه پایین نیست (${shown}).`
     : `ویتامین B12 شما روی همین برگه پایین نیست (${shown})، پس کمبودِ B12 علتِ محتمل‌تری نیست.`;
+}
+
+/**
+ * «spherocytosis_likely فعال است؟» — خودِ match ِ آن قاعده صدا زده می‌شود، تا rbc_indices_implausible
+ * آستانهٔ ۳۶ (P5) را دوباره ننویسد (M91e، specs/007). ⚠️ match سرِ جایش در قاعده می‌ماند و اینجا منتقل
+ * نمی‌شود: RULE_READS در patterns.js کلیدها را از *متنِ* match می‌خواند، و بیرون‌کشیدنش MCH/RDW/MCV را از
+ * «خوانده‌شده» بیرون می‌برد و به تورِ unexplained_abnormal می‌انداخت.
+ */
+function spherocytosisFires(e) {
+  return !!RULES_HEMATOLOGY.find((r) => r.id === "spherocytosis_likely").match(e);
+}
+
+/*
+ * specs/007 (Q3=B): MCHCِ بالای ۳۶.۵ g/dL از نظرِ فیزیولوژیک بعید است — MCHC = Hb ÷ Hct، پس یعنی
+ * هموگلوبین و هماتوکریتِ همین برگه با هم نمی‌خوانند (آگلوتینینِ سرد، چربیِ خون). 🔴 پیش از 007 الگوی
+ * کلاسیکِ آگلوتینینِ سرد (Hb 14، Hct 30، MCHC 46.7) «یعنی این نتیجه کم‌خونی نیست … کمبود آهن، B12 یا
+ * فولات» می‌خواند: توضیحِ یک خطای دستگاه به‌عنوانِ یافتهٔ واقعی.
+ * ⚠️ ۳۶.۵: تأییدِ کاربر ۱۴۰۵/۰۶/۳۱؛ عدد از استخراجِ Gemini از هنری فصل ۳۱ — نه از خودِ کتاب (P52).
+ *    قاعدهٔ سه‌تایی (Hb×۳ ≈ Hct ± ۳) عمداً ماشه نیست: در کمبودِ آهن و تالاسمی به‌حق می‌شکند.
+ * - هر دو Hb و Hct باید سنجیده شده باشند: نبودنِ یکی «ناهماهنگی» نیست (اصل II).
+ * - اسفروسیتوز مالکِ MCHCِ خودش است؛ بحرانِ کم‌خونی هم — «شاید خطای نمونه باشد» کنارِ «فوراً به
+ *   اورژانس» بیمار را به نادیده‌گرفتنِ اورژانس دعوت می‌کند (تصمیمِ plan، R5).
+ */
+const MCHC_ARTEFACT_GDL = 36.5;
+
+function indicesImplausible(e) {
+  const mchc = e.graded.find((g) => g.test === "MCHC");
+  const hgb = e.graded.find((g) => g.test === "HGB");
+  const hct = e.graded.find((g) => g.test === "HCT");
+  // 🔴 بازبینیِ پزشکی B1: Hbِ پایین مستقیم سنجیده می‌شود و آگلوتینینِ سرد پایینش نمی‌آورد (چربی حتی بالا می‌برد) —
+  //    پس کم‌خونی واقعی است و قاعده‌های کم‌خونی مالکِ برگه‌اند. «نتیجه‌ای دربارهٔ کم‌خونی گرفته نمی‌شود … نوبتِ عادی»
+  //    کنارِ «این هفته»ِ آن‌ها دو خوانش و دو زمان‌بندی بود (M182d).
+  const hgbLow = hgb?.abnormal && hgb.dir === "low";
+  return !!(mchc?.abnormal && mchc.dir === "high" && Number(mchc.value) > MCHC_ARTEFACT_GDL &&
+    hgb && hct && !hgbLow && !spherocytosisFires(e) && !anemiaCrisisOwns(e));
 }
 
 export const RULES_HEMATOLOGY = [
@@ -463,14 +498,37 @@ export const RULES_HEMATOLOGY = [
     // می‌روند باید دقیقاً همین شرط را ببینند، وگرنه دو نسخه از یک تصمیم می‌شود (N20).
     match: (e) => anemiaCrisisOwns(e),
     build: (e) => {
-      const hgb = e.graded.find((g) => g.test === "HGB");
-      return {
+      const base = {
         pattern: "severe_anemia_crisis",
         urgency: "emergency",
         headline: "بحران کم‌خونی شدید (اورژانس پزشکی)",
-        must_say: `مقدار هموگلوبین شما ${hgb.value} است که افت بسیار شدیدی را نشان می‌دهد (کمتر از ۷.۰). این میزان از کم‌خونی باعث کاهش شدید اکسیژن‌رسانی به بافت‌های حیاتی از جمله قلب و مغز می‌شود و خطر جانی دارد.`,
         action: "فوراً و بدون اتلاف وقت به بخش اورژانس بیمارستان مراجعه کنید (احتمال نیاز فوری به تزریق خون وجود دارد).",
         suggest: ["تزریق خون (Blood Transfusion)", "CBC"],
+      };
+      // specs/007 (Q2=A): بازوی هماتوکریت — Hb سنجیده نشده و Hct زیرِ Hb۷×۳. همان دستور، همان فوریت؛
+      // متن باید بگوید هموگلوبین روی برگه نیست و فوریت *برآورد* شده (N4، N5). گلبول قرمزِ پایین هم اینجا
+      // نام برده می‌شود، چون low_rbc_hct_without_anemia زیرِ بحران کنار می‌رود و آن را بی‌صاحب می‌گذاشت (N20).
+      if (crisisArm(e) === "hct") {
+        const hct = e.graded.find((g) => g.test === "HCT");
+        const rbc = e.graded.find((g) => g.test === "RBC");
+        const rbcLow = rbc?.abnormal && rbc.dir === "low";
+        // N5 (بازبینی N-b): «0.19 L/L» روی برگه چاپ شده، نه «19» — عددِ تبدیل‌شده بی‌عددِ چاپ‌شده ادعای برگه است.
+        const conv = (e.unitConversions ?? []).find((c) => c.test === "HCT");
+        const printed = conv ? ` — روی برگه ${conv.raw} ${conv.from === "l/l" ? "L/L" : conv.from}` : "";
+        return {
+          ...base,
+          must_say:
+            `هماتوکریت شما ${hct.value}٪ است${printed} (حد طبیعی ${hct.range}). هموگلوبین روی این برگه اندازه‌گیری نشده است؛ ` +
+            "هماتوکریتِ زیر ۲۱ معمولاً با هموگلوبینِ زیر ۷ همراه است، یعنی کم‌خونیِ بسیار شدیدی که اکسیژن‌رسانی به قلب و مغز را به خطر می‌اندازد. " +
+            "این فوریت از هماتوکریت برآورد شده، نه از هموگلوبینِ اندازه‌گیری‌شده." +
+            (rbcLow ? ` تعداد گلبول قرمز هم ${rbc.value} است (حد طبیعی ${rbc.range}).` : ""),
+          key_number: hct.value,
+        };
+      }
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      return {
+        ...base,
+        must_say: `مقدار هموگلوبین شما ${hgb.value} است که افت بسیار شدیدی را نشان می‌دهد (کمتر از ۷.۰). این میزان از کم‌خونی باعث کاهش شدید اکسیژن‌رسانی به بافت‌های حیاتی از جمله قلب و مغز می‌شود و خطر جانی دارد.`,
         key_number: hgb.value
       };
     }
@@ -728,7 +786,16 @@ export const RULES_HEMATOLOGY = [
       const hctLow = hct?.abnormal && hct.dir === "low";
       // هموگلوبینِ پایین کارِ قاعده‌های کم‌خونی است، نه این یکی.
       const hgbLow = hgb?.abnormal && hgb.dir === "low";
-      return (rbcLow || hctLow) && !hgbLow;
+      // specs/007: زیرِ بحرانِ هماتوکریت (Hb سنجیده نشده، Hct < ۲۱) کنار می‌رود — «نمی‌توان گفت کم‌خونی
+      // هست یا نه … در نوبت عادی» کنارِ «فوراً به اورژانس» دو دستور است (N20). شرط «آن قاعده فعال است؟»
+      // است نه بازنویسیِ آستانه (M91e). بازوی Hb همین حالا هم با !hgbLow بیرون است.
+      // specs/007 (FR-008): وقتی MCHC ناممکن است، «کم‌خونی نیست» از همان شاخص‌هایی نتیجه می‌شود که
+      // rbc_indices_implausible می‌گوید قابلِ اعتماد نیستند — آن یافته مالکِ RBC/HCT ِ پایین است.
+      // 🔴 بازبینیِ پزشکی R2-B1 (N20): Hbِ بی‌واحدی که unit_unknown_values با هر خوانش فوری می‌داند مالکِ کم‌خونیِ برگه
+      //    است؛ «نمی‌توان گفت کم‌خونی هست یا نه … نوبت عادی» کنارِ «همین حالا به اورژانس» دو دستور بود (M182f).
+      //    Hbِ بی‌واحدِ روتین (۸.۵ mmol/L) رفتارِ امروز را نگه می‌دارد.
+      const hgbUrgentUnread = ["emergency", "this_week"].includes(e.ungraded?.HGB?.urgency);
+      return (rbcLow || hctLow) && !hgbLow && !anemiaCrisisOwns(e) && !indicesImplausible(e) && !hgbUrgentUnread;
     },
     build: (e) => {
       const rbc = e.graded.find((g) => g.test === "RBC");
@@ -743,7 +810,11 @@ export const RULES_HEMATOLOGY = [
       if (hctLow) parts.push(`هماتوکریت ${hct.value} است (حد طبیعی ${hct.range})`);
 
       // N4 — «اندازه‌گیری‌نشده» با «طبیعی» یکی نیست. سه حالت، سه متن.
-      const hgbFa = !hgb
+      // specs/007 (بازبینی B1/B2، N4): Hbِ چاپ‌شده‌ای که واحدش معلوم نشد «اندازه‌گیری‌نشده» نیست — شاخهٔ چهارم.
+      const hgbUnread = !hgb && (e.ungraded?.HGB || e.noRef?.includes("HGB"));
+      const hgbFa = hgbUnread
+        ? "هموگلوبین روی این برگه چاپ شده، ولی چون واحدش معلوم نبود سنجیده نشد؛ بدون آن نمی‌توان گفت کم‌خونی هست یا نه."
+        : !hgb
         ? "هموگلوبین در این برگه اندازه‌گیری نشده است، و بدون آن نمی‌توان گفت کم‌خونی هست یا نه — این مهم‌ترین عددِ غایب در این نتیجه است."
         : hgb.abnormal && hgb.dir === "high"
         ? `در مقابل، هموگلوبین شما ${hgb.value} است که بالاتر از حد طبیعی (${hgb.range}) گزارش شده.`
@@ -817,6 +888,39 @@ export const RULES_HEMATOLOGY = [
         ),
         suggest: ["لام خون محیطی", "بیلی‌روبین", "تکرار CBC"],
         warnings: [],
+      };
+    },
+  },
+
+  {
+    // specs/007 (Q3=B) — شرح و منبعِ ۳۶.۵ بالای indicesImplausible. فقط متن: urgency روتین است و
+    // overall_urgency را جابه‌جا نمی‌کند، چون MCHCِ بالای ۳۶.۵ همیشه «غیرطبیعی» است و بی‌این قاعده هم
+    // یک یافتهٔ روتین (unmatched_abnormal) می‌گرفت (M180). هیچ بیماری‌ای نام برده نمی‌شود.
+    id: "rbc_indices_implausible",
+    match: (e) => indicesImplausible(e),
+    build: (e) => {
+      const mchc = e.graded.find((g) => g.test === "MCHC");
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const hct = e.graded.find((g) => g.test === "HCT");
+      const rbc = e.graded.find((g) => g.test === "RBC");
+      // فقط شاخصی که واقعاً پایین است نام برده می‌شود — low_rbc_hct_without_anemia کنار رفته و این یافته مالکِ آن‌هاست.
+      const low = [];
+      if (hct.abnormal && hct.dir === "low") low.push(`هماتوکریت (${hct.value})`);
+      if (rbc?.abnormal && rbc.dir === "low") low.push(`تعداد گلبول قرمز (${rbc.value})`);
+      return {
+        pattern: "rbc_indices_implausible",
+        urgency: "routine",
+        key_number: mchc.value,
+        headline: "شاخص‌های گلبول قرمزِ این برگه با هم جور درنمی‌آیند",
+        must_say:
+          `غلظت هموگلوبین در گلبول‌های قرمز (MCHC) ${mchc.value} گزارش شده (حد طبیعی ${mchc.range})؛ ` +
+          `این مقدار از نظرِ بدنی بعید است و معمولاً یعنی هموگلوبین (${hgb.value}) و هماتوکریت (${hct.value}) این برگه با هم هماهنگ نیستند. ` +
+          "شایع‌ترین علت، اثرِ نمونه یا دستگاه است — مثلاً چسبیدنِ گلبول‌ها به هم در نمونهٔ سرد (آگلوتینینِ سرد) یا چربیِ زیادِ خون — نه یک بیماری. " +
+          "تا تکرارِ آزمایش، از این شاخص‌ها نتیجه‌ای دربارهٔ کم‌خونی گرفته نمی‌شود." +
+          (low.length ? ` ${low.join(" و ")} هم پایین گزارش شده، ولی همین ناهماهنگی می‌تواند علتش باشد.` : ""),
+        action: "در نوبتِ عادی از پزشک یا آزمایشگاه بخواهید شمارش خون (CBC) روی نمونهٔ تازه تکرار شود.",
+        suggest: ["تکرار CBC", "لام خون محیطی"],
+        warnings: ["تا تکرارِ آزمایش، خودتان مکملِ آهن، B12 یا فولات شروع نکنید."],
       };
     },
   },

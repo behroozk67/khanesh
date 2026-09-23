@@ -6354,7 +6354,9 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
     U6: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.010"], ["pH", "7"]], "030bb4f5e6f4a91f"],
     C1: [{ age: 40, sex: "M" }, [["WBC", "7000"], ["RBC", "4.8"], ["Hb", "14", "g/dL"], ["PLT", "250000"], ["MCV", "88"]], "7dd79d6187162b00"],
     C2: [{ age: 40, sex: "M" }, [["WBC", "15.2"], ["Neut %", "85"], ["PLT", "120"]], "edaafc0eb1d80fca"],
-    C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "8116a638fd8de1b0"],
+    // ⚠️ C3 عمداً عوض شد (specs/007، US1): فقط رشتهٔ بازهٔ RBCِ زن در متن، «4.5–5.1» → «4.1–5.1» — سنجیده شد
+    //    (c3، کپیِ پیش از 007 در برابرِ درختِ کاری): یافته‌ها، فوریت و حکمِ RBC 5.2 (بالا) یکسان‌اند.
+    C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "2f905116efdc3ad9"],
     C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8", "g/dL"]], "a8529e980e227c50"],
     C5: [{ age: 45, sex: "M" }, [["RBC", "6.4", "10*6/µL"], ["Hb", "17.5", "g/dL"], ["HCT", "53"]], "521210ad11ce80a9"],
     C6: [{ age: 45, sex: "F" }, [["WBC", "7.2"], ["RBC", "4.5", "10*6/µL"], ["Hb", "13", "g/dL"], ["MCV", "88"], ["PLT", "250"]], "34fddffb77c6a593"],
@@ -8488,4 +8490,283 @@ test("M176l: «+/-» روی کریستال مبهم است — «تفسیر نش
   const rows = uaRows([["Calcium Oxalate Crystals", "+/-"]]);
   assert.ok(!ubIds(rows).some((i) => i.startsWith("urine_crystals")));
   assert.ok(ubEngine(rows).unmapped.includes("Calcium Oxalate Crystals"));
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// specs/007 — هنری فصل ۳۱، شاخص‌های گلبول قرمز (Q1 = B، Q2 = A، Q3 = B؛ P52)
+// آزمون‌های رفتاری روی کپیِ درختِ کاریِ پیش از 007 قرمز دیده شدند؛ freezeها روی هر دو سبزند.
+// ═══════════════════════════════════════════════════════════════════════════
+const g007 = (e, k) => e.graded.find((g) => g.test === k);
+const F30 = { age: 30, sex: "F" };
+const M40 = { age: 40, sex: "M" };
+
+test("M177: هماتوکریتِ L/L ×۱۰۰ و MCHCِ g/L ÷۱۰ سنجیده می‌شوند؛ عددِ بی‌واحدِ ناممکن به «تفسیر نشدند» (N3)", () => {
+  // 🔴 پیش از 007: «Hct 0.39 L/L» (طبیعی) ۰.۳۹٪ و «پایین» خوانده می‌شد؛ با قاعدهٔ Hct<21 اورژانسِ کاذب می‌شد.
+  let e = uuu([["Hct", "0.39", null, "L/L"]], F30);
+  assert.equal(g007(e, "HCT")?.value, 39);
+  assert.equal(g007(e, "HCT").abnormal, false);
+  const c = e.unitConversions.find((x) => x.test === "HCT");
+  assert.ok(c && c.to === "%", JSON.stringify(e.unitConversions));
+  // «MCHC 366 g/L» (۳۶.۶ g/dL) با بازهٔ g/dL سنجیده می‌شد ⇒ ۳۶۶ «بالا».
+  e = uuu([["MCHC", "340", null, "g/L"]], F30);
+  assert.equal(g007(e, "MCHC")?.value, 34);
+  assert.equal(g007(e, "MCHC").abnormal, false);
+  // بی‌واحد: کسری (≤۱) برای هماتوکریت و >۱۰۰ برای MCHC با واحدِ متعارف ناممکن است — سنجیده نمی‌شود.
+  e = uuu([["Hct", "0.18"]], F30);
+  assert.ok(!g007(e, "HCT"), JSON.stringify(e.graded));
+  assert.ok(e.unmapped.includes("Hct"), JSON.stringify(e.unmapped));
+  e = uuu([["MCHC", "366"]], F30);
+  assert.ok(!g007(e, "MCHC"), JSON.stringify(e.graded));
+  assert.ok(e.unmapped.includes("MCHC"), JSON.stringify(e.unmapped));
+});
+
+test("M177b: هماتوکریت و MCHCِ بی‌واحدِ معمولی مثلِ همیشه سنجیده می‌شوند (freeze)", () => {
+  const cases = [
+    [["Hct", "39"], "HCT", 39, false],
+    [["Hct", "18"], "HCT", 18, true],
+    [["Hct", "39", null, "%"], "HCT", 39, false],
+    [["MCHC", "34"], "MCHC", 34, false],
+    [["MCHC", "34", null, "g/dL"], "MCHC", 34, false],
+  ];
+  for (const [row, k, v, abn] of cases) {
+    const e = uuu([row], F30);
+    assert.equal(g007(e, k)?.value, v, JSON.stringify(row));
+    assert.equal(g007(e, k).abnormal, abn, JSON.stringify(row));
+    assert.equal(e.unitConversions.length, 0, JSON.stringify(row));
+  }
+});
+
+const g1Panel = (rbc) => [["Hb", "13", null, "g/dL"], ["Hct", "39", null, "%"], ["RBC", rbc, null, "10*6/uL"], ["MCV", "90", null, "fL"]];
+
+test("M178: گلبول قرمزِ ۴.۳ در زن طبیعی است — بازهٔ زن ۴.۱۰–۵.۱۰ (هنری فصل ۳۱، Q1)", () => {
+  // 🔴 پیش از 007: بازهٔ زن ۴.۵–۵.۱ بود و زنِ سالم «بعضی از شاخص‌های گلبول قرمز پایین‌تر از حد طبیعی است» می‌خواند.
+  const p = uuuRun(g1Panel("4.3"), F30);
+  assert.deepEqual(fired(p), []);
+  assert.equal(p.overall_urgency, "none");
+  assert.ok(fired(uuuRun(g1Panel("4.09"), F30)).includes("low_rbc_hct_without_anemia"));
+  assert.ok(!fired(uuuRun(g1Panel("4.10"), F30)).includes("low_rbc_hct_without_anemia"));
+  assert.ok(!fired(uuuRun(g1Panel("4.49"), F30)).includes("low_rbc_hct_without_anemia"));
+  assert.equal(g007(uuu(g1Panel("5.10"), F30), "RBC").abnormal, false);
+  const hi = g007(uuu(g1Panel("5.11"), F30), "RBC");
+  assert.ok(hi.abnormal && hi.dir === "high");
+});
+
+test("M178b: بقیهٔ بازه‌ها دست نخورده‌اند — مرد، رتیکولوسیت، RDW-SD، سالمند (freeze، Q1)", () => {
+  const m = g007(uuu([["RBC", "4.4", null, "10*6/uL"]], M40), "RBC");
+  assert.ok(m.abnormal && m.dir === "low");
+  const r = uuuRun([["Retic", "2.0", null, "%"]], M40);
+  assert.deepEqual(fired(r), ["unmatched_abnormal"]);
+  assert.equal(g007(uuu([["RDW-SD", "50", null, "fL"]], M40), "RDW_SD").abnormal, false);
+  const old = uuuRun([["Hb", "12.5", null, "g/dL"], ["Hct", "37", null, "%"], ["RBC", "4.0", null, "10*6/uL"], ["MCV", "92", null, "fL"]], { age: 80, sex: "F" });
+  assert.ok(fired(old).includes("low_rbc_hct_without_anemia"), fired(old).join(","));
+});
+
+const hctOnly = (v, patient = F30, unit = "%", extra = []) => uuuRun([["Hct", v, null, unit], ...extra], patient);
+
+test("M179: هماتوکریتِ زیرِ ۲۱ بی‌هموگلوبین — همان دستورِ اورژانسِ Hb<۷، نه «نوبت عادی» (N19، Q2)", () => {
+  // 🔴 پیش از 007: «Hct 18» تنها ⇒ low_rbc_hct_without_anemia «در نوبت عادی».
+  const hbAction = findPat(anemiaPanel([]), "severe_anemia_crisis").action;
+  for (const v of ["18", "20.9"]) {
+    const p = hctOnly(v);
+    assert.equal(p.overall_urgency, "emergency", `${v}: ${fired(p).join(",")}`);
+    const f = findPat(p, "severe_anemia_crisis");
+    assert.ok(f, fired(p).join(","));
+    assert.equal(f.action, hbAction);
+  }
+  const f18 = findPat(hctOnly("18"), "severe_anemia_crisis");
+  assert.equal(Number(f18.key_number), 18);
+  assert.match(f18.must_say, /اندازه‌گیری نشده/);
+  assert.match(f18.must_say, /هماتوکریت/);
+  assert.ok(!findPat(hctOnly("21"), "severe_anemia_crisis"));
+  assert.ok(findPat(uuuRun([["Hct", "18", null, "%"]], {}), "severe_anemia_crisis"), "سنِ نامعلوم = بزرگسال");
+  assert.ok(findPat(hctOnly("0.18", F30, "L/L"), "severe_anemia_crisis"), "۰.۱۸ L/L = ۱۸٪");
+});
+
+test("M179b: هماتوکریتِ بحرانی — دقیقاً یک دستورِ اورژانس، بی‌زمان‌بندیِ رقیب، و RBC/HCT بی‌صاحب نمی‌مانند (N20)", () => {
+  let reached = 0;
+  for (const v of ["15", "18", "20.9"]) {
+    for (const extra of [[], [["RBC", "2.5", null, "10*6/uL"]]]) {
+      const p = hctOnly(v, F30, "%", extra);
+      const tag = `${v}${extra.length ? "+RBC" : ""}`;
+      assert.equal(p.findings.filter((f) => f.urgency === "emergency").length, 1, `${tag}: ${fired(p).join(",")}`);
+      assert.ok(findPat(p, "severe_anemia_crisis"), tag);
+      assert.ok(!findPat(p, "low_rbc_hct_without_anemia"), `${tag}: ${fired(p).join(",")}`);
+      assert.ok(!findPat(p, "unexplained_abnormal") && !findPat(p, "unmatched_abnormal"), `${tag}: ${fired(p).join(",")}`);
+      for (const f of p.findings) {
+        if (f.pattern === "severe_anemia_crisis") continue;
+        assert.ok(!RIVAL_TIMELINE.test(f.action ?? "") || /دستورِ فوریِ بالا/.test(f.action), `${tag} ← ${f.pattern}: ${f.action}`);
+      }
+      if (extra.length) assert.match(findPat(p, "severe_anemia_crisis").must_say, /گلبول قرمز/);
+      reached++;
+    }
+  }
+  assert.equal(reached, 6);
+});
+
+test("M179c: مرزهای بحرانِ هماتوکریت — Hb حاکم است، کودک و بی‌واحد و سمتِ بالا دست‌نخورده (freeze، Q2)", () => {
+  assert.deepEqual(fired(hctOnly("18", F30, "%", [["Hb", "9", null, "g/dL"]])), ["unmatched_abnormal", "unexplained_abnormal"]);
+  for (const v of ["21", "25"]) {
+    const p = hctOnly(v);
+    assert.deepEqual(fired(p), ["low_rbc_hct_without_anemia"], v);
+    assert.match(findPat(p, "low_rbc_hct_without_anemia").action, /در نوبت عادی/);
+  }
+  assert.ok(!findPat(hctOnly("18", { age: 6, sex: "M" }), "severe_anemia_crisis"));
+  assert.notEqual(uuuRun([["Hct", "0.18"]], F30).overall_urgency, "emergency");
+  const g4 = uuuRun([["Hb", "21", null, "g/dL"], ["Hct", "63", null, "%"], ["RBC", "6.8", null, "10*6/uL"], ["MCV", "92", null, "fL"]], M40);
+  assert.ok(fired(g4).includes("erythrocytosis"));
+  assert.equal(g4.overall_urgency, "this_week");
+  assert.deepEqual(fired(hctOnly("62", M40)), ["unmatched_abnormal"]);
+});
+
+const g7Panel = [["Hb", "14", null, "g/dL"], ["Hct", "30", null, "%"], ["RBC", "3.0", null, "10*6/uL"], ["MCV", "100", null, "fL"], ["MCHC", "46.7", null, "g/dL"]];
+
+test("M180: MCHCِ ناممکن ⇒ یادداشتِ ناهماهنگیِ شاخص‌ها، نه «کم‌خونی نیست» و نه آزمایشِ B12/فولات/آهن (Q3)", () => {
+  // 🔴 پیش از 007: الگوی کلاسیکِ آگلوتینینِ سرد «یعنی این نتیجه «کم‌خونی» نیست … کمبود آهن، B12 یا فولات» می‌خواند.
+  const p = uuuRun(g7Panel, M40);
+  const n = findPat(p, "rbc_indices_implausible");
+  assert.ok(n, fired(p).join(","));
+  assert.equal(n.urgency, "routine");
+  assert.ok(!findPat(p, "low_rbc_hct_without_anemia"), fired(p).join(","));
+  assert.ok(!p.findings.some((f) => /«کم‌خونی» نیست/.test(f.must_say ?? "")));
+  assert.ok(!n.suggest.some((s) => /B12|فولات|فریتین|آهن/.test(s)), JSON.stringify(n.suggest));
+  assert.equal(p.overall_urgency, "routine");
+  assert.ok(!p.findings.some((f) => f.urgency === "emergency"));
+  const hi = (m, u = "g/dL") => uuuRun([["Hb", "15", null, "g/dL"], ["Hct", "44", null, "%"], ["MCHC", m, null, u]], M40);
+  const p366 = hi("36.6");
+  assert.ok(findPat(p366, "rbc_indices_implausible"), fired(p366).join(","));
+  assert.equal(p366.overall_urgency, "routine");
+  assert.ok(!findPat(hi("36.5"), "rbc_indices_implausible"));
+  assert.ok(findPat(hi("366", "g/L"), "rbc_indices_implausible"));
+});
+
+test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و پنل‌های معمولی را نمی‌گیرد (freeze، SC-004)", async () => {
+  assert.deepEqual(fired(uuuRun([["Hb", "15", null, "g/dL"], ["MCHC", "40", null, "g/dL"]], M40)), ["unmatched_abnormal"]);
+  assert.deepEqual(fired(uuuRun([["Hct", "44", null, "%"], ["MCHC", "40", null, "g/dL"]], M40)), ["unmatched_abnormal"]);
+  assert.deepEqual(fired(uuuRun([["Hb", "5.5", null, "g/dL"], ["Hct", "15", null, "%"], ["MCHC", "38", null, "g/dL"]], M40)),
+    ["severe_anemia_crisis", "unexplained_abnormal"]);
+  assert.deepEqual(fired(uuuRun([["Hb", "10.5", null, "g/dL"], ["MCV", "88", null, "fL"], ["MCH", "30", null, "pg"], ["MCHC", "37", null, "g/dL"], ["RDW-CV", "16.5", null, "%"]], F30)),
+    ["normocytic_anemia", "spherocytosis_likely"]);
+  assert.deepEqual(fired(uuuRun([["Hb", "9.5", null, "g/dL"], ["Hct", "34", null, "%"], ["MCV", "68", null, "fL"], ["MCHC", "28", null, "g/dL"]], F30)),
+    ["microcytic_ida_likely", "unexplained_abnormal"]);
+  assert.deepEqual(fired(uuuRun([["Hb", "12.8", null, "g/dL"], ["Hct", "58", null, "%"], ["MCV", "126", null, "fL"], ["MCHC", "22", null, "g/dL"]], M40)),
+    ["macrocytic_anemia", "unexplained_abnormal"]);
+
+  // دوازده CBCِ معمولی — اثرِ انگشتِ یافته‌ها روی کپیِ پیش از 007 گرفته شد.
+  const crypto = await import("node:crypto");
+  const K = "10*3/uL", R = "10*6/uL";
+  const P = [
+    [M40, [["Hb", "15", null, "g/dL"], ["Hct", "45", null, "%"], ["RBC", "5.0", null, R], ["MCV", "90", null, "fL"], ["MCH", "30", null, "pg"], ["MCHC", "33", null, "g/dL"], ["RDW-CV", "13", null, "%"], ["WBC", "7", null, K], ["PLT", "250", null, K]]],
+    [F30, [["Hb", "13.5", null, "g/dL"], ["Hct", "40", null, "%"], ["RBC", "4.6", null, R], ["MCV", "87", null, "fL"], ["MCH", "29", null, "pg"], ["MCHC", "33.5", null, "g/dL"], ["RDW-CV", "13", null, "%"], ["WBC", "6.5", null, K], ["PLT", "260", null, K]]],
+    [F30, [["Hb", "9.5", null, "g/dL"], ["Hct", "31", null, "%"], ["RBC", "3.9", null, R], ["MCV", "70", null, "fL"], ["MCH", "22", null, "pg"], ["MCHC", "30.5", null, "g/dL"], ["RDW-CV", "17", null, "%"], ["Ferritin", "5", null, "ng/mL"]]],
+    [M40, [["Hb", "10", null, "g/dL"], ["Hct", "31", null, "%"], ["RBC", "3.0", null, R], ["MCV", "110", null, "fL"], ["MCH", "36", null, "pg"], ["MCHC", "32.5", null, "g/dL"], ["RDW-CV", "15.5", null, "%"], ["B12", "120", null, "pg/mL"]]],
+    [M40, [["Hb", "12.8", null, "g/dL"], ["Hct", "40", null, "%"], ["RBC", "6.4", null, R], ["MCV", "64", null, "fL"], ["MCH", "20", null, "pg"], ["MCHC", "32", null, "g/dL"], ["RDW-CV", "14", null, "%"]]],
+    [M40, [["Hb", "11", null, "g/dL"], ["RBC", "4.0", null, R], ["MCV", "86", null, "fL"], ["MCH", "30", null, "pg"], ["MCHC", "37", null, "g/dL"], ["RDW-CV", "16", null, "%"]]],
+    [M40, [["Hb", "19", null, "g/dL"], ["Hct", "56", null, "%"], ["RBC", "6.3", null, R], ["MCV", "89", null, "fL"]]],
+    [M40, [["Hb", "9", null, "g/dL"], ["WBC", "2.0", null, K], ["PLT", "60", null, K], ["MCV", "92", null, "fL"]]],
+    [M40, [["Hb", "15", null, "g/dL"], ["Hct", "45", null, "%"], ["WBC", "7", null, K], ["PLT", "90", null, K]]],
+    [M40, [["WBC", "15", null, K], ["NEUT#", "12", null, K], ["Hb", "15", null, "g/dL"]]],
+    [{ age: 80, sex: "F" }, [["Hb", "10", null, "g/dL"], ["Hct", "30", null, "%"], ["RBC", "3.5", null, R], ["MCV", "90", null, "fL"]]],
+    [{ age: 8, sex: "M" }, [["Hb", "12.5", null, "g/dL"], ["Hct", "38", null, "%"], ["MCV", "82", null, "fL"], ["WBC", "7", null, K], ["PLT", "300", null, K]]],
+  ];
+  // تنها تفاوتِ مجاز: بازهٔ چاپ‌شدهٔ RBCِ زن (۴.۵→۴.۱۰، US1 — M178). بقیهٔ هر بایت باید همان بماند.
+  const snap = ([pt, rows]) => {
+    const p = uuuRun(rows, pt);
+    return crypto.createHash("sha256").update(JSON.stringify({
+      f: p.findings.map((x) => [x.pattern, x.urgency, x.headline, x.must_say, x.action, x.suggest]), u: p.overall_urgency,
+    }).replaceAll("طبیعی 4.1–5.1", "طبیعی 4.5–5.1")).digest("hex").slice(0, 16);
+  };
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","856f6d175c4968a1","de32a5cbba0b3a4d","b8b1c2e46a877e71","a328aeb820002490","15e9c5fcc9670b39","2e02ffb4fd0fcaec","3640ea1dcabdc7e5","b2cd3c153001ae49","c2a5d99e002639b5","9009a89c3c39fd82"];
+  assert.deepEqual(P.map(snap), EXPECTED);
+});
+
+test("M181: شمارشِ مطلقِ رتیکولوسیت شناخته می‌شود و بی‌صدا گم نمی‌شود — بی‌بازه، «تفسیر نشدند» (G8)", () => {
+  // 🔴 پیش از 007: «ARC 150» و هم‌خانواده‌هایش به unmapped می‌رفتند.
+  for (const name of ["ARC", "Retic Abs", "Absolute Retic", "رتیکولوسیت مطلق"]) {
+    const e = uuu([[name, "150", null, "10*9/L"]], M40);
+    assert.deepEqual(e.unmapped, [], name);
+    assert.ok(e.noRef.includes("RETIC_ABS"), `${name}: ${JSON.stringify(e.noRef)}`);
+    assert.ok(!g007(e, "RETIC_ABS"), name);
+  }
+  assert.notEqual(faName("RETIC_ABS"), "RETIC_ABS");
+  const both = uuu([["Retic", "1.2", null, "%"], ["ARC", "60", null, "10*9/L"]], M40);
+  assert.equal(g007(both, "RETIC")?.value, 1.2);
+  assert.ok(both.noRef.includes("RETIC_ABS"));
+  const neo = uuu([["ARC", "150", null, "10*9/L"]], { age: 0.001, sex: "M" });
+  assert.ok(neo.noRef.includes("RETIC_ABS") && !g007(neo, "RETIC_ABS"), JSON.stringify(neo.graded));
+  assert.ok(uuu([["ARC", "1.2", null, "%"]], M40).unmapped.includes("ARC"));
+});
+
+// ═══════════ specs/007 — بازبینیِ کد (B1 و سه نکته) ═══════════
+// هر آزمون روی درختِ پیش از این اصلاح قرمز دیده شد.
+
+test("M182: هموگلوبینِ چاپ‌شدهٔ بی‌واحد «اندازه‌گیری‌نشده» نیست — بحرانِ هماتوکریت روشن نمی‌شود (بازبینی B1، N4)", () => {
+  // 🔴 «Hb 12» بی‌واحد + «Hct 19 %» ⇒ «هموگلوبین روی این برگه اندازه‌گیری نشده است» + اورژانس، درست بالای یافته‌ای
+  //    که همان Hb 12 را فهرست می‌کرد. Hb سنجیده نشد چون واحدش معلوم نبود، نه چون روی برگه نبود.
+  for (const hb of ["12", "6.5"]) {
+    const p = hctOnly("19", F30, "%", [["Hb", hb]]);
+    const f = findPat(p, "severe_anemia_crisis");
+    assert.ok(!f || !/اندازه‌گیری نشده/.test(f.must_say), `Hb ${hb}: ${f?.must_say}`);
+    for (const x of p.findings) assert.doesNotMatch(x.must_say ?? "", /هموگلوبین (روی|در) این برگه اندازه‌گیری نشده/, `Hb ${hb} ← ${x.pattern}`);
+  }
+  assert.ok(!findPat(hctOnly("19", F30, "%", [["Hb", "12"]]), "severe_anemia_crisis"));
+  // low_rbc_hct_without_anemia هم همان ادعا را داشت (پیش‌موجود، همان کلاس): حالا می‌گوید چاپ شده ولی سنجیده نشد.
+  const lr = findPat(hctOnly("30", F30, "%", [["Hb", "12"]]), "low_rbc_hct_without_anemia");
+  assert.ok(lr);
+  assert.match(lr.must_say, /واحد/);
+});
+
+test("M182b: هماتوکریتِ ناممکن‌کوچک (زیرِ کفِ بقای Hb × ۳) اورژانس نمی‌سازد؛ «0.39 %» کسری است (بازبینی N-a، N-c)", () => {
+  // 🔴 «HCT 4.5» (ردیفِ جابه‌جای RBC) اورژانس می‌شد؛ کف از SURVIVAL_LIMITS.HGB × ۳ مشتق است، نه عددِ تازه.
+  assert.ok(!findPat(hctOnly("4.5"), "severe_anemia_crisis"));
+  assert.ok(findPat(hctOnly("6"), "severe_anemia_crisis"));
+  const e = uuu([["Hct", "0.39", null, "%"]], F30);
+  assert.ok(!g007(e, "HCT") && e.unmapped.includes("Hct"), JSON.stringify(e.graded));
+});
+
+test("M182c: هماتوکریتِ تبدیل‌شده از L/L با عددِ چاپ‌شده هم نقل می‌شود (بازبینی N-b، N5)", () => {
+  const f = findPat(hctOnly("0.19", F30, "L/L"), "severe_anemia_crisis");
+  assert.ok(f);
+  assert.match(f.must_say, /0\.19/);
+});
+
+test("M182d: یادداشتِ MCHC کنارِ کم‌خونیِ تأییدشده نمی‌نشیند — Hbِ پایین واقعی است (بازبینیِ پزشکی B1)", () => {
+  // 🔴 Hb 8 + MCHC 38 ⇒ microcytic_ida_likely «این هفته» و کنارش «تا تکرارِ آزمایش نتیجه‌ای دربارهٔ کم‌خونی گرفته نمی‌شود …
+  //    در نوبتِ عادی». هموگلوبین مستقیم سنجیده می‌شود و آگلوتینینِ سرد پایینش نمی‌آورد؛ دو خوانش، دو زمان‌بندی.
+  const panels = [
+    [F30, [["Hb", "8", null, "g/dL"], ["Hct", "21", null, "%"], ["MCV", "70", null, "fL"], ["MCH", "24", null, "pg"], ["MCHC", "38", null, "g/dL"], ["Ferritin", "5", null, "ng/mL"]]],
+    [{ age: 60, sex: "M" }, [["Hb", "8", null, "g/dL"], ["Hct", "20", null, "%"], ["MCV", "115", null, "fL"], ["MCHC", "40", null, "g/dL"], ["B12", "90", null, "pg/mL"]]],
+    [{ age: 50, sex: "M" }, [["Hb", "9", null, "g/dL"], ["Hct", "24", null, "%"], ["MCV", "88", null, "fL"], ["MCHC", "37.5", null, "g/dL"]]],
+  ];
+  for (const [pt, rows] of panels) {
+    const p = uuuRun(rows, pt);
+    assert.ok(!findPat(p, "rbc_indices_implausible"), fired(p).join(","));
+    assert.ok(p.findings.some((f) => /anemia|ida/.test(f.pattern)), fired(p).join(","));
+  }
+});
+
+test("M182e: واحدِ چاپ‌شده با عددِ ناسازگار تبدیل نمی‌شود — «Hct 39 L/L» ۳۹۰۰ نمی‌شود (بازبینیِ پزشکی، N3)", () => {
+  for (const [row, name] of [[["Hct", "39", null, "L/L"], "Hct"], [["Hct", "18", null, "L/L"], "Hct"], [["MCHC", "34", null, "g/L"], "MCHC"]]) {
+    const e = uuu([row], F30);
+    assert.ok(!e.graded.some((g) => g.test === "HCT" || g.test === "MCHC"), `${row}: ${JSON.stringify(e.graded)}`);
+    assert.ok(e.unmapped.includes(name), `${row}: ${JSON.stringify(e.unmapped)}`);
+  }
+});
+
+test("M182f: Hbِ بی‌واحدِ خطرناک + هماتوکریتِ پایین — یک دستور، نه «اورژانس» کنارِ «نوبت عادی» (بازبینیِ پزشکی R2-B1، N20)", () => {
+  // 🔴 پس از اصلاحِ B2: unit_unknown_values «همین حالا به اورژانس» دربارهٔ Hb و کنارش low_rbc_hct_without_anemia
+  //    «نمی‌توان گفت کم‌خونی هست یا نه … در نوبت عادی». یافتهٔ Hb مالکِ برگه است؛ low_rbc کنار می‌رود.
+  let reached = 0;
+  for (const hb of [["Hb", "6.2"], ["Hb", "65"], ["Hb", "4.3", null, "mmol/L"], ["Hb", "6.5", null, "mg/dL"]]) {
+    const p = hctOnly("19", { age: 40, sex: "F" }, "%", [hb]);
+    const tag = JSON.stringify(hb);
+    const urgent = p.findings.filter((f) => f.urgency === "emergency" || f.urgency === "this_week");
+    if (!urgent.length) continue;
+    reached++;
+    assert.ok(!findPat(p, "low_rbc_hct_without_anemia"), `${tag}: ${fired(p).join(",")}`);
+    for (const f of p.findings) {
+      if (f.urgency === "emergency" || f.urgency === "this_week") continue;
+      assert.doesNotMatch(f.action ?? "", /نوبت عادی/, `${tag} ← ${f.pattern}: ${f.action}`);
+    }
+  }
+  assert.ok(reached >= 3, `فقط ${reached} پنلِ فوری دیده شد`);
 });

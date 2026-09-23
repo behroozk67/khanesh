@@ -14,6 +14,8 @@
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
+import { PED_MAX_AGE } from "./refs_ped.js";
+import { SURVIVAL_LIMITS } from "./units.js";
 
 export function levelGrade(g) {
   if (!g) return 0;
@@ -449,10 +451,41 @@ function biliEmergencyOwns(e) {
  */
 const HGB_CRISIS_GDL = 7.0;
 
+/*
+ * ─── specs/007 (N19، Q2=A): هماتوکریتِ زیرِ ۲۱ وقتی هموگلوبین اندازه‌گیری نشده ─────
+ * 🔴 پیش از 007: «Hct 18» بدونِ Hb ⇒ low_rbc_hct_without_anemia «در نوبت عادی»، در حالی که همان
+ *    خون با Hb روی برگه اورژانس بود. هرچه اطلاعاتِ غایب بدتر، بیمار کمتر می‌شنید.
+ * ⚠️ عددِ تازه نیست: همان Hb < ۷ (P8، هنوز بی‌منبع) × ۳ — قاعدهٔ سه‌تاییِ هنری فصل ۳۱. خودِ ۲۱ هرگز
+ *    جداگانه نوشته نشود، تا اگر آستانهٔ Hb عوض شد این هم با آن برود.
+ * - فقط وقتی Hb *سنجیده نشده*: عددِ اندازه‌گیری‌شده همیشه بر عددِ برآوردی حاکم است (Hct 18 + Hb 9 ⇒ Hb).
+ * - فقط بزرگسال (سنِ نامعلوم = بزرگسال، مثلِ بقیهٔ موتور): قاعدهٔ سه‌تایی زیرِ ۱۶ سال سنجیده نشده.
+ * - هماتوکریتِ < ۱ کسری است نه درصد (0.18 L/L) — adapter تبدیلش می‌کند یا کنارش می‌گذارد (M177)؛
+ *   این مرز فقط کمربندِ دوم است و عددِ بالینی نیست.
+ */
+const HCT_CRISIS_PCT = HGB_CRISIS_GDL * 3;
+const HCT_SURVIVAL_MIN = SURVIVAL_LIMITS.HGB[0] * 3;
+
+/**
+ * کدام بازوی بحرانِ کم‌خونی این برگه را مالک است: "hgb"، "hct" یا null.
+ * match و build ِ severe_anemia_crisis هر دو از همین می‌خوانند — یک محاسبه، نه دو نسخه.
+ */
+function crisisArm(e) {
+  const hgb = e.graded.find((g) => g.test === "HGB");
+  if (hgb) return hgb.value !== null && Number(hgb.value) < HGB_CRISIS_GDL ? "hgb" : null;
+  // 🔴 بازبینی B1/B2: Hbِ *چاپ‌شده* که واحدش معلوم نشد (ungraded) یا بازه نداشت (noRef) «اندازه‌گیری‌نشده» نیست —
+  //    متنِ بازوی Hct همین را ادعا می‌کرد، کنارِ یافته‌ای که همان Hb را نقل می‌کرد. Hb حاکم است (FR-004)، و فوریتش
+  //    با unit_unknown_values است؛ هماتوکریت اینجا بحران نمی‌سازد (M182).
+  if (e.ungraded?.HGB || e.noRef?.includes("HGB")) return null;
+  if (e.age != null && e.age < PED_MAX_AGE) return null;
+  const hct = e.graded.find((g) => g.test === "HCT");
+  const v = hct && hct.value !== null ? Number(hct.value) : NaN;
+  // کفِ مشتق، نه عددِ تازه: کمترین Hbِ زنده‌ماندنی (SURVIVAL_LIMITS، specs/003) × ۳. «HCT 4.5» ردیفِ جابه‌جاست (M182b).
+  return v >= HCT_SURVIVAL_MIN && v < HCT_CRISIS_PCT ? "hct" : null;
+}
+
 /** آیا قاعدهٔ اورژانسِ کم‌خونیِ شدید مالکِ دستورِ این برگه است؟ */
 function anemiaCrisisOwns(e) {
-  const hgb = e.graded.find((g) => g.test === "HGB");
-  return !!(hgb && hgb.value !== null && Number(hgb.value) < HGB_CRISIS_GDL);
+  return crisisArm(e) !== null;
 }
 
 const ANEMIA_CRISIS_DEFER =
@@ -791,4 +824,4 @@ export { isCastKey, castTypeOf, castTypesIn, castValueState, castRoute, castRows
   urineCellState, CAST_TYPES, HYALINE_CAST_UPPER_LPF };
 export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
          amylaseEmergencyOwns, biliEmergencyOwns, AMYLASE_EMERGENCY_UL, BILI_T_EMERGENCY_MGDL,
-         anemiaCrisisOwns, actionUnlessAnemiaCrisis, ANEMIA_CRISIS_DEFER, HGB_CRISIS_GDL };
+         anemiaCrisisOwns, actionUnlessAnemiaCrisis, ANEMIA_CRISIS_DEFER, HGB_CRISIS_GDL, crisisArm, HCT_CRISIS_PCT };

@@ -1,0 +1,133 @@
+
+## G1_F_RBC43: none | 
+   graded: HGB=13[12.3–15.3] HCT=39[35.9–44.6] RBC=4.3[4.1–5.1] | noRef: [] | unmapped: [] | ungraded: 
+
+## F_RBC409: routine | low_rbc_hct_without_anemia
+   graded: HGB=13[12.3–15.3] HCT=39[35.9–44.6] RBC=4.09↓[4.1–5.1] | noRef: [] | unmapped: [] | ungraded: 
+   [low_rbc_hct_without_anemia/routine] action: با پزشک عمومی یا داخلی در نوبت عادی مطرح کنید و آزمایش‌های زیر را بخواهید؛ اگر آزمایش قبلی دارید حتماً همراه ببرید تا روند مقایسه شود.
+
+## F_RBC410: none | 
+   graded: HGB=13[12.3–15.3] HCT=39[35.9–44.6] RBC=4.1[4.1–5.1] | noRef: [] | unmapped: [] | ungraded: 
+
+## F_RBC449: none | 
+   graded: HGB=13[12.3–15.3] HCT=39[35.9–44.6] RBC=4.49[4.1–5.1] | noRef: [] | unmapped: [] | ungraded: 
+
+## F_RBC40_old: routine | low_rbc_hct_without_anemia
+   graded: HGB=12.5[10.5–15.3] HCT=37[35.9–44.6] RBC=4↓[4.1–5.1] | noRef: [] | unmapped: [] | ungraded: 
+   [low_rbc_hct_without_anemia/routine] action: با پزشک عمومی یا داخلی در نوبت عادی مطرح کنید و آزمایش‌های زیر را بخواهید؛ اگر آزمایش قبلی دارید حتماً همراه ببرید تا روند مقایسه شود.
+
+## F_thal_RBC: routine | unmatched_abnormal,unexplained_abnormal
+   graded: HGB=12.5[12.3–15.3] RBC=4.3[4.1–5.1] | noRef: [] | unmapped: [] | ungraded: 
+   [unmatched_abnormal/routine] action: نتایج را با پزشک خود در میان بگذارید.
+   [unexplained_abnormal/routine] action: این موارد را هم موقع مراجعه با پزشک مرور کنید.
+
+## G6_F_Hct18: emergency | severe_anemia_crisis
+   graded: HCT=18↓[35.9–44.6] | noRef: [] | unmapped: [] | ungraded: 
+   [severe_anemia_crisis/emergency] action: فوراً و بدون اتلاف وقت به بخش اورژانس بیمارستان مراجعه کنید (احتمال نیاز فوری به تزریق خون وجود دارد).
+
+## F_Hct209: emergency | severe_anemia_crisis
+   graded: HCT=20.9↓[35.9–44.6] | noRef: [] | unmapped: [] | ungraded: 
+   [severe_anemia_crisis/emergency] action: فوراً و بدون اتلاف وقت به بخش اورژانس بیمارستان مراجعه کنید (احتمال نیاز فوری به تزریق خون وجود دارد).
+
+## F_Hct21: routine | low_rbc_hct_without_anemia
+   graded: HCT=21↓[35.9–44.6] | noRef: [] | unmapped: [] | ungraded: 
+   [low_rbc_hct_without_anemia/routine] action: با پزشک عمومی یا داخلی در نوبت عادی مطرح کنید و آزمایش‌های زیر را بخواهید؛ اگر آزمایش قبلی دارید حتماً همراه ببرید تا روند مقایسه شود.
+
+## F_Hct25: routine | low_rbc_hct_without_anemia
+   graded: HCT=25↓[35.9–44.6] | noRef: [] | unmapped: [] | ungraded: 
+   [low_rbc_hct_without_anemia/routine] action: با پزشک عمومی یا داخلی در نوبت عادی مطرح کنید و آزمایش‌های زیر را بخواهید؛ اگر آزمایش قبلی دارید حتماً همراه ببرید تا روند مقایسه شود.
+
+## F_Hct18_Hb9: routine | unmatched_abnormal,unexplained_abnormal
+   graded: HCT=18↓[35.9–44.6] HGB=9↓[12.3–15.3] | noRef: [] | unmapped: [] | ungraded: 
+   [unmatched_abnormal/routine] action: نتایج را با پزشک خود در میان بگذارید.
+   [unexplained_abnormal/routine] action: این موارد را هم موقع مراجعه با پزشک مرور کنید.
+
+## F_Hct018_LL: emergency | severe_anemia_crisis
+   graded: HCT=18↓[35.9–44.6] | noRef: [] | unmapped: [] | ungraded: 
+   [severe_anemia_crisis/emergency] action: فوراً و بدون اتلاف وقت به بخش اورژانس بیمارستان مراجعه کنید (احتمال نیاز فوری به تزریق خون وجود دارد).
+
+## F_Hct018_nounit: none | 
+   graded:  | noRef: [] | unmapped: ["Hct"] | ungraded: 
+
+## F_Hct18_nounit: emergency | severe_anemia_crisis
+   graded: HCT=18↓[35.9–44.6] | noRef: [] | unmapped: [] | ungraded: 
+   [severe_anemia_crisis/emergency] action: فوراً و بدون اتلاف وقت به بخش اورژانس بیمارستان مراجعه کنید (احتمال نیاز فوری به تزریق خون وجود دارد).
+
+## child_Hct18: routine | low_rbc_hct_without_anemia
+   graded: HCT=18↓[41.5–50.4] | noRef: [] | unmapped: [] | ungraded: 
+   [low_rbc_hct_without_anemia/routine] action: با پزشک عمومی یا داخلی در نوبت عادی مطرح کنید و آزمایش‌های زیر را بخواهید؛ اگر آزمایش قبلی دارید حتماً همراه ببرید تا روند مقایسه شود.
+
+## age_unknown_Hct18: emergency | severe_anemia_crisis
+   graded: HCT=18↓[35.9–44.6] | noRef: [] | unmapped: [] | ungraded: 
+   [severe_anemia_crisis/emergency] action: فوراً و بدون اتلاف وقت به بخش اورژانس بیمارستان مراجعه کنید (احتمال نیاز فوری به تزریق خون وجود دارد).
+
+## G7_M_artefact: routine | rbc_indices_implausible,unexplained_abnormal
+   graded: HGB=14[14–17.5] HCT=30↓[41.5–50.4] RBC=3↓[4.5–5.9] MCHC=46.7↑[32–36] | noRef: [] | unmapped: [] | ungraded: 
+   [rbc_indices_implausible/routine] action: در نوبتِ عادی از پزشک یا آزمایشگاه بخواهید شمارش خون (CBC) روی نمونهٔ تازه تکرار شود.
+   [unexplained_abnormal/routine] action: این موارد را هم موقع مراجعه با پزشک مرور کنید.
+
+## MCHC365: routine | unmatched_abnormal
+   graded: HGB=15[14–17.5] HCT=44[41.5–50.4] MCHC=36.5↑[32–36] | noRef: [] | unmapped: [] | ungraded: 
+   [unmatched_abnormal/routine] action: نتایج را با پزشک خود در میان بگذارید.
+
+## MCHC366: routine | rbc_indices_implausible
+   graded: HGB=15[14–17.5] HCT=44[41.5–50.4] MCHC=36.6↑[32–36] | noRef: [] | unmapped: [] | ungraded: 
+   [rbc_indices_implausible/routine] action: در نوبتِ عادی از پزشک یا آزمایشگاه بخواهید شمارش خون (CBC) روی نمونهٔ تازه تکرار شود.
+
+## MCHC40_HbOnly: routine | unmatched_abnormal
+   graded: HGB=15[14–17.5] MCHC=40↑[32–36] | noRef: [] | unmapped: [] | ungraded: 
+   [unmatched_abnormal/routine] action: نتایج را با پزشک خود در میان بگذارید.
+
+## MCHC_gL: routine | rbc_indices_implausible
+   graded: HGB=15[14–17.5] HCT=44[41.5–50.4] MCHC=36.6↑[32–36] | noRef: [] | unmapped: [] | ungraded: 
+   [rbc_indices_implausible/routine] action: در نوبتِ عادی از پزشک یا آزمایشگاه بخواهید شمارش خون (CBC) روی نمونهٔ تازه تکرار شود.
+
+## Hb55_MCHC38: emergency | severe_anemia_crisis,unexplained_abnormal
+   graded: HGB=5.5↓[14–17.5] HCT=15↓[41.5–50.4] MCHC=38↑[32–36] | noRef: [] | unmapped: [] | ungraded: 
+   [severe_anemia_crisis/emergency] action: فوراً و بدون اتلاف وقت به بخش اورژانس بیمارستان مراجعه کنید (احتمال نیاز فوری به تزریق خون وجود دارد).
+   [unexplained_abnormal/routine] action: این موارد را هم موقع مراجعه با پزشک مرور کنید.
+
+## sphero: this_week | normocytic_anemia,spherocytosis_likely
+   graded: HGB=10.5↓[12.3–15.3] MCHC=37↑[32–36] | noRef: [] | unmapped: [] | ungraded: 
+   [normocytic_anemia/this_week] action: نوبت با پزشک بگیرید.
+   [spherocytosis_likely/this_week] action: در همین هفته‌های پیشِ رو با پزشک وقت بگیرید تا لام خون محیطی بررسی شود.
+
+## ida: this_week | microcytic_ida_likely,unexplained_abnormal
+   graded: HGB=9.5↓[12.3–15.3] HCT=34↓[35.9–44.6] MCHC=28↓[32–36] | noRef: [] | unmapped: [] | ungraded: 
+   [microcytic_ida_likely/this_week] action: این هفته با پزشک وقت بگیرید؛ در بزرگسالان، کمبود آهن باید علت‌یابی شود (به‌ویژه منبع خونریزی پنهان گوارشی).
+   [unexplained_abnormal/routine] action: این موارد را هم موقع مراجعه با پزشک مرور کنید.
+
+## G7b: this_week | macrocytic_anemia,unexplained_abnormal
+   graded: HGB=12.8↓[14–17.5] HCT=58↑[41.5–50.4] MCHC=22↓[32–36] | noRef: [] | unmapped: [] | ungraded: 
+   [macrocytic_anemia/this_week] action: این هفته با پزشک عمومی یا داخلی وقت بگیرید و این آزمایش‌ها را بخواهید.
+   [unexplained_abnormal/routine] action: این موارد را هم موقع مراجعه با پزشک مرور کنید.
+
+## G4_Hb21: this_week | erythrocytosis,unexplained_abnormal
+   graded: HGB=21↑[14–17.5] HCT=63↑[41.5–50.4] RBC=6.8↑[4.5–5.9] | noRef: [] | unmapped: [] | ungraded: 
+   [erythrocytosis/this_week] action: این هفته با پزشک وقت بگیرید. اگر کم‌آب هستید، آزمایش پس از آب‌رسانی کافی تکرار شود.
+   [unexplained_abnormal/routine] action: این موارد را هم موقع مراجعه با پزشک مرور کنید.
+
+## G5_Hct62: routine | unmatched_abnormal
+   graded: HCT=62↑[41.5–50.4] | noRef: [] | unmapped: [] | ungraded: 
+   [unmatched_abnormal/routine] action: نتایج را با پزشک خود در میان بگذارید.
+
+## G2_retic: routine | unmatched_abnormal
+   graded: RETIC=2↑[0.5–1.5] | noRef: [] | unmapped: [] | ungraded: 
+   [unmatched_abnormal/routine] action: نتایج را با پزشک خود در میان بگذارید.
+
+## G8_ARC: none | 
+   graded:  | noRef: ["RETIC_ABS"] | unmapped: [] | ungraded: 
+
+## G8_RetAbs: none | 
+   graded:  | noRef: ["RETIC_ABS"] | unmapped: [] | ungraded: 
+
+## G8_AbsRetic: none | 
+   graded:  | noRef: ["RETIC_ABS"] | unmapped: [] | ungraded: 
+
+## G8_fa: none | 
+   graded:  | noRef: ["RETIC_ABS"] | unmapped: [] | ungraded: 
+
+## G8_both: none | 
+   graded: RETIC=1.2[0.5–1.5] | noRef: ["RETIC_ABS"] | unmapped: [] | ungraded: 
+
+RULES 135
