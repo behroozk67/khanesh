@@ -1,4 +1,4 @@
-import { val, rankOf, has, urinePositive, amylaseEmergencyOwns, biliEmergencyOwns,
+import { val, rankOf, has, urinePositive, amylaseEmergencyOwns, biliEmergencyOwns, urineBiliSentence,
          BILI_T_EMERGENCY_MGDL } from "./patterns_utils.js";
 
 // ═══════════ کمک‌کننده‌های شکِ هایپرکلسترولمی فامیلی (FH) ═══════════
@@ -406,7 +406,9 @@ export const RULES_BIOCHEM_NEW = [
         headline: "بیلی‌روبین بسیار بالا (زردی بحرانی)",
         // عددِ آستانه از همان ثابت می‌آید که `match` و گیتِ `bilirubin_pattern`
         // می‌خوانند — جملهٔ بازگوکنندهٔ یک تصمیم نباید کپیِ دستیِ آن باشد (N20).
-        must_say: `بیلی‌روبین تام شما ${bili} است. مقادیر بالای ${BILI_T_EMERGENCY_MGDL} در بزرگسالان نشان‌دهنده نارسایی حاد کبد، انسداد شدید مجاری صفراوی یا تخریب وسیع گلبول‌های قرمز است.` + fractionPhrase,
+        must_say: `بیلی‌روبین تام شما ${bili} است. مقادیر بالای ${BILI_T_EMERGENCY_MGDL} در بزرگسالان نشان‌دهنده نارسایی حاد کبد، انسداد شدید مجاری صفراوی یا تخریب وسیع گلبول‌های قرمز است.` + fractionPhrase +
+          // specs/006 (FR-021): نوارِ ادرار یافتهٔ دوم نمی‌سازد؛ جمله‌اش اینجاست.
+          urineBiliSentence(e, { direct: false }),
         action: "بدون تأخیر به اورژانس مراجعه کنید.",
         suggest: direct == null ? ["AST", "ALT", "ALP", "بیلی‌روبین مستقیم"] : ["AST", "ALT", "ALP"],
         key_number: bili

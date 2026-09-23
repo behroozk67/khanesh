@@ -16,7 +16,8 @@ import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcros
 // adapter.js نمی‌خواند، پس چرخهٔ import نیست.
 import { runPatterns } from "./patterns.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
-import { isCastKey, castRoute } from "./patterns_utils.js";
+import { isCastKey, castRoute, isSgKey, sgValue, SG_KEY, isCrystalKey, crystalRoute, epithelialKind, epithelialRoute,
+  urineBiliValueState, urobilValueState } from "./patterns_utils.js";
 
 // بیشترین مقدار قندِ موجود (ناشتا/تصادفی/دوساعته) — برای تصحیح سدیم
 function maxGlucose(tests) {
@@ -866,6 +867,10 @@ export function ocrToEngineInput(ocr) {
       // سیلندری که نوع یا مقدارش معلوم نیست («Mixed Casts»، «RBC Casts: N/S»، «Casts: Hyaline 0-1, RBC 0»)
       // به نزدیک‌ترین نوع نگاشت نمی‌شود — به unmapped می‌رود تا بیمار سطرِ صادقِ «تفسیر نشدند» را ببیند (V6).
       if (isCastKey(t.name) && castRoute(t.name, t.value) === "unmapped") { unmapped.push(t.name); continue; }
+      // specs/006: کریستالِ بی‌نوع/ناشناخته و سلولِ اپی‌تلیالِ ناخوانا یا ترانزیشنال با /hpf بی‌صدا در qual می‌ماند
+      // و هیچ قاعده‌ای نمی‌خواندش (research R1، M171b) — به «تفسیر نشدند» می‌رود.
+      if (isCrystalKey(t.name) && crystalRoute(t.name, t.value) === "unmapped") { unmapped.push(t.name); continue; }
+      if (epithelialKind(t.name) && epithelialRoute(t.name, t.value) === "unmapped") { unmapped.push(t.name); continue; }
       qual[/urine|ادرار|^u/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value);
       continue;
     }
@@ -876,6 +881,40 @@ export function ocrToEngineInput(ocr) {
     // بی‌نوعِ حاضر («Casts: few»)، چندنوعی، یا مقدارِ نامعلوم ⇒ unmapped (V6، بازبینی #۵ و #۷).
     if (isCastKey(t.name)) {
       if (castRoute(t.name, t.value) === "qual") qual[/urine|ادرار|^u/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value);
+      else unmapped.push(t.name);
+      continue;
+    }
+
+    // ═══ لایه ۱ج: وزنِ مخصوص، کریستال، سلولِ اپی‌تلیالِ بی‌واحد — specs/006، مرحلهٔ ب ═══
+    // 🔴 روی b9068df هر سه به unmapped می‌رفتند، در حالی که detectUrineOnlyPages همین نام‌ها را شاهدِ «برگهٔ ادرار»
+    // می‌شمارد: موتور با آن‌ها صفحه را می‌شناخت و بعد دورشان می‌انداخت (research R1). تصمیمِ مسیر در patterns_utils است.
+    // وزنِ مخصوص واژگانِ فقط‌ادرار است، پس روی هر صفحه‌ای ادراری است؛ و هرگز عددِ درجه‌بندی‌شده نیست (FR-017a).
+    if (isSgKey(t.name)) {
+      if (sgValue(t.value) != null) qual[SG_KEY] = String(t.value);
+      else unmapped.push(t.name);
+      continue;
+    }
+    if (isCrystalKey(t.name)) {
+      if (crystalRoute(t.name, t.value) === "qual") qual[/urine|ادرار/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value);
+      else unmapped.push(t.name);
+      continue;
+    }
+    // اوروبیلینوژن: واحدش کنارِ مقدار می‌ماند، چون ۳.۲ µmol/L طبیعی و ۴ mg/dL بالاست (بازبینیِ پزشکی B2، N3)؛
+    // مقدارِ ناخوانا یا مبهم به «تفسیر نشدند» می‌رود، نه بی‌صدا در qual (بازبینی #۴، N18).
+    if (/^(urine\s*)?urobil|اوروبیل/i.test(String(t.name).trim())) {
+      const uv = t.unit ? `${t.value} ${t.unit}` : String(t.value);
+      if (urobilValueState(uv) !== "unknown") qual[t.name] = uv;
+      else unmapped.push(t.name);
+      continue;
+    }
+    // «Urine Bilirubin» با نامِ صریح: همان فهرستِ بسته (B3، #۴).
+    if (key === "urinebilirubin") {
+      if (urineBiliValueState(t.value) !== "unknown") qual[t.name] = String(t.value);
+      else unmapped.push(t.name);
+      continue;
+    }
+    if (epithelialKind(t.name)) {
+      if (epithelialRoute(t.name, t.value) === "qual") qual[/urine|ادرار/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value);
       else unmapped.push(t.name);
       continue;
     }
@@ -899,6 +938,9 @@ export function ocrToEngineInput(ocr) {
     // این هم اورژانس کاذب را می‌بندد و هم الگوهای ادرار را فعال می‌کند
     // (قبلاً این‌ها unmapped می‌شدند و کلاً از دست می‌رفتند).
     if (onUrinePage && AMBIGUOUS_URINE_KEYS.has(key)) {
+      // specs/006 (بازبینیِ پزشکی B3/B4): «Bilirubin» روی صفحهٔ ادرار فقط با فهرستِ بستهٔ نوار خوانده می‌شود. عدد
+      // («0.8 mg/dL» — اغلب بیلی‌روبینِ سرمی که آشکارساز صفحه را از دست داده) یا «+/-» مبهم است ⇒ «تفسیر نشدند».
+      if (key === "bilirubin" && urineBiliValueState(t.value) === "unknown") { unmapped.push(t.name); continue; }
       qual[/urine|ادرار/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value);
       continue;
     }

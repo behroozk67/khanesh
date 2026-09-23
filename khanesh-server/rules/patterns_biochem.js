@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, albLowMarker, amylaseEmergencyOwns, biliEmergencyOwns } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, albLowMarker, amylaseEmergencyOwns, biliEmergencyOwns , urineBiliSentence , urineBiliState } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -1320,7 +1320,9 @@ export const RULES_BIOCHEM = [
             magHead +
             "بیلی‌روبین از تجزیهٔ طبیعیِ گلبول‌های قرمز ساخته می‌شود و کبد آن را به شکل «مستقیم» (کونژوگه، محلول در آب) درمی‌آورد تا از راه صفرا دفع شود. " +
             "چون در شما بیشترِ بیلی‌روبین از نوع مستقیم است، یعنی کبد آن را پردازش کرده ولی در دفعِ آن به مجاری صفرا مانعی هست — بیشتر به انسداد یا اختلالِ جریان صفرا می‌خورد تا به خودِ سلول‌های کبد. " +
-            "در این حالت اغلب ادرار تیره و مدفوع کم‌رنگ/خاکی‌رنگ می‌شود.",
+            "در این حالت اغلب ادرار تیره و مدفوع کم‌رنگ/خاکی‌رنگ می‌شود." +
+            // specs/006 (FR-021): نوارِ ادرار یافتهٔ دوم نمی‌سازد؛ جمله‌اش اینجاست.
+            urineBiliSentence(e),
           action: "این هفته با پزشک مطرح کنید. اگر زردی چشم/پوست، ادرار تیره یا مدفوع کم‌رنگ دارید، زودتر مراجعه کنید.",
           suggest: ["سونوگرافی شکم", "آنزیم‌های کبدی", "ALP و GGT", "بیلی‌روبین مستقیم و غیرمستقیم"],
           warnings: [
@@ -1332,7 +1334,8 @@ export const RULES_BIOCHEM = [
 
       // بیلی‌روبین غیرمستقیم غالب
       // اگر آنزیم‌ها طبیعی و بیلی‌روبین خیلی بالا نیست → احتمال گیلبرت (خوش‌خیم)
-      const mildIndirect = total != null && total < 5 && !enzymesHigh;
+      // specs/006 (بازبینیِ پزشکی B1): بیلی‌روبینِ مثبتِ نوارِ ادرار یعنی بخشِ مستقیم به ادرار رسیده — با ژیلبر جور نیست.
+      const mildIndirect = total != null && total < 5 && !enzymesHigh && urineBiliState(e) !== "positive";
       return {
         pattern: "bilirubin_indirect_dominant",
         urgency: mildIndirect ? "routine" : "this_week",
@@ -1343,7 +1346,9 @@ export const RULES_BIOCHEM = [
           "بیلی‌روبین از تجزیهٔ طبیعیِ گلبول‌های قرمز ساخته می‌شود؛ در شما بیشترِ آن از نوع «غیرمستقیم» (هنوز توسط کبد پردازش‌نشده) است. " +
           (mildIndirect
             ? "وقتی آنزیم‌های کبدی طبیعی‌اند و بالا رفتن هم خفیف است، شایع‌ترین و بی‌خطرترین علت «سندرم ژیلبر» است — یک ویژگی ارثیِ خیلی رایج (حدود ۱ نفر از هر ۲۰ نفر) که در آن آنزیمِ پردازش بیلی‌روبین کمی کندتر کار می‌کند. در ژیلبر بیلی‌روبین معمولاً زیر ۳ می‌ماند، هنگام گرسنگی/استرس/بیماری کمی بالاتر می‌رود، هیچ آسیبی به کبد نمی‌زند و درمانی لازم ندارد. برای اطمینان کافی است آزمایش در حالت عادیِ بدن تکرار شود و شمارش خون طبیعی باشد. البته تجزیهٔ بیش از حد گلبول‌ها (همولیز) هم می‌تواند همین الگو را بسازد که با چند آزمایش رد می‌شود."
-            : "بالا بودنِ قابل‌توجهِ نوعِ غیرمستقیم بیشتر به تجزیهٔ بیش از حد گلبول‌های قرمز (همولیز) اشاره دارد و بهتر است بررسی شود."),
+            : "بالا بودنِ قابل‌توجهِ نوعِ غیرمستقیم بیشتر به تجزیهٔ بیش از حد گلبول‌های قرمز (همولیز) اشاره دارد و بهتر است بررسی شود.") +
+          // specs/006 (FR-021): نوارِ ادرار یافتهٔ دوم نمی‌سازد؛ جمله‌اش اینجاست.
+          urineBiliSentence(e, { direct: false }),
         action: mildIndirect
           ? "نوبت عادی. برای اطمینان با پزشک مطرح کنید."
           : "این هفته با پزشک مطرح کنید.",

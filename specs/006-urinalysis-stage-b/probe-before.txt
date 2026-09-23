@@ -1,0 +1,27 @@
+sg_1030        Specific Gravity→unmapped | fired: - | gradedKeys: 
+sg_1003        Specific Gravity→unmapped | fired: - | gradedKeys: 
+sg_1015        Specific Gravity→unmapped | fired: - | gradedKeys: 
+sg_fa          وزن مخصوص→unmapped | fired: - | gradedKeys: 
+cystine        Crystals→unmapped | fired: - | gradedKeys: 
+cystine_named  Cystine Crystals→unmapped | fired: - | gradedKeys: 
+amorph         Crystals→unmapped | fired: - | gradedKeys: 
+caox           Calcium Oxalate→unmapped | fired: - | gradedKeys: 
+caox2          Crystals→unmapped | fired: - | gradedKeys: 
+crystal_neg    Crystals→unmapped | fired: - | gradedKeys: 
+bili_pos       Bilirubin→qual:Urine Bilirubin | fired: - | gradedKeys: 
+urobil_high    Urobilinogen→qual:Urobilinogen Bilirubin→qual:Urine Bilirubin | fired: - | gradedKeys: 
+urobil_norm    Urobilinogen→qual:Urobilinogen Bilirubin→qual:Urine Bilirubin | fired: - | gradedKeys: 
+rtec           Renal Tubular Epithelial Cells→qual:Urine Renal Tubular Epithelial Cells | fired: - | gradedKeys: 
+squam          Epithelial Cells→unmapped | fired: - | gradedKeys: 
+squam2         Squamous Epithelial Cells→unmapped | fired: - | gradedKeys: 
+squam_fa       سلول اپیتلیال→unmapped | fired: - | gradedKeys: 
+dysm           Dysmorphic RBC→unmapped | fired: - | gradedKeys: 
+squam_hpf          qual: {"Urine Epithelial Cells":"Many"} | unm: ["Color"] | graded:  | fired: -
+squam_hpf_num      qual: {"Urine Squamous Epithelial Cells":"10-15"} | unm: ["Color"] | graded:  | fired: -
+crystal_hpf        qual: {"Urine Crystals":"Calcium oxalate few"} | unm: ["Color"] | graded:  | fired: -
+cystine_hpf        qual: {"Urine Cystine Crystals":"Few"} | unm: ["Color"] | graded:  | fired: -
+bili_mixed         qual: {} | unm: ["Color","Blood","Bilirubin"] | graded:  | fired: -
+bili_mixed_urobil  qual: {"Urobilinogen":"+2"} | unm: ["Color","Blood"] | graded:  | fired: -
+sg_mixed           qual: {} | unm: ["Color","Blood","Specific Gravity"] | graded:  | fired: -
+bili_serum+urine   qual: {"Urine Bilirubin":"+2"} | unm: ["Color"] | graded: BILI_T=4!,BILI_D=3! | fired: bilirubin_direct_dominant
+yeast              qual: {"Urine Yeast":"Few"} | unm: ["Color"] | graded:  | fired: -

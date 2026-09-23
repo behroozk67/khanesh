@@ -168,12 +168,15 @@ function castTypesIn(text) {
  * آداپتر آن را به «تفسیر نشدند» می‌فرستد — نه به یافته.
  * نفی پیش از حضور سنجیده می‌شود: «Nil seen» و «not seen» و «ندارد» هر سه واژهٔ حضور را در خود دارند.
  */
+const EQUIVOCAL_RE = /^(\+\s*\/\s*-|-\s*\/\s*\+|±|equivocal|borderline|مشکوک|بینابینی)$/i;
 const CAST_ABSENT_RE = /\b(neg(ative)?|nil+|none|absent|no|not\s*(seen|found|detected|observed))\b|-ve\b|^-+$|منفی|دیده\s*نشد|مشاهده\s*نشد|یافت\s*نشد|ندارد|وجود\s*ندارد/i;
 const CAST_PRESENT_RE = /\b(rare|few|occasional|many|moderate|numerous|present|seen|positive|plenty|full\s*field|loaded)\b|\+|نادر|اندک|کم|گاه|زیاد|فراوان|متوسط|انبوه|مثبت|دیده\s*شد|مشاهده\s*شد|دارد/i;
 function castValueState(value) {
   const s = String(value ?? "").trim().replace(/[.,;:،؛]+$/, "").trim();
   if (!s) return "unknown";
   if (/^<|کمتر|less\s*than/i.test(s)) return "absent";   // «<1»، «کمتر از ۱» — زیرِ حدِ شمارش، مثلِ urineCellCount
+  // «+/-» و «±» مبهم‌اند، نه حاضر: «+/-» شاملِ «+» است و فهرستِ حضور آن را می‌گرفت (N6، بازبینیِ specs/006 #۲).
+  if (EQUIVOCAL_RE.test(s)) return "unknown";
   if (CAST_ABSENT_RE.test(s)) return "absent";
   const nums = (s.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
   if (nums.length) return Math.max(...nums) > 0 ? "present" : "absent";   // «0-0» غایب، «0-1» حاضر (مرجع ۰)
@@ -517,6 +520,273 @@ function val(e) {
  */
 // پیشنهادهایی که «نام خالص یک آزمایش»‌اند → کلید(های) موتور.
 // ⚠️ فقط تطبیق دقیق. عمداً هیچ تطبیق فازی/زیررشته‌ای نیست، چون بخش بزرگی از
+
+// ═════════════ آنالیز ادرار، مرحلهٔ ب — specs/006، P51 ═════════════
+// 🔴 روی b9068df (research R1): وزنِ مخصوص، کریستال و سلول‌های اپی‌تلیال یا به «تفسیر نشدند» می‌رفتند
+//    یا — با واحدِ /hpf — در qual می‌نشستند و هیچ قاعده‌ای نمی‌خواندشان. تصمیمِ مسیر اینجاست (یک تابعِ
+//    خالص برای هر نوع)، تا لایه‌های ۱ و ۱ج آداپتر هر دو یک پاسخ بدهند — با واحد و بی‌واحد.
+
+// ── وزنِ مخصوص ──
+// ⚠️ در انتظارِ بازبین (P51): Henry فصل ۲۹، به نقل از متنِ کاربر (ادرارِ تصادفی ۱.۰۰۳–۱.۰۳۵).
+// ⚠️ مرزها *انحصاری*اند (بازبینیِ specs/006 #۶): ۱.۰۰۵ و ۱.۰۳۰ درونِ بازهٔ مرجعِ ۱.۰۰۳–۱.۰۳۵اند و یافته نمی‌سازند؛
+//    نوارِ ادرار گام‌های ۰.۰۰۵ دارد، پس «رقیق» عملاً ۱.۰۰۰ است و «غلیظ» از ۱.۰۳۵.
+const SG_DILUTE_MAX = 1.005;
+const SG_CONCENTRATED_MIN = 1.030;
+const SG_KEY = "Urine Specific Gravity";
+// «Sp. Gravity»، «Spec. Grav.»، «Specific Gravity (SG)» هم (بازبینی #۹).
+const SG_NAME_RE = /^(urine\s*)?(sp(ecific|ec)?\.?\s*gr(av(ity)?)?\.?(\s*\(\s*s\.?\s*g\.?\s*\))?|s\.?\s*g\.?)$|وزن\s*مخصوص/i;
+function isSgKey(name) {
+  return SG_NAME_RE.test(String(name).trim());
+}
+/** عددِ وزنِ مخصوص یا null. «1030» بی‌ممیز همان ۱.۰۳۰ است؛ بیرون از ۱.۰۰۰–۱.۰۶۰ ناخواناست. */
+function sgValue(v) {
+  // ⚠️ عدد باید *کلِ* مقدار باشد (بازبینیِ پزشکی، غیرمسدودکننده): «1/025» و «1.0 25» (خطای OCR) پیش‌تر ۱.۰۰۰ خوانده
+  //    می‌شدند و «رقیق» گزارش می‌شد. رقم‌های فارسی/عربی و «٫» پذیرفته‌اند.
+  const s = String(v ?? "").trim()
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[٫,]/g, ".");
+  const m = s.match(/^[<>≤≥]?\s*(\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  let n = parseFloat(m[1]);
+  if (n >= 1000 && n <= 1060) n /= 1000;
+  return n >= 1.0 && n <= 1.06 ? n : null;
+}
+/** "dilute" | "usual" | "concentrated" | "unknown" | "absent" */
+function sgState(e) {
+  if (!(SG_KEY in (e?.qual || {}))) return "absent";
+  const n = sgValue(e.qual[SG_KEY]);
+  if (n == null) return "unknown";
+  if (n < SG_DILUTE_MAX) return "dilute";
+  if (n > SG_CONCENTRATED_MIN) return "concentrated";
+  return "usual";
+}
+
+// ── کریستال‌ها ──
+// ⚠️ «Uric Acid»، «Cholesterol»، «Cystine» و … *تنها* آزمایشِ خون‌اند؛ فقط با واژهٔ «کریستال» کریستال‌اند.
+//    خواندنِ «Cholesterol 240 mg/dL» به‌عنوانِ «کریستالِ بیماری‌زا» بدترین شکلِ N25 بود (M171c).
+//    فقط چند نامِ ترکیبی هستند که جز کریستال معنایی ندارند.
+const CRYSTAL_KEY_RE = /crystal|کریستال|(calcium|ca)\.?\s*oxalat|اگزالات\s*کلسیم|اکسالات\s*کلسیم|amorph|آمورف|triple\s*phos|تریپل\s*فسفات|biurate|بی\s*اورات/i;
+function isCrystalKey(name) {
+  return CRYSTAL_KEY_RE.test(String(name)) && !isCastKey(name);
+}
+// ترتیب مهم است: «Amorphous urates» باید پیش از «urate» جور شود.
+const CRYSTAL_TYPES = [
+  ["cystine", /cystin|سیستین/i, "pathologic"],
+  ["tyrosine", /tyrosin|تیروزین/i, "pathologic"],
+  ["leucine", /leucin|لوسین/i, "pathologic"],
+  ["cholesterol", /cholesterol|کلسترول/i, "pathologic"],
+  ["amorphous_urate", /amorph\w*\s*urat|urat\w*\s*amorph|اورات\s*(ها\s*)?آمورف|آمورف\s*اورات/i, "incidental"],
+  ["amorphous_phosphate", /amorph\w*\s*phosph|phosph\w*\s*amorph|فسفات\s*(ها\s*)?آمورف|آمورف\s*فسفات/i, "incidental"],
+  ["ammonium_biurate", /biurate|بی\s*اورات/i, "incidental"],
+  ["amorphous", /amorph|آمورف/i, "incidental"],
+  ["triple_phosphate", /triple|struvite|تریپل|استروویت/i, "stone"],
+  ["calcium_oxalate", /oxalat|اگزالات|اکسالات/i, "stone"],
+  // «Hippuric acid» شاملِ «uric» است — مرزِ واژه لازم است، وگرنه کریستالِ ناشناخته اسید اوریک خوانده می‌شد (FR-016).
+  ["uric_acid", /\buric\b|\burates?\b|اسید\s*اوریک|(^|\s)اورات/i, "stone"],
+];
+const CRYSTAL_CLASS_RANK = ["pathologic", "stone", "incidental"];
+const CRYSTAL_FA = {
+  cystine: "سیستین", tyrosine: "تیروزین", leucine: "لوسین", cholesterol: "کلسترول",
+  amorphous_urate: "اورات‌های آمورف", amorphous_phosphate: "فسفات‌های آمورف", ammonium_biurate: "بی‌اوراتِ آمونیوم",
+  amorphous: "رسوبِ آمورف", triple_phosphate: "تریپل‌فسفات", calcium_oxalate: "اگزالاتِ کلسیم", uric_acid: "اسید اوریک",
+};
+function crystalTypeIn(text) {
+  for (const [type, re, cls] of CRYSTAL_TYPES) if (re.test(String(text ?? ""))) return { type, cls };
+  return null;
+}
+function crystalTypesIn(text) {
+  const s = String(text ?? "");
+  const out = new Set();
+  let rest = s;
+  // هر جورشدن را از متن برمی‌داریم تا «Amorphous urates» یک نوع شمرده شود نه دو (آمورف + اسید اوریک).
+  for (const [type, re] of CRYSTAL_TYPES) {
+    if (re.test(rest)) { out.add(type); rest = rest.replace(new RegExp(re.source, "gi"), " "); }
+  }
+  return out;
+}
+/** نوعِ ردیف: اول از نام، بعد از مقدار («Crystals: Calcium oxalate») — نوعِ نام برنده است. */
+function crystalTypeOf(name, value) {
+  return crystalTypeIn(String(name).replace(/crystals?|کریستال(ها)?/gi, " ")) || crystalTypeIn(value);
+}
+/**
+ * وضعیتِ مقدار: "absent" | "present" | "unknown". همان فهرستِ بستهٔ castValueState (N6، B1 مرحلهٔ الف)،
+ * با یک تفاوت: در ردیفِ عام («Crystals: Cystine») نامِ نوع در مقدار *خودش* یعنی «دیده شد».
+ */
+function crystalValueState(name, value) {
+  const st = castValueState(value);
+  if (st !== "unknown") return st;
+  return crystalTypesIn(value).size ? "present" : "unknown";
+}
+/** سرنوشت در آداپتر: نوعِ شناخته یا منفی ⇒ qual؛ بی‌نوعِ حاضر، چندنوعی یا نامعلوم ⇒ unmapped (FR-016). */
+function crystalRoute(name, value) {
+  const nameType = crystalTypeIn(String(name).replace(/crystals?|کریستال(ها)?/gi, " "));
+  const valueTypes = crystalTypesIn(value);
+  if (!nameType && valueTypes.size > 1) return "unmapped";
+  const st = crystalValueState(name, value);
+  if (st === "unknown") return "unmapped";
+  if (st === "absent") return "qual";
+  return nameType || valueTypes.size === 1 ? "qual" : "unmapped";
+}
+/** محورِ کریستال — یک برچسب برای کلِ برگه (شکلِ castAxis): pathologic > stone > incidental > null. */
+function crystalAxis(e) {
+  const present = new Map();   // type → cls
+  for (const [k, v] of Object.entries(e?.qual || {})) {
+    if (!isCrystalKey(k)) continue;
+    if (crystalValueState(k, v) !== "present") continue;
+    const t = crystalTypeOf(k, v);
+    if (t) present.set(t.type, t.cls);
+  }
+  for (const cls of CRYSTAL_CLASS_RANK) {
+    const mine = [...present].filter(([, c]) => c === cls).map(([t]) => t);
+    if (!mine.length) continue;
+    const others = [...present].filter(([, c]) => c !== cls).map(([t]) => t);
+    return { label: cls, types: mine, others };
+  }
+  return { label: null, types: [], others: [] };
+}
+
+// ── سلول‌های اپی‌تلیال ──
+// ⚠️ در انتظارِ بازبین (P51). سلولِ اپی‌تلیالِ کلیه بیش از ۲ در میدان آسیبِ لوله‌ها را نشان می‌دهد (Henry ۲۹).
+//    سلولِ سنگفرشیِ زیاد (≥۱۵ در میدانِ پربزرگ‌نمایی، یا «Many») یعنی نمونه هنگامِ جمع‌آوری آلوده شده.
+const RTEC_UPPER_HPF = 2;
+const SQUAMOUS_CONTAM_HPF = 15;
+const EPI_KEY_RE = /epithel|\bepi\.?\s*cells?\b|اپی\s*تلیال|اپیتلیال|squam|سنگفرش|\brtec?\b|renal\s*tubular\s*cell/i;
+/** "renal_tubular" | "transitional" | "squamous" | null. برگه‌های ایرانی سنگفرشی را «Epithelial cells» می‌نویسند. */
+function epithelialKind(name) {
+  const s = String(name);
+  if (!EPI_KEY_RE.test(s) || isCastKey(s)) return null;
+  if (/renal|tubular|\brtec?\b|توبول|کلیوی|کلیه/i.test(s)) return "renal_tubular";
+  if (/transitional|urothel|ترانزیشنال|یوروتلیال/i.test(s)) return "transitional";
+  // «Round epithelial» در نام‌گذاریِ قدیمی یعنی سلولِ کلیه یا ترانزیشنال، نه سنگفرشی (بازبینی #۷) ⇒ بیرون از دامنه.
+  if (/round|گرد/i.test(s)) return "transitional";
+  return "squamous";
+}
+// «Moderate» برای سنگفرشی هنوز آلودگی نیست؛ فقط «زیاد/پر».
+const SQUAMOUS_HIGH_RE = /many|numerous|full|loaded|plenty|packed|tntc|فراوان|زیاد|انبوه|(^|\s)پر(\s|$)/i;
+/** وضعیتِ یک مقدارِ سلولی: "absent" | "low" | "high" | "unknown" — همان منطقِ urineCellState، روی یک مقدار. */
+function epithelialValueState(kind, value) {
+  const s = String(value ?? "").trim().replace(/[.,;:،؛]+$/, "").trim();
+  if (!s) return "unknown";
+  if (/^<|کمتر|less\s*than/i.test(s)) return "low";
+  if (CAST_ABSENT_RE.test(s)) return "absent";
+  const plus = (s.match(/\+/g) || []).length;
+  if (plus) {
+    const d = s.match(/\+\s*(\d)|(\d)\s*\+/);
+    const g = d ? parseInt(d[1] ?? d[2], 10) : plus;
+    return g >= (kind === "squamous" ? 3 : 2) ? "high" : "low";
+  }
+  const nums = (s.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
+  if (nums.length) {
+    const n = Math.max(...nums);
+    return kind === "squamous" ? (n >= SQUAMOUS_CONTAM_HPF ? "high" : "low") : (n > RTEC_UPPER_HPF ? "high" : "low");
+  }
+  if (kind === "squamous" ? SQUAMOUS_HIGH_RE.test(s) : CELL_HIGH_RE.test(s)) return "high";
+  if (CELL_LOW_RE.test(s) || /\b(rare|few|occasional|moderate)\b|نادر|کم|اندک|متوسط/i.test(s)) return "low";
+  return "unknown";
+}
+/** سرنوشت در آداپتر: ترانزیشنال (خارج از دامنه) یا مقدارِ نامعلوم ⇒ unmapped؛ بقیه ⇒ qual. */
+function epithelialRoute(name, value) {
+  const kind = epithelialKind(name);
+  if (!kind || kind === "transitional") return "unmapped";
+  return epithelialValueState(kind, value) === "unknown" ? "unmapped" : "qual";
+}
+/** جملهٔ سلول‌های سنگفرشی برای یافته‌ای که خودش دربارهٔ WBC/باکتری/استراز حرف می‌زند (FR-023، بازبینی #۵):
+ *  یک یافته، یک خوانش از همان WBC — نه دو یافتهٔ کنارِ هم. بی‌زمان‌بندی (N20). */
+function squamousSentence(e) {
+  return epithelialState(e, "squamous") === "high"
+    ? " در همین نمونه سلول‌های سنگفرشیِ زیادی هم گزارش شده است، که آلودگیِ نمونه هنگامِ جمع‌آوری را محتمل‌تر می‌کند؛ تکرار با نمونهٔ وسطِ ادرار این را روشن می‌کند."
+    : "";
+}
+/** وضعیتِ یک نوع روی برگه: "absent" اگر ردیفش نیست. */
+function epithelialState(e, kind) {
+  let st = "absent";
+  for (const [k, v] of Object.entries(e?.qual || {})) {
+    if (epithelialKind(k) !== kind) continue;
+    const s = epithelialValueState(kind, v);
+    if (s === "high") return "high";
+    if (s !== "unknown") st = s;
+  }
+  return st;
+}
+
+// ── بیلی‌روبین و اوروبیلینوژنِ نوار ──
+const UBILI_KEY_RE = /bilirubin|بیلی\s*روبین/i;
+/**
+ * مقدارِ نوارِ بیلی‌روبین: "positive" | "negative" | "unknown". فهرستِ *بسته* روی کلِ مقدار (N6، بازبینیِ پزشکی B3):
+ * 🔴 نسخهٔ اول «+» و «کم» را زیررشته می‌گرفت و هر عددِ بزرگ‌تر از صفر را مثبت: «<0.5»، «کمتر از 0.5» و «+/-» ⇒ «مثبت، این هفته»،
+ *    و «Bilirubin 0.8 mg/dL»ِ سرم روی صفحهٔ مخلوط ⇒ همان (B4). عددِ تنها روی نوارِ بیلی‌روبین مبهم است ⇒ نامعلوم.
+ */
+const UBILI_POS_RE = /^(trace|رگه|\+{1,4}|[1-4]\s*\+|\+\s*[1-4]|pos(itive)?|مثبت|present|seen|small|moderate|large|many|کم|متوسط|زیاد|دارد)$/i;
+function urineBiliValueState(v) {
+  const s = String(v ?? "").trim().replace(/[.,;:،؛]+$/, "").trim();
+  if (!s || EQUIVOCAL_RE.test(s)) return "unknown";
+  if (/^<|کمتر|less\s*than/i.test(s) || CAST_ABSENT_RE.test(s)) return "negative";
+  return UBILI_POS_RE.test(s) ? "positive" : "unknown";
+}
+/** "positive" | "negative" | "unknown" | "absent" */
+function urineBiliState(e) {
+  for (const [k, v] of Object.entries(e?.qual || {})) {
+    if (!UBILI_KEY_RE.test(k) || /urobil|اوروبیل/i.test(k) || isCastKey(k) || isCrystalKey(k)) continue;
+    return urineBiliValueState(v);
+  }
+  return "absent";
+}
+/**
+ * مقدارِ اوروبیلینوژن (با واحدی که آداپتر کنارش نگه می‌دارد): "raised" | "normal" | "unknown".
+ * 🔴 بازبینیِ پزشکی B2 و کد #۳: واحد دور ریخته می‌شد ⇒ «3.2 µmol/L» (پدِ طبیعی) «بالا» و «70 µmol/L» بی‌صدا؛
+ *    «Not increased» بالا (/increas/) و «Abnormal» طبیعی (/norm/). حالا فهرستِ بسته روی کلِ مقدار، و عدد فقط با واحد:
+ *    mg/dL یا EU/dL بالای ۱، µmol/L بالای ۱۷. عددِ بی‌واحد فقط وقتی قطعی است که در هر دو واحد یک معنا بدهد.
+ * نوار «کاهش» را قابلِ اعتماد نشان نمی‌دهد؛ منفی = طبیعی.
+ */
+const UROBIL_NORMAL_RE = /^(norm(al)?|نرمال|طبیعی|neg(ative)?|منفی|nil|none|trace|رگه|not\s*increased|within\s*normal\s*limits?|wnl)$/i;
+const UROBIL_RAISED_RE = /^(abnormal|increased|high|raised|pos(itive)?|مثبت|بالا|زیاد|افزایش(\s*یافته)?|\+{1,4}|[1-4]\s*\+|\+\s*[1-4])$/i;
+function urobilValueState(v) {
+  const s = String(v ?? "").trim().replace(/[.,;:،؛]+$/, "").trim();
+  if (!s || EQUIVOCAL_RE.test(s)) return "unknown";
+  if (/^[<≤]|کمتر|less\s*than/i.test(s) || UROBIL_NORMAL_RE.test(s)) return "normal";
+  if (UROBIL_RAISED_RE.test(s)) return "raised";
+  const m = s.match(/^[>≥]?\s*(\d+(?:\.\d+)?)\s*(.*)$/);
+  if (!m) return "unknown";
+  const n = parseFloat(m[1]);
+  const unit = m[2];
+  if (/µ|u\s*mol|micro/i.test(unit)) return n > 17 ? "raised" : "normal";
+  if (/mg|eu|ehrlich/i.test(unit)) return n > 1 ? "raised" : "normal";
+  if (!unit) { if (n <= 1) return "normal"; if (n > 17) return "raised"; }   // ≤۱ در هر دو طبیعی؛ >۱۷ در هر دو بالا
+  return "unknown";
+}
+/** "raised" | "normal" | "unknown" | "absent" */
+function urobilState(e) {
+  for (const [k, v] of Object.entries(e?.qual || {})) {
+    if (!/urobil|اوروبیل/i.test(k)) continue;
+    return urobilValueState(v);
+  }
+  return "absent";
+}
+/**
+ * جملهٔ نوارِ ادرار برای یافتهٔ بیلی‌روبینِ خون یا همولیز (FR-021: یک زمان‌بندی، مالکِ آن یافته).
+ * رشتهٔ خالی اگر نوار چیزی برای گفتن ندارد. بی‌زمان‌بندی — دستورِ اقدام مالِ یافتهٔ مالک است (N20).
+ */
+function urineBiliSentence(e, { direct = true } = {}) {   // direct=false: مالکی که جزءِ مستقیم را غالب نمی‌گوید (غیرمستقیم، همولیز، اورژانس)
+  const b = urineBiliState(e);
+  const u = urobilState(e);
+  if (b === "positive") {
+    return " نوارِ ادرار هم بیلی‌روبین را مثبت نشان داده است؛ فقط شکلِ «پردازش‌شده» (مستقیم) بیلی‌روبین به ادرار می‌رسد، " +
+      (direct
+        ? "پس این با سهمِ کبد یا مجاری صفرا در همین یافته جور است."
+        : "و تجزیهٔ گلبول‌ها به‌تنهایی این را توضیح نمی‌دهد — پزشک کبد و مجاری صفرا را هم کنارش می‌سنجد.");
+  }
+  if (u === "raised") {
+    return " نوارِ ادرار اوروبیلینوژن را هم بالا نشان داده است — ماده‌ای که وقتی بیلی‌روبینِ بیشتری ساخته و از روده بازجذب می‌شود بالا می‌رود" +
+      (direct ? "؛ این با انسدادِ کاملِ مجاری صفرا جور نیست." : ".");
+  }
+  return "";
+}
+
+export { urineBiliValueState, urobilValueState, EQUIVOCAL_RE, squamousSentence };
+export { isSgKey, sgValue, sgState, SG_KEY, SG_DILUTE_MAX, SG_CONCENTRATED_MIN, isCrystalKey, crystalTypeOf, crystalRoute, crystalAxis,
+  CRYSTAL_FA, epithelialKind, epithelialRoute, epithelialState, RTEC_UPPER_HPF, SQUAMOUS_CONTAM_HPF, urineBiliState, urobilState,
+  urineBiliSentence };
 export { isCastKey, castTypeOf, castTypesIn, castValueState, castRoute, castRows, castAxis, othersSentence,
   urineCellState, CAST_TYPES, HYALINE_CAST_UPPER_LPF };
 export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,

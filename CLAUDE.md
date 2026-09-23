@@ -27,6 +27,11 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `b9068df`, after the specs/006 review round (medical FAIL B1–B4 + code review #1–#9 — `M176`–`M176l`, 12 tests, all red on the pre-fix Stage B tree; `M173`, `M173d`, `M175c`, `M104d` U4 changed on purpose) — 134 rules | 2026-09-22 | 598 | 579 | **0** | 19 todo |
+   | `b9068df` (`git archive` + junction) with that final `engine.test.js` — red: 22 Stage B guards + 10 review guards + `M104d` (`M176e`/`M176l` green there: no reader existed) | 2026-09-22 | 559 | 507 | **33** | 19 todo |
+   | working tree on `b9068df`, after specs/006 Stage B (urinalysis: specific gravity, crystals, epithelial cells, dipstick bilirubin/urobilinogen — `M171`–`M175g`, 27 tests; 22 red on `b9068df` + `M104d` changed on purpose + 5 freezes) — 134 rules | 2026-09-22 | 586 | 567 | **0** | 19 todo |
+   | `b9068df` (`git archive` + junction) with that `engine.test.js` dropped in (engine suite only) — red: exactly the 22 behavioural guards + `M104d` | 2026-09-22 | 547 | 505 | **23** | 19 todo |
+   | working tree on `b9068df`, **before** specs/006 — 129 rules | 2026-09-22 | 559 | 540 | **0** | 19 todo |
    | working tree on `395a5d7`, after the specs/005 review round (medical FAIL B1–B4 + code review #1–#8 — `M169`–`M169k`, 11 tests, all red before the fix; `M167d` changed on purpose) — 129 rules | 2026-09-22 | 558 | 539 | **0** | 19 todo |
    | working tree on `395a5d7`, after specs/005 Stage A (urinalysis: cast misread, esterase-pad misread, dipstick/microscope cross-checks — `M164`–`M168c`, 22 tests, 19 red before + 3 freezes) — 129 rules | 2026-09-22 | 547 | 528 | **0** | 19 todo |
    | `HEAD` at `395a5d7` (`git archive` + junction) with that `engine.test.js` dropped in (engine suite only) — red: exactly the 19 behavioural guards | 2026-09-22 | 508 | 470 | **19** | 19 todo |
@@ -313,6 +318,8 @@ khanesh-project/
 │   │   │                        #   نه از محدودهٔ مرجعِ برگه تعیین شد (specs/003، P48، N3)
 │   │   ├── patterns_trace_elements.js  # P49-الف: wilson_evaluation — سرولوپلاسمین از e.ungraded،
 │   │   │                        #   فقط با واحدِ چاپ‌شده؛ explains ⇒ بیرون از خطِ «تفسیر نشدند»
+│   │   ├── patterns_urinalysis.js  # فصل ۲۹ هنری، مرحلهٔ ب (P51) — کریستال، وزنِ مخصوص، بیلی‌روبینِ نوار،
+│   │   │                        #   سلول‌های کلیه/سنگفرشی؛ مسیرها و طبقه‌بندها در patterns_utils
 │   │   ├── patterns_urine_casts.js  # فصل ۲۹ هنری، مرحلهٔ الف (P50) — ۷ قاعدهٔ سیلندر، یک طبقه‌بند
 │   │   │                        #   (castAxis در utils)؛ شکلِ mineral_bone: یک برگه، یک یافتهٔ سیلندر
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
@@ -402,15 +409,15 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **sixteen** `patterns_<system>.js` files
+`patterns.js` no longer holds the rules. It imports **seventeen** `patterns_<system>.js` files
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-22) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **129 rules, measured
+concatenates their `RULES_*` exports into the exported `RULES` array — **134 rules, measured
 2026-09-22** (113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
 `unit_unknown_values` in `patterns_unit_unknown.js` from specs/003, plus `folate_deficiency` in
 `patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004, plus
 the seven `urine_cast_*` rules in `patterns_urine_casts.js` and `urine_esterase_without_cells` in
-`patterns_nephrology.js` from specs/005) with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
+`patterns_nephrology.js` from specs/005, plus the five rules of `patterns_urinalysis.js` from specs/006) with the `node -e` one-liner under N16 (116 at `c5700c0`, then 115 once
 `liver_injury_pattern` was deleted, then 113 once `overt_hypothyroidism` and
 `overt_thyrotoxicosis` went — see N20 with `P43` and `P45`); it still owns `runPatterns()`,
 `SUGGEST_TESTS`, and the suppression/dedup logic. So:
@@ -1874,6 +1881,25 @@ not by a test.
   The same review also found a new N21 pair: a red-cell cast finding said «نه از مثانه», and next to it
   the haematuria finding said «عفونت و سنگ … قاعدگی». Haematuria now hands off to the cast finding
   (`M169e`, `M169i`).
+- ⚠️ **Recurred the other way round, 2026-09-22 (specs/006, Stage B): recognised and then discarded.** The page
+  detector counts `Specific Gravity`, `Crystals` and `Epithelial cells` as proof that a page *is* a urine page. After
+  that, nothing read them. Printed with `/hpf`, they were routed into `qual`, and no rule looked there for them. So the
+  patient saw **nothing**, not even the «تفسیر نشدند» line. Dipstick bilirubin and urobilinogen sat in `qual` the same
+  way. Measured on `b9068df` (research R1). That is N18 at the routing layer: a channel with no reader is a silent drop.
+  **Rule:** a row name that a detector uses as evidence must have a reader or a route to `unmapped`. Knowing what a row
+  is, then keeping quiet about it, is the worst of both. Guards `M171`–`M175g`; register `P51`. The same routing had its
+  own N25 trap: `Cholesterol` and `Uric Acid` on their own are serum tests. They count as crystals only when the crystal
+  word is present (`M171c`), and «Hippuric acid» contains «uric» (word boundary, `M172e`).
+  ⚠️ **And the review failed it (B1–B4), on classes already in this file.**
+  - **N6 again, for the third time in this entry:** the new dipstick-bilirubin reader matched `\+` and `کم` as substrings and
+    counted any number above zero as positive. So «<0.5», «کمتر از 0.5» and «+/-» all read as «بیلی‌روبینِ مثبت، این هفته».
+  - **N3:** the urobilinogen unit was thrown away, so «3.2 µmol/L» (the strip's *normal* pad) was reported as raised.
+  - **N20, one level down:** the hand-off asked "does the owner's `match` fire?", but that owner has a branch which denies
+    the liver (Gilbert, muscle). So the urine sentence ended up inside the one finding that contradicts it, and the
+    this_week urgency was lost.
+  **Rule, sharpened:** a hand-off target is the *branch that gets built*, not the rule. When an owner has a branch that
+  argues against the folded sentence, build the owner and check the branch; the M91e lesson still applies (never restate
+  its threshold). Guards `M176`–`M176l`.
 
 ---
 

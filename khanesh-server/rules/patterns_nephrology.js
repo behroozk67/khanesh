@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence , epithelialState , squamousSentence } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -65,6 +65,12 @@ const hematuriaBase = () => ({
   warnings: [],
 });
 
+function esteraseWithoutCellsFires(e) {
+  return Boolean(RULES_NEPHROLOGY.find((r) => r.id === "urine_esterase_without_cells")?.match(e));
+}
+// specs/006: patterns_urinalysis می‌پرسد «باکتریِ بی‌التهاب فعال شد؟» — با همین تابع، نه با بازنویسیِ شرطش.
+export { utiFires, bacteriuriaFires, esteraseWithoutCellsFires };
+
 export const RULES_NEPHROLOGY = [
 
   // ═══════════ تحلیل ادرار (U/A) ═══════════
@@ -84,7 +90,9 @@ export const RULES_NEPHROLOGY = [
         must_say:
           "چند نشانه در آزمایش ادرار با هم دیده می‌شوند که معمولاً با عفونت ادراری همراه‌اند. " +
           (nit ? "مثبت بودن نیتریت اغلب به عفونت باکتریایی اشاره دارد. " : "") +
-          "این نتیجه باید توسط پزشک تأیید شود و گاهی کشت ادرار برای مشخص شدن نوع باکتری لازم است.",
+          "این نتیجه باید توسط پزشک تأیید شود و گاهی کشت ادرار برای مشخص شدن نوع باکتری لازم است." +
+          // specs/006 (بازبینی #۵): سنگفرشیِ زیاد یافتهٔ دوم نمی‌سازد؛ همین‌جا گفته می‌شود و زمان‌بندی مالِ همین یافته است.
+          squamousSentence(e),
         action: "این هفته با پزشک مطرح کنید. اگر سوزش ادرار، تب یا درد پهلو دارید، زودتر مراجعه کنید.",
         suggest: ["کشت ادرار و آنتی‌بیوگرام — برای شناسایی باکتری و انتخاب داروی درست"],
         warnings: [
@@ -111,7 +119,9 @@ export const RULES_NEPHROLOGY = [
         "مثلاً وقتی نمونه وسط ادرار و در ظرف استریل گرفته نشده باشد. " +
         "برای تفسیر درست، بهتر است با پزشک مطرح شود." +
         // ناهمخوانیِ استراز اینجا گفته می‌شود، نه در یافتهٔ جدا (specs/005، M168c): یک نوار، یک یافته.
-        esteraseInBacteriuria(e),
+        esteraseInBacteriuria(e) +
+        // specs/006 (FR-023): سلول‌های سنگفرشیِ زیاد همین «آلودگی» را تأیید می‌کنند — یک یافته، یک پیشنهادِ تکرار (M175d).
+        squamousSentence(e),
       action: "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، یا اگر باردار هستید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است.",
       suggest: ["تکرار آزمایش ادرار با نمونه‌ی وسط ادرار (midstream) و ظرف استریل"],
       warnings: [
@@ -157,7 +167,7 @@ export const RULES_NEPHROLOGY = [
         headline: wbc == null
           ? "نوارِ ادرارِ شما به لکوسیت‌استراز واکنش نشان داده است"
           : "نوارِ ادرارِ شما به لکوسیت‌استراز واکنش داده، ولی در میکروسکوپ گلبولِ سفیدِ قابل‌توجهی دیده نشده",
-        must_say: lead + body,
+        must_say: lead + body + squamousSentence(e),   // specs/006 (بازبینی #۵)
         action: urgency === "this_week"
           ? "این هفته با پزشک مطرح کنید."
           : "در نوبتِ عادی با پزشک مطرح کنید. اگر سوزش یا تکررِ ادرار، تب یا درد پهلو دارید، زودتر مراجعه کنید.",

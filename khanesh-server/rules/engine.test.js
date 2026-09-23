@@ -6342,13 +6342,16 @@ test("M104c: صفحهٔ مخلوطِ CBC + ردیفِ منی — WBC/RBCِ خو�
 
 test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر بایت‌به‌بایت همان امروز (انجماد)", () => {
   // اثرِ انگشت‌ها روی 8ccd67d، پیش از هر تغییرِ این ویژگی، از اجرای موتور گرفته شد.
+  // ⚠️ U1، U2، U4، U6 عمداً عوض شدند (specs/006، FR-017b): «Specific Gravity» از unmapped به qual رفت و
+  //    سنجیده شد، نه فرض (cmp104، b9068df در برابرِ درختِ کاری): یافته‌ها و نمره‌های هر شش پنلِ ادرار یکسان‌اند و qual
+  //    فقط همین یک کلید را اضافه دارد. (۱.۰۳۰ِ U4 درونِ بازهٔ مرجع است و — پس از بازبینیِ #۶ — یافته نمی‌سازد.)
   const P = {
-    U1: [{ age: 30, sex: "F" }, [["Color", "Yellow"], ["Appearance", "Clear"], ["Specific Gravity", "1.020"], ["pH", "6"], ["WBC", "15-20", "/hpf"], ["RBC", "8-10", "/hpf"]], "0989aab4e8a563d0"],
-    U2: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.015"], ["Nitrite", "Positive"], ["Leukocyte Esterase", "Positive"], ["WBC", "20-25"]], "2832a8a1c5b4e9c6"],
+    U1: [{ age: 30, sex: "F" }, [["Color", "Yellow"], ["Appearance", "Clear"], ["Specific Gravity", "1.020"], ["pH", "6"], ["WBC", "15-20", "/hpf"], ["RBC", "8-10", "/hpf"]], "36e704b09115ca66"],
+    U2: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.015"], ["Nitrite", "Positive"], ["Leukocyte Esterase", "Positive"], ["WBC", "20-25"]], "7c70c5473cb2f281"],
     U3: [{ age: 50, sex: "M" }, [["Urine Protein", "3+"], ["Urine Glucose", "2+"], ["Ketone", "2+"]], "84811a0618256be2"],
-    U4: [{ age: 30, sex: "M" }, [["pH", "5"], ["Specific Gravity", "1.030"], ["Bacteria", "Many"]], "068beea39e49c8df"],
+    U4: [{ age: 30, sex: "M" }, [["pH", "5"], ["Specific Gravity", "1.030"], ["Bacteria", "Many"]], "d3039b47b6c5dcd9"],
     U5: [{ age: 60, sex: "M" }, [["Urine Blood", "2+"], ["RBC", "10-12", "/hpf"], ["Pus cells", "2-3"]], "562daaa177d9d3a6"],
-    U6: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.010"], ["pH", "7"]], "3dad4d8c56968631"],
+    U6: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.010"], ["pH", "7"]], "030bb4f5e6f4a91f"],
     C1: [{ age: 40, sex: "M" }, [["WBC", "7000"], ["RBC", "4.8"], ["Hb", "14", "g/dL"], ["PLT", "250000"], ["MCV", "88"]], "7dd79d6187162b00"],
     C2: [{ age: 40, sex: "M" }, [["WBC", "15.2"], ["Neut %", "85"], ["PLT", "120"]], "edaafc0eb1d80fca"],
     C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "8116a638fd8de1b0"],
@@ -8132,4 +8135,357 @@ test("M170: پیشنهادِ «تکرار …» به «درخواست آزمای
   assert.ok(uaIds(p).includes("hematuria"), `hematuria باید فعال شود: ${uaIds(p)}`);
   assert.ok(recs.some((r) => r.includes("درخواست تکرار آزمایش ادرار")), `توصیهٔ تکرار نیامد: ${recs.join(" | ")}`);
   assert.ok(!recs.some((r) => /درخواست آزمایش تکرار/.test(r)), `هنوز شکسته است: ${recs.join(" | ")}`);
+});
+
+// ═════════════ specs/006 — آنالیز ادرار، مرحلهٔ ب (فصل ۲۹ هنری، P51) ═════════════
+// 🔴 روی b9068df (research R1): وزنِ مخصوص، کریستال‌ها و سلول‌های اپی‌تلیال یا به «تفسیر نشدند» می‌رفتند
+//    یا — با واحدِ /hpf — در qual می‌نشستند و هیچ قاعده‌ای نمی‌خواندشان: بی‌صدا گم می‌شدند (N25/N18).
+//    بیلی‌روبین و اوروبیلینوژنِ نوار هم در qual بودند و هیچ خواننده‌ای نداشتند.
+// sha هر برگه روی b9068df، پیش از مرحلهٔ ب (اندازه‌گیری‌شده، نه نوشته‌شده).
+const UB_FROZEN = { uti: "b062f04819ee84f2", hem: "79c3b1c3edcc6952", rbccast: "e4ad5c0d2305304a", gran: "f96d3a80e3b86903",
+  biliD: "c994d35593dc69ff", biliI: "4411aa0bdfe5986b", biliE: "b6944cd0079a43a5", hemol: "5a3e09217d6d2dab",
+  bact: "fa883df5ac4f000c", tubcast: "ea3b269da2e1e80c" };
+const ubIds = (rows, patient) => uaIds(uaRun(rows, patient));
+const ubFind = (rows, id, patient) => uaRun(rows, patient).findings.find((f) => f.pattern === id || f.pattern?.startsWith(id));
+const ubEngine = (rows) => runEngine({ patient: { age: 40, sex: "M" }, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
+const ubText = (f) => [f?.headline, f?.must_say, f?.action, ...(f?.warnings || []), ...(f?.suggest || [])].join(" ");
+
+test("M171: وزنِ مخصوص به کانالِ کیفی می‌رود، نه «تفسیر نشدند» و نه عددِ درجه‌بندی‌شده (FR-017a/b)", () => {
+  const e = ubEngine(uaRows([["Specific Gravity", "1.030"]]).filter(([n, v]) => !(n === "Specific Gravity" && v === "1.020")));
+  assert.equal(e.qual["Urine Specific Gravity"], "1.030", `کانال: ${JSON.stringify(e.qual)}`);
+  assert.ok(!e.unmapped.includes("Specific Gravity"), "هنوز در unmapped است");
+  assert.ok(!(e.graded || []).some((g) => /SG|GRAV/i.test(g.test)), "وزنِ مخصوص نباید درجه‌بندی شود");
+});
+
+test("M171b: ردیفِ ادراریِ بی‌نوع/ناخوانا با واحدِ /hpf بی‌صدا در qual نمی‌ماند (SC-006)", () => {
+  // 🔴 روی b9068df: هر دو در qual بودند و هیچ قاعده‌ای نمی‌خواندشان — نه یافته، نه «تفسیر نشدند».
+  const e = ubEngine(uaRows([["Crystals", "Present", "/hpf"], ["Epithelial Cells", "N/S", "/hpf"]]));
+  assert.ok(e.unmapped.includes("Crystals"), `کریستالِ بی‌نوع باید unmapped شود: ${JSON.stringify(e.qual)}`);
+  assert.ok(e.unmapped.includes("Epithelial Cells"), `مقدارِ ناخوانا باید unmapped شود: ${JSON.stringify(e.qual)}`);
+});
+
+test("M171c: «Cholesterol» و «Uric Acid» بی‌واژهٔ کریستال همان آزمایشِ خون می‌مانند (freeze، N25)", () => {
+  const e = ubEngine([["Cholesterol", "240", "mg/dL"], ["Uric Acid", "6.5", "mg/dL"], ["Hb", "14", "g/dL"]]);
+  const keys = (e.graded || []).map((g) => g.test);
+  assert.ok(keys.includes("CHOL"), `کلسترول درجه‌بندی نشد: ${keys}`);
+  assert.ok(keys.some((k) => /URIC|^UA$/.test(k)), `اسید اوریک درجه‌بندی نشد: ${keys}`);
+});
+
+test("M171d: یافته‌های موجود روی ده برگهٔ مرجع بایت‌به‌بایت همان می‌مانند (freeze، SC-003)", () => {
+  const panels = {
+    uti: uaRows([["Protein", "+2"], ["WBC", "10-15", "/hpf"], ["Leukocyte Esterase", "+2"]]),
+    hem: uaRows([["Blood", "+2"], ["RBC", "10-15", "/hpf"]]),
+    rbccast: uaRows([["RBC Casts", "5-8", "/lpf"]]),
+    gran: uaRows([["Granular Casts", "2-3", "/lpf"]]),
+    biliD: [["Total Bilirubin", "4.0", "mg/dL"], ["Direct Bilirubin", "3.0", "mg/dL"]],
+    biliI: [["Total Bilirubin", "2.0", "mg/dL"], ["Direct Bilirubin", "0.3", "mg/dL"]],
+    biliE: [["Total Bilirubin", "18", "mg/dL"], ["Direct Bilirubin", "12", "mg/dL"]],
+    hemol: [["LDH", "600", "U/L"], ["Haptoglobin", "10", "mg/dL"], ["Hb", "9", "g/dL"], ["Total Bilirubin", "2.5", "mg/dL"], ["Direct Bilirubin", "0.4", "mg/dL"]],
+    bact: uaRows([], { bacteria: "Many" }),
+    tubcast: uaRows([["Renal Tubular Epithelial Casts", "2-3", "/lpf"]]),
+  };
+  const got = Object.fromEntries(Object.entries(panels).map(([k, r]) => [k, uaSnap(r)]));
+  assert.deepEqual(got, UB_FROZEN);
+});
+
+// ── US3: کریستال‌ها ──
+test("M172: کریستالِ سیستین «هیچ‌وقت طبیعی نیست» و این هفته (FR-014)", () => {
+  const f = ubFind(uaRows([["Crystals", "Cystine", "/hpf"]]), "urine_crystals");
+  assert.ok(f, `یافتهٔ کریستال نیامد: ${ubIds(uaRows([["Crystals", "Cystine", "/hpf"]]))}`);
+  assert.equal(f.urgency, "this_week");
+  assert.match(f.must_say, /سیستین/);
+  assert.match(f.must_say, /طبیعی نیست/);
+});
+
+test("M172b: اورات‌های آمورف اطمینان‌بخش و در نوبتِ عادی (FR-015)", () => {
+  const p = uaRun(uaRows([["Crystals", "Amorphous urates"]]));
+  const f = p.findings.find((x) => x.pattern?.startsWith("urine_crystals"));
+  assert.ok(f, `یافته نیامد: ${uaIds(p)}`);
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /نمونه/);
+  assert.equal(p.overall_urgency, "routine");
+});
+
+test("M172c: اگزالاتِ کلسیم — سنگ به‌عنوانِ احتمال، نه ادعا", () => {
+  const f = ubFind(uaRows([["Calcium Oxalate Crystals", "Many"]]), "urine_crystals");
+  assert.ok(f, "یافته نیامد");
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /اگزالات/);
+  assert.match(f.must_say, /سنگ/);
+  assert.doesNotMatch(f.must_say, /سنگ دارید|سنگِ کلیه دارید/);
+});
+
+test("M172d: «Crystals: Not seen» نه یافته می‌سازد نه به «تفسیر نشدند» می‌رود", () => {
+  const rows = uaRows([["Crystals", "Not seen"]]);
+  assert.ok(!ubIds(rows).some((i) => i.startsWith("urine_crystals")));
+  assert.ok(!ubEngine(rows).unmapped.includes("Crystals"), "منفیِ صریح خوانده‌شده است، نه ناشناخته");
+});
+
+test("M172e: کریستالِ ناشناخته به نزدیک‌ترین نوع نگاشت نمی‌شود — unmapped (FR-016)", () => {
+  const rows = uaRows([["Crystals", "Hippuric acid", "/hpf"]]);
+  assert.ok(ubEngine(rows).unmapped.includes("Crystals"));
+  assert.ok(!ubIds(rows).some((i) => i.startsWith("urine_crystals")));
+});
+
+test("M172f: دو ردهٔ کریستال روی یک برگه ⇒ یک یافته، و ردهٔ پایین‌تر نام برده می‌شود", () => {
+  const p = uaRun(uaRows([["Cystine Crystals", "Few"], ["Calcium Oxalate Crystals", "Few"]]));
+  const fs = p.findings.filter((x) => x.pattern?.startsWith("urine_crystals"));
+  assert.equal(fs.length, 1, `یافته‌ها: ${uaIds(p)}`);
+  assert.match(fs[0].must_say, /سیستین/);
+  assert.match(fs[0].must_say, /اگزالات/);
+});
+
+// ── US4: وزنِ مخصوص ──
+test("M173: وزنِ مخصوصِ ۱.۰۴۰ — ادرارِ غلیظ، نه ناهنجاری (FR-017، FR-019a)", () => {
+  // عمداً عوض شد (بازبینی #۶): ۱.۰۳۰ درونِ بازهٔ مرجع است؛ M176h همان را قفل می‌کند.
+  const p = uaRun(uaRows([["Specific Gravity", "1.040"]]).filter(([n, v]) => !(n === "Specific Gravity" && v === "1.020")));
+  const f = p.findings.find((x) => x.pattern === "urine_specific_gravity");
+  assert.ok(f, `یافته نیامد: ${uaIds(p)}`);
+  assert.equal(f.urgency, "routine");
+  assert.match(f.headline, /غلیظ/);
+  assert.doesNotMatch(ubText(f), /غیرطبیعی|ناهنجار/);
+});
+
+test("M173b: وزنِ مخصوصِ ۱.۰۰۳ — رقیق، و نتایجِ دیگرِ نوار کمتر قابلِ اعتماد (FR-018)", () => {
+  const f = ubFind(uaRows([["Specific Gravity", "1.003"]]).filter(([n, v]) => !(n === "Specific Gravity" && v === "1.020")), "urine_specific_gravity");
+  assert.ok(f, "یافته نیامد");
+  assert.match(f.headline, /رقیق/);
+  assert.match(f.must_say, /کمتر قابلِ اعتماد/);
+});
+
+test("M173c: وزنِ مخصوصِ معمول یافته نمی‌سازد", () => {
+  const rows = uaRows([]);   // uaRows همیشه 1.020 دارد
+  assert.ok(!ubIds(rows).includes("urine_specific_gravity"));
+  assert.ok(!ubEngine(rows).unmapped.includes("Specific Gravity"), "خوانده‌شده است، نه ناشناخته");
+});
+
+test("M173d: «1040» بی‌ممیز همان ۱.۰۴۰ خوانده می‌شود؛ «N/A» به unmapped", () => {
+  const drop = (r) => r.filter(([n, v]) => !(n === "Specific Gravity" && v === "1.020"));
+  assert.ok(ubIds(drop(uaRows([["Specific Gravity", "1040"]]))).includes("urine_specific_gravity"));
+  const rows = drop(uaRows([["Specific Gravity", "N/A"]]));
+  assert.ok(ubEngine(rows).unmapped.includes("Specific Gravity"));
+  assert.ok(!ubIds(rows).includes("urine_specific_gravity"));
+});
+
+test("M173e: ادرارِ غلیظ + پروتئینِ مثبت ⇒ فقط هشدار، بی‌تصحیح (P51)", () => {
+  const drop = (r) => r.filter(([n, v]) => !(n === "Specific Gravity" && v === "1.020"));
+  const f = ubFind(drop(uaRows([["Specific Gravity", "1.035"], ["Protein", "+2"]])), "urine_specific_gravity");
+  assert.ok(f, "یافته نیامد");
+  assert.match(f.must_say, /پروتئین/);
+});
+
+// ── US5: بیلی‌روبین و اوروبیلینوژن ──
+test("M174: بیلی‌روبینِ مثبتِ ادرار — شکلِ پردازش‌شده، کبد یا مجاری صفرا، این هفته (FR-020)", () => {
+  const f = ubFind(uaRows([["Bilirubin", "+2"]]), "urine_bilirubin");
+  assert.ok(f, `یافته نیامد: ${ubIds(uaRows([["Bilirubin", "+2"]]))}`);
+  assert.equal(f.urgency, "this_week");
+  assert.match(f.must_say, /پردازش/);
+  assert.match(f.must_say, /کبد/);
+});
+
+test("M174b: اوروبیلینوژنِ بالا با بیلی‌روبینِ منفی ⇒ تجزیهٔ گلبول‌های قرمز، نه انسداد (US5-AS3)", () => {
+  const f = ubFind(uaRows([["Bilirubin", "Negative"]]).map(([n, v, u]) => n === "Urobilinogen" ? [n, "+2", u] : [n, v, u]), "urine_bilirubin");
+  assert.ok(f, "یافته نیامد");
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /گلبول‌های قرمز/);
+});
+
+test("M174c: بیلی‌روبینِ ادرار + یافتهٔ بیلی‌روبینِ خون ⇒ یک زمان‌بندی (FR-021)", () => {
+  const p = uaRun(uaRows([["Bilirubin", "+2"], ["Total Bilirubin", "4.0", "mg/dL"], ["Direct Bilirubin", "3.0", "mg/dL"]]));
+  assert.ok(!uaIds(p).some((i) => i.startsWith("urine_bilirubin")), `دو یافته: ${uaIds(p)}`);
+  const owner = p.findings.find((x) => x.pattern === "bilirubin_direct_dominant");
+  assert.ok(owner, `مالک فعال نشد: ${uaIds(p)}`);
+  assert.match(owner.must_say, /نوارِ ادرار/);
+});
+
+test("M174d: اوروبیلینوژنِ طبیعی و بیلی‌روبینِ منفی یافته نمی‌سازد", () => {
+  assert.ok(!ubIds(uaRows([["Bilirubin", "Negative"]])).some((i) => i.startsWith("urine_bilirubin")));
+});
+
+test("M174e: بیلی‌روبینِ ادرار کنارِ الگوی همولیز ⇒ جمله در یافتهٔ همولیز، نه یافتهٔ دوم", () => {
+  // LDH و هاپتوگلوبین نشانگرِ خون‌اند: روی یک صفحه، «Bilirubin» به‌درستی مبهم و unmapped می‌شود (R2).
+  //   برگهٔ واقعی دو صفحه است — ادرار روی یکی، خون روی دیگری.
+  const tests = [...uaRows([["Bilirubin", "+1"]]).map(([name, value, unit]) => ({ name, value, unit, _page: 1 })),
+    ...[["LDH", "600", "U/L"], ["Haptoglobin", "10", "mg/dL"], ["Total Bilirubin", "2.5", "mg/dL"], ["Direct Bilirubin", "0.4", "mg/dL"]]
+      .map(([name, value, unit]) => ({ name, value, unit, _page: 0 }))];
+  const p = runPatterns(runEngine({ patient: { age: 40, sex: "M" }, tests }));
+  const owner = p.findings.find((x) => x.pattern?.startsWith("hemoly"));
+  assert.ok(owner, `همولیز فعال نشد: ${uaIds(p)}`);
+  assert.ok(!uaIds(p).some((i) => i.startsWith("urine_bilirubin")), `دو یافته: ${uaIds(p)}`);
+  assert.match(owner.must_say, /نوارِ ادرار/);
+});
+
+// ── US6: سلول‌ها ──
+test("M175: سلول‌های اپی‌تلیالِ کلیه ۵-۱۰ ⇒ آسیبِ لوله‌ها، این هفته، کراتینینِ سه‌شاخه (FR-022)", () => {
+  const f = ubFind(uaRows([["Renal Tubular Epithelial Cells", "5-10", "/hpf"]]), "urine_renal_tubular_cells");
+  assert.ok(f, "یافته نیامد");
+  assert.equal(f.urgency, "this_week");
+  assert.match(f.must_say, /لوله/);
+  assert.match(f.must_say, /کراتینین روی این برگه نیست/);
+});
+
+test("M175b: سلول‌های کلیه + سیلندرِ همان سلول‌ها ⇒ یک یافته که هر دو را می‌گوید", () => {
+  const p = uaRun(uaRows([["Renal Tubular Epithelial Cells", "5-10", "/hpf"], ["Renal Tubular Epithelial Casts", "2-3", "/lpf"]]));
+  assert.ok(!uaIds(p).includes("urine_renal_tubular_cells"), `دو یافته: ${uaIds(p)}`);
+  const cast = p.findings.find((x) => x.pattern === "urine_cast_tubular");
+  assert.ok(cast, `سیلندر فعال نشد: ${uaIds(p)}`);
+  assert.match(cast.must_say, /سلول‌های جداگانه/);
+});
+
+test("M175c: سلول‌های سنگفرشیِ زیاد ⇒ هشدارِ آلودگی که بیمار می‌خواند، بی‌تغییرِ فوریتِ بقیه (FR-023)", () => {
+  // عمداً عوض شد (بازبینی #۵): کنارِ عفونتِ ادراری جمله در متنِ uti_likely می‌نشیند (M176g). اینجا پنلِ خون در ادرار،
+  //   که مالکِ WBC/باکتری نیست — یافتهٔ مستقل می‌آید و فوریتِ hematuria دست نمی‌خورد.
+  const hem = [["Blood", "+2"], ["RBC", "10-15", "/hpf"]];
+  const base = uaRun(uaRows(hem));
+  const p = uaRun(uaRows([...hem, ["Epithelial Cells", "Many"]]));
+  const f = p.findings.find((x) => x.pattern === "urine_squamous_contamination");
+  assert.ok(f, `یافته نیامد: ${uaIds(p)}`);
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /آلوده/);
+  for (const b of base.findings) {
+    const a = p.findings.find((x) => x.pattern === b.pattern);
+    assert.equal(a?.urgency, b.urgency, `فوریتِ ${b.pattern} عوض شد`);
+  }
+  assert.equal(p.overall_urgency, base.overall_urgency);
+});
+
+test("M175d: سنگفرشیِ زیاد + باکتریِ بی‌التهاب ⇒ یک پیشنهادِ نمونهٔ وسطِ ادرار، نه دو", () => {
+  const p = uaRun(uaRows([["Epithelial Cells", "Many"]], { bacteria: "Many" }));
+  assert.ok(uaIds(p).includes("bacteriuria_no_inflammation"), `مالک فعال نشد: ${uaIds(p)}`);
+  assert.ok(!uaIds(p).includes("urine_squamous_contamination"), `دو یافته: ${uaIds(p)}`);
+  const owner = p.findings.find((x) => x.pattern === "bacteriuria_no_inflammation");
+  assert.match(owner.must_say, /سنگفرشی/);
+});
+
+test("M175e: سنگفرشیِ «Few» یافته نمی‌سازد و خوانده‌شده است", () => {
+  const rows = uaRows([["Epithelial Cells", "Few"]]);
+  assert.ok(!ubIds(rows).includes("urine_squamous_contamination"));
+  assert.ok(!ubEngine(rows).unmapped.includes("Epithelial Cells"));
+});
+
+test("M175f: درصدِ گلبولِ قرمزِ دیسمورفیک تفسیر نمی‌شود و در «تفسیر نشدند» می‌ماند (freeze، FR-022a)", () => {
+  const rows = uaRows([["Dysmorphic RBC", "40%"]]);
+  assert.ok(ubEngine(rows).unmapped.includes("Dysmorphic RBC"));
+});
+
+test("M175g: ردیف‌های تازه با مقدارِ عادی هیچ قاعدهٔ ادراریِ موجود را فعال نمی‌کنند (N25، R3)", () => {
+  const rows = uaRows([["Crystals", "Amorphous urates"], ["Epithelial Cells", "Few"], ["Bilirubin", "Negative"],
+    ["Renal Tubular Epithelial Cells", "0-1", "/hpf"], ["Squamous Epithelial Cells", "2-3", "/hpf"]]);
+  const ids = ubIds(rows).filter((i) => !i.startsWith("urine_crystals"));
+  assert.deepEqual(ids, [], `فعال شد: ${ids}`);
+});
+
+// ═════════════ specs/006 — دورِ بازبینی (پزشکی FAIL: B1–B4؛ کد: #۱–#۹) ═════════════
+// برگهٔ دوصفحه‌ای: ادرار روی یک صفحه، خون روی دیگری — همان‌طور که برگهٔ واقعی چاپ می‌شود.
+const ubPages = (urine, blood, patient = { age: 30, sex: "M" }) => runPatterns(runEngine({ patient, tests: [
+  ...uaRows(urine).map(([name, value, unit]) => ({ name, value, unit, _page: 1 })),
+  ...blood.map(([name, value, unit]) => ({ name, value, unit, _page: 0 })),
+] }));
+const ubAll = (p) => p.findings.map((f) => `${f.pattern}:${f.urgency}`).join(", ");
+
+test("M176: بیلی‌روبینِ ادرار کنارِ الگوی «ژیلبر» — ژیلبر گفته نمی‌شود و فوریتِ این هفته گم نمی‌شود (B1)", () => {
+  // 🔴 پیش از اصلاح: فقط bilirubin_indirect_dominant[routine] با «سندرم ژیلبر… بی‌خطر» و بعد «… با سهمِ کبد یا
+  //    مجاری صفرا در همین یافته جور است». بیلی‌روبینِ ادرار (مستقیم) خلافِ ژیلبر است.
+  const p = ubPages([["Bilirubin", "2+"]], [["Total Bilirubin", "2.2", "mg/dL"], ["Direct Bilirubin", "0.3", "mg/dL"], ["ALT", "20", "U/L"], ["AST", "22", "U/L"]]);
+  assert.equal(p.overall_urgency, "this_week", ubAll(p));
+  assert.ok(!p.findings.some((f) => /ژیلبر/.test(f.must_say)), `ژیلبر هنوز گفته می‌شود: ${ubAll(p)}`);
+  assert.equal(p.findings.filter((f) => /نوارِ ادرار/.test(f.must_say)).length, 1, ubAll(p));
+});
+
+test("M176b: شاخهٔ «عضله نه خون» مالکِ بیلی‌روبینِ ادرار نیست (B1، #۱)", () => {
+  const p = ubPages([["Bilirubin", "2+"]], [["LDH", "600", "U/L"], ["CK", "2500", "U/L"], ["AST", "90", "U/L"], ["ALT", "30", "U/L"], ["Haptoglobin", "120", "mg/dL"]]);
+  const f = p.findings.find((x) => x.pattern === "urine_bilirubin_positive");
+  assert.ok(f, `یافتهٔ بیلی‌روبینِ ادرار گم شد: ${ubAll(p)}`);
+  assert.equal(f.urgency, "this_week");
+  const m = p.findings.find((x) => x.pattern === "ldh_muscle_not_hemolysis");
+  assert.ok(m, ubAll(p));
+  assert.doesNotMatch(m.must_say, /نوارِ ادرار/);
+});
+
+test("M176c: اوروبیلینوژن با واحدِ چاپ‌شده سنجیده می‌شود؛ عددِ بی‌واحدِ مبهم به «تفسیر نشدند» (B2، N3)", () => {
+  const withU = (v, u) => uaRows([["Bilirubin", "Negative"]]).map(([n, x, y]) => n === "Urobilinogen" ? [n, v, u] : [n, x, y]);
+  assert.ok(!ubIds(withU("3.2", "µmol/L")).some((i) => i.startsWith("urine_bilirubin")), "۳.۲ µmol/L طبیعی است");
+  assert.ok(ubIds(withU("70", "µmol/L")).some((i) => i.startsWith("urine_bilirubin")), "۷۰ µmol/L بالاست");
+  assert.ok(ubIds(withU("4", "mg/dL")).some((i) => i.startsWith("urine_bilirubin")), "۴ mg/dL بالاست");
+  const e = ubEngine(withU("2", undefined));
+  assert.ok(e.unmapped.includes("Urobilinogen"), `عددِ بی‌واحدِ ۲ باید unmapped شود: ${JSON.stringify(e.qual)}`);
+});
+
+test("M176d: «<0.5»، «کمتر از»، «+/-» مثبت خوانده نمی‌شوند؛ «Present» مثبت است (B3، N6)", () => {
+  for (const v of ["<0.5", "کمتر از 0.5", "Negative", "Nil"]) {
+    assert.ok(!ubIds(uaRows([["Bilirubin", v]])).some((i) => i.startsWith("urine_bilirubin")), `«${v}» مثبت خوانده شد`);
+  }
+  for (const v of ["+/-", "±"]) {
+    const rows = uaRows([["Bilirubin", v]]);
+    assert.ok(!ubIds(rows).some((i) => i.startsWith("urine_bilirubin")), `«${v}» مثبت خوانده شد`);
+    assert.ok(ubEngine(rows).unmapped.includes("Bilirubin"), `«${v}» مبهم است، باید در «تفسیر نشدند» بیاید`);
+  }
+  const u = uaRows([["Bilirubin", "Negative"]]).map(([n, x, y]) => n === "Urobilinogen" ? [n, "+/-", y] : [n, x, y]);
+  assert.ok(!ubIds(u).some((i) => i.startsWith("urine_bilirubin")), "اوروبیلینوژنِ +/- بالا خوانده شد");
+  assert.ok(ubIds(uaRows([["Bilirubin", "Present"]])).includes("urine_bilirubin_positive"), "«Present» خوانده نشد");
+});
+
+test("M176e: «Bilirubin 0.8 mg/dL» روی صفحهٔ مخلوط بیلی‌روبینِ مثبتِ ادرار نمی‌شود (B4، N25)", () => {
+  const rows = uaRows([["FBS", "95", "mg/dL"], ["Creatinine", "0.9", "mg/dL"], ["Bilirubin", "0.8", "mg/dL"]]);
+  assert.ok(!ubIds(rows).some((i) => i.startsWith("urine_bilirubin")), `هشدارِ کاذب: ${ubIds(rows)}`);
+});
+
+test("M176f: اوروبیلینوژنِ «Not increased» طبیعی و «Abnormal» بالاست (#۳، N6)", () => {
+  const u = (v) => uaRows([["Bilirubin", "Negative"]]).map(([n, x, y]) => n === "Urobilinogen" ? [n, v, y] : [n, x, y]);
+  assert.ok(!ubIds(u("Not increased")).some((i) => i.startsWith("urine_bilirubin")));
+  assert.ok(ubIds(u("Abnormal")).some((i) => i.startsWith("urine_bilirubin")));
+});
+
+test("M176g: سنگفرشیِ زیاد کنارِ عفونتِ ادراری — یک یافته، جملهٔ آلودگی در متنِ همان (#۵، N20)", () => {
+  const uti = [["Leukocyte Esterase", "+2"], ["WBC", "20-25", "/hpf"]];
+  const base = uaRun(uaRows(uti));
+  const p = uaRun(uaRows([...uti, ["Epithelial Cells", "Many"]]));
+  assert.ok(!uaIds(p).includes("urine_squamous_contamination"), `دو خوانش از یک WBC: ${uaIds(p)}`);
+  const owner = p.findings.find((x) => x.pattern === "uti_likely");
+  assert.ok(owner, uaIds(p));
+  assert.match(owner.must_say, /سنگفرشی/);
+  assert.equal(owner.urgency, base.findings.find((x) => x.pattern === "uti_likely").urgency);
+  assert.equal(owner.action, base.findings.find((x) => x.pattern === "uti_likely").action);
+});
+
+test("M176h: وزنِ مخصوصِ ۱.۰۳۰ درونِ بازهٔ مرجع است و یافته نمی‌سازد؛ CRP پروتئینِ ادرار نیست (#۶)", () => {
+  const drop = (r) => r.filter(([n, v]) => !(n === "Specific Gravity" && v === "1.020"));
+  assert.ok(!ubIds(drop(uaRows([["Specific Gravity", "1.030"]]))).includes("urine_specific_gravity"));
+  const rows = drop(uaRows([["Specific Gravity", "1.040"], ["C-Reactive Protein", "2+"], ["Protein", "Negative"]]));
+  const e = ubEngine(rows);
+  assert.ok(Object.keys(e.qual).some((k) => /reactive/i.test(k)), `پنل آن چیزی را که می‌خواهد نمی‌سنجد: ${JSON.stringify(e.qual)}`);
+  const f = uaRun(rows).findings.find((x) => x.pattern === "urine_specific_gravity");
+  assert.ok(f, "یافتهٔ غلظت نیامد");
+  assert.doesNotMatch(f.must_say, /پروتئین/);
+});
+
+test("M176i: «Round Epithelial Cells» سنگفرشی نیست — «تفسیر نشدند» (#۷)", () => {
+  const rows = uaRows([["Round Epithelial Cells", "Many", "/hpf"]]);
+  assert.ok(!ubIds(rows).includes("urine_squamous_contamination"));
+  assert.ok(ubEngine(rows).unmapped.includes("Round Epithelial Cells"));
+});
+
+test("M176j: CBCِ چاپ‌شده دوباره درخواست نمی‌شود (#۸، N8)", () => {
+  const u = uaRows([["Bilirubin", "Negative"]]).map(([n, x, y]) => n === "Urobilinogen" ? [n, "+2", y] : [n, x, y]);
+  const p = runPatterns(runEngine({ patient: { age: 30, sex: "M" }, tests: [
+    ...u.map(([name, value, unit]) => ({ name, value, unit, _page: 1 })),
+    ...[["Hb", "14", "g/dL"], ["WBC", "7.0"], ["PLT", "250"]].map(([name, value, unit]) => ({ name, value, unit, _page: 0 }))] }));
+  const f = p.findings.find((x) => x.pattern?.startsWith("urine_bilirubin"));
+  assert.ok(f, ubAll(p));
+  assert.ok(!f.suggest.includes("CBC"), `CBC دوباره خواسته شد: ${f.suggest}`);
+});
+
+test("M176k: وزنِ مخصوص — «1/025» ناخوانا، «Sp. Gravity» و رقمِ فارسی خوانده می‌شوند (NB، #۹)", () => {
+  const base = [["Color", "Yellow"], ["pH", "6"], ["Nitrite", "Negative"]];
+  const e = ubEngine([...base, ["Specific Gravity", "1/025"]]);
+  assert.ok(e.unmapped.includes("Specific Gravity"), `«1/025» خوانده شد: ${JSON.stringify(e.qual)}`);
+  assert.ok(!ubIds([...base, ["Specific Gravity", "1/025"]]).includes("urine_specific_gravity"));
+  assert.ok(ubIds([...base, ["Sp. Gravity", "1.040"]]).includes("urine_specific_gravity"));
+  assert.ok(ubIds([...base, ["وزن مخصوص", "۱٫۰۴۰"]]).includes("urine_specific_gravity"));
+});
+
+test("M176l: «+/-» روی کریستال مبهم است — «تفسیر نشدند»، نه یافته (#۲، N6)", () => {
+  const rows = uaRows([["Calcium Oxalate Crystals", "+/-"]]);
+  assert.ok(!ubIds(rows).some((i) => i.startsWith("urine_crystals")));
+  assert.ok(ubEngine(rows).unmapped.includes("Calcium Oxalate Crystals"));
 });

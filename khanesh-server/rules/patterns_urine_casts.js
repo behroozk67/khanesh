@@ -13,7 +13,7 @@
 //
 // ⚠️ آستانه‌ها (هیالن ≤ ۲ در میدان) و سه پرسشِ باز (مومی = پهن؟ ذکرِ ورزش در گرانولار؟ «۰-۱» برای
 //    سیلندرِ بیماری‌زا؟) در MEDICAL_RULES.md، P50، در انتظارِ بازبین‌اند.
-import { castAxis, isGlomerulonephritis, urineGrade, othersSentence } from "./patterns_utils.js";
+import { castAxis, isGlomerulonephritis, urineGrade, othersSentence, epithelialState } from "./patterns_utils.js";
 
 /** فوریت و جملهٔ اقدام از یک تصمیم (N20)؛ کپیِ محلی، مثلِ patterns_cardiac/hematology/mineral_bone. */
 function actionFor(urgency, { week, routine }) {
@@ -28,7 +28,7 @@ const axisIs = (label) => (e) => castAxis(e).label === label;
  *    e.graded (specs/003)، و دوشاخه‌ای‌کردنِ این به بیمار می‌گفت آزمایشی را که روی برگه‌اش چاپ شده ندارد.
  * ⚠️ عدد نقل نمی‌شود: مقدارِ graded ممکن است از µmol/L تبدیل شده و روی کاغذِ بیمار نباشد (N5).
  */
-function creatClause(e) {
+export function creatClause(e) {
   const cr = e.graded?.find((g) => g.test === "CREAT");
   if (cr?.abnormal && cr.dir === "high") {
     return { text: "کراتینینِ همین برگه هم بالاتر از حدِ طبیعی است، که درگیریِ کلیه را محتمل‌تر می‌کند.", absent: false };
@@ -123,7 +123,9 @@ export const RULES_URINE_CASTS = [
           "در ادرارِ شما «سیلندرِ سلول‌های اپی‌تلیالِ کلیه» گزارش شده است — قالب‌هایی که از سلول‌های دیوارهٔ " +
           "لوله‌های خودِ کلیه ساخته شده‌اند. این می‌تواند نشانهٔ آسیب به این لوله‌ها باشد؛ از علت‌های شایعش " +
           "کم‌آبیِ شدید و برخی داروها هستند، و علتِ واقعی را پزشک مشخص می‌کند. " +
-          cr.text + othersSentence(e),
+          cr.text + othersSentence(e) +
+          // specs/006: سلول‌های جداگانهٔ همین لوله‌ها یافتهٔ دوم نمی‌سازند؛ اینجا گفته می‌شوند (M175b).
+          (epithelialState(e, "renal_tubular") === "high" ? " در همین برگه سلول‌های جداگانهٔ دیوارهٔ لوله‌ها هم گزارش شده است، که با همین تصویر جور است." : ""),
         action: actionFor(urgency, {
           week: "این هفته با پزشک مطرح کنید و فهرستِ داروهایی را که مصرف می‌کنید همراه ببرید.",
           routine: "در نوبتِ عادی با پزشک مطرح کنید.",

@@ -1,0 +1,27 @@
+sg_1030        Specific Gravity→qual:Urine Specific Gravity | fired: urine_specific_gravity | gradedKeys: 
+sg_1003        Specific Gravity→qual:Urine Specific Gravity | fired: urine_specific_gravity | gradedKeys: 
+sg_1015        Specific Gravity→qual:Urine Specific Gravity | fired: - | gradedKeys: 
+sg_fa          وزن مخصوص→? | fired: urine_specific_gravity | gradedKeys: 
+cystine        Crystals→qual:Urine Crystals | fired: urine_crystals_pathologic | gradedKeys: 
+cystine_named  Cystine Crystals→qual:Urine Cystine Crystals | fired: urine_crystals_pathologic | gradedKeys: 
+amorph         Crystals→qual:Urine Crystals | fired: urine_crystals_incidental | gradedKeys: 
+caox           Calcium Oxalate→qual:Urine Calcium Oxalate | fired: urine_crystals_stone | gradedKeys: 
+caox2          Crystals→qual:Urine Crystals | fired: urine_crystals_stone | gradedKeys: 
+crystal_neg    Crystals→qual:Urine Crystals | fired: - | gradedKeys: 
+bili_pos       Bilirubin→qual:Urine Bilirubin | fired: urine_bilirubin_positive | gradedKeys: 
+urobil_high    Urobilinogen→qual:Urobilinogen Bilirubin→qual:Urine Bilirubin | fired: urine_bilirubin_urobilinogen_raised | gradedKeys: 
+urobil_norm    Urobilinogen→qual:Urobilinogen Bilirubin→qual:Urine Bilirubin | fired: - | gradedKeys: 
+rtec           Renal Tubular Epithelial Cells→qual:Urine Renal Tubular Epithelial Cells | fired: urine_renal_tubular_cells | gradedKeys: 
+squam          Epithelial Cells→qual:Urine Epithelial Cells | fired: urine_squamous_contamination | gradedKeys: 
+squam2         Squamous Epithelial Cells→qual:Urine Squamous Epithelial Cells | fired: urine_squamous_contamination | gradedKeys: 
+squam_fa       سلول اپیتلیال→qual:Urine سلول اپیتلیال | fired: urine_squamous_contamination | gradedKeys: 
+dysm           Dysmorphic RBC→unmapped | fired: - | gradedKeys: 
+squam_hpf          qual: {"Urine Epithelial Cells":"Many"} | unm: ["Color"] | graded:  | fired: urine_squamous_contamination
+squam_hpf_num      qual: {"Urine Squamous Epithelial Cells":"10-15"} | unm: ["Color"] | graded:  | fired: urine_squamous_contamination
+crystal_hpf        qual: {"Urine Crystals":"Calcium oxalate few"} | unm: ["Color"] | graded:  | fired: urine_crystals_stone
+cystine_hpf        qual: {"Urine Cystine Crystals":"Few"} | unm: ["Color"] | graded:  | fired: urine_crystals_pathologic
+bili_mixed         qual: {} | unm: ["Color","Blood","Bilirubin"] | graded:  | fired: -
+bili_mixed_urobil  qual: {"Urobilinogen":"+2"} | unm: ["Color","Blood"] | graded:  | fired: urine_bilirubin_urobilinogen_raised
+sg_mixed           qual: {"Urine Specific Gravity":"1.030"} | unm: ["Color","Blood"] | graded:  | fired: urine_specific_gravity
+bili_serum+urine   qual: {"Urine Bilirubin":"+2"} | unm: ["Color"] | graded: BILI_T=4!,BILI_D=3! | fired: bilirubin_direct_dominant
+yeast              qual: {"Urine Yeast":"Few"} | unm: ["Color"] | graded:  | fired: -
