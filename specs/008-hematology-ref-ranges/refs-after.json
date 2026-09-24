@@ -1,0 +1,309 @@
+{
+ "HGB": {
+  "adult": {
+   "M": [
+    14,
+    17.5
+   ],
+   "F": [
+    12.3,
+    15.3
+   ],
+   "unit": "g/dL"
+  },
+  "ger": null,
+  "ped": [
+   {
+    "maxAge": 0.01643835616438356,
+    "range": [
+     14.5,
+     22
+    ]
+   },
+   {
+    "maxAge": 0.019178082191780823,
+    "range": [
+     14,
+     18.6
+    ]
+   },
+   {
+    "maxAge": 0.25,
+    "range": [
+     9.5,
+     12.5
+    ]
+   },
+   {
+    "maxAge": 4,
+    "range": [
+     11,
+     14
+    ]
+   },
+   {
+    "maxAge": 12,
+    "range": [
+     11.5,
+     14
+    ]
+   }
+  ]
+ },
+ "HCT": {
+  "adult": {
+   "M": [
+    41.5,
+    50.4
+   ],
+   "F": [
+    35.9,
+    44.6
+   ],
+   "unit": "%"
+  },
+  "ger": null,
+  "ped": [
+   {
+    "maxAge": 0.16666666666666666,
+    "range": [
+     44,
+     64
+    ]
+   },
+   {
+    "maxAge": 0.25,
+    "range": [
+     32,
+     44
+    ]
+   },
+   {
+    "maxAge": 3,
+    "range": [
+     36,
+     44
+    ]
+   }
+  ]
+ },
+ "RBC": {
+  "adult": {
+   "M": [
+    4.5,
+    5.9
+   ],
+   "F": [
+    4.1,
+    5.1
+   ],
+   "unit": "M/µL"
+  },
+  "ger": null,
+  "ped": null
+ },
+ "MCV": {
+  "adult": {
+   "both": [
+    80,
+    96
+   ],
+   "unit": "fL"
+  },
+  "ger": {
+   "both": [
+    82,
+    102
+   ],
+   "unit": "fL"
+  },
+  "ped": [
+   {
+    "maxAge": 0.25,
+    "range": [
+     100,
+     130
+    ]
+   },
+   {
+    "maxAge": 0.3333333333333333,
+    "range": [
+     85,
+     100
+    ]
+   },
+   {
+    "maxAge": 4,
+    "range": [
+     70,
+     86
+    ]
+   },
+   {
+    "maxAge": 12,
+    "range": [
+     77,
+     91
+    ]
+   }
+  ]
+ },
+ "MCH": {
+  "adult": {
+   "both": [
+    27.5,
+    33.2
+   ],
+   "unit": "pg"
+  },
+  "ger": null,
+  "ped": [
+   {
+    "maxAge": 0.25,
+    "range": [
+     31,
+     37
+    ]
+   },
+   {
+    "maxAge": 0.3333333333333333,
+    "range": [
+     27,
+     33
+    ]
+   },
+   {
+    "maxAge": 12,
+    "range": [
+     23,
+     31
+    ]
+   }
+  ]
+ },
+ "MCHC": {
+  "adult": {
+   "both": [
+    32,
+    36
+   ],
+   "unit": "%",
+   "source": "user_override"
+  },
+  "ger": null,
+  "ped": [
+   {
+    "maxAge": 16,
+    "range": [
+     32,
+     35
+    ]
+   }
+  ]
+ },
+ "RDW_CV": {
+  "adult": {
+   "both": [
+    11.5,
+    14.5
+   ],
+   "unit": "%"
+  },
+  "ger": null,
+  "ped": null
+ },
+ "RDW_SD": {
+  "adult": {
+   "both": [
+    35,
+    56
+   ],
+   "unit": "fL"
+  },
+  "ger": null,
+  "ped": null
+ },
+ "RETIC": {
+  "adult": {
+   "both": [
+    0.5,
+    1.5
+   ],
+   "unit": "%"
+  },
+  "ger": null,
+  "ped": null
+ },
+ "IRON": {
+  "adult": {
+   "both": [
+    50,
+    160
+   ],
+   "unit": "µg/dL"
+  },
+  "ger": null,
+  "ped": [
+   {
+    "maxAge": 16,
+    "range": [
+     78.17,
+     173.09
+    ]
+   }
+  ]
+ },
+ "TIBC": {
+  "adult": {
+   "both": [
+    250,
+    400
+   ],
+   "unit": "µg/dL"
+  },
+  "ger": null,
+  "ped": [
+   {
+    "maxAge": 16,
+    "range": [
+     301.51,
+     418.76
+    ]
+   }
+  ]
+ },
+ "TSAT": {
+  "adult": {
+   "both": [
+    20,
+    55
+   ],
+   "unit": "%"
+  },
+  "ger": null,
+  "ped": null
+ },
+ "FERRITIN": {
+  "adult": {
+   "M": [
+    12,
+    300
+   ],
+   "F": [
+    12,
+    150
+   ],
+   "unit": "ng/mL"
+  },
+  "ger": null,
+  "ped": [
+   {
+    "maxAge": 16,
+    "range": [
+     12,
+     200
+    ]
+   }
+  ]
+ }
+}

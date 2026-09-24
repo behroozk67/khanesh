@@ -107,6 +107,83 @@ function whoFerritinThreshold(e) {
   return child ? 12 : 15;
 }
 
+// ═══ specs/008 — آستانهٔ قاعده جدا از بازهٔ درجه‌بندی (N23) ═══
+// بازهٔ فریتین/آهن در refs.js عوض شد (فریتینِ مرد ۱۲–۳۰۰، آهن ۵۰–۱۶۰). اگر قاعده‌ها dir را می‌خواندند، مردِ فریتینِ
+// ۲۰ یافتهٔ کمبودِ آهن را از دست می‌داد و کم‌خونیِ بیماری مزمن با آهنِ ۵۰–۵۹ خاموش می‌شد — تصمیمی که کسی نگرفته.
+//   مرد ۳۰ و زنِ زیرِ ۵۰ ۱۵: همان آستانهٔ پیشین، نگه‌داشته.
+//   زنِ ≥۵۰ ساله ۳۰: تغییرِ عمدی (clarify ۱۴۰۵/۰۷/۰۱) — برچسبِ «پایین» و یافته یکی می‌شوند.
+//   🔴 بازبینیِ پزشکی B3: جنسِ نامعلوم همان ردیفِ refs.js ferritinRef را می‌گیرد (غیرِمرد ⇒ ردیفِ زن)، وگرنه
+//      «۵۵ ساله، بی‌جنس، فریتین ۲۰» برچسبِ «پایین» می‌گرفت و کم‌خونیِ بیماری مزمن «ذخیره آهن پایین نیست» می‌گفت.
+function ferritinIdCut(e) {
+  if (e.sex === "M") return 30;
+  if (e.age != null && e.age >= 50) return 30;
+  return 15;
+}
+const IRON_ACD_LOW_UGDL = 60; // نگه‌داشته — کفِ پیشینِ بازهٔ آهن (specs/008)
+// ⚠️ زیرِ ۱۶ سال بازه از PED_REFS است و specs/008 به آن دست نزد؛ آنجا همان dir (رفتارِ پیشین) حاکم است،
+//    وگرنه کودکی با فریتینِ ۲۰ (طبیعیِ RCPCH ۱۲–۲۰۰) ناگهان «کمبودِ آهن» می‌گرفت.
+const isPedAge = (e) => e.age != null && e.age < 16;
+function ferritinBelowIdCut(e) {
+  const f = e.graded?.find((g) => g.test === "FERRITIN");
+  if (!f || f.value == null) return false;
+  if (isPedAge(e)) return !!(f.abnormal && f.dir === "low");
+  return f.value < ferritinIdCut(e);
+}
+function ironLowForAcd(e) {
+  const i = e.graded?.find((g) => g.test === "IRON");
+  if (!i || i.value == null) return false;
+  if (isPedAge(e)) return !!(i.abnormal && i.dir === "low");
+  return i.value < IRON_ACD_LOW_UGDL;
+}
+
+// ═══ specs/008 Q3 + clarify — HbA2 ═══
+// «آیا مالکِ تالاسمی فعال است» (thalOwnerFires) در patterns_hematology.js است و خودِ matchِ قاعده‌ها را می‌پرسد.
+// hba2State فقط بالا را برمی‌گرداند (hba2_elevated همین را می‌خواهد):
+//   >۱۲ «very_high» — بالاتر از صفتِ بتا (مرجع: ۳.۸ تا ۷–۱۲)؛ اغلب HbE/لپور هم‌جا اندازه می‌شود (بازبینیِ پزشکی، یادداشت ۱)
+//   >۳.۸ «trait» · ۳.۵ تا ۳.۸ «borderline» (بی‌ادعا) · بقیه null.
+// ۳.۸ و ۱۲ از مرجعِ چسبانده‌شده‌اند (تأییدِ کاربر ۱۴۰۵/۰۷/۰۱)؛ سقفِ ۳.۵ از بازهٔ خودِ ردیف (refs.js) خوانده می‌شود.
+const HBA2_TRAIT_ABOVE = 3.8;
+const HBA2_BEYOND_TRAIT_ABOVE = 12;
+const hba2Row = (e) => e.graded?.find((x) => x.test === "HBA2" && x.value != null);
+function hba2State(e) {
+  const g = hba2Row(e);
+  if (!g || !(g.abnormal && g.dir === "high")) return null;
+  return g.value > HBA2_BEYOND_TRAIT_ABOVE ? "very_high" : g.value > HBA2_TRAIT_ABOVE ? "trait" : "borderline";
+}
+// 🔴 بازبینیِ کد #۶: هر ردیفِ الکتروفورز (HbA2/HbF/HbA) یعنی الکتروفورز انجام شده — درخواستِ دوباره نه (N8).
+const hba2Measured = (e) => !!e.graded?.some((x) => ["HBA2", "HBF"].includes(x.test)) ||
+  !!e.noRef?.some((k) => ["HBA", "HBA2", "HBF", "HBS", "HBC", "HBE"].includes(k));
+// جملهٔ HbA2. owner=true (یافته‌های مالکِ تالاسمی): HbA2ِ طبیعی و پایین هم جمله دارند (بازبینیِ کد #۳، N21) —
+// «صفتِ تالاسمی محتمل‌تر است» کنارِ HbA2ِ طبیعیِ همان برگه بی‌حرف نمی‌ماند.
+function hba2Clause(e, { idaBranch = false, owner = false } = {}) {
+  const g = hba2Row(e);
+  if (!g) return "";
+  const v = g.value;
+  const st = hba2State(e);
+  if (!st) {
+    if (!owner) return "";
+    if (g.abnormal && g.dir === "low") {
+      return ` هموگلوبین A2 شما ${v}٪ و کمتر از حدِ طبیعی (${g.range}) است؛ این بیشتر در کمبودِ آهن یا صفتِ تالاسمیِ آلفا ` +
+        "دیده می‌شود تا صفتِ تالاسمیِ بتا.";
+    }
+    return ` هموگلوبین A2 شما ${v}٪ و در محدودهٔ طبیعی (${g.range}) است؛ این صفتِ تالاسمیِ بتا را کمتر محتمل می‌کند، ` +
+      "ولی صفتِ تالاسمیِ آلفا را رد نمی‌کند، و کمبودِ هم‌زمانِ آهن هم می‌تواند HbA2 را پایین‌تر نشان دهد.";
+  }
+  if (st === "borderline") {
+    return ` هموگلوبین A2 شما ${v}٪ است؛ کمی بالاتر از محدودهٔ طبیعی (${g.range}) و در ناحیهٔ مرزی — ` +
+      "از این عدد به‌تنهایی نمی‌شود دربارهٔ ناقل بودنِ تالاسمی نتیجه گرفت و پزشک باید آن را کنارِ شمارشِ خون تفسیر کند.";
+  }
+  if (st === "very_high") {
+    return ` هموگلوبین A2 شما ${v}٪ است، که حتی از حدِ معمولِ «صفتِ تالاسمیِ بتا» هم بالاتر است؛ در چنین مقداری گاهی ` +
+      "یک هموگلوبینِ دیگر (مثلاً HbE) هم‌جای HbA2 اندازه‌گیری می‌شود. پزشک باید نتیجهٔ کاملِ الکتروفورز را ببیند.";
+  }
+  return ` هموگلوبین A2 شما ${v}٪ است که از ۳.۸ بالاتر است؛ این مقدار معمولاً با «صفتِ تالاسمیِ بتا» ` +
+    "(ناقل بودن، نه بیماری) می‌خواند." +
+    (idaBranch
+      ? " کمبودِ آهن و صفتِ تالاسمی می‌توانند هم‌زمان باشند (و کمبودِ آهن HbA2 را کمی پایین می‌آورد)؛ پزشک باید هر دو را کنارِ هم بسنجد."
+      : "");
+}
+
 /** فریتینِ «طبیعیِ» آزمایشگاه که با معیارِ التهابیِ WHO کمبود است. */
 function whoInflamIronDeficiency(e) {
   const f = e.graded?.find((g) => g.test === "FERRITIN");
@@ -822,6 +899,6 @@ export { isSgKey, sgValue, sgState, SG_KEY, SG_DILUTE_MAX, SG_CONCENTRATED_MIN, 
   urineBiliSentence };
 export { isCastKey, castTypeOf, castTypesIn, castValueState, castRoute, castRows, castAxis, othersSentence,
   urineCellState, CAST_TYPES, HYALINE_CAST_UPPER_LPF };
-export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
+export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, ferritinIdCut, isPedAge, IRON_ACD_LOW_UGDL, ferritinBelowIdCut, ironLowForAcd, hba2State, hba2Measured, hba2Clause, HBA2_TRAIT_ABOVE, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
          amylaseEmergencyOwns, biliEmergencyOwns, AMYLASE_EMERGENCY_UL, BILI_T_EMERGENCY_MGDL,
          anemiaCrisisOwns, actionUnlessAnemiaCrisis, ANEMIA_CRISIS_DEFER, HGB_CRISIS_GDL, crisisArm, HCT_CRISIS_PCT };

@@ -168,8 +168,15 @@ export const REF = {
     range: (s, m) => {
       if (m != null && m < 1) return { low: 11, high: 24 };
       if (m != null && m < 6) return { low: 9.5, high: 18 };
-      if (m != null && m >= 900) return s === "female" ? { low: 10.5, high: 15.3 } : { low: 11.0, high: 17.5 };
-      return s === "female" ? { low: 12.0, high: 16.0 } : { low: 13.5, high: 17.5 };
+      // specs/008 Q1 — همان حدهای پایینِ موتور (refs.js hgbRef)؛ تأییدِ کاربر ۱۴۰۵/۰۷/۰۱، منبعِ اصلی نامعلوم.
+      //   ردیفِ «≥۹۰۰ ماه» (۱۱.۰ / ۱۰.۵، بی‌منبع — P2) حذف شد. زیرِ ۱۶ سال مقدارِ پیشینِ فرم می‌ماند (REF_DIFF.md).
+      const hi = s === "female" ? 16.0 : 17.5;
+      if (m != null && m < 192) return s === "female" ? { low: 12.0, high: hi } : { low: 13.5, high: hi };
+      if (m != null && m >= 840) return { low: s === "female" ? 11.8 : 12.4, high: hi };
+      if (s === "female") return { low: 12.0, high: hi };
+      if (m != null && m < 240) return { low: 13.6, high: hi };
+      if (m != null && m >= 600) return { low: 13.3, high: hi };
+      return { low: 13.7, high: hi };
     }, crit: [7, 20],
     about: "رنگدانه حامل اکسیژن در گلبول قرمز.",
     low: "پایین نشانه کم‌خونی است و نیاز به بررسی دارد.",

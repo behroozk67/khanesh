@@ -54,6 +54,7 @@ let llmCalls = 0;          // شمارندهٔ فراخوانیِ مدل — ت�
 let medlineCalls = 0;
 let llmPayload = null;     // چیزی که مدل «برمی‌گرداند» در تستِ جاری
 let llmRawContent = null;  // اگر ست شود، عیناً به‌جای JSON برگردانده می‌شود (مسیرِ parse-failure)
+let llmLastRequest = null; // بدنهٔ آخرین درخواست به مدل — T23 می‌بیند چه چیزی به مدل *رفته*
 
 function jsonResponse(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
@@ -79,6 +80,7 @@ globalThis.fetch = async function stubbedFetch(input, init) {
   // مرزِ LLM (AvalAI، سازگار با OpenAI) — هم OCR، هم هر ۱۲ عاملِ گراف
   if (url.includes("/chat/completions")) {
     llmCalls++;
+    llmLastRequest = typeof init?.body === "string" ? init.body : null;
     const content = llmRawContent !== null
       ? llmRawContent
       : JSON.stringify(llmPayload ?? {});
@@ -742,4 +744,63 @@ test("T22: سرولوپلاسمینِ پایین یافتهٔ ویلسون می�
   assert.ok(warn.includes("روی"), `«روی» در هشدار نیست: ${warn}`);
   assert.ok(!warn.includes("سرولوپلاسمین"), `سرولوپلاسمینِ تفسیرشده هنوز «تفسیر نشدند» است: ${warn}`);
   assert.doesNotMatch(JSON.stringify(body), /\b(ZINC|CERULOPLASMIN|U_COPPER_24H)\b/, "کلیدِ خام به پاسخ رسید");
+});
+
+// ═══ T23: فهرستِ توصیه‌ها از موتور می‌آید، نه از مدل؛ action/warnings اصلاً به مدل نمی‌روند ═══
+// 🔴 برگهٔ واقعی (۲۰۲۶-۰۹-۲۳، پان‌سیتوپنی، مرد ۶۲): مدل ۴ مورد از ۱۴ توصیهٔ موتور را انداخت،
+//    از جمله «بدون اتلاف وقت فوراً به اورژانس». بیمار «همین امروز با پزشک تماس بگیرید» خواند.
+test("T23: توصیه‌ها عیناً از موتورند — فهرستِ کوتاه/ملایمِ مدل نادیده گرفته می‌شود و action به مدل نمی‌رسد", async () => {
+  const panel = {
+    patient: { age: 62, sex: "M" },
+    tests: [
+      { name: "WBC", value: 0.27, unit: "10^3/uL" }, { name: "NEUT", value: 0.07, unit: "10^3/uL" },
+      { name: "LYMPH", value: 0.14, unit: "10^3/uL" }, { name: "HGB", value: 8.3, unit: "g/dL" },
+      { name: "HCT", value: 23.7, unit: "%" }, { name: "MCV", value: 65.8, unit: "fL" },
+      { name: "PLT", value: 15, unit: "10^3/uL" },
+    ],
+  };
+  const MILD = "همین امروز با پزشک تماس بگیرید.";
+  const { body } = await analyze(panel, modelSays({ text: "تفسیرِ نمونه.", hasCritical: true, recommendations: [MILD] }));
+  const recs = body?.general_recommendations ?? [];
+  assert.equal(recs[0], "بدون اتلاف وقت فوراً به اورژانس مراجعه کنید.", `دستورِ اول: ${recs[0]}`);
+  assert.ok(!recs.includes(MILD), "فهرستِ مدل نباید به بیمار برسد");
+  assert.ok(recs.includes("از تماس با افراد بیمار و مکان‌های شلوغ پرهیز کنید تا پزشک را ببینید."), `هشدارِ نوتروپنی گم شد: ${recs}`);
+  assert.ok(llmLastRequest, "درخواستِ مدل ثبت نشد");
+  assert.ok(!llmLastRequest.includes("بدون اتلاف وقت فوراً به اورژانس"), "action به مدل فرستاده شد");
+  assert.ok(!llmLastRequest.includes("از تماس با افراد بیمار"), "warnings به مدل فرستاده شد");
+});
+
+test("T24: mergePages — «HBs»ِ صفحهٔ هپاتیت و «HbS»ِ صفحهٔ الکتروفورز هر دو می‌مانند، به هر ترتیب (specs/008 دور ۲، CR6، N25)", async () => {
+  // 🔴 پیش‌تر: کلیدِ ادغام فقط نام بود ⇒ «hbs» یکی می‌شد و اولی برنده؛ نتیجهٔ هپاتیت یا واریانتِ داسی بی‌صدا حذف می‌شد.
+  const { mergePages } = await import("./server.js");
+  const hep = { ok: true, page: 1, ocr: { patient: { age: "30", sex: "مرد" }, tests: [
+    { name: "HBs Ag", value: "Negative" }, { name: "HBs", value: "150", unit: "mIU/mL" }] } };
+  const electro = { ok: true, page: 2, ocr: { patient: { age: "30", sex: "مرد" }, tests: [
+    { name: "HbA2", value: "3.1", unit: "%" }, { name: "HbS", value: "38", unit: "%" }] } };
+  for (const pages of [[hep, electro], [electro, hep]]) {
+    const m = mergePages(pages);
+    const vals = m.tests.filter((t) => /^hbs$/i.test(t.name)).map((t) => t.value).sort();
+    assert.deepEqual(vals, ["150", "38"], `یک ردیفِ HBs/HbS حذف شد (ترتیب ${pages.map((p) => p.page)})`);
+  }
+});
+
+test("T26: mergePages — «HbS 38 %» و «HBs: Positive» روی *یک* صفحه هر دو می‌مانند (specs/008 دور ۳، R3-CR4)", async () => {
+  // 🔴 پیش‌تر: با HbA2 روی صفحه هر دو «electro:hbs» می‌شدند و دومی به‌عنوانِ «تکراریِ ناهمخوان» می‌افتاد.
+  const { mergePages } = await import("./server.js");
+  const page = { ok: true, page: 1, ocr: { patient: { age: "28", sex: "زن" }, tests: [
+    { name: "HbA2", value: "3.1", unit: "%" }, { name: "HbS", value: "38", unit: "%" }, { name: "HBs", value: "Positive" }] } };
+  const m = mergePages([page]);
+  const vals = m.tests.filter((t) => /^hbs$/i.test(t.name)).map((t) => t.value).sort();
+  assert.deepEqual(vals, ["38", "Positive"], JSON.stringify(m.tests));
+});
+
+test("T25:برگه‌ای که فقط «Hgb S 40 %» دارد مسیرِ موتور می‌گیرد — نه اورژانس، نه «طبیعی است»، نه کلیدِ خام (specs/008 دور ۲، R2-B4)", async () => {
+  // 🔴 پیش‌تر: «hgbs» ⇒ قاعدهٔ جمع ⇒ HGB ⇒ «هموگلوبین ۴۰» بی‌واحد ⇒ unit_unknown_values اورژانس.
+  const { status, body } = await analyze({ patient: { age: 30, sex: "M" }, tests: [{ name: "Hgb S", value: "40", unit: "%" }] });
+  assert.equal(status, 200);
+  assert.ok(body?._engine, "مسیرِ موتور گرفته نشد");
+  assert.equal(body.has_critical, false);
+  assert.doesNotMatch(`${body.summary} ${body.interpretation}`, /در محدوده طبیعی است/);
+  assert.ok((body.ocr_warnings || []).join(" ").includes("هموگلوبین S"), JSON.stringify(body.ocr_warnings));
+  assert.doesNotMatch(JSON.stringify(body), /\bHBS\b/, "کلیدِ خام به پاسخ رسید");
 });

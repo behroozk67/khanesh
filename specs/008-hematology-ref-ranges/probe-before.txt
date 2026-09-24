@@ -1,0 +1,97 @@
+## M30_Hb138: this_week | normocytic_anemia
+   graded: HGB=13.8↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M30_Hb136: this_week | normocytic_anemia
+   graded: HGB=13.6↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M60_Hb134: this_week | normocytic_anemia
+   graded: HGB=13.4↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M72_Hb126: this_week | normocytic_anemia
+   graded: HGB=12.6↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M80_Hb115: none | 
+   graded: HGB=11.5[11–17.5] MCV=88[82–102] | noRef: [] | unmapped: [] | qual: []
+## F30_Hb121: this_week | normocytic_anemia
+   graded: HGB=12.1↓[12.3–15.3] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## F72_Hb119: this_week | normocytic_anemia
+   graded: HGB=11.9↓[12.3–15.3] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## F80_Hb110: none | 
+   graded: HGB=11[10.5–15.3] MCV=88[82–102] | noRef: [] | unmapped: [] | qual: []
+## M17_Hb135: this_week | normocytic_anemia
+   graded: HGB=13.5↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M30_Hb138_micro: this_week | microcytic_ida_likely
+   graded: HGB=13.8↓[14–17.5] MCV=72↓[80–96] RBC=5.2[4.5–5.9] | noRef: [] | unmapped: [] | qual: []
+   [microcytic_ida_likely] must_say: هموگلوبین شما 13.8 است (حد طبیعی 14–17.5) — کم‌خونیِ خفیف، و اندازهٔ متوسط گلبول‌ها (MCV) 72 است که کوچک‌تر از حد طبیعی (۸۰ تا ۱۰۰) است. این یعنی کم‌خونیِ میکروسیتیک (گلبولِ کوچک). آهن جزء اصلیِ هموگلوبین است؛ وقتی ذخیرهٔ آهن کم می‌شود، مغز استخوان مجبور می‌شود گلبول‌های کوچک‌تر و کم‌رنگ‌تر بسازد — که همین الگوی آزمایش شماست. شاخص محاسباتی منتزر (حدود 13.8) بالای ۱۳ است که با کمبود آهن سازگارتر است تا صفت تالاسمی. برای تأیید، فریتین باید اندازه‌گیری شود (فریتین زیر ۳۰ کمبود آهن را تأیید می‌کند؛ ولی چون فریتین در التهاب بالا می‌رود، مقدار طبیعی هم گاهی کمبود آهن را رد نمی‌کند). || action: این هفته با پزشک وقت بگیرید؛ در بزرگسالان، کمبود آهن باید علت‌یابی شود (به‌ویژه منبع خونریزی پنهان گوارشی). || suggest: ["فریتین","آهن سرم","TIBC","بررسی خون مخفی در مدفوع (FOBT)"]
+## M40_Ferr20: this_week | iron_deficiency
+   graded: HGB=15[14–17.5] FERRITIN=20↓[30–300] | noRef: [] | unmapped: [] | qual: []
+   [iron_deficiency] must_say: ذخیره آهن بدن شما پایین است (فریتین پایین، قوی‌ترین نشانه کمبود آهن). شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است. || action: این هفته با پزشک وقت بگیرید. اگر خون‌ریزی گوارشی یا قاعدگی سنگین دارید حتماً بگویید. || suggest: ["پنل کامل آهن","بررسی علت خون‌ریزی"]
+## F55_Ferr25: none | 
+   graded: HGB=13[12.3–15.3] FERRITIN=25[15–150] | noRef: [] | unmapped: [] | qual: []
+## F30_Ferr13: this_week | iron_deficiency
+   graded: HGB=13[12.3–15.3] FERRITIN=13↓[15–150] | noRef: [] | unmapped: [] | qual: []
+   [iron_deficiency] must_say: ذخیره آهن بدن شما پایین است (فریتین پایین، قوی‌ترین نشانه کمبود آهن). شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است. || action: این هفته با پزشک وقت بگیرید. اگر خون‌ریزی گوارشی یا قاعدگی سنگین دارید حتماً بگویید. || suggest: ["پنل کامل آهن","بررسی علت خون‌ریزی"]
+## M40_Iron55: routine | unmatched_abnormal
+   graded: IRON=55↓[60–150] | noRef: [] | unmapped: [] | qual: []
+## M40_ACD_Iron55: this_week | normocytic_anemia,anemia_of_chronic_disease
+   graded: HGB=11↓[14–17.5] MCV=85[80–96] IRON=55↓[60–150] FERRITIN=250[30–300] TIBC=220↓[250–400] | noRef: [] | unmapped: [] | qual: []
+   [normocytic_anemia] must_say: هموگلوبین شما 11 است (حد طبیعی 14–17.5) — کم‌خونیِ خفیف. گلبول‌ها اندازهٔ طبیعی دارند ولی تعدادشان کم است (کم‌خونیِ نورموسیتیک). شمارش رتیکولوسیت (گلبول‌های تازه‌ساز) کلید تعیین علت است و برای پیدا کردن ریشهٔ کم‌خونی چند آزمایش دیگر لازم است. || action: نوبت با پزشک بگیرید. || suggest: ["رتیکولوسیت","کراتینین","CRP"]
+   [anemia_of_chronic_disease] must_say: برخلاف کمبود آهن، اینجا ذخیره آهن بدن پایین نیست — ولی بدن نمی‌تواند از آهن موجود خوب استفاده کند. این الگو معمولاً همراه یک التهاب یا بیماری مزمن دیده می‌شود. || action: این هفته با پزشک وقت بگیرید تا علت زمینه‌ای بررسی شود. || suggest: ["CRP","بررسی بیماری زمینه‌ای","عملکرد کلیه"]
+## M40_Iron155: routine | unmatched_abnormal
+   graded: IRON=155↑[60–150] | noRef: [] | unmapped: [] | qual: []
+## HbA2_52: routine | microcytic_thal_likely,unexplained_abnormal
+   graded: HGB=12.5↓[14–17.5] MCV=66↓[80–96] RBC=6.1↑[4.5–5.9] | noRef: [] | unmapped: ["HbA2"] | qual: []
+   [microcytic_thal_likely] must_say: هموگلوبین شما 12.5 است (حد طبیعی 14–17.5) — کم‌خونیِ خفیف، و اندازهٔ متوسط گلبول‌ها (MCV) 66 است که کوچک‌تر از حد طبیعی (۸۰ تا ۱۰۰) است. این یعنی کم‌خونیِ میکروسیتیک (گلبولِ کوچک). دو علت شایعِ گلبولِ کوچک وجود دارد: کمبود آهن، یا یک ویژگی ارثی خون (صفت تالاسمی) که معمولاً بی‌خطر است. یک شاخص محاسباتی (اندکس منتزر حدود 10.8) در اینجا زیر ۱۳ است که بیشتر به سمت صفت تالاسمی می‌خورد تا کمبود آهن — ولی این فقط یک احتمال است و آزمایش قطعی (فریتین و الکتروفورز هموگلوبین) لازم است. || action: نوبت عادی با پزشک. آزمایش فریتین و الکتروفورز هموگلوبین را مطرح کنید. || suggest: ["فریتین","الکتروفورز هموگلوبین"]
+   [unexplained_abnormal] must_say: 1 مورد دیگر هم خارج از محدودهٔ مرجع است و در توضیح‌های بالا به آن‌ها پرداخته نشده: گلبول قرمز 6.1 (طبیعی 4.5–5.9). برای این‌ها توضیحِ آمادهٔ اختصاصی نداریم؛ این یعنی موتور دربارهٔ آن‌ها نتیجه‌گیری نکرده، نه اینکه بی‌اهمیت‌اند. || action: این موارد را هم موقع مراجعه با پزشک مرور کنید. || suggest: []
+## HbF_electro: none | 
+   graded:  | noRef: [] | unmapped: ["HbA","HbA2","HbF"] | qual: []
+## HbS_trait: none | 
+   graded:  | noRef: [] | unmapped: ["HbA"] | qual: ["HbS"]
+## ZPP: none | 
+   graded:  | noRef: [] | unmapped: ["ZPP"] | qual: []
+## sTfR: none | 
+   graded:  | noRef: [] | unmapped: ["sTfR"] | qual: []
+## EPO: none | 
+   graded:  | noRef: [] | unmapped: ["Erythropoietin"] | qual: []
+## PV_M_Hb170: routine | unmatched_abnormal
+   graded: HGB=17[14–17.5] RBC=6.2↑[4.5–5.9] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M30_Hb137: this_week | normocytic_anemia
+   graded: HGB=13.7↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M19_Hb1365: this_week | normocytic_anemia
+   graded: HGB=13.65↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M20_Hb1365: this_week | normocytic_anemia
+   graded: HGB=13.65↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M49_Hb135: this_week | normocytic_anemia
+   graded: HGB=13.5↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M50_Hb135: this_week | normocytic_anemia
+   graded: HGB=13.5↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M69_Hb125: this_week | normocytic_anemia
+   graded: HGB=12.5↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## M70_Hb125: this_week | normocytic_anemia
+   graded: HGB=12.5↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## F69_Hb119: this_week | normocytic_anemia
+   graded: HGB=11.9↓[12.3–15.3] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## F70_Hb119: this_week | normocytic_anemia
+   graded: HGB=11.9↓[12.3–15.3] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## F49_Ferr25: none | 
+   graded: HGB=13[12.3–15.3] FERRITIN=25[15–150] | noRef: [] | unmapped: [] | qual: []
+## F50_Ferr25: none | 
+   graded: HGB=13[12.3–15.3] FERRITIN=25[15–150] | noRef: [] | unmapped: [] | qual: []
+## M13_Hb138: this_week | normocytic_anemia
+   graded: HGB=13.8↓[14–17.5] MCV=88[80–96] | noRef: [] | unmapped: [] | qual: []
+## HbA2_37: none | 
+   graded:  | noRef: [] | unmapped: ["HbA2"] | qual: []
+## HbA2_39: none | 
+   graded:  | noRef: [] | unmapped: ["HbA2"] | qual: []
+## HbA2_10: none | 
+   graded:  | noRef: [] | unmapped: ["HbA2"] | qual: []
+## HbA2_5_age1: none | 
+   graded:  | noRef: [] | unmapped: ["HbA2"] | qual: []
+## HBsAg_pos: this_week | hbsag_reactive
+   graded:  | noRef: [] | unmapped: [] | qual: ["HBsAg"]
+   [hbsag_reactive] must_say: یکی از تست‌های غربالگری (آنتی‌ژن سطحی هپاتیت B یا HBsAg) واکنش‌گر شده است. این یک تست غربالگری است، نه تشخیص قطعی. نتایج واکنش‌گر گاهی می‌توانند مثبت کاذب باشند، و برای اطمینان حتماً باید با آزمایش‌های تکمیلی بررسی شوند. این آزمایش‌ها همچنین مشخص می‌کنند که آیا عفونت تازه است یا مزمن، و چقدر فعال است. || action: undefined || suggest: ["تکرار HBsAg همراه با تست تأییدی تخصصی — برای رد کردن احتمال مثبت کاذب","پنل کامل هپاتیت B (HBeAg، Anti-HBc، Anti-HBs) — برای تعیین مرحله و وضعیت عفونت","آزمایش HBV DNA — برای اندازه‌گیری میزان فعالیت ویروس","مراجعه به پزشک یا متخصص گوارش و کبد برای تفسیر و پیگیری"]
+## HbS_pos_alone: none | 
+   graded:  | noRef: [] | unmapped: [] | qual: ["HbS"]
+## HbC_electro: none | 
+   graded:  | noRef: [] | unmapped: ["HbC","HbA2"] | qual: []
+## HbC_pos_alone: none | 
+   graded:  | noRef: [] | unmapped: ["HbC"] | qual: []
+## AntiHBc_pos: none | 
+   graded:  | noRef: [] | unmapped: [] | qual: ["Anti-HBc"]
+RULES 135

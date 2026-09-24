@@ -1,7 +1,14 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
+
+// ─── specs/008 بازبینیِ دور ۲ (R2-B4): هشدارِ ناقل بودن — هر یافته‌ای که جملهٔ HbA2ِ «صفت» را می‌گوید آن را هم دارد ───
+// hba2_elevated برای مالکانِ تالاسمی کنار می‌رود؛ بی‌این، برگهٔ پیش‌ازدواجِ «CBC + HbA2 5.2» فقط دلگرمی می‌گرفت و
+// پیامدِ فرزند — دلیلِ انجامِ این آزمایش — گم می‌شد (M155-class، N20).
+const HBA2_CARRIER_WARNING = "اگر قصدِ ازدواج یا بچه‌دار شدن دارید، این نتیجه را حتماً به پزشک یا مشاورِ ژنتیک نشان دهید؛ " +
+  "اگر هر دو والد ناقل باشند، فرزند ممکن است شکلِ شدیدِ بیماری را بگیرد.";
+const carrierWarnings = (e) => (["trait", "very_high"].includes(hba2State(e)) ? [HBA2_CARRIER_WARNING] : []);
 
 // ─── specs/004: فولات و B12 — سه‌حالته، مشترکِ macrocytic_anemia و folate_deficiency ───
 // شرطِ کم‌خونیِ ماکروسیتیک یک جا نوشته می‌شود؛ folate_deficiency با همین تابع کنار می‌رود (N20).
@@ -423,6 +430,9 @@ export const RULES_HEMATOLOGY = [
   //    Mentzer = 9.4 → کلاسیک‌ترین تالاسمی مینور. موتور هیچ نگفت.
   {
     id: "thal_trait_no_anemia",
+    // ⚠️ specs/008: hba2_elevated همین match را صدا می‌زند (thalOwnerFires پایینِ فایل). شرط عمداً درون‌خط
+    //    می‌ماند: RULE_READS کلیدهای خوانده‌شده را از *متنِ منبعِ* match برمی‌دارد، و انتقالش به کمکی
+    //    MCV/RBC/HGB را از پوشش می‌انداخت (unexplained_abnormal روی پنل‌های تالاسمی — سنجیده شد).
     match: (e) => {
       const t = val(e);
       const hgb = e.graded.find((g) => g.test === "HGB");
@@ -436,8 +446,9 @@ export const RULES_HEMATOLOGY = [
       );
     },
     build: (e) => {
-      const t = val(e);
       const mi = e.indices.mentzer;
+      // specs/008: الکتروفورز روی همین برگه است ⇒ دوباره خواسته نمی‌شود (N8)، و جملهٔ HbA2 همین‌جا می‌آید.
+      const a2 = hba2Measured(e);
       return {
         pattern: "thal_trait_likely",
         urgency: "routine",
@@ -448,14 +459,122 @@ export const RULES_HEMATOLOGY = [
           "این الگو معمولاً به یک ویژگی ارثی اشاره دارد که از پدر یا مادر به ارث می‌رسد " +
           "و خودش معمولاً بی‌خطر است. کمبود آهن هم می‌تواند شبیهش باشد، " +
           "ولی این الگو بیشتر به حالت ارثی می‌خورد." +
-          (mi != null ? ` (شاخص Mentzer = ${mi})` : ""),
-        action: "نوبت عادی با پزشک. آزمایش الکتروفورز هموگلوبین و فریتین را مطرح کنید.",
-        suggest: ["الکتروفورز هموگلوبین", "فریتین"],
+          (mi != null ? ` (شاخص Mentzer = ${mi})` : "") +
+          hba2Clause(e, { owner: true }),
+        action: a2
+          ? "نوبت عادی با پزشک. نتیجهٔ الکتروفورزِ همین برگه را همراه ببرید و آزمایش فریتین را مطرح کنید."
+          : "نوبت عادی با پزشک. آزمایش الکتروفورز هموگلوبین و فریتین را مطرح کنید.",
+        suggest: a2 ? ["فریتین"] : ["الکتروفورز هموگلوبین", "فریتین"],
         warnings: [
           "بدون تجویز پزشک قرص آهن نخورید. اگر علت آهن نباشد، آهن اضافی به بدن آسیب می‌زند.",
           "⚠️ اگر قصد بچه‌دار شدن دارید، این نتیجه مهم است — حتماً با پزشک و همسرتان مطرح کنید. " +
             "اگر هر دو والد این ویژگی را داشته باشند، فرزند ممکن است شکل شدید بیماری را بگیرد.",
         ],
+      };
+    },
+  },
+  {
+    // ═══ specs/008، بازبینیِ پزشکی B1 — گلبولِ کوچک بدونِ کم‌خونی ═══
+    // حدِ پایینِ Hb پایین آمد (۱۴→۱۳.۷ و …)، پس «Hb 13.5، MCV 72» در مردِ ۶۵ ساله دیگر microcytic_anemia نمی‌گیرد و
+    // با «برای این ترکیب توضیح آماده‌ای نداریم» می‌ماند — درست گروهی که علت‌یابیِ کمبودِ آهن (خونریزیِ پنهانِ گوارشی)
+    // برایش مهم‌تر است. شکافِ پیش‌موجود هم بود (Hb 15، MCV 72، RBC 5.2 روی 9deba20). این قاعده صاحبِ «MCV <۸۰ بی‌کم‌خونی»
+    // است وقتی thal_trait_no_anemia (RBC بالا یا منتزر <۱۳) فعال نیست. سه‌حالته روی Hb (N4). روتین — P53 بندِ ۱۰.
+    id: "microcytosis_no_anemia",
+    // 🔴 بازبینیِ دور ۲ (R2-B1): زیرِ ۱۶ سال MCVِ ۷۵ در ۳ سالگی طبیعی است (بازهٔ سنیِ PED_REFS) — ۸۰ِ تختِ بزرگسال
+    //    کودکِ سالم را «گلبول کوچک، کمبودِ آهن یا تالاسمی» می‌خواند. زیرِ ۱۶ همان dir (مثلِ ferritinBelowIdCut).
+    // 🔴 R2-B2: فریتینِ پایینِ چاپ‌شده ⇒ iron_deficiency_panel مالک است (یک فریتین، یک یافته — N20)؛ فریتینِ غیرِپایین
+    //    ⇒ جملهٔ خودش و دیگر «فریتین بخواهید» نه (N8/N21).
+    match: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      // 🔴 دور ۲ (CR2/CR3): فقط Hbِ نمره‌دارِ *در محدوده*. Hbِ بالا با «کم‌خونی ندارید» پوشش‌داده و بی‌توضیح می‌شد؛
+      //    Hbِ غایب یا بی‌واحد کنارِ بحرانِ هماتوکریت «هموگلوبین روی برگه نیست» می‌گفت. آن حالت‌ها مثلِ 9deba20 به تور می‌روند.
+      const inRange = !!hgb && !hgb.abnormal;
+      const mcv = e.graded.find((g) => g.test === "MCV");
+      const small = isPedAge(e) ? !!(mcv?.abnormal && mcv.dir === "low") : t.MCV != null && t.MCV < 80;
+      return inRange && small && !ruleFiresById(e, "thal_trait_no_anemia") && !ruleFiresById(e, "iron_deficiency_panel");
+    },
+    build: (e) => {
+      const t = val(e);
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const adultRisk = e.age != null && e.age >= 16 && (e.sex === "M" || e.age >= 50);
+      const a2 = hba2Measured(e);
+      // match تضمین می‌کند اینجا فریتین یا نیست یا زیرِ آستانه نیست (وگرنه iron_deficiency_panel مالک است).
+      const ferr = e.graded.find((g) => g.test === "FERRITIN");
+      if (ferr?.value != null) {
+        return {
+          pattern: "microcytosis_no_anemia",
+          urgency: "routine",
+          headline: "گلبول‌های قرمز شما کوچک‌تر از حد معمول‌اند",
+          must_say:
+            `اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} است که کوچک‌تر از حد طبیعی است. ` +
+            `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range}) و پایین نیست، پس کم‌خونی ندارید. ` +
+            // خواندنِ FERRITIN آن را در هر جهتی پوشش‌داده می‌کند (M156) — فریتینِ بالا جملهٔ خودش را دارد.
+            // 🔴 بازبینیِ دور ۳ (R3-B1): «پایین نیست، که کمبودِ آهن را کم‌احتمال‌تر می‌کند» روی فریتینِ ۱۶ تا ۴۵ غلط بود —
+            //    در گلبولِ کوچک، فریتینِ درونِ بازه نزدیکِ آستانه احتمالِ کمبودِ آهن را *بالا* می‌برد (NICE/BSG: زیرِ ۳۰
+            //    یعنی کمبود). فقط فریتینِ بالاتر از بازه «کم‌احتمال‌تر» می‌گوید؛ درونِ بازه خنثی است و جملهٔ خونریزیِ
+            //    پنهانِ گوارشی می‌ماند. مرزِ ۴۵/۱۰۰ (پیشنهادِ بازبین) عدد تازه است ⇒ P53، نه کد.
+            (ferr.abnormal && ferr.dir === "high"
+              ? `فریتینِ همین برگه ${ferr.value} است که بالاتر از حد طبیعی (${ferr.range}) است؛ این کمبودِ آهن را کم‌احتمال‌تر می‌کند، ولی فریتینِ بالا خودش (مثلاً در التهاب یا بیماریِ کبد) باید با پزشک بررسی شود`
+              : `فریتینِ همین برگه ${ferr.value} است (حد طبیعی ${ferr.range})؛ این مقدار کمبودِ آهن را رد نمی‌کند، به‌ویژه اگر به حدِ پایین نزدیک باشد، و پزشک آن را کنارِ اندازهٔ گلبول‌ها می‌سنجد`) +
+            (hasInflammation(e) ? " (البته التهاب — که نشانه‌اش در همین برگه هست — فریتین را بالا می‌برد و می‌تواند کمبودِ آهن را بپوشاند)" : "") +
+            "؛ علتِ شایعِ دیگرِ گلبولِ کوچک یک ویژگیِ ارثیِ خون (صفتِ تالاسمی) است." +
+            (adultRisk && !(ferr.abnormal && ferr.dir === "high")
+              ? " در مردان و در زنانِ بالای ۵۰ سال، اگر کمبودِ آهن تأیید شود، باید علتش — به‌ویژه خونریزیِ پنهانِ گوارشی — بررسی شود."
+              : "") +
+            hba2Clause(e, { owner: true }),
+          action: "در نوبت عادی با پزشک مطرح کنید.",
+          suggest: a2 ? [] : ["الکتروفورز هموگلوبین"],
+          warnings: ["بدون تجویز پزشک قرص آهن نخورید. اگر علت آهن نباشد، آهن اضافی به بدن آسیب می‌زند.", ...carrierWarnings(e)],
+        };
+      }
+      return {
+        pattern: "microcytosis_no_anemia",
+        urgency: "routine",
+        headline: "گلبول‌های قرمز شما کوچک‌تر از حد معمول‌اند",
+        must_say:
+          `اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} است که کوچک‌تر از حد طبیعی است. ` +
+          `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range}) و پایین نیست، پس کم‌خونی ندارید. ` +
+          "دو علتِ شایعِ گلبولِ کوچک، کمبودِ آهن (که گاهی پیش از کم‌خونی دیده می‌شود) و یک ویژگیِ ارثیِ خون (صفتِ تالاسمی) است؛ " +
+          "فریتین این دو را از هم جدا می‌کند." +
+          (adultRisk
+            ? " در مردان و در زنانِ بالای ۵۰ سال، اگر کمبودِ آهن تأیید شود، باید علتش — به‌ویژه خونریزیِ پنهانِ گوارشی — بررسی شود."
+            : "") +
+          hba2Clause(e, { owner: true }),
+        action: "در نوبت عادی با پزشک مطرح کنید و آزمایش فریتین را بخواهید.",
+        suggest: a2 ? ["فریتین"] : ["فریتین", "الکتروفورز هموگلوبین"],
+        warnings: ["بدون تجویز پزشک قرص آهن نخورید. اگر علت آهن نباشد، آهن اضافی به بدن آسیب می‌زند.", ...carrierWarnings(e)],
+      };
+    },
+  },
+  {
+    // ═══ specs/008 (clarify) — HbA2ِ بالا وقتی هیچ مالکِ تالاسمی فعال نیست ═══
+    // برگهٔ «فقط الکتروفورز» MCV و RBC ندارد، پس thal_trait_no_anemia و microcytic_anemia فعال نمی‌شوند و HbA2ِ
+    // ۵.۲ به خطِ «توضیح آماده‌ای نداریم» می‌رفت — درست روی برگه‌ای که HbA2 نتیجهٔ اصلی‌اش است. اینجا فقط وقتی
+    // مالکی فعال نیست؛ وگرنه همان جمله در یافتهٔ مالک است. یک برگه، یک یافته دربارهٔ HbA2 (N20، M186g).
+    // روتین است و هرگز فوریتِ برگه را بالا نمی‌برد: ناقل بودن تشخیص یا اورژانس نیست.
+    id: "hba2_elevated",
+    // پوشش: متنِ یافته «هموگلوبین A2» را نام می‌برد، پس HBA2 به خطِ «توضیح داده نشدند» نمی‌رود.
+    match: (e) => hba2State(e) != null && !thalOwnerFires(e),
+    build: (e) => {
+      const st = hba2State(e);
+      return {
+        pattern: "hba2_elevated",
+        urgency: "routine",
+        headline: st === "trait"
+          ? "هموگلوبین A2 شما بالاست — معمولاً نشانهٔ ناقل بودنِ تالاسمیِ بتا"
+          : st === "very_high"
+            ? "هموگلوبین A2 شما خیلی بالاست — نتیجهٔ کاملِ الکتروفورز باید دیده شود"
+            : "هموگلوبین A2 شما کمی بالاتر از حد طبیعی است",
+        must_say: hba2Clause(e).trim() +
+          // 🔴 بازبینیِ پزشکی، یادداشت ۲: در کم‌خونیِ مگالوبلاستیک (B12/فولات) HbA2 کمی بالا می‌رود.
+          (val(e).MCV > 100
+            ? " گلبول‌های شما درشت‌اند (MCV بالا)؛ در کمبودِ B12 یا فولات HbA2 می‌تواند کمی بالا برود، پس این عدد باید پس از روشن‌شدنِ آن تفسیر شود."
+            : "") +
+          " این یک تشخیص نیست؛ برای تفسیرِ درست، پزشک باید آن را کنارِ شمارشِ کاملِ خون (CBC) و فریتین ببیند.",
+        action: "در نوبت عادی با پزشک مطرح کنید و نتیجهٔ همین آزمایش را همراه ببرید.",
+        suggest: ["شمارش خون (CBC)", "فریتین"],
+        warnings: carrierWarnings(e),
       };
     },
   },
@@ -643,6 +762,7 @@ export const RULES_HEMATOLOGY = [
   },
   {
     id: "microcytic_anemia",
+    // ⚠️ specs/008: شرط درون‌خط می‌ماند (همان دلیلِ thal_trait_no_anemia — RULE_READS).
     match: (e) => {
       const t = val(e);
       const hgb = e.graded.find((g) => g.test === "HGB");
@@ -652,22 +772,53 @@ export const RULES_HEMATOLOGY = [
       const t = val(e);
       const mi = e.indices.mentzer;
       const thal = mi != null && mi < 13;
+      // specs/008: HbA2 روی برگه ⇒ الکتروفورز دوباره خواسته نمی‌شود (N8). HbA2ِ بالا شاخهٔ منتزر را عوض نمی‌کند
+      //   (پرسشِ باز در P53)؛ در شاخهٔ کمبودِ آهن جمله می‌گوید هر دو می‌توانند هم‌زمان باشند (N21).
+      const a2 = hba2Measured(e);
       const hgb = e.graded.find((g) => g.test === "HGB");
       // شدت کم‌خونی به‌سبک WHO: خفیف تا حد ۱۱، متوسط ۸ تا ۱۱، شدید زیر ۸.
       const hb = hgb?.value;
       const sev =
         hb == null ? null : hb < 8 ? "شدید" : hb < 11 ? "متوسط" : "خفیف";
+      // HCT از نظرِ بالینی همان کاهشِ HGB است، نه یافتهٔ جداگانه — ولی تورِ
+      // unexplained_abnormal این را نمی‌داند و فقط توکن‌های داخلِ سورس/متن را
+      // می‌شمارد (patterns.js RULE_READS). اگر اینجا اسمش برده نشود، HCT
+      // (و به همین دلیل MCH/RDW) با «توضیحِ آماده نداریم» به بیمار برمی‌گردد،
+      // درست زیرِ همین جمله‌ای که در واقع توضیحش می‌دهد.
+      const hct = e.graded.find((g) => g.test === "HCT");
+      const rbc = e.graded.find((g) => g.test === "RBC");
+      // فقط RBCِ «پایین» همان افت است؛ RBCِ بالا نشانهٔ شاخهٔ تالاسمی است، نه کم‌خونی.
+      const sameDrop = [
+        hct?.abnormal && hct.dir === "low" ? `هماتوکریت ${hct.value} (حد طبیعی ${hct.range})` : null,
+        rbc?.abnormal && rbc.dir === "low" ? `تعداد گلبول قرمز ${rbc.value} (حد طبیعی ${rbc.range})` : null,
+      ].filter(Boolean);
+      const mch = e.graded.find((g) => g.test === "MCH");
+      // ⚠️ خواندنِ یک کلید در این سورس آن را برای تورِ unexplained_abnormal «پوشش‌داده»
+      //    می‌کند، در هر جهتی (M156). پس هر جهتی که این کلیدها می‌توانند بگیرند جمله دارد:
+      //    RBCِ بالا و RDWِ پایین (RDW-SD با گلبولِ کوچک به‌طور طبیعی کم می‌شود).
+      const rdws = ["RDW_SD", "RDW_CV"].map((k) => e.graded.find((g) => g.test === k)).filter((g) => g?.abnormal);
+      const rdwHigh = rdws.some((g) => g.dir === "high");
+      const rdwLow = !rdwHigh && rdws.some((g) => g.dir === "low");
+      const rbcHigh = rbc?.abnormal && rbc.dir === "high";
       // بزرگیِ کم‌خونی: مقدار هموگلوبین + محدودهٔ طبیعی، و اندازهٔ گلبول (MCV).
       const mag =
         hgb != null
           ? `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range})${sev ? ` — کم‌خونیِ ${sev}` : ""}` +
             (t.MCV != null ? `، و اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} است که کوچک‌تر از حد طبیعی (۸۰ تا ۱۰۰) است` : "") +
+            (sameDrop.length ? `. ${sameDrop.join(" و ")} شما هم پایین است — همان افتِ گلبولِ قرمز است، نه یک مشکلِ جدا` : "") +
+            // 🔴 بازبینیِ دور ۲ (R2-B3، N12): جهت از dir، نه از abnormal — MCHِ بالا کوچکی را «تأیید» نمی‌کند.
+            (mch?.abnormal && mch.dir === "low" ? ` (MCH هم ${mch.value} است که همین کوچکی را تأیید می‌کند)` : "") +
+            (mch?.abnormal && mch.dir === "high" ? `. MCH شما ${mch.value} است که بالاتر از حد طبیعی (${mch.range}) است و با کوچکیِ گلبول‌ها هم‌خوان نیست؛ پزشک باید آن را در کنارِ بقیهٔ نتایج بسنجد` : "") +
+            (hct?.abnormal && hct.dir === "high" ? `. هماتوکریت شما ${hct.value} است که بالاتر از حد طبیعی (${hct.range}) است و با هموگلوبینِ پایین هم‌خوان نیست؛ پزشک باید آن را در کنارِ بقیهٔ نتایج بسنجد` : "") +
+            (rbcHigh ? `. تعداد گلبول قرمز شما ${rbc.value} است که بالاتر از حد طبیعی (${rbc.range}) است؛ پزشک این را در کنارِ بقیهٔ نتایج می‌سنجد` : "") +
+            (rdwHigh ? `. اندازهٔ گلبول‌های قرمزِ شما با هم یکسان نیست (RDW بالا) که با همین کم‌خونی سازگار است` : "") +
+            (rdwLow ? `. RDW شما کمی پایین‌تر از حد طبیعی است که به‌تنهایی معنای بالینیِ خاصی ندارد` : "") +
             ". "
           : "";
       // مکانیسم: چرا گلبول‌ها کوچک شده‌اند.
       const mechThal =
         "دو علت شایعِ گلبولِ کوچک وجود دارد: کمبود آهن، یا یک ویژگی ارثی خون (صفت تالاسمی) که معمولاً بی‌خطر است. " +
-        `یک شاخص محاسباتی (اندکس منتزر${mi != null ? ` حدود ${mi}` : ""}) در اینجا زیر ۱۳ است که بیشتر به سمت صفت تالاسمی می‌خورد تا کمبود آهن — ولی این فقط یک احتمال است و آزمایش قطعی (فریتین و الکتروفورز هموگلوبین) لازم است.`;
+        `یک شاخص محاسباتی (اندکس منتزر${mi != null ? ` حدود ${mi}` : ""}) در اینجا زیر ۱۳ است که بیشتر به سمت صفت تالاسمی می‌خورد تا کمبود آهن — ولی این فقط یک احتمال است و آزمایش قطعی (${a2 ? "فریتین، کنارِ نتیجهٔ الکتروفورزِ همین برگه" : "فریتین و الکتروفورز هموگلوبین"}) لازم است.`;
       const mechIda =
         "آهن جزء اصلیِ هموگلوبین است؛ وقتی ذخیرهٔ آهن کم می‌شود، مغز استخوان مجبور می‌شود گلبول‌های کوچک‌تر و کم‌رنگ‌تر بسازد — که همین الگوی آزمایش شماست. " +
         (mi != null
@@ -677,6 +828,32 @@ export const RULES_HEMATOLOGY = [
       return {
         pattern: thal ? "microcytic_thal_likely" : "microcytic_ida_likely",
         urgency: thal ? "routine" : "this_week",
+        // زیرِ یک اورژانسِ دیگر (pancytopenia، severe_neutropenia، ...) کاملاً
+        // پنهان نشود — آن‌ها دربارهٔ اندازهٔ گلبول و علت‌یابیِ آهن هیچ نمی‌گویند،
+        // پس بدونِ این، عددِ Hb/MCV و درخواستِ فریتین از گزارش ناپدید می‌شد.
+        always_show: true,
+        // 🔴 بازبینیِ دور ۳ (R3-CR1): brief فقط چیزی را می‌گوید که واقعاً می‌گوید — تورِ unexplained_abnormal زیرِ
+        //    blocker پوشش را از همین متن می‌سنجد، پس MCH/RBC/RDW و HCTِ بالا به فهرستِ «جداگانه توضیح داده نشدند»
+        //    برمی‌گردند. جملهٔ HbA2 و هشدارِ ناقل بودن (brief_warnings) زیرِ اورژانسِ دیگر هم نمی‌افتند.
+        //    R3-CR5: «شما … دارید» نه — سبکِ ENGINE_SYSTEM_PROMPT.
+        //    فقط جهت‌های هم‌سو (HCT/RBCِ پایین، MCHِ پایین، RDWِ بالا) نام برده می‌شوند؛ جهتِ ناهم‌سو به تور می‌رود.
+        brief:
+          (hgb != null
+            ? `همچنین کم‌خونی دیده می‌شود: هموگلوبین ${hgb.value}` +
+              (t.MCV != null ? `، و گلبول‌ها کوچک‌اند (MCV ${t.MCV})` : "") +
+              (() => {
+                const same = [
+                  hct?.abnormal && hct.dir === "low" ? `هماتوکریت ${hct.value}` : null,
+                  rbc?.abnormal && rbc.dir === "low" ? `گلبول قرمز ${rbc.value}` : null,
+                  mch?.abnormal && mch.dir === "low" ? `MCH ${mch.value}` : null,
+                  ...rdws.filter((g) => g.dir === "high").map((g) => `${g.test === "RDW_SD" ? "RDW-SD" : "RDW-CV"} ${g.value}`),
+                ].filter(Boolean);
+                return same.length ? `؛ ${same.join("، ")} هم بخشی از همین کم‌خونی است` : "";
+              })() + ". "
+            : "همچنین کم‌خونیِ میکروسیتیک دیده می‌شود. ") +
+          "علت‌یابیِ آن (مثل فریتین) هم باید در کنار موارد فوریِ بالا با پزشک مطرح شود." +
+          hba2Clause(e, { idaBranch: !thal, owner: true }),
+        brief_warnings: carrierWarnings(e),
         ...(hb != null ? { key_number: hb } : {}),
         headline: thal
           ? "گلبول‌های قرمز شما کوچک هستند ولی تعدادشان زیاد است"
@@ -684,15 +861,18 @@ export const RULES_HEMATOLOGY = [
         must_say:
           mag +
           "این یعنی کم‌خونیِ میکروسیتیک (گلبولِ کوچک). " +
-          (thal ? mechThal : mechIda),
+          (thal ? mechThal : mechIda) +
+          hba2Clause(e, { idaBranch: !thal, owner: true }),
         action: actionUnlessAnemiaCrisis(
           e,
           thal
-            ? "نوبت عادی با پزشک. آزمایش فریتین و الکتروفورز هموگلوبین را مطرح کنید."
+            ? (a2
+              ? "نوبت عادی با پزشک. نتیجهٔ الکتروفورزِ همین برگه را همراه ببرید و آزمایش فریتین را مطرح کنید."
+              : "نوبت عادی با پزشک. آزمایش فریتین و الکتروفورز هموگلوبین را مطرح کنید.")
             : `${sev === "شدید" ? "چون کم‌خونی شدید است، همین چند روز با پزشک وقت بگیرید" : "این هفته با پزشک وقت بگیرید"}؛ در بزرگسالان، کمبود آهن باید علت‌یابی شود (به‌ویژه منبع خونریزی پنهان گوارشی).`,
         ),
         suggest: thal
-          ? ["فریتین", "الکتروفورز هموگلوبین"]
+          ? (a2 ? ["فریتین"] : ["فریتین", "الکتروفورز هموگلوبین"])
           : ["فریتین", "آهن سرم", "TIBC", "بررسی خون مخفی در مدفوع (FOBT)"],
         forbid: ["B12", "فولات"],
         warnings: [
@@ -700,9 +880,11 @@ export const RULES_HEMATOLOGY = [
           ...(sev === "شدید"
             ? ["اگر تنگی نفس، تپش قلب، یا احساس ضعف و سرگیجهٔ شدید دارید، زودتر به پزشک مراجعه کنید."]
             : []),
-          ...(thal
-            ? ["اگر در خانواده‌تان کسی تالاسمی دارد یا قصد بچه‌دار شدن دارید، حتماً به پزشک بگویید."]
-            : []),
+          ...(carrierWarnings(e).length
+            ? carrierWarnings(e)
+            : thal
+              ? ["اگر در خانواده‌تان کسی تالاسمی دارد یا قصد بچه‌دار شدن دارید، حتماً به پزشک بگویید."]
+              : []),
         ],
       };
     },
@@ -1000,8 +1182,8 @@ export const RULES_HEMATOLOGY = [
       const t = val(e);
       // حداقل فریتین لازم است — قوی‌ترین نشانگر
       if (t.FERRITIN == null) return false;
-      const ferr = e.graded.find((g) => g.test === "FERRITIN");
-      const ferrLow = ferr?.abnormal && ferr.dir === "low";
+      // specs/008 (N23): آستانهٔ قاعده، نه dirِ بازهٔ درجه‌بندی — مرد <۳۰، زنِ ≥۵۰ <۳۰، بقیه <۱۵ (کودک: PED_REFS).
+      const ferrLow = ferritinBelowIdCut(e);
       // فریتین پایین به‌تنهایی تقریباً قطعیِ فقر آهن است (اگر التهاب نباشد)
       const tsatLow = t.TSAT != null && t.TSAT < 20;
       const tibcHigh = (() => {
@@ -1019,10 +1201,23 @@ export const RULES_HEMATOLOGY = [
     build: (e) => {
       const t = val(e);
       const ferr = e.graded.find((g) => g.test === "FERRITIN");
-      const ferrLow = ferr?.abnormal && ferr.dir === "low";
+      // specs/008: «زیرِ آستانهٔ کمبود» و «زیرِ بازهٔ چاپ‌شده» دیگر یکی نیستند (مردِ فریتینِ ۲۰: بازه ۱۲–۳۰۰).
+      //   متن سه‌حالته است تا کنارِ برچسبِ «طبیعی» ادعای «فریتین پایین» نکند.
+      const ferrLow = ferritinBelowIdCut(e);
+      const ferrGradedLow = !!(ferr?.abnormal && ferr.dir === "low");
       const inflam = hasInflammation(e);
-      // شاخهٔ WHO: فریتین طبق آزمایشگاه «طبیعی» است ولی با التهاب زیر ۷۰.
+      // شاخهٔ WHO: فریتین زیرِ آستانهٔ معمول نیست ولی با التهاب زیر ۷۰.
       const whoOnly = !ferrLow && whoInflamIronDeficiency(e);
+      // 🔴 بازبینیِ دور ۲ (R2-B2): وقتی Hb پایین نیست، microcytosis_no_anemia به این یافته واگذار می‌کند (یک فریتین،
+      //    یک یافته) — پس MCV اینجا نام برده می‌شود، وگرنه به «بی‌توضیح» می‌رفت. با Hbِ پایین، قاعده‌های کم‌خونی
+      //    صاحبِ MCVاند. هر دو جهت جمله دارند، چون خواندنِ کلید آن را در هر جهتی «پوشش‌داده» می‌کند (M156).
+      const hgbI = e.graded.find((g) => g.test === "HGB");
+      const mcvI = e.graded.find((g) => g.test === "MCV");
+      const mcvClause = !(hgbI?.abnormal && hgbI.dir === "low") && mcvI?.abnormal
+        ? mcvI.dir === "low"
+          ? ` اندازهٔ متوسط گلبول‌ها (MCV) ${mcvI.value} است که کوچک‌تر از حد طبیعی (${mcvI.range}) است و با کمبودِ آهن جور است.`
+          : ` اندازهٔ متوسط گلبول‌ها (MCV) ${mcvI.value} است که بزرگ‌تر از حد طبیعی (${mcvI.range}) است و با کمبودِ آهنِ تنها جور نیست؛ پزشک باید علت‌های دیگر (مثل کمبودِ B12 یا فولات) را هم بسنجد.`
+        : "";
       return {
         pattern: whoOnly ? "iron_deficiency_masked_by_inflammation" : "iron_deficiency",
         urgency: "this_week",
@@ -1030,15 +1225,22 @@ export const RULES_HEMATOLOGY = [
         headline: whoOnly
           ? "فریتین شما «طبیعی» گزارش شده، ولی با توجه به التهاب می‌تواند کمبود آهن را پنهان کند"
           : "الگوی آزمایش‌ها به کمبود آهن اشاره دارد",
-        must_say: whoOnly
-          ? `فریتین شما ${t.FERRITIN} است که در محدودهٔ چاپ‌شدهٔ آزمایشگاه «طبیعی» به حساب می‌آید — ولی ` +
+        must_say: (whoOnly
+          // 🔴 بازبینیِ دور ۲ (کد #5): آستانه‌ها از همان توابعی که قاعده می‌خواند — زیرِ ۵ سال ۳۰ نه ۷۰، و زیرِ ۱۶ سال
+          //    «آستانهٔ معمول» حدِ پایینِ بازهٔ سنی است نه ۳۰ِ مردِ بالغ. «چاپ‌شده» ⇒ «مرجع» (N5، غیرِمسدودکنندهٔ ۲).
+          ? `فریتین شما ${t.FERRITIN} است که در محدودهٔ مرجع «طبیعی» به حساب می‌آید — ولی ` +
             "فریتین یک پروتئینِ التهابی هم هست و هر التهاب یا عفونتی آن را بالا می‌برد، حتی وقتی ذخیرهٔ آهن ته کشیده باشد. " +
-            "چون نشانه‌های التهاب در همین برگه بالاست، سازمان جهانی بهداشت در این وضعیت آستانهٔ بالاتری (فریتین زیر ۷۰) را " +
-            "برای مطرح کردنِ کمبود آهن به کار می‌برد، نه آستانهٔ معمولِ ۱۵. یعنی این عدد کمبود آهن را رد نمی‌کند و باید بررسی شود."
+            `چون نشانه‌های التهاب در همین برگه بالاست، سازمان جهانی بهداشت در این وضعیت آستانهٔ بالاتری (فریتین زیر ${whoFerritinThreshold(e)}) را ` +
+            `برای مطرح کردنِ کمبود آهن به کار می‌برد، نه ${isPedAge(e) ? "حدِ پایینِ محدودهٔ مرجع برای سنِ شما" : `حدِ ${ferritinIdCut(e)} که بدونِ التهاب به کار می‌رود`}. یعنی این عدد کمبود آهن را رد نمی‌کند و باید بررسی شود.`
           : "ذخیره آهن بدن شما پایین است" +
-            (ferrLow ? " (فریتین پایین، قوی‌ترین نشانه کمبود آهن)" : "") +
+            (ferrGradedLow
+              ? " (فریتین پایین، قوی‌ترین نشانه کمبود آهن)"
+              : ferrLow
+                ? ` (فریتین شما ${t.FERRITIN} است؛ در محدودهٔ مرجع جا می‌گیرد ولی نزدیکِ لبهٔ پایینِ آن است و ` +
+                  "زیرِ حدی است که معمولاً برای کمبودِ آهن در نظر گرفته می‌شود)"
+                : "") +
             ". شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است." +
-            (inflam ? " توجه: نشانه‌های التهاب هم بالاست و ممکن است تصویر آهن را پیچیده کند — پزشک باید تفسیر کند." : ""),
+            (inflam ? " توجه: نشانه‌های التهاب هم بالاست و ممکن است تصویر آهن را پیچیده کند — پزشک باید تفسیر کند." : "")) + mcvClause,
         action: "این هفته با پزشک وقت بگیرید. اگر خون‌ریزی گوارشی یا قاعدگی سنگین دارید حتماً بگویید.",
         suggest: whoOnly
           ? ["اشباع ترانسفرین (TSAT)", "گیرندهٔ محلول ترانسفرین (sTfR)", "بررسی علت التهاب"]
@@ -1062,11 +1264,10 @@ export const RULES_HEMATOLOGY = [
       if (!anemic) return false;
       // نیاز به پنل آهن برای تمایز
       if (t.IRON == null || t.FERRITIN == null) return false;
-      const iron = e.graded.find((g) => g.test === "IRON");
-      const ferr = e.graded.find((g) => g.test === "FERRITIN");
-      const ironLow = iron?.abnormal && iron.dir === "low";
+      // specs/008 (N23): آستانه‌های نگه‌داشته — آهن <۶۰ و «فریتین نه زیرِ آستانهٔ کمبود»، نه dirِ بازهٔ تازه.
+      const ironLow = ironLowForAcd(e);
       // فریتین طبیعی یا بالا (نه پایین) — این فقر آهن را رد می‌کند
-      const ferrNotLow = !(ferr?.abnormal && ferr.dir === "low");
+      const ferrNotLow = !ferritinBelowIdCut(e);
       // TIBC پایین یا طبیعی (نه بالا)
       const tibc = e.graded.find((g) => g.test === "TIBC");
       const tibcNotHigh = !(tibc?.abnormal && tibc.dir === "high");
@@ -1415,4 +1616,19 @@ export const RULES_HEMATOLOGY = [
 function hemolysisRuleFires(e) {
   const r = RULES_HEMATOLOGY.find((x) => x.id === "hemolysis_pattern");
   return r ? r.match(e) : false;
+}
+
+/**
+ * specs/008 (clarify) — آیا یکی از مالکانِ تصویرِ تالاسمی فعال است؟ hba2_elevated فقط وقتی حرف می‌زند که هیچ‌کدام
+ * فعال نباشد؛ خودِ matchِ همان قاعده‌ها پرسیده می‌شود، نه کپیِ آستانه‌شان (M91e، همان شکلِ hemolysisRuleFires).
+ */
+const THAL_OWNER_IDS = new Set(["thal_trait_no_anemia", "microcytic_anemia", "microcytosis_no_anemia"]);
+function thalOwnerFires(e) {
+  return RULES_HEMATOLOGY.some((x) => THAL_OWNER_IDS.has(x.id) && x.match(e));
+}
+
+/** specs/008: «آیا آن قاعده فعال است» با matchِ زنده — برای microcytosis_no_anemia در برابرِ thal_trait_no_anemia. */
+function ruleFiresById(e, id) {
+  const r = RULES_HEMATOLOGY.find((x) => x.id === id);
+  return r ? !!r.match(e) : false;
 }

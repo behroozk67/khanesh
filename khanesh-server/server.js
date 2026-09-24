@@ -29,7 +29,7 @@ import "dotenv/config";
 // gpt-4o می‌فهمید ولی ۳۵ برابر گران بود — و باز هم برای کم‌خونی
 // ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
-import { runEngine, isSemenPage } from "./rules/adapter.js";
+import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName } from "./rules/adapter.js";
 import { runPatterns } from "./rules/patterns.js";
 import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef } from "./rules/prompt.js";
 import { faName } from "./rules/names.js";
@@ -540,10 +540,19 @@ export function mergePages(pageResults) {
     //    برگهٔ منی هر دو «WBC» دارند؛ اگر صفحهٔ منی اول بارگذاری می‌شد، WBCِ CBC بی‌صدا دور ریخته
     //    می‌شد. ردیف‌های صفحهٔ منی با پیشوندِ «semen:» ادغام می‌شوند تا هر دو بمانند.
     const semenPrefix = isSemenPage(o.tests) ? "semen:" : "";
+    // 🔴 specs/008 دور ۲ (CR6، N25): «HBs»ِ صفحهٔ هپاتیت و «HbS»ِ صفحهٔ الکتروفورز یک کلید می‌شدند و اولی برنده بود.
+    const electroPage = isHbElectroPage(o.tests);
 
     for (const t of o.tests) {
       if (!t || !t.name) continue;
-      const key = semenPrefix + normName(t.name);
+      // 🔴 دور ۳ (R3-CR4): «HbS 35 %» و «HBs: Positive» روی *یک* صفحه هر دو «electro:hbs» می‌شدند و دومی می‌افتاد.
+      //    نامِ دوپهلو شکلِ مقدارش را هم در کلید دارد (٪ / عدد / متن) — همان شاهدی که adapter برای تشخیص می‌خواند.
+      const amb = isHbAmbiguousName(t.name);
+      const v = String(t.value ?? "");
+      const shape = !amb ? ""
+        : /%/.test(String(t.unit || "")) || /%\s*$/.test(v) ? ":pct"
+        : /\d/.test(v) && !/[a-zA-Zء-ی]/.test(v) ? ":num" : ":txt";
+      const key = semenPrefix + (electroPage && amb ? "electro:" : "") + normName(t.name) + shape;
 
       if (seen.has(key)) {
         const prev = tests[seen.get(key)];
@@ -1251,36 +1260,17 @@ const analyzeHandler = async (req, res) => {
     // "general_recommendations" می‌خواند → بخش توصیه‌ها خالی ماند.
     // موتور خودش لیست را دارد، پس اگر مدل جا انداخت، از موتور پرش می‌کنیم.
     if (patternOut && patternOut.findings.length) {
-      const recs = parsed.general_recommendations ?? parsed.recommendations;
-      const modelRecs = Array.isArray(recs) ? [...recs] : null;
-      const chosen = (!Array.isArray(recs) || recs.length === 0)
-        ? (console.warn("مدل general_recommendations نداد — از موتور ساخته شد"),
-           buildEngineRecommendations(patternOut, engineOut))
-        : recs;
-      tr.net("recommendations:rebuild", modelRecs, chosen, { rebuilt_from_engine: chosen !== recs });
-      // حذف تکراری‌ها: دو finding ممکن است یک آزمایش را پیشنهاد دهند (مثلاً
-      // کم‌خونی + همولیز هر دو «بیلی‌روبین»)، یا مدل یک سطر را دوبار بنویسد.
-      // ⚠️ تمیزکاری باید روی فهرستِ مدل هم اجرا شود نه فقط مسیرِ موتور: مدل
-      //    همان یافته‌ها را می‌بیند و همان «نوبت عادی…»های نزدیک‌به‌هم را بازتولید
-      //    می‌کند. اینجا فقط new Set بود، پس تکرارِ نزدیک رد می‌شد.
-      parsed.general_recommendations = tidyRecommendations(chosen);
-      tr.net("recommendations:tidy", chosen, parsed.general_recommendations);
+      // ═══ فهرستِ توصیه‌ها فقط از موتور ═══
+      // 🔴 برگهٔ واقعی (۲۰۲۶-۰۹-۲۳، پان‌سیتوپنی، M188): مدل ۴ مورد از ۱۴ توصیهٔ موتور را
+      //    انداخت، از جمله «بدون اتلاف وقت فوراً به اورژانس» و «نباید منتظر نوبت مطب بمانید».
+      //    هر چهار از فیلدهای action/warnings بودند که هیچ توری نمی‌پایید. تورهای قبلی
+      //    (فهرستِ خالی، سپس missingSuggestions) هر کدام فقط یک شکلِ از دست رفتن را
+      //    می‌گرفتند. حالا مدل این فیلدها را اصلاً نمی‌بیند (buildEnginePrompt) و فهرست
+      //    همان چیزی است که موتور ساخته. فهرستِ مدل، اگر داده باشد، فقط در ردیابی ثبت می‌شود.
+      const modelRecs = parsed.general_recommendations ?? parsed.recommendations ?? null;
+      parsed.general_recommendations = buildEngineRecommendations(patternOut, engineOut);
+      tr.net("recommendations:engine", modelRecs, parsed.general_recommendations, { model_list_ignored: modelRecs != null });
       delete parsed.recommendations;
-
-      // ⚠️ تورِ بالا فقط «مدل هیچ توصیه‌ای نداد» را می‌گیرد. حالتِ شایع‌تر و
-      //    بی‌صداتر، *کوتاه‌کردنِ* فهرست است: روی یک برگهٔ واقعی با FBS=۲۰۹
-      //    موتور HbA1c را خواسته بود و مدل فقط «تکرار قند ناشتا» را نوشت.
-      //    شرطِ `length === 0` دقیقاً کلاسِ N18 است — توری که فقط شکستِ کامل
-      //    را می‌بیند، شکستِ جزئی را نمی‌بیند.
-      const addBack = missingSuggestions(parsed.general_recommendations, patternOut, engineOut);
-      if (addBack.length) {
-        console.warn(`تورِ توصیه‌ها: ${addBack.length} پیشنهادِ موتور در فهرستِ مدل نبود و برگردانده شد`);
-        const beforeAdd = parsed.general_recommendations;
-        parsed.general_recommendations = tidyRecommendations([
-          ...parsed.general_recommendations, ...addBack,
-        ]);
-        tr.net("recommendations:addBack", beforeAdd, parsed.general_recommendations, { added: addBack });
-      }
 
       // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
       //
@@ -1354,18 +1344,7 @@ const analyzeHandler = async (req, res) => {
         tr.net("keyNumber:guarantee", beforeKey, parsed.interpretation, { facts: missingFacts });
       }
 
-      // تست ممنوع اگر از دست مدل در رفت
-      const forbidden = patternOut.findings.flatMap((f) => f.forbid ?? []);
-      if (forbidden.length) {
-        const beforeForbid = parsed.general_recommendations;
-        const before = parsed.general_recommendations.length;
-        parsed.general_recommendations = parsed.general_recommendations.filter(
-          (r) => !forbidden.some((w) => String(r).includes(w))
-        );
-        const dropped = before - parsed.general_recommendations.length;
-        if (dropped) console.warn(`${dropped} توصیه حذف شد — تست ممنوع برای این الگو`);
-        tr.net("forbid:filter", beforeForbid, parsed.general_recommendations, { forbidden });
-      }
+      // فیلترِ forbid روی فهرست حالا داخلِ buildEngineRecommendations است؛ فهرستِ مدل دیگر استفاده نمی‌شود.
 
       // ═══ کانالِ «عیناً» — محتوایی که از مدل رد نشده است ═══
       //

@@ -27,6 +27,12 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `9deba20`, after the specs/008 **round-3** review fixes (R3-B1 ferritin wording, R3-B2 hepatitis-vs-variant gate, R3-CR1 brief coverage, R3-CR2 per-finding forbid, R3-CR4 same-page merge — `M189`–`M189d`, `T26`; `M184i` changed on purpose) — 137 rules | 2026-09-24 | 662 | 643 | **0** | 19 todo |
+   | copy of that tree taken before the round-3 fixes, with the new test files — red: exactly `M189`–`M189d`, `T26`, `M184i` | 2026-09-24 | 662 | 637 | **6** | 19 todo |
+   | working tree on `9deba20`, after the specs/008 **round-2** review fixes (medical FAIL R2-B1–B5 + code CR1–CR11 + builder #2–#5 — `M184g`–`M184j`, `M186m`, `M186n`, `M187c`, `M188d`, `T24`, `T25`; `M184f`, `M186i` changed on purpose) — 137 rules | 2026-09-24 | 657 | 638 | **0** | 19 todo |
+   | copy of that tree with the pre-fix `patterns_hematology.js`/`patterns_utils.js`/`adapter.js`/`prompt.js` + the `server.js` merge edit undone — red: exactly the 10 new guards + `M184f`, `M186i` | 2026-09-24 | 657 | 626 | **12** | 19 todo |
+   | working tree on `9deba20`, after specs/008 (Hb anaemia thresholds by age/sex, iron/ferritin ranges with held rule cut-offs, Hb electrophoresis identity + HbA2/HbF grading, `hba2_elevated` — `M184`–`M186g`; `M34`, `M47`, geriatric Hb 12.3 @ 75 changed on purpose; freeze hashes re-baselined for the Hb range string only). ⚠️ **Includes a concurrent session's `microcytic_anemia` work (`M187`, `M187b`, its `M100`/`M104d`/`M180b` updates)** — 136 rules | 2026-09-23 | 636 | 617 | **0** | 19 todo |
+   | `9deba20` (`git archive` + junction) with that `engine.test.js` + `geriatric.test.js` (engine suites only) — red: specs/008's 12 behaviour tests + geriatric + `M34` + the re-baselined freezes (`M104d`, `M125`, `M164d`, `M171d`, `M180b`), and the concurrent session's `M100`, `M187`, `M187b` | 2026-09-23 | 598 | 556 | **23** | 19 todo |
    | working tree on `aeb2ff3`, after the user's decisions on P52 questions 1–5 (MCHC note under an Hb crisis, MCV in the note, `PED_REFS.RETIC_ABS` deleted, Hct-only crisis at every age — `M183`–`M183d`; `M179c`, `M180b` changed on purpose) — 135 rules | 2026-09-23 | 618 | 599 | **0** | 19 todo |
    | `aeb2ff3` (`git archive` + junction) with that `engine.test.js` (engine suite only) — red: exactly `M183`–`M183d` + `M179c`, `M180b` | 2026-09-23 | 579 | 554 | **6** | 19 todo |
    | working tree on `b9068df` (specs/006 still uncommitted), after specs/007 + its review round (Henry ch.31: RBC-F range, Hct-only crisis, MCHC artefact note, `RETIC_ABS`, HCT L/L + MCHC g/L units — `M177`–`M181`, 10 tests; review fixes `M182`–`M182f`, 6 tests, all red on the pre-fix tree; `M104d` C3 changed on purpose) — 135 rules | 2026-09-23 | 614 | 595 | **0** | 19 todo |
@@ -416,8 +422,8 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 `patterns.js` no longer holds the rules. It imports **seventeen** `patterns_<system>.js` files
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-22) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **135 rules, measured
-2026-09-23** (the 135th is `rbc_indices_implausible` in `patterns_hematology.js`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
+concatenates their `RULES_*` exports into the exported `RULES` array — **137 rules, measured
+2026-09-23** (the 136th and 137th are `hba2_elevated` and `microcytosis_no_anemia` in `patterns_hematology.js`, specs/008; the 135th `rbc_indices_implausible`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
 `unit_unknown_values` in `patterns_unit_unknown.js` from specs/003, plus `folate_deficiency` in
 `patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004, plus
 the seven `urine_cast_*` rules in `patterns_urine_casts.js` and `urine_esterase_without_cells` in
@@ -961,6 +967,21 @@ second one; a recurring entry is the strongest signal in the file.
   made the substring match fail, so the safety net re-appended the entire block. Live run:
   19 sentences, 4 of them verbatim duplicates. The richer `must_say` got, the more certain the bug —
   the safety net was in direct opposition to the `professional-interpretation` skill.
+- ⚠️ **Recurred 2026-09-23 on a real pancytopenia sheet, and this time the fix was structural (M188, T23).**
+  - **The cap came back as 10 sentences / 20 words.** The findings' `must_say` totalled 11 sentences, and the
+    «بی‌توضیح» list sentence was about 40 words. The model cut the list; the net then re-appended headline plus
+    the whole block, so the patient read the same sentence twice.
+  - **Worse, the model also dropped 4 of the 14 recommendation items**, including «بدون اتلاف وقت فوراً به اورژانس»
+    and «نباید منتظر نوبت مطب بمانید». No net ever checked `action` or `warnings`.
+  - **Six emergency findings carried five rival timelines** («همین امروز تماس» … «فوراً به اورژانس»). The model
+    kept the mildest one.
+  - **Fix, part 1:** the caps are gone. `M26` now asserts that no cap exists, instead of asserting that one does.
+  - **Fix, part 2:** `action`/`warnings`/`suggest` are no longer sent to the model at all. `general_recommendations`
+    is always `buildEngineRecommendations()`, with **one** final instruction from `pickFinalAction()`.
+  - **Rule:** a field the model never sees is a field it cannot drop. A net that checks after the fact covers
+    exactly the shapes of loss someone thought of, and here that was two fields out of four. Check the
+    sentence classifier against **every** action string in the rules, not the panels you happened to test:
+    the first version lost «مصرف مکمل ویتامین D را با پزشک در میان بگذارید» and the specialist referrals.
 - **Rule:** safety nets compare meaning, not characters (`rules/coverage.js`, sentence-level, distinctive
   tokens, threshold 0.6, biased toward re-adding). And never resolve a text-quality complaint by
   upgrading the model or loosening the prompt's clinical constraints — that's the engine boundary,
@@ -1098,6 +1119,9 @@ five analytes wider.
   `graded.dir` — never from a comparison against a severity cutoff — even when the two agree
   today. A correct-by-coincidence expression is a bug with a delayed fuse, and the fuse is lit by
   the next person who broadens the rule.
+- ⚠️ **Recurred 2026-09-24 as `abnormal` without `dir`** (`microcytic_anemia`, M187 work). `mch?.abnormal ? "MCH هم …
+  همین کوچکی را تأیید می‌کند"` told a patient with a *high* MCH (35) that it confirmed small cells. And because the rule now
+  read HCT/MCH, a high HCT was silently marked covered (M156). Every `?.abnormal` in a sentence needs its `dir`. Guard `M187c`.
 - **Same axis-confusion, one level up — a derived index read without its context** (2026-08-06,
   `high_anion_gap`). Measured: `Na 142 / Cl 92 / HCO3 36` → anion gap 14 → the rule fired and told
   the patient «این می‌تواند نشانهٔ تجمع اسید در بدن باشد». Bicarbonate 36 is *alkalosis*, and
@@ -1456,6 +1480,12 @@ structural, not specific to that rule.
   make it say so rather than making the consumer guess. Where the consumer cannot know, the safe
   default is to mark **nothing**, not everything: a chip that says "we have no explanation for
   this" is a claim, and putting it on a row the same page just explained is worse than omitting it.
+- ⚠️ **Recurred 2026-09-24 through `always_show`/`brief` (specs/008 round 3, R3-CR1).** The net decided coverage
+  from a finding's full `must_say` and `RULE_READS`. Then `runPatterns` swapped that `must_say` for the short
+  `brief` under a blocker. On a pancytopenia sheet, HCT 55 next to Hb 8.3 and an MCH of 35 were marked "covered" by
+  the microcytic text, and that text was never shown. An HbA2 of 5.2 under a K 7.1 emergency lost its number and
+  the carrier warning. **Rule:** coverage is a property of the text the patient *sees*. A finding that will be
+  briefed covers keys only through `brief` + `brief_warnings` (`willBrief()` in `patterns.js`). Guard `M189c`.
 - **Guards:** `M58`, `M58b` (negative control), `M58c`. Verified against the pre-fix code in a temp
   copy — `M58` and `M58c` go red there. Note the copy needs `node_modules` junctioned in or the
   whole file dies on `Cannot find package 'acorn'`, the same trap the Commands section warns about.
@@ -1601,6 +1631,16 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   that discriminates them was printed on the same sheet and never read. That is N21, and the gate
   merely exposed it. Both were rewritten three ways (confirms / argues against / not measured).
   **Before gating a rule off, list what else it was the only owner of.**
+  ⚠️ **Recurred 2026-09-23 through `blocks_others`, on a real sheet (M187).** The sheet was a 62-year-old man with
+  WBC 0.27, PLT 15, Hb 8.3 and MCV 65.8. `pancytopenia`, `severe_neutropenia` and `severe_thrombocytopenia` each
+  carry `blocks_others`, so they hid `microcytic_anemia` (`this_week`) entirely. The report never gave the Hb or MCV
+  number, and it never asked for ferritin. On top of that, HCT 23.7, MCH and RDW were printed under «توضیحِ آماده
+  نداریم», directly beneath the anaemia that explains them. `RULE_READS` counts only tokens in the source, so no
+  rule "read" HCT. Fixed by giving `microcytic_anemia` `always_show` + `brief`, and by naming those values in its
+  text.
+  **The fix nearly caused its own N18.** Reading `RBC`/`RDW` in the source marks them covered in *every* direction.
+  A high RBC or a low RDW-SD would then have vanished from the report, so each direction got its own sentence
+  (M156, `M187b`).
   ⚠️ **Recurred 2026-09-19 (specs/004), and this time the orphan was a warning, not an analyte.**
   `folate_deficiency` stands down whenever `macrocytic_anemia` fires, which is right: one finding
   owns folate. But the folic-acid caution («خودسرانه اسید فولیک شروع نکنید») lived only in
@@ -1773,6 +1813,36 @@ it and no guard in the repo watches for it.**
   was doing two jobs.**
 - **Guards:** `M94f`, `M94g` (the real 4-marker cirrhosis still fires — a widened guard must not
   become a blindfold), `M94h` (both arms: 3.7 is not nephrotic, 2.4 still is).
+- ⚠️ **Hit again, deliberately this time, 2026-09-23 (specs/008, `P53`): ferritin and iron.** The approved ranges widened
+  both: male ferritin 30–300 → 12–300, iron 60–150 → 50–160. `iron_deficiency_panel` and `anemia_chronic_disease` read
+  `dir === "low"`. Changing the range alone would have silently switched off the iron-deficiency finding for a man with
+  ferritin 20, and chronic-disease anaemia at iron 50–59. The fix is the same split as `ALB_LOW_MARKER_GDL`:
+  - `ferritinIdCut` / `ferritinBelowIdCut` / `ironLowForAcd` in `patterns_utils.js` hold the old cut-offs.
+  - The one intended change goes in the same function: women ≥ 50 are cut at < 30.
+  - Guards: `M185`, `M185d`.
+
+  Two traps met on the way, both of them general:
+  - **A flat adult cut-off applied to a child.** Under 16 the range comes from `PED_REFS`. A literal 30 would have
+    turned a 10-year-old's ferritin 20 (normal by RCPCH) into «کمبودِ آهن». So the helper keeps `dir` under 16.
+    ⚠️ **Recurred one fix later, in the rule written to close a round-1 blocker:** `microcytosis_no_anemia` used
+    `MCV < 80`, so a healthy 3-year-old (MCV 75, range 70–86, row «طبیعی») read «کوچک‌تر از حد طبیعی … کمبودِ آهن یا
+    صفتِ تالاسمی». The WHO sentence had the same flaw: it told a 10-year-old «آستانهٔ معمولِ 30». **Every new literal
+    cut-off in a rule needs the under-16 question asked again. Having asked it in the helper next door doesn't count.**
+    Guards `M184g`, `M184h`.
+  - **A rule that absorbs another rule's content inherits its warnings too** (N20, M155 class). Round 1 made
+    `microcytosis_no_anemia` an HbA2 owner, so `hba2_elevated` stood down. The β-trait sentence moved over, but the
+    premarital «اگر هر دو والد ناقل باشند…» warning didn't. So a CBC printed next to the HbA2 *removed* the warning
+    that HbA2 alone gets. There is now one constant (`HBA2_CARRIER_WARNING`), and `M184j` sweeps every owner.
+  - **Once a rule fires on a value the grading calls normal, its text must stop saying «پایین».** The iron-deficiency
+    text is now three-way: below the range / inside the range but below the cut / neither.
+- **Where a range move is the decision, re-baseline the freezes, and prove the only difference is the one you meant.**
+  The Hb thresholds (specs/008 Q1) moved every anaemia finding's printed range («14–17.5» → «13.7–17.5»), which turned
+  six hash freezes red. Each was re-baselined only after a diff of the full output on `9deba20` against the tree
+  came out empty once the range string was stripped.
+  - Moving a rule's `match` into a helper is **not** refactor-neutral here: `RULE_READS` scans the rule's own source, so
+    MCV/RBC/HGB fell out of coverage and `unexplained_abnormal` appeared on thalassaemia panels (measured).
+  - A "does the owner fire" helper has to call the live rule (`thalOwnerFires`, the `hemolysisRuleFires` shape), not
+    carry a copy of its condition.
 
 ### N24 — Authenticating the write half of a route pair and not the read half
 2026-09-17, `GET /api/analyze/job/:id` and `POST /api/labmat/analyze`. Found by a full-codebase
@@ -1928,6 +1998,27 @@ not by a test.
   **Rule, sharpened:** a hand-off target is the *branch that gets built*, not the rule. When an owner has a branch that
   argues against the folded sentence, build the owner and check the branch; the M91e lesson still applies (never restate
   its threshold). Guards `M176`–`M176l`.
+- ⚠️ **Recurred 2026-09-23 on haemoglobin electrophoresis (specs/008, `P53`), and one of the two collisions was a loaded
+  gun.**
+  - **The silent drop.** «HbS 40 %» (sickle haemoglobin) matched the **anti-HBs** qual pattern `/^(anti)?hbs$/`.
+    Nothing reads bare `hbs` (`patterns_infectious.js:40` removed it on purpose), so the result was dropped with no
+    trace.
+  - **The loaded gun.** The only thing keeping that row out of `resolveAlias` was the anti-HBs regex. The alias's plural
+    rule strips the `s` and maps `hb` → **`HGB`**, so «HbS 40» would have become **Hb 40 g/dL**. Remove the regex "to fix
+    the collision" and that is what happens.
+  - **Same shape elsewhere.** `HbC` is also anti-HBc (hepatitis B core), and `HbE` is HBeAg. `norm()` lowercases, so the
+    printed case is gone.
+  - **The fix.** An electrophoresis layer in `runEngine`, before `qual`, reads `hbs`/`hbc`/`hbe` as variants only with a
+    `%` unit or an unambiguous electrophoresis row (HbA2/HbF/HbA) on the same sheet. Without that evidence the row goes
+    to `unmapped` («تفسیر نشدند»), never to `mapKey`.
+  - ⚠️ **Recurred in the same feature, round 2 (2026-09-24):** the gate covered «HbS» and «Hemoglobin S» but not «Hgb S»,
+    and `hgbs` hits the same plural rule (→ `hgb` → HGB). «Hgb A2 3.1 % · Hgb S 40 %» gave a sickle-trait carrier
+    «همین حالا به اورژانس». The same round found Persian «هموگلوبین E/C», «HbA2/E», «HbAS», «35%» in the value, and
+    «HBs» (hepatitis page) vs «HbS» (electrophoresis page) colliding in `mergePages`. **Enumerate every spelling family
+    (Hb/Hgb/Hemoglobin/Persian × S/C/E/A/A2/F), not the ones in the incident.** Guards `M186m`, `M186n`, `T24`, `T25`.
+  - **Rule:** before relying on a regex to *keep a row out of* a channel, check what the row turns into when the regex
+    stops matching. `resolveAlias`'s plural and trailing-`e` rules make every short name one character away from
+    another analyte. Guards `M186`–`M186c`.
 
 ---
 

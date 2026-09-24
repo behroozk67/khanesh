@@ -56,6 +56,9 @@ export const SUGGEST_TESTS = {
   "آهن سرم": ["IRON"],
   "TIBC": ["TIBC"],
   "پنل کامل آهن": ["FERRITIN", "IRON", "TIBC"],
+  // specs/008 (N8): الکتروفورزِ روی برگه = HbA2 چاپ شده؛ sTfR را شاخهٔ التهابِ iron_deficiency پیشنهاد می‌دهد.
+  "الکتروفورز هموگلوبین": ["HBA2"],
+  "گیرندهٔ محلول ترانسفرین (sTfR)": ["STFR"],
   "TSH": ["TSH"],
   "FT4": ["FT4"],
   "FT3": ["FT3"],
@@ -261,6 +264,17 @@ function textNamesTest(text, key) {
   return new RegExp(`(^|[^A-Za-z0-9_])${key}([^A-Za-z0-9_]|$)`).test(text);
 }
 
+const order = { emergency: 0, this_week: 1, routine: 2 };
+const rank = (u) => (u in order ? order[u] : 2);  // urgency نامعتبر → routine
+/** فوری‌ترین blocks_othersِ فهرست (Infinity اگر نباشد). */
+const blockerRankOf = (findings) =>
+  Math.min(...findings.filter((f) => f.blocks_others).map((f) => rank(f.urgency)));
+/** یافتهٔ always_show که فقط به‌خاطر همین استثنا زیرِ یک blocker مانده و نسخهٔ کوتاهش (brief) را می‌گیرد. */
+function willBrief(f, findings) {
+  const br = blockerRankOf(findings);
+  return Number.isFinite(br) && !!f.always_show && rank(f.urgency) > br && !!f.brief;
+}
+
 export function runPatterns(engineOut) {
   const findings = [];
   // ⚠️ قاعده‌ای که throw کند، یافته‌اش بی‌صدا از گزارشِ بیمار حذف می‌شود.
@@ -353,12 +367,20 @@ export function runPatterns(engineOut) {
   // سورس‌خوانیِ خالص روی همان پنلِ فقر آهن IRON را «پوشش‌داده» جا زد.
   // با AND، پنلِ کبدی به یک مورد رسید و شکاف‌های واقعی سرِ جایشان ماندند.
   if (findings.length > 0 && engineOut.abnormal.length > 0) {
+    // 🔴 بازبینیِ دور ۳ (R3-CR1): یافته‌ای که زیرِ یک blocker فقط briefش نشان داده می‌شود، کلیدهایی را که
+    //    must_sayِ کاملش توضیح می‌داد «پوشش‌داده» می‌کرد و بعد همان متن با brief عوض می‌شد — HCTِ ۵۵ کنارِ Hbِ ۸.۳،
+    //    MCH و RBCِ بالا روی برگهٔ پان‌سیتوپنی نه توضیح داشتند نه در این تور می‌آمدند (N18). چنین یافته‌ای فقط با
+    //    متنی که واقعاً نشان داده می‌شود (brief و brief_warnings) پوشش می‌دهد، نه با RULE_READS.
+    const briefed = new Set(findings.filter((f) => willBrief(f, findings)));
     const covered = new Set();
     for (const f of findings) {
+      if (briefed.has(f)) continue;
       for (const k of RULE_READS.get(f.rule_id) ?? []) covered.add(k);
     }
     const text = findings
-      .map((f) => [f.headline, f.must_say, f.action, (f.warnings ?? []).join(" ")].join(" "))
+      .map((f) => briefed.has(f)
+        ? [f.headline, f.brief, f.action, (f.brief_warnings ?? []).join(" ")].join(" ")
+        : [f.headline, f.must_say, f.action, (f.warnings ?? []).join(" ")].join(" "))
       .join(" ");
 
     const orphans = engineOut.abnormal
@@ -426,16 +448,11 @@ export function runPatterns(engineOut) {
   //
   // درست: blocks_others یعنی «موارد کم‌اهمیت‌تر را بپوشان»،
   //       نه «بقیه‌ی اورژانس‌ها را حذف کن».
-  const order = { emergency: 0, this_week: 1, routine: 2 };
-  const rank = (u) => (u in order ? order[u] : 2);  // urgency نامعتبر → routine
-
   // blocks_others یعنی «موارد کم‌اهمیت‌تر را بپوشان» — یعنی هرچه فوریتش از
   // خودِ blocker پایین‌تر است. نه هاردکد "emergency": اگر روزی blocker با
   // فوریت this_week تعریف شود، فیلترِ === "emergency" خودِ blocker را هم
   // حذف می‌کرد و selected خالی می‌شد → overall_urgency اشتباهاً "none".
-  const blockerRank = Math.min(
-    ...findings.filter((f) => f.blocks_others).map((f) => rank(f.urgency))
-  );
+  const blockerRank = blockerRankOf(findings);
   const hasBlocker = Number.isFinite(blockerRank);
 
   // always_show: یافته‌ای که حتی زیر یک blockerِ مهم‌تر هم نباید پنهان شود
@@ -447,9 +464,10 @@ export function runPatterns(engineOut) {
 
   // یافتهٔ always_show که فقط به‌خاطر همین استثنا زیر یک blocker مانده،
   //   نسخهٔ کوتاهش (brief) را می‌گیرد تا پیام اورژانس را شلوغ نکند.
+  //   brief_warnings: هشدارهایی که حتی در نسخهٔ کوتاه نباید بیفتند (مثلِ هشدارِ ناقل بودنِ HbA2 — R3-CR1).
   const shown = selected.map((f) =>
-    hasBlocker && f.always_show && rank(f.urgency) > blockerRank && f.brief
-      ? { ...f, must_say: f.brief, warnings: [], suggest: [] }
+    willBrief(f, findings)
+      ? { ...f, must_say: f.brief, warnings: f.brief_warnings ?? [], suggest: [] }
       : f
   );
 

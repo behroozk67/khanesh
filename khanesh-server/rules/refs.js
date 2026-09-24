@@ -19,6 +19,10 @@ export const ADULT_REFS = {
   MCHC: { both: [32, 36], unit: '%', source: 'user_override' },
   PLT:  { both: [150, 450], unit: 'K/µL' },
   RETIC:{ both: [0.5, 1.5], unit: '%' },
+  // specs/008 Q3 — الکتروفورزِ هموگلوبین؛ تأییدِ کاربر ۱۴۰۵/۰۷/۰۱، مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم.
+  //   زیرِ ۲ سال سنجیده نمی‌شوند (adapter، NO_RANGE_KEYS کنارش). HbA/HbS/HbC/HbE بی‌بازه‌اند (P53).
+  HBA2: { both: [1.5, 3.5], unit: '%' },
+  HBF:  { both: [0, 2],     unit: '%' },
   RDW_CV:{ both: [11.5, 14.5], unit: '%' },
   RDW_SD:{ both: [35, 56],    unit: 'fL' },
   MPV:  { both: [7.5, 11.5],  unit: 'fL' },
@@ -86,8 +90,12 @@ export const ADULT_REFS = {
   BILI_T:  { both: [0.1, 1.2], unit: 'mg/dL' },
   BILI_D:  { both: [0, 0.3],   unit: 'mg/dL' },
   BILI_I:  { both: [0.1, 1],   unit: 'mg/dL' },
-  FERRITIN:{ M: [30, 300], F: [15, 150], unit: 'ng/mL' },  // متن کلاسیک/LabCorp (بود M15–200/F12–150). کفِ کمبود مهم‌تر از سقف است
-  IRON:    { both: [60, 150],  unit: 'µg/dL' },
+  // specs/008 Q2 — تأییدِ کاربر ۱۴۰۵/۰۷/۰۱؛ مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم (بود M30–300 / F15–150 و آهن ۶۰–۱۵۰).
+  // ⚠️ زنِ ≥۵۰ ساله ۳۰–۳۰۰ می‌گیرد (ferritinRef پایین؛ سن تنها جانشینِ یائسگی است).
+  // ⚠️ N23: قاعده‌های کمبودِ آهن و کم‌خونیِ بیماری مزمن این بازه را *نمی‌خوانند* — ferritinIdCut() و
+  //    IRON_ACD_LOW_UGDL در patterns_utils.js آستانهٔ خودشان را نگه می‌دارند (مرد ۳۰، زنِ زیرِ ۵۰ ۱۵، آهن ۶۰).
+  FERRITIN:{ M: [12, 300], F: [12, 150], unit: 'ng/mL' },
+  IRON:    { both: [50, 160],  unit: 'µg/dL' },
   TIBC:    { both: [250, 400], unit: 'µg/dL' },
   TSAT:    { both: [20, 55],   unit: '%' },
   B12:     { both: [200, 900], unit: 'pg/mL' },  // کفِ کمبود ۲۰۰ (بود 160، مرزیِ کمبود را نرمال می‌گرفت)
@@ -320,9 +328,36 @@ export function ckdEpiEgfr(scr, age, sex) {
   return Math.round(egfr);
 }
 
+// ═══ specs/008 Q1 — حدِ پایینِ هموگلوبین بر حسبِ سن و جنس ═══
+// تأییدِ کاربر ۱۴۰۵/۰۷/۰۱؛ عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم (P53). سقف‌ها بی‌تغییر (Henry).
+//   مرد: ۱۶–۱۹ → ۱۳.۶ · ۲۰–۴۹ (و سنِ نامعلوم) → ۱۳.۷ · ۵۰–۶۹ → ۱۳.۳ · ≥۷۰ → ۱۲.۴
+//   زن:  ۱۶–۶۹ → ۱۲.۰ · ≥۷۰ → ۱۱.۸
+// ⚠️ زیرِ ۱۶ سال: اول PED_REFS (RCPCH). ۱۲ تا ۱۵ ساله که RCPCH ردیف ندارد، بازهٔ *پیشینِ* بزرگسال
+//    (۱۴ / ۱۲.۳) را عیناً نگه می‌دارد — ردیف‌های کودکِ مرجع پذیرفته نشد (FR-004)، پرسشِ باز در P53.
+// ⚠️ این جای «کم‌خونی» است، نه آستانهٔ بحران: HGB_CRISIS_GDL (۷) و قاعده‌های بدخیمی عددِ خودشان را دارند (R2).
+const HGB_HIGH = { M: 17.5, F: 15.3 };
+export function hgbRef(sex, age) {
+  const m = sex === 'M';
+  const hi = m ? HGB_HIGH.M : HGB_HIGH.F;
+  if (age != null && age < 16) return m ? [14, hi] : [12.3, hi];
+  if (age != null && age >= 70) return [m ? 12.4 : 11.8, hi];
+  if (!m) return [12.0, hi];
+  if (age != null && age < 20) return [13.6, hi];
+  if (age != null && age >= 50) return [13.3, hi];
+  return [13.7, hi];
+}
+
+// specs/008 (clarify): فریتینِ زنِ ≥۵۰ ساله ۳۰–۳۰۰ — جانشینِ یائسگی؛ مرد و زنِ جوان‌تر از ADULT_REFS.
+// جنسِ نامعلوم همان پیش‌فرضِ getRef (ردیفِ زن) را می‌گیرد.
+export function ferritinRef(sex, age) {
+  if (sex !== 'M' && age != null && age >= 50) return [30, 300];
+  return sex === 'M' ? ADULT_REFS.FERRITIN.M : ADULT_REFS.FERRITIN.F;
+}
+
 export const GERIATRIC_REFS = {
   // Overrides for >= 75 years old
-  HGB: { M: [11.0, 17.5], F: [10.5, 15.3], unit: 'g/dL' },
+  // HGB: حذف شد — P2 بسته شد (specs/008). عددِ ۱۱.۰ / ۱۰.۵ منبع نداشت و کم‌خونیِ سالمند را پنهان می‌کرد؛
+  //      جایش hgbRef() بالا (ردیفِ ≥۷۰).
   MCV: { both: [82, 102], unit: 'fL' },
   ALP: { M: [80, 300], F: [64, 300], unit: 'U/L' },
 };
@@ -357,6 +392,8 @@ export function getRef(testKey, sex, age) {
     if (ped) return ped;
     // RCPCH: "If there is no age-specific paediatric range, use the adult range."
   }
+  if (testKey === 'HGB') return hgbRef(sex, age);
+  if (testKey === 'FERRITIN') return ferritinRef(sex, age);
   if (age >= 75 && GERIATRIC_REFS[testKey]) {
     const g = GERIATRIC_REFS[testKey];
     if (g.both) return g.both;
@@ -370,6 +407,10 @@ export function getRef(testKey, sex, age) {
   return sex === 'M' ? r.M : r.F;
 }
 
+// specs/008 — «تأییدِ کاربر ۱۴۰۵/۰۷/۰۱؛ مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم». هیچ کتابی ادعا نمی‌شود.
+export const SPECS008_SOURCE = 'User-approved 1405/07/01 (specs/008)';
+const SPECS008_KEYS = new Set(['HGB', 'IRON', 'FERRITIN', 'HBA2', 'HBF']);
+
 // منبع محدوده — برای شفافیت
 export function getRefSource(testKey, age) {
   // ⚠️ برچسبِ ثابتِ «RCPCH 2016» جای خود را به منبعِ همان ردیف داد — بعضی
@@ -379,6 +420,9 @@ export function getRefSource(testKey, age) {
   // فصل ۲۶ (P47): حدهای منی از WHO 2021 است نه جدولِ A5ِ هنری — برچسبِ منبع باید راست بگوید.
   if (/^(SEMEN_|SPERM_)/.test(testKey)) return testKey === 'SEMEN_PH' ? 'Henry ch.26' : 'WHO 2021';
   if (testKey === 'TESTO') return 'Henry ch.26';
+  // specs/008: بازه‌هایی که کاربر به‌عنوانِ بازبین تأیید کرد — عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم.
+  //   HGBِ ۱۲ تا ۱۵ ساله بازهٔ قدیمیِ بزرگسال را نگه داشته (R1)، پس برچسبِ قدیمی را می‌گیرد.
+  if (SPECS008_KEYS.has(testKey) && !(testKey === 'HGB' && age != null && age < 16)) return SPECS008_SOURCE;
   return 'Henry A5';
 }
 

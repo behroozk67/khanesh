@@ -37,16 +37,18 @@ export const ENGINE_SYSTEM_PROMPT = `
 ۰. اگر findings چند مورد دارد، **همه** را بنویس. هیچ‌کدام را ادغام یا حذف نکن.
    بیمار ممکن است همزمان چند مشکل فوری داشته باشد — پنهان کردن یکی خطرناک است.
 ۰.۵. جمله‌ها را تکرار نکن. هر مطلب فقط یک بار.
-۱. فیلد must_say را کامل منتقل کن — این تشخیص موتور است. اگر داخلش عددی آمده
-   (مثل eGFR، میانگین قند، درصد، یا مقدار یک تست)، همان عدد را حتماً در تفسیر بیاور؛ حذف یا خلاصه‌اش نکن.
-۲. فقط تست‌های داخل suggest را نام ببر. هیچ تستی اضافه نکن.
+۱. فیلد must_say را کامل منتقل کن — این تشخیص موتور است. اگر داخلش عدد یا فهرستی آمده
+   (مثل eGFR، میانگین قند، درصد، مقدار یک تست، یا فهرستِ چند تست با عددشان)، همه را حتماً در تفسیر بیاور؛ حذف یا خلاصه‌اش نکن.
+۲. هیچ آزمایشی را که در must_say نیامده نام نبر و پیشنهاد نده.
 ۳. تست‌های داخل forbid را هرگز نام نبر — از نظر بالینی برای این الگو غلط‌اند.
 ۴. urgency را عوض نکن.
 ۵. هیچ عددی را تغییر نده یا از خودت نساز.
-۶. warnings را حذف نکن.
+۶. ننویس بیمار کِی یا کجا مراجعه کند (امروز، این هفته، اورژانس، مطب) و هشدار اضافه نکن. دستورِ مراجعه و هشدارها
+   جداگانه و عیناً از موتور به بیمار نشان داده می‌شوند؛ اگر تو هم بنویسی، دو دستورِ متفاوت کنارِ هم می‌نشینند.
+   فقط اگر خودِ must_say چنین جمله‌ای دارد، همان را منتقل کن.
 
 ## زبان
-- جمله‌ها کوتاه، حداکثر ۲۰ کلمه.
+- جمله‌ها ساده باشند. ولی کوتاه‌کردنِ جمله هرگز دلیلِ حذفِ بخشی از must_say نیست.
 - «شما ... دارید» ننویس. بنویس «این معمولاً یعنی ...»
 - «نگران نباشید» ننویس.
 - هر عدد را با محدوده طبیعی‌اش بیاور.
@@ -58,20 +60,12 @@ export const ENGINE_SYSTEM_PROMPT = `
 
 {
   "summary": "یک تا دو جمله. کل وضعیت.",
-  "interpretation": "متن اصلی. must_say را در آن بگنجان. حداکثر ۱۰ جمله.",
-  "general_recommendations": [
-    "اقدام اصلی — از فیلد action",
-    "برای هر تست در suggest یک مورد: «درخواست آزمایش ... از پزشک» (برای «تکرار ...»: «درخواست تکرار ... از پزشک»)",
-    "هشدارهای warnings را هم اینجا بیاور"
-  ],
+  "interpretation": "متن اصلی. همهٔ must_sayها را کامل در آن بگنجان.",
   "has_critical": false,
   "disclaimer": "یادآوری کوتاه که این تفسیر جای پزشک را نمی‌گیرد."
 }
 
-## general_recommendations — مهم
-- حتماً پرش کن. هرگز خالی نگذار.
-- اول action، بعد تست‌های suggest، بعد warnings.
-- تست‌ها را با نام فارسی بنویس، همان‌طور که در suggest آمده.
+فهرستِ توصیه‌ها را ننویس — از موتور ساخته می‌شود.
 `.trim();
 
 const URGENCY_FA = {
@@ -124,24 +118,20 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
     //    به مدل نمی‌رسد. `protected` دقیقاً از همین خاصیت استفاده می‌کند:
     //    نامِ دارو، دوز و راهِ مصرف هرگز وارد payload نمی‌شوند، پس مدل
     //    نمی‌تواند بازنویسی‌شان کند. (rules/protected.js)
-    findings: patterns.findings.map((f) => {
-      // متنِ محافظت‌شده معمولاً *همان* رشته‌ای است که در warnings هم نشسته
-      // (یک ثابت، دو ارجاع — تا دو نسخه از یک تصمیم نداشته باشیم؛ کلاسِ N20).
-      // پس باید از warnings هم بیرون کشیده شود، وگرنه از همان در به مدل می‌رسد.
-      const guarded = new Set((f.protected ?? []).map((p) => p.text));
-      return {
-        headline: f.headline,
-        must_say: f.must_say,
-        action: f.action,
-        urgency: f.urgency,
-        suggest: f.suggest,
-        forbid: f.forbid ?? [],
-        warnings: (f.warnings ?? []).filter((w) => !guarded.has(w)),
-        // مدل باید بداند بلوکی هست که ننوشته‌ است، وگرنه ممکن است خودش
-        // دستورِ دارویی بسازد تا جای خالی را پر کند.
-        ...(guarded.size ? { has_protected_block: true } : {}),
-      };
-    }),
+    // ⚠️ action، warnings و suggest عمداً به مدل نمی‌روند. فهرستِ توصیه‌ها را
+    //    buildEngineRecommendations مستقیم می‌سازد و server.js آن را جای فهرستِ مدل
+    //    می‌گذارد. دلیلش اندازه‌گیری شد (۲۰۲۶-۰۹-۲۳، برگهٔ پان‌سیتوپنی، M188): مدل ۴
+    //    مورد از ۱۴ را انداخت، از جمله «بدون اتلاف وقت فوراً به اورژانس». این‌ها دقیقاً
+    //    همان فیلدهایی بودند که هیچ توری بررسی نمی‌کرد. چیزی که مدل نبیند، نمی‌تواند بیندازد.
+    findings: patterns.findings.map((f) => ({
+      headline: f.headline,
+      must_say: f.must_say,
+      urgency: f.urgency,
+      forbid: f.forbid ?? [],
+      // مدل باید بداند بلوکی هست که ننوشته است، وگرنه ممکن است خودش
+      // دستورِ دارویی بسازد تا جای خالی را پر کند.
+      ...(f.protected?.length ? { has_protected_block: true } : {}),
+    })),
     abnormal_tests: abnormal,
     borderline_tests: borderline,
     qualitative: engineOut.qual,
@@ -273,6 +263,104 @@ export function tidyRecommendations(list) {
   return mergeByLeadSentence(dropSubsumedText(exact));
 }
 
+// ---------- یک دستورِ مراجعهٔ نهایی ----------
+// 🔴 برگهٔ واقعی (۲۰۲۶-۰۹-۲۳، پان‌سیتوپنی، M188): شش یافتهٔ اورژانسی، هر کدام با action خودش،
+//    یعنی پنج زمان‌بندیِ رقیب برای یک بیمار: از «همین امروز با پزشک تماس» تا «بدون اتلاف وقت
+//    فوراً به اورژانس». blocks_others فقط یافته‌های *کم‌فوریت‌تر* را کنار می‌زند، پس رقیب‌های
+//    هم‌سطح کنارِ هم می‌ماندند، و مدل ملایم‌ترین را نگه داشت (N20 بینِ یافته‌ها).
+//    حالا یک action کامل می‌آید: قوی‌ترین action در بالاترین فوریت. از بقیه فقط جمله‌های
+//    *زمان‌بندیِ بی‌شرط* حذف می‌شوند. محتوا («این برگه را همراه ببرید») و جمله‌های
+//    شرطی («اگر تب دارید…») می‌مانند، چون این‌ها با دستورِ نهایی رقابت نمی‌کنند.
+const ACTION_SENT = /(?<=[.؟!؛])\s+/;
+// ⚠️ فقط جمله‌ای که *با* شرط شروع می‌شود شرطی است. «نوبت عادی، مگر علامت خاصی…» و «این هفته
+//    مطرح کنید و اگر…» زمان‌بندی‌اند؛ «اگر»ِ وسطشان آن‌ها را شرطی نمی‌کند.
+const CONDITIONAL = /^(اگر|مگر|چنانچه|در صورتِ?|علائم هشدار|با هر (یک|کدام))[\s:،]/;
+const TIMING = /اورژانس|امروز|هفته|چند روز|نوبت|اسرع وقت|اولین فرصت|زودتر|همین حالا|فوراً|فورا|سریعاً|بدون اتلاف|بدون تأخیر|بدون هیچ‌گونه تأخیر|معطل|(مراجعهٔ?|ویزیتِ?)\s*بعدی/;
+const DIRECTIVE = /در میان بگذارید|مطرح کنید|مراجعه کنید|وقت بگیرید|تماس بگیرید|مشورت کنید|پیگیری کنید|نشان دهید/;
+// دستورِ مراجعهٔ *بی‌محتوا* بدونِ واژهٔ زمان: «با پزشک مطرح کنید.»، «نتیجه را با پزشک خود در میان
+// بگذارید تا علت بررسی شود.». عمداً تنگ است: «مصرف مکمل ویتامین D را با پزشک در میان بگذارید» محتواست.
+const GENERIC_DIRECTIVE = new RegExp(
+  `^(این\\s+)?((نتیجه|نتایج|مقادیر)\\s+(را\\s+)?)?(با|به)\\s+پزشک(\\s+خود)?\\s+(${DIRECTIVE.source})(\\s+تا\\s+[^.]*)?\\.?$`,
+);
+// زمان‌بندی‌ای که با خودش محتوا می‌آورد و نباید با آن برود:
+const REQUEST = /بخواهید|تکرار شود/;                                       // «…بخواهید CBC روی نمونهٔ تازه تکرار شود»
+const SPECIALIST = /متخصص|هماتولوژیست|نفرولوژیست|اورولوژ|ناباروری|ماما|انکولوژ/;  // مقصدِ ارجاع
+// 🔴 بازبینیِ دور ۲ (کد #2): «هفته» در «چند هفته بعد تکرار می‌شود» فاصلهٔ تکرارِ آزمایش است، نه زمانِ مراجعه.
+const INTERVAL = /(پس از|بعد از)\s+(یک|دو|سه|چند|\d+)\s+هفته|(یک|دو|سه|چند|\d+)\s+هفته\s+(بعد|دیگر)/g;
+const maskInterval = (s) => s.replace(INTERVAL, " ");
+// محتوایی که با زمان‌بندیِ جمله نمی‌رود: تکرارِ آزمایش، درمان، دارو، لام. «ارجاع» عمداً نیست (SPECIALIST، زیرِ اورژانس نه).
+const CONTENT = /تکرار|بخواهید|دارو|درمان|استاتین|رژیم|سرم وریدی|لام خون|آزمایش‌های بالا/;
+// سرِ زمان‌بندیِ جمله‌ای که محتوایش می‌ماند: «این هفته با پزشک … تا X» ⇒ «با پزشک … تا X».
+const TIMELINE_HEAD = /^(این هفته|همین امروز|همین چند روز|در همین هفته‌های پیشِ رو|در هفته جاری|(در\s+)?نوبتِ?\s*عادیِ?(\s+بعدی)?|در ویزیتِ? بعدی|در فرصت مناسب و در ویزیت بعدی|هرچه زودتر(\s*\([^)]*\))?)\s+(حتماً\s+)?/;
+// 🔴 کد #3: دلگرمیِ بی‌مرجع — «نگرانیِ فوری ندارد» جدا از یافته‌اش دربارهٔ کلِ برگه خوانده می‌شود.
+const REASSURE = /(نگرانیِ?|اقدامِ?)\s+(فوری|جداگانه‌ای)|مراجعهٔ?\s+زودهنگام|زمان‌بندیِ?\s+یافته/;
+// نتیجهٔ شرطیِ «فقط زمان‌بندی»: «…، زودتر مراجعه کنید.»، «…، فوری‌تر.»، «…، به‌جای آن همین حالا به اورژانس بروید.»
+const PURE_TIMELINE_CONSEQUENT = /^\s*(به‌جای آن\s+)?(?:(?!\sو\s)[^،.])*?(مراجعه کنید|بروید|فوری‌تر|زودتر|همین امروز|همین حالا)\.?\s*$/;
+const actionSentences = (s) => String(s).split(ACTION_SENT).map((x) => x.trim()).filter(Boolean);
+const isTimelineSentence = (s) => !CONDITIONAL.test(s) && (TIMING.test(maskInterval(s)) || GENERIC_DIRECTIVE.test(s));
+// «این هفته با پزشک مطرح کنید و فهرستِ داروها را همراه ببرید»: زمان‌بندی می‌رود، دنباله‌اش
+// محتواست و می‌ماند. فقط بعد از «و» یا «—». «تا …» بدونِ فعلش معنا ندارد، پس نگه داشته نمی‌شود.
+const DIRECTIVE_TAIL = new RegExp(`(?:${DIRECTIVE.source})\\s*(?:و|—)\\s+(.+)$`);
+// «نوبت عادی با پزشک و تکرار آزمایش کلیه پس از چند هفته.» — سرِ بی‌فعل؛ دنباله‌اش بعد از «با پزشک و».
+const VISIT_AND_TAIL = /^[^.]*?با پزشک\s+و\s+(.+)$/;
+function contentTail(s) {
+  const tail = (s.match(DIRECTIVE_TAIL) ?? s.match(VISIT_AND_TAIL))?.[1]?.trim();
+  return tail && !isTimelineSentence(tail) ? tail : null;
+}
+/** شرطیِ «اگر X، زودتر/فوراً مراجعه کنید» وقتی دستورِ نهایی همان‌قدر یا فوری‌تر است چیزی اضافه نمی‌کند (کد #4). */
+function redundantConditional(s, finalStrength) {
+  // «اگر خواستید، …» فقط ادامهٔ «اقدامِ جداگانه‌ای نمی‌خواهد» بود (REASSURE)؛ تنها، بی‌مرجع است.
+  if (/^اگر خواستید[،\s]/.test(s)) return true;
+  if (finalStrength < 3) return false;
+  const cons = s.slice(s.lastIndexOf("،") + 1);   // نتیجه بعد از آخرین «،» (شرط خودش فهرستِ «،»دار است)
+  return PURE_TIMELINE_CONSEQUENT.test(cons) && sentenceStrength(s) <= finalStrength;
+}
+/** از actionِ یافته‌ای که دستورِ نهایی نیست، چه چیزی می‌ماند. */
+function nonFinalRemainder(action, finalStrength) {
+  const finalIsEr = finalStrength >= 4;
+  return actionSentences(action)
+    .map((s) => {
+      if (REASSURE.test(s)) return null;
+      if (CONDITIONAL.test(s)) return redundantConditional(s, finalStrength) ? null : s;
+      if (!isTimelineSentence(s)) return s;
+      const tail = contentTail(s);
+      if (tail) return tail;
+      if (CONTENT.test(s) || REQUEST.test(s) || (!finalIsEr && SPECIALIST.test(s))) return s.replace(TIMELINE_HEAD, "");
+      return null;
+    })
+    .filter(Boolean);
+}
+
+/** شدتِ دستورِ بی‌شرطِ یک action: ۵ اورژانسِ فوری … ۰ نوبت عادی. جمله‌های شرطی شمرده نمی‌شوند. */
+function sentenceStrength(s) {
+  const er = /اورژانس/.test(s);
+  const now = /همین حالا|فوراً|فورا|بدون اتلاف|بدون (هیچ‌گونه )?تأخیر|منتظر[^.]*نمانید|سریعاً|معطل نکنید/.test(s);
+  return er && now ? 5 : er ? 4 : now || /امروز/.test(s) ? 3 : /چند روز|اسرع وقت|اولین فرصت|زودتر/.test(s) ? 2 : /هفته/.test(maskInterval(s)) ? 1 : 0;
+}
+export function actionStrength(action) {
+  let best = 0;
+  for (const s of actionSentences(action)) {
+    if (CONDITIONAL.test(s)) continue;
+    const v = sentenceStrength(s);
+    if (v > best) best = v;
+  }
+  return best;
+}
+
+const URGENCY_RANK = { emergency: 3, this_week: 2, routine: 1 };
+
+/** یافته‌ای که actionش دستورِ نهاییِ گزارش است: اول فوریتِ یافته، بعد شدتِ متن؛ در تساوی، اولی. */
+export function pickFinalAction(findings) {
+  let best = null, bestKey = -1;
+  for (const f of findings ?? []) {
+    if (!f.action) continue;
+    const key = (URGENCY_RANK[f.urgency] ?? 0) * 10 + actionStrength(f.action);
+    if (key > bestKey) { bestKey = key; best = f; }
+  }
+  return best;
+}
+
+const normalizeRec = (s) => String(s).replace(/[.؛،\s]+/g, " ").trim();
 export function buildEngineRecommendations(patterns, engineOut) {
   // لایهٔ دوم: runPatterns پیشنهادهای تکراری را از قبل حذف کرده،
   // ولی این مسیر ممکن است با findings دست‌ساز هم صدا زده شود.
@@ -285,19 +373,39 @@ export function buildEngineRecommendations(patterns, engineOut) {
   ]);
   const suggestOk = new Set(allSuggest);
 
-  const built = [];
+  const final = pickFinalAction(patterns.findings);
+  // 🔴 بازبینیِ دور ۳ (R3-CR2): forbidِ یک یافته هشدارِ یافتهٔ دیگر را پاک می‌کرد — forbid: ["B12","فولات"]ِ
+  //    microcytic_anemia احتیاطِ اسید فولیکِ overt_b12_deficiency را (M155) از گزارش برداشت. هر مورد منبعش را
+  //    با خود دارد: هشدار هرگز فیلتر نمی‌شود، و یافته‌ای که خودش دربارهٔ آن واژه است (headline/must_say) از forbidِ
+  //    یافتهٔ *دیگر* معاف است.
+  const built = final ? [{ text: final.action, src: final }] : [];
+  const texts = () => built.map((b) => b.text);
+  // وقتی دستورِ نهایی «همین حالا اورژانس» است، «اگر تب دارید به اورژانس» از actionهای دیگر
+  // چیزی اضافه نمی‌کند و کنارِ آن گیج‌کننده است. warnings دست نمی‌خورند.
+  const finalStrength = final ? actionStrength(final.action) : 0;
+  const erNow = finalStrength === 5;
   for (const f of patterns.findings) {
-    if (f.action) built.push(f.action);
+    if (f.action && f !== final) {
+      // 🔴 کد #4: جمله‌ای که در فهرست هست («این برگه را همراه ببرید» در دستورِ نهایی) دوباره نمی‌آید.
+      const soFar = normalizeRec(texts().join(" "));
+      const rest = nonFinalRemainder(f.action, finalStrength)
+        .filter((s) => !(erNow && CONDITIONAL.test(s) && /اورژانس/.test(s)))
+        .map((s) => s.replace(/؛$/, "."))
+        .filter((s) => !soFar.includes(normalizeRec(s)));
+      if (rest.length) built.push({ text: rest.join(" "), src: f });
+    }
     for (const t of f.suggest ?? []) {
       if (!suggestOk.has(t)) continue;
-      built.push(phraseSuggestion(t));
+      built.push({ text: phraseSuggestion(t), src: f });
     }
-    for (const w of f.warnings ?? []) built.push(w);
+    for (const w of f.warnings ?? []) built.push({ text: w, src: f, warning: true });
   }
-  const forbidden = patterns.findings.flatMap((f) => f.forbid ?? []);
-  const filtered = forbidden.length
-    ? built.filter((r) => !forbidden.some((w) => String(r).includes(w)))
-    : built;
+  const bans = patterns.findings.flatMap((f) => (f.forbid ?? []).map((w) => ({ w, by: f })));
+  const aboutWord = (g, w) => `${g.headline ?? ""} ${g.must_say ?? ""}`.includes(w);
+  const filtered = built
+    .filter((b) => b.warning || !bans.some(({ w, by }) =>
+      String(b.text).includes(w) && (by === b.src || !aboutWord(b.src, w))))
+    .map((b) => b.text);
   // حذف تکراری‌ها: دو finding ممکن است یک آزمایش/اقدام را پیشنهاد دهند —
   // هم دقیقاً یکسان، هم یکی ادامهٔ دیگری («نوبت عادی…» در سه شکل).
   return tidyRecommendations(filtered);

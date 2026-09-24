@@ -1367,29 +1367,18 @@ test("M26: کلسیمِ پایین بدونِ عددِ تصحیح‌شده گف�
   assert.ok(/مکملِ خودسرانه/.test(f.must_say), "باید از مکملِ خودسرانهٔ کلسیم پرهیز بدهد");
 });
 
-// ── M26: بلندترین must_say نباید از سقفِ جملهٔ پرامپت رد شود ──
-// دو فیلد در تضادند: قاعدهٔ ۱ می‌گوید must_say را کامل منتقل کن، و
-// interpretation سقفِ «حداکثر N جمله» دارد. اگر must_say بلندتر شود، مدل یا
-// دُمِ متن را می‌اندازد یا خلاصه می‌کند — و خلاصه‌کردن تطبیقِ زیررشته‌ایِ تورِ
-// ایمنیِ server.js را می‌شکند و کلِ بلوک دوباره append می‌شود (متنِ تکراری).
-// این تست هر دو سرِ تضاد را به هم قفل می‌کند.
-test("M26: بلندترین must_say از سقفِ جملهٔ ENGINE_SYSTEM_PROMPT بیشتر نیست", () => {
-  const faDigits = (s) => s.replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
-  const capMatch = ENGINE_SYSTEM_PROMPT.match(/حداکثر\s+([۰-۹\d]+)\s+جمله/);
-  assert.ok(capMatch, "پرامپت باید سقفِ جمله برای interpretation داشته باشد");
-  const cap = Number(faDigits(capMatch[1]));
-
-  // بدترین حالت: همهٔ شاخه‌های شرطیِ رابدومیولیز فعال
-  const e = runEngine({ patient: { age: 34, sex: "M" },
-    tests: [{ name: "CK", value: 12000 }, { name: "Urine Blood", value: "+2" },
-            { name: "Potassium", value: 6.4 }, { name: "Creatinine", value: 2.4, unit: "mg/dL" },
-            { name: "Calcium", value: 6.2, unit: "mg/dL" }, { name: "Albumin", value: 2.6, unit: "g/dL" }] });
-  const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
-  assert.ok(f, "باید الگوی رابدومیولیز فعال شود");
-  // همان تقسیم‌بندیِ جمله که server.js برای تورِ ایمنی استفاده می‌کند
-  const sentences = f.must_say.split(/(?<=[.؟!])\s+/).filter((s) => s.trim());
-  assert.ok(sentences.length <= cap,
-    `must_say ${sentences.length} جمله دارد ولی سقفِ پرامپت ${cap} است`);
+// ── M26: پرامپت نباید سقفِ جمله/واژه داشته باشد ──
+// دو دستور در تضاد بودند: قاعدهٔ ۱ می‌گوید must_say را کامل منتقل کن، و
+// interpretation سقفِ «حداکثر N جمله» (و هر جمله «حداکثر ۲۰ کلمه») داشت. این تست
+// قبلاً فقط یک یافته را زیرِ سقف نگه می‌داشت، ولی سقف روی *جمعِ* یافته‌ها اعمال
+// می‌شد: برگهٔ پان‌سیتوپنی (۲۰۲۶-۰۹-۲۳، M188) ۱۱ جمله must_say داشت با سقفِ ۱۰، و
+// جملهٔ فهرستِ «بی‌توضیح» ~۴۰ کلمه با سقفِ ۲۰. مدل فهرست را برید، تورِ server.js کلِ
+// بلوک را دوباره چسباند و بیمار متنِ تکراری خواند (N7). ⚠️ عمداً عوض شد: حالا
+// قفل می‌کند که هیچ سقفی برنگردد.
+test("M26: ENGINE_SYSTEM_PROMPT سقفِ جمله یا واژه ندارد — با «must_say را کامل منتقل کن» تضاد داشت", () => {
+  assert.ok(!/حداکثر\s+[۰-۹\d]+\s+(جمله|کلمه|واژه)/.test(ENGINE_SYSTEM_PROMPT),
+    "سقفِ تعدادِ جمله/واژه به پرامپت برگشته است");
+  assert.ok(/must_say را کامل منتقل کن/.test(ENGINE_SYSTEM_PROMPT), "قاعدهٔ انتقالِ کاملِ must_say باید بماند");
 });
 
 // ═══ M29: سرولوژی — رایت / 2ME / کومبس رایت / RF / CRPِ کیفی ═══
@@ -1910,11 +1899,11 @@ test("M32: هر کلیدِ رنج/طبقه‌بندی/CTCAE نامِ فارسی 
 //   «چند مورد نزدیک حد محدوده هستند: HGB»
 // یعنی پرتکرارترین مسیرِ اپ، کلیدِ خامِ موتور را به بیمار نشان می‌داد.
 test("M34: buildNormalResult و fallback کلیدِ خامِ موتور را به بیمار نمی‌دهند", () => {
-  // Hb=14.2 برای مردِ ۳۰ ساله: داخلِ محدودهٔ ۱۴–۱۷.۵ ولی در ۱۰٪ لبهٔ پایین
+  // Hb=13.9 برای مردِ ۳۰ ساله: داخلِ محدودهٔ ۱۳.۷–۱۷.۵ (specs/008؛ پیش‌تر 14.2 در ۱۴–۱۷.۵) ولی در ۱۰٪ لبهٔ پایین
   // → abnormal=false و nearLimit=true، یعنی دقیقاً مسیرِ buildNormalResult.
   const eng = runEngine({
     patient: { age: 30, sex: "M" },
-    tests: [{ name: "Hb", value: 14.2, unit: "g/dL" }],
+    tests: [{ name: "Hb", value: 13.9, unit: "g/dL" }],
   });
   const borderline = eng.graded.filter((g) => g.nearLimit);
   assert.ok(borderline.length > 0, "این تست به یک مقدارِ nearLimit نیاز دارد");
@@ -2842,7 +2831,10 @@ test("M47: RBC و HCT پایین با هموگلوبینِ طبیعی، دیگر
     patient: { age: "78", sex: "M" },
     tests: [
       { name: "R.B.C", value: 3.82 },
-      { name: "Hb", value: 12.3, unit: "g/dL" },
+      // ⚠️ specs/008 Q1: پیش‌تر 12.3 (برگهٔ واقعی). با حدِ ≥۷۰ سالهٔ ۱۲.۴، آن بیمار حالا کم‌خون است و به
+      //    macrocytic_anemia می‌رود — همان که کامنتِ قاعده پیش‌بینی کرده بود. هدفِ این آزمون (Hbِ طبیعی + RBC/HCTِ پایین)
+      //    با 12.8 حفظ شد؛ خودِ برگهٔ 12.3 در M184e قفل است.
+      { name: "Hb", value: 12.8, unit: "g/dL" },
       { name: "H.C.T", value: 38.6 },
       { name: "M.C.V", value: 101.0 },
       { name: "M.C.H", value: 32.2 },
@@ -5938,21 +5930,22 @@ test("M100: `unexplained_abnormal` فهرستِ ساختاریِ کلیدهای 
       { name: "Hb", value: "9.5", unit: "g/dL" },
       { name: "MCV", value: "70" },
       { name: "Ferritin", value: "6" },
-      // ⚠️ MCH عمداً انتخاب شد: هیچ قاعده‌ای در هیچ `patterns_*.js` آن را
-      //    نمی‌خواند (بندِ E5 در MEDICAL_RULES.md، باز). ALP کار نمی‌کرد چون
-      //    قاعدهٔ خودش را دارد و چیزی بی‌مالک نمی‌ماند — اندازه‌گیری‌شده.
       { name: "MCH", value: "18" },
+      // ⚠️ کلیدِ بی‌مالک MCHC است. تا M187، MCH این نقش را داشت، ولی حالا
+      //    microcytic_anemia آن را می‌خواند و نام می‌برد (بندِ E5). MCHCِ پایین هنوز
+      //    روی این پنل خواننده‌ای ندارد. اندازه‌گیری‌شده.
+      { name: "MCHC", value: "28", unit: "g/dL" },
     ],
   }));
 
   const net = p.findings.find((f) => f.rule_id === "unexplained_abnormal");
   assert.ok(net, `تور فعال نشد؛ آمده‌ها: ${p.findings.map((f) => f.pattern).join("، ") || "هیچ"}`);
   assert.ok(Array.isArray(net.uncovered), "فیلدِ uncovered باید آرایه باشد");
-  assert.ok(net.uncovered.includes("MCH"), `MCH باید در فهرست باشد، بود: ${net.uncovered.join("، ")}`);
+  assert.ok(net.uncovered.includes("MCHC"), `MCHC باید در فهرست باشد، بود: ${net.uncovered.join("، ")}`);
 
   // و مهم‌ترِ این: کلیدهایی که *توضیح داده شده‌اند* نباید در فهرست باشند،
   // وگرنه فرانت دوباره همان تناقض را چاپ می‌کند.
-  for (const covered of ["HGB", "MCV", "FERRITIN"]) {
+  for (const covered of ["HGB", "MCV", "FERRITIN", "MCH"]) {
     assert.ok(
       !net.uncovered.includes(covered),
       `${covered} توضیح داده شده بود و نباید «بی‌توضیح» علامت بخورد؛ فهرست: ${net.uncovered.join("، ")}`
@@ -6356,7 +6349,9 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
     C2: [{ age: 40, sex: "M" }, [["WBC", "15.2"], ["Neut %", "85"], ["PLT", "120"]], "edaafc0eb1d80fca"],
     // ⚠️ C3 عمداً عوض شد (specs/007، US1): فقط رشتهٔ بازهٔ RBCِ زن در متن، «4.5–5.1» → «4.1–5.1» — سنجیده شد
     //    (c3، کپیِ پیش از 007 در برابرِ درختِ کاری): یافته‌ها، فوریت و حکمِ RBC 5.2 (بالا) یکسان‌اند.
-    C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "2f905116efdc3ad9"],
+    // ⚠️ C3 دوباره عمداً عوض شد — specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp).
+    // ⚠️ C3 عمداً عوض شد (M187): microcytic_anemia حالا RBCِ بالا و RDWِ بالا را نام می‌برد و خطِ «بی‌توضیح» حذف شد؛ یافته‌ها/فوریت/اقدام همان.
+    C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "a253f0e7f76713f9"],
     C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8", "g/dL"]], "a8529e980e227c50"],
     C5: [{ age: 45, sex: "M" }, [["RBC", "6.4", "10*6/µL"], ["Hb", "17.5", "g/dL"], ["HCT", "53"]], "521210ad11ce80a9"],
     C6: [{ age: 45, sex: "F" }, [["WBC", "7.2"], ["RBC", "4.5", "10*6/µL"], ["Hb", "13", "g/dL"], ["MCV", "88"], ["PLT", "250"]], "34fddffb77c6a593"],
@@ -6968,7 +6963,7 @@ test("M125: واحدِ چاپ‌شده بایت‌به‌بایت بی‌تغی�
   ];
   const EXPECTED = ["f665faa0048dbdf5", "c1d5e82d7ddbc3e0", "92ca4fb75ab86370", "bd45550d31afb2f3", "4436e94e10c7ae54",
     "81ff9d916b808907", "e4d91c9257556a36", "285da43aacfe795b", "e8bcbab1b2b3f21b", "bebcb999b3e71f23",
-    "e2aade88461d5429", "0851945cd9782082", "09889f9ef3323ae1", "47ef5a64951b1422", "5c5aff02c21e5683"];
+    "e2aade88461d5429", "0851945cd9782082", "09889f9ef3323ae1", "47ef5a64951b1422", "9560ef38b2f03221"]; // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
   const snap = (rows) => {
     const e = runEngine({ patient: { age: 50, sex: "M" }, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
     const p = runPatterns(e);
@@ -7760,9 +7755,10 @@ test("M164d: برگه‌های بی‌سیلندر بایت‌به‌بایت ه
   const PANELS = {
     F1: [uaRows([["Blood", "+3"], ["RBC", "20-30", "/hpf"], ["Protein", "+2"]]), "3e7cffff98ebb543"],
     F2: [uaRows([["Leukocyte Esterase", "+2"], ["WBC", "15-20", "/hpf"]], { nitrite: "Positive", bacteria: "Many" }), "0c01081d2bd2a9c9"],
-    F3: [[["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["WBC", "7.2"], ["PLT", "250"], ["Ferritin", "6", "ng/mL"]], "4813c62a8307e26b"],
+    // ⚠️ F3 عمداً عوض شد — specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp).
+    F3: [[["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["WBC", "7.2"], ["PLT", "250"], ["Ferritin", "6", "ng/mL"]], "558c01ea19c1967b"],
     F4: [[["Hb", "13.5", "g/dL"], ["MCV", "88", "fL"], ["PLT", "250"], ["Creatinine", "1.0", "mg/dL"],
-          ["FBS", "95", "mg/dL"], ...uaRows([["RBC", "1-2", "/hpf"], ["WBC", "2-3", "/hpf"]])], "b2d1f1b03a6f0341"],
+          ["FBS", "95", "mg/dL"], ...uaRows([["RBC", "1-2", "/hpf"], ["WBC", "2-3", "/hpf"]])], "e1513613abad9026"], // ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
     F7: [uaRows([["WBC", "1-2", "/hpf"]], { bacteria: "Many" }), "fa883df5ac4f000c"],
   };
   for (const [k, [rows, h]] of Object.entries(PANELS)) assert.equal(uaSnap(rows), h, `پنلِ ${k} عوض شد`);
@@ -8145,7 +8141,7 @@ test("M170: پیشنهادِ «تکرار …» به «درخواست آزمای
 //    بیلی‌روبین و اوروبیلینوژنِ نوار هم در qual بودند و هیچ خواننده‌ای نداشتند.
 // sha هر برگه روی b9068df، پیش از مرحلهٔ ب (اندازه‌گیری‌شده، نه نوشته‌شده).
 const UB_FROZEN = { uti: "b062f04819ee84f2", hem: "79c3b1c3edcc6952", rbccast: "e4ad5c0d2305304a", gran: "f96d3a80e3b86903",
-  biliD: "c994d35593dc69ff", biliI: "4411aa0bdfe5986b", biliE: "b6944cd0079a43a5", hemol: "5a3e09217d6d2dab",
+  biliD: "c994d35593dc69ff", biliI: "4411aa0bdfe5986b", biliE: "b6944cd0079a43a5", hemol: "70f2a1514ff5ef9b" /* ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp) */,
   bact: "fa883df5ac4f000c", tubcast: "ea3b269da2e1e80c" };
 const ubIds = (rows, patient) => uaIds(uaRun(rows, patient));
 const ubFind = (rows, id, patient) => uaRun(rows, patient).findings.find((f) => f.pattern === id || f.pattern?.startsWith(id));
@@ -8677,7 +8673,9 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
       f: p.findings.map((x) => [x.pattern, x.urgency, x.headline, x.must_say, x.action, x.suggest]), u: p.overall_urgency,
     }).replaceAll("طبیعی 4.1–5.1", "طبیعی 4.5–5.1")).digest("hex").slice(0, 16);
   };
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","856f6d175c4968a1","de32a5cbba0b3a4d","b8b1c2e46a877e71","a328aeb820002490","15e9c5fcc9670b39","2e02ffb4fd0fcaec","3640ea1dcabdc7e5","b2cd3c153001ae49","c2a5d99e002639b5","9009a89c3c39fd82"];
+  // ⚠️ اندیس‌های ۲ تا ۶ و ۱۰ عمداً عوض شدند — specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp). هر شش همچنان همان یافته‌ها و فوریت‌اند.
+  // ⚠️ اندیس‌های ۲ و ۴ دوباره عوض شدند (M187): فقط must_sayِ microcytic_anemia بلندتر شد (HCT/RBC/MCH/RDW) و کلیدهایش از خطِ «بی‌توضیح» رفتند.
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","ff3292b3a2e1e481","6feea764a426bf49","64cfce0a38730346","fb9b68cf6f9d7e39","03822ca2ff1307a1","2e02ffb4fd0fcaec","3640ea1dcabdc7e5","b2cd3c153001ae49","8c9a87c55aca599d","9009a89c3c39fd82"];
   assert.deepEqual(P.map(snap), EXPECTED);
 });
 
@@ -8825,4 +8823,712 @@ test("M183d: ردیفِ نوزادیِ بی‌منبعِ PED_REFS.RETIC_ABS حذ
   // و شمارشِ مطلق هنوز شناخته و «تفسیر نشدند» است (M181).
   const e = uuu([["ARC", "150", null, "10*9/L"]], { age: 0.001, sex: "M" });
   assert.ok(e.noRef.includes("RETIC_ABS"));
+});
+
+// ═══════════ specs/008 — آستانهٔ کم‌خونی بر حسبِ سن و جنس، آهن/فریتین، الکتروفورزِ هموگلوبین ═══════════
+// تأییدِ کاربر ۱۴۰۵/۰۷/۰۱؛ عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم (P53).
+const hbGr = (e) => e.graded.find((g) => g.test === "HGB");
+const ANEMIA_ID = /anemia|microcytic|macrocytic|normocytic/;
+const hbPanel = (hb, patient) => uuu([["Hb", String(hb), null, "g/dL"], ["MCV", "88", null, "fL"]], patient);
+const anemiaIds = (e) => fired(runPatterns(e)).filter((id) => ANEMIA_ID.test(id));
+
+test("M184: مردِ ۳۰ ساله با Hb 13.8 کم‌خون خوانده نمی‌شود؛ مرز ۱۳.۷ (مرد) و ۱۲.۰ (زن) (specs/008 Q1، G1)", () => {
+  // 🔴 پیش‌تر حدِ پایین ۱۴ / ۱۲.۳ بود ⇒ Hb 13.8 «کم‌خونیِ نرموسیتیک، این هفته».
+  for (const hb of ["13.8", "13.7"]) {
+    const e = hbPanel(hb, { age: 30, sex: "M" });
+    assert.equal(hbGr(e).abnormal, false, `M30 Hb ${hb}`);
+    assert.deepEqual(anemiaIds(e), [], `M30 Hb ${hb}`);
+  }
+  assert.equal(hbGr(hbPanel("13.6", { age: 30, sex: "M" })).dir, "low");
+  assert.equal(hbGr(hbPanel("12.1", { age: 30, sex: "F" })).abnormal, false);
+  assert.equal(hbGr(hbPanel("11.9", { age: 30, sex: "F" })).dir, "low");
+  // سنِ نامعلوم = ردیفِ ۲۰–۴۹ (پیش‌فرضِ بزرگسالِ موتور).
+  assert.equal(hbGr(hbPanel("13.9", { sex: "M" })).range, "13.7–17.5");
+});
+
+test("M184b: سالمندِ ۸۰ ساله با Hb 11.5 (مرد) / 11.0 (زن) دیگر بی‌یافته نیست؛ ۷۲ ساله با 12.6 / 11.9 طبیعی است (G2، G3)", () => {
+  // 🔴 GERIATRIC_REFS.HGB (۱۱ / ۱۰.۵، بی‌منبع — P2) کم‌خونیِ سالمند را پنهان می‌کرد: خروجی «none».
+  for (const [hb, pt] of [["11.5", { age: 80, sex: "M" }], ["11.0", { age: 80, sex: "F" }]]) {
+    const e = hbPanel(hb, pt);
+    assert.equal(hbGr(e).dir, "low", JSON.stringify(pt));
+    assert.ok(anemiaIds(e).length > 0, `${JSON.stringify(pt)}: ${fired(runPatterns(e)).join(",")}`);
+  }
+  for (const [hb, pt] of [["12.6", { age: 72, sex: "M" }], ["11.9", { age: 72, sex: "F" }]]) {
+    const e = hbPanel(hb, pt);
+    assert.equal(hbGr(e).abnormal, false, JSON.stringify(pt));
+    assert.deepEqual(anemiaIds(e), [], JSON.stringify(pt));
+  }
+});
+
+test("M184c: مرزهای سنیِ ۱۶/۲۰/۵۰/۷۰ — بازهٔ هر سن همان جدولِ تأییدشده است (specs/008 R1)", () => {
+  const cases = [
+    [{ age: 16, sex: "M" }, "13.6–17.5"], [{ age: 19, sex: "M" }, "13.6–17.5"], [{ age: 20, sex: "M" }, "13.7–17.5"],
+    [{ age: 49, sex: "M" }, "13.7–17.5"], [{ age: 50, sex: "M" }, "13.3–17.5"], [{ age: 69, sex: "M" }, "13.3–17.5"],
+    [{ age: 70, sex: "M" }, "12.4–17.5"], [{ age: 90, sex: "M" }, "12.4–17.5"],
+    [{ age: 16, sex: "F" }, "12–15.3"], [{ age: 69, sex: "F" }, "12–15.3"], [{ age: 70, sex: "F" }, "11.8–15.3"],
+  ];
+  for (const [pt, range] of cases) assert.equal(hbGr(hbPanel("13", pt)).range, range, JSON.stringify(pt));
+  // جفت‌ها دو سوی لبه
+  assert.equal(hbGr(hbPanel("13.65", { age: 19, sex: "M" })).abnormal, false);
+  assert.equal(hbGr(hbPanel("13.65", { age: 20, sex: "M" })).dir, "low");
+  assert.equal(hbGr(hbPanel("13.5", { age: 49, sex: "M" })).dir, "low");
+  assert.equal(hbGr(hbPanel("13.5", { age: 50, sex: "M" })).abnormal, false);
+  assert.equal(hbGr(hbPanel("12.5", { age: 69, sex: "M" })).dir, "low");
+  assert.equal(hbGr(hbPanel("12.5", { age: 70, sex: "M" })).abnormal, false);
+  assert.equal(hbGr(hbPanel("11.9", { age: 69, sex: "F" })).dir, "low");
+  assert.equal(hbGr(hbPanel("11.9", { age: 70, sex: "F" })).abnormal, false);
+});
+
+test("M184d: قفل — ۱۲ تا ۱۵ ساله، سقف‌ها، بحرانِ Hb و سنِ نامعلوم بی‌تغییر (specs/008 R1)", () => {
+  // ✅ سبز روی هر دو درخت: RCPCH برای ۱۲–۱۵ ردیف ندارد و بازهٔ امروزِ بزرگسال (۱۴ / ۱۲.۳) می‌ماند.
+  assert.equal(hbGr(hbPanel("13.8", { age: 13, sex: "M" })).range, "14–17.5");
+  assert.equal(hbGr(hbPanel("12.2", { age: 14, sex: "F" })).range, "12.3–15.3");
+  assert.equal(hbGr(hbPanel("17.0", { age: 40, sex: "M" })).abnormal, false);
+  assert.equal(hbGr(hbPanel("17.6", { age: 40, sex: "M" })).dir, "high");
+  assert.equal(hbGr(hbPanel("15.4", { age: 40, sex: "F" })).dir, "high");
+  const crisis = (pt) => findPat(runPatterns(hbPanel("6.5", pt)), "severe_anemia_crisis");
+  const ref = crisis({ age: 30, sex: "M" });
+  assert.ok(ref);
+  for (const pt of [{ age: 80, sex: "M" }, { sex: "F" }]) {
+    const f = crisis(pt);
+    assert.ok(f, JSON.stringify(pt));
+    assert.equal(f.action, ref.action);
+    assert.equal(f.urgency, "emergency");
+  }
+});
+
+test("M184e: برگهٔ واقعیِ مردِ ۷۸ ساله (Hb 12.3، MCV 101) حالا کم‌خونی است، نه «کم‌خونی نیست» (P2 بسته، specs/008)", () => {
+  // 🔴 پیش‌تر GERIATRIC_REFS.HGB (۱۱.۰، بی‌منبع) آن را طبیعی می‌خواند و low_rbc_hct_without_anemia می‌گفت
+  //    «این نتیجه «کم‌خونی» نیست … طبیعیِ سن». با حدِ تأییدشدهٔ ≥۷۰ (۱۲.۴) به قاعدهٔ کم‌خونی منتقل می‌شود.
+  const p = uuuRun([["R.B.C", "3.82"], ["Hb", "12.3", null, "g/dL"], ["H.C.T", "38.6"], ["M.C.V", "101.0"], ["M.C.H", "32.2"]],
+    { age: 78, sex: "M" });
+  assert.ok(findPat(p, "macrocytic_anemia"), fired(p).join(","));
+  assert.ok(!findPat(p, "low_rbc_hct_without_anemia"), fired(p).join(","));
+});
+
+// ── specs/008 US2 — آهن و فریتین: بازهٔ درجه‌بندی جابه‌جا شد، آستانهٔ قاعده‌ها با ثابت‌های نام‌دار نگه داشته شد (N23) ──
+const grOf = (e, k) => e.graded.find((g) => g.test === k);
+const ferrPanel = (ferr, pt, extra = []) => uuu([["Hb", pt.sex === "M" ? "15" : "13", null, "g/dL"], ["Ferritin", String(ferr), null, "ng/mL"], ...extra], pt);
+
+test("M185: مردِ ۴۰ ساله با فریتین ۲۰ — درجه‌بندی «طبیعی» (۱۲–۳۰۰) ولی یافتهٔ کمبودِ آهن می‌ماند و «فریتین پایین» نمی‌گوید (Q2، G4)", () => {
+  // 🔴 پیش‌تر بازهٔ مرد ۳۰–۳۰۰ بود ⇒ فریتین ۲۰ «پایین». با بازهٔ ۱۲–۳۰۰، اگر قاعده از dir می‌خواند، یافته خاموش می‌شد (N23).
+  const e = ferrPanel(20, M40);
+  assert.equal(grOf(e, "FERRITIN").range, "12–300");
+  assert.equal(grOf(e, "FERRITIN").abnormal, false);
+  const f = findPat(runPatterns(e), "iron_deficiency");
+  assert.ok(f, fired(runPatterns(e)).join(","));
+  assert.doesNotMatch(f.must_say, /فریتین پایین/);
+});
+
+test("M185b: زنِ ≥۵۰ ساله — بازهٔ فریتین ۳۰–۳۰۰ و آستانهٔ کمبودِ آهن زیرِ ۳۰؛ ۴۹ ساله همان ۱۲–۱۵۰ و زیرِ ۱۵ (clarify، G5)", () => {
+  // 🔴 پیش‌تر زنِ ۵۵ ساله با فریتین ۲۵ هیچ یافته‌ای نمی‌گرفت (بازه ۱۵–۱۵۰).
+  const e55 = ferrPanel(25, { age: 55, sex: "F" });
+  assert.equal(grOf(e55, "FERRITIN").range, "30–300");
+  assert.equal(grOf(e55, "FERRITIN").dir, "low");
+  assert.ok(findPat(runPatterns(e55), "iron_deficiency"), fired(runPatterns(e55)).join(","));
+  const e49 = ferrPanel(25, { age: 49, sex: "F" });
+  assert.equal(grOf(e49, "FERRITIN").range, "12–150");
+  assert.equal(grOf(e49, "FERRITIN").abnormal, false);
+  assert.ok(!findPat(runPatterns(e49), "iron_deficiency"), fired(runPatterns(e49)).join(","));
+});
+
+test("M185c: آهنِ سرم ۵۰–۱۶۰ — آهنِ ۵۵ تنها دیگر «بی‌توضیح» نیست، ولی کم‌خونیِ بیماری مزمن با آهنِ ۵۵ همچنان فعال است (Q2، G6)", () => {
+  // 🔴 پیش‌تر بازه ۶۰–۱۵۰ ⇒ آهنِ ۵۵ به unmatched_abnormal می‌رفت؛ آهنِ ۱۵۵ «بالا».
+  const e = uuu([["Iron", "55", null, "ug/dL"]], M40);
+  assert.equal(grOf(e, "IRON").abnormal, false);
+  assert.equal(grOf(e, "IRON").range, "50–160");
+  assert.deepEqual(fired(runPatterns(e)), []);
+  assert.equal(grOf(uuu([["Iron", "155", null, "ug/dL"]], M40), "IRON").abnormal, false);
+  assert.equal(grOf(uuu([["Iron", "165", null, "ug/dL"]], M40), "IRON").dir, "high");
+  const acd = uuuRun([["Hb", "11", null, "g/dL"], ["MCV", "85", null, "fL"], ["Iron", "55", null, "ug/dL"],
+    ["Ferritin", "250", null, "ng/mL"], ["TIBC", "220", null, "ug/dL"]], M40);
+  const f = findPat(acd, "anemia_of_chronic_disease");
+  assert.ok(f, fired(acd).join(","));
+  assert.doesNotMatch(f.must_say, /آهن[^.]*پایین(تر)? از (حد|محدوده)/);
+});
+
+test("M185d: قفل — فریتین ۱۳ در زنِ ۳۰ ساله، شاخهٔ التهابِ WHO، پنلِ کلاسیکِ فقرِ آهن، TIBC/TSAT (specs/008 R3)", () => {
+  // ✅ سبز روی هر دو درخت: آستانه‌های نگه‌داشته (مرد ۳۰، زنِ زیرِ ۵۰ ۱۵، آهن ۶۰) رفتار را عوض نمی‌کنند.
+  assert.ok(findPat(runPatterns(ferrPanel(13, F30)), "iron_deficiency"));
+  const who = runPatterns(ferrPanel(45, M40, [["CRP", "40", null, "mg/L"]]));
+  assert.ok(findPat(who, "iron_deficiency_masked_by_inflammation"), fired(who).join(","));
+  const ida = uuuRun([["Hb", "9.5", null, "g/dL"], ["MCV", "70", null, "fL"], ["Ferritin", "6", null, "ng/mL"]], F30);
+  assert.deepEqual(fired(ida), ["microcytic_ida_likely", "iron_deficiency"]);
+  assert.equal(findPat(ida, "iron_deficiency").action, "این هفته با پزشک وقت بگیرید. اگر خون‌ریزی گوارشی یا قاعدگی سنگین دارید حتماً بگویید.");
+  assert.match(findPat(ida, "iron_deficiency").must_say, /فریتین پایین/);
+  // کودک: بازه از PED_REFS (۱۲–۲۰۰) و آستانه‌های بزرگسال به آن نمی‌رسند — فریتینِ ۲۰ در ۱۰ ساله کمبود نیست.
+  assert.ok(!findPat(runPatterns(ferrPanel(20, { age: 10, sex: "M" })), "iron_deficiency"));
+  assert.ok(findPat(runPatterns(ferrPanel(8, { age: 10, sex: "M" })), "iron_deficiency"));
+  assert.deepEqual(getRef("TIBC", "M", 40), [250, 400]);
+  assert.deepEqual(getRef("TSAT", "F", 40), [20, 55]);
+});
+
+// ── specs/008 US3 — الکتروفورزِ هموگلوبین: شناسهٔ ردیف (N25)، درجه‌بندیِ HbA2/HbF، یک یافته دربارهٔ HbA2 ──
+const keyed = (e, k) => e.graded.some((g) => g.test === k) || e.noRef.includes(k);
+const A2_RE = /A2/;
+const a2Mentions = (p) => (p.findings || []).filter((f) => A2_RE.test(`${f.headline} ${f.must_say}`));
+
+test("M186: ردیف‌های الکتروفورز و نشانگرهای آهنِ تخصصی شناخته می‌شوند و unmapped نمی‌مانند (FR-007، G7/G8/G10)", () => {
+  // 🔴 پیش‌تر همه unmapped بودند؛ HbA2 — آزمونِ تأییدِ ناقلِ تالاسمی در ایران — دور ریخته می‌شد.
+  const CASES = [
+    ["HbA2", "%", "HBA2"], ["Hb A2", "%", "HBA2"], ["Hemoglobin A2", "%", "HBA2"], ["هموگلوبین A2", "%", "HBA2"], ["A2", "%", "HBA2"],
+    ["HbF", "%", "HBF"], ["Hb F", "%", "HBF"], ["Fetal Hb", "%", "HBF"], ["هموگلوبین جنینی", "%", "HBF"],
+    ["HbA", "%", "HBA"], ["HbA0", "%", "HBA"], ["Sickle Hb", "%", "HBS"],
+    ["ZPP", "ug/dL", "ZPP"], ["sTfR", "mg/L", "STFR"], ["Erythropoietin", "mIU/mL", "EPO"],
+  ];
+  for (const [name, unit, key] of CASES) {
+    const e = uuu([[name, "3", null, unit]], M40);
+    assert.ok(keyed(e, key), `${name} → ${key}: graded=${e.graded.map((g) => g.test)} noRef=${e.noRef} unmapped=${e.unmapped}`);
+    assert.deepEqual(e.unmapped, [], name);
+  }
+  // HbA1c نباید به HbA برود.
+  assert.ok(grOf(uuu([["HbA1c", "6.0", null, "%"]], M40), "HBA1C"));
+});
+
+test("M186b: HbS/HbC/HbE فقط با شاهدِ الکتروفورز هموگلوبین‌اند؛ «HbS» هرگز Hb نمی‌شود (N25، G9)", () => {
+  // 🔴 «HbS 40 %» به qual می‌رفت و هیچ قاعده‌ای نمی‌خواندش (افتِ خاموش). و resolveAlias جمعِ «hbs» را به «hb» (HGB) می‌بَرد.
+  let e = uuu([["HbS", "40", null, "%"], ["HbA", "57", null, "%"]], M40);
+  assert.ok(keyed(e, "HBS"), JSON.stringify(e.noRef));
+  assert.ok(!e.graded.some((g) => g.test === "HGB"));
+  assert.ok(!("HbS" in e.qual));
+  e = uuu([["HbC", "30", null, "%"], ["HbA2", "3", null, "%"]], M40);
+  assert.ok(keyed(e, "HBC"));
+  e = uuu([["HbE", "28"], ["HbA2", "3.2", null, "%"]], M40);
+  assert.ok(keyed(e, "HBE"), "شاهدِ صفحه (HbA2) بدونِ واحدِ درصد هم کافی است");
+  // بی‌شاهد: «HbS Positive» (داسی یا anti-HBs؟) به «تفسیر نشدند»، نه به qualِ بی‌خواننده.
+  e = uuu([["HbS", "Positive"]], M40);
+  assert.ok(e.unmapped.includes("HbS"), JSON.stringify(e.unmapped));
+  assert.ok(!("HbS" in e.qual));
+  e = uuu([["HbS", "40"]], M40);
+  assert.ok(e.unmapped.includes("HbS"));
+  assert.ok(!e.graded.some((g) => g.test === "HGB"), "HbSِ عددیِ بی‌شاهد هرگز هموگلوبین نمی‌شود");
+  e = uuu([["HbC", "Positive"]], M40);
+  assert.ok(e.unmapped.includes("HbC"));
+});
+
+test("M186c: قفل — HBsAg، Anti-HBs و Anti-HBc دست نخورده‌اند (specs/008 R4)", () => {
+  // ✅ سبز روی هر دو درخت.
+  let e = uuu([["HBsAg", "Positive"]], M40);
+  assert.ok("HBsAg" in e.qual);
+  assert.deepEqual(fired(runPatterns(e)), ["hbsag_reactive"]);
+  // «HBs Ab» امروز هم unmapped است (سنجیده روی 9deba20) — و باید همان بماند.
+  assert.ok(uuu([["HBs Ab", "Positive"]], M40).unmapped.includes("HBs Ab"));
+  for (const name of ["Anti-HBs", "Anti-HBc"]) {
+    e = uuu([[name, "Positive"]], M40);
+    assert.ok(name in e.qual, name);
+    assert.deepEqual(fired(runPatterns(e)), [], name);
+  }
+});
+
+test("M186d: HbA2 ۱.۵–۳.۵٪ و HbF ۰–۲٪ از ۲ سالگی سنجیده می‌شوند؛ بقیه بی‌بازه‌اند (Q3)", () => {
+  // 🔴 پیش‌تر هیچ‌کدام سنجیده نمی‌شد.
+  let e = uuu([["HbA2", "2.8", null, "%"], ["HbF", "0.6", null, "%"], ["HbA", "96", null, "%"]], M40);
+  assert.equal(grOf(e, "HBA2").abnormal, false);
+  assert.equal(grOf(e, "HBA2").range, "1.5–3.5");
+  assert.equal(grOf(e, "HBF").abnormal, false);
+  assert.ok(e.noRef.includes("HBA"));
+  assert.equal(grOf(uuu([["HbA2", "5.2", null, "%"]], M40), "HBA2").dir, "high");
+  e = uuu([["HbA2", "5", null, "%"], ["HbF", "70", null, "%"]], { age: 1, sex: "M" });
+  assert.ok(!grOf(e, "HBA2") && e.noRef.includes("HBA2"), "زیرِ ۲ سال HbA2 سنجیده نمی‌شود");
+  assert.ok(!grOf(e, "HBF") && e.noRef.includes("HBF"), "زیرِ ۲ سال HbF سنجیده نمی‌شود");
+  e = uuu([["ZPP", "150", null, "ug/dL"], ["sTfR", "5", null, "mg/L"], ["Erythropoietin", "2", null, "mIU/mL"]], M40);
+  for (const k of ["ZPP", "STFR", "EPO"]) assert.ok(e.noRef.includes(k), k);
+});
+
+test("M186e: برگهٔ تالاسمی با HbA2 5.2 — جملهٔ HbA2 در همان یافته، و الکتروفورز دوباره خواسته نمی‌شود (G7، N8)", () => {
+  // 🔴 پیش‌تر: HbA2 unmapped و «آزمایش الکتروفورز هموگلوبین … را مطرح کنید» کنارِ خودِ نتیجهٔ الکتروفورز.
+  const p = uuuRun([["Hb", "12.5", null, "g/dL"], ["MCV", "66", null, "fL"], ["RBC", "6.1", null, "10*6/uL"], ["HbA2", "5.2", null, "%"]], M40);
+  const f = findPat(p, "microcytic_thal_likely");
+  assert.ok(f, fired(p).join(","));
+  assert.match(f.must_say, /صفتِ تالاسمیِ بتا/);
+  // «نتیجهٔ الکتروفورزِ همین برگه را همراه ببرید» مجاز است؛ *درخواستِ* الکتروفورز نه.
+  assert.doesNotMatch(f.action, /آزمایش[^.]*الکتروفورز/);
+  assert.ok(!f.suggest.includes("الکتروفورز هموگلوبین"), JSON.stringify(f.suggest));
+  assert.ok(!findPat(p, "hba2_elevated"));
+  assert.equal(a2Mentions(p).length, 1);
+});
+
+test("M186f: HbA2 تنها — ۳.۹ «معمولاً ناقلِ تالاسمی»، ۳.۷ «مرزی»، ۱.۰ به خطِ توضیح‌داده‌نشده (clarify، hba2_elevated)", () => {
+  // 🔴 پیش‌تر هر سه unmapped.
+  let p = uuuRun([["HbA2", "3.9", null, "%"]], M40);
+  let f = findPat(p, "hba2_elevated");
+  assert.ok(f, fired(p).join(","));
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /صفتِ تالاسمیِ بتا/);
+  p = uuuRun([["HbA2", "3.7", null, "%"]], M40);
+  f = findPat(p, "hba2_elevated");
+  assert.ok(f, fired(p).join(","));
+  assert.match(f.must_say, /مرزی/);
+  assert.doesNotMatch(f.must_say, /صفتِ تالاسمیِ بتا/);
+  p = uuuRun([["HbA2", "1.0", null, "%"]], M40);
+  assert.ok(!findPat(p, "hba2_elevated"));
+  assert.ok(runPatterns(uuu([["HbA2", "1.0", null, "%"]], M40)).findings.some((x) => /A2/.test(x.must_say)),
+    "HbA2ِ پایین نباید بی‌صدا بماند — به خطِ «توضیح داده نشدند» می‌رود");
+});
+
+test("M186g: جاروی دوطرفه — روی هر برگه با HbA2 بالای ۳.۵ دقیقاً یک یافته از HbA2 حرف می‌زند (N20، M91e)", () => {
+  // 🔴 پیش‌تر هیچ یافته‌ای (HbA2 unmapped).
+  const PANELS = [
+    [M40, [["Hb", "14.5", null, "g/dL"], ["MCV", "68", null, "fL"], ["RBC", "6.2", null, "10*6/uL"], ["HbA2", "5.0", null, "%"]]],
+    [M40, [["Hb", "12.5", null, "g/dL"], ["MCV", "66", null, "fL"], ["RBC", "6.1", null, "10*6/uL"], ["HbA2", "5.2", null, "%"]]],
+    [F30, [["Hb", "10", null, "g/dL"], ["MCV", "70", null, "fL"], ["RBC", "3.9", null, "10*6/uL"], ["HbA2", "4.2", null, "%"]]],
+    [M40, [["HbA2", "3.9", null, "%"]]],
+    [M40, [["HbA2", "3.7", null, "%"]]],
+    [M40, [["Hb", "12.5", null, "g/dL"], ["MCV", "66", null, "fL"], ["RBC", "6.1", null, "10*6/uL"], ["HbA2", "3.7", null, "%"]]],
+    [M40, [["Hb", "15", null, "g/dL"], ["MCV", "88", null, "fL"], ["HbA2", "4.5", null, "%"]]],
+    [F30, [["Hb", "9.5", null, "g/dL"], ["MCV", "70", null, "fL"], ["Ferritin", "5", null, "ng/mL"], ["HbA2", "4.0", null, "%"]]],
+  ];
+  const reached = new Set();
+  for (const [pt, rows] of PANELS) {
+    const p = uuuRun(rows, pt);
+    const m = a2Mentions(p);
+    assert.equal(m.length, 1, `${JSON.stringify(rows)} → ${m.map((f) => f.pattern)}`);
+    reached.add(m[0].pattern + (/مرزی/.test(m[0].must_say) ? ":b" : ""));
+  }
+  for (const id of ["thal_trait_likely", "microcytic_thal_likely", "microcytic_ida_likely", "hba2_elevated", "hba2_elevated:b"])
+    assert.ok(reached.has(id), `${id} هرگز نرسید: ${[...reached]}`);
+});
+
+// ═══ M187: کم‌خونیِ میکروسیتیک زیرِ اورژانسِ پان‌سیتوپنی گم نمی‌شود؛ HCT/MCH/RDW «بی‌توضیح» نمی‌مانند ═══
+// 🔴 برگهٔ واقعی (Sysmex XN-1000، مرد ۶۲ ساله، ۲۰۲۶-۰۹-۲۳): WBC 0.27، PLT 15، Hb 8.3، MCV 65.8.
+//    pancytopenia/severe_neutropenia/severe_thrombocytopenia با blocks_others، microcytic_anemia (this_week)
+//    را کامل پنهان کردند — عددِ Hb/MCV و درخواستِ فریتین از گزارش رفت — و HCT 23.7، MCH، RDW-SD و RDW-CV
+//    با «توضیحِ آماده نداریم» به بیمار برگشتند، زیرِ همان کم‌خونی‌ای که توضیحشان است (N20، N18).
+test("M187: کم‌خونیِ میکروسیتیک زیرِ پان‌سیتوپنی نسخهٔ کوتاه می‌گیرد و HCT/MCH/RDW بی‌مالک نمی‌مانند", () => {
+  const T = (name, value, unit) => ({ name, value: String(value), unit });
+  const p = runPatterns(runEngine({
+    patient: { sex: "M", age: 62 },
+    tests: [
+      T("WBC", 0.27, "10^3/uL"), T("NEUT", 0.14, "10^3/uL"), T("LYMPH", 0.06, "10^3/uL"),
+      T("RBC", 3.60, "10^6/uL"), T("HGB", 8.3, "g/dL"), T("HCT", 23.7, "%"),
+      T("MCV", 65.8, "fL"), T("MCH", 23.1, "pg"), T("MCHC", 35.0, "g/dL"),
+      T("RDW-SD", 63.4, "fL"), T("RDW-CV", 28.0, "%"), T("PLT", 15, "10^3/uL"),
+    ],
+  }));
+  const ids = p.findings.map((f) => f.rule_id);
+  assert.ok(ids.includes("pancytopenia"), `pancytopenia نیامد: ${ids}`);
+  assert.equal(p.overall_urgency, "emergency");
+  const mic = p.findings.find((f) => f.rule_id === "microcytic_anemia");
+  assert.ok(mic, `کم‌خونیِ میکروسیتیک زیرِ اورژانس پنهان شد: ${ids}`);
+  assert.match(mic.must_say, /8\.3/);
+  assert.match(mic.must_say, /هماتوکریت 23\.7/);
+  const un = p.findings.find((f) => f.rule_id === "unexplained_abnormal");
+  for (const k of ["HCT", "MCH", "RDW_SD", "RDW_CV"])
+    assert.ok(!(un?.uncovered ?? []).includes(k), `${k} «بی‌توضیح» علامت خورد: ${un?.uncovered}`);
+  // لنفوپنی هنوز قاعده ندارد — باید در تور بماند، نه اینکه بی‌صدا حذف شود.
+  assert.ok(un?.uncovered.includes("LYMPH_ABS"), `LYMPH_ABS از تور افتاد: ${un?.uncovered}`);
+});
+
+test("M187b: خواندنِ RBC/RDW هر جهت را جمله می‌دهد — RBCِ بالا و RDWِ پایین بی‌صدا «پوشش‌داده» نمی‌شوند (M156)", () => {
+  const T = (name, value, unit) => ({ name, value: String(value), unit });
+  const run = (tests) => runPatterns(runEngine({ patient: { sex: "M", age: 45 }, tests }));
+  const a = run([T("HGB", 12.5, "g/dL"), T("MCV", 78, "fL"), T("RBC", 6.0, "10^6/uL")]);
+  const ma = a.findings.find((f) => f.rule_id === "microcytic_anemia");
+  assert.match(ma.must_say, /تعداد گلبول قرمز شما 6 است که بالاتر/);
+  const b = run([T("HGB", 11.5, "g/dL"), T("MCV", 62, "fL"), T("RBC", 6.3, "10^6/uL"), T("RDW-SD", 32, "fL")]);
+  const mb = b.findings.find((f) => f.rule_id === "microcytic_anemia");
+  assert.match(mb.must_say, /RDW شما کمی پایین‌تر/);
+  // RBCِ پایین «همان افت» است و با عددش گفته می‌شود
+  const c = run([T("HGB", 9.5, "g/dL"), T("HCT", 29, "%"), T("MCV", 70, "fL"), T("RBC", 4.1, "10^6/uL")]);
+  assert.match(c.findings.find((f) => f.rule_id === "microcytic_anemia").must_say, /تعداد گلبول قرمز 4\.1 .*پایین است/);
+});
+
+// ── specs/008 دورِ بازبینی — medical_review.md B1–B4 + بازبینیِ کد ──
+test("M184f: گلبولِ کوچکِ بی‌کم‌خونی مالک دارد — مردِ ۶۵ ساله Hb 13.5، MCV 72 علت‌یابیِ آهن را از دست نمی‌دهد (B1)", () => {
+  // 🔴 پس از Q1 این پنل به «برای این ترکیب توضیح آماده‌ای نداریم» می‌رفت (روی 9deba20: microcytic_ida_likely).
+  for (const [pt, hb] of [[{ age: 65, sex: "M" }, "13.5"], [{ age: 72, sex: "M" }, "12.8"], [{ age: 40, sex: "F" }, "12.1"], [M40, "15"]]) {
+    const p = uuuRun([["Hb", hb, null, "g/dL"], ["MCV", "72", null, "fL"], ["RBC", "5.0", null, "10*6/uL"]], pt);
+    const f = findPat(p, "microcytosis_no_anemia");
+    assert.ok(f, `${JSON.stringify(pt)} Hb ${hb}: ${fired(p).join(",")}`);
+    assert.ok(!findPat(p, "unmatched_abnormal") && !findPat(p, "unexplained_abnormal"), fired(p).join(","));
+    assert.match(f.must_say, /کم‌خونی ندارید/);
+    assert.ok(f.suggest.includes("فریتین"));
+  }
+  assert.match(findPat(uuuRun([["Hb", "13.5", null, "g/dL"], ["MCV", "72", null, "fL"], ["RBC", "5.0", null, "10*6/uL"]], { age: 65, sex: "M" }), "microcytosis_no_anemia").must_say, /خونریزیِ پنهانِ گوارشی/);
+  // Hb روی برگه نیست ⇒ این قاعده نه (تغییرِ عمدی، دور ۲ CR3: کنارِ بحرانِ هماتوکریت «Hb روی برگه نیست» می‌گفت) —
+  // MCV مثلِ 9deba20 به تور می‌رود و هرگز «کم‌خونی ندارید» گفته نمی‌شود (N4).
+  const noHbP = uuuRun([["MCV", "72", null, "fL"]], M40);
+  assert.ok(!findPat(noHbP, "microcytosis_no_anemia"), fired(noHbP).join(","));
+  assert.doesNotMatch(JSON.stringify(noHbP.findings), /کم‌خونی ندارید/);
+  // تالاسمیِ بی‌کم‌خونی (RBC بالا) همچنان مالکِ خودش را دارد، نه دو یافته.
+  const thal = uuuRun([["Hb", "14.5", null, "g/dL"], ["MCV", "68", null, "fL"], ["RBC", "6.2", null, "10*6/uL"]], M40);
+  assert.ok(findPat(thal, "thal_trait_likely") && !findPat(thal, "microcytosis_no_anemia"), fired(thal).join(","));
+});
+
+test("M184g: گلبولِ کوچکِ بی‌کم‌خونی در کودک با بازهٔ سنی سنجیده می‌شود، نه با ۸۰ِ بزرگسال (بازبینیِ کد، دور ۲، #1)", () => {
+  // 🔴 پیش‌تر: پسرِ ۳ ساله MCV 75 (بازهٔ 70–86، «اندازه طبیعی») و دخترِ ۸ ساله MCV 78 (77–91) یافتهٔ
+  //    «کوچک‌تر از حد طبیعی … کمبودِ آهن … صفتِ تالاسمی» می‌گرفتند — ضدِ برچسبِ همان ردیف (N23، دامِ آستانهٔ تختِ بزرگسال).
+  for (const [pt, mcv] of [[{ age: 3, sex: "M" }, "75"], [{ age: 8, sex: "F" }, "78"]]) {
+    const p = uuuRun([["Hb", "12.5", null, "g/dL"], ["MCV", mcv, null, "fL"], ["RBC", "4.6", null, "10*6/uL"]], pt);
+    assert.ok(!findPat(p, "microcytosis_no_anemia"), `${JSON.stringify(pt)} MCV ${mcv}: ${fired(p).join(",")}`);
+  }
+  // MCVِ واقعاً پایین برای سن همچنان مالک دارد.
+  const low = uuuRun([["Hb", "12.5", null, "g/dL"], ["MCV", "70", null, "fL"], ["RBC", "4.6", null, "10*6/uL"]], { age: 8, sex: "F" });
+  assert.ok(findPat(low, "microcytosis_no_anemia"), fired(low).join(","));
+});
+
+test("M184i: گلبولِ کوچکِ بی‌کم‌خونی فریتینِ چاپ‌شده را می‌خواند (بازبینیِ پزشکی، دور ۲، R2-B2)", () => {
+  // 🔴 پیش‌تر: فریتینِ ۱۰ روی برگه ⇒ هم iron_deficiency و هم «آزمایش فریتین را بخواهید … اگر کمبودِ آهن تأیید شود»؛
+  //    فریتینِ ۲۰۰ ⇒ باز هم «فریتین بخواهید» و هیچ حرفی از اینکه فریتینِ طبیعی کمبودِ آهن را کم‌احتمال می‌کند (N8، N21).
+  const rows = (f) => [["Hb", "14.5", null, "g/dL"], ["MCV", "72", null, "fL"], ["RBC", "5.0", null, "10*6/uL"], ...(f ? [["Ferritin", f, null, "ng/mL"]] : [])];
+  const low = uuuRun(rows("10"), { age: 55, sex: "M" });
+  assert.ok(findPat(low, "iron_deficiency"), fired(low).join(","));
+  assert.ok(!findPat(low, "microcytosis_no_anemia"), "دو یافته دربارهٔ یک فریتین: " + fired(low).join(","));
+  assert.ok(!findPat(low, "unexplained_abnormal") && !findPat(low, "unmatched_abnormal"), fired(low).join(","));
+  const ok = uuuRun(rows("200"), { age: 55, sex: "M" });
+  const f = findPat(ok, "microcytosis_no_anemia");
+  assert.ok(f, fired(ok).join(","));
+  assert.ok(!f.suggest.includes("فریتین"), JSON.stringify(f.suggest));
+  assert.doesNotMatch(f.action, /فریتین/);
+  // دور ۳ (R3-B1) عمداً عوض شد: فریتینِ درونِ بازه دیگر «پایین نیست، کم‌احتمال‌تر» نمی‌گوید.
+  assert.match(f.must_say, /فریتین[^.]*200[^.]*رد نمی‌کند/);
+  const none = findPat(uuuRun(rows(null), { age: 55, sex: "M" }), "microcytosis_no_anemia");
+  assert.ok(none.suggest.includes("فریتین"));
+});
+
+test("M187c: MCH و HCTِ بالا در کم‌خونیِ میکروسیتیک جملهٔ جهت‌دارِ خودشان را دارند (بازبینیِ پزشکی، دور ۲، R2-B3؛ N12/M156)", () => {
+  // 🔴 پیش‌تر: MCH 35↑ ⇒ «MCH هم 35 است که همین کوچکی را تأیید می‌کند» (جهتِ وارونه)؛ HCTِ بالا بی‌هیچ جمله‌ای
+  //    «پوشش‌داده» می‌شد و از خطِ «بی‌توضیح» هم می‌افتاد.
+  const F30 = { age: 30, sex: "F" };
+  const p = uuuRun([["Hb", "10", null, "g/dL"], ["MCV", "72", null, "fL"], ["MCH", "35", null, "pg"]], F30);
+  const f = p.findings.find((x) => /^microcytic_(ida|thal)_likely$/.test(x.pattern));
+  assert.ok(f, fired(p).join(","));
+  assert.doesNotMatch(f.must_say, /همین کوچکی را تأیید/);
+  assert.match(f.must_say, /MCH[^.]*35[^.]*بالاتر از حد طبیعی/);
+  const p2 = uuuRun([["Hb", "10", null, "g/dL"], ["MCV", "72", null, "fL"], ["HCT", "47", null, "%"]], F30);
+  const f2 = p2.findings.find((x) => /^microcytic_(ida|thal)_likely$/.test(x.pattern));
+  assert.match(f2.must_say, /هماتوکریت[^.]*47[^.]*بالاتر از حد طبیعی/);
+  // MCHِ پایین همان جملهٔ پیشین را نگه می‌دارد.
+  const p3 = uuuRun([["Hb", "10", null, "g/dL"], ["MCV", "72", null, "fL"], ["MCH", "22", null, "pg"]], F30);
+  assert.match(p3.findings.find((x) => /^microcytic_/.test(x.pattern)).must_say, /همین کوچکی را تأیید/);
+});
+
+test("M184h: متنِ WHOِ فریتین در کودک عددِ آستانهٔ بزرگسال را نمی‌گوید (بازبینیِ کد، دور ۲، #5)", () => {
+  // 🔴 پیش‌تر: پسرِ ۱۰ ساله «نه آستانهٔ معمولِ 30» می‌خواند (۳۰ آستانهٔ مردِ بالغ است؛ زیرِ ۱۶ سال قاعده بازهٔ سنی را می‌خواند)،
+  //    و کودکِ ۳ ساله «(فریتین زیر ۷۰)» می‌خواند درحالی‌که قاعده برای زیرِ ۵ سال ۳۰ را به کار می‌برد.
+  const tests = (f) => [["Hb", "10.5", null, "g/dL"], ["MCV", "72", null, "fL"], ["Ferritin", f, null, "ng/mL"], ["CRP", "40", null, "mg/L"]];
+  const boy = findPat(uuuRun(tests("40"), { age: 10, sex: "M" }), "iron_deficiency_masked_by_inflammation");
+  assert.ok(boy);
+  assert.doesNotMatch(boy.must_say, /آستانهٔ معمولِ 30/);
+  assert.match(boy.must_say, /محدودهٔ مرجع برای سنِ شما/);
+  const tod = findPat(uuuRun(tests("20"), { age: 3, sex: "M" }), "iron_deficiency_masked_by_inflammation");
+  assert.ok(tod);
+  assert.match(tod.must_say, /فریتین زیر 30/);
+  assert.doesNotMatch(tod.must_say, /زیر ۷۰|زیر 70/);
+  const man = findPat(uuuRun(tests("50"), { age: 40, sex: "M" }), "iron_deficiency_masked_by_inflammation");
+  assert.ok(man);
+  assert.match(man.must_say, /فریتین زیر 70/);
+  assert.match(man.must_say, /حدِ 30 که بدونِ التهاب به کار می‌رود/); // دور ۲ CR11: «آستانهٔ معمولِ 30» ۳۰ را آستانهٔ WHO می‌نمایاند
+});
+
+test("M185e: جنسِ نامعلوم ≥۵۰ — برچسبِ فریتین و آستانهٔ قاعده یکی‌اند (B3)", () => {
+  // 🔴 پیش‌تر: بازه ۳۰–۳۰۰ ولی آستانهٔ قاعده ۱۵ ⇒ «فریتین پایین» + کم‌خونیِ بیماری مزمن «ذخیره آهن پایین نیست».
+  const e = uuu([["Hb", "10.5", null, "g/dL"], ["Ferritin", "20", null, "ng/mL"], ["Iron", "45", null, "ug/dL"]], { age: 55 });
+  assert.equal(grOf(e, "FERRITIN").dir, "low");
+  const p = runPatterns(e);
+  assert.ok(findPat(p, "iron_deficiency"), fired(p).join(","));
+  assert.ok(!findPat(p, "anemia_of_chronic_disease"), fired(p).join(","));
+});
+
+test("M186h: «Hemoglobin S/C» هرگز Hb نمی‌شود؛ «Hemoglobine» (فرانسوی) بی‌شاهد همان Hb است (B2، N25)", () => {
+  // 🔴 روی 9deba20: «Hemoglobin S 35.2» ⇒ قاعدهٔ جمع ⇒ HGB 35.2.
+  let e = uuu([["Hemoglobin A2", "3.1", null, "%"], ["Hemoglobin S", "35.2", null, "%"], ["Hemoglobin C", "2", null, "%"]], M40);
+  assert.ok(e.noRef.includes("HBS") && e.noRef.includes("HBC"), JSON.stringify(e.noRef));
+  assert.ok(!e.graded.some((g) => g.test === "HGB"));
+  e = uuu([["Hemoglobin S", "35.2"]], M40);
+  assert.ok(!e.graded.some((g) => g.test === "HGB"));
+  assert.ok(e.noRef.includes("HB_NAME_AMBIGUOUS"));
+  // «Hemoglobine» (فرانسوی) بی‌شاهد هرگز HbE نیست (روی 9deba20 هم unmapped بود).
+  const fr = uuu([["Hemoglobine", "13.2", null, "g/dL"]], M40);
+  assert.ok(!fr.noRef.includes("HBE") && !fr.graded.some((g) => g.test === "HBE"));
+});
+
+test("M186i: «HbS: Positive» تنها در مسیرِ موتور می‌ماند و «همه طبیعی» نمی‌گیرد (B4)", () => {
+  // 🔴 پیش‌تر فقط unmapped ⇒ برگهٔ بی‌تستِ نمره‌دار به مسیرِ قدیمِ LLM؛ با CBCِ طبیعی ⇒ «نتایج … طبیعی است».
+  const e = uuu([["HbS", "Positive"]], M40);
+  assert.ok(e.noRef.length > 0, "noRef مسیرِ موتور را نگه می‌دارد (server.js)");
+  assert.ok(faName("HB_NAME_AMBIGUOUS") !== "HB_NAME_AMBIGUOUS");
+  const withCbc = uuu([["HbS", "Positive"], ["Hb", "15", null, "g/dL"]], M40);
+  assert.doesNotMatch(JSON.stringify(buildNormalResult(withCbc)), /نتایج آزمایش شما در محدوده طبیعی است/);
+  // با شاهد (تستِ داسی): HBS شناخته، بی‌عددِ ساختگی.
+  const s = uuu([["Sickle test", "Positive"]], M40);
+  // تغییرِ عمدی (دور ۲، CR5): کلیدِ خودش، SICKLE — «منفی» الکتروفورز نیست و نباید hba2Measured را روشن کند.
+  assert.ok(s.noRef.includes("SICKLE") && !s.graded.some((g) => g.test === "SICKLE"), JSON.stringify(s.noRef));
+});
+
+test("M186n: هموگلوبین E/C فارسی، «HbA2/E»، «Hemoglobin E» بی‌شاهد، «HbS: 35%»، تستِ داسیِ منفی، Hbِ فرانسوی/اسپانیایی (دور ۲: R2-B5، CR5، CR8–CR10)", () => {
+  // 🔴 پیش‌تر هر کدام: unmapped بی‌HB_NAME_AMBIGUOUS ⇒ «همه طبیعی» یا مسیرِ LLM؛ «Hemoglobina 6.1 g/dL» ⇒ HbAِ بی‌حکم
+  //    (Hbِ بحرانی بی‌حکم)؛ «Sickle test: Negative» ⇒ HBS ⇒ درخواستِ الکتروفورز حذف می‌شد.
+  const one = (n, v, u) => uuu([[n, v, null, u]], M40);
+  assert.ok(one("هموگلوبین E", "28", "%").noRef.includes("HBE"));
+  assert.ok(one("هموگلوبین C", "30", "%").noRef.includes("HBC"));
+  assert.equal(grOf(one("HbA2/E", "28", "%"), "HBA2")?.value, 28);
+  for (const [v, u] of [["Positive", undefined], ["25", undefined]]) {
+    const e = one("Hemoglobin E", v, u);
+    assert.ok(e.noRef.includes("HB_NAME_AMBIGUOUS"), `Hemoglobin E ${v}: ${JSON.stringify(e.noRef)}`);
+    assert.doesNotMatch(JSON.stringify(buildNormalResult(uuu([["Hemoglobin E", v, null, u], ["Hb", "14.5", null, "g/dL"]], M40))), /نتایج آزمایش شما در محدوده طبیعی است/);
+  }
+  assert.ok(one("HbS", "35%", undefined).noRef.includes("HBS"));
+  assert.ok(one("HbAS", "40", "%").noRef.includes("HBS"));
+  assert.equal(grOf(one("Hemoglobina", "6.1", "g/dL"), "HGB")?.value, 6.1);
+  assert.equal(grOf(one("Hémoglobine", "14", "g/dL"), "HGB")?.value, 14);
+  // تستِ داسیِ منفی کنارِ گلبولِ کوچکِ تالاسمی‌وار: درخواستِ الکتروفورز می‌ماند.
+  const p = uuuRun([["Hb", "14.5", null, "g/dL"], ["MCV", "68", null, "fL"], ["RBC", "6.2", null, "10*6/uL"], ["Sickle test", "Negative"]], M40);
+  assert.ok(p.findings.some((f) => (f.suggest || []).some((x) => /الکتروفورز/.test(x)) || /الکتروفورز هموگلوبین/.test(f.action || "")), fired(p).join(","));
+});
+
+test("M184j: گلبولِ کوچکِ بی‌کم‌خونی — Hbِ بالا/غایب نه، فریتینِ بالا جمله دارد، هشدارِ ناقل بودن گم نمی‌شود (دور ۲: CR2، CR3، CR4، R2-B4)", () => {
+  // 🔴 CR2: Hb 18.6 ⇒ فقط «پایین نیست، پس کم‌خونی ندارید» و Hbِ بالا از تور هم افتاد.
+  const hi = uuuRun([["Hb", "18.6", null, "g/dL"], ["MCV", "75", null, "fL"], ["RBC", "5.0", null, "10*6/uL"]], M40);
+  assert.ok(!findPat(hi, "microcytosis_no_anemia"), fired(hi).join(","));
+  // 🔴 CR3: Hct 18 بی‌Hb ⇒ کنارِ اورژانسِ بحران «هموگلوبین روی این برگه نیست».
+  const crisis = uuuRun([["HCT", "18", null, "%"], ["MCV", "72", null, "fL"]], M40);
+  assert.ok(!findPat(crisis, "microcytosis_no_anemia"), fired(crisis).join(","));
+  // CR4 (M156): فریتینِ بالا جملهٔ جهت‌دار دارد.
+  const fh = findPat(uuuRun([["Hb", "14.5", null, "g/dL"], ["MCV", "72", null, "fL"], ["RBC", "5.0", null, "10*6/uL"], ["Ferritin", "450", null, "ng/mL"]], M40), "microcytosis_no_anemia");
+  assert.match(fh.must_say, /فریتین[^.؛]*450[^.؛]*بالاتر از حد طبیعی/);
+  // 🔴 R2-B4: برگهٔ پیش‌ازدواج — هر مالکی که جملهٔ «صفتِ تالاسمیِ بتا» را می‌گوید، هشدارِ فرزند را هم دارد.
+  const PANELS = [
+    [{ age: 30, sex: "M" }, [["Hb", "14.5", null, "g/dL"], ["MCV", "72", null, "fL"], ["RBC", "5.2", null, "10*6/uL"], ["HbA2", "5.2", null, "%"]]],
+    [{ age: 30, sex: "M" }, [["Hb", "14.5", null, "g/dL"], ["MCV", "72", null, "fL"], ["RBC", "5.2", null, "10*6/uL"], ["HbA2", "5.2", null, "%"], ["Ferritin", "8", null, "ng/mL"]]],
+    [{ age: 30, sex: "M" }, [["Hb", "11", null, "g/dL"], ["MCV", "70", null, "fL"], ["RBC", "4.5", null, "10*6/uL"], ["HbA2", "5.2", null, "%"]]],
+    [{ age: 30, sex: "M" }, [["HbA2", "5.2", null, "%"]]],
+  ];
+  for (const [pt, rows] of PANELS) {
+    const p = uuuRun(rows, pt);
+    const text = JSON.stringify(p.findings);
+    assert.match(text, /صفتِ تالاسمیِ بتا/, fired(p).join(","));
+    assert.match(buildEngineRecommendations(p, uuu(rows, pt)).join(" "), /بچه‌دار/, `هشدارِ ناقل گم شد: ${fired(p).join(",")}`);
+  }
+});
+
+test("M186m: «Hgb S/A/A2/F» و «HGB S» هم از دروازهٔ الکتروفورز می‌گذرند، نه HGB (بازبینیِ پزشکی، دور ۲، R2-B4)", () => {
+  // 🔴 پیش‌تر: «hgbs» با قاعدهٔ جمع ⇒ «hgb» = HGB ⇒ «Hgb S 40 %» = هموگلوبین ۴۰ ⇒ unit_unknown_values اورژانس
+  //    «همین حالا به اورژانس» برای یک ناقلِ صفتِ داسی. «Hgb A2 3.1 %» شناخته نمی‌شد.
+  const e = uuu([["Hgb A", "57", null, "%"], ["Hgb A2", "3.1", null, "%"], ["Hgb F", "0.8", null, "%"], ["Hgb S", "40", null, "%"]], M40);
+  assert.ok(!e.graded.some((g) => g.test === "HGB"), JSON.stringify(e.graded.map((g) => [g.test, g.value])));
+  assert.equal(grOf(e, "HBA2")?.value, 3.1);
+  assert.equal(grOf(e, "HBF")?.value, 0.8);
+  assert.ok(e.noRef.includes("HBS") && e.noRef.includes("HBA"), JSON.stringify(e.noRef));
+  assert.notEqual(runPatterns(e).overall_urgency, "emergency");
+  const e2 = uuu([["HGB A2", "3.1", null, "%"], ["HGB S", "38"]], M40);
+  assert.ok(!e2.graded.some((g) => g.test === "HGB") && e2.noRef.includes("HBS"), JSON.stringify(e2.noRef));
+  // بی‌شاهد: ردیف ناپدید نمی‌شود و HGB هم نمی‌شود.
+  const e3 = uuu([["Hb", "14", null, "g/dL"], ["Hgb S", "38"]], M40);
+  assert.equal(grOf(e3, "HGB").value, 14);
+  assert.ok(e3.unmapped.includes("Hgb S") && e3.noRef.includes("HB_NAME_AMBIGUOUS"), JSON.stringify([e3.unmapped, e3.noRef]));
+  // واحدِ IU مالِ anti-HBs است، نه هموگلوبین S — حتی روی صفحهٔ الکتروفورز (غیرِمسدودکننده #۱).
+  const e4 = uuu([["HbA2", "3.1", null, "%"], ["HBs", "150", null, "mIU/mL"]], M40);
+  assert.ok(!e4.noRef.includes("HBS") && !e4.graded.some((g) => g.test === "HBS"), JSON.stringify(e4.noRef));
+  assert.ok(e4.noRef.includes("HB_NAME_AMBIGUOUS"));
+});
+
+test("M186j: پرچمِ چسبیده («5.2 H»، «<1») ردیفِ الکتروفورز را از تفسیر نمی‌اندازد (بازبینیِ کد #۲)", () => {
+  const p = uuuRun([["HbA2", "5.2 H", null, "%"], ["HbF", "<1", null, "%"]], M40);
+  assert.ok(findPat(p, "hba2_elevated"), fired(p).join(","));
+  const e = uuu([["HbA2", "5.2(H)", null, "%"], ["HbF", "<1", null, "%"]], M40);
+  assert.equal(grOf(e, "HBA2").value, 5.2);
+  assert.equal(grOf(e, "HBF").abnormal, false);
+  assert.deepEqual(e.unmapped, []);
+});
+
+test("M186k: شاهدِ الکتروفورز برای هر صفحه جداست — «HBs 150»ِ صفحهٔ هپاتیت هموگلوبین S نیست (بازبینیِ کد #۵)", () => {
+  // 🔴 روی 9deba20 «HBs» تنها به qual می‌رفت (بی‌خواننده)؛ این آزمون جلوی نسخهٔ اولِ specs/008 را می‌گیرد که شاهد را برای
+  //    کلِ برگه می‌شمرد و این ردیف را «هموگلوبین S (داسی‌شکل)» می‌خواند — سنجیده: با electroPages.size > 0 قرمز است.
+  const e = runEngine({ patient: M40, tests: [
+    { name: "HbA2", value: "3.1", unit: "%", _page: 0 }, { name: "HbA", value: "96", unit: "%", _page: 0 },
+    { name: "HBs", value: "150", unit: "mIU/mL", _page: 1 }] });
+  assert.ok(!e.noRef.includes("HBS"), JSON.stringify(e.noRef));
+  assert.ok(!e.graded.some((g) => g.test === "HGB"));
+});
+
+test("M186l: یافتهٔ مالکِ تالاسمی HbA2ِ طبیعی/پایین/خیلی‌بالا را هم می‌گوید (بازبینیِ کد #۳، N21؛ پزشکی ۱)", () => {
+  const thalRows = [["Hb", "12.5", null, "g/dL"], ["MCV", "66", null, "fL"], ["RBC", "6.1", null, "10*6/uL"]];
+  let f = findPat(uuuRun([...thalRows, ["HbA2", "2.4", null, "%"]], M40), "microcytic_thal_likely");
+  assert.match(f.must_say, /در محدودهٔ طبیعی \(1\.5–3\.5\).*کمتر محتمل/);
+  f = findPat(uuuRun([...thalRows, ["HbA2", "1.1", null, "%"]], M40), "microcytic_thal_likely");
+  assert.match(f.must_say, /کمتر از حدِ طبیعی.*آلفا/);
+  f = findPat(uuuRun([...thalRows, ["HbA2", "27", null, "%"]], M40), "microcytic_thal_likely");
+  assert.match(f.must_say, /HbE/);
+  assert.doesNotMatch(f.must_say, /معمولاً با «صفتِ تالاسمیِ بتا»/);
+  // و بی‌HbA2 هیچ جمله‌ای دربارهٔ آن ساخته نمی‌شود.
+  assert.doesNotMatch(findPat(uuuRun(thalRows, M40), "microcytic_thal_likely").must_say, /A2/);
+});
+
+// ═══ M188: یک دستورِ مراجعهٔ نهایی — قوی‌ترین، نه پنج زمان‌بندیِ رقیب (N20 بینِ یافته‌ها) ═══
+// 🔴 برگهٔ واقعی (۲۰۲۶-۰۹-۲۳، مرد ۶۲، WBC 0.27، NEUT 0.07، PLT 15، Hb 8.3): شش یافتهٔ اورژانسی و پنج
+//    زمان‌بندی از «همین امروز تماس» تا «بدون اتلاف وقت فوراً به اورژانس». مدل ملایم‌ترین را نگه داشت.
+test("M188: فهرستِ توصیهٔ پان‌سیتوپنی با «فوراً به اورژانس» شروع می‌شود و زمان‌بندیِ رقیب ندارد", () => {
+  const T = (name, value, unit) => ({ name, value: String(value), unit });
+  const e = runEngine({ patient: { sex: "M", age: 62 }, tests: [
+    T("WBC", 0.27, "10^3/uL"), T("NEUT", 0.07, "10^3/uL"), T("LYMPH", 0.14, "10^3/uL"), T("MONO", 0.06, "10^3/uL"),
+    T("RBC", 3.60, "10^6/uL"), T("HGB", 8.3, "g/dL"), T("HCT", 23.7, "%"), T("MCV", 65.8, "fL"), T("MCH", 23.1, "pg"),
+    T("MCHC", 35.0, "g/dL"), T("RDW-SD", 63.4, "fL"), T("RDW-CV", 28.0, "%"), T("PLT", 15, "10^3/uL"),
+  ] });
+  const recs = buildEngineRecommendations(runPatterns(e), e);
+  assert.equal(recs[0], "بدون اتلاف وقت فوراً به اورژانس مراجعه کنید.");
+  for (const rival of ["همین امروز با پزشک تماس بگیرید", "همین امروز به پزشک مراجعه کنید", "همین امروز به پزشک یا اورژانس مراجعه کنید"])
+    assert.ok(!recs.some((r) => r.includes(rival)), `زمان‌بندیِ رقیب ماند: «${rival}»`);
+  // هشدارها و محتوای غیرِزمان‌بندی نمی‌افتند
+  assert.ok(recs.includes("از تماس با افراد بیمار و مکان‌های شلوغ پرهیز کنید تا پزشک را ببینید."));
+  assert.ok(recs.includes("این وضعیت یک اورژانس واقعی است و نباید منتظر نوبت مطب بمانید."));
+  assert.ok(recs.some((r) => /علت‌یابی/.test(r)), "محتوای action کم‌خونی (علت‌یابیِ آهن) افتاد");
+});
+
+test("M188b: پرامپت action/warnings/suggest را به مدل نمی‌دهد و فهرستِ توصیه از مدل نمی‌خواهد", async () => {
+  const { buildEnginePrompt } = await import("./prompt.js");
+  const e = runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name: "Potassium", value: 7.1 }, { name: "Creatinine", value: 1.0, unit: "mg/dL" }] });
+  const p = runPatterns(e);
+  const payload = JSON.parse(buildEnginePrompt(e, p).content);
+  for (const f of payload.findings)
+    for (const k of ["action", "warnings", "suggest"]) assert.ok(!(k in f), `${k} به مدل رفت`);
+  assert.ok(!/"general_recommendations"/.test(ENGINE_SYSTEM_PROMPT), "پرامپت هنوز فهرستِ توصیه از مدل می‌خواهد");
+});
+
+test("M188d: actionِ غیرِنهایی — محتوا (تکرارِ آزمایش، درمان) می‌ماند، دلگرمیِ بی‌مرجع و تکه‌های نسبی می‌روند (بازبینیِ کد، دور ۲، #2–#4)", () => {
+  // 🔴 پیش‌تر: «هفته»/«نوبت»/«زودتر» هر جای جمله ⇒ کلِ جمله «زمان‌بندی» و حذف؛ پس «معمولاً این آزمایش چند هفته بعد تکرار
+  //    می‌شود»، «تکرارِ تیتر پس از دو هفته»، «(رژیم، ورزش، احیاناً استاتین)» و «سرم وریدی» گم می‌شدند؛ و «نگرانیِ فوری ندارد»
+  //    بی‌آنکه بگوید دربارهٔ چه، زیرِ «همین حالا به اورژانس» می‌نشست.
+  const WEEK = { urgency: "this_week", action: "این هفته با پزشک وقت بگیرید." };
+  const ER = { urgency: "emergency", action: "همین حالا به اورژانس مراجعه کنید. این برگه را همراه ببرید." };
+  const rest = (final, a) => buildEngineRecommendations({ findings: [final, { urgency: "routine", action: a }] }, { graded: [] }).slice(1).join(" | ");
+  const KEEP = [
+    ["نوبت عادی. معمولاً این آزمایش چند هفته بعد تکرار می‌شود.", /چند هفته بعد تکرار/],
+    ["نوبت عادی با پزشک و تکرار آزمایش کلیه پس از چند هفته.", /تکرار آزمایش کلیه/],
+    ["این هفته با پزشک مطرح کنید و دربارهٔ تکرارِ تیتر پس از دو هفته تصمیم بگیرید.", /تکرارِ تیتر/],
+    ["اگر علائم دارید یا این عدد خیلی بالاست، با پزشک مطرح کنید. در غیر این صورت تکرار آزمایش بعد از چند هفته کافی است.", /تکرار آزمایش بعد از چند هفته/],
+    ["در نوبتِ بعدی آزمایش را با نمونهٔ وسطِ ادرار تکرار کنید؛ این یافته زمان‌بندیِ یافته‌های دیگرِ برگه را تغییر نمی‌دهد.", /نمونهٔ وسطِ ادرار/],
+    ["این هفته با پزشک مطرح کنید تا سطح خطر قلبی شما و برنامهٔ مناسب (رژیم، ورزش، احیاناً استاتین) تعیین شود.", /استاتین/],
+    ["این هفته با پزشک (داخلی یا قلب) وقت بگیرید تا شروعِ داروی کاهندهٔ چربی و بررسیِ علتِ ارثی مطرح شود.", /داروی کاهندهٔ چربی/],
+    ["همین حالا به اورژانس مراجعه کنید؛ ترجیحاً خودتان رانندگی نکنید. درمان اصلی، شروعِ زودهنگامِ سرم وریدی است و هرچه زودتر آغاز شود احتمال آسیب کلیه کمتر می‌شود.", /سرم وریدی/],
+    ["این هفته با پزشک مطرح کنید. اگر همین حالا علائم شدید (گیجی، ضعف شدید، تعریق سرد) دارید، چیزی شیرین بخورید و در صورت ادامه به پزشک مراجعه کنید.", /شیرین بخورید/],
+  ];
+  for (const final of [WEEK, ER]) {
+    for (const [a, re] of KEEP) {
+      const r = rest(final, a);
+      assert.match(r, re, `${final.urgency}: «${a}» ⇒ «${r}»`);
+      // محتوای نگه‌داشته زمان‌بندیِ رقیب با خودش نمی‌آورد.
+      assert.doesNotMatch(r, /این هفته|نوبت عادی/, `${final.urgency}: زمان‌بندیِ رقیب ماند: «${r}»`);
+    }
+    for (const a of [
+      "نگرانیِ فوری ندارد؛ در نوبتِ عادیِ بعدی با پزشک مطرح کنید، به‌ویژه اگر در تکرارِ آزمایش هم دیده شد.",
+      "در ویزیت بعدی با پزشک مطرح کنید؛ این عدد نیاز به اقدامِ فوری ندارد.",
+      "در فرصت مناسب و در ویزیت بعدی با پزشک مطرح کنید؛ این عدد چیزی نیست که نیاز به مراجعهٔ زودهنگام داشته باشد.",
+    ]) assert.doesNotMatch(rest(final, a), /نگرانیِ فوری|اقدامِ فوری|زودهنگام/, `${final.urgency}: «${a}»`);
+  }
+  // زیرِ «همین حالا اورژانس»: «فوری‌تر»/«زودتر»ِ بی‌مقصد معنا ندارد؛ و «این برگه را همراه ببرید» دوبار نمی‌آید.
+  assert.doesNotMatch(rest(ER, "همین حالا به اورژانس مراجعه کنید. اگر گیجی، سردرد شدید یا تشنج رخ داد، فوری‌تر."), /فوری‌تر/);
+  assert.doesNotMatch(rest(ER, "این هفته با پزشک مطرح کنید. اگر سوزش ادرار، تب یا درد پهلو دارید، زودتر مراجعه کنید."), /زودتر/);
+  const all = buildEngineRecommendations({ findings: [ER, { urgency: "emergency", action: "همین حالا به اورژانس مراجعه کنید و این برگه را همراه ببرید." }] }, { graded: [] }).join(" | ");
+  assert.equal(all.match(/این برگه را همراه ببرید/g).length, 1, all);
+  // زیرِ «این هفته» شرطیِ «زودتر» معنا دارد و می‌ماند.
+  assert.match(rest(WEEK, "این هفته با پزشک مطرح کنید. اگر سوزش ادرار، تب یا درد پهلو دارید، زودتر مراجعه کنید."), /زودتر مراجعه کنید/);
+});
+
+test("M188c: جاروی پنل‌ها — دستورِ نهایی از بالاترین فوریت است و فقط یک action کامل در فهرست می‌ماند", async () => {
+  const { pickFinalAction } = await import("./prompt.js");
+  const T = (name, value, unit) => ({ name, value: String(value), unit });
+  const PANELS = [
+    [{ sex: "M", age: 62 }, [T("WBC", 0.27, "10^3/uL"), T("NEUT", 0.07, "10^3/uL"), T("HGB", 8.3, "g/dL"), T("MCV", 65.8, "fL"), T("PLT", 15, "10^3/uL")]],
+    [{ sex: "M", age: 40 }, [T("HGB", 6.2, "g/dL"), T("MCV", 112, "fL"), T("WBC", 2.1, "10^3/uL"), T("PLT", 60, "10^3/uL")]],
+    [{ sex: "F", age: 45 }, [T("HGB", 9.5, "g/dL"), T("MCV", 70, "fL"), T("Ferritin", 6, "ng/mL"), T("Magnesium", 0.68, "mmol/L"), T("Phosphorus", 1.0, "mg/dL")]],
+    [{ sex: "M", age: 55 }, [T("FBS", 209, "mg/dL"), T("LDL", 114, "mg/dL"), T("HGB", 11, "g/dL"), T("MCV", 72, "fL")]],
+    [{ sex: "M", age: 50 }, [T("Potassium", 6.8), T("Creatinine", 3.0, "mg/dL"), T("HGB", 9.8, "g/dL"), T("MCV", 88, "fL")]],
+  ];
+  const RANK = { emergency: 3, this_week: 2, routine: 1 };
+  let multi = 0;
+  for (const [pt, tests] of PANELS) {
+    const e = runEngine({ patient: pt, tests });
+    const p = runPatterns(e);
+    const withAction = p.findings.filter((f) => f.action);
+    if (withAction.length > 1) multi++;
+    const final = pickFinalAction(p.findings);
+    assert.ok(final, "هیچ دستورِ نهایی انتخاب نشد");
+    assert.equal(RANK[final.urgency], Math.max(...withAction.map((f) => RANK[f.urgency] ?? 0)), `دستورِ نهایی از فوریتِ پایین‌تر: ${final.rule_id}`);
+    const recs = buildEngineRecommendations(p, e);
+    assert.equal(recs[0], final.action);
+    const fullActions = withAction.filter((f) => f.action !== final.action && recs.includes(f.action));
+    assert.deepEqual(fullActions.map((f) => f.rule_id), [], "actionِ کاملِ دوم در فهرست ماند");
+  }
+  assert.ok(multi >= 3, `فقط ${multi} پنل بیش از یک action داشت — جارو چیزی را نمی‌سنجد (N15)`);
+});
+
+// ═══════════ specs/008 — بازبینیِ دور ۳ (medical_review_round3.md: R3-B1، R3-B2؛ بازبینیِ کد: R3-CR1، R3-CR2) ═══════════
+// هر آزمونِ این بلوک روی کپیِ درختِ کاری پیش از این اصلاح قرمز بود (به‌جز بندهایی که «قفل» نوشته شده‌اند).
+
+test("M189: فریتینِ درونِ بازه در گلبولِ کوچک «کمبودِ آهن را کم‌احتمال‌تر» نمی‌گوید (بازبینیِ پزشکی، دور ۳، R3-B1)", () => {
+  // 🔴 پیش‌تر: زن ۳۰ ساله، MCV 72، فریتین 16 ⇒ «پایین نیست، که کمبودِ آهن را کم‌احتمال‌تر می‌کند؛ … صفتِ تالاسمی».
+  //    در گلبولِ کوچک فریتینِ ۱۵ تا ۴۵ احتمالِ کمبودِ آهن را بالا می‌برد؛ و جملهٔ خونریزیِ گوارشیِ مردِ ۶۵ ساله افتاده بود.
+  const f = findPat(uuuRun([["Hb", "12.4", null, "g/dL"], ["MCV", "72", null, "fL"], ["RBC", "4.9", null, "10*6/uL"],
+    ["Ferritin", "16", null, "ng/mL"]], { age: 30, sex: "F" }), "microcytosis_no_anemia");
+  assert.ok(f, "microcytosis_no_anemia فعال نشد");
+  assert.doesNotMatch(f.must_say, /کم‌احتمال‌تر/);
+  assert.match(f.must_say, /فریتین[^.]*16[^.]*رد نمی‌کند/);
+  const m = findPat(uuuRun([["Hb", "14", null, "g/dL"], ["MCV", "74", null, "fL"], ["Ferritin", "35", null, "ng/mL"]],
+    { age: 65, sex: "M" }), "microcytosis_no_anemia");
+  assert.ok(m);
+  assert.doesNotMatch(m.must_say, /کم‌احتمال‌تر/);
+  assert.match(m.must_say, /خونریزیِ پنهانِ گوارشی/);
+  // قفل: فریتینِ بالاتر از بازه همان جملهٔ «کم‌احتمال‌تر … بررسی شود» را نگه می‌دارد، بی‌جملهٔ گوارشی.
+  const hi = findPat(uuuRun([["Hb", "14", null, "g/dL"], ["MCV", "74", null, "fL"], ["Ferritin", "450", null, "ng/mL"]],
+    { age: 65, sex: "M" }), "microcytosis_no_anemia");
+  assert.match(hi.must_say, /بالاتر از حد طبیعی[^.]*کم‌احتمال‌تر/);
+  assert.doesNotMatch(hi.must_say, /خونریزیِ پنهانِ گوارشی/);
+});
+
+test("M189b: «HBs/HBe/HBc» با مقدارِ کیفی کنارِ HbA2ِ همان صفحه واریانتِ هموگلوبین خوانده نمی‌شود (بازبینیِ پزشکی، دور ۳، R3-B2)", () => {
+  // 🔴 پیش‌تر: برگهٔ پیش‌ازدواج «CBC + HbA2 2.8 % + HBs: Positive» ⇒ «تفسیر نشدند … هموگلوبین S (داسی‌شکل)» —
+  //    آنتی‌ژنِ مثبتِ هپاتیتِ B به زوج «داسی» معرفی می‌شد.
+  const base = [["Hb", "14", null, "g/dL"], ["MCV", "88", null, "fL"], ["HbA2", "2.8", null, "%"]];
+  for (const [name, v, vk, unit] of [["HBs", "Positive", "HBS"], ["HBs", "Negative", "HBS"], ["HBe", "Positive", "HBE"],
+    ["HBc", "Reactive", "HBC"], ["HBs", "1.8", "HBS", "S/CO"]]) {
+    const e = uuu([...base, [name, v, null, unit]], { age: 28, sex: "F" });
+    assert.ok(!e.noRef.includes(vk), `${name}: ${v} ⇒ ${vk}`);
+    assert.ok(!e.graded.some((g) => g.test === vk), `${name}: ${v} نمره گرفت`);
+    assert.ok(e.noRef.includes("HB_NAME_AMBIGUOUS"), `${name}: ${v} ⇒ ${JSON.stringify(e.noRef)}`);
+  }
+  // قفل: عدد (با ٪ یا بی‌واحد روی صفحهٔ الکتروفورز) همچنان واریانت است.
+  for (const unit of ["%", null]) {
+    const e = uuu([...base, ["HbS", "38", null, unit]], { age: 28, sex: "F" });
+    assert.ok(e.noRef.includes("HBS"), `HbS 38 ${unit} ⇒ ${JSON.stringify(e.noRef)}`);
+  }
+});
+
+test("M189c: زیرِ اورژانسِ دیگر، briefِ کم‌خونیِ میکروسیتیک کلیدهایی را که نمی‌گوید «پوشش‌داده» نمی‌کند (بازبینیِ کد، دور ۳، R3-CR1)", () => {
+  // 🔴 پیش‌تر: پان‌سیتوپنی + HCT 55، MCH 35، RBC 6.4 ⇒ uncovered: [] و brief فقط Hb/MCV را می‌گفت — سه عدد ناپدید (N18).
+  const p = uuuRun([["WBC", "0.27", null, "10*3/uL"], ["NEUT#", "0.07", null, "10*3/uL"], ["PLT", "15", null, "10*3/uL"],
+    ["Hb", "8.3", null, "g/dL"], ["MCV", "65.8", null, "fL"], ["MCH", "35", null, "pg"], ["RBC", "6.4", null, "10*6/uL"],
+    ["HCT", "55", null, "%"]], { age: 62, sex: "M" });
+  const mic = p.findings.find((f) => /^microcytic_/.test(f.pattern));
+  assert.ok(mic, fired(p).join(","));
+  assert.doesNotMatch(mic.must_say, /دارید/, "R3-CR5: «… دارید» در brief");
+  const un = findPat(p, "unexplained_abnormal");
+  assert.ok(un, "تورِ بی‌توضیح فعال نشد: " + fired(p).join(","));
+  // (RBCِ بالا را سرتیترِ نمایش‌داده‌شدهٔ شاخهٔ تالاسمی می‌گوید — «تعدادشان زیاد است» — پس پوشش‌داده است.)
+  for (const k of ["HCT", "MCH"]) assert.ok(un.uncovered.includes(k), `${k} ناپدید شد: ${JSON.stringify(un.uncovered)}`);
+  // 🔴 پیش‌تر: K 7.1 + کم‌خونیِ میکروسیتیک + HbA2 5.2 ⇒ نه عددِ HbA2 نه هشدارِ ناقل بودن در گزارش.
+  const e = uuu([["Potassium", "7.1", null, "mmol/L"], ["Hb", "9.5", null, "g/dL"], ["MCV", "70", null, "fL"],
+    ["RBC", "5.9", null, "10*6/uL"], ["HbA2", "5.2", null, "%"]], { age: 30, sex: "M" });
+  const q = runPatterns(e);
+  const m2 = q.findings.find((f) => /^microcytic_/.test(f.pattern));
+  assert.ok(m2, fired(q).join(","));
+  assert.match(m2.must_say, /A2[^.]*5\.2/);
+  const recs = buildEngineRecommendations(q, e).join(" ");
+  assert.match(recs, /مشاورِ ژنتیک/);
+});
+
+test("M189d: forbidِ یک یافته هشدار یا پیشنهادِ یافتهٔ دیگری را که خودش دربارهٔ آن است پاک نمی‌کند (بازبینیِ کد، دور ۳، R3-CR2)", () => {
+  // 🔴 پیش‌تر: microcytic_anemia با forbid: ["B12","فولات"] احتیاطِ اسید فولیکِ overt_b12_deficiency (M155) را حذف می‌کرد؛
+  //    anemia_chronic_disease با forbid «قرص آهن» هشدارِ خودش را.
+  const e1 = uuu([["Hb", "9.5", null, "g/dL"], ["MCV", "70", null, "fL"], ["B12", "60", null, "pg/mL"]], { age: 50, sex: "M" });
+  const p1 = runPatterns(e1);
+  assert.ok(p1.findings.some((f) => (f.forbid ?? []).includes("فولات")), "پیش‌شرط: forbidِ فولات فعال نیست");
+  assert.match(buildEngineRecommendations(p1, e1).join(" "), /اسید فولیک/);
+  const e2 = uuu([["Hb", "10", null, "g/dL"], ["MCV", "85", null, "fL"], ["Iron", "40", null, "ug/dL"], ["Ferritin", "200", null, "ng/mL"]], { age: 50, sex: "M" });
+  const p2 = runPatterns(e2);
+  assert.ok(p2.findings.some((f) => (f.forbid ?? []).includes("قرص آهن")), "پیش‌شرط: " + fired(p2).join(","));
+  assert.match(buildEngineRecommendations(p2, e2).join(" "), /قرص آهن/);
+  // قفل (A2): پیشنهادِ ممنوعِ خودِ یافته هنوز حذف می‌شود.
+  const recs = buildEngineRecommendations({ findings: [{ action: "به پزشک مراجعه کنید", suggest: ["فروس"], warnings: [], forbid: ["فروس"] }] });
+  assert.ok(!recs.some((r) => r.includes("فروس")));
 });

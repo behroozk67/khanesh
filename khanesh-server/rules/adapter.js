@@ -53,6 +53,27 @@ const NAME_MAP = {
   arc: "RETIC_ABS", reticabs: "RETIC_ABS", retabs: "RETIC_ABS", absoluteretic: "RETIC_ABS",
   absolutereticulocyte: "RETIC_ABS", absolutereticulocytes: "RETIC_ABS", reticulocyteabsolute: "RETIC_ABS",
   reticulocytecountabsolute: "RETIC_ABS", رتیکولوسیتمطلق: "RETIC_ABS",
+  // ═══ specs/008 (FR-007، N25): الکتروفورزِ هموگلوبین و نشانگرهای آهنِ تخصصی ═══
+  // پیش‌تر همه unmapped بودند. هیچ‌کدام با کلیدِ دیگری برخورد ندارد (بررسی‌شده در NAME_MAP، قاعدهٔ جمع و
+  // قاعدهٔ دونیمه‌ای resolveAlias). hemoglobina1c/hba1c کلیدِ دقیقِ جدا دارند، پس «hba» آن‌ها را نمی‌رباید.
+  // ⚠️ hbs/hbc/hbe عمداً اینجا نیستند: با HBs/anti-HBc/HBeِ هپاتیت هم‌نام‌اند — لایهٔ الکتروفورز در runEngine.
+  //    «a2» تنها هم فقط با واحدِ ٪ (همان لایه).
+  hba2: "HBA2", hemoglobina2: "HBA2", haemoglobina2: "HBA2", هموگلوبینa2: "HBA2",
+  hbf: "HBF", fetalhb: "HBF", fetalhemoglobin: "HBF", hemoglobinf: "HBF", هموگلوبینf: "HBF", هموگلوبینجنینی: "HBF",
+  hba: "HBA", hba0: "HBA", hemoglobina: "HBA",
+  // 🔴 بازبینیِ دور ۲ (R2-B4): «Hgb A2/F/A» — بی‌این‌ها «Hgb A2 3.1 %» شناخته نمی‌شد و صفحه شاهدِ الکتروفورز نمی‌گرفت.
+  hgba2: "HBA2", hgbf: "HBF", hgba: "HBA", hgba0: "HBA",
+  sicklehb: "HBS", هموگلوبینs: "HBS",
+  // 🔴 دور ۲ (R2-B5): «هموگلوبین E/C/A» فارسی و برچسبِ HPLCِ «HbA2/E» — بی‌این‌ها به unmapped و «همه طبیعی» می‌رفتند.
+  //    فارسی دوپهلو نیست (هپاتیت را «HBs» می‌نویسند)، پس بی‌دروازه. «A2/E» یک پنجره است؛ عددِ بالایش را hba2Clause
+  //    («very_high»، احتمالِ HbE) می‌گوید.
+  هموگلوبینe: "HBE", هموگلوبینc: "HBC", هموگلوبینa: "HBA", hba2e: "HBA2",
+  // تستِ حلالیت/داسی‌شدن («Sickle test: Positive») = HbS هست (صفت یا بیماری) — بی‌بازه، به «تفسیر نشدند» (N6).
+  // 🔴 دور ۲ (CR5): کلیدِ خودش، نه HBS — «Sickle test: Negative» الکتروفورز نیست و نباید درخواستِ الکتروفورز را بردارد.
+  sickle: "SICKLE", sickletest: "SICKLE", sicklingtest: "SICKLE", sicklecelltest: "SICKLE", sicklecellscreen: "SICKLE", تستداسی: "SICKLE",
+  zpp: "ZPP", zincprotoporphyrin: "ZPP",
+  stfr: "STFR", solubletransferrinreceptor: "STFR",
+  epo: "EPO", erythropoietin: "EPO", اریتروپویتین: "EPO",
   rdwcv: "RDW_CV", rdw: "RDW_CV",
   rdwsd: "RDW_SD",
   mpv: "MPV",
@@ -494,6 +515,30 @@ const QUAL_NO_READER = new Set(["ANTI_IF", "APCA"]);
 // UNIT_PROFILE نیستند، پس واحدِ چاپ‌شده اینجا نگه داشته می‌شود و قاعده فقط با واحدِ چاپ‌شده حکم می‌دهد (N3).
 const UNIT_KEPT = new Set(["CERULOPLASMIN", "U_COPPER_24H"]);
 
+// ═══ specs/008 — ردیف‌های الکتروفورزِ هموگلوبین (R4) ═══
+const HB_AMBIGUOUS = { hbs: "HBS", hbc: "HBC", hbe: "HBE",       // هم‌نامِ نشانگرهای هپاتیتِ B
+  hemoglobins: "HBS", haemoglobins: "HBS", hemoglobinc: "HBC", haemoglobinc: "HBC", // جمعِ «hemoglobin» (B2)
+  hgbs: "HBS", hgbc: "HBC", hgbe: "HBE", // 🔴 دور ۲ (R2-B4): «Hgb S» ⇒ جمعِ «hgb» = HGB ⇒ «Hgb S 40 %» اورژانس
+  hbas: "HBS" }; // 🔴 دور ۲ (CR9): «HbAS 40%» (ژنوتیپِ صفتِ داسی) با قاعدهٔ جمع ⇒ «hba» = HBA
+// 🔴 دور ۲ (CR9/CR10): نام‌هایی که با واحدِ غلظت (g/dL، g/L، mmol/L) خودِ هموگلوبین‌اند: «Hémoglobine 14 g/dL»
+//    (فرانسوی) به unmapped می‌رفت و «Hemoglobina 6.1 g/dL» (اسپانیایی/ایتالیایی) HbA بی‌بازه می‌شد — Hbِ بحرانی بی‌حکم (N2).
+const HB_TOTAL_WITH_MASS_UNIT = new Set(["hemoglobine", "hémoglobine", "haemoglobine", "hemoglobina", "haemoglobina", "hba", "hgba"]);
+const HB_MASS_UNIT = /g\s*\/\s*(dl|l)\b|mmol\s*\/\s*l/i;
+// «Hemoglobin E» و «Hémoglobine» هر دو «hemoglobine» می‌شوند: با شاهدِ الکتروفورز HbE؛ با واحدِ غلظت خودِ Hb
+// (HB_TOTAL_WITH_MASS_UNIT)؛ وگرنه دوپهلو ⇒ «تفسیر نشدند» + HB_NAME_AMBIGUOUS (R2-B5).
+const HB_FRENCH_HGB = { hemoglobine: "HBE", haemoglobine: "HBE" };
+const HB_VARIANT_KEYS = new Set(["HBA", "HBA2", "HBF", "HBS", "HBC", "HBE", "SICKLE"]);
+const HB_ELECTRO_EVIDENCE = new Set(["HBA2", "HBF", "HBA"]);        // نام‌های بی‌ابهام = شاهدِ صفحه
+// کلیدهایی که بازهٔ تأییدشده ندارند (P53) — در هر سنی noRef ⇒ «تفسیر نشدند».
+const NO_RANGE_KEYS = new Set(["RETIC_ABS", "HBA", "HBS", "HBC", "HBE", "SICKLE", "ZPP", "STFR", "EPO"]);
+/** 🔴 دور ۲ (CR6): صفحه‌ای که الکتروفورزِ هموگلوبین دارد — mergePages کلیدِ نام‌های دوپهلو را با آن جدا می‌کند. */
+export function isHbElectroPage(tests) {
+  return (tests || []).some((t) => t?.name && (HB_ELECTRO_EVIDENCE.has(NAME_MAP[norm(t.name)]) ||
+    (norm(t.name) === "a2" && /%/.test(String(t.unit || "")))));
+}
+/** نامی که هم واریانتِ هموگلوبین است هم نشانگرِ هپاتیتِ B («HBs»/«HbS»). */
+export const isHbAmbiguousName = (name) => !!HB_AMBIGUOUS[norm(name)];
+
 /** کلیدِ برگه → کلیدِ موتور (با پشتیبانِ املایی) */
 function mapKey(key) {
   return NAME_MAP[key] ?? resolveAlias(key);
@@ -820,10 +865,71 @@ export function ocrToEngineInput(ocr) {
     if (t?.name && BLOOD_ONLY_MARKERS.has(norm(t.name))) bloodPages.add(t._page ?? 0);
   }
 
+  // ═══ specs/008 (R4، N25): آیا این برگه الکتروفورزِ هموگلوبین دارد؟ — شاهدی بی‌ابهام (HbA2/HbF/HbA) ═══
+  // 🔴 بازبینیِ کد #۵: شاهد برای هر *صفحه* جدا — «HBs 150 mIU/mL»ِ صفحهٔ هپاتیت کنارِ صفحهٔ الکتروفورز
+  //    «هموگلوبین S» خوانده می‌شد.
+  const electroPages = new Set();
+  for (const t of ocr?.tests || []) {
+    if (t?.name && (HB_ELECTRO_EVIDENCE.has(NAME_MAP[norm(t.name)]) ||
+      (norm(t.name) === "a2" && /%/.test(String(t.unit || ""))))) electroPages.add(t._page ?? 0);
+  }
+
   for (let t of ocr?.tests || []) {
     if (!t?.name) continue;
-    const key = norm(t.name);
+    let key = norm(t.name);
+    // «Hémoglobine 14 g/dL» / «Hemoglobina 6.1 g/dL»: خودِ هموگلوبین — به مسیرِ عادیِ HGB (CR9/CR10).
+    if (HB_TOTAL_WITH_MASS_UNIT.has(key) && HB_MASS_UNIT.test(String(t.unit || ""))) {
+      t = { ...t, name: "Hemoglobin" };
+      key = "hemoglobin";
+    }
     const onUrinePage = urineOnlyPages.has(t._page ?? 0);
+
+    // ═══ specs/008: لایهٔ الکتروفورزِ هموگلوبین — پیش از qual، چون «hbs» را الگوی anti-HBs می‌گرفت ═══
+    //  • hbs/hbc/hbe فقط با واحدِ ٪ یا شاهدِ الکتروفورز روی برگه واریانتِ هموگلوبین‌اند؛ بی‌شاهد ⇒ «تفسیر نشدند».
+    //    «HbS: Positive» تنها (تستِ داسی؟ anti-HBs؟) پیش‌تر به qual می‌رفت و هیچ قاعده‌ای نمی‌خواندش
+    //    (patterns_infectious.js عمداً «hbs» تنها را نمی‌خواند) — افتِ خاموش.
+    //  ⚠️ هرگز به mapKey/resolveAlias نرسد: قاعدهٔ جمعِ آن «hbs» را به «hb» یعنی HGB می‌بَرد ⇒ «HbS 40» = Hb 40.
+    //  • ردیفِ واریانت با مقدارِ غیرعددی («Positive»، «Normal») به unmapped با نامِ چاپ‌شده — نه عددِ ساختگی (N6).
+    //  • 🔴 بازبینیِ پزشکی B2: «Hemoglobin S/C» هم (قاعدهٔ جمع «hemoglobins» را به HGB می‌بُرد ⇒ HbS 35٪ = «Hb 35»
+    //    اورژانس). «hemoglobine» فرانسویِ خودِ هموگلوبین است ⇒ بی‌شاهد همان مسیرِ عادی (HGB)، نه HbE.
+    //  • 🔴 بازبینیِ پزشکی B4: نامِ دوپهلوِ بی‌شاهد فقط unmapped نمی‌ماند — برگهٔ «فقط HbS: Positive» بی‌هیچ تستِ
+    //    نمره‌دار به مسیرِ قدیمِ LLM می‌رفت. کلیدِ خنثای HB_NAME_AMBIGUOUS در noRef مسیرِ موتور را نگه می‌دارد و به
+    //    بیمار می‌گوید این ردیف تفسیر نشد، بی‌آنکه «داسی» یا «هپاتیت» ادعا کند.
+    {
+      // 🔴 دور ۲ (CR8): «HbS: 35%» با ٪ در مقدار و واحدِ خالی.
+      const pct = /%/.test(String(t.unit || "")) || /%\s*$/.test(String(t.value ?? ""));
+      const rawV = String(t.value ?? "").trim();
+      // 🔴 بازبینیِ کد #۲: پرچمِ چسبیده («5.2 H»، «5.2(H)»، «5.2*») عدد را نمی‌کشد — مسیرِ عمومی هم همین را می‌پذیرد.
+      const cleaned = rawV.replace(/\s*[([]?\s*(?:HH|LL|H|L|\*+)\s*[)\]]?\s*$/i, "").trim();
+      const nv = toNum(cleaned);
+      const numeric = nv != null && !/[+>≥]/.test(cleaned) && !/[a-zA-Zء-ٟٮ-ۓ]/.test(cleaned);
+      // 🔴 دور ۲ (غیرِمسدودکنندهٔ ۱): IU/mIU واحدِ anti-HBs است — هرگز «هموگلوبین S»، حتی روی صفحهٔ الکتروفورز.
+      //    🔴 دور ۳ (R3-B2): S/CO، COI و index هم واحدهای سرولوژیِ هپاتیت‌اند.
+      const hepUnit = /iu|s\s*\/\s*co|\bcoi\b|index/i.test(String(t.unit || ""));
+      // 🔴 بازبینیِ دور ۳ (R3-B2): شاهدِ *صفحه* فقط برای عددِ بی‌واحدِ هپاتیتی کافی است. «HBs: Positive» کنارِ HbA2ِ
+      //    همان صفحه (برگهٔ پیش‌ازدواج) «هموگلوبین S (داسی‌شکل)» خوانده می‌شد — آنتی‌ژنِ هپاتیتِ B به زوج «داسی» معرفی
+      //    می‌شد. مقدارِ کیفی فقط با ٪ واریانت است؛ وگرنه HB_NAME_AMBIGUOUS، هرچه روی صفحه باشد.
+      const evidence = pct || (electroPages.has(t._page ?? 0) && numeric);
+      const vk = HB_AMBIGUOUS[key] ? (evidence && !hepUnit ? HB_AMBIGUOUS[key] : null)
+        : HB_FRENCH_HGB[key] ? (evidence ? HB_FRENCH_HGB[key] : null)
+        : key === "a2" ? (pct ? "HBA2" : undefined)
+        : HB_VARIANT_KEYS.has(NAME_MAP[key]) ? NAME_MAP[key] : undefined;
+      if (vk !== undefined) {
+        if (vk && numeric) {
+          tests[vk] = nv;
+          if (/^[<≤]/.test(cleaned)) rawText[vk] = cleaned; // «<1»: عدد برای حکم، متنِ خام برای نقل (N5)
+        } else if (vk) {
+          // «Sickle test: Positive»، «HbS: Detected» — شناخته‌شده، بی‌بازه، هرگز عددِ ساختگی (N6).
+          if (!noReader.includes(vk)) noReader.push(vk);
+          if (noReaderValues[vk] == null) noReaderValues[vk] = rawV;
+        } else {
+          unmapped.push(t.name);
+          if (!noReader.includes("HB_NAME_AMBIGUOUS")) noReader.push("HB_NAME_AMBIGUOUS");
+          if (noReaderValues.HB_NAME_AMBIGUOUS == null) noReaderValues.HB_NAME_AMBIGUOUS = rawV;
+        }
+        continue;
+      }
+    }
     const onAbgPage = abgPages.has(t._page ?? 0);
 
     // ═══ لایهٔ ۰: صفحهٔ آنالیزِ منی — پیش از /hpf، چون WBC/RBCِ منی اغلب /hpf چاپ می‌شوند ═══
@@ -1514,7 +1620,9 @@ export function runEngine(ocr) {
 
     // specs/007: RETIC_ABS بازهٔ تأییدشده ندارد (۲۵–۱۰۰ ×10⁹/L در P52) — در هیچ سنی سنجیده نمی‌شود. ردیفِ نوزادیِ
     // بی‌منبعِ PED_REFS حذف شد (P52 پرسش ۴)؛ این گیت می‌ماند تا بازه‌ای که کسی بی‌تأیید بیفزاید حکم ندهد.
-    const ref = key === "RETIC_ABS" ? null : getRef(key, sex, age);
+    // specs/008: کلیدهای بی‌بازه (NO_RANGE_KEYS، P53) و HbA2/HbF زیرِ ۲ سال (HbF نوزاد ۶۰–۸۵٪، HbA2 تا ۱–۲ سالگی
+    // به حدِ بزرگسال نمی‌رسد) سنجیده نمی‌شوند ⇒ «تفسیر نشدند».
+    const ref = (NO_RANGE_KEYS.has(key) || ((key === "HBA2" || key === "HBF") && age != null && age < 2)) ? null : getRef(key, sex, age);
     if (!ref) {
       noRef.push(key);
       if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range" };

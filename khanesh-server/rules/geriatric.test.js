@@ -28,7 +28,10 @@ describe("Geriatric Logic", () => {
     const mcv = engineOut.graded.find(g => g.test === "MCV");
 
     assert.ok(hb, "Hb should be graded");
-    assert.strictEqual(hb.tag, "normal", "Hb 12.3 should be normal for a 75yo male (range 11.0-17.5)");
+    // specs/008 Q1 (تأییدِ کاربر ۱۴۰۵/۰۷/۰۱): حدِ پایینِ Hb مردِ ≥۷۰ ساله ۱۲.۴ است و GERIATRIC_REFS.HGB
+    // (۱۱.۰، بی‌منبع — P2) حذف شد. پس 12.3 برای مردِ ۷۵ ساله دیگر «طبیعی» نیست — عمداً عوض شد.
+    assert.strictEqual(hb.range, "12.4–17.5", "Hb range for a 75yo male is the approved >=70 row");
+    assert.strictEqual(hb.dir, "low", "Hb 12.3 is low for a 75yo male (range 12.4-17.5, specs/008)");
     
     assert.ok(mcv, "MCV should be graded");
     assert.strictEqual(mcv.abnormal, false, "MCV 101 should be normal for a 75yo male (range 82-102)");
