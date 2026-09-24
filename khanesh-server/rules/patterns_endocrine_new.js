@@ -1,4 +1,4 @@
-import { val, rankOf, has } from "./patterns_utils.js";
+import { val, rankOf, has, macroMcvCut } from "./patterns_utils.js";
 
 export const RULES_ENDOCRINE_NEW = [
   // ── تیروئید ──
@@ -63,7 +63,7 @@ export const RULES_ENDOCRINE_NEW = [
       let bloodTxt;
       if (mcv == null && !hgb) {
         bloodTxt = " شمارش خون (CBC) روی این برگه نیست؛ برای دیدن اثر این کمبود روی گلبول‌های قرمز لازم است.";
-      } else if (mcv != null && mcv > 100) {
+      } else if (mcv != null && mcv > macroMcvCut(e)) {
         bloodTxt = ` گلبول‌های قرمز شما هم بزرگ‌تر از حد طبیعی هستند (MCV=${mcv})، که با همین کمبود می‌خواند.`;
       } else {
         bloodTxt = " شمارش خون شما این اثر را نشان نمی‌دهد، ولی این کمبود را رد نمی‌کند: آسیب عصبی ناشی از کمبود B12 می‌تواند پیش از هر تغییری در گلبول‌های قرمز شروع شود.";

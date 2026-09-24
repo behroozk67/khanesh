@@ -59,6 +59,12 @@ export default function ProfileCard({
               { value: "female", label: "زن" },
             ]}
           />
+          {!sex && (
+            <p className="note note--info">
+              جنسیت انتخاب نشده است. برای عکسِ برگه، جنسیتِ چاپ‌شده روی خودِ برگه به کار می‌رود؛ برای ورودِ دستی
+              آن را انتخاب کنید تا محدوده‌ها دقیق باشند.
+            </p>
+          )}
         </div>
       </div>
 

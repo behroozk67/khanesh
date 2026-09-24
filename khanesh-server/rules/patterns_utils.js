@@ -15,6 +15,15 @@ import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { SURVIVAL_LIMITS } from "./units.js";
+import { GERIATRIC_REFS, GERIATRIC_FROM_AGE } from "./refs.js";
+
+// ─── مرزِ «گلبولِ درشت» (ماکروسیتیک) — تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴ ───
+// 🔴 پیش‌تر ۱۰۰ برای همه: مردِ ۷۶ ساله با MCV 101 در فهرستِ اعداد «طبیعی» (بازهٔ سالمندِ ۸۲–۱۰۲) و در متن «بزرگ‌تر از حد
+//    معمول» می‌دید. از ۷۵ سالگی مرز همان سقفِ GERIATRIC_REFS.MCV است — عدد اینجا دوباره نوشته نمی‌شود (M91e).
+export const MACRO_MCV_ABOVE = 100;
+export function macroMcvCut(e) {
+  return e?.age != null && e.age >= GERIATRIC_FROM_AGE ? GERIATRIC_REFS.MCV.both[1] : MACRO_MCV_ABOVE;
+}
 
 export function levelGrade(g) {
   if (!g) return 0;
@@ -143,12 +152,16 @@ function ironLowForAcd(e) {
 //   >۳.۸ «trait» · ۳.۵ تا ۳.۸ «borderline» (بی‌ادعا) · بقیه null.
 // ۳.۸ و ۱۲ از مرجعِ چسبانده‌شده‌اند (تأییدِ کاربر ۱۴۰۵/۰۷/۰۱)؛ سقفِ ۳.۵ از بازهٔ خودِ ردیف (refs.js) خوانده می‌شود.
 const HBA2_TRAIT_ABOVE = 3.8;
-const HBA2_BEYOND_TRAIT_ABOVE = 12;
+// P53 پرسش ۱۲ و ۱۵ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴: «بر اساسِ گایدلاین»): BSH 2023 (Significant haemoglobinopathies؛ از خلاصهٔ جست‌وجو، متنِ کامل 403)
+//   — HbA2ِ ظاهراً ≥۸٪ روی HPLC ⇒ هموگلوبین لپور مطرح؛ >۱۵٪ ⇒ صفتِ HbE (هم‌جا با HbA2). پیش‌تر ۱۲ (مرجعِ چسبانده‌شده)،
+//   و ۸ تا ۱۲ «صفتِ بتا» خوانده می‌شد که برای صفتِ بتا نامعمول است.
+const HBA2_BEYOND_TRAIT_FROM = 8;
+const HBA2_HBE_ABOVE = 15;
 const hba2Row = (e) => e.graded?.find((x) => x.test === "HBA2" && x.value != null);
 function hba2State(e) {
   const g = hba2Row(e);
   if (!g || !(g.abnormal && g.dir === "high")) return null;
-  return g.value > HBA2_BEYOND_TRAIT_ABOVE ? "very_high" : g.value > HBA2_TRAIT_ABOVE ? "trait" : "borderline";
+  return g.value >= HBA2_BEYOND_TRAIT_FROM ? "very_high" : g.value > HBA2_TRAIT_ABOVE ? "trait" : "borderline";
 }
 // 🔴 بازبینیِ کد #۶: هر ردیفِ الکتروفورز (HbA2/HbF/HbA) یعنی الکتروفورز انجام شده — درخواستِ دوباره نه (N8).
 const hba2Measured = (e) => !!e.graded?.some((x) => ["HBA2", "HBF"].includes(x.test)) ||
@@ -174,14 +187,94 @@ function hba2Clause(e, { idaBranch = false, owner = false } = {}) {
       "از این عدد به‌تنهایی نمی‌شود دربارهٔ ناقل بودنِ تالاسمی نتیجه گرفت و پزشک باید آن را کنارِ شمارشِ خون تفسیر کند.";
   }
   if (st === "very_high") {
-    return ` هموگلوبین A2 شما ${v}٪ است، که حتی از حدِ معمولِ «صفتِ تالاسمیِ بتا» هم بالاتر است؛ در چنین مقداری گاهی ` +
-      "یک هموگلوبینِ دیگر (مثلاً HbE) هم‌جای HbA2 اندازه‌گیری می‌شود. پزشک باید نتیجهٔ کاملِ الکتروفورز را ببیند.";
+    return ` هموگلوبین A2 شما ${v}٪ است، که از حدی که معمولاً در «صفتِ تالاسمیِ بتا» دیده می‌شود (کمتر از ۸٪) بالاتر است؛ ` +
+      (v > HBA2_HBE_ABOVE
+        ? "در این مقدار معمولاً هموگلوبین E هم‌جای HbA2 اندازه‌گیری می‌شود (صفتِ HbE). "
+        : "در این مقدار ممکن است یک هموگلوبینِ دیگر (مثلاً هموگلوبین لپور) هم‌جای HbA2 اندازه‌گیری شده باشد. ") +
+      "پزشک باید نتیجهٔ کاملِ الکتروفورز را ببیند و گاهی روشِ دومی لازم است.";
   }
   return ` هموگلوبین A2 شما ${v}٪ است که از ۳.۸ بالاتر است؛ این مقدار معمولاً با «صفتِ تالاسمیِ بتا» ` +
     "(ناقل بودن، نه بیماری) می‌خواند." +
     (idaBranch
       ? " کمبودِ آهن و صفتِ تالاسمی می‌توانند هم‌زمان باشند (و کمبودِ آهن HbA2 را کمی پایین می‌آورد)؛ پزشک باید هر دو را کنارِ هم بسنجد."
       : "");
+}
+
+// ═══ P53 پرسش ۱۴ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴: «بر اساسِ گایدلاین‌ها») — فریتین کنارِ گلبولِ کوچک ═══
+// زیرِ آستانهٔ کمبود ⇒ iron_deficiency_panel مالک است. بالای آن، بزرگسال:
+//   بی‌التهاب: <۴۵ خنثی («رد نمی‌کند»)؛ ≥۴۵ «کم‌احتمال‌تر».
+//   با التهاب: <۱۰۰ خنثی (زیرِ ۷۰ WHO، پرسش ۳، مالکش iron_deficiency_panel است)؛ ≥۱۰۰ «کم‌احتمال‌تر».
+//   ⚠️ ۴۵/۱۰۰ پیشنهادِ بازبینِ دور ۳ است (با ارجاع به Guyatt)؛ AGA 2020 و Guyatt 1992 باز نشدند — منبعِ خوانده‌شده ادعا نمی‌شود.
+// زیرِ ۱۶ سال: رفتارِ پیشین — داخلِ بازه خنثی، بالاتر از بازه «کم‌احتمال‌تر».
+const FERRITIN_ID_UNLIKELY_FROM = 45;
+const FERRITIN_ID_UNLIKELY_INFLAM_FROM = 100;
+/** جملهٔ فریتینِ روی برگه برای یافته‌های گلبولِ کوچک. state: low | masked | neutral | unlikely | high؛ null اگر فریتین نیست. */
+function ferritinMicroClause(e) {
+  const f = e.graded?.find((g) => g.test === "FERRITIN");
+  if (!f || f.value == null) return null;
+  const inflam = hasInflammation(e);
+  if (ferritinBelowIdCut(e)) {
+    return { state: "low", text: `فریتینِ همین برگه ${f.value} است (حد طبیعی ${f.range}) که زیرِ حدِ کمبودِ آهن است و کمبودِ آهن را تأیید می‌کند` };
+  }
+  if (whoInflamIronDeficiency(e)) {
+    return { state: "masked", text: `فریتینِ همین برگه ${f.value} است؛ با التهابی که نشانه‌اش در همین برگه هست، این مقدار کمبودِ آهن را رد نمی‌کند` };
+  }
+  if (f.abnormal && f.dir === "high") {
+    return { state: "high", text: `فریتینِ همین برگه ${f.value} است که بالاتر از حد طبیعی (${f.range}) است؛ این کمبودِ آهن را کم‌احتمال‌تر می‌کند، ولی فریتینِ بالا خودش (مثلاً در التهاب یا بیماریِ کبد) باید با پزشک بررسی شود` };
+  }
+  const unlikelyFrom = isPedAge(e) ? null : inflam ? FERRITIN_ID_UNLIKELY_INFLAM_FROM : FERRITIN_ID_UNLIKELY_FROM;
+  if (unlikelyFrom != null && f.value >= unlikelyFrom) {
+    return { state: "unlikely", text: `فریتینِ همین برگه ${f.value} است (حد طبیعی ${f.range})؛ این مقدار کمبودِ آهن را کم‌احتمال‌تر می‌کند` +
+      (inflam ? " (با وجودِ التهابی که نشانه‌اش در همین برگه هست)" : "") };
+  }
+  return { state: "neutral", text: `فریتینِ همین برگه ${f.value} است (حد طبیعی ${f.range})؛ این مقدار کمبودِ آهن را رد نمی‌کند، و پزشک آن را کنارِ اندازهٔ گلبول‌ها می‌سنجد` +
+    (inflam ? " (التهاب — که نشانه‌اش در همین برگه هست — فریتین را بالا می‌برد و می‌تواند کمبودِ آهن را بپوشاند)" : "") };
+}
+
+// ═══ P53 پرسش ۴ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): sTfR/log فریتین و ZPP تفسیر می‌شوند ═══
+// عددها همان پیشنهادِ مرجعِ چسبانده‌شده است (SPECS008_SOURCE، منبعِ اصلی نامعلوم): نسبتِ sTfR/log₁₀(فریتین) >۲ ⇒
+// کمبودِ آهن (حتی با التهاب)؛ ZPP >۱۰۰ µmol/mol heme ⇒ ساختِ گلبول با آهنِ ناکافی (کمبودِ آهن یا سرب).
+// ⚠️ فقط با واحدِ چاپ‌شده (N3): sTfR با mg/L (= µg/mL) — کیت‌های nmol/L عددِ دیگری دارند؛ ZPP با µmol/mol — ZPPِ
+//    µg/dL ِ خونِ کامل مقیاسِ دیگری است. بی‌واحد یا واحدِ دیگر ⇒ مثلِ پیش در «تفسیر نشدند».
+const STFR_INDEX_ID_ABOVE = 2;
+const ZPP_HIGH_ABOVE = 100;
+const STFR_UNIT_RE = /^\s*(mg\s*\/\s*l|[µu]g\s*\/\s*ml|mcg\s*\/\s*ml)\s*$/i;
+const ZPP_UNIT_RE = /[µu]mol\s*\/\s*mol|micromol\s*\/\s*mol/i;
+/** {value, stfr, ferritin} یا null. */
+function stfrIndex(e) {
+  const s = e.ungraded?.STFR;
+  const f = e.graded?.find((g) => g.test === "FERRITIN");
+  if (!s || s.value == null || !STFR_UNIT_RE.test(String(s.unit ?? ""))) return null;
+  if (!f || f.value == null || !(Number(f.value) > 1)) return null;
+  return { value: +(Number(s.value) / Math.log10(Number(f.value))).toFixed(2), stfr: s.value, ferritin: f.value };
+}
+const stfrIndexHigh = (e) => (stfrIndex(e)?.value ?? 0) > STFR_INDEX_ID_ABOVE;
+/** "high" | "unjudged" (واحد درست، ≤۱۰۰) | null (نیست یا واحدش خوانده نشد). */
+function zppState(e) {
+  const z = e.ungraded?.ZPP;
+  if (!z || z.value == null || !ZPP_UNIT_RE.test(String(z.unit ?? ""))) return null;
+  return Number(z.value) > ZPP_HIGH_ABOVE ? "high" : "unjudged";
+}
+
+// ═══ P53 پرسش ۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): HbS/HbC/HbE — صفت یا بیماری ═══
+// ASH 2021 (Hemoglobin Electrophoresis in SCD: a primer — باز شد) و BSH 2023 (خلاصهٔ جست‌وجو): در صفت HbA بیشتر از واریانت است (AS حدودِ ۶۰:۴۰)؛
+// در بیماری (SS بیش از ۹۰٪، S/β+ بیش از ۶۰٪، S/β0 بیش از ۸۰٪، SC حدودِ ۵۰:۵۰) HbA کمتر است یا نیست.
+//   ⇒ «صفت»: واریانت <۵۰٪ و (HbA روی برگه نیست یا بیشتر از واریانت است).
+//   ⇒ «بیماریِ احتمالی»: واریانت ≥۵۰٪، یا HbA ≤ واریانت، یا دو واریانت هر کدام ≥۱۵٪ (مثلِ SC).
+const HB_VARIANT_TRAIT_BELOW = 50;
+const HB_VARIANT_COMPOUND_MIN = 15;
+const HB_VARIANT_FA = { HBS: "هموگلوبین S (داسی)", HBC: "هموگلوبین C", HBE: "هموگلوبین E" };
+/** { state: "trait" | "disease", variants: [{key, value}], hba } یا null. */
+function hbVariantState(e) {
+  const variants = ["HBS", "HBC", "HBE"]
+    .map((key) => ({ key, value: Number(e.ungraded?.[key]?.value) }))
+    .filter((x) => Number.isFinite(x.value) && x.value > 0);
+  if (!variants.length) return null;
+  const hbaRaw = e.ungraded?.HBA?.value;
+  const hba = hbaRaw != null && Number.isFinite(Number(hbaRaw)) ? Number(hbaRaw) : null;
+  const compound = variants.filter((x) => x.value >= HB_VARIANT_COMPOUND_MIN).length >= 2;
+  const disease = compound || variants.some((x) => x.value >= HB_VARIANT_TRAIT_BELOW || (hba != null && hba <= x.value));
+  return { state: disease ? "disease" : "trait", variants, hba, compound };
 }
 
 /** فریتینِ «طبیعیِ» آزمایشگاه که با معیارِ التهابیِ WHO کمبود است. */
@@ -899,6 +992,6 @@ export { isSgKey, sgValue, sgState, SG_KEY, SG_DILUTE_MAX, SG_CONCENTRATED_MIN, 
   urineBiliSentence };
 export { isCastKey, castTypeOf, castTypesIn, castValueState, castRoute, castRows, castAxis, othersSentence,
   urineCellState, CAST_TYPES, HYALINE_CAST_UPPER_LPF };
-export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, ferritinIdCut, isPedAge, IRON_ACD_LOW_UGDL, ferritinBelowIdCut, ironLowForAcd, hba2State, hba2Measured, hba2Clause, HBA2_TRAIT_ABOVE, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
+export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, ferritinIdCut, isPedAge, IRON_ACD_LOW_UGDL, ferritinBelowIdCut, ironLowForAcd, hba2State, hba2Measured, hba2Clause, HBA2_TRAIT_ABOVE, HBA2_BEYOND_TRAIT_FROM, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
          amylaseEmergencyOwns, biliEmergencyOwns, AMYLASE_EMERGENCY_UL, BILI_T_EMERGENCY_MGDL,
          anemiaCrisisOwns, actionUnlessAnemiaCrisis, ANEMIA_CRISIS_DEFER, HGB_CRISIS_GDL, crisisArm, HCT_CRISIS_PCT };

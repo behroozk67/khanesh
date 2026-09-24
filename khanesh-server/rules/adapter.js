@@ -513,7 +513,10 @@ const QUAL_NO_READER = new Set(["ANTI_IF", "APCA"]);
 // ═══ P49-الف: کلیدهای بی‌پروفایلِ واحد که قاعده‌ای عددشان را می‌خواند ═══
 // سرولوپلاسمین mg/dL یا g/L چاپ می‌شود (۱۰ در برابرِ ۰.۱)، مسِ ادرار µg یا µmol در ۲۴ ساعت. هیچ‌کدام در
 // UNIT_PROFILE نیستند، پس واحدِ چاپ‌شده اینجا نگه داشته می‌شود و قاعده فقط با واحدِ چاپ‌شده حکم می‌دهد (N3).
-const UNIT_KEPT = new Set(["CERULOPLASMIN", "U_COPPER_24H"]);
+const UNIT_KEPT = new Set(["CERULOPLASMIN", "U_COPPER_24H",
+  // P53 پرسش ۴ و ۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): ZPP فقط با µmol/mol، sTfR فقط با mg/L تفسیر می‌شوند، و درصدِ
+  // واریانت‌های هموگلوبین را قاعده‌ها از ungraded می‌خوانند — بی‌بازه می‌مانند (noRef) تا قاعده explains کند.
+  "ZPP", "STFR", "HBA", "HBS", "HBC", "HBE"]);
 
 // ═══ specs/008 — ردیف‌های الکتروفورزِ هموگلوبین (R4) ═══
 const HB_AMBIGUOUS = { hbs: "HBS", hbc: "HBC", hbe: "HBE",       // هم‌نامِ نشانگرهای هپاتیتِ B
@@ -1419,7 +1422,15 @@ export function ocrToEngineInput(ocr) {
     diffFailed,
     sex: inferSex(ocr),
     age: inferAge(ocr),
+    pregnant: inferPregnant(ocr),
   };
+}
+
+// P53 پرسش ۲: «باردار» فقط از ورودیِ خودِ کاربر (فرم: patient.pregnant = true) — هرگز از متنِ برگه حدس زده نمی‌شود.
+// مردِ «باردار» یا جنسِ نامعلوم اثری ندارد (getRef فقط برای F).
+function inferPregnant(ocr) {
+  const v = ocr?.patient?.pregnant;
+  return v === true || /^(true|yes|بله|باردار)$/i.test(String(v ?? "").trim());
 }
 
 /**
@@ -1427,7 +1438,8 @@ export function ocrToEngineInput(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, sex, age } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, sex, age, pregnant } = ocrToEngineInput(ocr);
+  const pregnantF = pregnant && sex === "F";
 
   const conditions = ocr?.patient?.conditions || [];
   const isCancerPatient = conditions.some((c) => /سرطان|شیمی.?درمانی|رادیوتراپی|ایمونوتراپی/.test(c));
@@ -1514,7 +1526,7 @@ export function runEngine(ocr) {
   const URG_RANK = { none: 0, routine: 1, this_week: 2, emergency: 3 };
   const maxUrg = (a, b) => (URG_RANK[a] >= URG_RANK[b] ? a : b);
   const urgencyOfReading = (key, conv) => {
-    const ref = getRef(key, sex, age);
+    const ref = getRef(key, sex, age, { pregnant: pregnantF });
     if (!ref) return "none";
     const probe = {
       sex, age, qual: {}, semenQual: {}, ungraded: {}, indices: {}, unmapped: [], unitConversions: [],
@@ -1526,7 +1538,7 @@ export function runEngine(ocr) {
     return runPatterns(probe).overall_urgency;
   };
   for (const [key, { value, reference }] of Object.entries(unitUnknown)) {
-    const band = getRef(key, sex, age ?? 40);
+    const band = getRef(key, sex, age ?? 40, { pregnant: pregnantF });
     const printed = parseReference(reference, sex);
     const neonatalBili = /^BILI_/.test(key) && age != null && age < 1;
     const entry = { value, reason: "unit_unknown", alt: verdictsAcrossSystems(key, value, sex, age),
@@ -1622,7 +1634,29 @@ export function runEngine(ocr) {
     // بی‌منبعِ PED_REFS حذف شد (P52 پرسش ۴)؛ این گیت می‌ماند تا بازه‌ای که کسی بی‌تأیید بیفزاید حکم ندهد.
     // specs/008: کلیدهای بی‌بازه (NO_RANGE_KEYS، P53) و HbA2/HbF زیرِ ۲ سال (HbF نوزاد ۶۰–۸۵٪، HbA2 تا ۱–۲ سالگی
     // به حدِ بزرگسال نمی‌رسد) سنجیده نمی‌شوند ⇒ «تفسیر نشدند».
-    const ref = (NO_RANGE_KEYS.has(key) || ((key === "HBA2" || key === "HBF") && age != null && age < 2)) ? null : getRef(key, sex, age);
+    // P53 پرسش ۶: HbF از ۱ سالگی با ۰–۲٪ سنجیده می‌شود (تا ۱ سالگی به زیرِ ۲٪ می‌رسد)؛ زیرِ ۱ سال فیزیولوژیک بالاست.
+    const ungradedByAge = (key === "HBA2" && age != null && age < 2) || (key === "HBF" && age != null && age < 1);
+    // P53 پرسش ۱۱ بندِ ۳: جنسِ نامعلوم ⇒ Hb با هر دو ردیف سنجیده می‌شود. عددی که برای هر دو جنس پایین (یا بالا) است
+    //   حکم می‌گیرد؛ عددی که برای یک جنس طبیعی و برای دیگری غیرطبیعی است سنجیده نمی‌شود و hgb_sex_unknown آن را می‌گوید.
+    //   پیش‌تر ردیفِ زن (۱۲.۰) اعمال می‌شد و مردِ Hb 12.5 «طبیعی» می‌خواند.
+    if (key === "HGB" && !sex && !ungradedByAge) {
+      const rf = getRef(key, "F", age), rm = getRef(key, "M", age);
+      if (rf && rm && (rf[0] !== rm[0] || rf[1] !== rm[1])) {
+        const lo = Math.min(rf[0], rm[0]), loMax = Math.max(rf[0], rm[0]);
+        const hi = Math.max(rf[1], rm[1]), hiMin = Math.min(rf[1], rm[1]);
+        if ((value >= lo && value < loMax) || (value > hiMin && value <= hi)) {
+          // ⚠️ نه «sex_unknown»: آن دلیل را reproductive_hormone_context می‌خواند و Hb را «هورمون» می‌نامید.
+          ungraded.HGB = { value, reason: "hgb_sex_unknown", side: value < loMax ? "low" : "high",
+            female: `${rf[0]}–${rf[1]}`, male: `${rm[0]}–${rm[1]}` };
+          noRef.push(key);
+          continue;
+        }
+        const e0 = evaluate(key, value, lo, hi, isCancerPatient);
+        graded.push({ test: key, value, range: `${lo}–${hi}`, refSource: getRefSource(key, age), ...e0 });
+        continue;
+      }
+    }
+    const ref = (NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF });
     if (!ref) {
       noRef.push(key);
       if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range" };
@@ -1702,6 +1736,7 @@ export function runEngine(ocr) {
 
   return {
     sex, age,
+    pregnant: pregnantF,
     graded,
     qual,
     // ردیف‌های کیفی/بازه‌ایِ برگهٔ منی (P47). ⚠️ عمداً جدا از qual: قاعده‌های ادرار qual را با

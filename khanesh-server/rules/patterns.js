@@ -261,6 +261,9 @@ function textNamesTest(text, key) {
   if (fa && fa !== key && text.includes(fa)) return true;
   const faCore = String(fa).replace(/\s*\([^)]*\)\s*/g, " ").trim();
   if (faCore && faCore !== key && faCore.length > 1 && text.includes(faCore)) return true;
+  // RDW_SD/RDW_CV تا ۲۰۲۶-۰۹-۲۴ هر دو «RDW» نام داشتند و متنِ قاعده‌ها (مثلاً اسفروسیتوز) «RDW» می‌گوید. نام جدا شد
+  // (N8)، ولی «RDW» در متن هنوز اشاره به همین دو است — بی این، RDW-CVِ همان یافته به «توضیح داده نشدند» می‌رفت.
+  if ((key === "RDW_SD" || key === "RDW_CV") && /(^|[^A-Za-z])RDW([^A-Za-z_]|$)/.test(text)) return true;
   return new RegExp(`(^|[^A-Za-z0-9_])${key}([^A-Za-z0-9_]|$)`).test(text);
 }
 
@@ -431,7 +434,8 @@ export function runPatterns(engineOut) {
           ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
           : hasMarked
           ? "این هفته با پزشک وقت بگیرید و این برگه را همراه ببرید."
-          : "این موارد را هم موقع مراجعه با پزشک مرور کنید.",
+          // 🔴 برگهٔ واقعی ۲۰۲۶-۰۹-۲۴: «این موارد را …» در فهرستِ توصیه‌ها بی‌مرجع می‌ماند — آن فهرست جدا از متن است.
+          : `این نتایجِ خارج از محدوده را هم موقع مراجعه با پزشک مرور کنید: ${head.map((a) => faName(a.test)).join("، ")}${tail}.`,
         suggest: [],
         warnings: [],
       });

@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, albLowMarker, amylaseEmergencyOwns, biliEmergencyOwns , urineBiliSentence , urineBiliState } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, albLowMarker, amylaseEmergencyOwns, biliEmergencyOwns , urineBiliSentence , urineBiliState, macroMcvCut } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -1577,7 +1577,7 @@ export const RULES_BIOCHEM = [
     },
     build: (e) => {
       const t = val(e);
-      const mcvHigh = t.MCV != null && t.MCV > 100;
+      const mcvHigh = t.MCV != null && t.MCV > macroMcvCut(e);
       const ratio = t.ALT ? +(t.AST / t.ALT).toFixed(1) : null;
       return {
         pattern: "alcoholic_liver_pattern",

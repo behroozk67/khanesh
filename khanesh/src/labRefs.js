@@ -165,7 +165,9 @@ export const REF = {
     low: "پایین می‌تواند به کم‌خونی، فقر آهن یا کمبود B12 مربوط باشد.",
     high: "بالا می‌تواند به کم‌آبی، زندگی در ارتفاع یا موارد دیگر مربوط باشد." },
   hb: { label: "Hb (هموگلوبین)", unit: "g/dL", cat: "cbc", hard: [3, 25],
-    range: (s, m) => {
+    // P53 پرسش ۲ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): همان کفِ موتور برای بارداری (refs.js HGB_PREGNANCY_LOW = ۱۱.۰).
+    range: (s, m, ctx = {}) => {
+      if (ctx.pregnant && s === "female") return { low: 11.0, high: 16.0 };
       if (m != null && m < 1) return { low: 11, high: 24 };
       if (m != null && m < 6) return { low: 9.5, high: 18 };
       // specs/008 Q1 — همان حدهای پایینِ موتور (refs.js hgbRef)؛ تأییدِ کاربر ۱۴۰۵/۰۷/۰۱، منبعِ اصلی نامعلوم.
@@ -306,9 +308,9 @@ export const LOCAL_STATES = {
   crit:  { label: "بحرانی", icon: "⚠", cls: "st-emergency" },
 };
 
-export function statusOf(key, v, sex, months) {
+export function statusOf(key, v, sex, months, ctx = {}) {
   const m = REF[key];
-  const r = m.range(sex, months);
+  const r = m.range(sex, months, ctx);
   // بررسی بحرانی:
   // اول critFn: منطق سفارشی مثل بیلی‌روبین نوزاد
   if (m.critFn && m.critFn(v, sex, months)) return "crit";

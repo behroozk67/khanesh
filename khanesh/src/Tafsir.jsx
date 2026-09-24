@@ -23,7 +23,8 @@ import {
 // بود، و همان مکانیزم بود که :focus-visible و مدیا-کوئری را غیرممکن می‌کرد.
 
 export default function Tafsir() {
-  const [sex, setSex] = useState("male");
+  // 🔴 برگهٔ واقعی ۲۰۲۶-۰۹-۲۴: پیش‌فرضِ «مرد» جنسیتِ چاپ‌شده روی برگه را در مسیرِ عکس کنار می‌زد — خالی یعنی «نگفته».
+  const [sex, setSex] = useState("");
   const [age, setAge] = useState("");
   const [ageUnit, setAgeUnit] = useState("year"); // year | month | day
   const [pregnant, setPregnant] = useState(false);
@@ -153,7 +154,7 @@ export default function Tafsir() {
         errs.push({ key: k, label: REF[k].label, value: v, min: mn, max: mx });
         return;
       }
-      const status = statusOf(k, v, sex, months);
+      const status = statusOf(k, v, sex, months, { pregnant });
       if (status === "crit") criticalCount++;
       rows.push({ k, v, status });
     });
@@ -161,12 +162,12 @@ export default function Tafsir() {
   // months (از age+ageUnit) را مستقیم وابسته می‌کنیم: هم درست است هم warning
   //    exhaustive-deps را رفع می‌کند. «۵ سال → ۵ ماه» محدوده‌ها را عوض می‌کند و
   //    باید جدول را دوباره بسازد.
-  }, [vals, sex, months]);
+  }, [vals, sex, months, pregnant]);
 
   // ساخت متن نتایج برای فرستادن به AI
   function buildTestText() {
     return rows.map((r) => {
-      const m = REF[r.k]; const ref = m.range(sex, months);
+      const m = REF[r.k]; const ref = m.range(sex, months, { pregnant });
       return `${m.label}: ${r.v} ${m.unit} (محدوده طبیعی: ${ref.low}-${ref.high})`;
     }).join("\n");
   }
@@ -195,8 +196,8 @@ export default function Tafsir() {
     const unitFa = ageUnit === "day" ? "روز" : ageUnit === "month" ? "ماه" : "سال";
     return {
       age: age ? `${age} ${unitFa}` : null,
-      sex: sex === "female" ? "زن" : "مرد",
-      // pregnant فقط زمینه برای لحنِ متن است.
+      sex: sex === "female" ? "زن" : sex === "male" ? "مرد" : null,
+      // ⚠️ pregnant دیگر فقط زمینهٔ لحن نیست (P53 پرسش ۲): موتور با آن کفِ Hb را ۱۱.۰ می‌گذارد.
       // ⚠️ conditions دیگر این‌طور نیست: grade.js درجه‌بندی CTCAE را به بیمارِ
       // سرطانی مشروط می‌کند، پس این آرایه ورودیِ درجه‌بندی است نه فقط لحن.
       // نفرستادنش یعنی بیمارِ سرطانی درجهٔ CTCAE نمی‌گیرد.
@@ -209,7 +210,7 @@ export default function Tafsir() {
     const unitFa = ageUnit === "day" ? "روز" : ageUnit === "month" ? "ماه" : "سال";
     const parts = [
       `سن: ${age || "نامشخص"} ${age ? unitFa : ""}`,
-      `جنسیت: ${sex === "female" ? "زن" : "مرد"}`,
+      `جنسیت: ${sex === "female" ? "زن" : sex === "male" ? "مرد" : "نامشخص"}`,
     ];
     if (months != null && months < 6) parts.push("توجه: بیمار نوزاد است؛ محدوده‌های مرجع نوزادی لحاظ شود.");
     if (sex === "female" && pregnant) parts.push("وضعیت: باردار");
@@ -399,7 +400,7 @@ export default function Tafsir() {
         <EntryGrid
           vals={vals} setVal={setVal}
           prevVals={prevVals} setPrevVal={setPrevVal}
-          sex={sex} months={months} compareMode={compareMode}
+          sex={sex} months={months} pregnant={sex === "female" && pregnant} compareMode={compareMode}
           search={search} setSearch={setSearch}
           activeCat={activeCat} setActiveCat={setActiveCat}
           errs={errs}
@@ -414,7 +415,7 @@ export default function Tafsir() {
         {show && rows.length > 0 && !aiResult && (
           <LocalPreview
             rows={rows} vals={vals} prevVals={prevVals}
-            sex={sex} months={months} compareMode={compareMode}
+            sex={sex} months={months} pregnant={sex === "female" && pregnant} compareMode={compareMode}
             criticalCount={criticalCount}
             expanded={expanded} setExpanded={setExpanded}
             onExport={onExport} onImport={onImport} ioError={ioError}

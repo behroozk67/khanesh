@@ -37,7 +37,7 @@ function DeltaChip({ prev, curr }) {
 }
 
 export default function LocalPreview({
-  rows, vals, prevVals, sex, months, compareMode, criticalCount,
+  rows, vals, prevVals, sex, months, pregnant = false, compareMode, criticalCount,
   expanded, setExpanded, onExport, onImport, ioError, onClose,
 }) {
   const insights = comboInsights((k) => vals[k], sex, months);
@@ -95,7 +95,7 @@ export default function LocalPreview({
       <ul className="row-list">
         {rows.map((row) => {
           const m = REF[row.k];
-          const r = m.range(sex, months);
+          const r = m.range(sex, months, { pregnant });
           const S = LOCAL_STATES[row.status];
           // ⚠️ باگِ واقعی که در بازطراحی پیدا شد (در نسخهٔ قبلی هم بود):
           //    متنِ توضیح از روی `status` انتخاب می‌شد و «crit» با «above»

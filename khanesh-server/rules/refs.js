@@ -335,8 +335,13 @@ export function ckdEpiEgfr(scr, age, sex) {
 // ⚠️ زیرِ ۱۶ سال: اول PED_REFS (RCPCH). ۱۲ تا ۱۵ ساله که RCPCH ردیف ندارد، بازهٔ *پیشینِ* بزرگسال
 //    (۱۴ / ۱۲.۳) را عیناً نگه می‌دارد — ردیف‌های کودکِ مرجع پذیرفته نشد (FR-004)، پرسشِ باز در P53.
 // ⚠️ این جای «کم‌خونی» است، نه آستانهٔ بحران: HGB_CRISIS_GDL (۷) و قاعده‌های بدخیمی عددِ خودشان را دارند (R2).
+// P53 پرسش ۲ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): بارداری ورودیِ موتور است — Hbِ زیرِ ۱۱.۰ در زنِ باردار کم‌خونی (WHO).
+//   فقط کفِ Hb عوض می‌شود؛ سقف همان ردیفِ زن. در هر سنی، چون خودِ کاربر «باردار» را زده است.
+// P53 پرسش ۱۱ بندِ ۳: جنسِ نامعلوم دیگر ردیفِ زن را نمی‌گیرد — adapter.js (hgbSexUnknown) دو ردیف را کنارِ هم می‌سنجد.
+export const HGB_PREGNANCY_LOW = 11.0;
 const HGB_HIGH = { M: 17.5, F: 15.3 };
-export function hgbRef(sex, age) {
+export function hgbRef(sex, age, { pregnant = false } = {}) {
+  if (pregnant && sex === 'F') return [HGB_PREGNANCY_LOW, HGB_HIGH.F];
   const m = sex === 'M';
   const hi = m ? HGB_HIGH.M : HGB_HIGH.F;
   if (age != null && age < 16) return m ? [14, hi] : [12.3, hi];
@@ -354,6 +359,8 @@ export function ferritinRef(sex, age) {
   return sex === 'M' ? ADULT_REFS.FERRITIN.M : ADULT_REFS.FERRITIN.F;
 }
 
+// سنِ شروعِ جدولِ سالمند — تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴: MCV و ALP روی ۷۵ می‌مانند (Hb جدا، ≥۷۰ در hgbRef).
+export const GERIATRIC_FROM_AGE = 75;
 export const GERIATRIC_REFS = {
   // Overrides for >= 75 years old
   // HGB: حذف شد — P2 بسته شد (specs/008). عددِ ۱۱.۰ / ۱۰.۵ منبع نداشت و کم‌خونیِ سالمند را پنهان می‌کرد؛
@@ -385,8 +392,9 @@ export const HCG_POSITIVE_ABOVE = 5;
  *     قاعدهٔ hCG را فعال می‌کرد ولی پروژسترونِ روزِ ۲۱ را از قضاوت بیرون نمی‌برد (کلاریفای Q6). */
 export const HCG_QUAL_NAME_RE = /hcg|بارداری|pregnan/i;
 
-export function getRef(testKey, sex, age) {
+export function getRef(testKey, sex, age, { pregnant = false } = {}) {
   if (REPRO_HORMONE_KEYS.has(testKey) && ((age != null && age < 16) || !sex)) return null;
+  if (testKey === 'HGB' && pregnant && sex === 'F') return hgbRef(sex, age, { pregnant });
   if (isPediatricRCPCH(age)) {
     const ped = getPedRef(testKey, age);
     if (ped) return ped;
@@ -394,7 +402,7 @@ export function getRef(testKey, sex, age) {
   }
   if (testKey === 'HGB') return hgbRef(sex, age);
   if (testKey === 'FERRITIN') return ferritinRef(sex, age);
-  if (age >= 75 && GERIATRIC_REFS[testKey]) {
+  if (age >= GERIATRIC_FROM_AGE && GERIATRIC_REFS[testKey]) {
     const g = GERIATRIC_REFS[testKey];
     if (g.both) return g.both;
     return sex === 'M' ? g.M : g.F;

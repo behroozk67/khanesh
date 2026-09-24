@@ -801,6 +801,42 @@ test("T25:برگه‌ای که فقط «Hgb S 40 %» دارد مسیرِ موت�
   assert.ok(body?._engine, "مسیرِ موتور گرفته نشد");
   assert.equal(body.has_critical, false);
   assert.doesNotMatch(`${body.summary} ${body.interpretation}`, /در محدوده طبیعی است/);
-  assert.ok((body.ocr_warnings || []).join(" ").includes("هموگلوبین S"), JSON.stringify(body.ocr_warnings));
+  // ⚠️ عمداً عوض شد — P53 پرسش ۶: HbS حالا تفسیر می‌شود (hb_variant، «صفت»)، پس به‌جای خطِ «تفسیر نشدند» در متنِ یافته است.
+  assert.ok(body._engine.patterns.includes("hb_variant"), JSON.stringify(body._engine.patterns));
+  // هشدارِ ناقل بودن (پرسش ۱۶: صفتِ داسیِ ۳۵–۴۰٪ پیش‌تر هیچ هشداری نمی‌گرفت) از فهرستِ موتور می‌آید، نه از مدل.
+  assert.ok((body.general_recommendations || []).some((r) => /ناقل/.test(r)), JSON.stringify(body.general_recommendations));
   assert.doesNotMatch(JSON.stringify(body), /\bHBS\b/, "کلیدِ خام به پاسخ رسید");
+});
+
+test("T27: بازهٔ درصدیِ جابه‌جا روی شمارشِ مطلق به ردیفِ ٪ برمی‌گردد؛ جنسیتِ برگه با فیلدِ خالیِ فرم پاک نمی‌شود (برگهٔ واقعی ۲۰۲۶-۰۹-۲۴)", async () => {
+  // 🔴 پیش‌تر: «NEUT 1.38 10^3/uL — 42.2–75.2» در فهرستِ اعداد؛ و patientِ فرم (پیش‌فرضِ «مرد») کلِ patientِ برگه را جایگزین می‌کرد.
+  const { fixShiftedDiffRefs, mergePatient } = await import("./server.js");
+  const rows = fixShiftedDiffRefs([
+    { name: "NEUT", value: "1.38", unit: "10^3/uL", reference: "42.2 - 75.2" },
+    { name: "NEUT%", value: "39.5", unit: "%", reference: "—" },
+    { name: "MONO", value: "0.46", unit: "10^3/uL", reference: "1.7 - 9.8" },
+    { name: "EO", value: "0.32", unit: "10^3/uL", reference: "0 - 0.3" },
+    { name: "WBC", value: "3.50", unit: "10^3/uL", reference: "4.0 - 10.0" },
+  ]);
+  const ref = (n) => rows.find((r) => r.name === n).reference;
+  assert.equal(ref("NEUT"), "");
+  assert.equal(ref("NEUT%"), "42.2 - 75.2");
+  assert.equal(ref("MONO"), "", "۱.۷ بالاتر از سقفِ مونوسیتِ مطلق است");
+  assert.equal(ref("EO"), "0 - 0.3", "بازهٔ ممکن برای شمارشِ مطلق دست نمی‌خورد");
+  assert.equal(ref("WBC"), "4.0 - 10.0");
+  // جنسیت
+  assert.deepEqual(mergePatient({ sex: "زن", age: "45" }, { age: "46", sex: null, conditions: [] }),
+    { sex: "زن", age: "46", conditions: [] });
+  assert.equal(mergePatient({ sex: "زن" }, { sex: "مرد" }).sex, "مرد", "انتخابِ صریحِ کاربر برنده است");
+});
+
+test("T28: ردیفِ درصدیِ بی‌«%» روی همان صفحه با شمارشِ مطلق یکی نمی‌شود (برگهٔ واقعی ۲۰۲۶-۰۹-۲۴، job 7b413a8d)", async () => {
+  // 🔴 پیش‌تر: «NEUT 1.38 10^3/uL» و «NEUT 39.5 %» ⇒ یک کلید، درصد دور ریخته و هشدارِ «در صفحه 1 و 1 با مقادیر متفاوت».
+  const { mergePages } = await import("./server.js");
+  const m = mergePages([{ ok: true, page: 1, ocr: { tests: [
+    { name: "NEUT", value: "1.38", unit: "10^3/uL" }, { name: "NEUT", value: "39.5", unit: "%" },
+    { name: "HCT", value: "30.4", unit: "%" },
+  ] } }]);
+  assert.deepEqual(m.duplicates, []);
+  assert.deepEqual(m.tests.map((t) => t.name), ["NEUT", "NEUT%", "HCT"], "HCT ردیفِ غیرِ٪ ندارد و نامش دست نمی‌خورد");
 });

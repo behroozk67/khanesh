@@ -27,6 +27,13 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `953f513`, after the user's MCV-in-the-elderly decision (`P55`: geriatric band stays ≥ 75; from 75 "macrocytic" means MCV above the geriatric 102 — `macroMcvCut`; `M193`, `M193b`; `M184e` changed on purpose) — 144 rules | 2026-09-24 | 682 | 663 | **0** | 19 todo |
+   | working tree on `953f513`, after the second real sheet (job `0400a412`: RBC/HCT/MCH named in the *full* macrocytic and normocytic text, `macrocytic_anemia` gets `always_show` + `brief`, new `mild_neutropenia`, leukopenia names neutrophils — `M192`–`M192d`; `M180b` panels 3/5/10 re-baselined after freezediff) — 144 rules | 2026-09-24 | 680 | 661 | **0** | 19 todo |
+   | copy of that tree with the new code switched off (helpers return "", `mild_neutropenia` never matches) — red: exactly `M192`–`M192d` + `M180b` | 2026-09-24 | — | — | **5** | — |
+   | working tree on `953f513`, after the real-sheet review (job `d982209d`: pancytopenia numbers + workup, `normocytic_anemia` brief, RDW-SD/CV names, self-contained net action, shifted diff ranges, per-field patient merge — `M191`–`M191c`, `T27`; freezes `M104d` C2/C4/C5, `M171d` hemol, `M180b` re-baselined after freezediff) — 143 rules | 2026-09-24 | 675 | 656 | **0** | 19 todo |
+   | `953f513` copy with those tests — red: the 17 of the row below plus `M171d`, `M191`, `M191c`, `T27`; `M191b` green on both (negative control) | 2026-09-24 | 675 | 635 | **21** | 19 todo |
+   | working tree on `953f513`, after the user's answers to the 16 P53 questions (pregnancy input, unknown-sex Hb, ZPP/sTfR, HbF/HbS/HbC/HbE, HbA2 ≥ 8, Mentzer flip, MCV-without-Hb, ferritin 45/100, child thal trait — `M190`–`M190i`; `M184f`, `M184i`, `M186d`, `M186g`, `T25` changed on purpose; freezes `M104d`/`M125`/`M164d`/`M180b` re-baselined after a full-output diff) — 143 rules | 2026-09-24 | 671 | 652 | **0** | 19 todo |
+   | `953f513` (`git archive` + junction) with those `engine.test.js` + `api-contract.test.js` — red: exactly the 9 `M190` guards, the 4 freezes, and `M184f`, `M184i`, `M186d`, `T25` | 2026-09-24 | 671 | 635 | **17** | 19 todo |
    | working tree on `9deba20`, after the specs/008 **round-3** review fixes (R3-B1 ferritin wording, R3-B2 hepatitis-vs-variant gate, R3-CR1 brief coverage, R3-CR2 per-finding forbid, R3-CR4 same-page merge — `M189`–`M189d`, `T26`; `M184i` changed on purpose) — 137 rules | 2026-09-24 | 662 | 643 | **0** | 19 todo |
    | copy of that tree taken before the round-3 fixes, with the new test files — red: exactly `M189`–`M189d`, `T26`, `M184i` | 2026-09-24 | 662 | 637 | **6** | 19 todo |
    | working tree on `9deba20`, after the specs/008 **round-2** review fixes (medical FAIL R2-B1–B5 + code CR1–CR11 + builder #2–#5 — `M184g`–`M184j`, `M186m`, `M186n`, `M187c`, `M188d`, `T24`, `T25`; `M184f`, `M186i` changed on purpose) — 137 rules | 2026-09-24 | 657 | 638 | **0** | 19 todo |
@@ -422,8 +429,8 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 `patterns.js` no longer holds the rules. It imports **seventeen** `patterns_<system>.js` files
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-22) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **137 rules, measured
-2026-09-23** (the 136th and 137th are `hba2_elevated` and `microcytosis_no_anemia` in `patterns_hematology.js`, specs/008; the 135th `rbc_indices_implausible`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
+concatenates their `RULES_*` exports into the exported `RULES` array — **144 rules, measured
+2026-09-24** (the 144th is `mild_neutropenia` in `patterns_hematology.js`, second real sheet; the 138th–143rd are `hba2_low`, `hbf_elevated`, `hb_variant`, `zpp_high`, `stfr_index` and `hgb_sex_unknown` in `patterns_hematology.js`, P53 answers; the 136th and 137th are `hba2_elevated` and `microcytosis_no_anemia` in `patterns_hematology.js`, specs/008; the 135th `rbc_indices_implausible`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
 `unit_unknown_values` in `patterns_unit_unknown.js` from specs/003, plus `folate_deficiency` in
 `patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004, plus
 the seven `urine_cast_*` rules in `patterns_urine_casts.js` and `urine_esterase_without_cells` in
@@ -923,6 +930,11 @@ second one; a recurring entry is the strongest signal in the file.
 - **Rule:** a missing test is not a normal test. Any finding that reports on another analyte needs a
   three-way branch (high / normal / not measured), and "not measured" in an emergency finding is an
   action item, not silence.
+- ⚠️ **Recurred, live on `953f513`, found while answering P53 Q13 (2026-09-24).** `thal_trait_no_anemia` matched on
+  `!anemic`, and `!anemic` is also true when Hb is **absent** or **high**. So `MCV 68 · RBC 6.2` with no Hb on the sheet read
+  «هموگلوبین شما طبیعی است، پس کم‌خونی ندارید». The rule now needs a graded, in-range Hb, and the no-Hb case has its own
+  sentence (`microcytosis_no_anemia`, `M190d`). **`!low` is not "normal". Negating one arm of a three-way state leaves two
+  arms, and one of them is "absent".**
 
 ### N5 — Printing a derived number as if it were on the patient's sheet
 `9c93319`
@@ -1638,6 +1650,20 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   نداریم», directly beneath the anaemia that explains them. `RULE_READS` counts only tokens in the source, so no
   rule "read" HCT. Fixed by giving `microcytic_anemia` `always_show` + `brief`, and by naming those values in its
   text.
+  ⚠️ **Recurred the next day on a real sheet (job `d982209d`, 2026-09-24):** `normocytic_anemia` had never got the same
+  treatment. Under `pancytopenia` + `severe_thrombocytopenia` the report never gave Hb 10.1. HCT, MCH, both RDWs and
+  neutrophils 1380 landed in «توضیح داده نشدند», and `pancytopenia` itself had no numbers and an empty `suggest`. Fixed with
+  `always_show` + a `brief` built in a module-level helper (`normocyticBrief`), so its keys stay out of `RULE_READS` (M156,
+  guard `M191b`). `pancytopenia` now quotes Hb/WBC/PLT/neutrophils and asks for smear, reticulocytes, B12, folate and ferritin
+  (`M191`). **When one finding in a class gets `always_show`, check its siblings in the same session.**
+  ⚠️ **And that fix was itself incomplete — reported "fixed" twice while the patient still saw the box (job `0400a412`, same
+  day).** It named RBC/HCT/MCH only in the *brief* (shown under an emergency). The full normocytic text and all of
+  `macrocytic_anemia` never named them, so on an ordinary macrocytic sheet (Hb 11.9, MCV 102.3) RBC 3.33, HCT 34.1 and MCH 35.6
+  went to «خارج از محدوده — تفسیرش با پزشک است», plus neutrophils 1697 (normal WBC), which no rule owned at all. The sibling
+  rule the entry above told me to check was `macrocytic_anemia`, and I didn't. Fixed with one helper for the full text of both
+  (`anemiaCompanionsFa`, same direction only), `always_show` + `macrocyticBrief`, and `mild_neutropenia` (CTCAE bands).
+  Guards `M192`–`M192d`. **Verify a coverage fix on the sheet that exposed it *and* on the ordinary panel of every sibling
+  rule, in both the full and the brief form. One green panel says nothing about the others.**
   **The fix nearly caused its own N18.** Reading `RBC`/`RDW` in the source marks them covered in *every* direction.
   A high RBC or a low RDW-SD would then have vanished from the report, so each direction got its own sentence
   (M156, `M187b`).
@@ -2017,7 +2043,12 @@ not by a test.
     «HBs» (hepatitis page) vs «HbS» (electrophoresis page) colliding in `mergePages`. **Enumerate every spelling family
     (Hb/Hgb/Hemoglobin/Persian × S/C/E/A/A2/F), not the ones in the incident.** Guards `M186m`, `M186n`, `T24`, `T25`.
   - **Rule:** before relying on a regex to *keep a row out of* a channel, check what the row turns into when the regex
-    stops matching. `resolveAlias`'s plural and trailing-`e` rules make every short name one character away from
+    stops matching.
+- ⚠️ **Same class one layer down, caught by the probe before commit (P53 Q11, 2026-09-24): a `reason` string is a channel key
+  too.** The unknown-sex Hb was first parked in `ungraded` with `reason: "sex_unknown"`, the reason the reproductive-hormone
+  channel already used. `reproductive_hormone_context` reads every entry with that reason, so the patient would have read
+  «هموگلوبین (12.5): محدودهٔ طبیعیِ این **هورمون** …». It is now `hgb_sex_unknown`. **Before reusing a `reason`, grep every
+  reader of `ungraded` for it.** Guard `M190b`. `resolveAlias`'s plural and trailing-`e` rules make every short name one character away from
     another analyte. Guards `M186`–`M186c`.
 
 ---

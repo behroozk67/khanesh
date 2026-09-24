@@ -30,6 +30,7 @@ import "dotenv/config";
 // ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
 import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName } from "./rules/adapter.js";
+import { getRef } from "./rules/refs.js";
 import { runPatterns } from "./rules/patterns.js";
 import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef } from "./rules/prompt.js";
 import { faName } from "./rules/names.js";
@@ -542,9 +543,17 @@ export function mergePages(pageResults) {
     const semenPrefix = isSemenPage(o.tests) ? "semen:" : "";
     // 🔴 specs/008 دور ۲ (CR6، N25): «HBs»ِ صفحهٔ هپاتیت و «HbS»ِ صفحهٔ الکتروفورز یک کلید می‌شدند و اولی برنده بود.
     const electroPage = isHbElectroPage(o.tests);
+    // 🔴 برگهٔ واقعی ۲۰۲۶-۰۹-۲۴ (Sysmex): خوانشِ عکس ردیفِ درصدی را بی «%» در نام برگرداند — «NEUT 1.38 10^3/uL» و
+    //    «NEUT 39.5 %». هر دو یک کلید می‌شدند، دومی دور ریخته می‌شد و هفت هشدارِ «در صفحه 1 و 1 با مقادیر متفاوت» به بیمار
+    //    می‌رسید. روی *یک* صفحه، ردیفِ ٪ای که هم‌نامِ یک ردیفِ غیرِ٪ است همان ردیفِ درصدی است ⇒ «NEUT%».
+    const isPct = (x) => /%/.test(String(x.unit || "")) || /%\s*$/.test(String(x.value ?? ""));
+    // فقط وقتی ردیفِ دیگر *شمارشِ سلول* است (10^3/µL، 10^9/L، …) — «HBs: Positive» کنارِ «HbS 38 %» نه (T26، N25).
+    const isCount = (x) => /10\s*[\^*]\s*[369]|k\s*\/|×\s*10|\/\s*[uµμ]l/i.test(String(x.unit || ""));
+    const absNames = new Set(o.tests.filter((x) => x?.name && !isPct(x) && isCount(x)).map((x) => normName(x.name)));
 
-    for (const t of o.tests) {
-      if (!t || !t.name) continue;
+    for (const t0 of o.tests) {
+      if (!t0 || !t0.name) continue;
+      const t = isPct(t0) && !/%/.test(t0.name) && absNames.has(normName(t0.name)) ? { ...t0, name: `${t0.name}%` } : t0;
       // 🔴 دور ۳ (R3-CR4): «HbS 35 %» و «HBs: Positive» روی *یک* صفحه هر دو «electro:hbs» می‌شدند و دومی می‌افتاد.
       //    نامِ دوپهلو شکلِ مقدارش را هم در کلید دارد (٪ / عدد / متن) — همان شاهدی که adapter برای تشخیص می‌خواند.
       const amb = isHbAmbiguousName(t.name);
@@ -638,10 +647,49 @@ function ocrToText(ocr) {
 // این‌طوری هیچ ردیفی جا نمی‌افتد و مدل تحلیل نمی‌تواند
 // اعداد را تغییر دهد.
 // ============================================================
+// 🔴 برگهٔ واقعی ۲۰۲۶-۰۹-۲۴ (Sysmex): خوانشِ عکس بازه‌های درصدی را روی ردیف‌های شمارشِ مطلق نشاند —
+//    «NEUT 1.38 10^3/uL — 42.2–75.2» و «NEUT% 39.5 % — —». موتور از بازهٔ خودش حکم داد (درست)، ولی بیمار عدد را کنارِ
+//    بازه‌ای می‌دید که مالِ آن نیست. قاعده: بازه‌ای که *کفِ* آن از *سقفِ* شمارشِ مطلقِ همان سلول (بازهٔ موتور) بالاتر
+//    است نمی‌تواند مالِ ردیفِ مطلق باشد؛ به ردیفِ ٪ِ همان سلول (اگر بی‌بازه است) منتقل می‌شود، وگرنه «—». فقط نمایش.
+const DIFF_CELLS = [
+  [/^(neut|neutrophils?|seg)$/, "NEUT_ABS"], [/^(lymph|lymphocytes?)$/, "LYMPH_ABS"],
+  [/^(mono|monocytes?)$/, "MONO_ABS"], [/^(eo|eos|eosinophils?)$/, "EOS_ABS"], [/^(baso|basophils?)$/, "BASO_ABS"],
+];
+const diffBase = (name) => String(name).toLowerCase().replace(/[#%]|abs(olute)?|count|[^a-z]/g, "");
+const isPctRow = (t) => /%/.test(String(t.name)) || /^%$/.test(String(t.unit ?? "").trim());
+function refRange(ref) {
+  const m = String(ref ?? "").match(/(-?[\d.]+)\s*[-–]\s*(-?[\d.]+)/);
+  return m ? [Number(m[1]), Number(m[2])] : null;
+}
+/** فیلدهای پرشدهٔ فرم روی patientِ برگه؛ فیلدِ خالی/null جای مقدارِ برگه را نمی‌گیرد. */
+export function mergePatient(sheet, form) {
+  const filled = Object.fromEntries(Object.entries(form ?? {}).filter(([, v]) => v != null && v !== ""));
+  const out = { ...(sheet ?? {}), ...filled };
+  return Object.keys(out).length ? out : null;
+}
+
+export function fixShiftedDiffRefs(tests) {
+  const rows = tests.map((t) => ({ ...t }));
+  for (const t of rows) {
+    if (isPctRow(t) || !/10\s*[\^*]\s*3|k\s*\/|×\s*10/i.test(String(t.unit ?? ""))) continue;
+    const base = diffBase(t.name);
+    const key = DIFF_CELLS.find(([re]) => re.test(base))?.[1];
+    const ref = refRange(t.reference);
+    const eng = key ? getRef(key, null, null) : null;
+    if (!key || !ref || !eng) continue;
+    const engHi = eng[1] > 100 ? eng[1] / 1000 : eng[1];      // موتور سلول/µL دارد؛ برگه ×10³/µL
+    if (!(ref[0] > engHi)) continue;
+    const pct = rows.find((x) => x !== t && isPctRow(x) && diffBase(x.name) === base);
+    if (pct && (!pct.reference || /^[\s—-]*$/.test(String(pct.reference)))) pct.reference = t.reference;
+    t.reference = "";
+  }
+  return rows;
+}
+
 function ocrToExtractedTests(ocr) {
   if (!ocr || !Array.isArray(ocr.tests)) return [];
 
-  return ocr.tests
+  return fixShiftedDiffRefs(ocr.tests)
     .filter((t) => t && t.name && t.value !== null && t.value !== undefined && t.value !== "")
     .map((t) => {
       let value = String(t.value);
@@ -778,7 +826,10 @@ const analyzeHandler = async (req, res) => {
 
       const mergedOcr = {
         tests: merged.tests,
-        patient: (patient?.age || patient?.sex) ? patient : merged.patient,
+        // 🔴 برگهٔ واقعی ۲۰۲۶-۰۹-۲۴: فرم «مرد» را پیش‌فرض داشت و همین که age یا sex آمده بود، کلِ patientِ فرم
+        //    جای patientِ برگه می‌نشست — زنی که جنسیت را دست نزده بود با بازهٔ مرد سنجیده می‌شد. حالا فیلدبه‌فیلد:
+        //    هر فیلدی که کاربر پر کرده برنده است، و بقیه (مثلاً جنسیتِ چاپ‌شده روی برگه) از خودِ برگه می‌آید.
+        patient: mergePatient(merged.patient, patient),
         unreadable_notes: merged.unreadableNotes,
       };
       lastMergedOcr = mergedOcr;
@@ -847,6 +898,8 @@ const analyzeHandler = async (req, res) => {
             age: patient?.age ?? null,
             sex: patient?.sex ?? null,
             conditions: patient?.conditions ?? [],
+            // P53 پرسش ۲: بارداری ورودیِ درجه‌بندیِ Hb است (کفِ ۱۱.۰)، نه فقط لحن — مسیرِ عکس کلِ patient را پاس می‌دهد.
+            pregnant: patient?.pregnant === true,
           },
           unreadable_notes: [],
         };

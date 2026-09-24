@@ -17,7 +17,7 @@ import { REF, ALL, CATS, statusOf, LOCAL_STATES } from "./labRefs.js";
 // ============================================================
 
 export default function EntryGrid({
-  vals, setVal, prevVals, setPrevVal, sex, months, compareMode,
+  vals, setVal, prevVals, setPrevVal, sex, months, pregnant = false, compareMode,
   search, setSearch, activeCat, setActiveCat, errs, onPreview, previewOpen,
 }) {
   const q = search.trim();
@@ -77,8 +77,8 @@ export default function EntryGrid({
           const v = toNumber(raw);
           const [mn, mx] = m.hard;
           const bad = raw !== "" && (isNaN(v) || v < mn || v > mx);
-          const st = raw !== "" && !isNaN(v) && !bad ? statusOf(k, v, sex, months) : null;
-          const r = m.range(sex, months);
+          const st = raw !== "" && !isNaN(v) && !bad ? statusOf(k, v, sex, months, { pregnant }) : null;
+          const r = m.range(sex, months, { pregnant });
           const S = st ? LOCAL_STATES[st] : null;
           return (
             <div key={k} className={`cell${bad ? " is-bad" : ""}`}>
