@@ -326,6 +326,7 @@ const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده ا
 - تست‌هایی که در برگه نیستند را اضافه نکن.
 - درصدهای Differential (Neutrophils، Lymphocytes و…) را هم به‌عنوان تست ثبت کن.
 - یادداشت‌های کیفی مثل Anisocytosis (+++) را هم ثبت کن؛ value را همان متن بگذار.
+- ردیف‌ها یا توضیحاتِ لامِ خونِ محیطی را هم ثبت کن، مثل Blasts (%)، Auer rods، Toxic granulation، Döhle bodies، Pelger-Huët یا Pseudo-Pelger؛ نام و value را عیناً همان‌طور که چاپ شده بنویس (مثلاً "Blasts" با value "25" و unit "%"، یا "Auer rods" با value "Present"). توضیحِ آزادِ لام (Comment/Remark/Peripheral smear) را هم با همان متن ثبت کن.
 - مقادیر تیتری (رایت، 2ME، کومبس رایت، ویدال) را عیناً با همان شکل ثبت کن: "1/160" یا "1:160". آن را به عدد تبدیل نکن و ساده‌اش نکن. اگر منفی است، همان "Negative" یا "منفی" را بنویس.
 - مقادیر پلاسی (CRP، RF) را هم عیناً بنویس: "3+" یا "Positive" یا "منفی". اگر عدد و واحد دارد (مثل "24 mg/L")، عدد را در value و واحد را در unit بگذار.
 - اگر عددی تار، مبهم یا مخدوش است، confidence را "low" بگذار. اگر اصلاً خوانا نیست، value را null بگذار.
@@ -1082,7 +1083,9 @@ const analyzeHandler = async (req, res) => {
         delete copy.note;
         delete copy.patient;
         return copy;
-      })
+      }),
+      // specs/009 (N13): آیتم‌های لامِ خون متنِ چاپ‌شدهٔ برگه را دارند (raw) — به گراف نمی‌روند.
+      smear: undefined,
     } : null;
 
     // Pass the combined text AND the engine deterministic outputs to the graph

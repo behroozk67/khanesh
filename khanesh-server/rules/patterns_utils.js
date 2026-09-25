@@ -995,3 +995,146 @@ export { isCastKey, castTypeOf, castTypesIn, castValueState, castRoute, castRows
 export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, ferritinIdCut, isPedAge, IRON_ACD_LOW_UGDL, ferritinBelowIdCut, ironLowForAcd, hba2State, hba2Measured, hba2Clause, HBA2_TRAIT_ABOVE, HBA2_BEYOND_TRAIT_FROM, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
          amylaseEmergencyOwns, biliEmergencyOwns, AMYLASE_EMERGENCY_UL, BILI_T_EMERGENCY_MGDL,
          anemiaCrisisOwns, actionUnlessAnemiaCrisis, ANEMIA_CRISIS_DEFER, HGB_CRISIS_GDL, crisisArm, HCT_CRISIS_PCT };
+
+// ═══ specs/009 — شمارشِ افتراقیِ گلبول سفید (P56، در انتظارِ بازبینی) ═══
+// عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم — تا تأییدِ کاربر در MEDICAL_RULES.md P56.
+// هیچ‌کدام مرزِ سنجش نیست (آن کارِ refs.js است، N23): فقط مرزِ جمله/فوریت در قاعده، و همیشه همراهِ «سنجیده‌شده بالا».
+const MONOCYTOSIS_ABS_UL = 1000;         // «> 1.0 ×10⁹/L» — زیرِ آن و بالای حدِ مرجع: «کمی بالاتر»
+const HYPEREOSINOPHILIA_ABS_UL = 1500;   // «≥ 1.5 ×10⁹/L» — هایپرائوزینوفیلی
+export { MONOCYTOSIS_ABS_UL, HYPEREOSINOPHILIA_ABS_UL };
+
+// ═══ specs/009 — ردیف‌های لامِ خونِ محیطی (کانالِ smear) ═══
+// واژگانِ بسته، تطبیق با *نامِ* ردیف (FR-008a)؛ توصیفِ بی‌نام («هستهٔ دولوبه») خوانده نمی‌شود. حضور با castValueState
+// (فهرستِ بستهٔ حضور/نفیِ N6، M169) — «نامعلوم» هرگز آیتم نمی‌شود و ردیف در «تفسیر نشدند» می‌ماند.
+// کانالِ جدا، نه qual: قاعده‌های ادرار qual را با regex روی هر کلیدی می‌گردند (N25).
+const BLAST_EMERGENCY_PCT = 20;          // P56: «≥ 20 % blasts» — عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم
+const SMEAR_ORDER = ["blasts", "auer", "pseudo_pelger", "toxic_granulation", "dohle", "pelger", "may_hegglin", "alder_reilly", "chediak_higashi"];
+const smearNorm = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/[\s._\-\/()%#:,]/g, "").replace(/\u200c/g, "");
+const SMEAR_NAME = [
+  [/^(blasts?|blastcells?|myeloblasts?|lymphoblasts?|monoblasts?|بلاست(ها)?)$/, "blasts"],
+  [/^auer(rods?|bod(y|ies))?$/, "auer"],
+  [/^toxic(granulations?|granules?|changes?)$/, "toxic_granulation"],
+  [/^dohle(bod(y|ies))?$/, "dohle"],
+  [/^pseudopelger/, "pseudo_pelger"],
+  [/^pelger/, "pelger"],
+  [/^mayhegglin/, "may_hegglin"],
+  [/^alderreilly/, "alder_reilly"],
+  [/^chediak/, "chediak_higashi"],
+];
+// ردیف‌های عمومیِ لام/توضیح: متنشان بندبه‌بند برای همان واژگان گشته می‌شود.
+const SMEAR_GENERIC = /^(peripheral(blood)?smear|pbs|pbf|bloodsmear|bloodfilm|smear|morphology|wbcmorphology|comments?|remarks?|note|لامخونمحیطی|لامخون|گسترشخونمحیطی|توضیحات|توضیح)$/;
+const SMEAR_TEXT = [
+  [/\b(blasts?|blast\s*cells?|myeloblasts?|lymphoblasts?|monoblasts?)\b|بلاست/i, "blasts"],
+  [/\bauer\b/i, "auer"],
+  [/\btoxic\s*(granul|change)/i, "toxic_granulation"],
+  [/d[oö]hle/i, "dohle"],
+  [/pseudo[\s-]*pelger/i, "pseudo_pelger"],
+  [/may[\s-]*hegglin/i, "may_hegglin"],
+  [/alder[\s-]*reilly/i, "alder_reilly"],
+  [/ch[eé]diak/i, "chediak_higashi"],
+];
+// «without blasts»، «no blasts seen»، «بدونِ بلاست» — نفی در همان بند.
+const SMEAR_NEG_RE = /\b(no|not|nil|none|absent|negative|without)\b|free\s+of|منفی|بدون|دیده\s*نشد|مشاهده\s*نشد|یافت\s*نشد|ندارد|نیست/i;
+
+function smearKindOf(name) {
+  const n = smearNorm(name);
+  for (const [re, kind] of SMEAR_NAME) if (re.test(n)) return kind;
+  return null;
+}
+/** درصدِ بلاستِ ردیفِ نام‌دار: عددِ ۰ تا ۱۰۰ با واحدِ ٪ یا بی‌واحد. واحدِ شمارشی (10^3/µL) یا عددِ ناممکن ⇒ undefined (نامعلوم). */
+function blastPct(value, unit) {
+  const v = String(value ?? "").trim();
+  const m = v.match(/^(\d+(?:\.\d+)?)\s*%?$/);
+  if (!m) return null;
+  if (unit && String(unit).trim() && !/%/.test(String(unit))) return undefined;
+  const n = parseFloat(m[1]);
+  return n >= 0 && n <= 100 ? n : undefined;
+}
+/**
+ * یک ردیفِ OCR ⇒ null (ردیفِ لام نیست) یا { handled, items }.
+ *   handled: "read" (نام‌دار و خوانده‌شده — از «تفسیر نشدند» بیرون) | "unmapped" (نام‌دار ولی مبهم) |
+ *            "generic" (متنِ آزاد — آیتم‌هایش خوانده شد، ولی نامِ ردیف در «تفسیر نشدند» می‌ماند تا بقیهٔ متنش گم نشود).
+ */
+function smearRow(name, value, unit) {
+  const raw = { name: String(name ?? ""), value: String(value ?? "") };
+  const kind = smearKindOf(name);
+  if (kind) {
+    if (kind === "blasts") {
+      const pct = blastPct(value, unit);
+      if (pct === undefined) return { handled: "unmapped", items: [] };
+      if (pct != null) return { handled: "read", items: [{ kind, state: pct > 0 ? "present" : "absent", pct: pct > 0 ? pct : null, raw }] };
+    }
+    const st = castValueState(value);
+    if (st === "unknown") return { handled: "unmapped", items: [] };
+    return { handled: "read", items: [{ kind, state: st, pct: null, raw }] };
+  }
+  if (!SMEAR_GENERIC.test(smearNorm(name))) return null;
+  const items = [];
+  // دامنهٔ نفی یک «پاره» است، نه کلِ بند: «Toxic granulation without blasts» گرانول را نفی نمی‌کند. پاره‌ها با
+  //   and/with/& و پیش از without (که خودش نفی است و با پارهٔ بعد می‌ماند) جدا می‌شوند؛ «No toxic granulation or blasts» یک پاره است.
+  const clauses = String(value ?? "").split(/[,;.،؛\n]|\bbut\b|\bhowever\b/i)
+    .flatMap((c) => c.split(/\b(?:and|with)\b|&|\s(?=without\b)|\s(?=و\s*بدون)|\sو\s/i));
+  for (const clause of clauses) {
+    const neg = SMEAR_NEG_RE.test(clause);
+    for (const [re, k] of SMEAR_TEXT) {
+      if (!re.test(clause)) continue;
+      let pct = null;
+      if (k === "blasts") {
+        const m = clause.match(/(?:blasts?|blast\s*cells?|بلاست)\D{0,6}?(\d+(?:\.\d+)?)\s*%/i);
+        if (m && parseFloat(m[1]) <= 100) pct = parseFloat(m[1]);
+      }
+      const absent = neg || pct === 0;
+      items.push({ kind: k, state: absent ? "absent" : "present", pct: absent ? null : pct, raw });
+    }
+    // «Pelger» تنها (بی‌«pseudo» در همان بند) — جدا، چون الگوی pseudo آن را هم در بر دارد.
+    if (/pelger/i.test(clause) && !/pseudo[\s-]*pelger/i.test(clause)) items.push({ kind: "pelger", state: neg ? "absent" : "present", pct: null, raw });
+  }
+  return items.length ? { handled: "generic", items } : null;
+}
+/** ادغامِ آیتم‌های همه‌ی ردیف‌ها: یک آیتم برای هر نوع؛ «حاضر» بر «غایب» می‌چربد؛ بیشترین درصدِ بلاست. */
+function mergeSmear(items) {
+  const by = new Map();
+  for (const it of items) {
+    const cur = by.get(it.kind);
+    if (!cur) { by.set(it.kind, { ...it }); continue; }
+    if (it.state === "present" && cur.state !== "present") by.set(it.kind, { ...it });
+    else if (it.state === "present" && it.pct != null && (cur.pct == null || it.pct > cur.pct)) cur.pct = it.pct;
+  }
+  return SMEAR_ORDER.filter((k) => by.has(k)).map((k) => by.get(k));
+}
+/**
+ * طبقه‌بندِ خالص (شکلِ mineralAxis): فقط e.smear را می‌خواند و هیچ قاعده‌ای را صدا نمی‌زند (تا چرخهٔ import با
+ * patterns_malignancy پیش نیاید). exclude: "leukemic" ⇒ بلاستِ ≥۲۰٪ و اوئر کنار گذاشته می‌شوند (hand-off، data-model §3).
+ * null ⇒ آیتمِ حاضری نمانده.
+ */
+function smearAxis(e, { exclude } = {}) {
+  const isLeukemic = (i) => i.kind === "auer" || (i.kind === "blasts" && i.pct != null && i.pct >= BLAST_EMERGENCY_PCT);
+  let items = (e?.smear ?? []).filter((i) => i.state === "present");
+  const leukemic = items.filter(isLeukemic);
+  if (exclude === "leukemic") items = items.filter((i) => !isLeukemic(i));
+  if (!items.length) return null;
+  const urgency = items.some(isLeukemic) ? "emergency"
+    : items.some((i) => i.kind === "blasts" || i.kind === "pseudo_pelger") ? "this_week"
+    : "routine";
+  return { urgency, items, leukemic };
+}
+export { BLAST_EMERGENCY_PCT, smearKindOf, smearRow, mergeSmear, smearAxis };
+// نامِ فارسیِ هر آیتمِ لام — متنِ بیمار فقط فارسی است (M38). درصدِ بلاست همان عددِ چاپ‌شده است (N5).
+const SMEAR_FA = {
+  blasts: "بلاست", auer: "میله‌های اوئر", pseudo_pelger: "سلول‌های شبه‌پلگر", toxic_granulation: "گرانول‌های سمی (توکسیک)",
+  dohle: "اجسام دوهله", pelger: "ناهنجاریِ پلگر-هوئت", may_hegglin: "ناهنجاریِ می-هگلین", alder_reilly: "ناهنجاریِ آلدر-رایلی",
+  chediak_higashi: "گرانول‌های چدیاک-هیگاشی",
+};
+const smearItemFa = (i) => (i.kind === "blasts" && i.pct != null ? `${SMEAR_FA.blasts} ${i.pct}٪` : SMEAR_FA[i.kind]);
+/** جملهٔ آیتم‌های «لوسمیک» (بلاستِ ≥۲۰٪، اوئر) — یک جمله برای هر دو، تا ادغام شوند (FR-006). بی‌زمان‌بندی (N20). */
+function smearLeukemicSentence(leukemic) {
+  const bl = leukemic.find((i) => i.kind === "blasts");
+  const au = leukemic.some((i) => i.kind === "auer");
+  const parts = [];
+  if (bl) parts.push(`بلاست — سلولِ نابالغی که در خونِ سالم دیده نمی‌شود — ${bl.pct}٪ گزارش شده`);
+  if (au) parts.push(bl ? "میله‌های اوئر (ساختارهای سوزنی‌شکل در همین سلول‌های نابالغ) هم دیده شده‌اند"
+    : "میله‌های اوئر دیده شده‌اند — ساختارهای سوزنی‌شکلی که فقط در گلبول‌های سفیدِ نابالغ پیدا می‌شوند");
+  return `در بررسیِ لامِ خونِ شما ${parts.join(" و ")}.`;
+}
+export { SMEAR_FA, smearItemFa, smearLeukemicSentence };

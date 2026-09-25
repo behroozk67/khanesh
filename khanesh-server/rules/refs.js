@@ -32,7 +32,9 @@ export const ADULT_REFS = {
   // بازه‌های زیر از absolute counts + WBC 4.4-11 محاسبه شده‌اند.
   NEUT_ABS:  { both: [1800, 7800], unit: '/µL' },
   LYMPH_ABS: { both: [1000, 4800], unit: '/µL' },
-  MONO_ABS:  { both: [0, 800],     unit: '/µL' },
+  // specs/009 (P56): حدِ پایین ۰ → ۲۰۰ — «0.2–0.8 ×10⁹/L». با ۰، مونوسیتِ پایین هرگز سنجیده نمی‌شد و هیچ قاعده‌ای نمی‌دیدش.
+  //   تأییدِ کاربر؛ عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم. کودکان از refs_ped.js (بی‌تغییر).
+  MONO_ABS:  { both: [200, 800],   unit: '/µL' },
   EOS_ABS:   { both: [0, 450],     unit: '/µL' },
   BASO_ABS:  { both: [0, 200],     unit: '/µL' },
   BAND_ABS:  { both: [0, 700],     unit: '/µL' },
@@ -418,6 +420,7 @@ export function getRef(testKey, sex, age, { pregnant = false } = {}) {
 // specs/008 — «تأییدِ کاربر ۱۴۰۵/۰۷/۰۱؛ مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم». هیچ کتابی ادعا نمی‌شود.
 export const SPECS008_SOURCE = 'User-approved 1405/07/01 (specs/008)';
 const SPECS008_KEYS = new Set(['HGB', 'IRON', 'FERRITIN', 'HBA2', 'HBF']);
+export const SPECS009_SOURCE = 'Pasted reference, pending review (specs/009, P56)';
 
 // منبع محدوده — برای شفافیت
 export function getRefSource(testKey, age) {
@@ -431,6 +434,8 @@ export function getRefSource(testKey, age) {
   // specs/008: بازه‌هایی که کاربر به‌عنوانِ بازبین تأیید کرد — عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم.
   //   HGBِ ۱۲ تا ۱۵ ساله بازهٔ قدیمیِ بزرگسال را نگه داشته (R1)، پس برچسبِ قدیمی را می‌گیرد.
   if (SPECS008_KEYS.has(testKey) && !(testKey === 'HGB' && age != null && age < 16)) return SPECS008_SOURCE;
+  // specs/009: حدِ پایینِ ۲۰۰ از هنری نیست — تا تأییدِ P56 برچسبِ «در انتظارِ بازبینی» می‌گیرد، نه ادعای منبع.
+  if (testKey === 'MONO_ABS') return SPECS009_SOURCE;
   return 'Henry A5';
 }
 

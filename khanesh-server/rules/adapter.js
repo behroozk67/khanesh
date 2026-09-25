@@ -17,7 +17,7 @@ import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcros
 import { runPatterns } from "./patterns.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
 import { isCastKey, castRoute, isSgKey, sgValue, SG_KEY, isCrystalKey, crystalRoute, epithelialKind, epithelialRoute,
-  urineBiliValueState, urobilValueState } from "./patterns_utils.js";
+  urineBiliValueState, urobilValueState, smearRow, mergeSmear } from "./patterns_utils.js";
 
 // بیشترین مقدار قندِ موجود (ناشتا/تصادفی/دوساعته) — برای تصحیح سدیم
 function maxGlucose(tests) {
@@ -225,7 +225,9 @@ const NAME_MAP = {
 
   // ⚠️ این‌ها قبلاً unmapped می‌شدند و بی‌صدا ناپدید — همه نشانگر بحرانی‌اند
   lactate: "LACTATE", lacticacid: "LACTATE",
-  procalcitonin: "PCT_SEPSIS", pct: "PCT_SEPSIS",
+  procalcitonin: "PCT_SEPSIS",
+  // ⚠️ مخفف برهنهٔ «pct» اینجا نیست — با پلاکت‌کریت (شاخص پلاکتیِ CBC، برگه‌های Sysmex) تصادم دارد.
+  //    گیت‌شده روی واحد است: pctKey() پایین‌تر.
   crpquant: "CRP_Q", hscrp: "CRP_Q", crpquantitative: "CRP_Q",
   ammonia: "NH3", nh3: "NH3",
   hco3: "HCO3", bicarbonate: "HCO3", co2: "HCO3",
@@ -502,6 +504,16 @@ const UNIT_GATED_ALIASES = { zn: "ZINC", cu: "COPPER", se: "SELENIUM" };
 function unitGatedKey(key, unit) {
   const k = UNIT_GATED_ALIASES[key];
   return k && TRACE_CONC_UNIT.test(normUnit(unit)) ? k : undefined;
+}
+
+// «PCT» دو تست کاملاً متفاوت است: پلاکت‌کریت (٪، کنار PLT/MPV در CBC) و پروکلسی‌تونین
+// (ng/mL، نشانگر بحرانیِ سپسیس). نگاشتِ اشتباه در هر دو جهت خطرناک است — پلاکت‌کریتِ ۰.۲۸۷٪
+// خوانده‌شده به‌عنوانِ پروکلسی‌تونین یعنی بیمار جوابِ «تستِ سپسیس منفی» برای تستی می‌گیرد که
+// اصلاً انجام نشده (N2/N25). واحدِ درصد قطعی است؛ ng/mL و مشابه‌ها هم قطعی‌اند؛ فقط نبودِ واحد
+// به نیتِ اصلیِ نگاشتِ برهنه (نشانگرِ بحرانی هرگز بی‌صدا گم نشود) برمی‌گردد.
+const PCT_PLATELETCRIT_UNIT = /^%$/;
+function pctKey(unit) {
+  return PCT_PLATELETCRIT_UNIT.test(normUnit(unit)) ? "PLT_CRIT" : "PCT_SEPSIS";
 }
 
 // ═══ specs/004 (FR-007، N25): کیفی — هرگز به عدد تبدیل نمی‌شوند (N6) و هرگز به qual نمی‌روند ═══
@@ -826,6 +838,8 @@ export function ocrToEngineInput(ocr) {
   const abgPages = detectAbgPages(ocr?.tests || []);
   // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
   const semenQual = {};
+  // specs/009: ردیف‌های لامِ خونِ محیطی (بلاست، اوئر، …) — کانالِ جدا، نه qual (N25). ادغام در انتها (mergeSmear).
+  const smearItems = [];
   // ردیف‌هایی که واحدشان نه چاپ شده، نه از محدودهٔ مرجع/اندازه تعیین شد (specs/003، P48):
   //   کلید → عددِ خام. سنجیده نمی‌شوند؛ مالک: unit_unknown_values.
   const unitUnknown = {};
@@ -930,6 +944,17 @@ export function ocrToEngineInput(ocr) {
           if (!noReader.includes("HB_NAME_AMBIGUOUS")) noReader.push("HB_NAME_AMBIGUOUS");
           if (noReaderValues.HB_NAME_AMBIGUOUS == null) noReaderValues.HB_NAME_AMBIGUOUS = rawV;
         }
+        continue;
+      }
+    }
+    // ═══ specs/009: لامِ خونِ محیطی — پیش از منی/ادرار/qual، فقط روی صفحه‌ای که نه ادرارِ خالص است نه منی (N25) ═══
+    //    ردیفِ نام‌دارِ خوانده‌شده از «تفسیر نشدند» بیرون می‌رود؛ مبهم می‌ماند؛ ردیفِ عمومی («Comment: …») آیتم‌هایش خوانده
+    //    می‌شود ولی نامش در «تفسیر نشدند» می‌ماند تا بقیهٔ متنِ آزادش گم نشود.
+    if (!onUrinePage && !semenPages.has(t._page ?? 0)) {
+      const sr = smearRow(t.name, t.value, t.unit);
+      if (sr) {
+        smearItems.push(...sr.items);
+        if (sr.handled !== "read") unmapped.push(t.name);
         continue;
       }
     }
@@ -1167,6 +1192,7 @@ export function ocrToEngineInput(ocr) {
       }
     }
     if (!engineKey) engineKey = unitGatedKey(key, t.unit);
+    if (!engineKey && key === "pct") engineKey = pctKey(t.unit);
     if (!engineKey) {
       unmapped.push(t.name);
       continue;
@@ -1412,6 +1438,7 @@ export function ocrToEngineInput(ocr) {
     tests,
     qual,
     semenQual,
+    smear: mergeSmear(smearItems),
     unitUnknown,
     rawText,
     unmapped,
@@ -1438,7 +1465,7 @@ function inferPregnant(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, sex, age, pregnant } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, sex, age, pregnant } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
   const conditions = ocr?.patient?.conditions || [];
@@ -1742,6 +1769,8 @@ export function runEngine(ocr) {
     // ردیف‌های کیفی/بازه‌ایِ برگهٔ منی (P47). ⚠️ عمداً جدا از qual: قاعده‌های ادرار qual را با
     // /rbc/ و /wbc/ می‌خوانند. هیچ قاعده‌ای در مرحلهٔ الف این را نمی‌خواند.
     semenQual,
+    // specs/009: آیتم‌های لامِ خون — خواننده: smearAxis. ⚠️ متنِ چاپ‌شده دارد؛ به مدل و به گراف نمی‌رود (N13).
+    smear,
     ungraded,
     indices: idx,
     unmapped,

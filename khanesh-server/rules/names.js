@@ -49,6 +49,7 @@ export const FA_NAMES = {
   APOB: "آپولیپوپروتئین B (Apo B)",
   HAPTO: "هاپتوگلوبین", PT: "PT (زمان پروترومبین)", APTT: "aPTT", FIB: "فیبرینوژن",
   DDIMER: "D-dimer", INR: "INR", LACTATE: "لاکتات", PCT_SEPSIS: "پروکلسی‌تونین",
+  PLT_CRIT: "پلاکت‌کریت (PCT)",
   CRP_Q: "CRP", NH3: "آمونیاک", HCO3: "بی‌کربنات", PH: "pH خون",
   ATIII: "آنتی‌ترومبین III", TROPONIN_I: "تروپونین",
   // ⚠️ BNP و NT-proBNP روی برگه هم به همین شکل چاپ می‌شوند؛ «پپتیدِ ناتریورتیکِ

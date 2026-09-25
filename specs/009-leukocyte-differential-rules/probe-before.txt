@@ -1,0 +1,185 @@
+RULES 144
+## normal: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=4200[1800–7800] LYMPH_ABS=2100[1000–4800] MONO_ABS=490[0–800] EOS_ABS=175[0–450] BASO_ABS=35[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+## mono_1400: routine | unmatched_abnormal
+   graded: WBC=8[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=4400[1800–7800] LYMPH_ABS=2000[1000–4800] MONO_ABS=1400↑[0–800] EOS_ABS=160[0–450] BASO_ABS=40[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## mono_pct12_abs840: routine | unmatched_abnormal
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=4060[1800–7800] LYMPH_ABS=1890[1000–4800] MONO_ABS=840↑[0–800] EOS_ABS=175[0–450] BASO_ABS=35[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## mono_900_pct9: routine | unmatched_abnormal
+   graded: WBC=10[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=6200[1800–7800] LYMPH_ABS=2600[1000–4800] MONO_ABS=900↑[0–800] EOS_ABS=250[0–450] BASO_ABS=50[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## mono_150: none | 
+   graded: WBC=5[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=3250[1800–7800] LYMPH_ABS=1450[1000–4800] MONO_ABS=150[0–800] EOS_ABS=125[0–450] BASO_ABS=25[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+## mono_0: none | 
+   graded: WBC=5[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=3350[1800–7800] LYMPH_ABS=1500[1000–4800] MONO_ABS=0[0–800] EOS_ABS=125[0–450] BASO_ABS=25[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+## eos_600: routine | unmatched_abnormal
+   graded: WBC=8[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=4640[1800–7800] LYMPH_ABS=2240[1000–4800] MONO_ABS=480[0–800] EOS_ABS=600↑[0–450] BASO_ABS=40[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## eos_2000: routine | unmatched_abnormal
+   graded: WBC=10[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=5000[1800–7800] LYMPH_ABS=2300[1000–4800] MONO_ABS=600[0–800] EOS_ABS=2000↑[0–450] BASO_ABS=100[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## eos_abs_row_1600: routine | unmatched_abnormal
+   graded: WBC=9[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] EOS_ABS=1600↑[0–450]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## baso_250: routine | unmatched_abnormal
+   graded: WBC=8[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=4800[1800–7800] LYMPH_ABS=2160[1000–4800] MONO_ABS=560[0–800] EOS_ABS=240[0–450] BASO_ABS=240↑[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## cml_like: emergency | extreme_leukocytosis,unexplained_abnormal
+   graded: WBC=80↑[4.4–11] HGB=12↓[13.3–17.5] PLT=450[150–450] NEUT_ABS=56000↑[1800–7800] LYMPH_ABS=6400↑[1000–4800] MONO_ABS=3200↑[0–800] EOS_ABS=4800↑[0–450] BASO_ABS=4000↑[0–200]
+   noRef: [] | unmapped: ["Myelocyte"] | qual: {}
+   uncovered: ["HGB","NEUT_ABS","MONO_ABS","EOS_ABS"]
+## blasts_25: this_week | leukocytosis
+   graded: WBC=30↑[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Blasts"] | qual: {}
+## blasts_3: none | 
+   graded: WBC=9[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Blast"] | qual: {}
+## blasts_0: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Blasts"] | qual: {}
+## blasts_word: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Blast cells"] | qual: {}
+## auer: this_week | leukocytosis
+   graded: WBC=20↑[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Auer rods"] | qual: {}
+## toxic: routine | leukocytosis,unexplained_abnormal
+   graded: WBC=16↑[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=13600↑[1800–7800]
+   noRef: [] | unmapped: ["Toxic granulation"] | qual: {}
+   uncovered: ["NEUT_ABS"]
+## dohle: routine | leukocytosis
+   graded: WBC=16↑[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Dohle bodies"] | qual: {}
+## pelger: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Pelger-Huet anomaly"] | qual: {}
+## band_12: routine | leukocytosis
+   graded: WBC=14↑[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Band"] | qual: {}
+## smear_remark: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Peripheral blood smear"] | qual: {}
+## anisocytosis: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Anisocytosis"] | qual: {}
+## plt_500: routine | thrombocytosis
+   graded: WBC=7[4.4–11] HGB=14[13.7–17.5] PLT=500↑[150–450]
+   noRef: [] | unmapped: [] | qual: {}
+## plt_900: routine | thrombocytosis
+   graded: WBC=7[4.4–11] HGB=14[13.7–17.5] PLT=900↑[150–450]
+   noRef: [] | unmapped: [] | qual: {}
+## pv_m_168: none | 
+   graded: HGB=16.8[13.7–17.5]
+   noRef: [] | unmapped: [] | qual: {}
+## pv_f_162: routine | unmatched_abnormal,unexplained_abnormal
+   graded: HGB=16.2↑[12–15.3]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## pv_m_180: routine | unmatched_abnormal,unexplained_abnormal
+   graded: HGB=18↑[13.7–17.5]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## pancyto_blasts: emergency | leukopenia,severe_neutropenia,severe_thrombocytopenia,pancytopenia,maha_ttp_suspicion
+   graded: WBC=1.5↓[4.4–11] HGB=7.5↓[13.3–17.5] PLT=20↓[150–450] NEUT_ABS=300↓[1800–7800]
+   noRef: [] | unmapped: ["Blasts"] | qual: {}
+## child5_mono: routine | unmatched_abnormal
+   graded: WBC=8[5–12] HGB=14.5↑[11.5–14] PLT=250[150–450] NEUT_ABS=3600[1500–8000] LYMPH_ABS=3360[1500–9500] MONO_ABS=880[300–1100] EOS_ABS=120[100–1000] BASO_ABS=40[0–100]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## monolow_wbclow: this_week | leukopenia,unexplained_abnormal
+   graded: WBC=2.5↓[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] NEUT_ABS=1500↓[1800–7800] LYMPH_ABS=850↓[1000–4800] MONO_ABS=100[0–800] EOS_ABS=38[0–450] BASO_ABS=13[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: ["LYMPH_ABS"]
+## monolow_nowbc: none | 
+   graded: HGB=14.5[13.7–17.5] MONO_ABS=100[0–800]
+   noRef: [] | unmapped: [] | qual: {}
+## mono_799: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] MONO_ABS=799[0–800]
+   noRef: [] | unmapped: [] | qual: {}
+## mono_1000: routine | unmatched_abnormal
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] MONO_ABS=1000↑[0–800]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## mono_199: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] MONO_ABS=199[0–800]
+   noRef: [] | unmapped: [] | qual: {}
+## mono_200: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] MONO_ABS=200[0–800]
+   noRef: [] | unmapped: [] | qual: {}
+## eos_451: routine | unmatched_abnormal
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] EOS_ABS=451↑[0–450]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## eos_1499: routine | unmatched_abnormal
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] EOS_ABS=1499↑[0–450]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## eos_1500: routine | unmatched_abnormal
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450] EOS_ABS=1500↑[0–450]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: null
+## neonate_eos_1800: none | 
+   graded: WBC=15[10–26] EOS_ABS=1800[100–2000]
+   noRef: [] | unmapped: [] | qual: {}
+## wbc45_baso: this_week | leukocytosis,unexplained_abnormal
+   graded: WBC=45↑[4.4–11] HGB=14[13.7–17.5] PLT=300[150–450] NEUT_ABS=36000↑[1800–7800] LYMPH_ABS=4500[1000–4800] MONO_ABS=2250↑[0–800] EOS_ABS=900↑[0–450] BASO_ABS=1350↑[0–200]
+   noRef: [] | unmapped: [] | qual: {}
+   uncovered: ["NEUT_ABS","MONO_ABS","EOS_ABS","BASO_ABS"]
+## pseudo_pelger: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[12.4–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Pseudo-Pelger cells"] | qual: {}
+## blasts_few: none | 
+   graded: WBC=9[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Blasts"] | qual: {}
+## auer_equivocal: none | 
+   graded: WBC=9[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Auer rods"] | qual: {}
+## blasts_19: none | 
+   graded: WBC=9[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Blasts"] | qual: {}
+## blasts_20: none | 
+   graded: WBC=9[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Blasts"] | qual: {}
+## blasts1: none | 
+   graded: WBC=9[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Blasts"] | qual: {}
+## blast_auer: this_week | leukocytosis
+   graded: WBC=25↑[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Blasts","Auer rods"] | qual: {}
+## acute_leuk_blasts: emergency | extreme_leukocytosis,severe_thrombocytopenia,acute_leukemia_suspicion,maha_ttp_suspicion
+   graded: WBC=60↑[4.4–11] HGB=7↓[13.7–17.5] PLT=40↓[150–450]
+   noRef: [] | unmapped: ["Blasts"] | qual: {}
+## urine_pelger: none | 
+   graded: 
+   noRef: [] | unmapped: ["Pelger-Huet"] | qual: {"Urine Specific Gravity":"1.020","Nitrite":"Negative","Leukocyte Esterase":"Negative"}
+## chediak: routine | unmatched_abnormal
+   graded: WBC=7[5–12] HGB=14.5↑[11.5–14] PLT=250[150–450]
+   noRef: [] | unmapped: ["Chediak-Higashi granules"] | qual: {}
+   uncovered: null
+## mayhegglin: this_week | thrombocytopenia,isolated_thrombocytopenia
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=90↓[150–450]
+   noRef: [] | unmapped: ["May-Hegglin anomaly"] | qual: {}
+## smear_mixed: none | 
+   graded: WBC=9[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Peripheral blood smear"] | qual: {}
+## smear_no_blasts: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Peripheral smear"] | qual: {}
+## smear_without: routine | leukocytosis
+   graded: WBC=12↑[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Comment"] | qual: {}
+## smear_normal: none | 
+   graded: WBC=7[4.4–11] HGB=14.5[13.7–17.5] PLT=250[150–450]
+   noRef: [] | unmapped: ["Morphology"] | qual: {}

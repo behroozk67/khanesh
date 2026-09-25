@@ -27,6 +27,8 @@ When the user asks for a change in this repo:
 
    | what was measured | when | tests | pass | fail | skipped |
    |---|---|---|---|---|---|
+   | working tree on `0d8c782`, after specs/009 (monocyte/eosinophil/basophil rules, the `smear` channel + `peripheral_smear_findings`, the N18 suppressed-finding fix — `M200`–`M202h`; `پوشش/قلبی` and `M188c` changed on purpose). ⚠️ **Includes a concurrent session's PCT and WHO-PV work (`M196`, `M196b`, `M197`, `M197b`, `M104d` C5, `erythrocytosis_who_screen`)** — 150 rules | 2026-09-25 | 701 | 682 | **0** | 19 todo |
+   | `0d8c782` (`git archive` + junction) with that `engine.test.js` (engine suite only) — red: specs/009's 13 (`M200`, `M201`, `M201c`–`e`, `M202`–`M202g`, `پوشش/قلبی`) + the concurrent session's 4 (`M104d`, `M196`, `M197`, `M197b`); freezes `M201b`, `M201f`, `M202h` green on both | 2026-09-25 | 656 | 620 | **17** | 19 todo |
    | working tree on `953f513`, after the user's MCV-in-the-elderly decision (`P55`: geriatric band stays ≥ 75; from 75 "macrocytic" means MCV above the geriatric 102 — `macroMcvCut`; `M193`, `M193b`; `M184e` changed on purpose) — 144 rules | 2026-09-24 | 682 | 663 | **0** | 19 todo |
    | working tree on `953f513`, after the second real sheet (job `0400a412`: RBC/HCT/MCH named in the *full* macrocytic and normocytic text, `macrocytic_anemia` gets `always_show` + `brief`, new `mild_neutropenia`, leukopenia names neutrophils — `M192`–`M192d`; `M180b` panels 3/5/10 re-baselined after freezediff) — 144 rules | 2026-09-24 | 680 | 661 | **0** | 19 todo |
    | copy of that tree with the new code switched off (helpers return "", `mild_neutropenia` never matches) — red: exactly `M192`–`M192d` + `M180b` | 2026-09-24 | — | — | **5** | — |
@@ -339,6 +341,8 @@ khanesh-project/
 │   │   │                        #   سلول‌های کلیه/سنگفرشی؛ مسیرها و طبقه‌بندها در patterns_utils
 │   │   ├── patterns_urine_casts.js  # فصل ۲۹ هنری، مرحلهٔ الف (P50) — ۷ قاعدهٔ سیلندر، یک طبقه‌بند
 │   │   │                        #   (castAxis در utils)؛ شکلِ mineral_bone: یک برگه، یک یافتهٔ سیلندر
+│   │   ├── patterns_leukocyte.js  # specs/009 (P56): مونوسیتوز/مونوسیتوپنی، ائوزینوفیلی، بازوفیلی، و یک یافتهٔ لامِ خون
+│   │   │                        #   (بلاست، اوئر، گرانولِ سمی، دوهله، پلگر…) از طبقه‌بندِ smearAxis؛ کانالِ smear در adapter
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
@@ -426,11 +430,11 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **seventeen** `patterns_<system>.js` files
+`patterns.js` no longer holds the rules. It imports **eighteen** `patterns_<system>.js` files (the eighteenth, `patterns_leukocyte.js`, from specs/009)
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-22) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **144 rules, measured
-2026-09-24** (the 144th is `mild_neutropenia` in `patterns_hematology.js`, second real sheet; the 138th–143rd are `hba2_low`, `hbf_elevated`, `hb_variant`, `zpp_high`, `stfr_index` and `hgb_sex_unknown` in `patterns_hematology.js`, P53 answers; the 136th and 137th are `hba2_elevated` and `microcytosis_no_anemia` in `patterns_hematology.js`, specs/008; the 135th `rbc_indices_implausible`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
+concatenates their `RULES_*` exports into the exported `RULES` array — **150 rules, measured
+2026-09-25** (the 145th–149th are `monocytosis`, `monocytopenia`, `eosinophilia`, `basophilia` and `peripheral_smear_findings` in `patterns_leukocyte.js`, specs/009; the 150th is a concurrent session's `erythrocytosis_who_screen` in `patterns_hematology.js`; the 144th is `mild_neutropenia` in `patterns_hematology.js`, second real sheet; the 138th–143rd are `hba2_low`, `hbf_elevated`, `hb_variant`, `zpp_high`, `stfr_index` and `hgb_sex_unknown` in `patterns_hematology.js`, P53 answers; the 136th and 137th are `hba2_elevated` and `microcytosis_no_anemia` in `patterns_hematology.js`, specs/008; the 135th `rbc_indices_implausible`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
 `unit_unknown_values` in `patterns_unit_unknown.js` from specs/003, plus `folate_deficiency` in
 `patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004, plus
 the seven `urine_cast_*` rules in `patterns_urine_casts.js` and `urine_esterase_without_cells` in
@@ -1516,6 +1520,17 @@ structural, not specific to that rule.
     "normal" (N4). Fixed with a `noRef` branch in `buildNormalResult` and a `noRef` check in the
     legacy fallback condition. This also moves prolactin-only and AMH-only sheets (`P46`/`P47`) onto
     the engine path. Guards `M146b`, `T21`, `M160`.
+
+- ⚠️ **Recurred 2026-09-25 (specs/009, research R6): a finding that is *suppressed* still covered its keys.** R3-CR1
+  fixed the *briefed* case, but the net still took `covered` from every matched finding, before `blocks_others` ran.
+  Measured on `0d8c782`:
+  - WBC 80 + baso 5 % + lymph 8 %: `cml_suspicion` and `cll_suspicion_nccn` matched and were hidden under
+    `extreme_leukocytosis`. **Basophils 4000 and lymphocytes 6400 appeared nowhere**, not even in «توضیح داده نشدند».
+  - K 6.8 + creatinine 3.0: **creatinine 3.0 vanished** under `potassium_critical` the same way.
+
+  The net now ignores hidden findings, both for keys and for text. `پوشش/قلبی` (CK-MB under troponin) and `M188c` were
+  changed on purpose: the net's routine action is a list of names, with no timeline. Guard `M200`. **Rule:** before
+  deciding what a finding covers, ask whether the patient will see it at all.
 
 ### N19 — Covering the borderline case and not the frank one
 2026-08-06, `borderline_b12_deficiency`. Same session as N18, found by the same probe.

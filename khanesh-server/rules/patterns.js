@@ -16,6 +16,7 @@ import { RULES_UNIT_UNKNOWN } from "./patterns_unit_unknown.js";
 import { RULES_TRACE_ELEMENTS } from "./patterns_trace_elements.js";
 import { RULES_URINE_CASTS } from "./patterns_urine_casts.js";
 import { RULES_URINALYSIS } from "./patterns_urinalysis.js";
+import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
@@ -44,7 +45,8 @@ export const RULES = [
   ...RULES_UNIT_UNKNOWN,
   ...RULES_TRACE_ELEMENTS,
   ...RULES_URINE_CASTS,
-  ...RULES_URINALYSIS
+  ...RULES_URINALYSIS,
+  ...RULES_LEUKOCYTE
 ];
 
 //    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ
@@ -374,13 +376,21 @@ export function runPatterns(engineOut) {
     //    must_sayِ کاملش توضیح می‌داد «پوشش‌داده» می‌کرد و بعد همان متن با brief عوض می‌شد — HCTِ ۵۵ کنارِ Hbِ ۸.۳،
     //    MCH و RBCِ بالا روی برگهٔ پان‌سیتوپنی نه توضیح داشتند نه در این تور می‌آمدند (N18). چنین یافته‌ای فقط با
     //    متنی که واقعاً نشان داده می‌شود (brief و brief_warnings) پوشش می‌دهد، نه با RULE_READS.
+    // 🔴 specs/009 (R6، M200): همین کلاس برای یافته‌ای که زیرِ blocker *کاملاً* پنهان می‌شود. WBC 80 + بازوفیل ۵٪ →
+    //    cml_suspicion و cll_suspicion_nccn match می‌شدند، زیرِ extreme_leukocytosis پنهان می‌ماندند و BASO_ABS/LYMPH_ABS را
+    //    «پوشش‌داده» می‌کردند: بازوفیلِ ۴۰۰۰ و لنفوسیتِ ۶۴۰۰ نه در متن بودند نه در این تور. یافتهٔ پنهان هیچ پوششی نمی‌دهد.
+    const br = blockerRankOf(findings);
+    const hidden = new Set(Number.isFinite(br)
+      ? findings.filter((f) => rank(f.urgency) > br && !f.always_show)
+      : []);
     const briefed = new Set(findings.filter((f) => willBrief(f, findings)));
     const covered = new Set();
     for (const f of findings) {
-      if (briefed.has(f)) continue;
+      if (briefed.has(f) || hidden.has(f)) continue;
       for (const k of RULE_READS.get(f.rule_id) ?? []) covered.add(k);
     }
     const text = findings
+      .filter((f) => !hidden.has(f))
       .map((f) => briefed.has(f)
         ? [f.headline, f.brief, f.action, (f.brief_warnings ?? []).join(" ")].join(" ")
         : [f.headline, f.must_say, f.action, (f.warnings ?? []).join(" ")].join(" "))
