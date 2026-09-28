@@ -9968,15 +9968,15 @@ test("M201c: مونوسیتِ پایین (<۲۰۰) — روتین، و سه‌ر
   const low = s9Find(s9Run("M", 40, [s9T("WBC", 2.5, "10^3/uL"), s9T("Hb", 14.5, "g/dL"), s9T("PLT", 250, "10^3/uL"),
     ...s9Diff(60, 34, 4, 1.5, 0.5)]).p, "monocytopenia");
   const norm = s9Find(s9Run("M", 40, s9CBC(5, s9Diff(65, 29, 3, 2.5, 0.5))).p, "monocytopenia");
-  const zero = s9Find(s9Run("M", 40, s9CBC(5, s9Diff(67, 30, 0, 2.5, 0.5))).p, "monocytopenia");
   const absent = s9Find(s9Run("M", 40, [s9T("Hb", 14.5, "g/dL"), s9T("MONO#", 0.1, "10^3/uL")]).p, "monocytopenia");
-  for (const [f, name] of [[low, "WBC پایین"], [norm, "WBC طبیعی"], [zero, "مونوسیت ۰"], [absent, "بی‌WBC"]]) {
+  // «مونوسیت ۰» عمداً از این فهرست بیرون رفت: P56 پرسش ۴ زیرِ ۵۰ را «این هفته» کرد (M203).
+  for (const [f, name] of [[low, "WBC پایین"], [norm, "WBC طبیعی"], [absent, "بی‌WBC"]]) {
     assert.ok(f, `monocytopenia فعال نشد (${name})`);
     assert.equal(f.urgency, "routine", name);
     assert.doesNotMatch(f.must_say, /مغز استخوان|لوسمی|سرطان/, `${name}: متنِ هشداردهنده`);
   }
   assert.match(low.must_say, /گلبول سفید[^.]*پایین/, "شاخهٔ WBCِ پایین");
-  assert.match(norm.must_say, /معمولاً/, "شاخهٔ WBCِ طبیعی");
+  assert.match(norm.must_say, /معنای بیماری ندارد/, "شاخهٔ WBCِ طبیعی — P56 پرسش ۴، متن عمداً عوض شد");
   assert.match(absent.must_say, /روی این برگه نیست|اندازه‌گیری نشده/, "شاخهٔ بی‌WBC نباید «طبیعی» بگوید (N4)");
   // لبه: ۲۰۰ طبیعی است
   assert.ok(!s9Find(s9Run("M", 40, s9CBC(7, [s9T("MONO#", 0.2, "10^3/uL")])).p, "monocytopenia"), "۲۰۰ طبیعی است");
@@ -10008,7 +10008,8 @@ test("M201e: بازوفیلی یافتهٔ خودش را دارد؛ وقتی cml
   const matched = RULES.filter((r) => r.match(e)).map((r) => r.id);
   assert.ok(matched.includes("cml_suspicion"), "این پنل باید cml_suspicion را فعال کند");
   assert.ok(!matched.includes("basophilia"), `basophilia کنار نکشید: ${matched}`);
-  assert.ok(s9Uncovered(p).includes("BASO_ABS"), "بازوفیل بی‌صدا حذف شد");
+  // تصمیمِ بازبین (۲۰۲۶-۰۹-۲۸، M204): cml_suspicion دیگر پنهان نمی‌ماند، پس بازوفیل در متنِ نمایش‌داده است، نه در تور.
+  assert.ok(s9Uncovered(p).includes("BASO_ABS") || s9Text(p).includes("بازوفیل"), "بازوفیل بی‌صدا حذف شد");
 });
 
 test("M201f: قفل — برگهٔ طبیعی و پلاکتِ ۵۰۰/۹۰۰ دست‌نخورده‌اند (ترومبوسیتوز؛ آستانهٔ ET همان سقفِ ۴۵۰ است)", () => {
@@ -10188,4 +10189,148 @@ test("M202i: «بررسی نشده» با «غایب» یکی نیست (N4، ب�
   const real = s9Run("M", 40, s9CBC(9, [s9T("Comment", "No blasts seen")]));
   assert.deepEqual(s9Present(real.e), []);
   assert.equal(s9Smear(real.e).find((i) => i.kind === "blasts")?.state, "absent");
+});
+
+// ---------- M203: تصمیم‌های بازبینِ بالینی روی پرسش‌های باز P56 (۲۰۲۶-۰۹-۲۸) ----------
+// 🔴 پیش از این تصمیم‌ها (روی 15d577b): مونوسیتِ ۱۵۰ «نوبتِ عادی با پزشک» + «تکرار CBC» می‌گرفت؛ «Pelger» کنارِ Hbِ ۸ روتین و
+//    «ارثی» خوانده می‌شد؛ بلاستِ ۳٪ «این هفته» می‌گرفت؛ «Immature mononuclear cells» به «تفسیر نشدند» می‌رفت؛ و متنِ بیمار
+//    «مثل لوسمیِ حاد» / «بدخیمی‌های حاد خونی» داشت.
+test("M203: مونوسیتِ پایین — ۵۰ تا حدِ پایین فقط یادداشتِ بی‌دستور؛ زیرِ ۵۰ «این هفته»؛ کنارِ پان‌سیتوپنی نسخهٔ کوتاه (P56 پرسش ۴)", () => {
+  const mild = s9Run("M", 40, s9CBC(5, s9Diff(65, 29, 3, 2.5, 0.5))).p;
+  const f = s9Find(mild, "monocytopenia");
+  assert.ok(f, `مونوسیتِ ۱۵۰ باید یادداشت داشته باشد، نه تورِ «توضیح داده نشدند»: ${s9Ids(mild)}`);
+  assert.equal(f.urgency, "routine");
+  assert.ok(!f.action, `مونوسیتِ ۱۵۰ دستور گرفت: ${f.action}`);
+  assert.deepEqual(f.suggest, [], "مونوسیتِ ۱۵۰ پیشنهادِ آزمایش گرفت");
+  assert.match(f.must_say, /اقدامِ جداگانه‌ای لازم نیست/);
+  assert.ok(!s9Uncovered(mild).includes("MONO_ABS"));
+  for (const v of [0, 0.03]) {
+    const z = s9Find(s9Run("M", 40, s9CBC(5, [s9T("MONO#", v, "10^3/uL")])).p, "monocytopenia");
+    assert.equal(z?.urgency, "this_week", `مونوسیت ${v * 1000}`);
+    assert.match(z.action, /این هفته/, "زمان‌بندیِ action باید از urgency بیاید (N20)");
+  }
+  // لبه: ۵۰ خودش «زیرِ ۵۰» نیست
+  assert.equal(s9Find(s9Run("M", 40, s9CBC(5, [s9T("MONO#", 0.05, "10^3/uL")])).p, "monocytopenia")?.urgency, "routine");
+  // پان‌سیتوپنی: یافتهٔ مونوسیت زیرِ blocker نسخهٔ کوتاه دارد، دستورِ رقیب ندارد، و مونوسیت بی‌صدا حذف نمی‌شود (N18، N20)
+  const pc = s9Run("M", 60, [s9T("WBC", 2.5, "10^3/uL"), s9T("Hb", 8, "g/dL"), s9T("PLT", 60, "10^3/uL"), s9T("MONO#", 0.1, "10^3/uL")]).p;
+  assert.ok(s9Ids(pc).includes("pancytopenia"), s9Ids(pc));
+  const m = s9Find(pc, "monocytopenia");
+  assert.ok(m, `یافتهٔ مونوسیت زیرِ پان‌سیتوپنی گم شد: ${s9Ids(pc)}`);
+  assert.ok(!m.action, "دستورِ دوم کنارِ اورژانس");
+  assert.ok(!s9Uncovered(pc).includes("MONO_ABS"));
+});
+
+test("M203b: «Pelger» کنارِ سیتوپنی یا بلاست شبه‌پلگر (این هفته) خوانده می‌شود؛ تنها با CBCِ کامل، لحنِ ملایمِ ارثی (P56 پرسش ۲)", () => {
+  const pel = (tests) => s9SmearF(s9Run("M", 60, tests).p);
+  const cases = [
+    [[s9T("WBC", 7, "10^3/uL"), s9T("Hb", 9, "g/dL"), s9T("PLT", 250, "10^3/uL")], /هموگلوبین \(9\)/],
+    [[s9T("WBC", 7, "10^3/uL"), s9T("Hb", 14.5, "g/dL"), s9T("PLT", 90, "10^3/uL")], /پلاکت \(90\)/],
+    [[s9T("WBC", 2.8, "10^3/uL"), s9T("Hb", 14.5, "g/dL"), s9T("PLT", 250, "10^3/uL")], /گلبول‌های سفید \(2\.8\)/],
+    [s9CBC(7, [s9T("Blasts", 3, "%")]), /بلاست/],
+  ];
+  for (const [tests, ev] of cases) {
+    const f = pel([...tests, s9T("Pelger-Huet anomaly", "Present")]);
+    assert.equal(f?.urgency, "this_week", `پلگر کنارِ ${ev}`);
+    assert.match(f.must_say, /اکتسابی/);
+    assert.match(f.must_say, ev, "شاهد با عددِ چاپ‌شده در متن نیست (N5)");
+    assert.doesNotMatch(f.must_say, /محتمل‌ترین توضیح نوعِ ارثی/);
+    assert.match(f.brief, /احتمالِ نوعِ اکتسابی/);
+  }
+  // پلگر و شبه‌پلگر هر دو روی برگه: یک جملهٔ شبه‌پلگر، نه دو
+  const both = pel([s9T("WBC", 2.8, "10^3/uL"), s9T("Hb", 14.5, "g/dL"), s9T("PLT", 250, "10^3/uL"),
+    s9T("Pelger-Huet anomaly", "Present"), s9T("Pseudo-Pelger cells", "Present")]);
+  assert.equal((both.must_say.match(/شبه‌پلگر/g) ?? []).length, 1, both.must_say);
+  // تنها، CBCِ کامل و طبیعی: ملایم، فقط احتمالِ ارثی
+  const alone = pel(s9CBC(7, [s9T("Pelger-Huet anomaly", "Present")]));
+  assert.equal(alone.urgency, "routine");
+  assert.match(alone.must_say, /محتمل‌ترین توضیح نوعِ ارثی/);
+  assert.doesNotMatch(alone.must_say, /اکتسابی|مغزِ استخوان/);
+  // تنها، بی CBC: «کاهشی نیست» گفته نمی‌شود (N4)
+  const noCbc = pel([s9T("Pelger-Huet anomaly", "Present"), s9T("Neut %", 60, "%")]);
+  assert.match(noCbc.must_say, /روی این برگه نیست/);
+  assert.doesNotMatch(noCbc.must_say, /کاهشی در سلول‌ها نشان نمی‌دهد/);
+});
+
+test("M203c: بلاستِ ۱ تا ۱۹٪ یا بی‌درصد — دستورِ «۲۴ تا ۴۸ ساعت»، و بر «این هفته»ِ یافتهٔ دیگر می‌چربد (P56 پرسش ۳)", async () => {
+  const { pickFinalAction } = await import("./prompt.js");
+  for (const [v, u] of [[1, "%"], [3, "%"], [19, "%"], ["Few", null]]) {
+    const f = s9SmearF(s9Run("M", 40, s9CBC(9, [s9T("Blasts", v, u)])).p);
+    assert.equal(f?.urgency, "this_week", `بلاست ${v}`);
+    assert.match(f.action, /۲۴ تا ۴۸ ساعت/, `بلاست ${v}: ${f.action}`);
+    assert.doesNotMatch(f.action, /این هفته|امروز/);
+    assert.doesNotMatch(f.must_say, /فوراً|همین امروز|این هفته/, "must_say زمان‌بندی دارد (N20)");
+  }
+  // کنارِ هایپرائوزینوفیلیِ «این هفته»: دستورِ نهاییِ گزارش همان ۲۴–۴۸ ساعت است
+  const p = s9Run("M", 40, s9CBC(9, [s9T("Blasts", 3, "%"), s9T("EOS#", 2.0, "10^3/uL")])).p;
+  assert.ok(s9Ids(p).includes("eosinophilia"), s9Ids(p));
+  assert.match(pickFinalAction(p.findings).action, /۲۴ تا ۴۸ ساعت/);
+  // ≥۲۰٪ همچنان اورژانس
+  assert.equal(s9SmearF(s9Run("M", 40, s9CBC(9, [s9T("Blasts", 20, "%")])).p)?.urgency, "emergency");
+});
+
+test("M203d: املاهای LIS برای بلاست خوانده می‌شوند؛ «Immature cells» و «Atypical mononuclear» تنها نه (P56 پرسش ۵، N2)", () => {
+  for (const tests of [
+    [s9T("Immature mononuclear cells", "Present")],
+    [s9T("Peripheral Blood Smear (PBS)", "Few blasts observed")],
+    [s9T("Morphology Review", "Presence of circulating blasts")],
+    [s9T("Comment", "Atypical/Immature mononuclear cells seen")],
+    [s9T("لام خون محیطی", "بلاست دیده شد")],
+    [s9T("Blast %", 4, "%")],
+  ]) {
+    const { e, p } = s9Run("M", 40, s9CBC(9, tests));
+    assert.deepEqual(s9Present(e), ["blasts"], `«${tests[0].name}: ${tests[0].value}»`);
+    assert.equal(s9SmearF(p)?.urgency, "this_week");
+  }
+  // گرانولوسیتِ نابالغ (Sysmex IG) و لنفوسیتِ واکنشی بلاست نیستند — یک نگاشتِ غلط بدتر از نبودنِ نگاشت است.
+  for (const tests of [
+    [s9T("Immature cells", 2, "%")],
+    [s9T("Comment", "Atypical mononuclear cells seen")],
+    [s9T("Comment", "Few atypical lymphocytes")],
+  ]) {
+    const { e, p } = s9Run("M", 40, s9CBC(9, tests));
+    assert.deepEqual(s9Present(e), [], `«${tests[0].name}: ${tests[0].value}» بلاست خوانده شد`);
+    assert.ok(!s9SmearF(p));
+  }
+});
+
+test("M203e: هیچ متنِ بیمار نامِ تشخیص («لوسمی»، «بدخیمی») ندارد — بلاست، اوئر، و acute_leukemia_suspicion (P56 پرسش ۶)", () => {
+  const panels = [
+    [s9T("WBC", 60, "10^3/uL"), s9T("Hb", 7, "g/dL"), s9T("PLT", 40, "10^3/uL")],
+    [s9T("WBC", 60, "10^3/uL"), s9T("Hb", 7, "g/dL"), s9T("PLT", 40, "10^3/uL"), s9T("Blasts", 30, "%")],
+    s9CBC(9, [s9T("Blasts", 30, "%")]),
+    s9CBC(20, [s9T("Auer rods", "Present")]),
+    s9CBC(9, [s9T("Blasts", 3, "%")]),
+  ];
+  const seen = new Set();
+  for (const tests of panels) {
+    const { p } = s9Run("M", 40, tests);
+    for (const f of p.findings) {
+      seen.add(f.pattern);
+      const all = [f.headline, f.must_say, f.brief ?? "", f.action ?? "", ...(f.warnings ?? []), ...(f.suggest ?? [])].join(" ");
+      assert.doesNotMatch(all, /لوسمی|لوکمی|بدخیم|سرطان/, `${f.pattern}: ${all}`);
+    }
+  }
+  // بی این، آزمون می‌توانست بی هیچ یافته‌ای سبز شود (N15).
+  for (const id of ["acute_leukemia_suspicion", "peripheral_smear_findings"]) assert.ok(seen.has(id), `${id} فعال نشد`);
+  const em = s9SmearF(s9Run("M", 40, s9CBC(9, [s9T("Blasts", 30, "%")])).p);
+  assert.match(em.must_say, /هماتولوژی/, "جملهٔ جایگزینِ بازبین");
+});
+
+// ---------- M204: «شک به CML» زیرِ «لکوسیتوزِ شدید» پنهان نمی‌ماند (تصمیمِ بازبینِ بالینی ۲۰۲۶-۰۹-۲۸، P56) ----------
+// 🔴 پیش از این (روی 15d577b): WBC ≥ ۵۰ همیشه extreme_leukocytosis (اورژانس، blocks_others) را فعال می‌کرد و cml_suspicion
+//    (WBC > ۵۰ + بازوفیلِ بالا) زیرِ آن پنهان می‌ماند — یعنی هرگز به بیمار نمی‌رسید. «لکوسیتوزِ شدید» فقط توصیفِ شمارشی است؛
+//    جهتِ بالینی (لام، BCR-ABL) در همین یافته است.
+test("M204: WBC 80 + بازوفیلِ بالا — یافتهٔ CML کنارِ اورژانس دیده می‌شود، با عددِ بازوفیل و BCR-ABL، بی‌دستورِ رقیب", async () => {
+  const { pickFinalAction } = await import("./prompt.js");
+  const { p } = s9Run("M", 50, [s9T("WBC", 80, "10^3/uL"), s9T("Hb", 12, "g/dL"), s9T("PLT", 450, "10^3/uL"), ...s9Diff(70, 8, 4, 6, 5)]);
+  assert.ok(s9Ids(p).includes("extreme_leukocytosis"), String(s9Ids(p)));
+  const f = s9Find(p, "cml_suspicion");
+  assert.ok(f, `یافتهٔ CML پنهان ماند: ${s9Ids(p)}`);
+  assert.match(f.must_say, /4000/, "عددِ بازوفیل در متنِ نمایش‌داده نیست (N5)");
+  assert.match(f.must_say, /BCR-ABL/);
+  assert.ok(!s9Uncovered(p).includes("BASO_ABS"));
+  assert.equal(pickFinalAction(p.findings).pattern, "extreme_leukocytosis", "دستورِ نهایی باید همان اورژانس بماند (N20)");
+  // کنترلِ منفی: WBC 80 بی بازوفیلِ بالا ⇒ یافتهٔ CML نیست
+  const plain = s9Run("M", 50, [s9T("WBC", 80, "10^3/uL"), s9T("Hb", 12, "g/dL"), s9T("PLT", 450, "10^3/uL"), ...s9Diff(80, 10, 5, 4.8, 0.2)]).p;
+  assert.ok(!s9Ids(plain).includes("cml_suspicion"), String(s9Ids(plain)));
 });

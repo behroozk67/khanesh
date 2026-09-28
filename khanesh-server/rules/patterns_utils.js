@@ -1001,7 +1001,9 @@ export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, wh
 // هیچ‌کدام مرزِ سنجش نیست (آن کارِ refs.js است، N23): فقط مرزِ جمله/فوریت در قاعده، و همیشه همراهِ «سنجیده‌شده بالا».
 const MONOCYTOSIS_ABS_UL = 1000;         // «> 1.0 ×10⁹/L» — زیرِ آن و بالای حدِ مرجع: «کمی بالاتر»
 const HYPEREOSINOPHILIA_ABS_UL = 1500;   // «≥ 1.5 ×10⁹/L» — هایپرائوزینوفیلی
-export { MONOCYTOSIS_ABS_UL, HYPEREOSINOPHILIA_ABS_UL };
+// P56 پرسش ۴ (تصمیمِ بازبین ۲۰۲۶-۰۹-۲۸): مونوسیتِ زیرِ حدِ مرجع به‌تنهایی هشدار نمی‌سازد؛ فقط زیرِ ۵۰ یا کنارِ پان‌سیتوپنی.
+const MONOCYTOPENIA_SEVERE_ABS_UL = 50;
+export { MONOCYTOSIS_ABS_UL, HYPEREOSINOPHILIA_ABS_UL, MONOCYTOPENIA_SEVERE_ABS_UL };
 
 // ═══ specs/009 — ردیف‌های لامِ خونِ محیطی (کانالِ smear) ═══
 // واژگانِ بسته، تطبیق با *نامِ* ردیف (FR-008a)؛ توصیفِ بی‌نام («هستهٔ دولوبه») خوانده نمی‌شود. حضور با castValueState
@@ -1012,7 +1014,7 @@ const SMEAR_ORDER = ["blasts", "auer", "pseudo_pelger", "toxic_granulation", "do
 const smearNorm = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   .replace(/[\s._\-\/()%#:,]/g, "").replace(/\u200c/g, "");
 const SMEAR_NAME = [
-  [/^(blasts?|blastcells?|myeloblasts?|lymphoblasts?|monoblasts?|بلاست(ها)?)$/, "blasts"],
+  [/^(blasts?|blastcells?|myeloblasts?|lymphoblasts?|monoblasts?|immaturemononuclearcells?|بلاست(ها)?)$/, "blasts"],
   [/^auer(rods?|bod(y|ies))?$/, "auer"],
   [/^toxic(granulations?|granules?|changes?)$/, "toxic_granulation"],
   [/^dohle(bod(y|ies))?$/, "dohle"],
@@ -1023,9 +1025,11 @@ const SMEAR_NAME = [
   [/^chediak/, "chediak_higashi"],
 ];
 // ردیف‌های عمومیِ لام/توضیح: متنشان بندبه‌بند برای همان واژگان گشته می‌شود.
-const SMEAR_GENERIC = /^(peripheral(blood)?smear|pbs|pbf|bloodsmear|bloodfilm|smear|morphology|wbcmorphology|comments?|remarks?|note|لامخونمحیطی|لامخون|گسترشخونمحیطی|توضیحات|توضیح)$/;
+const SMEAR_GENERIC = /^(peripheral(blood)?smear(pbs)?|pbs|pbf|morphologyreview|bloodsmear|bloodfilm|smear|morphology|wbcmorphology|comments?|remarks?|note|لامخونمحیطی|لامخون|گسترشخونمحیطی|توضیحات|توضیح)$/;
 const SMEAR_TEXT = [
-  [/\b(blasts?|blast\s*cells?|myeloblasts?|lymphoblasts?|monoblasts?)\b|بلاست/i, "blasts"],
+  // P56 پرسش ۵: «Immature mononuclear cells» (و «Atypical/Immature …») اصطلاحِ لام برای بلاستِ احتمالی است. «Immature cells»/IG
+  //   تنها عمداً نه — روی دستگاهِ Sysmex یعنی گرانولوسیتِ نابالغ، و «Atypical mononuclear/lymphocytes» تنها لنفوسیتِ واکنشی است (N2).
+  [/\b(blasts?|blast\s*cells?|myeloblasts?|lymphoblasts?|monoblasts?)\b|\bimmature\s+mononuclear\s+cells?\b|بلاست/i, "blasts"],
   [/\bauer\b/i, "auer"],
   [/\btoxic\s*(granul|change)/i, "toxic_granulation"],
   [/d[oö]hle/i, "dohle"],
@@ -1113,11 +1117,33 @@ function mergeSmear(items) {
  * patterns_malignancy پیش نیاید). exclude: "leukemic" ⇒ بلاستِ ≥۲۰٪ و اوئر کنار گذاشته می‌شوند (hand-off، data-model §3).
  * null ⇒ آیتمِ حاضری نمانده.
  */
+/** شواهدِ نوعِ اکتسابیِ پلگر روی همین برگه — عبارت‌های فارسی همراهِ عددِ چاپ‌شده (N5). فقط «سنجیده‌شده پایین» (N4). */
+function pelgerAcquiredEvidence(e) {
+  const low = (k) => e?.graded?.find((g) => g.test === k && g.abnormal && g.dir === "low");
+  const out = [];
+  const hgb = low("HGB"), plt = low("PLT"), wbc = low("WBC") ?? low("NEUT_ABS");
+  if (hgb) out.push(`کاهشِ هموگلوبین (${hgb.value})`);
+  if (plt) out.push(`کاهشِ پلاکت (${plt.value})`);
+  if (wbc) out.push(`کاهشِ گلبول‌های سفید (${wbc.value})`);
+  if ((e?.smear ?? []).some((i) => i.state === "present" && i.kind === "blasts")) out.push("بلاست در لامِ خون");
+  return out;
+}
 function smearAxis(e, { exclude } = {}) {
   const isLeukemic = (i) => i.kind === "auer" || (i.kind === "blasts" && i.pct != null && i.pct >= BLAST_EMERGENCY_PCT);
   let items = (e?.smear ?? []).filter((i) => i.state === "present");
   const leukemic = items.filter(isLeukemic);
   if (exclude === "leukemic") items = items.filter((i) => !isLeukemic(i));
+  // P56 پرسش ۲ (تصمیمِ بازبین ۲۰۲۶-۰۹-۲۸): «Pelger» کنارِ سیتوپنی یا بلاست شبه‌پلگر (اکتسابی) خوانده می‌شود، نه ارثیِ خوش‌خیم.
+  //   بلاستی که با exclude کنار رفته هم شاهد است، چون روی برگه هست.
+  const pel = items.find((i) => i.kind === "pelger");
+  if (pel) {
+    const ev = pelgerAcquiredEvidence(e);
+    if (ev.length) {
+      items = items.filter((i) => i !== pel);
+      if (!items.some((i) => i.kind === "pseudo_pelger")) items.push({ ...pel, kind: "pseudo_pelger", fromPelger: ev });
+      items = SMEAR_ORDER.flatMap((k) => items.filter((i) => i.kind === k));
+    }
+  }
   if (!items.length) return null;
   const urgency = items.some(isLeukemic) ? "emergency"
     : items.some((i) => i.kind === "blasts" || i.kind === "pseudo_pelger") ? "this_week"
@@ -1131,7 +1157,8 @@ const SMEAR_FA = {
   dohle: "اجسام دوهله", pelger: "ناهنجاریِ پلگر-هوئت", may_hegglin: "ناهنجاریِ می-هگلین", alder_reilly: "ناهنجاریِ آلدر-رایلی",
   chediak_higashi: "گرانول‌های چدیاک-هیگاشی",
 };
-const smearItemFa = (i) => (i.kind === "blasts" && i.pct != null ? `${SMEAR_FA.blasts} ${i.pct}٪` : SMEAR_FA[i.kind]);
+const smearItemFa = (i) => (i.kind === "blasts" && i.pct != null ? `${SMEAR_FA.blasts} ${i.pct}٪`
+  : i.fromPelger ? "ناهنجاریِ پلگر-هوئت (احتمالِ نوعِ اکتسابی)" : SMEAR_FA[i.kind]);
 /** جملهٔ آیتم‌های «لوسمیک» (بلاستِ ≥۲۰٪، اوئر) — یک جمله برای هر دو، تا ادغام شوند (FR-006). بی‌زمان‌بندی (N20). */
 function smearLeukemicSentence(leukemic) {
   const bl = leukemic.find((i) => i.kind === "blasts");
@@ -1142,4 +1169,10 @@ function smearLeukemicSentence(leukemic) {
     : "میله‌های اوئر دیده شده‌اند — ساختارهای سوزنی‌شکلی که فقط در گلبول‌های سفیدِ نابالغ پیدا می‌شوند");
   return `در بررسیِ لامِ خونِ شما ${parts.join(" و ")}.`;
 }
-export { SMEAR_FA, smearItemFa, smearLeukemicSentence };
+/** هر سه (هموگلوبین، گلبول سفید، پلاکت) روی برگه سنجیده شده‌اند؟ اینجاست، نه در قاعده، تا خواندنِ این کلیدها آن‌ها را
+ *  برای تورِ «توضیح داده نشدند» پوشش‌داده نکند (M156). */
+const smearCbcComplete = (e) => ["HGB", "WBC", "PLT"].every((k) => e?.graded?.some((g) => g.test === k));
+// P56 پرسش ۶ (تصمیمِ بازبین ۲۰۲۶-۰۹-۲۸): نامِ تشخیص («لوسمی»، «بدخیمی») در متنِ بیمار نمی‌آید — فقط شاهد و اقدام.
+//   acute_leukemia_suspicion نامِ داخلیِ پرچم است و به متن نمی‌رسد. متن همان جملهٔ پیشنهادیِ بازبین است.
+const BLAST_EVAL_SENTENCE = "حضورِ سلول‌های نارس (بلاست) در گردشِ خون نیازمندِ ارزیابیِ فوریِ تخصصیِ خون (هماتولوژی) در سریع‌ترین زمانِ ممکن (اورژانسی) است.";
+export { SMEAR_FA, smearItemFa, smearLeukemicSentence, smearCbcComplete, BLAST_EVAL_SENTENCE };
