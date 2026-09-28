@@ -840,3 +840,15 @@ test("T28: ردیفِ درصدیِ بی‌«%» روی همان صفحه با ش
   assert.deepEqual(m.duplicates, []);
   assert.deepEqual(m.tests.map((t) => t.name), ["NEUT", "NEUT%", "HCT"], "HCT ردیفِ غیرِ٪ ندارد و نامش دست نمی‌خورد");
 });
+
+test("T29: «---.-» (جای‌نگهدارِ دستگاه) مثلِ مقدارِ خالی هشدارِ «خوانا نبود» می‌گیرد؛ «-»ِ نوارِ ادرار نه (job fff90f58، P58)", async () => {
+  // 🔴 پیش‌تر: فقط null/"" هشدار داشت؛ NEUT%/NEUT#/MXD با «---.-» بی‌صدا گذشتند و بیمار نفهمید دیف ناقص است.
+  const { ocrToText } = await import("./server.js");
+  const { warnings } = ocrToText({ tests: [
+    { name: "NEUT%", value: "---.-", unit: "%" }, { name: "MXD#", value: "---.-", unit: "10^3/µL" },
+    { name: "WBC", value: "36.6", unit: "10^3/µL" }, { name: "Nitrite", value: "-" },
+  ] });
+  assert.ok(warnings.some((w) => /^NEUT%: مقدار خوانا نبود/.test(w)), warnings.join(" | "));
+  assert.ok(warnings.some((w) => /^MXD#: مقدار خوانا نبود/.test(w)), warnings.join(" | "));
+  assert.ok(!warnings.some((w) => /^(WBC|Nitrite):/.test(w)), "عددِ واقعی و «منفی»ِ نوار ناخوانا نیستند (N6)");
+});

@@ -26,7 +26,8 @@ export default function ExtractedTests({ list, pages, asText }) {
           <li key={i} className="extract-row">
             <b className="extract-name">{asText(t?.test)}</b>
             <Num>{asText(t?.value)}</Num>
-            {t?.reference && (
+            {/* server.js جای محدودهٔ نخوانده «—» می‌گذارد؛ آن را «محدودهٔ چاپ‌شده» نشان نده (job c138671c، D10). */}
+            {t?.reference && !/^[\s—–-]*$/.test(String(t.reference)) && (
               <span className="printed-ref">
                 {/* محدودهٔ چاپ‌شده روی برگه ≠ محدودهٔ موتور. برچسبش صریح است تا
                     وقتی این دو اختلاف دارند، تناقض به‌نظر نرسد. */}

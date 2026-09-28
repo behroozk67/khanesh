@@ -29,8 +29,9 @@ import "dotenv/config";
 // gpt-4o می‌فهمید ولی ۳۵ برابر گران بود — و باز هم برای کم‌خونی
 // ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
-import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName } from "./rules/adapter.js";
-import { getRef } from "./rules/refs.js";
+import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue } from "./rules/adapter.js";
+import { getRef, isNeonate } from "./rules/refs.js";
+const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
 import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef } from "./rules/prompt.js";
 import { faName } from "./rules/names.js";
@@ -607,7 +608,8 @@ export function mergePages(pageResults) {
 // ============================================================
 // [۱۱] تبدیل خروجی OCR به متن برای مرحله تحلیل
 // ============================================================
-function ocrToText(ocr) {
+// export فقط برای T29 (job fff90f58).
+export function ocrToText(ocr) {
   if (!ocr || !Array.isArray(ocr.tests)) return { text: "", warnings: [] };
 
   const lines = [];
@@ -616,7 +618,8 @@ function ocrToText(ocr) {
   for (const t of ocr.tests) {
     if (!t || !t.name) continue;
 
-    if (t.value === null || t.value === undefined || t.value === "") {
+    // job fff90f58 (E2): «---.-» (جای‌نگهدارِ دستگاه) هم مثلِ خالی ناخواناست — همان قاعدهٔ adapter.js.
+    if (t.value === null || t.value === undefined || t.value === "" || isPlaceholderValue(t.value)) {
       warnings.push(`${t.name}: مقدار خوانا نبود و در تحلیل لحاظ نشد.`);
       continue;
     }
@@ -936,6 +939,11 @@ const analyzeHandler = async (req, res) => {
     let engineCandidate = null;
     if (USE_ENGINE && lastMergedOcr) {
       engineCandidate = runEngine(lastMergedOcr);
+      // job c138671c (D10): برای نوزاد، فهرستِ «برای مطالعهٔ بیشتر» فقط صفحه‌های عمومیِ شمارشِ خونِ بزرگسال بود.
+      //   صفحهٔ نوزادیِ MedlinePlus (وجودش ۲۰۲۶-۰۹-۲۸ بررسی شد) اضافه می‌شود — همان فهرست، نه منبعِ نتیجه‌گیری.
+      if (isNeonate(engineCandidate.age) && !medlineSources.includes(NEWBORN_MEDLINE_URL)) {
+        medlineSources = [...medlineSources, NEWBORN_MEDLINE_URL];
+      }
 
       // ⚠️ adapter و grade عمداً دو مرحلهٔ جدا ثبت می‌شوند، هرچند runEngine
       //    یک فراخوان است. علتش انتسابِ خطاست: «نامِ تست نگاشت نشد» (N2) و

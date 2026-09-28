@@ -371,7 +371,7 @@ export const GERIATRIC_REFS = {
   ALP: { M: [80, 300], F: [64, 300], unit: 'U/L' },
 };
 
-import { getPedRef, getPedRefSource, isPediatricRCPCH } from './refs_ped.js';
+import { getPedRef, getPedRefSource, isPediatricRCPCH, PED_REFS } from './refs_ped.js';
 
 // گرفتن محدوده برای یک تست
 // اطفال (< 16 سال) → اول جدول RCPCH، اگر نبود → بالغ (طبق دستور خود RCPCH)
@@ -394,8 +394,22 @@ export const HCG_POSITIVE_ABOVE = 5;
  *     قاعدهٔ hCG را فعال می‌کرد ولی پروژسترونِ روزِ ۲۱ را از قضاوت بیرون نمی‌برد (کلاریفای Q6). */
 export const HCG_QUAL_NAME_RE = /hcg|بارداری|pregnan/i;
 
+// ─── نوزاد (job c138671c، P57) ───
+// دورهٔ نوزادی: «۲۸ روزِ کاملِ اول» — تعریفِ WHO (GHO، شاخصِ مرگِ نوزادی «0 to 27 days»). فقط برای *لحن و
+// مخاطب* (پزشکِ نوزاد، علائمِ خطرِ نوزادی)، نه برای بازه — بازه‌ها از PED_REFS می‌آیند.
+export const NEONATAL_PERIOD_DAYS = 28;
+export const isNeonate = (age) => age != null && age * 365 < NEONATAL_PERIOD_DAYS;
+// دورهٔ گلبول‌های قرمزِ درشتِ نوزادی: عددِ تازه‌ای نیست — همان ردیفِ اولِ PED_REFS.MCV (۱۰۰–۱۳۰ fL). تا وقتی
+// موتور خودش MCVِ نوزادی می‌دهد، بازهٔ بزرگسالِ شاخص‌هایی که با اندازهٔ سلول/جمعیتِ جنینی عوض می‌شوند غلط است.
+export const inNeonatalRedCellPeriod = (age) => age != null && age <= PED_REFS.MCV[0].maxAge;
+// 🔴 job c138671c: این کلیدها ردیفِ PED_REFS ندارند و قاعدهٔ عمومیِ RCPCH («بازهٔ بزرگسال») بازهٔ *زنِ بزرگسال* را
+//    به نوزادِ ۱ روزه می‌داد: RBC با ۴.۱–۵.۱ (نوزادِ سالمِ ۵.۵ «بالا» می‌شد)، RDW-SD با ۳۵–۵۶ کنارِ MCVِ ۱۲۸. تا بازهٔ
+//    نوزادیِ منبع‌دار (P57)، در این دوره سنجیده نمی‌شوند ⇒ noRef، و neonatal_reference_context دلیلش را می‌گوید.
+export const NEONATAL_NO_ADULT_FALLBACK = new Set(['RBC', 'RDW_CV', 'RDW_SD']);
+
 export function getRef(testKey, sex, age, { pregnant = false } = {}) {
   if (REPRO_HORMONE_KEYS.has(testKey) && ((age != null && age < 16) || !sex)) return null;
+  if (NEONATAL_NO_ADULT_FALLBACK.has(testKey) && inNeonatalRedCellPeriod(age) && !getPedRef(testKey, age)) return null;
   if (testKey === 'HGB' && pregnant && sex === 'F') return hgbRef(sex, age, { pregnant });
   if (isPediatricRCPCH(age)) {
     const ped = getPedRef(testKey, age);

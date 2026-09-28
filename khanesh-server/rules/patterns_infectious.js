@@ -2,6 +2,7 @@ import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, wh
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
+import { isNeonate, ageFa, nextNeonatalBand, NEONATAL_DANGER_WARNING, NEONATAL_TODAY_ACTION } from "./neonatal.js";
 
 export const RULES_INFECTIOUS = [
   // ═══════════ سرولوژی غربالگری (هپاتیت B/C، HIV) ═══════════
@@ -328,6 +329,8 @@ export const RULES_INFECTIOUS = [
   },
 
   // ═══════════ عفونت ویروسی — لنفوسیتوز ═══════════
+  // ⚠️ نوزاد (زیرِ ۲۸ روز): «پس از بهبودِ عفونت» و «تکرار پس از بهبود» جملهٔ بزرگسال است (job c138671c، D3/D7).
+  //   neonatalLymphocytosis (پایینِ فایل) می‌گوید بازه روزبه‌روز عوض می‌شود و عدد را پزشکِ نوزاد می‌سنجد.
   {
     id: "viral_lymphocytosis",
     match: (e) => {
@@ -336,9 +339,12 @@ export const RULES_INFECTIOUS = [
       // نوتروفیل بالا نباشد (که به باکتریایی می‌خورد)
       const neut = e.graded.find((g) => g.test === "NEUT_ABS");
       const neutHigh = neut?.abnormal && neut.dir === "high";
+      // job c138671c (D3): نوزادی که نوتروفیلش غایب است — لنفوسیت را neutrophil_count_missing سه‌حالته می‌گوید (یک یافته
+      //   دربارهٔ یک عدد، N20). شرط همان match آن قاعده است، نه کپیِ آستانه.
+      if (isNeonate(e.age) && e.ungraded?.NEUT_ABS?.reason === "diff_incomplete") return false;
       return lymphHigh && !neutHigh;
     },
-    build: () => ({
+    build: (e) => isNeonate(e.age) ? neonatalLymphocytosis(e) : ({
       pattern: "viral_lymphocytosis",
       urgency: "routine",
       headline: "افزایش لنفوسیت‌ها معمولاً به یک عفونت ویروسی اشاره دارد",
@@ -350,3 +356,24 @@ export const RULES_INFECTIOUS = [
       warnings: [],
     }),
   }];
+
+// نسخهٔ نوزادیِ viral_lymphocytosis (job c138671c، D3). بیرون از قاعده، تا LYMPH_ABS فقط از match در RULE_READS بیاید.
+// ردیفِ لنفوسیتِ ۰–۳ روز با P57 پرسش ۴ یکی شد (۲۰۰۰–۷۵۰۰). اگر ردیفِ بعدی هنوز در دورهٔ نوزادی باشد متن آن را هم می‌گوید.
+// حکمِ «ویروسی» نمی‌دهد.
+function neonatalLymphocytosis(e) {
+  const ly = e.graded.find((g) => g.test === "LYMPH_ABS");
+  const next = nextNeonatalBand(ly.test, e.age);
+  return {
+    pattern: "viral_lymphocytosis",
+    urgency: "routine",
+    headline: "لنفوسیت‌های نوزاد بالاتر از بازهٔ این سن است",
+    must_say:
+      `لنفوسیت ${ly.value} است (بازهٔ مرجعِ نوزادی برای سنِ ${ageFa(e.age)}: ${ly.range}). ` +
+      (next ? `بازهٔ لنفوسیت در روزهای اولِ عمر روزبه‌روز عوض می‌شود — برای ${next.label} ${next.range} است — پس یک عدد در این روزها به ساعتِ دقیقِ تولد حساس است. ` : "") +
+      "در روزهای اولِ عمر، معنای این عدد را پزشکِ نوزاد کنارِ معاینه و بقیهٔ شمارشِ خون تعیین می‌کند.",
+    // P57 پرسش ۵: فوریت را applyNeonatalFloor به «امروز» می‌برد؛ جمله همان.
+    action: NEONATAL_TODAY_ACTION,
+    suggest: ["تکرار CBC"],
+    warnings: [NEONATAL_DANGER_WARNING],
+  };
+}

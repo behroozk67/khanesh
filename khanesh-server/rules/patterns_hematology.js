@@ -2,6 +2,15 @@ import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, wh
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
+import { getPedRef, isPediatricRCPCH } from "./refs_ped.js";
+import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
+
+// P58 (N20): وقتی یکی از دو سطحِ «لکوسیتوز + سیتوپنیِ شدید» فعال است، WBC صاحب دارد و leukocytosis کنار می‌رود — دو یافته
+//   دربارهٔ یک عدد نمی‌سازیم. «آیا آن قاعده فعال می‌شود»، نه تکرارِ آستانه‌ها (M91e).
+const LEUK_CYTO_IDS = new Set(["leukocytosis_with_cytopenia", "reactive_leukocytosis_with_cytopenia"]);
+const leukCytopeniaOwns = (e) => RULES_MALIGNANCY.some((r) => LEUK_CYTO_IDS.has(r.id) && r.match(e));
+import { isNeonate, inNeonatalRedCellPeriod, ageFa, NEONATAL_DANGER_WARNING, NEONATAL_TODAY_ACTION, neutMissingText, neonatalContextText,
+  plateletAbnormal, plateletIndicesText, indicesInconsistentText, neonatalLowRbcClause } from "./neonatal.js";
 
 // ─── specs/008 بازبینیِ دور ۲ (R2-B4): هشدارِ ناقل بودن — هر یافته‌ای که جملهٔ HbA2ِ «صفت» را می‌گوید آن را هم دارد ───
 // hba2_elevated برای مالکانِ تالاسمی کنار می‌رود؛ بی‌این، برگهٔ پیش‌ازدواجِ «CBC + HbA2 5.2» فقط دلگرمی می‌گرفت و
@@ -13,16 +22,32 @@ const carrierWarnings = (e) => (["trait", "very_high"].includes(hba2State(e)) ? 
 // ─── برگهٔ واقعی ۲۰۲۶-۰۹-۲۴: نسخهٔ کوتاهِ normocytic_anemia زیرِ اورژانسِ دیگر ───
 // ⚠️ عمداً بیرون از قاعده: RULE_READS کلیدها را از متنِ match/build می‌خواند؛ اگر HCT/MCH/RDW آن‌جا بودند، یافتهٔ
 //    کاملِ (نه‌کوتاهِ) نورموسیتیک آن‌ها را در هر جهتی «پوشش‌داده» می‌کرد بی‌آنکه نامشان را ببرد (M156).
+// job fff90f58 (E3، P58): شاخصی که در کودک بازهٔ سنی ندارد و با ردیفِ بزرگسال (هنری) سنجیده شد — مثلاً RBC و RDWِ شیرخوارِ
+//   ۶–۱۲ ماهه. چنین عددی «حد طبیعی» نامیده نمی‌شود و پایهٔ گمانه‌ای نمی‌شود؛ فقط گفته می‌شود با چه بازه‌ای سنجیده شد.
+const adultRangeInChild = (e, x) => isPediatricRCPCH(e.age) && !getPedRef(x.test, e.age);
+const indexLabelFa = (k) => (k === "RDW_SD" ? "RDW-SD" : k === "RDW_CV" ? "RDW-CV" : faName(k));
+function adultRangeSentence(items) {
+  if (!items.length) return "";
+  const many = items.length > 1;
+  return `${items.map((x) => `${indexLabelFa(x.test)} ${x.value} (${x.range})`).join(" و ")} با بازهٔ بزرگسالان سنجیده ${many ? "شدند" : "شد"}، ` +
+    `چون بازهٔ مرجعِ این سن را در دست نداریم؛ معنای ${many ? "آن‌ها" : "آن"} را پزشک کنارِ سنِ کودک می‌سنجد. `;
+}
 function normocyticBrief(e, hgb) {
   // 🔴 برگهٔ واقعی (۲۰۲۶-۰۹-۲۴): زیرِ پان‌سیتوپنی/ترومبوسیتوپنیِ شدید (blocks_others) این یافته کامل پنهان می‌شد و
   //    Hb 10.1، هماتوکریت، MCH و RDW به «توضیح داده نشدند» می‌رفتند — همان کلاسِ M187 که microcytic_anemia بست.
   //    brief فقط جهت‌های هم‌سو را نام می‌برد (HCT/RBC/MCHِ پایین، RDWِ بالا)؛ جهتِ ناهم‌سو به تور می‌رود (R3-CR1).
   const gOf = (k) => e.graded.find((x) => x.test === k);
   const mcvN = gOf("MCV");
-  const rdwsN = ["RDW_SD", "RDW_CV"].map(gOf).filter((x) => x?.abnormal && x.dir === "high");
+  const rdwsAll = ["RDW_SD", "RDW_CV"].map(gOf).filter((x) => x?.abnormal && x.dir === "high");
+  // job fff90f58 (E3، P58): PED_REFS برای شیرخوار ردیفِ RDW ندارد، پس RDW-CV 15ِ کودکِ ۶–۱۲ ماهه با بازهٔ بزرگسالِ هنری
+  //   «بالا» خورد و جملهٔ «کمبودِ هم‌زمانِ آهن و B12/فولات» را زیرِ اورژانسِ خونی ساخت. عددی که با بازهٔ این سن سنجیده
+  //   نشده نه «بخشی از همین کم‌خونی» شمرده می‌شود نه پایهٔ آن گمانه است؛ فقط راست گفته می‌شود که با چه بازه‌ای سنجیده شد.
+  const adultInChild = (x) => adultRangeInChild(e, x);
+  const rdwsN = rdwsAll.filter((x) => !adultInChild(x));
+  const rdwsAdult = rdwsAll.filter(adultInChild);
   const sameN = [
     ["HCT", "هماتوکریت"], ["RBC", "گلبول قرمز"], ["MCH", "MCH"],
-  ].map(([k, fa]) => { const x = gOf(k); return x?.abnormal && x.dir === "low" ? `${fa} ${x.value}` : null; })
+  ].map(([k, fa]) => { const x = gOf(k); return x?.abnormal && x.dir === "low" && !adultInChild(x) ? `${fa} ${x.value}` : null; })
     .concat(rdwsN.map((x) => `${x.test === "RDW_SD" ? "RDW-SD" : "RDW-CV"} ${x.value}`))
     .filter(Boolean);
   return (
@@ -31,6 +56,7 @@ function normocyticBrief(e, hgb) {
         (mcvN ? `، با گلبول‌هایی به اندازهٔ طبیعی (MCV ${mcvN.value})` : "") +
         (sameN.length ? `؛ ${sameN.join("، ")} هم بخشی از همین کم‌خونی است` : "") + ". "
       : "همچنین کم‌خونی دیده می‌شود. ") +
+    adultRangeSentence([...["HCT", "RBC", "MCH"].map(gOf).filter((x) => x?.abnormal && x.dir === "low" && adultInChild(x)), ...rdwsAdult]) +
     (rdwsN.length
       ? "اندازهٔ گلبول‌ها با هم یکسان نیست (RDW بالا)؛ وقتی اندازهٔ متوسطِ گلبول طبیعی است، این می‌تواند کمبودِ هم‌زمانِ دو چیز (مثلاً آهن و B12 یا فولات) باشد. "
       : "") +
@@ -45,9 +71,11 @@ function anemiaCompanionsFa(e, macro) {
   const mchDir = macro ? "high" : "low";
   const gOf = (k) => e.graded.find((x) => x.test === k);
   const fmt = (x) => `${faName(x.test)} ${x.value} (حد طبیعی ${x.range})`;
-  const low = ["RBC", "HCT"].map(gOf).filter((x) => x?.abnormal && x.dir === "low");
+  const lowAll = ["RBC", "HCT"].map(gOf).filter((x) => x?.abnormal && x.dir === "low");
+  const low = lowAll.filter((x) => !adultRangeInChild(e, x));
   const m = gOf("MCH");
   let out = low.length ? `${low.map(fmt).join(" و ")} هم پایین است که بخشی از همین کم‌خونی است. ` : "";
+  out += adultRangeSentence(lowAll.filter((x) => adultRangeInChild(e, x)));
   if (m?.abnormal && m.dir === mchDir) {
     out += macro
       ? `${fmt(m)} بالاست، چون هر گلبولِ بزرگ‌تر هموگلوبینِ بیشتری در خود دارد؛ این با بزرگ بودنِ گلبول‌ها جور است. `
@@ -65,6 +93,17 @@ function macrocyticBrief(e, hgb) {
 // شمارشِ نوتروفیلِ پایین کنارِ گلبول سفیدِ پایین مالِ leukopenia است (همان یک یافته)؛ بیرون از قاعده تا WBC در
 // RULE_READSِ mild_neutropenia نیاید و WBCِ *بالا* (مثلاً لنفوسیتوز) بی‌صدا «پوشش‌داده» نشود (M156).
 const wbcLowGraded = (e) => { const w = e.graded.find((g) => g.test === "WBC"); return !!(w?.abnormal && w.dir === "low"); };
+// job fff90f58 (E2-ب، P58): نوتروفیلِ غایب کنارِ گلبول سفیدِ *بالا* — عددِ سرنوشت‌ساز (نوتروفیل/بلاست) در دست نیست و
+//   دیفِ دستی باید صریح خواسته شود، نه فقط «شمارش افتراقی». بیرون از قاعده تا WBC در RULE_READSِ neutrophil_count_missing
+//   نیاید و WBCِ *پایین* بی‌صدا «پوشش‌داده» نشود (M156). عددِ تازه‌ای نیست: «بالا» همان حکمِ grade است.
+const wbcHighGraded = (e) => { const w = e.graded.find((g) => g.test === "WBC"); return !!(w?.abnormal && w.dir === "high"); };
+const MANUAL_DIFF_BLAST_SUGGEST = "گسترش خون محیطی با شمارش افتراقی دستی و بررسی بلاست";
+function wbcHighDiffClause(e) {
+  if (!wbcHighGraded(e)) return "";
+  const w = e.graded.find((g) => g.test === "WBC");
+  return ` گلبول سفید ${w.value} است و از بازه (${w.range}) بالاتر است؛ وقتی گلبول سفید بالاست و تعدادِ نوتروفیل در دست نیست، ` +
+    "شمارشِ افتراقیِ دستی روی لامِ خونِ محیطی، با جست‌وجوی سلول‌های نارس (بلاست)، لازم است.";
+}
 function neutLowClause(e) {
   const n = e.graded.find((g) => g.test === "NEUT_ABS");
   return n?.abnormal && n.dir === "low"
@@ -333,7 +372,7 @@ export const RULES_HEMATOLOGY = [
     id: "leukocytosis",
     match: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
-      return w?.abnormal && w.dir === "high" && w.value < 50;
+      return w?.abnormal && w.dir === "high" && w.value < 50 && !leukCytopeniaOwns(e);
     },
     build: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
@@ -363,6 +402,25 @@ export const RULES_HEMATOLOGY = [
     build: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
       const severe = w.value < 2;
+      // job c138671c (D2): «پس از عفونتِ ویروسی» و «بررسیِ مغزِ استخوان» جملهٔ بزرگسال است؛ برای نوزاد (زیرِ ۲۸ روز، WHO)
+      //   متن از همبستگیِ بالینی، تکرارِ CBC و علائمِ خطرِ عفونتِ نوزادی حرف می‌زند. فوریت دست نخورده است.
+      const neo = isNeonate(e.age) && !severe;
+      // D1: وقتی نوتروفیل غایب است، «شمارش افتراقی» مالِ neutrophil_count_missing است (همان استنتاج)، نه جملهٔ عمومیِ اینجا.
+      const diffOwned = e.ungraded?.NEUT_ABS?.reason === "diff_incomplete";
+      if (neo) return {
+        pattern: "leukopenia",
+        urgency: "this_week",
+        headline: "تعداد گلبول‌های سفیدِ نوزاد کمتر از بازهٔ این سن است",
+        must_say:
+          `گلبول سفید ${w.value} است (بازهٔ مرجعِ نوزادی برای سنِ ${ageFa(e.age)}: ${w.range}). ` +
+          "در نوزاد، معنای این عدد به ساعتِ تولد، سنِ بارداری و حالِ بالینیِ نوزاد بستگی دارد و باید پزشکِ نوزاد آن را کنارِ معاینه ببیند. " +
+          "معمولاً اولین قدم تکرارِ CBC است، و اگر نوزاد علامتی دارد، پزشک بررسیِ عفونتِ نوزادی را در نظر می‌گیرد." +
+          neutLowClause(e),
+        // P57 پرسش ۵: فوریتِ «امروز» را applyNeonatalFloor در runPatterns می‌گذارد؛ جمله از همان‌جا می‌آید (N20).
+        action: NEONATAL_TODAY_ACTION,
+        suggest: diffOwned ? ["تکرار CBC"] : ["تکرار CBC", "شمارش افتراقی"],
+        warnings: [NEONATAL_DANGER_WARNING],
+      };
       return {
         pattern: "leukopenia",
         urgency: severe ? "emergency" : "this_week",
@@ -375,7 +433,7 @@ export const RULES_HEMATOLOGY = [
         action: severe
           ? "همین امروز با پزشک تماس بگیرید. اگر تب دارید، فوراً به اورژانس بروید."
           : "این هفته با پزشک وقت بگیرید.",
-        suggest: ["تکرار CBC", "شمارش افتراقی"],
+        suggest: diffOwned ? ["تکرار CBC"] : ["تکرار CBC", "شمارش افتراقی"],
         warnings: severe ? ["اگر تب کردید، منتظر نمانید — همان ساعت به اورژانس بروید."] : [],
         blocks_others: severe,
       };
@@ -436,6 +494,95 @@ export const RULES_HEMATOLOGY = [
           : [],
       };
     },
+  },
+  // ─── job c138671c (D1): نوتروفیلِ غایب با دیفِ ناقص ───
+  // سقف و فوریت در adapter.js حساب می‌شوند (e.ungraded.NEUT_ABS، reason = "diff_incomplete"): سقف = WBC منهای بقیهٔ
+  // شمارش‌های مطلق، فوریت = کفِ همان چیزی که موتور به نوتروفیلی برابرِ سقف می‌دهد. عددِ تازه‌ای نیست.
+  // لنفوسیت اینجا سه‌حالته نام برده می‌شود (M156)؛ برای نوزاد این یافته مالکِ آن است و viral_lymphocytosis کنار می‌رود.
+  {
+    id: "neutrophil_count_missing",
+    match: (e) => e.ungraded?.NEUT_ABS?.reason === "diff_incomplete",
+    build: (e) => {
+      const u = e.ungraded.NEUT_ABS;
+      const neo = isNeonate(e.age);
+      const urgency = u.urgency === "emergency" ? "emergency" : u.urgency === "routine" || u.urgency === "none" ? "routine" : "this_week";
+      const ly = e.graded.find((g) => g.test === "LYMPH_ABS");
+      const lyFa = !ly ? ""
+        : ly.abnormal && ly.dir === "high" ? ` لنفوسیت ${ly.value} است و از بازهٔ این سن (${ly.range}) بالاتر است.`
+        : ly.abnormal && ly.dir === "low" ? ` لنفوسیت ${ly.value} است و از بازهٔ این سن (${ly.range}) پایین‌تر است.`
+        : ` لنفوسیت ${ly.value} است و در بازهٔ این سن (${ly.range}) قرار دارد.`;
+      const doc = neo ? "پزشکِ نوزاد (متخصصِ کودکان)" : "پزشک";
+      return {
+        pattern: "neutrophil_count_missing",
+        urgency,
+        headline: u.below ? "شمارشِ نوتروفیل در دست نیست و عددهای برگه نشان می‌دهند کم است" : "شمارشِ نوتروفیل در دست نیست",
+        must_say: neutMissingText(e) + lyFa + wbcHighDiffClause(e),
+        action: urgency === "emergency"
+          ? `همین امروز با ${doc} تماس بگیرید. اگر ${neo ? "نوزاد تب دارد" : "تب دارید"}، فوراً به اورژانس بروید.`
+          : urgency === "this_week"
+            ? (neo ? NEONATAL_TODAY_ACTION : "این هفته با پزشک وقت بگیرید.")
+            : neo ? NEONATAL_TODAY_ACTION : `در نوبتِ عادی با ${doc} مطرح کنید.`,
+        // D1: پیشنهاد به همین استنتاج گره خورده — نه «شمارش افتراقی»ِ عمومیِ leukopenia (که با diffOwned کنار می‌رود).
+        suggest: [wbcHighGraded(e) ? MANUAL_DIFF_BLAST_SUGGEST : "شمارش افتراقی (عدد نوتروفیل)"],
+        warnings: neo ? [NEONATAL_DANGER_WARNING] : [],
+        blocks_others: urgency === "emergency",
+        // منبع فقط وقتی ردیفِ به‌کاررفته واقعاً RCPCH است (بزرگسال: هنری).
+        ...(u.refSource === "RCPCH 2016" ? { sources: ["RCPCH"] } : {}),
+      };
+    },
+  },
+  // ─── job c138671c (D4–D6، D8): چرا بعضی شاخص‌های گلبول قرمزِ نوزاد/شیرخوار سنجیده نشدند ───
+  // مالکِ ungradedهای neonatal_no_range (RBC، RDW) و neonatal_derived (MCH) — explains ⇒ بیرون از خطِ «تفسیر نشدند».
+  // دستوری نمی‌دهد و فوریتی نمی‌سازد؛ فقط می‌گوید سنجش با بازهٔ سنی انجام شد و چه چیزی عمداً سنجیده نشد.
+  {
+    id: "neonatal_reference_context",
+    match: (e) => inNeonatalRedCellPeriod(e.age) &&
+      Object.values(e.ungraded ?? {}).some((u) => u.reason === "neonatal_no_range" || u.reason === "neonatal_derived"),
+    build: (e) => ({
+      pattern: "neonatal_reference_context",
+      urgency: "routine",
+      headline: isNeonate(e.age) ? "شمارشِ خونِ نوزاد با بازه‌های مرجعِ این سن سنجیده شد" : "شمارشِ خونِ شیرخوار با بازه‌های مرجعِ این سن سنجیده شد",
+      must_say: neonatalContextText(e),
+      // بی‌دستور: این یافته فقط توضیح است؛ دستورِ مراجعه مالِ یافته‌های دیگر است (N20: یک تصمیم، یک جا).
+      action: "",
+      suggest: [],
+      warnings: [],
+      explains: Object.entries(e.ungraded)
+        .filter(([, u]) => u.reason === "neonatal_no_range" || u.reason === "neonatal_derived")
+        .map(([k]) => k),
+    }),
+  },
+  // ─── P57 پرسش ۳: MCH با MCV × MCHC ÷ ۱۰۰ بیش از ۱۰٪ نمی‌خواند ⇒ پرچمِ فنی (adapter.js، reason = indices_inconsistent) ───
+  // یافتهٔ فنی است نه بالینی: فوریت ندارد، کفِ نوزادی نمی‌گیرد، و MCH از قضاوت بیرون است (تصمیم‌ها بر پایهٔ MCV و Hb).
+  {
+    id: "rbc_indices_inconsistent",
+    match: (e) => e.ungraded?.MCH?.reason === "indices_inconsistent",
+    build: (e) => ({
+      pattern: "rbc_indices_inconsistent",
+      urgency: "routine",
+      technical: true,
+      headline: "یکی از شاخص‌های گلبول قرمزِ این برگه با بقیه جور درنمی‌آید",
+      must_say: indicesInconsistentText(e),
+      action: "از آزمایشگاه بخواهید شاخص‌های گلبول قرمزِ این برگه (MCV، MCH، MCHC) را بازبینی کند.",
+      suggest: [],
+      warnings: [],
+      explains: ["MCH"],
+    }),
+  },
+  // ─── P57 پرسش ۶: شاخص‌های پلاکتی فقط کنارِ پلاکت/MPVِ غیرطبیعی، بی‌حکم و بی‌فوریت ───
+  {
+    id: "platelet_indices_context",
+    match: (e) => Object.values(e.ungraded ?? {}).some((u) => u.reason === "platelet_index") && plateletAbnormal(e),
+    build: (e) => ({
+      pattern: "platelet_indices_context",
+      urgency: "routine",
+      headline: "شاخص‌های پلاکتی — فقط به‌عنوانِ شاهدِ کمکی",
+      must_say: plateletIndicesText(e),
+      // بی‌دستور: دستور مالِ یافتهٔ پلاکت/MPV است (N20).
+      action: "",
+      suggest: [],
+      warnings: [],
+    }),
   },
   {
     id: "severe_thrombocytopenia",
@@ -1382,6 +1529,18 @@ export const RULES_HEMATOLOGY = [
           ? " در سنین بالای ۷۵ سال این یافته را نباید به‌حسابِ «طبیعیِ سن» گذاشت؛ افتِ شاخص‌های گلبول قرمز در سالمندی بخشی از روند طبیعی پیری نیست و علت‌یابی می‌خواهد."
           : "";
 
+      // P57 (job c138671c، D7): RBCِ نوزاد حالا بازهٔ سنی دارد (۴.۰–۶.۵ در روزِ ۰ تا ۳). فریتین/B12/فولات/کراتینین و
+      //   «مکملِ آهن شروع نکنید» توصیهٔ بزرگسال‌اند؛ برای نوزاد: همان جملهٔ Hb، جملهٔ گلبولِ درشت، تکرارِ CBC، پزشکِ نوزاد.
+      if (isNeonate(e.age)) return {
+        pattern: "low_rbc_hct_without_anemia",
+        urgency: "routine",
+        ...(rbcLow ? { key_number: rbc.value } : {}),
+        headline: "بعضی از شاخص‌های گلبول قرمزِ نوزاد پایین‌تر از بازهٔ این سن است",
+        must_say: `${parts.join(" و ")}. ${hgbFa} ${neonatalLowRbcClause(e)}`,
+        action: NEONATAL_TODAY_ACTION,
+        suggest: ["تکرار CBC"],
+        warnings: [NEONATAL_DANGER_WARNING],
+      };
       const suggest = hgb
         ? ["فریتین", "ویتامین B12", "فولات", "رتیکولوسیت", "کراتینین"]
         : ["شمارش خون (CBC)", "فریتین", "رتیکولوسیت", "کراتینین"];

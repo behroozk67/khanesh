@@ -7134,8 +7134,12 @@ test("M134: نوزاد — جملهٔ یافته و action یک فوریت دا�
     if (ref) assert.doesNotMatch(f.must_say, /با هر واحدی که خوانده شود/, `${v}/${ref}`);
   }
   // ۱.۵ در روزِ سوم کنارِ «0.3-1.2»ِ بزرگسال: نبودِ واحد فوریت را از بودنش بالاتر نمی‌برد
+  // ⚠️ P57 پرسش ۵ (بازبین، ۲۰۲۶-۰۹-۲۸): «این هفته» برای نوزاد ناامن است ⇒ کفِ نوزادی «امروز» (emergency با دستورِ «همین امروز
+  //    … پزشکِ نوزاد»). آنچه این بند از اول حفظ می‌کرد می‌ماند: اورژانسِ *بیمارستانی* از محدودهٔ بزرگسال ساخته نمی‌شود —
+  //    فوریت از کف است، نه از خوانش (neonatal_floor)، و دستور «به اورژانس بروید» نیست. تغییرِ عمدی.
   const noUnit = findPat(uuuRun([["Total Bilirubin", "1.5", "0.3-1.2"]], d3), "unit_unknown_values");
-  assert.notEqual(noUnit.urgency, "emergency");
+  assert.equal(noUnit.neonatal_floor, true, "فوریت باید از کفِ نوزادی بیاید، نه از خوانشِ بدتر");
+  assert.doesNotMatch(noUnit.action, /اورژانس/);
   // ۱۵۰ کنارِ «<205» داخلِ محدودهٔ خودِ آزمایشگاه است — «خارج از محدوده» گفته نمی‌شود
   const f150 = findPat(uuuRun([["Total Bilirubin", "150", "<205"]], neo), "unit_unknown_values");
   assert.match(f150.must_say, /در محدودهٔ مرجعی است که خودِ آزمایشگاه/);
@@ -7766,7 +7770,7 @@ test("M164d: برگه‌های بی‌سیلندر بایت‌به‌بایت ه
     // ⚠️ F3 عمداً عوض شد — specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp).
     F3: [[["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["WBC", "7.2"], ["PLT", "250"], ["Ferritin", "6", "ng/mL"]], "eb13a977d93629ff"], // ⚠️ P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff).
     F4: [[["Hb", "13.5", "g/dL"], ["MCV", "88", "fL"], ["PLT", "250"], ["Creatinine", "1.0", "mg/dL"],
-          ["FBS", "95", "mg/dL"], ...uaRows([["RBC", "1-2", "/hpf"], ["WBC", "2-3", "/hpf"]])], "e1513613abad9026"], // ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
+          ["FBS", "95", "mg/dL"], ...uaRows([["RBC", "1-2", "/hpf"], ["WBC", "2-3", "/hpf"]])], "afa275a4d0cd7a69"], // ⚠️ عمداً عوض شد — job fff90f58 (P58، N8): ردیفِ «کراتینین» در SUGGEST_TESTS ⇒ normocytic_anemia دیگر کنارِ Creatinine 1.0ِ همین برگه «کراتینین» پیشنهاد نمی‌دهد؛ تنها تفاوتِ خروجی همین یک رشته در suggest است (diffِ کاملِ خروجی روی درختِ پیش‌از‌اصلاح سنجیده شد). // ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
     F7: [uaRows([["WBC", "1-2", "/hpf"]], { bacteria: "Many" }), "fa883df5ac4f000c"],
   };
   for (const [k, [rows, h]] of Object.entries(PANELS)) assert.equal(uaSnap(rows), h, `پنلِ ${k} عوض شد`);
@@ -9833,7 +9837,10 @@ test("M196: «PCT» با واحدِ ٪ پلاکت‌کریت است نه پرو�
     { name: "PCT", value: "0.287", unit: "%" },
   ] });
   assert.ok(!e.graded.some((g) => g.test === "PCT_SEPSIS"), "پلاکت‌کریتِ ٪ نباید پروکلسی‌تونین گرید شود");
-  assert.ok(e.noRef.includes("PLT_CRIT"), "پلاکت‌کریت باید بی‌بازه شناخته شود، نه ناپدید");
+  // P57 پرسش ۶ (تغییرِ عمدی): شاخصِ پلاکتی به‌تنهایی «تفسیر نشدند / حتماً با پزشک» نمی‌گیرد — شناخته می‌شود، در ungraded
+  //   می‌ماند و فقط کنارِ پلاکت/MPVِ غیرطبیعی نقل می‌شود (M222).
+  assert.equal(e.ungraded.PLT_CRIT?.reason, "platelet_index", "پلاکت‌کریت باید شناخته شود، نه ناپدید");
+  assert.ok(!e.noRef.includes("PLT_CRIT"));
   assert.equal(faName("PLT_CRIT"), "پلاکت‌کریت (PCT)");
 });
 
@@ -10379,4 +10386,389 @@ test("M206: املاهای تازهٔ لام — «Blast: seen»، سرِ ردی
   }
   const ig = s9Run("M", 40, s9CBC(9, [s9T("Immature WBC", 2, "%")]));
   assert.deepEqual(s9Present(ig.e), [], "«Immature WBC» (گرانولوسیتِ نابالغ) بلاست خوانده شد");
+});
+
+// ---------- M220: نوزادِ ۱ روزه — job c138671c (برگهٔ واقعی ۲۰۲۶-۰۹-۲۷، P57) ----------
+// CBCِ نوزادِ یک‌روزه با NEUT%/NEUT#/MXD ناخوانا. پیش از رفع: RBC و RDW با بازهٔ زنِ بزرگسال «غیرطبیعی»، MCH (عددِ مشتق)
+// «پررنگ»، لنفوسیتوز «پس از بهبودِ عفونت»، کم‌گلبولی «پس از عفونتِ ویروسی … مغزِ استخوان»، فهرستِ فریتین/B12/فولات/
+// کراتینین و «مکملِ آهن شروع نکنید» — و در کلِ متن یک بار هم «نوزاد» نیامد. نوتروفیلِ غایب (سقفش ۱۲۰۰ در برابرِ ۵۰۰۰–۱۳۰۰۰)
+// هیچ‌جا گفته نشد.
+const m220T = (name, value, unit = "") => ({ name, value, unit });
+const M220_SHEET = [
+  m220T("WBC", "7.4", "10^3/µL"), m220T("RBC", "3.50", "10^6/µL"), m220T("HGB", "15.3", "g/dL"), m220T("HCT", "45.0", "%"),
+  m220T("MCV", "128.6", "fL"), m220T("MCH", "43.7", "pg"), m220T("MCHC", "34.0", "g/dL"), m220T("PLT", "165", "10^3/µL"),
+  m220T("LYM%", "83.6", "%"), m220T("LYM#", "6.2", "10^3/µL"), m220T("RDW-SD", "84.1", "fL"), m220T("RDW-CV", "17.3", "%"),
+  m220T("NEUT%", ""), m220T("NEUT#", ""), m220T("MXD%", ""), m220T("MXD#", ""),
+  m220T("PDW", "10.9", "fL"), m220T("MPV", "10.1", "fL"), m220T("P-LCR", "24.2", "%"), m220T("PCT", "0.17", "%"),
+];
+const m220Run = (age, tests = M220_SHEET, sex = null) => {
+  const e = runEngine({ patient: { age, sex }, tests });
+  const p = runPatterns(e);
+  const ids = p.findings.map((f) => f.pattern);
+  const text = p.findings.map((f) => [f.headline, f.must_say, f.action, ...(f.warnings ?? [])].join(" ")).join(" ");
+  const recs = buildEngineRecommendations(p, e);
+  return { e, p, ids, text, recs, all: text + " " + recs.join(" ") };
+};
+
+test("M220: نوزادِ ۱ روزه (job c138671c) — بی‌ویروس/مغزِ استخوان، بی‌توصیهٔ بزرگسال، نوتروفیلِ غایب با سقفِ ۱۲۰۰، و متنِ سن‌محور", () => {
+  const { e, ids, text, recs, all } = m220Run("1 روز");
+  // P57: RBC حالا بازهٔ نوزادی دارد (۴.۰–۶.۵) ⇒ ۳.۵ پایین ⇒ low_rbc_hct_without_anemia با شاخهٔ نوزادی.
+  for (const id of ["leukopenia", "neutrophil_count_missing", "neonatal_reference_context", "low_rbc_hct_without_anemia"])
+    assert.ok(ids.includes(id), `${id} فعال نشد: ${ids}`);
+  // D3: لنفوسیتِ ۶۲۰۰ با ردیفِ ۰–۳ روزِ P57 (۲۰۰۰–۷۵۰۰) طبیعی است
+  for (const id of ["viral_lymphocytosis", "unexplained_abnormal"])
+    assert.ok(!ids.includes(id), `${id} نباید فعال شود: ${ids}`);
+  // D8
+  assert.match(text, /نوزاد/); assert.match(text, /1 روز/);
+  // D2/D3
+  assert.doesNotMatch(all, /ویروسی|مغز استخوان|پس از بهبود/);
+  // D7
+  assert.doesNotMatch(all, /فریتین|B12|فولات|رتیکولوسیت|کراتینین|مکمل/);
+  // D1: سقف از عددهای خودِ برگه، و پیشنهادِ شمارشِ افتراقی گره‌خورده به همان
+  const u = e.ungraded.NEUT_ABS;
+  assert.equal(u.reason, "diff_incomplete"); assert.equal(u.ceiling, 1200); assert.equal(u.unreadable, true); assert.equal(u.below, true);
+  assert.match(text, /خوانا نبود/); assert.match(text, /حداکثر 1200/); assert.match(text, /5000–13000/);
+  assert.ok(recs.some((r) => /شمارش افتراقی \(عدد نوتروفیل\)/.test(r)), recs.join(" | "));
+  assert.ok(!recs.some((r) => /^درخواست آزمایش شمارش افتراقی از پزشک$/.test(r)), "شمارشِ افتراقیِ عمومی هم ماند");
+  assert.ok(recs.some((r) => /تشنج/.test(r)), "علائمِ خطرِ نوزادی در توصیه‌ها نیست");
+  // D4/D5/D6: بی‌حکم و بیرون از «تفسیر نشدند» (یافتهٔ نوزادی توضیحشان داده)
+  const graded = new Set(e.graded.map((g) => g.test));
+  // RDW-SD هنوز بازهٔ نوزادی ندارد؛ MCH مشتق است. RBC و RDW-CV با ردیف‌های P57 سنجیده می‌شوند.
+  for (const k of ["RDW_SD", "MCH"]) {
+    assert.ok(!graded.has(k), `${k} با بازه سنجیده شد`);
+    assert.ok(e.noRef.includes(k), `${k} در noRef نیست`);
+  }
+  assert.deepEqual(unexplainedNoRef(e.noRef, runPatterns(e).findings).filter((k) => ["RDW_SD", "MCH"].includes(k)), []);
+  const g = (k) => e.graded.find((x) => x.test === k);
+  assert.equal(g("RBC").range, "4–6.5"); assert.equal(g("RBC").dir, "low");
+  assert.equal(g("RDW_CV").abnormal, false, "RDW-CV ۱۷.۳ در ۱۴.۵–۱۸.۵ است");
+  // P57 پرسش ۵: هیچ یافتهٔ دستوردارِ نوزاد «این هفته» نیست
+  const p = runPatterns(e);
+  assert.equal(p.overall_urgency, "emergency");
+  for (const f of p.findings.filter((x) => x.action)) {
+    assert.equal(f.urgency, "emergency", f.pattern);
+    assert.doesNotMatch([f.must_say, f.action, ...(f.warnings ?? [])].join(" "), /این هفته|نوبتِ? عادی|چند هفته/, f.pattern);
+  }
+});
+
+test("M220b: نوزادِ سالم با RBC ۵.۵ «بالا» نمی‌خورد (بازهٔ زنِ بزرگسال ۴.۱–۵.۱ دیگر اعمال نمی‌شود)؛ از ۴ ماهگی RBC دوباره سنجیده می‌شود", () => {
+  const healthy = [m220T("WBC", "18", "10^3/µL"), m220T("RBC", "5.5", "10^6/µL"), m220T("HGB", "18", "g/dL"),
+    m220T("HCT", "55", "%"), m220T("MCV", "105", "fL"), m220T("MCHC", "33", "g/dL"), m220T("PLT", "250", "10^3/µL")];
+  const { e } = m220Run("1 روز", healthy);
+  assert.ok(!e.abnormal.some((a) => a.test === "RBC"), "RBCِ ۵.۵ نوزاد غیرطبیعی شد");
+  // P57 پرسش ۱: حالا با ردیفِ نوزادی (۴.۰–۶.۵) سنجیده می‌شود، نه با ۴.۱–۵.۱ِ زنِ بزرگسال
+  assert.equal(e.graded.find((g) => g.test === "RBC")?.range, "4–6.5");
+  // روزِ ۴ تا ۷ در پاسخِ بازبین نیست ⇒ سنجیده نمی‌شود و یافتهٔ نوزادی دلیلش را می‌گوید
+  const d5 = m220Run("5 روز", healthy);
+  assert.ok(!d5.e.graded.some((g) => g.test === "RBC")); assert.ok(d5.ids.includes("neonatal_reference_context"), String(d5.ids));
+  // مرزِ دوره همان ردیفِ اولِ PED_REFS.MCV است (سه ماه): در ۴ ماهگی قاعدهٔ عمومیِ RCPCH برمی‌گردد
+  const older = m220Run("4 ماه", healthy);
+  assert.ok(older.e.graded.some((g) => g.test === "RBC"), "RBC در ۴ ماهگی سنجیده نشد");
+  assert.ok(!older.ids.includes("neonatal_reference_context"));
+});
+
+test("M220c: MCH فقط وقتی مشتق شمرده می‌شود که MCV و MCHC هر دو در بازهٔ نوزادی‌اند؛ MCVِ بیرون از بازه ⇒ MCH سنجیده می‌ماند", () => {
+  const withMcv = (mcv) => M220_SHEET.map((t) => (t.name === "MCV" ? m220T("MCV", mcv, "fL") : t));
+  assert.ok(!m220Run("1 روز").e.graded.some((g) => g.test === "MCH"));
+  const out = m220Run("1 روز", withMcv("140"));
+  assert.ok(out.e.graded.some((g) => g.test === "MCH" && g.abnormal), "MCH با MCVِ ۱۴۰ کنار گذاشته شد");
+});
+
+test("M220d: بزرگسال — همان برگه: متنِ بزرگسالِ viral_lymphocytosis و leukopenia دست نخورده؛ نوتروفیلِ غایب گفته می‌شود بی‌«نوزاد»", () => {
+  const { ids, text } = m220Run("40 سال");
+  for (const id of ["viral_lymphocytosis", "low_rbc_hct_without_anemia", "neutrophil_count_missing"]) assert.ok(ids.includes(id), `${id}: ${ids}`);
+  assert.match(text, /پس از بهبود عفونت/);
+  assert.doesNotMatch(text, /نوزاد/);
+  // WBC 7.4 بزرگسال طبیعی است ⇒ leukopenia نه
+  assert.ok(!ids.includes("leukopenia"));
+});
+
+test("M220e: فوریتِ نوتروفیلِ غایب کف است نه سقف — سقفِ ۲۰۰ ⇒ اورژانس؛ برگهٔ بی‌دیف ⇒ هیچ؛ ناخوانا ولی سقف در بازه ⇒ بی‌حکم", () => {
+  const low = m220Run("30 سال", [m220T("WBC", "3.0", "10^3/µL"), m220T("LYM#", "2.8", "10^3/µL"), m220T("NEUT#", "")], "M");
+  const f = low.p.findings.find((x) => x.pattern === "neutrophil_count_missing");
+  assert.ok(f, String(low.ids)); assert.equal(f.urgency, "emergency");
+  assert.equal(low.e.ungraded.NEUT_ABS.ceiling, 200);
+  const noDiff = m220Run("30 سال", [m220T("WBC", "7.0", "10^3/µL"), m220T("HGB", "14", "g/dL")], "M");
+  assert.ok(!noDiff.ids.includes("neutrophil_count_missing"), "برگهٔ بی‌دیف «نوتروفیل غایب» گرفت");
+  const open = m220Run("30 سال", [m220T("WBC", "7.0", "10^3/µL"), m220T("LYM#", "2.0", "10^3/µL"), m220T("NEUT#", "")], "M");
+  const g = open.p.findings.find((x) => x.pattern === "neutrophil_count_missing");
+  assert.ok(g, String(open.ids)); assert.equal(g.urgency, "routine");
+  assert.match(g.must_say, /نمی‌شود گفت نوتروفیل کم است یا نه/);
+});
+
+// ---------- M221/M222: پاسخِ بازبین به P57 (۲۰۲۶-۰۹-۲۸) ----------
+test("M221: P57 پرسش ۷ و ۴ — Hbِ ۱۵.۳ در روزِ ۲۰ طبیعی است (۸–۳۰ روز: ۱۲.۰–۱۶.۵)؛ لنفوسیتِ ۶۲۰۰ در روزِ اول طبیعی است (۰–۳ روز: ۲۰۰۰–۷۵۰۰)", () => {
+  const hb = (age) => runEngine({ patient: { age, sex: null }, tests: [m220T("HGB", "15.3", "g/dL")] }).graded.find((g) => g.test === "HGB");
+  assert.equal(hb("20 روز").abnormal, false, `روزِ ۲۰: ${hb("20 روز").range}`);
+  assert.equal(hb("20 روز").range, "12–16.5");
+  assert.equal(hb("40 روز").range, "9.5–12.5", "تکهٔ ۳۰ روز تا ۳ ماه همان عددِ قبلی است");
+  const ly = runEngine({ patient: { age: "1 روز" }, tests: [m220T("WBC", "12", "10^3/µL"), m220T("LYM#", "6.2", "10^3/µL")] })
+    .graded.find((g) => g.test === "LYMPH_ABS");
+  assert.equal(ly.range, "2000–7500"); assert.equal(ly.abnormal, false);
+});
+
+test("M221b: P57 پرسش ۲ — RDW-CVِ نوزادِ زیرِ ۱ ماه با ۱۴.۵–۱۸.۵ سنجیده می‌شود؛ RDW-SD و RDW-CVِ بعد از ۲۸ روز بی‌بازه‌اند (بازهٔ بزرگسال نه)", () => {
+  const e = (age, v) => runEngine({ patient: { age }, tests: [m220T("RDW-CV", v, "%"), m220T("RDW-SD", "80", "fL")] });
+  const d1 = e("1 روز", "17.3");
+  assert.equal(d1.graded.find((g) => g.test === "RDW_CV")?.abnormal, false);
+  assert.ok(d1.noRef.includes("RDW_SD"));
+  assert.equal(e("1 روز", "19.5").graded.find((g) => g.test === "RDW_CV")?.dir, "high");
+  assert.ok(e("40 روز", "17.3").noRef.includes("RDW_CV"), "۴۰ روزه نباید با بازهٔ بزرگسال سنجیده شود");
+});
+
+test("M221c: P57 پرسش ۳ — MCHی که بیش از ۱۰٪ با MCV × MCHC ÷ ۱۰۰ نمی‌خواند پرچمِ فنی می‌گیرد و از قضاوت بیرون است (همهٔ سنین)", () => {
+  const run = (mch) => m220Run("40 سال", [m220T("HGB", "14", "g/dL"), m220T("MCV", "90", "fL"), m220T("MCHC", "33", "g/dL"), m220T("MCH", mch, "pg")], "M");
+  const bad = run("40");
+  assert.ok(bad.ids.includes("rbc_indices_inconsistent"), String(bad.ids));
+  assert.ok(!bad.e.graded.some((g) => g.test === "MCH"), "MCHِ ناسازگار هنوز سنجیده می‌شود");
+  assert.match(bad.text, /29\.7/);
+  const f = bad.p.findings.find((x) => x.pattern === "rbc_indices_inconsistent");
+  assert.equal(f.urgency, "routine"); assert.equal(f.technical, true);
+  const ok = run("30");
+  assert.ok(!ok.ids.includes("rbc_indices_inconsistent"), String(ok.ids));
+  // پرچمِ فنی در نوزاد هم کفِ «امروز» نمی‌گیرد
+  const neo = m220Run("10 روز", [m220T("MCV", "110", "fL"), m220T("MCHC", "33", "g/dL"), m220T("MCH", "45", "pg")]);
+  assert.equal(neo.p.findings.find((x) => x.pattern === "rbc_indices_inconsistent")?.urgency, "routine");
+});
+
+test("M221d: P57 پرسش ۵ — در دورهٔ نوزادی هیچ یافتهٔ دستوردار «این هفته/نوبت عادی» نمی‌ماند؛ همان برگه در شیرخوارِ ۲ ماهه و بزرگسال دست نخورده", () => {
+  const sheet = [m220T("PLT", "120", "10^3/µL")];
+  const neo = m220Run("10 روز", sheet);
+  const f = neo.p.findings.find((x) => x.action);
+  assert.ok(f, String(neo.ids));
+  assert.equal(f.urgency, "emergency"); assert.equal(f.neonatal_floor, true);
+  assert.match(f.action, /همین امروز/); assert.doesNotMatch(f.action, /اورژانس/);
+  assert.ok(f.warnings.some((w) => /تشنج/.test(w)));
+  for (const age of ["2 ماه", "40 سال"]) {
+    const o = m220Run(age, sheet, "M");
+    assert.ok(o.p.findings.every((x) => !x.neonatal_floor && x.urgency !== "emergency"), `${age}: ${o.ids}`);
+  }
+  // کاوشِ درونیِ adapter کف نمی‌گیرد ⇒ سقفِ نوتروفیلِ ۱۲۰۰ blocks_others نمی‌سازد
+  assert.ok(!m220Run("1 روز").p.findings.find((x) => x.pattern === "neutrophil_count_missing").blocks_others);
+});
+
+test("M222: P57 پرسش ۶ — شاخص‌های پلاکتی به‌تنهایی هشدار نمی‌سازند؛ فقط کنارِ پلاکت/MPVِ غیرطبیعی، بی‌حکم و بی‌فوریت، نقل می‌شوند", () => {
+  const idx = [m220T("PDW", "16", "fL"), m220T("PCT", "0.10", "%"), m220T("P-LCR", "40", "%")];
+  const low = m220Run("40 سال", [m220T("PLT", "90", "10^3/µL"), ...idx], "M");
+  const f = low.p.findings.find((x) => x.pattern === "platelet_indices_context");
+  assert.ok(f, String(low.ids));
+  assert.equal(f.urgency, "routine"); assert.equal(f.action, "");
+  assert.match(f.must_say, /9–17 fL/); assert.match(f.must_say, /0\.15–0\.40٪/); assert.match(f.must_say, /15–35٪/);
+  assert.doesNotMatch(f.must_say, /بالا|پایین/);
+  const normal = m220Run("40 سال", [m220T("PLT", "250", "10^3/µL"), m220T("MPV", "10", "fL"), ...idx], "M");
+  assert.ok(!normal.ids.includes("platelet_indices_context"), String(normal.ids));
+  for (const k of ["PDW", "P_LCR", "PLT_CRIT"]) {
+    assert.ok(!normal.e.noRef.includes(k), `${k} در «تفسیر نشدند»`);
+    assert.equal(normal.e.ungraded[k]?.reason, "platelet_index", k);
+  }
+  assert.ok(!normal.e.unmapped.some((n) => /pdw|lcr/i.test(n)), String(normal.e.unmapped));
+});
+
+// ---------- M230–M234: شیرخوارِ ۶–۱۲ ماهه، job fff90f58 (برگهٔ واقعی ۲۰۲۶-۰۹-۲۸، P58) ----------
+// 🔴 پیش از این: WBC 36.6 (≈۳ برابرِ سقف) + Hb 7.1 + PLT 36 و NEUT/MXD همه «---.-». یافته‌ها: severe_thrombocytopenia،
+//    maha_ttp_suspicion («TTP یا HUS»)، normocytic_anemia و unexplained_abnormal — WBC فقط در خطِ «۲ نتیجهٔ دیگر».
+//    «---.-» بی‌صدا به qual رفت (بی‌خواننده، N25)، و RDW-CV 15 که با بازهٔ بزرگسال سنجیده شده بود جملهٔ «کمبودِ هم‌زمانِ
+//    آهن و B12/فولات» را زیرِ اورژانسِ خونی ساخت.
+const FFF90_ROWS = [
+  ["WBC", "36.6", "10^3/µL"], ["RBC", "2.53", "10^6/µL"], ["HGB", "7.1", "g/dL"], ["HCT", "20.4", "%"],
+  ["MCV", "80.6", "fL"], ["MCH", "28.1", "pg"], ["MCHC", "34.8", "g/dL"], ["PLT", "36", "10^3/µL"],
+  ["LYM%", "5.5", "%"], ["MXD%", "---.-", "%"], ["NEUT%", "---.-", "%"], ["LYM#", "2.0", "10^3/µL"],
+  ["MXD#", "---.-", "10^3/µL"], ["NEUT#", "---.-", "10^3/µL"], ["RDW-SD", "44.1", "fL"], ["RDW-CV", "15.0", "%"],
+  ["PDW", "15.9", "fL"], ["MPV", "10.1", "fL"], ["P-LCR", "30.9", "%"], ["PCT", "0.04", "%"],
+];
+const fffEngine = (rows = FFF90_ROWS, patient = { age: 0.75, sex: "M" }) =>
+  runEngine({ patient, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
+const fffRun = (rows, patient) => { const e = fffEngine(rows, patient); return { e, p: runPatterns(e) }; };
+const fffFind = (p, id) => p.findings.find((f) => f.pattern === id);
+const fffText = (f) => [f?.headline, f?.must_say, f?.brief ?? "", f?.action, ...(f?.suggest ?? []), ...(f?.warnings ?? [])].join(" ");
+const fffTest = (name, value, unit) => [name, value, unit];
+
+test("M230: job fff90f58 — «لکوسیتوز + سیتوپنیِ شدید» صاحبِ توضیح است؛ WBC و غیبتِ دیف در متن، بی‌نامِ تشخیص", () => {
+  const { e, p } = fffRun();
+  const ids = p.findings.map((f) => f.pattern);
+  // تریاژِ اورژانسی دست نخورده
+  assert.equal(p.overall_urgency, "emergency");
+  assert.equal(p.has_critical, true);
+  for (const id of ["severe_thrombocytopenia", "maha_ttp_suspicion"]) assert.ok(ids.includes(id), `${id} افتاد: ${ids}`);
+  const f = fffFind(p, "leukocytosis_with_cytopenia");
+  assert.ok(f, `یافتهٔ لکوسیتوز + سیتوپنی نیامد: ${ids}`);
+  assert.equal(f.urgency, "emergency");
+  assert.match(f.must_say, /گلبول سفید 36\.6/);
+  assert.match(f.must_say, /3\.1 برابرِ سقف/, "بزرگیِ عدد نسبت به سقفِ بازهٔ همین سن");
+  // P58 پرسش ۲ (بازبین ۲۰۲۶-۰۹-۲۹): جملهٔ خودِ بازبین، عیناً
+  assert.ok(f.must_say.includes("تغییرات همزمان در رده‌های گلبول‌های سفید و سایر سلول‌های خونی مشاهده شده که نیازمند ارزیابی تکمیلی و فوری توسط متخصص خون (هماتولوژیست) جهت بررسی دقیق عملکرد مغز استخوان است."), f.must_say);
+  assert.match(f.must_say, /نوتروفیل در دست نیست/, "غیبتِ نوتروفیل باید گفته شود (E2-ج)");
+  assert.match(f.must_say, /شمارشِ افتراقیِ دستی/);
+  assert.match(f.must_say, /بلاست/);
+  assert.match(f.action, /هماتولوژیستِ اطفال/);
+  assert.ok(f.suggest.includes("گسترش خون محیطی با شمارش افتراقی دستی و بررسی بلاست"), String(f.suggest));
+  for (const s of ["شمارش رتیکولوسیت", "بیلی‌روبین مستقیم و غیرمستقیم", "هاپتوگلوبین", "کومبس مستقیم", "LDH",
+                   "کراتینین", "اوره", "آزمایش کامل ادرار", "اسید اوریک", "پتاسیم"]) assert.ok(f.suggest.includes(s), s);
+  assert.ok(f.sources?.includes("RCPCH"), "بازهٔ WBC از RCPCH است");
+  // P56 پرسش ۶ (M203e): نامِ تشخیص در متنِ بیمار نیست
+  for (const x of p.findings) assert.doesNotMatch(fffText(x), /لوسمی|لوکمی|بدخیم|سرطان/, x.pattern);
+  // WBC و لنفوسیت دیگر «بی‌توضیح» نیستند
+  assert.ok(!ids.includes("unexplained_abnormal"), `هنوز بی‌توضیح: ${fffText(fffFind(p, "unexplained_abnormal"))}`);
+  // «---.-» نه qual است نه unmapped — نوتروفیل «ناخوانا» ثبت شد
+  assert.deepEqual(Object.keys(e.qual), []);
+  assert.ok(!e.unmapped.some((n) => /NEUT|MXD/.test(n)), String(e.unmapped));
+  assert.equal(e.ungraded.NEUT_ABS?.unreadable, true);
+});
+
+test("M230b: دست‌به‌دست با acute_leukemia_suspicion — یک یافته برای یک تصویر؛ بی‌سیتوپنیِ شدید، بی‌یافته", () => {
+  const cbc = (wbc, hb, plt) => [fffTest("WBC", wbc, "10^3/uL"), fffTest("Hb", hb, "g/dL"), fffTest("PLT", plt, "10^3/uL")];
+  const own = (p) => ["acute_leukemia_suspicion", "leukocytosis_with_cytopenia"].filter((id) => fffFind(p, id));
+  const adult = { age: 40, sex: "M" };
+  assert.deepEqual(own(fffRun(cbc("60", "7", "40"), adult).p), ["acute_leukemia_suspicion"], "WBC > ۵۰ مالِ قاعدهٔ قدیمی است");
+  assert.deepEqual(own(fffRun(cbc("30", "7", "250"), adult).p), ["leukocytosis_with_cytopenia"], "بازوی Hb");
+  assert.deepEqual(own(fffRun(cbc("30", "13.5", "40"), adult).p), ["leukocytosis_with_cytopenia"], "بازوی پلاکت");
+  assert.deepEqual(own(fffRun(cbc("30", "14", "250"), adult).p), [], "لکوسیتوزِ تنها — مالِ leukocytosis");
+  assert.deepEqual(own(fffRun(cbc("30", "9", "120"), adult).p), [], "سیتوپنیِ غیرِشدید (همان آستانه‌های acute_leukemia_suspicion)");
+  assert.deepEqual(own(fffRun(cbc("8", "7", "40"), adult).p), [], "WBCِ طبیعی");
+  // P58 پرسش ۱ (بازبین ۲۰۲۶-۰۹-۲۹): «لکوسیتوزِ بارز» = WBC > ۲۰٬۰۰۰ — ۱۱ تا ۲۰ هزار «اغلب واکنشی» است. هر دو لبه.
+  assert.deepEqual(own(fffRun(cbc("15", "7", "40"), adult).p), [], "WBC 15 بالای بازه ولی زیرِ آستانهٔ بارز");
+  assert.deepEqual(own(fffRun(cbc("20", "7", "40"), adult).p), [], "WBC 20 خودِ آستانه — «بیشتر از»، نه «برابر»");
+  assert.deepEqual(own(fffRun(cbc("20.1", "7", "40"), adult).p), ["leukocytosis_with_cytopenia"], "WBC 20.1");
+  assert.deepEqual(own(fffRun(cbc("15", "7", "40"), { age: 0.75, sex: "M" }).p), [], "شیرخوار: همان آستانه (۱۵ > سقفِ ۱۲ ولی نه بارز)");
+  const f = fffFind(fffRun(cbc("30", "7", "250"), adult).p, "leukocytosis_with_cytopenia");
+  assert.match(f.action, /متخصصِ خون \(هماتولوژیست\)/);
+  assert.doesNotMatch(f.action, /اطفال/);
+  assert.match(f.must_say, /از بازهٔ طبیعی/);
+});
+
+test("M230c: نوتروفیل و لنفوسیت سه‌حالته‌اند (N4، M156) — سنجیده / ناخوانا / روی برگه نیست؛ هر جهتِ لنفوسیت جمله دارد", () => {
+  const adult = { age: 40, sex: "M" };
+  const base = [fffTest("WBC", "30", "10^3/uL"), fffTest("Hb", "7", "g/dL"), fffTest("PLT", "250", "10^3/uL")];
+  const ms = (rows) => {
+    const f = fffFind(fffRun(rows, adult).p, "leukocytosis_with_cytopenia");
+    assert.ok(f, "یافته نیامد");
+    return f.must_say;
+  };
+  assert.match(ms([...base, fffTest("NEUT#", "25", "10^3/uL"), fffTest("LYM#", "3", "10^3/uL")]), /نوتروفیل 25000 است/);
+  assert.match(ms([...base, fffTest("NEUT#", "---.-", "10^3/uL"), fffTest("LYM#", "3", "10^3/uL")]), /عددی نداد/);
+  assert.match(ms(base), /تعدادِ نوتروفیل روی این برگه نیست/);
+  assert.match(ms([...base, fffTest("LYM#", "6", "10^3/uL")]), /لنفوسیت 6000 است و از بازهٔ طبیعی \([^)]*\) بالاتر است/);
+  assert.match(ms([...base, fffTest("LYM#", "3", "10^3/uL")]), /لنفوسیت 3000 است و در بازهٔ طبیعی/);
+  assert.match(ms([...base, fffTest("LYM#", "0.5", "10^3/uL")]), /لنفوسیت 500 است و از بازهٔ طبیعی \([^)]*\) پایین‌تر است/);
+});
+
+test("M231: جای‌نگهدارِ دستگاه («---.-») ناخواناست، نه متنِ کیفی — ولی «-»، «--» و «---»ِ نوارِ ادرار دست نمی‌خورند (N6)", async () => {
+  const { isPlaceholderValue } = await import("./adapter.js");
+  assert.equal(typeof isPlaceholderValue, "function", "isPlaceholderValue از adapter.js export نشده");
+  for (const v of ["---.-", "--.-", "-.-", "***", "*.**", "----", " ---.- "]) assert.equal(isPlaceholderValue(v), true, v);
+  for (const v of ["-", "--", "---", "Negative", "5.5", "+", "+/-", "", null, "Nil", "<0.5"]) assert.equal(isPlaceholderValue(v), false, String(v));
+  const e = fffEngine([fffTest("WBC", "9", "10^3/uL"), fffTest("NEUT%", "---.-", "%"), fffTest("LYM#", "2.5", "10^3/uL"),
+    fffTest("MXD%", "---.-", "%")], { age: 40, sex: "M" });
+  assert.ok(!("NEUT%" in e.qual) && !("MXD%" in e.qual), JSON.stringify(e.qual));
+  assert.ok(!e.unmapped.includes("MXD%"), "ناخوانا «خوانده شد ولی تفسیر نمی‌کنیم» نیست");
+  assert.equal(e.ungraded.NEUT_ABS?.unreadable, true);
+  const u = fffEngine([fffTest("Nitrite", "---"), fffTest("Specific Gravity", "1.020"), fffTest("pH", "6.0")], { age: 40, sex: "M" });
+  assert.ok(Object.values(u.qual).includes("---"), `«---»ِ نوارِ ادرار باید سرِ جایش بماند: ${JSON.stringify(u.qual)}`);
+});
+
+test("M232: نوتروفیلِ ناخوانا کنارِ WBCِ بالا ⇒ neutrophil_count_missing دیفِ دستی و بلاست را صریح می‌خواهد؛ WBCِ طبیعی ⇒ دست نخورده", () => {
+  const adult = { age: 40, sex: "M" };
+  const nf = (wbc) => fffFind(fffRun([fffTest("WBC", wbc, "10^3/uL"), fffTest("NEUT%", "", "%"), fffTest("LYM#", "2.5", "10^3/uL")], adult).p,
+    "neutrophil_count_missing");
+  const hi = nf("30");
+  assert.ok(hi, "یافتهٔ نوتروفیلِ غایب نیامد");
+  assert.match(hi.must_say, /شمارشِ افتراقیِ دستی روی لامِ خونِ محیطی، با جست‌وجوی سلول‌های نارس \(بلاست\)/);
+  assert.deepEqual(hi.suggest, ["گسترش خون محیطی با شمارش افتراقی دستی و بررسی بلاست"]);
+  const ok = nf("9");
+  assert.ok(ok, "WBCِ طبیعی + NEUT ناخوانا هم یافته دارد");
+  assert.doesNotMatch(ok.must_say, /بلاست/);
+  assert.deepEqual(ok.suggest, ["شمارش افتراقی (عدد نوتروفیل)"]);
+});
+
+test("M233: RDW/RBCِ شیرخوار که با بازهٔ بزرگسال سنجیده شد پایهٔ «کمبودِ هم‌زمانِ آهن و B12» نیست؛ بزرگسال دست نخورده", () => {
+  const nb = fffFind(fffRun().p, "normocytic_anemia");
+  const briefInf = nb.brief;
+  assert.doesNotMatch(briefInf, /کمبودِ هم‌زمان/, briefInf);
+  assert.match(briefInf, /گلبول قرمز 2\.53 \(4\.5–5\.9\) و RDW-CV 15 \(11\.5–14\.5\) با بازهٔ بزرگسالان سنجیده شدند/);
+  assert.doesNotMatch(briefInf, /گلبول قرمز 2\.53 هم بخشی/, "عددِ سنجیده‌شده با بازهٔ بزرگسال «بخشی از همین کم‌خونی» شمرده نمی‌شود");
+  // بزرگسال، همان برگه: RDWِ هنری بازهٔ خودِ اوست ⇒ جمله سرِ جایش (جهتِ دیگرِ همین گیت)
+  const ad = fffFind(fffRun(FFF90_ROWS, { age: 40, sex: "M" }).p, "normocytic_anemia");
+  assert.match(ad.brief, /کمبودِ هم‌زمانِ دو چیز/);
+  assert.doesNotMatch(ad.brief, /بازهٔ بزرگسالان/);
+  // متنِ کامل (بی‌blocker): RBCِ کودک با بازهٔ بزرگسال «حد طبیعی» نامیده نمی‌شود
+  const full = fffFind(fffRun([fffTest("Hb", "9", "g/dL"), fffTest("MCV", "80", "fL"), fffTest("RBC", "3.5", "10^6/uL"),
+    fffTest("PLT", "250", "10^3/uL")], { age: 0.75, sex: "M" }).p, "normocytic_anemia");
+  assert.ok(full, "کم‌خونیِ نورموسیتیکِ شیرخوار نیامد");
+  assert.match(full.must_say, /گلبول قرمز 3\.5 \(4\.5–5\.9\) با بازهٔ بزرگسالان سنجیده شد/);
+  assert.doesNotMatch(full.must_say, /گلبول قرمز 3\.5 \(حد طبیعی/);
+});
+
+test("M234: «آزمایشِ …» دوبار «آزمایش» نمی‌گیرد؛ LDH/پتاسیمِ روی برگه دوباره درخواست نمی‌شوند (N8)", async () => {
+  const { phraseSuggestion } = await import("./prompt.js");
+  assert.equal(phraseSuggestion("آزمایش انعقادی"), "درخواست آزمایش انعقادی از پزشک");
+  assert.equal(phraseSuggestion("آزمایش کامل ادرار"), "درخواست آزمایش کامل ادرار از پزشک");
+  assert.equal(phraseSuggestion("LDH"), "درخواست آزمایش LDH از پزشک");
+  for (const [s, k] of [["LDH", "LDH"], ["پتاسیم", "K"], ["کراتینین", "CREAT"], ["اوره", "UREA"], ["اسید اوریک", "URIC"]])
+    assert.deepEqual(SUGGEST_TESTS[s], [k], s);
+  const { e, p } = fffRun([...FFF90_ROWS, fffTest("LDH", "900", "U/L"), fffTest("K", "4.2", "mEq/L")]);
+  const recs = buildEngineRecommendations(p, e).join("\n");
+  assert.doesNotMatch(recs, /آزمایش LDH|آزمایش پتاسیم/, recs);
+  assert.match(recs, /آزمایش اسید اوریک/, "اسید اوریکِ اندازه‌گیری‌نشده همچنان خواسته می‌شود");
+  assert.doesNotMatch(recs, /آزمایش آزمایش/);
+});
+
+// ---------- M235: سطحِ ۲ — لکوسیتوزِ خفیف تا متوسط + سیتوپنیِ شدید (P58، تصمیمِ بازبین ۲۰۲۶-۰۹-۲۹) ----------
+// 🔴 پیش از این: WBC بالاتر از بازه ولی ≤ ۲۰٬۰۰۰ کنارِ سیتوپنیِ شدید هیچ صاحبی نداشت — leukocytosis زیرِ blockerِ اورژانس
+//    پنهان می‌ماند و WBC به خطِ «بی‌توضیح» می‌افتاد (N18). حالا reactive_leukocytosis_with_cytopenia (this_week + always_show).
+const REACTIVE_TEXT = "این وضعیت اغلب واکنشی به عفونت‌ها، التهاب‌های حاد یا کم‌خونی‌های زمینه‌ای است. جهت مشخص شدن علت دقیق عفونی یا التهابی، بررسی و تطبیق آزمایش با معاینه بالینی توسط پزشک ضروری است.";
+const wbcOwners = (p) => ["leukocytosis_with_cytopenia", "reactive_leukocytosis_with_cytopenia", "leukocytosis", "acute_leukemia_suspicion"]
+  .filter((id) => fffFind(p, id));
+
+test("M235: WBC 15 + Hb 7 + PLT 40 — سطحِ ۲ زیرِ اورژانس دیده می‌شود، متنِ بازبین عیناً، بی‌«بی‌توضیح»، دستورِ نهایی مالِ اورژانس", () => {
+  const { e, p } = fffRun([fffTest("WBC", "15", "10^3/uL"), fffTest("Hb", "7", "g/dL"), fffTest("PLT", "40", "10^3/uL"),
+    fffTest("NEUT%", "---.-", "%"), fffTest("LYM#", "2", "10^3/uL")], { age: 40, sex: "M" });
+  assert.equal(p.overall_urgency, "emergency", "تریاژِ اورژانسیِ پلاکت/Hb دست نخورده");
+  const f = fffFind(p, "reactive_leukocytosis_with_cytopenia");
+  assert.ok(f, `سطحِ ۲ نیامد: ${p.findings.map((x) => x.pattern)}`);
+  assert.equal(f.urgency, "this_week");
+  assert.equal(f.always_show, true);
+  assert.equal(f.headline, "افزایش گلبول‌های سفید خون همزمان با کاهش در سایر سلول‌ها");
+  assert.ok(f.must_say.includes(REACTIVE_TEXT), f.must_say);
+  assert.match(f.must_say, /گلبول سفید 15 است/);
+  assert.match(f.must_say, /نوتروفیل در دست نیست/);
+  assert.doesNotMatch(fffText(f), /مغز استخوان|بلاست|لوسمی|بدخیم|سرطان/, "سطحِ ۲ آلارمِ مغزِ استخوان نمی‌سازد");
+  // زیرِ blocker نسخهٔ brief نشان داده می‌شود — باید همان متن باشد
+  assert.equal(f.brief, f.must_say);
+  const interp = buildEngineFallbackResult(e, p).interpretation;
+  assert.ok(interp.includes(REACTIVE_TEXT), "متن به بیمار نرسید");
+  assert.ok(!fffFind(p, "unexplained_abnormal"), `WBC هنوز بی‌توضیح: ${fffText(fffFind(p, "unexplained_abnormal"))}`);
+  const recs = buildEngineRecommendations(p, e);
+  assert.match(recs[0], /اورژانس/, `دستورِ نهایی: ${recs[0]}`);
+  assert.ok(!recs.some((r) => /این هفته با پزشک وقت بگیرید تا علتِ/.test(r)), "دستورِ رقیبِ «این هفته» کنارِ اورژانس (N20، M188)");
+});
+
+test("M235b: دقیقاً یک صاحب برای WBC — دو سطح، leukocytosis و acute_leukemia_suspicion بی‌شکاف و بی‌هم‌پوشانی (M91e)", () => {
+  const cbc = (wbc, hb, plt) => [fffTest("WBC", wbc, "10^3/uL"), fffTest("Hb", hb, "g/dL"), fffTest("PLT", plt, "10^3/uL")];
+  const adult = { age: 40, sex: "M" };
+  const cases = [
+    [["12", "7", "40"], "reactive_leukocytosis_with_cytopenia"],
+    [["20", "7", "40"], "reactive_leukocytosis_with_cytopenia"],
+    [["20.1", "7", "40"], "leukocytosis_with_cytopenia"],
+    [["45", "13.5", "40"], "leukocytosis_with_cytopenia"],
+    [["60", "7", "40"], "acute_leukemia_suspicion"],
+    [["15", "14", "250"], "leukocytosis"],
+    [["15", "9", "120"], "leukocytosis"],
+  ];
+  for (const [[w, h, pl], want] of cases) {
+    const got = wbcOwners(fffRun(cbc(w, h, pl), adult).p);
+    assert.deepEqual(got, [want], `WBC ${w} · Hb ${h} · PLT ${pl}`);
+  }
+});
+
+test("M235c: شیرخوار (بازهٔ RCPCH) و برگهٔ بی‌اورژانسِ دیگر — سطحِ ۲ دستورِ خودش را دارد", () => {
+  const inf = fffFind(fffRun([fffTest("WBC", "15", "10^3/µL"), fffTest("HGB", "7.1", "g/dL"), fffTest("PLT", "36", "10^3/µL")]).p,
+    "reactive_leukocytosis_with_cytopenia");
+  assert.ok(inf, "سطحِ ۲ برای شیرخوار نیامد");
+  assert.match(inf.must_say, /از بازهٔ این سن \(5–12\) بالاتر است/);
+  assert.match(inf.warnings[0], /^اگر کودک تب دارد/);
+  assert.ok(inf.sources?.includes("RCPCH"));
+  const { e, p } = fffRun([fffTest("WBC", "15", "10^3/uL"), fffTest("Hb", "7.5", "g/dL"), fffTest("PLT", "250", "10^3/uL")], { age: 40, sex: "M" });
+  assert.equal(p.overall_urgency, "this_week");
+  assert.deepEqual(wbcOwners(p), ["reactive_leukocytosis_with_cytopenia"]);
+  assert.match(buildEngineRecommendations(p, e)[0], /این هفته با پزشک وقت بگیرید/);
 });

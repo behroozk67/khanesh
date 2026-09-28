@@ -5,6 +5,40 @@
 // شامل: MDS, AML/ALL, CLL, CML, ITP, TTP
 // ==========================================
 
+// P58 پرسش ۱ — WBC به ×10³/µL (واحدِ موتور). بالاتر از این و بالاتر از بازهٔ سنی = «لکوسیتوزِ بارز».
+export const MARKED_LEUKOCYTOSIS_K = 20;
+
+// ─── job fff90f58 (P58): جمله‌های مشترکِ دو سطحِ «لکوسیتوز + سیتوپنیِ شدید» ───
+// «شدید» از خودِ acute_leukemia_suspicion پرسیده می‌شود — همان match با WBCی بالای دروازه‌اش (درسِ M91e). عددِ تازه‌ای نیست.
+function severeCytopeniaArm(e) {
+  const leuk = RULES_MALIGNANCY.find((r) => r.id === "acute_leukemia_suspicion");
+  return leuk.match({ ...e, graded: e.graded.map((g) => (g.test === "WBC" ? { ...g, value: Infinity } : g)) });
+}
+function wbcCytoSentenceFa(w, hb, plt, ped) {
+  const hi = Number(String(w.range).split("–")[1]);
+  const times = Number.isFinite(hi) && hi > 0 ? ` (حدودِ ${(w.value / hi).toFixed(1)} برابرِ سقفِ آن)` : "";
+  const low = [hb?.abnormal && hb.dir === "low" ? `هموگلوبین ${hb.value} (بازه ${hb.range})` : null,
+    plt?.abnormal && plt.dir === "low" ? `پلاکت ${plt.value} (بازه ${plt.range})` : null].filter(Boolean);
+  return `گلبول سفید ${w.value} است و از بازهٔ ${ped ? "این سن" : "طبیعی"} (${w.range}) بالاتر است${times}، ` +
+    `در حالی که هم‌زمان ${low.join(" و ")} پایین است.`;
+}
+// نوتروفیل سه‌حالته (N4): سنجیده / چاپ‌شده ولی بی‌عدد یا دیفِ نامعتبر / روی برگه نیست.
+function neutSentenceFa(e, ne) {
+  const unread = e.diffFailed || e.ungraded?.NEUT_ABS?.unreadable === true;
+  return ne ? `نوتروفیل ${ne.value} است (بازه ${ne.range}).`
+    : unread ? "شمارشِ افتراقیِ دستگاه برای نوتروفیل عددی نداد، پس تعدادِ نوتروفیل در دست نیست."
+    : "تعدادِ نوتروفیل روی این برگه نیست.";
+}
+// لنفوسیت: هر جهت جمله دارد (M156) — قاعده‌ها LYMPH_ABS را می‌خوانند.
+function lymphSentenceFa(ly, ped) {
+  const ref = `بازهٔ ${ped ? "این سن" : "طبیعی"} (${ly.range})`;
+  return ly.abnormal && ly.dir === "low"
+    ? `لنفوسیت ${ly.value} است و از ${ref} پایین‌تر است؛ تا شمارشِ افتراقیِ دستی انجام نشود، معنای آن جدا از بقیهٔ عددها روشن نیست.`
+    : ly.abnormal && ly.dir === "high"
+      ? `لنفوسیت ${ly.value} است و از ${ref} بالاتر است؛ شمارشِ افتراقیِ دستی نوعِ این سلول‌ها را روشن می‌کند.`
+      : `لنفوسیت ${ly.value} است و در ${ref} قرار دارد.`;
+}
+
 export const RULES_MALIGNANCY = [
   // ─────────────────────────────────────────
   // 0. زنجیره‌های سبک و گاموپاتی مونوکلونال (MGUS / Multiple Myeloma)
@@ -117,6 +151,104 @@ export const RULES_MALIGNANCY = [
         action: "بدون هیچ‌گونه تأخیر، مستقیماً به اورژانس یک بیمارستان مجهز (ترجیحاً دارای بخش خون) مراجعه کنید.",
         suggest: ["ارجاع فوری اورژانسی"],
         warnings: ["این یک وضعیت تهدیدکننده حیات است و هرگونه تأخیر در پیگیری پزشکی عواقب جبران‌ناپذیری دارد."],
+      };
+    },
+  },
+
+  // ─────────────────────────────────────────
+  // 2b. لکوسیتوز + سیتوپنیِ شدید، زیرِ دروازهٔ WBC > 50ِ قاعدهٔ بالا (job fff90f58، P58)
+  // ─────────────────────────────────────────
+  // 🔴 شیرخوارِ ۶–۱۲ ماهه: WBC 36.6 (بازه ۵–۱۲) + Hb 7.1 + PLT 36، بی‌دیف. acute_leukemia_suspicion فقط بالای ۵۰ فعال
+  //    می‌شود، pancytopenia به‌درستی WBCِ پایین می‌خواهد، و leukocytosis زیرِ blockerِ ترومبوسیتوپنی پنهان ماند؛ پس
+  //    WBC فقط در خطِ «۲ نتیجهٔ دیگر» آمد و خانواده فقط «TTP یا HUS» خواند (N18/N20).
+  // عددِ تازه‌ای نیست: «لکوسیتوز» = WBC بالاتر از بازهٔ همین سن (grade)، و «سیتوپنیِ شدید» از خودِ قاعدهٔ
+  //    acute_leukemia_suspicion پرسیده می‌شود — همان match با WBCی بالای دروازه‌اش (درسِ M91e: «آیا آن قاعده فعال
+  //    می‌شود»، نه تکرارِ ۸ و ۵۰). وقتی خودِ آن قاعده فعال است، این یکی کنار می‌رود (یک یافته دربارهٔ یک تصویر).
+  // P56 پرسش ۶: نامِ تشخیص («لوسمی»، «بدخیمی») در متنِ بیمار نمی‌آید (M203e).
+  // P58 پرسش ۱ (تصمیمِ بازبینِ بالینی، ۲۰۲۶-۰۹-۲۹): «لکوسیتوزِ بارز» کنارِ سیتوپنی = WBC > ۲۰٬۰۰۰/µL، برای کودک و بزرگسال.
+  //   بازبین «۲۰ تا ۲۵ هزار» داد؛ کرانِ پایین انتخاب شد (خطا به سمتِ توضیح). WBCِ ۱۱ تا ۲۰ هزار کنارِ کم‌خونی/ترومبوسیتوپنی
+  //   «اغلب واکنشی است» و این یافته را نمی‌سازد. منبعِ منتشرشده نام برده نشد — برچسب همان تصمیمِ بازبین است.
+  {
+    id: "leukocytosis_with_cytopenia",
+    match: (e) => {
+      const w = e.graded.find((g) => g.test === "WBC");
+      if (!w?.abnormal || w.dir !== "high" || !(w.value > MARKED_LEUKOCYTOSIS_K)) return false;
+      if (RULES_MALIGNANCY.find((r) => r.id === "acute_leukemia_suspicion").match(e)) return false;
+      return severeCytopeniaArm(e);
+    },
+    build: (e) => {
+      const g = (k) => e.graded.find((x) => x.test === k);
+      const w = g("WBC"), hb = g("HGB"), plt = g("PLT"), ly = g("LYMPH_ABS"), ne = g("NEUT_ABS");
+      const ped = e.age != null && e.age < 16;
+      const s = [
+        wbcCytoSentenceFa(w, hb, plt, ped) + " " +
+        // P58 پرسش ۲ (بازبین، ۲۰۲۶-۰۹-۲۹): جملهٔ خودِ بازبین؛ نامِ تشخیص نمی‌آید (P56 پرسش ۶، M203e).
+        "تغییرات همزمان در رده‌های گلبول‌های سفید و سایر سلول‌های خونی مشاهده شده که نیازمند ارزیابی تکمیلی و فوری توسط متخصص خون (هماتولوژیست) جهت بررسی دقیق عملکرد مغز استخوان است.",
+      ];
+      s.push(neutSentenceFa(e, ne));
+      // بلاست: یا لامِ همین برگه دارد (مالکش peripheral_smear_findings است) یا گزارش نشده.
+      const leukSmear = smearAxis(e)?.leukemic ?? [];
+      s.push(leukSmear.length
+        ? "لامِ همین برگه سلول‌های نارس گزارش کرده که جداگانه توضیح داده شده است."
+        : `وجود یا نبودِ سلول‌های نارس (بلاست) هم روی این برگه گزارش نشده؛ ${ne ? "" : "این دو عدد سرنوشت‌سازند و "}برای همین شمارشِ افتراقیِ دستی روی لامِ خونِ محیطی، با جست‌وجوی بلاست، لازم است.`);
+      if (ly) s.push(lymphSentenceFa(ly, ped));
+      const doc = ped ? "متخصصِ خونِ کودکان (هماتولوژیستِ اطفال)" : "متخصصِ خون (هماتولوژیست)";
+      return {
+        pattern: "leukocytosis_with_cytopenia",
+        urgency: "emergency",
+        headline: "گلبول سفیدِ بالا همراه با افتِ شدیدِ رده‌های دیگرِ خون (اورژانس)",
+        must_say: s.join(" "),
+        action: `بدون اتلاف وقت فوراً به اورژانسِ بیمارستانی مراجعه کنید که ${doc} دارد.`,
+        suggest: [
+          "گسترش خون محیطی با شمارش افتراقی دستی و بررسی بلاست",
+          "شمارش رتیکولوسیت", "بیلی‌روبین مستقیم و غیرمستقیم", "هاپتوگلوبین", "کومبس مستقیم", "LDH",
+          "کراتینین", "اوره", "آزمایش کامل ادرار", "اسید اوریک", "پتاسیم",
+        ],
+        warnings: [`اگر ${ped ? "کودک" : "بیمار"} تب دارد، همان ابتدا به تیمِ اورژانس بگویید؛ کشتِ خون و CRP را پزشک بر همین اساس درخواست می‌کند.`],
+        ...(w.refSource === "RCPCH 2016" ? { sources: ["RCPCH"] } : {}),
+      };
+    },
+  },
+
+  // ─────────────────────────────────────────
+  // 2c. سطحِ ۲: لکوسیتوزِ خفیف تا متوسط + سیتوپنیِ شدید (P58، تصمیمِ بازبین ۲۰۲۶-۰۹-۲۹)
+  // ─────────────────────────────────────────
+  // WBC بالاتر از بازهٔ همین سن ولی ≤ MARKED_LEUKOCYTOSIS_K، کنارِ همان سیتوپنیِ شدیدِ سطحِ ۱. بازبین: «اغلب واکنشی به عفونت،
+  //   التهابِ حاد یا کم‌خونیِ زمینه‌ای» — بی‌این یافته، WBC زیرِ blockerِ اورژانسِ پلاکت/Hb به خطِ «بی‌توضیح» می‌افتاد (N18).
+  // فوریت this_week + always_show (تصمیمِ کاربر): خودش آلارم نمی‌سازد و دستورِ نهایی مالِ یافتهٔ اورژانسی است (M188)،
+  //   ولی زیرِ آن پنهان نمی‌ماند. brief همان متنِ کامل است، چون کلیدها فقط با متنِ نشان‌داده‌شده پوشش می‌گیرند (R3-CR1).
+  {
+    id: "reactive_leukocytosis_with_cytopenia",
+    match: (e) => {
+      const w = e.graded.find((g) => g.test === "WBC");
+      if (!w?.abnormal || w.dir !== "high" || w.value > MARKED_LEUKOCYTOSIS_K) return false;
+      return severeCytopeniaArm(e);
+    },
+    build: (e) => {
+      const g = (k) => e.graded.find((x) => x.test === k);
+      const w = g("WBC"), hb = g("HGB"), plt = g("PLT"), ly = g("LYMPH_ABS"), ne = g("NEUT_ABS");
+      const ped = e.age != null && e.age < 16;
+      const s = [
+        wbcCytoSentenceFa(w, hb, plt, ped),
+        // P58 (بازبین، ۲۰۲۶-۰۹-۲۹): متنِ خودِ بازبین، عیناً.
+        "این وضعیت اغلب واکنشی به عفونت‌ها، التهاب‌های حاد یا کم‌خونی‌های زمینه‌ای است. جهت مشخص شدن علت دقیق عفونی یا التهابی، بررسی و تطبیق آزمایش با معاینه بالینی توسط پزشک ضروری است.",
+        neutSentenceFa(e, ne),
+      ];
+      if (ly) s.push(lymphSentenceFa(ly, ped));
+      const text = s.join(" ");
+      const fever = `اگر ${ped ? "کودک" : "بیمار"} تب دارد، این را همان ابتدا به پزشک بگویید؛ کشتِ خون و CRP را پزشک بر همین اساس درخواست می‌کند.`;
+      return {
+        pattern: "reactive_leukocytosis_with_cytopenia",
+        urgency: "this_week",
+        headline: "افزایش گلبول‌های سفید خون همزمان با کاهش در سایر سلول‌ها",
+        must_say: text,
+        always_show: true,
+        brief: text,
+        action: "این هفته با پزشک وقت بگیرید تا علتِ آن کنارِ معاینه روشن شود.",
+        suggest: [...(ne ? [] : ["شمارش افتراقی (عدد نوتروفیل)"]), "CRP", "ESR"],
+        warnings: [fever],
+        brief_warnings: [fever],
+        ...(w.refSource === "RCPCH 2016" ? { sources: ["RCPCH"] } : {}),
       };
     },
   },

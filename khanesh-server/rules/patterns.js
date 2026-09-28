@@ -19,6 +19,7 @@ import { RULES_URINALYSIS } from "./patterns_urinalysis.js";
 import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { applyNeonatalFloor } from "./neonatal.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
@@ -92,6 +93,13 @@ export const SUGGEST_TESTS = {
   "رتیکولوسیت": ["RETIC"],
   "شمارش رتیکولوسیت": ["RETIC"],
   "هاپتوگلوبین": ["HAPTO"],
+  // job fff90f58 (E4، P58): پنلِ leukocytosis_with_cytopenia و maha_ttp_suspicion — بی‌این ردیف‌ها، LDH/پتاسیم/کراتینینِ
+  //   چاپ‌شده روی همان برگه دوباره «درخواست» می‌شدند (N8؛ ردیفِ غایب همیشه به سمتِ غلط خطا می‌کند).
+  "LDH": ["LDH"],
+  "کراتینین": ["CREAT"],
+  "اوره": ["UREA"],
+  "اسید اوریک": ["URIC"],
+  "پتاسیم": ["K"],
   // بیلی‌روبینِ غیرمستقیم روی برگه‌های ایرانی معمولاً چاپ نمی‌شود و از کسرِ
   // مستقیم از تام به دست می‌آید؛ پس «درخواستش» یعنی درخواستِ آن دو. اگر هر
   // دو روی برگه باشند این پیشنهاد باید حذف شود، وگرنه همان باگِ «درخواست
@@ -156,6 +164,8 @@ export function alreadyMeasured(suggestion, measuredKeys) {
  *    منبعِ بی‌ربط اضافه نکن تا فهرست پر شود؛ فهرست به بیمار نشان داده می‌شود.
  */
 export const RULE_SOURCES = {
+  // نوزاد (job c138671c) — بازه‌های سنیِ همین یافته‌ها از PED_REFS (RCPCH 2016) می‌آیند.
+  neonatal_reference_context: ["RCPCH"],
   // کلیه — مرحله‌بندی G1–G5، باندهای ACR، و شرطِ دوامِ ۳ ماه، همه KDIGO است.
   kidney:               ["KDIGO_CKD"],
   albuminuria_pattern:  ["KDIGO_CKD"],
@@ -452,6 +462,9 @@ export function runPatterns(engineOut) {
       });
     }
   }
+
+  // ═══ کفِ فوریتِ نوزادی (P57 پرسش ۵) ═══ — پیش از انتخاب، تا blocks_others و ترتیب با فوریتِ نهایی کار کنند.
+  applyNeonatalFloor(findings, engineOut);
 
   // ═══ انتخاب یافته‌ها ═══
   // 🔴 باگ قبلی: .find() فقط اولین blocks_others را برمی‌داشت و

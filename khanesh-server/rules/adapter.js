@@ -8,7 +8,8 @@
 //   ۴. استنتاج سن و جنسیت
 // ============================================================
 
-import { getRef, getRefSource, getUnit, ckdEpiEgfr, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE } from "./refs.js";
+import { getRef, getRefSource, getUnit, ckdEpiEgfr, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE,
+  inNeonatalRedCellPeriod, NEONATAL_NO_ADULT_FALLBACK } from "./refs.js";
 import { evaluate } from "./grade.js";
 import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcrossSystems, BRANCH_FACTORS,
          parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv, normUnit } from "./units.js";
@@ -77,6 +78,8 @@ const NAME_MAP = {
   rdwcv: "RDW_CV", rdw: "RDW_CV",
   rdwsd: "RDW_SD",
   mpv: "MPV",
+  // P57 پرسش ۶: شاخص‌های پلاکتی — شناخته می‌شوند تا به «موتور تفسیرشان نمی‌کند» نروند؛ reader: platelet_indices_context.
+  pdw: "PDW", plcr: "P_LCR",
   esr: "ESR", esr1sthr: "ESR", esr1sth: "ESR", sedrate: "ESR",
 
   // Diff — درصد
@@ -525,7 +528,9 @@ const QUAL_NO_READER = new Set(["ANTI_IF", "APCA"]);
 // ═══ P49-الف: کلیدهای بی‌پروفایلِ واحد که قاعده‌ای عددشان را می‌خواند ═══
 // سرولوپلاسمین mg/dL یا g/L چاپ می‌شود (۱۰ در برابرِ ۰.۱)، مسِ ادرار µg یا µmol در ۲۴ ساعت. هیچ‌کدام در
 // UNIT_PROFILE نیستند، پس واحدِ چاپ‌شده اینجا نگه داشته می‌شود و قاعده فقط با واحدِ چاپ‌شده حکم می‌دهد (N3).
-const UNIT_KEPT = new Set(["CERULOPLASMIN", "U_COPPER_24H",
+// P57 پرسش ۶ — شاخص‌های پلاکتیِ وابسته به دستگاه.
+const PLATELET_INDEX_KEYS = new Set(["PDW", "P_LCR", "PLT_CRIT"]);
+const UNIT_KEPT = new Set(["PDW", "PLT_CRIT", "P_LCR", "CERULOPLASMIN", "U_COPPER_24H",
   // P53 پرسش ۴ و ۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): ZPP فقط با µmol/mol، sTfR فقط با mg/L تفسیر می‌شوند، و درصدِ
   // واریانت‌های هموگلوبین را قاعده‌ها از ungraded می‌خوانند — بی‌بازه می‌مانند (noRef) تا قاعده explains کند.
   "ZPP", "STFR", "HBA", "HBS", "HBC", "HBE"]);
@@ -731,6 +736,18 @@ function isQualitative(key) {
 //    BUN = urea ÷ 2.14
 const ureaToBUN = (u) => u / 2.14;
 
+// ---------- جای‌نگهدارِ دستگاه ----------
+// job fff90f58 (E2، P58): «---.-» یعنی دستگاه آن شمارش را نداد — خالی نیست ولی عدد هم نیست. server.js فقط برای
+//   مقدارِ خالی هشدارِ «خوانا نبود» می‌ساخت و این‌جا ردیف به qual می‌رفت که هیچ قاعده‌ای NEUT% را آن‌جا نمی‌خواند (N25:
+//   کانالِ بی‌خواننده). یک قاعده برای هر دو فایل (N3: «دو تابع که یک عدد را می‌خوانند یک قاعده دارند»).
+//   ⚠️ «-»، «--» و «---» عمداً جای‌نگهدار نیستند — روی نوارِ ادرار «منفی»‌اند (N6). فقط با نقطه/ستاره یا ≥۴ خط‌تیره.
+export function isPlaceholderValue(v) {
+  if (v == null) return false;
+  const s = String(v).replace(/\s/g, "");
+  if (!/^[-–—_*.]+$/.test(s) || !/[-–—_*]/.test(s)) return false;
+  return /[.*]/.test(s) || s.length >= 4;
+}
+
 // ---------- تبدیل عدد ----------
 // ارقام فارسی/عربی و ممیز عربی را اول به لاتین تبدیل می‌کنیم؛ سپس فقط رقم/نقطه/علامت می‌مانَد.
 //
@@ -834,6 +851,8 @@ export function ocrToEngineInput(ocr) {
   // «۴۸ mmol/mol → ۶.۵٪» باید جایی دیده شود، وگرنه عددِ روی برگه با عددِ
   // تفسیر نمی‌خواند و بیمار حق دارد فکر کند اشتباه شده.
   const unitConversions = [];
+  // کلیدهایی که ردیفشان چاپ شده ولی مقدارش ناخوانا بود (job c138671c، D1).
+  const unreadableKeys = new Set();
   const urineOnlyPages = detectUrineOnlyPages(ocr?.tests || []);
   const abgPages = detectAbgPages(ocr?.tests || []);
   // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
@@ -894,6 +913,15 @@ export function ocrToEngineInput(ocr) {
   for (let t of ocr?.tests || []) {
     if (!t?.name) continue;
     let key = norm(t.name);
+    // job c138671c (D1): ردیفِ چاپ‌شده با مقدارِ ناخوانا — server.js فقط هشدارِ OCR می‌سازد و موتور هیچ‌وقت نمی‌فهمید
+    //   «نوتروفیل غایب است» یعنی «خوانده نشد»، نه «روی برگه نیست». norm «#» و «%» را می‌اندازد، پس NEUT# هم NEUT_PCT است.
+    //   فقط ثبت می‌شود؛ مسیرِ ردیف عوض نمی‌شود.
+    if ((t.value == null || String(t.value).trim() === "") && NAME_MAP[key]) unreadableKeys.add(NAME_MAP[key]);
+    // job fff90f58 (E2): جای‌نگهدار هم «ناخوانا» است، نه متنِ کیفی — نه qual، نه unmapped (هشدارش را server.js می‌سازد).
+    if (isPlaceholderValue(t.value)) {
+      if (NAME_MAP[key]) unreadableKeys.add(NAME_MAP[key]);
+      continue;
+    }
     // «Hémoglobine 14 g/dL» / «Hemoglobina 6.1 g/dL»: خودِ هموگلوبین — به مسیرِ عادیِ HGB (CR9/CR10).
     if (HB_TOTAL_WITH_MASS_UNIT.has(key) && HB_MASS_UNIT.test(String(t.unit || ""))) {
       t = { ...t, name: "Hemoglobin" };
@@ -1447,6 +1475,7 @@ export function ocrToEngineInput(ocr) {
     printedUnits,
     unitConversions,
     diffFailed,
+    unreadableKeys,
     sex: inferSex(ocr),
     age: inferAge(ocr),
     pregnant: inferPregnant(ocr),
@@ -1465,7 +1494,7 @@ function inferPregnant(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, sex, age, pregnant } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
   const conditions = ocr?.patient?.conditions || [];
@@ -1555,7 +1584,8 @@ export function runEngine(ocr) {
   const urgencyOfReading = (key, conv) => {
     const ref = getRef(key, sex, age, { pregnant: pregnantF });
     if (!ref) return "none";
-    const probe = {
+    // _probe: کاوشِ درونی — کفِ نوزادی (applyNeonatalFloor) رویش اعمال نمی‌شود (P57 پرسش ۵).
+    const probe = { _probe: true,
       sex, age, qual: {}, semenQual: {}, ungraded: {}, indices: {}, unmapped: [], unitConversions: [],
       noRef: [], diffFailed: false,
       graded: [{ test: key, value: conv, range: `${ref[0]}–${ref[1]}`, refSource: getRefSource(key, age),
@@ -1683,6 +1713,12 @@ export function runEngine(ocr) {
         continue;
       }
     }
+    // P57 پرسش ۶: شاخص‌های پلاکتی بازهٔ استاندارد ندارند و به‌تنهایی هشدار نمی‌سازند — نه noRef («تفسیر نشدند»، «حتماً با پزشک»)،
+    //   نه حکم. خواننده: platelet_indices_context، فقط کنارِ پلاکت/MPVِ غیرطبیعی.
+    if (PLATELET_INDEX_KEYS.has(key)) {
+      ungraded[key] = { value, reason: "platelet_index", unit: printedUnits[key] ?? null };
+      continue;
+    }
     const ref = (NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF });
     if (!ref) {
       noRef.push(key);
@@ -1700,6 +1736,55 @@ export function runEngine(ocr) {
       refSource: getRefSource(key, age),
       ...e,
     });
+  }
+
+  // ═══ نوزاد و دیفِ ناقص (job c138671c، P57) ═══
+  // D5/D4: RBC و RDW در دورهٔ گلبول‌های درشتِ نوزادی بازه ندارند (getRef ⇒ null ⇒ بالاتر به noRef رفتند). مالک:
+  //   neonatal_reference_context — تا خطِ «محدوده مرجع نداریم» تنها چیزی نباشد که بیمار دربارهٔ آن‌ها می‌خواند.
+  // D6: MCH ≡ MCV × MCHC ÷ ۱۰۰ (اتحاد: Hb/RBC = (Hct/RBC)·(Hb/Hct)). وقتی MCV و MCHC هر دو در بازهٔ نوزادیِ خودشان‌اند،
+  //   «MCH غیرطبیعی» اطلاعِ مستقلی ندارد — فقط نشان می‌دهد ردیفِ MCH (۳۱–۳۷) با ردیف‌های MCV (۱۰۰–۱۳۰) و MCHC (۳۲–۳۵)
+  //   نمی‌خواند (۱۳۰ × ۳۵ ÷ ۱۰۰ = ۴۵.۵). مستقل شمرده نمی‌شود و ردیفش به بازبین رفت (P57). عددِ تازه‌ای در کار نیست.
+  // P57 پرسش ۳ (همهٔ سنین): MCH ≡ MCV × MCHC ÷ ۱۰۰. اختلافِ بیش از ۱۰٪ ⇒ پرچمِ فنی (rbc_indices_inconsistent) و MCH از
+  //   قضاوت بیرون — تصمیمِ کم‌خونی بر پایهٔ MCV و Hb. عددِ ۱۰٪ از پاسخِ بازبین است.
+  if (tests.MCH != null && tests.MCV != null && tests.MCHC != null && tests.MCV > 0 && tests.MCHC > 0) {
+    const calc = (tests.MCV * tests.MCHC) / 100;
+    if (Math.abs(tests.MCH - calc) / calc > 0.10) {
+      const i = graded.findIndex((g) => g.test === "MCH");
+      if (i >= 0) graded.splice(i, 1);
+      ungraded.MCH = { value: tests.MCH, reason: "indices_inconsistent", calc: +calc.toFixed(1), mcv: tests.MCV, mchc: tests.MCHC };
+      if (!noRef.includes("MCH")) noRef.push("MCH");
+    }
+  }
+  if (inNeonatalRedCellPeriod(age)) {
+    for (const k of NEONATAL_NO_ADULT_FALLBACK) {
+      if (tests[k] != null && noRef.includes(k)) ungraded[k] = { value: tests[k], reason: "neonatal_no_range" };
+    }
+    const iMch = graded.findIndex((g) => g.test === "MCH");
+    const mcvG = graded.find((g) => g.test === "MCV"), mchcG = graded.find((g) => g.test === "MCHC");
+    if (iMch >= 0 && !ungraded.MCH && graded[iMch].abnormal && mcvG && !mcvG.abnormal && mchcG && !mchcG.abnormal) {
+      const [g] = graded.splice(iMch, 1);
+      ungraded.MCH = { value: g.value, reason: "neonatal_derived", range: g.range, dir: g.dir };
+      noRef.push("MCH");
+    }
+  }
+  // D1: نوتروفیلِ غایب با دیفِ ناقص. سقفِ آن حساب است نه حدس: WBC منهای بقیهٔ شمارش‌های مطلقِ روی برگه (سلول‌های
+  //   «MXD/MID» که موتور نمی‌شناسد هم داخلِ همین سقف‌اند، پس عددِ واقعی ≤ سقف). فوریت *کف* است نه سقف (N3، دورِ ۳):
+  //   عددِ واقعی از سقف بدتر است، پس فوریت دست‌کم همان است که خودِ موتور به نوتروفیلی برابرِ سقف می‌دهد.
+  //   ⚠️ فقط وقتی دیف *ناقص* است (دست‌کم یک جزءِ دیگر هست). برگهٔ بی‌دیف یعنی «دیف گزارش نشده»، نه «نوتروفیل غایب».
+  if (!diffFailed && tests.WBC != null && tests.NEUT_ABS == null) {
+    const others = ["LYMPH_ABS", "MONO_ABS", "EOS_ABS", "BASO_ABS"].filter((k) => tests[k] != null);
+    if (others.length) {
+      const ceiling = Math.max(0, Math.round(tests.WBC * 1000 - others.reduce((s, k) => s + tests[k], 0)));
+      const ref = getRef("NEUT_ABS", sex, age);
+      const unreadable = unreadableKeys.has("NEUT_PCT") || unreadableKeys.has("NEUT_ABS");
+      const below = !!(ref && ceiling < ref[0]);
+      if (unreadable || below) {
+        ungraded.NEUT_ABS = { value: null, reason: "diff_incomplete", ceiling, from: ["WBC", ...others], unreadable, below,
+          range: ref ? `${ref[0]}–${ref[1]}` : null,
+          refSource: ref ? getRefSource("NEUT_ABS", age) : null,
+          urgency: below ? urgencyOfReading("NEUT_ABS", ceiling) : "routine" };
+      }
+    }
   }
 
   // شاخص‌ها
