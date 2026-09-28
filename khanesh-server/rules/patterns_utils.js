@@ -1036,6 +1036,10 @@ const SMEAR_TEXT = [
 ];
 // «without blasts»، «no blasts seen»، «بدونِ بلاست» — نفی در همان بند.
 const SMEAR_NEG_RE = /\b(no|not|nil|none|absent|negative|without)\b|free\s+of|منفی|بدون|دیده\s*نشد|مشاهده\s*نشد|یافت\s*نشد|ندارد|نیست/i;
+// «not evaluated»، «pending»، «بررسی نشد» — بندی که چیزی را نفی نمی‌کند، فقط می‌گوید سنجیده نشده؛
+//   نباید با SMEAR_NEG_RE (که یعنی «سنجیده شد و منفی بود») یکی گرفته شود، وگرنه «بلاستِ بررسی‌نشده» به‌جای
+//   «تفسیر نشدند» به‌صورت «بلاست حاضر نیست» گزارش می‌شود (N4).
+const SMEAR_DEFER_RE = /\bnot\s+(evaluated|assessed|done|available|reported|performed|counted|seen\s+due)\b|\bpending\b|بررسی\s*نشد|ارزیابی\s*نشد|انجام\s*نشد|گزارش\s*نشد|سنجیده\s*نشد/i;
 
 function smearKindOf(name) {
   const n = smearNorm(name);
@@ -1076,6 +1080,7 @@ function smearRow(name, value, unit) {
   const clauses = String(value ?? "").split(/[,;.،؛\n]|\bbut\b|\bhowever\b/i)
     .flatMap((c) => c.split(/\b(?:and|with)\b|&|\s(?=without\b)|\s(?=و\s*بدون)|\sو\s/i));
   for (const clause of clauses) {
+    if (SMEAR_DEFER_RE.test(clause)) continue; // سنجیده نشده؛ نه حاضر نه غایب — بیرون از این تابع unmapped می‌ماند
     const neg = SMEAR_NEG_RE.test(clause);
     for (const [re, k] of SMEAR_TEXT) {
       if (!re.test(clause)) continue;

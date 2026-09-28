@@ -10172,3 +10172,20 @@ test("M202h: قفل — «Band» و «Anisocytosis» همان «تفسیر نش�
     assert.deepEqual(s9Present(e), []);
   }
 });
+
+test("M202i: «بررسی نشده» با «غایب» یکی نیست (N4، بازبینیِ کد دور ۲) — «Blasts not evaluated» را «حاضر نیست» نمی‌گوید", () => {
+  for (const v of ["Blasts not evaluated", "Blast count pending", "بلاست بررسی نشد"]) {
+    const { e, p } = s9Run("M", 40, s9CBC(9, [s9T("Comment", v)]));
+    assert.deepEqual(s9Present(e), [], `«${v}» حاضر خوانده شد`);
+    assert.deepEqual(s9Smear(e), [], `«${v}» غایب هم نباید بشود`);
+    assert.ok(!s9SmearF(p), `«${v}» یافته ساخت`);
+    assert.ok(e.unmapped.includes("Comment"), `«${v}» به «تفسیر نشدند» نرسید`);
+  }
+  // بندِ سنجیده‌نشده کنارِ بندِ واقعی — فقط بندِ واقعی خوانده می‌شود، نه هر دو.
+  const mixed = s9Run("M", 40, s9CBC(9, [s9T("Comment", "Toxic granulation seen, Blasts not evaluated")]));
+  assert.deepEqual(s9Present(mixed.e), ["toxic_granulation"]);
+  // نفیِ واقعی همچنان «غایب» می‌ماند — این تعمیم نباید N6 را بشکند.
+  const real = s9Run("M", 40, s9CBC(9, [s9T("Comment", "No blasts seen")]));
+  assert.deepEqual(s9Present(real.e), []);
+  assert.equal(s9Smear(real.e).find((i) => i.kind === "blasts")?.state, "absent");
+});
