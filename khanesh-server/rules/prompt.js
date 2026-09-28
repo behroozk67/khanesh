@@ -70,6 +70,7 @@ export const ENGINE_SYSTEM_PROMPT = `
 
 const URGENCY_FA = {
   emergency: "فوری — همین امروز",
+  soon: "ظرفِ ۲۴ تا ۴۸ ساعت",
   this_week: "این هفته",
   routine: "نوبت عادی",
   none: "موردی نیست",
@@ -347,7 +348,7 @@ export function actionStrength(action) {
   return best;
 }
 
-const URGENCY_RANK = { emergency: 3, this_week: 2, routine: 1 };
+const URGENCY_RANK = { emergency: 4, soon: 3, this_week: 2, routine: 1 };
 
 /** یافته‌ای که actionش دستورِ نهاییِ گزارش است: اول فوریتِ یافته، بعد شدتِ متن؛ در تساوی، اولی. */
 export function pickFinalAction(findings) {

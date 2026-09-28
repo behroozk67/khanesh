@@ -703,7 +703,7 @@ function isDIC(e) {
   return Boolean(dStrong && pltLow && (ptLong || fibLow));
 }
 
-// urgency: emergency | this_week | routine
+// urgency: emergency | soon (۲۴ تا ۴۸ ساعت) | this_week | routine
 // رتبه شدت — برای پیدا کردن بدترین یافته
 const LEVEL_RANK = { critical: 4, marked: 3, moderate: 2, mild: 1 };
 function rankOf(g) {
@@ -1025,7 +1025,8 @@ const SMEAR_NAME = [
   [/^chediak/, "chediak_higashi"],
 ];
 // ردیف‌های عمومیِ لام/توضیح: متنشان بندبه‌بند برای همان واژگان گشته می‌شود.
-const SMEAR_GENERIC = /^(peripheral(blood)?smear(pbs)?|pbs|pbf|morphologyreview|bloodsmear|bloodfilm|smear|morphology|wbcmorphology|comments?|remarks?|note|لامخونمحیطی|لامخون|گسترشخونمحیطی|توضیحات|توضیح)$/;
+// «شمارش دستی» / «Manual diff» — سرِ ردیفِ شمارشِ دستیِ لام (P56، تصمیمِ بازبین ۲۰۲۶-۰۹-۲۸).
+const SMEAR_GENERIC = /^(peripheral(blood)?smear(pbs)?|pbs|pbf|morphologyreview|manualdiff(erential)?(count)?|شمارشدستی|bloodsmear|bloodfilm|smear|morphology|wbcmorphology|comments?|remarks?|note|لامخونمحیطی|لامخون|گسترشخونمحیطی|توضیحات|توضیح)$/;
 const SMEAR_TEXT = [
   // P56 پرسش ۵: «Immature mononuclear cells» (و «Atypical/Immature …») اصطلاحِ لام برای بلاستِ احتمالی است. «Immature cells»/IG
   //   تنها عمداً نه — روی دستگاهِ Sysmex یعنی گرانولوسیتِ نابالغ، و «Atypical mononuclear/lymphocytes» تنها لنفوسیتِ واکنشی است (N2).
@@ -1146,7 +1147,9 @@ function smearAxis(e, { exclude } = {}) {
   }
   if (!items.length) return null;
   const urgency = items.some(isLeukemic) ? "emergency"
-    : items.some((i) => i.kind === "blasts" || i.kind === "pseudo_pelger") ? "this_week"
+    // P56: بلاستِ کم (۱ تا ۱۹٪ یا بی‌درصد) سطحِ جدای «۲۴ تا ۴۸ ساعت» است — نه اورژانس، نه «این هفته» (تصمیمِ بازبین ۲۰۲۶-۰۹-۲۸).
+    : items.some((i) => i.kind === "blasts") ? "soon"
+    : items.some((i) => i.kind === "pseudo_pelger") ? "this_week"
     : "routine";
   return { urgency, items, leukemic };
 }

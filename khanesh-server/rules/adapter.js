@@ -1550,7 +1550,7 @@ export function runEngine(ocr) {
   //    استثناها: نوزاد (بازهٔ موتور برای بیلی‌روبینِ نوزاد نوزادی نیست ⇒ الف ممنوع؛ بالای محدودهٔ چاپ‌شده ⇒
   //    اورژانس، وگرنه اگر خوانشی غیرطبیعی است دست‌کم «این هفته»)، و تروپونینِ بی‌محدوده (دست‌کم «این هفته»
   //    اگر خوانشی غیرطبیعی است؛ پرسشِ ۲ِ P48).
-  const URG_RANK = { none: 0, routine: 1, this_week: 2, emergency: 3 };
+  const URG_RANK = { none: 0, routine: 1, this_week: 2, soon: 3, emergency: 4 };
   const maxUrg = (a, b) => (URG_RANK[a] >= URG_RANK[b] ? a : b);
   const urgencyOfReading = (key, conv) => {
     const ref = getRef(key, sex, age, { pregnant: pregnantF });

@@ -6,7 +6,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { ROOT, readJson, GATE_DIR } from "./util.mjs";
 
-const URGENCY_RANK = { none: 0, routine: 1, this_week: 2, emergency: 3 };
+const URGENCY_RANK = { none: 0, routine: 1, this_week: 2, soon: 3, emergency: 4 };
 
 async function loadEngine() {
   const imp = (rel) => import(pathToFileURL(path.join(ROOT, "khanesh-server/rules", rel)).href);

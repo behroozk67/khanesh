@@ -10105,8 +10105,9 @@ test("M202d: درصدِ بلاست — ≥۲۰ اورژانس، بینِ ۰ و �
     assert.doesNotMatch(f.must_say, /AML|ALL|CML|میلوئید|لنفوبلاستیک|t\(/, "زیرگروهِ تشخیصی در متن");
     assert.doesNotMatch(f.must_say, /فوراً|فورا|همین امروز|همین حالا/, "must_say زمان‌بندی دارد (N20)");
   }
-  for (const v of [1, 3, 19]) assert.equal(s9SmearF(u(v))?.urgency, "this_week", `بلاست ${v}٪`);
-  assert.equal(s9SmearF(u("Few", null))?.urgency, "this_week", "«Few»");
+  // سطحِ «soon» (۲۴ تا ۴۸ ساعت) از تصمیمِ بازبین ۲۰۲۶-۰۹-۲۸ — عمداً عوض شد (M205).
+  for (const v of [1, 3, 19]) assert.equal(s9SmearF(u(v))?.urgency, "soon", `بلاست ${v}٪`);
+  assert.equal(s9SmearF(u("Few", null))?.urgency, "soon", "«Few»");
   const blasts25 = u(25);
   assert.ok(!s9Ids(blasts25).includes("unmatched_abnormal"));
 });
@@ -10230,7 +10231,8 @@ test("M203b: «Pelger» کنارِ سیتوپنی یا بلاست شبه‌پل�
   ];
   for (const [tests, ev] of cases) {
     const f = pel([...tests, s9T("Pelger-Huet anomaly", "Present")]);
-    assert.equal(f?.urgency, "this_week", `پلگر کنارِ ${ev}`);
+    // با بلاست، فوریت از خودِ بلاست است («soon»)؛ بی بلاست، شبه‌پلگر «این هفته».
+    assert.equal(f?.urgency, String(ev) === String(/بلاست/) ? "soon" : "this_week", `پلگر کنارِ ${ev}`);
     assert.match(f.must_say, /اکتسابی/);
     assert.match(f.must_say, ev, "شاهد با عددِ چاپ‌شده در متن نیست (N5)");
     assert.doesNotMatch(f.must_say, /محتمل‌ترین توضیح نوعِ ارثی/);
@@ -10255,7 +10257,7 @@ test("M203c: بلاستِ ۱ تا ۱۹٪ یا بی‌درصد — دستورِ �
   const { pickFinalAction } = await import("./prompt.js");
   for (const [v, u] of [[1, "%"], [3, "%"], [19, "%"], ["Few", null]]) {
     const f = s9SmearF(s9Run("M", 40, s9CBC(9, [s9T("Blasts", v, u)])).p);
-    assert.equal(f?.urgency, "this_week", `بلاست ${v}`);
+    assert.equal(f?.urgency, "soon", `بلاست ${v}`);
     assert.match(f.action, /۲۴ تا ۴۸ ساعت/, `بلاست ${v}: ${f.action}`);
     assert.doesNotMatch(f.action, /این هفته|امروز/);
     assert.doesNotMatch(f.must_say, /فوراً|همین امروز|این هفته/, "must_say زمان‌بندی دارد (N20)");
@@ -10279,7 +10281,7 @@ test("M203d: املاهای LIS برای بلاست خوانده می‌شوند
   ]) {
     const { e, p } = s9Run("M", 40, s9CBC(9, tests));
     assert.deepEqual(s9Present(e), ["blasts"], `«${tests[0].name}: ${tests[0].value}»`);
-    assert.equal(s9SmearF(p)?.urgency, "this_week");
+    assert.equal(s9SmearF(p)?.urgency, "soon");
   }
   // گرانولوسیتِ نابالغ (Sysmex IG) و لنفوسیتِ واکنشی بلاست نیستند — یک نگاشتِ غلط بدتر از نبودنِ نگاشت است.
   for (const tests of [
@@ -10333,4 +10335,48 @@ test("M204: WBC 80 + بازوفیلِ بالا — یافتهٔ CML کنارِ �
   // کنترلِ منفی: WBC 80 بی بازوفیلِ بالا ⇒ یافتهٔ CML نیست
   const plain = s9Run("M", 50, [s9T("WBC", 80, "10^3/uL"), s9T("Hb", 12, "g/dL"), s9T("PLT", 450, "10^3/uL"), ...s9Diff(80, 10, 5, 4.8, 0.2)]).p;
   assert.ok(!s9Ids(plain).includes("cml_suspicion"), String(s9Ids(plain)));
+});
+
+// ---------- M204b/M205/M206: پاسخِ بازبین به سه تصمیمِ بازِ note.md (۲۰۲۶-۰۹-۲۸) ----------
+test("M204b: متنِ شکِ CML نامِ بیماری ندارد — نه «CML» نه «میلوپرولیفراتیو»؛ در هر دو نسخهٔ کامل و کوتاه", () => {
+  const { e, p } = s9Run("M", 50, [s9T("WBC", 80, "10^3/uL"), s9T("Hb", 12, "g/dL"), s9T("PLT", 450, "10^3/uL"), ...s9Diff(70, 8, 4, 6, 5)]);
+  const shown = s9Find(p, "cml_suspicion");
+  assert.ok(shown, String(s9Ids(p)));
+  const full = RULES.find((r) => r.id === "cml_suspicion").build(e);
+  for (const t of [shown.must_say, full.must_say, full.brief, full.headline]) {
+    assert.doesNotMatch(t, /CML|میلوپرولیفراتیو|لوسمی|لوکمی|بدخیم|سرطان/, t);
+  }
+  assert.match(full.must_say, /اختلالات تکثیری مغز استخوان/, "جملهٔ جایگزینِ بازبین");
+});
+
+test("M205: سطحِ فوریتِ «soon» (۲۴ تا ۴۸ ساعت) — بینِ اورژانس و این هفته در ترتیب، دستورِ نهایی و برچسبِ پرامپت", async () => {
+  const { pickFinalAction, buildEnginePrompt } = await import("./prompt.js");
+  // بلاستِ کم کنارِ هایپرائوزینوفیلیِ «این هفته»: فوریتِ کل soon، بلاست اول، دستورِ نهایی ۲۴–۴۸ ساعت
+  const { e, p } = s9Run("M", 40, s9CBC(9, [s9T("Blasts", 3, "%"), s9T("EOS#", 2.0, "10^3/uL")]));
+  assert.equal(p.overall_urgency, "soon");
+  assert.equal(p.findings[0].pattern, "peripheral_smear_findings", String(s9Ids(p)));
+  assert.equal(pickFinalAction(p.findings).pattern, "peripheral_smear_findings");
+  assert.equal(p.has_critical, false, "soon اورژانس نیست");
+  // کنارِ یک اورژانسِ blocks_others: اورژانس اول، و یافتهٔ بلاست (always_show) نسخهٔ کوتاه می‌گیرد، گم نمی‌شود
+  const em = s9Run("M", 40, s9CBC(9, [s9T("Blasts", 3, "%"), s9T("K", 7.2, "mmol/L")])).p;
+  assert.equal(em.overall_urgency, "emergency");
+  assert.ok(s9SmearF(em), `یافتهٔ بلاست زیرِ اورژانس گم شد: ${s9Ids(em)}`);
+  assert.equal(pickFinalAction(em.findings).urgency, "emergency");
+  // برچسبِ فارسیِ پرامپت تعریف شده است (undefined به مدل نمی‌رود)
+  const prompt = JSON.stringify(buildEnginePrompt(e, p));
+  assert.match(prompt, /۲۴ تا ۴۸ ساعت/, "برچسبِ فوریتِ soon در پرامپت نیست");
+});
+
+test("M206: املاهای تازهٔ لام — «Blast: seen»، سرِ ردیفِ «شمارش دستی»/«Manual diff»؛ «Immature WBC» تنها بلاست نیست (N2)", () => {
+  for (const tests of [
+    [s9T("Blast", "seen")],
+    [s9T("Blasts %", 2, "%")],
+    [s9T("شمارش دستی", "Blast 2%")],
+    [s9T("Manual diff", "Few blasts seen")],
+  ]) {
+    const { e } = s9Run("M", 40, s9CBC(9, tests));
+    assert.deepEqual(s9Present(e), ["blasts"], `«${tests[0].name}: ${tests[0].value}»`);
+  }
+  const ig = s9Run("M", 40, s9CBC(9, [s9T("Immature WBC", 2, "%")]));
+  assert.deepEqual(s9Present(ig.e), [], "«Immature WBC» (گرانولوسیتِ نابالغ) بلاست خوانده شد");
 });

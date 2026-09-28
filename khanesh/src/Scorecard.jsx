@@ -22,6 +22,8 @@ import { countRows, stateOf, worstState } from "./resultStates.js";
 
 const URGENCY = {
   emergency: { label: "همین امروز دیده شود", cls: "st-emergency" },
+  // «۲۴ تا ۴۸ ساعت» — سطحِ جدا از ۲۰۲۶-۰۹-۲۸ (P56). همان رنگِ «خارج از محدوده»؛ رنگِ اورژانس نیست.
+  soon: { label: "ظرفِ ۲۴ تا ۴۸ ساعت با پزشک", cls: "st-out" },
   this_week: { label: "این هفته با پزشک", cls: "st-out" },
   routine: { label: "در نوبت عادیِ پزشک", cls: "st-near" },
   none: { label: "پیگیریِ فوری لازم ندانست", cls: "st-normal" },

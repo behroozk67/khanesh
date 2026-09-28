@@ -269,8 +269,9 @@ function textNamesTest(text, key) {
   return new RegExp(`(^|[^A-Za-z0-9_])${key}([^A-Za-z0-9_]|$)`).test(text);
 }
 
-const order = { emergency: 0, this_week: 1, routine: 2 };
-const rank = (u) => (u in order ? order[u] : 2);  // urgency نامعتبر → routine
+// soon = «ظرفِ ۲۴ تا ۴۸ ساعت» — بینِ اورژانس و این هفته (تصمیمِ بازبینِ بالینی ۲۰۲۶-۰۹-۲۸، P56؛ اول برای بلاستِ کم).
+const order = { emergency: 0, soon: 1, this_week: 2, routine: 3 };
+const rank = (u) => (u in order ? order[u] : 3);  // urgency نامعتبر → routine
 /** فوری‌ترین blocks_othersِ فهرست (Infinity اگر نباشد). */
 const blockerRankOf = (findings) =>
   Math.min(...findings.filter((f) => f.blocks_others).map((f) => rank(f.urgency)));

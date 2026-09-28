@@ -48,10 +48,11 @@ const CLOSING = "این اعداد را با برگهٔ اصلی به پزشک �
 const TROPONIN_WARNING = "اگر دردِ قفسهٔ سینه، تنگیِ نفس یا تعریقِ ناگهانی دارید، منتظر نمانید و همین حالا به اورژانس بروید.";
 const ACTION = {
   emergency: "همین حالا به اورژانس مراجعه کنید.",
+  soon: "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، با پزشک مطرح کنید.",
   this_week: "این هفته با پزشک مطرح کنید.",
   routine: "در نوبتِ عادی با پزشک مطرح کنید.",
 };
-const RANK = { none: 0, routine: 1, this_week: 2, emergency: 3 };
+const RANK = { none: 0, routine: 1, this_week: 2, soon: 3, emergency: 4 };
 
 /** محدودهٔ چاپ‌شده از *عددهای تجزیه‌شده* — نه متنِ خامِ OCR، که به پرامپت می‌رود. */
 function rangeText(p) {

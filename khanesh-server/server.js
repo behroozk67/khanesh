@@ -1169,7 +1169,7 @@ const analyzeHandler = async (req, res) => {
       //    جمله‌های افتاده اینجا برگردند، عدد هم با آن‌ها برمی‌گردد و تضمینِ بعدی
       //    دیگر فعال نمی‌شود — پس یک جمله دو بار اضافه نمی‌شود.
       const numbered = patternOut.findings.filter(
-        (f) => f.urgency === "emergency" || f.key_number != null
+        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null
       );
       if (numbered.length) {
         const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;
@@ -1356,7 +1356,7 @@ const analyzeHandler = async (req, res) => {
       //    جمله‌های افتاده اینجا برگردند، عدد هم با آن‌ها برمی‌گردد و تضمینِ بعدی
       //    دیگر فعال نمی‌شود — پس یک جمله دو بار اضافه نمی‌شود.
       const numbered = patternOut.findings.filter(
-        (f) => f.urgency === "emergency" || f.key_number != null
+        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null
       );
       if (numbered.length) {
         const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;

@@ -56,7 +56,7 @@ false.
 ```
 _engine = {
   patterns: [rule_id, …],   // e.g. ["microcytic_anemia", "unmatched_abnormal"]
-  urgency:  "emergency" | "this_week" | "routine" | "none",
+  urgency:  "emergency" | "soon" | "this_week" | "routine" | "none",   // soon = ۲۴ تا ۴۸ ساعت (2026-09-28، P56)
   abnormal: <number>,       // count only — kept for backward compat, prefer tests[]
   uncovered: [engine_key, …],   // keys no rule picked up — see the warning below
   indices:  { egfr, ca_measured, ca_corrected, … },   // derived values, NOT on the patient's sheet
