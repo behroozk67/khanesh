@@ -10416,8 +10416,11 @@ test("M220: نوزادِ ۱ روزه (job c138671c) — بی‌ویروس/مغز
   for (const id of ["leukopenia", "neutrophil_count_missing", "neonatal_reference_context", "low_rbc_hct_without_anemia"])
     assert.ok(ids.includes(id), `${id} فعال نشد: ${ids}`);
   // D3: لنفوسیتِ ۶۲۰۰ با ردیفِ ۰–۳ روزِ P57 (۲۰۰۰–۷۵۰۰) طبیعی است
-  for (const id of ["viral_lymphocytosis", "unexplained_abnormal"])
-    assert.ok(!ids.includes(id), `${id} نباید فعال شود: ${ids}`);
+  assert.ok(!ids.includes("viral_lymphocytosis"), `viral_lymphocytosis نباید فعال شود: ${ids}`);
+  // پاسخِ ۲۰۲۶-۰۹-۲۹: RDW-SD حالا بازه دارد (۵۵–۷۵) و ۸۴.۱ بالاست — تنها عددِ بی‌مالکِ این برگه
+  const un = runPatterns(e).findings.find((f) => f.pattern === "unexplained_abnormal");
+  assert.ok(un, `RDW-SDِ بالا باید در تورِ بی‌مالک بیاید: ${ids}`);
+  assert.match(un.must_say, /RDW-SD/);
   // D8
   assert.match(text, /نوزاد/); assert.match(text, /1 روز/);
   // D2/D3
@@ -10433,19 +10436,20 @@ test("M220: نوزادِ ۱ روزه (job c138671c) — بی‌ویروس/مغز
   assert.ok(recs.some((r) => /تشنج/.test(r)), "علائمِ خطرِ نوزادی در توصیه‌ها نیست");
   // D4/D5/D6: بی‌حکم و بیرون از «تفسیر نشدند» (یافتهٔ نوزادی توضیحشان داده)
   const graded = new Set(e.graded.map((g) => g.test));
-  // RDW-SD هنوز بازهٔ نوزادی ندارد؛ MCH مشتق است. RBC و RDW-CV با ردیف‌های P57 سنجیده می‌شوند.
-  for (const k of ["RDW_SD", "MCH"]) {
-    assert.ok(!graded.has(k), `${k} با بازه سنجیده شد`);
-    assert.ok(e.noRef.includes(k), `${k} در noRef نیست`);
-  }
-  assert.deepEqual(unexplainedNoRef(e.noRef, runPatterns(e).findings).filter((k) => ["RDW_SD", "MCH"].includes(k)), []);
+  // MCH مشتق است (از MCV و MCHC) و مستقل سنجیده نمی‌شود. RBC، RDW-CV و RDW-SD با ردیف‌های P57 سنجیده می‌شوند.
+  assert.ok(!graded.has("MCH"), "MCH با بازه سنجیده شد");
+  assert.ok(e.noRef.includes("MCH"), "MCH در noRef نیست");
+  assert.deepEqual(unexplainedNoRef(e.noRef, runPatterns(e).findings).filter((k) => k === "MCH"), []);
   const g = (k) => e.graded.find((x) => x.test === k);
   assert.equal(g("RBC").range, "4–6.5"); assert.equal(g("RBC").dir, "low");
-  assert.equal(g("RDW_CV").abnormal, false, "RDW-CV ۱۷.۳ در ۱۴.۵–۱۸.۵ است");
+  assert.equal(g("RDW_CV").abnormal, false, "RDW-CV ۱۷.۳ در ۱۴.۵–۱۹ است");
+  assert.equal(g("RDW_SD").range, "55–75"); assert.equal(g("RDW_SD").dir, "high");
   // P57 پرسش ۵: هیچ یافتهٔ دستوردارِ نوزاد «این هفته» نیست
   const p = runPatterns(e);
   assert.equal(p.overall_urgency, "emergency");
-  for (const f of p.findings.filter((x) => x.action)) {
+  // تصمیمِ ۲۰۲۶-۰۹-۲۹: تورِ بی‌مالکِ این برگه فقط RDW-SD و LYMPH_PCT دارد ⇒ معاف از کف (M221f)، همان routine
+  assert.deepEqual(un.uncovered.sort(), ["RDW_SD"]); assert.equal(un.urgency, "routine");
+  for (const f of p.findings.filter((x) => x.action && x.pattern !== "unexplained_abnormal")) {
     assert.equal(f.urgency, "emergency", f.pattern);
     assert.doesNotMatch([f.must_say, f.action, ...(f.warnings ?? [])].join(" "), /این هفته|نوبتِ? عادی|چند هفته/, f.pattern);
   }
@@ -10458,9 +10462,14 @@ test("M220b: نوزادِ سالم با RBC ۵.۵ «بالا» نمی‌خورد
   assert.ok(!e.abnormal.some((a) => a.test === "RBC"), "RBCِ ۵.۵ نوزاد غیرطبیعی شد");
   // P57 پرسش ۱: حالا با ردیفِ نوزادی (۴.۰–۶.۵) سنجیده می‌شود، نه با ۴.۱–۵.۱ِ زنِ بزرگسال
   assert.equal(e.graded.find((g) => g.test === "RBC")?.range, "4–6.5");
-  // روزِ ۴ تا ۷ در پاسخِ بازبین نیست ⇒ سنجیده نمی‌شود و یافتهٔ نوزادی دلیلش را می‌گوید
+  // پاسخِ ۲۰۲۶-۰۹-۲۹: روزِ ۴ تا ۷ ⇒ ۴.۲–۶.۲؛ ۲۸ روز تا ۳ ماه ⇒ ۳.۲–۴.۸
   const d5 = m220Run("5 روز", healthy);
-  assert.ok(!d5.e.graded.some((g) => g.test === "RBC")); assert.ok(d5.ids.includes("neonatal_reference_context"), String(d5.ids));
+  assert.equal(d5.e.graded.find((g) => g.test === "RBC")?.range, "4.2–6.2");
+  assert.equal(d5.e.graded.find((g) => g.test === "RBC")?.abnormal, false);
+  const d40 = m220Run("40 روز", healthy.map((t) => (t.name === "RBC" ? m220T("RBC", "4.0", "10^6/µL") : t)));
+  assert.equal(d40.e.graded.find((g) => g.test === "RBC")?.range, "3.2–4.8");
+  assert.equal(d40.e.graded.find((g) => g.test === "RBC")?.abnormal, false);
+  assert.equal(m220Run("40 روز", healthy).e.graded.find((g) => g.test === "RBC")?.dir, "high", "RBC ۵.۵ در ۴۰ روزگی بالاست");
   // مرزِ دوره همان ردیفِ اولِ PED_REFS.MCV است (سه ماه): در ۴ ماهگی قاعدهٔ عمومیِ RCPCH برمی‌گردد
   const older = m220Run("4 ماه", healthy);
   assert.ok(older.e.graded.some((g) => g.test === "RBC"), "RBC در ۴ ماهگی سنجیده نشد");
@@ -10507,13 +10516,44 @@ test("M221: P57 پرسش ۷ و ۴ — Hbِ ۱۵.۳ در روزِ ۲۰ طبیعی
   assert.equal(ly.range, "2000–7500"); assert.equal(ly.abnormal, false);
 });
 
-test("M221b: P57 پرسش ۲ — RDW-CVِ نوزادِ زیرِ ۱ ماه با ۱۴.۵–۱۸.۵ سنجیده می‌شود؛ RDW-SD و RDW-CVِ بعد از ۲۸ روز بی‌بازه‌اند (بازهٔ بزرگسال نه)", () => {
-  const e = (age, v) => runEngine({ patient: { age }, tests: [m220T("RDW-CV", v, "%"), m220T("RDW-SD", "80", "fL")] });
-  const d1 = e("1 روز", "17.3");
-  assert.equal(d1.graded.find((g) => g.test === "RDW_CV")?.abnormal, false);
-  assert.ok(d1.noRef.includes("RDW_SD"));
-  assert.equal(e("1 روز", "19.5").graded.find((g) => g.test === "RDW_CV")?.dir, "high");
-  assert.ok(e("40 روز", "17.3").noRef.includes("RDW_CV"), "۴۰ روزه نباید با بازهٔ بزرگسال سنجیده شود");
+test("M221b: P57 (پاسخ ۲۰۲۶-۰۹-۲۹) — RDW-CV: زیرِ ۲۸ روز ۱۴.۵–۱۹، ۲۸ روز تا ۳ ماه ۱۳–۱۶؛ RDW-SD: ۵۵–۷۵ و ۴۰–۵۲؛ بعد از ۳ ماه دوباره بزرگسال", () => {
+  const e = (age, cv, sd) => runEngine({ patient: { age }, tests: [m220T("RDW-CV", cv, "%"), m220T("RDW-SD", sd, "fL")] });
+  const g = (r, k) => r.graded.find((x) => x.test === k);
+  const d1 = e("1 روز", "17.3", "65");
+  assert.equal(g(d1, "RDW_CV")?.range, "14.5–19"); assert.equal(g(d1, "RDW_CV")?.abnormal, false);
+  assert.equal(g(d1, "RDW_SD")?.range, "55–75"); assert.equal(g(d1, "RDW_SD")?.abnormal, false);
+  assert.equal(g(e("1 روز", "18.9", "80"), "RDW_CV")?.abnormal, false, "سقفِ ۱۹ (نه ۱۸.۵)");
+  assert.equal(g(e("1 روز", "19.5", "80"), "RDW_CV")?.dir, "high");
+  assert.equal(g(e("1 روز", "19.5", "80"), "RDW_SD")?.dir, "high");
+  const d40 = e("40 روز", "14", "45");
+  assert.equal(g(d40, "RDW_CV")?.range, "13–16"); assert.equal(g(d40, "RDW_CV")?.abnormal, false);
+  assert.equal(g(d40, "RDW_SD")?.range, "40–52"); assert.equal(g(d40, "RDW_SD")?.abnormal, false);
+  assert.equal(g(e("40 روز", "17.3", "45"), "RDW_CV")?.dir, "high");
+  assert.equal(g(e("4 ماه", "13", "45"), "RDW_CV")?.range, "11.5–14.5", "بعد از ۳ ماه قاعدهٔ عمومیِ RCPCH (بزرگسال) برمی‌گردد");
+});
+
+test("M221e: P57 (پاسخ ۲۰۲۶-۰۹-۲۹) — MCH روزِ ۰–۳ ⇒ ۳۲–۴۲ (نه ۳۱–۳۷)؛ روزِ ۱۰ همان ۳۱–۳۷", () => {
+  const mch = (age, v) => runEngine({ patient: { age }, tests: [m220T("MCH", v, "pg")] }).graded.find((x) => x.test === "MCH");
+  assert.equal(mch("1 روز", "40").range, "32–42"); assert.equal(mch("1 روز", "40").abnormal, false, "۴۰ پیش‌تر «بالا» بود");
+  assert.equal(mch("10 روز", "40").range, "31–37"); assert.equal(mch("10 روز", "40").dir, "high");
+});
+
+test("M221f: P57 (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۹) — RDW تنها کفِ نوزادی نمی‌گیرد (اورژانسِ واقعی می‌گیرد)؛ LYMPH_PCT سنجیده نمی‌شود؛ MCHCِ نوزاد ۳۰–۳۶", () => {
+  const g = (r, k) => r.graded.find((x) => x.test === k);
+  const lym = runEngine({ patient: { age: "1 روز" }, tests: [m220T("WBC", "12", "10^3/µL"), m220T("LYM%", "55", "%")] });
+  assert.equal(g(lym, "LYMPH_PCT"), undefined, "درصدِ لنفوسیت سنجیده نمی‌شود");
+  for (const tests of [[m220T("RDW-SD", "80", "fL")], [m220T("RDW-CV", "21", "%")]]) {
+    const p = runPatterns(runEngine({ patient: { age: "1 روز" }, tests }));
+    assert.equal(p.overall_urgency, "routine", JSON.stringify(tests));
+    assert.ok(!p.findings.some((f) => f.neonatal_floor));
+  }
+  const real = runPatterns(runEngine({ patient: { age: "1 روز" }, tests: [m220T("RDW-SD", "80", "fL"), m220T("K", "6.9", "mmol/L")] }));
+  assert.equal(real.overall_urgency, "emergency");
+  assert.equal(runPatterns(runEngine({ patient: { age: "30 سال", sex: "M" }, tests: [m220T("RDW-SD", "80", "fL")] })).overall_urgency, "routine");
+  const mchc = (age, v) => g(runEngine({ patient: { age }, tests: [m220T("MCHC", v, "g/dL")] }), "MCHC");
+  assert.equal(mchc("1 روز", "30.5").range, "30–36"); assert.equal(mchc("1 روز", "30.5").abnormal, false, "۳۰.۵ پیش‌تر «پایین» بود");
+  assert.equal(mchc("27 روز", "36").abnormal, false);
+  assert.equal(mchc("40 روز", "30.5").range, "32–35"); assert.equal(mchc("40 روز", "30.5").dir, "low");
 });
 
 test("M221c: P57 پرسش ۳ — MCHی که بیش از ۱۰٪ با MCV × MCHC ÷ ۱۰۰ نمی‌خواند پرچمِ فنی می‌گیرد و از قضاوت بیرون است (همهٔ سنین)", () => {

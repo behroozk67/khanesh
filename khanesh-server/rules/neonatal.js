@@ -31,6 +31,9 @@ export const NEONATAL_DANGER_WARNING =
 //   «همین امروز» — همان جفتِ فوریت/جمله که leukopeniaِ شدید دارد (N20). رفتنِ فوری به اورژانس فقط با علائمِ خطر است.
 export const NEONATAL_TODAY_ACTION = "همین امروز این برگه را به پزشکِ نوزاد (متخصصِ کودکان) نشان دهید یا با او تماس بگیرید.";
 const FLOORED = new Set(["routine", "this_week", "soon"]);
+// تصمیمِ کاربر ۲۰۲۶-۰۹-۲۹: RDW (CV و SD) فقط شاخصِ کمکی‌اند؛ اگر تنها عددِ بی‌مالکِ برگه باشند، کفِ نوزادی
+//   «همین امروز» نمی‌سازد (بدونِ این، نوزادِ ۱ روزه با RDW-SD 80 تنها ⇒ emergency، N3). یافتهٔ بی‌مالک همان سطحِ خودش را می‌ماند.
+export const NEONATAL_NO_FLOOR_KEYS = new Set(["RDW_SD", "RDW_CV"]);
 /**
  * کفِ فوریتِ نوزادی — در runPatterns، پیش از انتخاب/سرکوبِ یافته‌ها. فقط یافته‌ای که دستور دارد (action ناتهی) و فنی نیست
  * (technical: ناهماهنگیِ شاخص‌ها خطای دستگاه است، نه یافتهٔ بالینی). کاوشِ درونیِ adapter (`_probe`) کف نمی‌گیرد، وگرنه
@@ -41,6 +44,9 @@ export function applyNeonatalFloor(findings, engineOut) {
   if (engineOut?._probe || !isNeonate(engineOut?.age)) return;
   for (const f of findings) {
     if (!f.action || f.technical || !FLOORED.has(f.urgency)) continue;
+    if (f.uncovered?.length && f.uncovered.every((k) => NEONATAL_NO_FLOOR_KEYS.has(k))) continue;
+    // تورِ «هیچ قاعده‌ای نبود» (patterns.js) فیلدِ uncovered ندارد — همهٔ غیرطبیعی‌ها را از خودِ موتور می‌خوانیم.
+    if (f.pattern === "unmatched_abnormal" && engineOut.abnormal?.length && engineOut.abnormal.every((a) => NEONATAL_NO_FLOOR_KEYS.has(a.test))) continue;
     f.urgency = "emergency";
     f.neonatal_floor = true;
     f.action = NEONATAL_TODAY_ACTION;
