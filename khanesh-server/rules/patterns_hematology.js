@@ -1,9 +1,10 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { getPedRef, isPediatricRCPCH } from "./refs_ped.js";
 import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
+import { factorOwnsAptt } from "./patterns_hemostasis.js";
 
 // P58 (N20): وقتی یکی از دو سطحِ «لکوسیتوز + سیتوپنیِ شدید» فعال است، WBC صاحب دارد و leukocytosis کنار می‌رود — دو یافته
 //   دربارهٔ یک عدد نمی‌سازیم. «آیا آن قاعده فعال می‌شود»، نه تکرارِ آستانه‌ها (M91e).
@@ -173,6 +174,9 @@ export const macrocyticMatch = (e) => {
   return !!(hgb?.abnormal && hgb.dir === "low" && val(e).MCV > macroMcvCut(e));
 };
 // فوریت و جملهٔ اقدام از یک تصمیم (N20) — همان کمکیِ patterns_cardiac.js، عمداً کپی.
+// specs/010 (P61، D6 = B): پلاکتِ «شدیداً بالا» — تأییدِ کاربر؛ عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم.
+const PLT_EXTREME_KUL = 1000;
+
 function actionFor(urgency, { week, routine }) {
   return urgency === "this_week" ? week : routine;
 }
@@ -315,6 +319,50 @@ export const RULES_HEMATOLOGY = [
         action: "همین امروز به اورژانس مراجعه کنید.",
         suggest: [],
         blocks_others: true,
+      };
+    },
+  },
+  // ═══ specs/010 (P61، Q1 = گزینهٔ C): ردهٔ پایینِ امتیازِ ISTH — isDIC و dic_pattern دست نخوردند ═══
+  // فقط وقتی dic_pattern فعال نیست، پلاکت ۵۰ تا کمتر از ۱۰۰ است و D-dimer بالای ۴۰۰ ng/mL. PLT < 50 عمداً بیرون است
+  // (analyze H2): severe_thrombocytopenia همان را اورژانس کرده و «۲۴–۴۸ ساعت» کنارش زمان‌بندیِ دوم می‌شد (N20).
+  // ⚠️ نامِ «DIC» در متنِ بیمار نیست (FR-010). PT فقط با PTِ کنترلِ چاپ‌شده امتیاز می‌گیرد؛ وگرنه «امتیازپذیر نیست»، نه صفر (N4).
+  // ⚠️ جمعِ ≥ ۵ بی isDIC همان «soon» می‌ماند — پرسشِ باز 61-b.
+  {
+    id: "dic_isth_score",
+    match: (e) => {
+      if (isDIC(e)) return false;
+      const t = val(e);
+      return t.PLT != null && t.PLT >= ISTH_PLT_2 && t.PLT < ISTH_PLT_1 &&
+        t.DDIMER != null && t.DDIMER > ISTH_DDIMER_MODERATE_NGML;
+    },
+    build: (e) => {
+      const t = val(e);
+      const s = isthScore(e);
+      const ctrl = e.hemostasis?.PT_CONTROL;
+      const lines = [
+        "پلاکتِ کم همراه با D-dimerِ بالا می‌تواند نشانهٔ فعال‌شدنِ هم‌زمانِ لخته‌سازی و مصرفِ عواملِ انعقادی در بدن باشد، و برای سنجیدنش یک امتیازبندیِ استاندارد (ISTH) به کار می‌رود.",
+        `پلاکتِ شما ${t.PLT} است (امتیاز ${s.plt}) و D-dimer بالاست (امتیاز ${s.ddimer}).`,
+      ];
+      if (s.pt != null) lines.push(`PT شما ${t.PT} ثانیه است، یعنی ${Math.round((t.PT - ctrl.value) * 10) / 10} ثانیه بیشتر از زمانِ کنترلِ آزمایشگاه که ${ctrl.value} ثانیه است (امتیاز ${s.pt}).`);
+      else if (t.PT != null) lines.push("PT امتیاز نگرفت، چون زمانِ کنترلِ آزمایشگاه روی برگه چاپ نشده است.");
+      else lines.push("PT روی این برگه نیست.");
+      if (s.fib != null) lines.push(`فیبرینوژنِ شما ${t.FIB} mg/dL است (امتیاز ${s.fib}).`);
+      else lines.push("فیبرینوژن روی این برگه نیست.");
+      lines.push(`جمعِ امتیازی که از این برگه می‌شود حساب کرد ${s.total} از ۸ است` +
+        (s.total >= ISTH_OVERT_FROM
+          ? "؛ این جمع به آستانهٔ ۵ می‌رسد که در این امتیازبندی الگوی «آشکار» شمرده می‌شود."
+          : "؛ این جمع زیرِ ۵ است، و در این حالت روش این است که آزمایش‌ها تکرار شوند."));
+      lines.push("این امتیازبندی فقط وقتی معنا دارد که بیماریِ زمینه‌ایِ مرتبط، مثل عفونتِ شدید، آسیبِ شدید، سرطان یا عارضهٔ بارداری، وجود داشته باشد؛ اینکه چنین زمینه‌ای هست یا نه را پزشک تشخیص می‌دهد.");
+      const suggest = ["تکرار آزمایش انعقاد"];
+      if (t.FIB == null) suggest.push("فیبرینوژن");
+      return {
+        pattern: "dic_isth_score",
+        urgency: "soon",
+        headline: "پلاکتِ کم و D-dimerِ بالا با هم — آزمایش‌ها باید زود تکرار شوند",
+        must_say: lines.join(" "),
+        action: "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید تا پلاکت، D-dimer، PT و فیبرینوژن تکرار شوند.",
+        suggest,
+        warnings: ["اگر خونریزیِ غیرعادی، کبودیِ بی‌دلیل، تنگیِ نفس یا درد و تورمِ ناگهانیِ پا داشتید، همان موقع به اورژانس بروید."],
       };
     },
   },
@@ -685,16 +733,24 @@ export const RULES_HEMATOLOGY = [
     },
     build: (e) => {
       const p = e.graded.find((g) => g.test === "PLT");
+      // specs/010 (P61، D6 = گزینهٔ B): پلاکتِ ≥ ۱۰۰۰ ×10³/µL (یک میلیون) دیگر «در بیشتر موارد واکنشی» و routine نیست.
+      //   تأییدِ کاربر؛ عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم. زیرِ ۱۰۰۰ خروجی بایت‌به‌بایت همان پیشین است (M256).
+      const extreme = p.value >= PLT_EXTREME_KUL;
+      const urgency = extreme ? "this_week" : "routine";
       return {
         pattern: "thrombocytosis",
-        urgency: "routine",
+        urgency,
         headline: "پلاکت خون شما بالاتر از حد طبیعی است",
-        must_say:
-          `پلاکت شما ${p.value} است (حد طبیعی ${p.range}). ` +
-          "پلاکت بالا در بیشتر موارد یک واکنش موقت بدن است — به التهاب، عفونت، کمبود آهن، یا پس از خونریزی (به این حالت «واکنشی» می‌گویند). کمتر پیش می‌آید که از خود مغز استخوان باشد. تکرار آزمایش و بررسی آهن معمولاً تصویر را روشن می‌کند.",
-        action: "نوبت عادی با پزشک.",
+        must_say: extreme
+          ? `پلاکت شما ${p.value} است (حد طبیعی ${p.range})؛ یعنی بیش از یک میلیون در هر میکرولیتر. ` +
+            "پلاکتِ بالا گاهی واکنشِ موقتِ بدن به التهاب، عفونت، کمبودِ آهن یا خونریزی است، ولی عددی تا این اندازه بالا را باید حتماً پزشک بررسی کند، چون ممکن است از خودِ مغزِ استخوان باشد."
+          : `پلاکت شما ${p.value} است (حد طبیعی ${p.range}). ` +
+            "پلاکت بالا در بیشتر موارد یک واکنش موقت بدن است — به التهاب، عفونت، کمبود آهن، یا پس از خونریزی (به این حالت «واکنشی» می‌گویند). کمتر پیش می‌آید که از خود مغز استخوان باشد. تکرار آزمایش و بررسی آهن معمولاً تصویر را روشن می‌کند.",
+        action: actionFor(urgency, { week: "این هفته با پزشک وقت بگیرید.", routine: "نوبت عادی با پزشک." }),
         suggest: ["CRP", "فریتین", "تکرار CBC"],
-        warnings: [],
+        warnings: extreme
+          ? ["اگر خونریزیِ غیرعادی، دردِ قفسهٔ سینه، ضعف یا بی‌حسیِ ناگهانی، یا درد و تورمِ ناگهانیِ پا داشتید، همان روز به اورژانس بروید."]
+          : [],
       };
     },
   },
@@ -1723,6 +1779,9 @@ export const RULES_HEMATOLOGY = [
   {
     id: "coagulation_abnormal",
     match: (e) => {
+      // specs/010 (R8، N20): وقتی فعالیتِ فاکتور پایین است و APTT تنها شاخصِ غیرطبیعیِ انعقاد است، factor_activity مالکِ
+      //   APTT است و هر دو هشدار و جملهٔ داروها را با خودش دارد (M155). بی‌این، یک APTT دو یافته با دو زمان‌بندی می‌گرفت.
+      if (factorOwnsAptt(e)) return false;
       const pt = e.graded.find((g) => g.test === "PT");
       const aptt = e.graded.find((g) => g.test === "APTT");
       const fib = e.graded.find((g) => g.test === "FIB");

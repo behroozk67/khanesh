@@ -14,6 +14,7 @@ import { RULES_TRACE_ELEMENTS } from "./patterns_trace_elements.js";
 import { RULES_URINE_CASTS } from "./patterns_urine_casts.js";
 import { RULES_URINALYSIS } from "./patterns_urinalysis.js";
 import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
+import { RULES_HEMOSTASIS } from "./patterns_hemostasis.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { applyNeonatalFloor } from "./neonatal.js";
@@ -44,7 +45,8 @@ export const RULES = [
   ...RULES_TRACE_ELEMENTS,
   ...RULES_URINE_CASTS,
   ...RULES_URINALYSIS,
-  ...RULES_LEUKOCYTE
+  ...RULES_LEUKOCYTE,
+  ...RULES_HEMOSTASIS
 ];
 
 //    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ

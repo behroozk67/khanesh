@@ -895,3 +895,21 @@ test("T31: _engine.critical_banner — نوزادِ «فقط-به‌خاطرِ-�
   assert.equal(adult.body.has_critical, true);
   assert.equal(adult.body._engine.critical_banner, null);
 });
+
+test("T32: برگهٔ فاکتور ۸ مسیرِ موتور و factor_activity می‌گیرد — نه «طبیعی»، نه مسیرِ قدیم (specs/010، FR-019، N2/N18)", async () => {
+  // 🔴 روی e285030: «Factor VIII Activity 0.5 %» unmapped بود. با Hbِ طبیعی ⇒ پاسخِ آمادهٔ «نتایج شما طبیعی است»؛
+  //    تنها ⇒ graded خالی ⇒ مسیرِ قدیمِ بی‌موتور، جایی که مدل خودش شدت را قضاوت می‌کند.
+  const t = (name, value, unit = "") => ({ name, value, unit });
+  // بازوی ۱: کنارِ یک Hbِ طبیعی
+  const a1 = await analyze({ patient: { age: 25, sex: "M" }, tests: [t("Factor VIII Activity", "0.5", "%"), t("HGB", "14", "g/dL")] });
+  assert.equal(a1.status, 200);
+  assert.ok(a1.body?._engine?.patterns?.includes("factor_activity"), JSON.stringify(a1.body?._engine?.patterns));
+  assert.doesNotMatch(`${a1.body.summary} ${a1.body.interpretation}`, /در محدوده طبیعی است/);
+  assert.doesNotMatch(JSON.stringify(a1.body), /\b(FVIII|FVIII_INHIB|VWF_AG|VWF_ACT|PT_CONTROL)\b(?!:)/, "کلیدِ خام به پاسخ رسید");
+  // بازوی ۲: فقط همین یک ردیف — هیچ تستِ نمره‌داری نیست
+  const a2 = await analyze({ patient: { age: 25, sex: "M" }, tests: [t("Factor VIII Activity", "0.5", "%")] });
+  assert.equal(a2.status, 200);
+  assert.ok(a2.body?._engine, "مسیرِ موتور گرفته نشد (مسیرِ قدیمِ بی‌موتور)");
+  assert.ok(a2.body._engine.patterns.includes("factor_activity"), JSON.stringify(a2.body._engine.patterns));
+  assert.equal(a2.body.has_critical, false);
+});

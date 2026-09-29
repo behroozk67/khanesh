@@ -1,0 +1,200 @@
+── fviii_05
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:this_week  urgency=this_week
+── fviii_3_aptt
+  graded: WBC=7 HGB=14 APTT=68↑ PT=12
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:this_week  urgency=this_week
+── fviii_iu
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:this_week  urgency=this_week
+── fix_40
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FIX"]
+  findings: factor_activity:routine  urgency=routine
+── fix_abbr
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FIX"]
+  findings: factor_activity:this_week  urgency=this_week
+── fa_8
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:this_week  urgency=this_week
+── inhib
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII_INHIB"]
+  findings: factor_inhibitor:this_week  urgency=this_week
+── inhib_neg
+  graded: WBC=7 HGB=14
+  unmapped: ["Inhibitor"]  noRef: []  hemostasis: []
+  findings:   urgency=none
+── vwf
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["VWF_AG","VWF_ACT"]
+  findings: vwf_panel:this_week  urgency=this_week
+── vwf_ag
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["VWF_AG"]
+  findings: vwf_panel:this_week  urgency=this_week
+── tt
+  graded: WBC=7 HGB=14
+  unmapped: ["Thrombin Time"]  noRef: []  hemostasis: []
+  findings:   urgency=none
+── tt_abbr
+  graded: WBC=7 HGB=14
+  unmapped: ["TT"]  noRef: []  hemostasis: []
+  findings:   urgency=none
+── pt_ctrl
+  graded: WBC=7 HGB=14 PT=19↑ INR=1.6↑
+  unmapped: []  noRef: []  hemostasis: ["PT_CONTROL"]
+  findings: coagulation_abnormal:this_week  urgency=this_week
+── isth_nonovert
+  graded: WBC=7 HGB=13↓ PLT=80↓ DDIMER=2000↑ PT=14↑ FIB=250
+  unmapped: []  noRef: []  hemostasis: []
+  findings: dic_isth_score:soon, d_dimer_elevated:this_week, thrombocytopenia:this_week, coagulation_abnormal:this_week, unexplained_abnormal:routine  urgency=soon
+── dic_emerg
+  graded: WBC=7 HGB=13↓ PLT=60↓ PT=18↑ FIB=120↓
+  unmapped: []  noRef: []  hemostasis: []
+  findings: possible_DIC:emergency, coagulation_abnormal:this_week, unexplained_abnormal:routine  urgency=emergency
+── plt_450
+  graded: WBC=7 HGB=14 PLT=500↑
+  unmapped: []  noRef: []  hemostasis: []
+  findings: thrombocytosis:routine  urgency=routine
+── plt_1200
+  graded: WBC=7 HGB=14 PLT=1200↑
+  unmapped: []  noRef: []  hemostasis: []
+  findings: thrombocytosis:this_week  urgency=this_week
+── isth5_no_dic
+  graded: WBC=7 HGB=13↓ PLT=40↓ DDIMER=6000↑ PT=12 FIB=300
+  unmapped: []  noRef: []  hemostasis: []
+  findings: severe_thrombocytopenia:emergency, d_dimer_elevated:this_week, unexplained_abnormal:routine  urgency=emergency
+── adamts
+  graded: WBC=7 HGB=14
+  unmapped: ["ADAMTS13 activity"]  noRef: []  hemostasis: []
+  findings:   urgency=none
+── factor_only_fviii
+  graded: 
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:this_week  urgency=this_week
+── fix_neonate
+  graded: 
+  unmapped: []  noRef: []  hemostasis: ["FIX"]
+  findings: factor_activity:routine  urgency=routine
+── neo_hb17
+  graded: WBC=15 HGB=17
+  unmapped: []  noRef: []  hemostasis: []
+  findings: erythrocytosis_who_screen:emergency  urgency=emergency
+── fviii_child
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:routine  urgency=routine
+── fviii_noage
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:routine  urgency=routine
+── isth_plt49
+  graded: WBC=7 HGB=13↓ PLT=45↓ DDIMER=3000↑ PT=12
+  unmapped: []  noRef: []  hemostasis: []
+  findings: severe_thrombocytopenia:emergency, d_dimer_elevated:this_week, unexplained_abnormal:routine  urgency=emergency
+── factor_vii
+  graded: WBC=7 HGB=14
+  unmapped: ["Factor VII"]  noRef: []  hemostasis: []
+  findings:   urgency=none
+── factor_x
+  graded: WBC=7 HGB=14
+  unmapped: ["Factor X"]  noRef: []  hemostasis: []
+  findings:   urgency=none
+── factor_v
+  graded: WBC=7 HGB=14
+  unmapped: ["Factor V"]  noRef: []  hemostasis: []
+  findings:   urgency=none
+── bare_inhibitor_pos
+  graded: WBC=7 HGB=14
+  unmapped: ["Inhibitor"]  noRef: []  hemostasis: []
+  findings:   urgency=none
+── inhib_num_noref
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII_INHIB"]
+  findings: factor_inhibitor:this_week  urgency=this_week
+── inhib_num_ref
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII_INHIB"]
+  findings: factor_inhibitor:this_week  urgency=this_week
+── inhib_word_neg
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII_INHIB"]
+  findings: factor_inhibitor:routine  urgency=routine
+── fviii_ref_printed
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:routine  urgency=routine
+── fviii_inrange
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:routine  urgency=routine
+── fviii_31_noref
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:routine  urgency=routine
+── fviii_unitless
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:routine  urgency=routine
+── fviii_normal_fix_normal_aptt_high
+  graded: WBC=7 HGB=14 APTT=68↑ PT=12
+  unmapped: []  noRef: []  hemostasis: ["FVIII","FIX"]
+  findings: coagulation_abnormal:this_week, factor_activity:routine  urgency=this_week
+── vwf_ratio_ok
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["VWF_AG","VWF_ACT"]
+  findings: vwf_panel:routine  urgency=routine
+── vwf_ract_only
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["VWF_ACT"]
+  findings: vwf_panel:this_week  urgency=this_week
+── vwf_noref
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["VWF_AG","VWF_ACT"]
+  findings: vwf_panel:this_week  urgency=this_week
+── vwf_with_fviiic
+  graded: WBC=7 HGB=14
+  unmapped: []  noRef: []  hemostasis: ["VWF_AG","VWF_ACT","FVIII"]
+  findings: vwf_panel:this_week  urgency=this_week
+── vwf_plt_low
+  graded: WBC=7 HGB=13 PLT=90↓
+  unmapped: []  noRef: []  hemostasis: ["VWF_AG","VWF_ACT"]
+  findings: thrombocytopenia:this_week, isolated_thrombocytopenia:this_week, vwf_panel:this_week  urgency=this_week
+── plt_999
+  graded: WBC=7 HGB=14 PLT=999↑
+  unmapped: []  noRef: []  hemostasis: []
+  findings: thrombocytosis:routine  urgency=routine
+── plt_1000
+  graded: WBC=7 HGB=14 PLT=1000↑
+  unmapped: []  noRef: []  hemostasis: []
+  findings: thrombocytosis:this_week  urgency=this_week
+── plt_raw_1200000
+  graded: WBC=7 HGB=14 PLT=1200↑
+  unmapped: []  noRef: []  hemostasis: []
+  findings: thrombocytosis:this_week  urgency=this_week
+── isth_score5_ctrl
+  graded: WBC=7 HGB=13↓ PLT=70↓ DDIMER=4500↑ PT=14↑ FIB=250
+  unmapped: []  noRef: []  hemostasis: ["PT_CONTROL"]
+  findings: dic_isth_score:soon, d_dimer_elevated:this_week, thrombocytopenia:this_week, coagulation_abnormal:this_week, unexplained_abnormal:routine  urgency=soon
+── fix_low_aptt
+  graded: WBC=7 HGB=14 APTT=70↑ PT=12
+  unmapped: []  noRef: []  hemostasis: ["FIX"]
+  findings: factor_activity:this_week  urgency=this_week
+── fviii_low_aptt_pt
+  graded: WBC=7 HGB=14 APTT=70↑ PT=18↑
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: coagulation_abnormal:this_week, factor_activity:this_week  urgency=this_week
+── fviii_low_aptt_norm
+  graded: WBC=7 HGB=14 APTT=30 PT=12
+  unmapped: []  noRef: []  hemostasis: ["FVIII"]
+  findings: factor_activity:this_week  urgency=this_week
+── aptt_only
+  graded: WBC=7 HGB=14 APTT=68↑ PT=12
+  unmapped: []  noRef: []  hemostasis: []
+  findings: coagulation_abnormal:this_week  urgency=this_week

@@ -1,6 +1,28 @@
-# RESUME HERE — خلاصهٔ وضعیت — ۲۰۲۶-۰۹-۲۹ (شب)
+# RESUME HERE — خلاصهٔ وضعیت — ۲۰۲۶-۰۹-۳۰
 
-## ⭐ جدیدترین: P59 — job `40b8a901` (پان‌سیتوپنیِ بزرگسال با اوره/PT/K بالا) — **کامیت‌نشده**
+## ⭐ جدیدترین: specs/010 — قواعدِ هموستاز/انعقاد (Henry فصل‌های ۲۴، ۳۹–۴۱) — پیاده‌شده، در همین کامیت
+درخت: `cd khanesh-server && npm test` ⇒ `tests 779 · pass 760 · fail 0 · todo 19` (پایهٔ e285030: `764 · 745 · 0 · 19`). lint فرانت exit 0.
+⚠️ یک اجرا در همین روز `pass 734 · fail 26` داد و خروجی‌اش ذخیره نشد؛ هفت اجرای بعدی (از جمله دو اجرای هم‌زمان) همه ۰ شکست. علت نامعلوم؛ اگر دوباره دیدی، **نام تست‌های قرمز** را ذخیره کن.
+قرمز-اول (روی e285030): M247–M256، M258 و T32 قرمز؛ M257 (freeze) عمداً سبز. شناسه‌ها: فقط ۴ افزوده (`dic_isth_score`، `factor_activity`، `factor_inhibitor`، `vwf_panel`)، ۱۵۷ ⇒ ۱۶۱.
+
+### انجام شد
+- کانالِ بی‌نمرهٔ `hemostasis` در `adapter.js` (FVIII، FIX، vWF:Ag، vWF:RCo، مهارکنندهٔ Bethesda، PT Control) با واحدِ جدا در `units.js`؛ فاکتور V/VII/X/XI/XII/XIII و «Inhibitor» تنها عمداً unmapped.
+- `patterns_hemostasis.js` (جدید): `factor_activity` (رده‌های شدید <۱٪ / متوسط ≤۵٪ / خفیف ≤۳۰٪)، `factor_inhibitor`، `vwf_panel`؛ بی‌مسیرِ اورژانس؛ شاخهٔ کودک/نوزاد بدونِ `action` (کفِ نوزادی هر action را اورژانس می‌کند).
+- `dic_isth_score` در `patterns_hematology.js` (۵۰ ≤ PLT < ۱۰۰ و D-dimer > ۴۰۰، بدونِ DIC فعال ⇒ `soon`)؛ پلاکت ≥ ۱۰۰۰ ⇒ `this_week` در `thrombocytosis`.
+- `coagulation_abnormal` وقتی فاکتور مالکِ aPTT است کنار می‌رود (`factorOwnsAptt`). `server.js`: جملهٔ OCR_PROMPT + گیتِ fallback + `safeEngineOut`.
+- `MEDICAL_RULES.md` بخش P61؛ `CLAUDE.md` (فایل‌ها، ۱۶۱ قاعده، N2)؛ مستنداتِ `specs/010-hemostasis-coagulation-rules/` (۴۲ تسک [X]).
+- پیش‌فرض‌هایی که خودم بعد از analyze گرفتم (برگشت‌پذیر): I2 FVIII:C در برگهٔ vWF مالِ `vwf_panel`؛ I3 سنِ نامعلوم با مرزهای بزرگسال + جملهٔ «سن روی برگه نبود»؛ C1 آستانه‌های ۰٫۵ BU و نسبت ۰٫۶ فقط نقل؛ H2 PLT < ۵۰ از `dic_isth_score` بیرون.
+
+### باقی‌مانده برای specs/010 (همه در `MEDICAL_RULES.md` P61)
+1. **تأییدِ کاربر روی متن‌های فارسیِ تازه** (فهرستشان در گزارشِ پایانِ /speckit-implement؛ قالب‌های factor_activity/inhibitor/vwf_panel/dic_isth_score/thrombocytosis ≥۱۰۰۰ و جملهٔ OCR_PROMPT).
+2. **61-a** اعدادِ ADAMTS13 و TT بزرگسال (فعلاً unmapped/«تفسیر نشدند»). **61-b** ISTH ≥ ۵ بدونِ `isDIC`: اورژانس یا همان `soon`. **61-c** تأییدِ اینکه هیچ ردهٔ فاکتور اورژانس نیست. **61-d** پذیرشِ ۰٫۵ BU و ۰٫۶. **61-e** دو مشکلِ پیش‌ازاین در `isolated_thrombocytopenia` (فوریتِ `"today"` بیرونِ جدولِ رتبه؛ «سایر رده‌ها طبیعی» روی برگهٔ دارای D-dimer/PT بالا). **61-f** باگِ قدیمیِ نوزادِ ۳ روزه با Hb 17 ⇒ `erythrocytosis_who_screen` اورژانس (پنلِ `neo_hb17` در probe؛ اصلاح نشد). بندهای D7، D8، D9، D11، D12.
+3. `code-reviewer` روی diff هنوز اجرا نشده (طبق CLAUDE.md پیش از merge).
+4. منبعِ باز برای آستانه‌های ISTH/رده‌های فاکتور: صفحه را خودت باز کن، بعد به `guidelines.js` بیفزا (+ `G6`).
+5. فرمِ ورودِ دستیِ فرانت (`labRefs.js`) به هیچ‌یک از این تست‌ها دست نخورد.
+
+بازتولید: `node specs/010-hemostasis-coagulation-rules/probe.mjs [panel…]`؛ `PROBE_ROOT=<dir>` برای درخت دیگر. `probe-before/after.txt` و `ids-before/after.txt` کنارش.
+
+## (قدیمی‌تر؛ P59 در کامیتِ `1fce382` رفته است) P59 — job `40b8a901` (پان‌سیتوپنیِ بزرگسال با اوره/PT/K بالا)
 درخت: `cd khanesh-server && npm test` ⇒ `tests 741 · pass 722 · fail 0 · todo 19` (خطِ پایهٔ قبل `734 · 715`؛ فقط ۷ تستِ تازه اضافه شد).
 تغییرها فقط در: `patterns_hematology.js`، `patterns_biochem.js`، `patterns_nephrology_new.js`، `engine.test.js`، `MEDICAL_RULES.md` (بخش P59).
 - بازتولید با `runEngine` + `runPatterns` روی ۱۸ ردیفِ مدرک (زن ۵۶ ساله؛ سن/جنس در مدرک نبود، فرض شد) — `_engine.tests` و `indices` عینِ JSON.

@@ -12,7 +12,8 @@ import { getRef, getRefSource, getUnit, ckdEpiEgfr, REPRO_HORMONE_KEYS, HCG_POSI
   inNeonatalRedCellPeriod, NEONATAL_NO_ADULT_FALLBACK } from "./refs.js";
 import { evaluate } from "./grade.js";
 import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcrossSystems, BRANCH_FACTORS,
-         parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv, normUnit } from "./units.js";
+         parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv, normUnit,
+         HEMOSTASIS_KEYS, hemostasisUnit } from "./units.js";
 // فقط برای سنجیدنِ «هر خوانشِ ممکن»ِ عددِ بی‌واحد با خودِ موتور (specs/003، B3). patterns.js هیچ‌چیز از
 // adapter.js نمی‌خواند، پس چرخهٔ import نیست.
 import { runPatterns } from "./patterns.js";
@@ -225,6 +226,25 @@ const NAME_MAP = {
   aptt: "APTT", ptt: "APTT",
   fibrinogen: "FIB",
   ddimer: "DDIMER",
+
+  // ── specs/010: فعالیتِ فاکتور، vWF، مهارکننده، PTِ کنترل — کانالِ جدای «hemostasis»، بی‌نمره (research R2) ──
+  // ⚠️ فقط املای دقیق. همسایه‌های یک‌حرفی (Factor V/VII/X/XI/XII/XIII/II) عمداً اینجا نیستند و unmapped می‌مانند
+  //    (M247). «Inhibitor» تنها هم نیست: همان واژه برای مهارکنندهٔ FIX، ضدانعقادِ لوپوسی و … می‌آید (research R4).
+  factorviii: "FVIII", factorviiiactivity: "FVIII", fviii: "FVIII", fviiiactivity: "FVIII", "fviii:c": "FVIII",
+  fviiic: "FVIII", "factorviii:c": "FVIII", factorviiic: "FVIII", f8: "FVIII", factor8: "FVIII", factor8activity: "FVIII",
+  fviiiassay: "FVIII", factorviiiassay: "FVIII", "فاکتور۸": "FVIII", "فاکتور8": "FVIII", "فاکتورهشت": "FVIII",
+  factorix: "FIX", factorixactivity: "FIX", fix: "FIX", fixactivity: "FIX", f9: "FIX", factor9: "FIX",
+  factor9activity: "FIX", factorixassay: "FIX", "فاکتور۹": "FIX", "فاکتور9": "FIX", "فاکتورنه": "FIX",
+  "vwf:ag": "VWF_AG", vwfag: "VWF_AG", vwfantigen: "VWF_AG", vonwillebrandfactorantigen: "VWF_AG",
+  vonwillebrandantigen: "VWF_AG", "فونویلبراندآنتیژن": "VWF_AG", "آنتیژنفونویلبراند": "VWF_AG",
+  "vwf:rco": "VWF_ACT", vwfrco: "VWF_ACT", vwfactivity: "VWF_ACT", "vwf:act": "VWF_ACT", vwfact: "VWF_ACT",
+  ristocetincofactor: "VWF_ACT", vwfristocetincofactor: "VWF_ACT", "vwf:gpibm": "VWF_ACT", vwfgpibm: "VWF_ACT",
+  "vwf:gpibr": "VWF_ACT", vonwillebrandfactoractivity: "VWF_ACT", "فعالیتفونویلبراند": "VWF_ACT",
+  fviiiinhibitor: "FVIII_INHIB", factorviiiinhibitor: "FVIII_INHIB", f8inhibitor: "FVIII_INHIB",
+  fixinhibitor: "FVIII_INHIB", factorixinhibitor: "FVIII_INHIB", bethesda: "FVIII_INHIB", bethesdaassay: "FVIII_INHIB",
+  inhibitorbethesda: "FVIII_INHIB", bethesdainhibitor: "FVIII_INHIB", factorinhibitor: "FVIII_INHIB",
+  inhibitorassay: "FVIII_INHIB", "مهارکنندهفاکتور": "FVIII_INHIB",
+  ptcontrol: "PT_CONTROL", controlpt: "PT_CONTROL", ptcontroltime: "PT_CONTROL", "کنترلpt": "PT_CONTROL",
 
   // ⚠️ این‌ها قبلاً unmapped می‌شدند و بی‌صدا ناپدید — همه نشانگر بحرانی‌اند
   lactate: "LACTATE", lacticacid: "LACTATE",
@@ -525,6 +545,39 @@ function pctKey(unit) {
 // ungraded (reason: no_range) تا overt_b12_deficiency فقط «مثبت» را بخواند (P49-ج، تأییدِ ۲۰۲۶-۰۹-۱۹).
 // یافته‌ای که یکی را تفسیر کند آن را در explains می‌گذارد و از خط بیرون می‌رود (unexplainedNoRef).
 const QUAL_NO_READER = new Set(["ANTI_IF", "APCA"]);
+
+// ═══ specs/010 (research R3/R6، FR-005/FR-021): یک ردیفِ هموستاز → آیتمِ کانالِ hemostasis ═══
+// ⚠️ مهارکننده: حکم فقط از (الف) واژهٔ فهرستِ بسته که *کلِ* مقدار را بپوشاند یا (ب) محدودهٔ چاپ‌شدهٔ خودِ ردیف.
+//    هیچ آستانهٔ عددی‌ای (مثلِ ۰٫۵ BU متنِ چسبانده‌شده) اینجا نیست — تأیید نشده (P61، پرسشِ 61-d). «Undetected» شاملِ
+//    «detected» است و «+/-» شاملِ «+»؛ برای همین مطابقت روی کلِ مقدار است، نه زیررشته (N6، M153b).
+const INHIB_POSITIVE = /^(positive|pos|detected|present|reactive|مثبت|دیده شد|یافت شد)$/;
+const INHIB_NEGATIVE = /^(negative|neg|not detected|undetected|non-?detected|absent|nil|not seen|منفی|یافت نشد|دیده نشد)$/;
+function inhibWord(raw) {
+  const s = String(raw ?? "").toLowerCase().replace(/[.\s]+$/, "").replace(/\s+/g, " ").trim();
+  if (INHIB_POSITIVE.test(s)) return "positive";
+  if (INHIB_NEGATIVE.test(s)) return "negative";
+  return null;
+}
+function hemostasisItem(key, t, sex) {
+  const raw = String(t.value ?? "").trim();
+  const reference = t.reference ?? null;
+  const item = { raw, unit: t.unit ?? null, reference, value: null, unitState: null, qual: null, lessThan: false };
+  const word = key === "FVIII_INHIB" ? inhibWord(raw) : null;
+  if (word) { item.qual = word; return item; }
+  // «<1» / «کمتر از ۱»: عدد مرز است، نه مقدار — «<1٪» شدید است، نه متوسط.
+  const lt = /^\s*(<|≤|کمتر\s*از)/.test(raw);
+  const n = toNum(raw.replace(/^\s*(<|≤|>|≥|کمتر\s*از|بیشتر\s*از)\s*/, ""));
+  if (n == null) { if (key === "FVIII_INHIB") item.qual = "unknown"; return item; }
+  const { value, unitState } = hemostasisUnit(key, n, t.unit);
+  item.value = value;
+  item.unitState = unitState;
+  item.lessThan = lt;
+  if (key === "FVIII_INHIB") {
+    const pv = reference ? printedVerdict(reference, n, sex) : null;
+    item.qual = pv === "above" ? "positive" : (pv === "within" || pv === "below") ? "negative" : "unknown";
+  }
+  return item;
+}
 // ═══ P49-الف: کلیدهای بی‌پروفایلِ واحد که قاعده‌ای عددشان را می‌خواند ═══
 // سرولوپلاسمین mg/dL یا g/L چاپ می‌شود (۱۰ در برابرِ ۰.۱)، مسِ ادرار µg یا µmol در ۲۴ ساعت. هیچ‌کدام در
 // UNIT_PROFILE نیستند، پس واحدِ چاپ‌شده اینجا نگه داشته می‌شود و قاعده فقط با واحدِ چاپ‌شده حکم می‌دهد (N3).
@@ -859,6 +912,9 @@ export function ocrToEngineInput(ocr) {
   const semenQual = {};
   // specs/009: ردیف‌های لامِ خونِ محیطی (بلاست، اوئر، …) — کانالِ جدا، نه qual (N25). ادغام در انتها (mergeSmear).
   const smearItems = [];
+  // specs/010: فاکتور ۸/۹، vWF، مهارکننده، PTِ کنترل — بی‌نمره، کانالِ جدا (نه tests، نه qual). خواننده: patterns_hemostasis.js
+  //   و isthScore. ⚠️ متنِ چاپ‌شده دارد؛ به مدل و به گراف نمی‌رود (N13).
+  const hemostasis = {};
   // ردیف‌هایی که واحدشان نه چاپ شده، نه از محدودهٔ مرجع/اندازه تعیین شد (specs/003، P48):
   //   کلید → عددِ خام. سنجیده نمی‌شوند؛ مالک: unit_unknown_values.
   const unitUnknown = {};
@@ -1192,6 +1248,15 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
+    // ═══ specs/010: هموستاز — پیش از isQualitative، چون «Bethesda: Negative» متن است و نباید به qual برود (N25) ═══
+    {
+      const hk = mapKey(key);
+      if (HEMOSTASIS_KEYS.has(hk)) {
+        if (!hemostasis[hk]) hemostasis[hk] = hemostasisItem(hk, t, sexHint);
+        continue;
+      }
+    }
+
     if (isQualitative(key)) {
       qual[t.name] = String(t.value);
       continue;
@@ -1467,6 +1532,7 @@ export function ocrToEngineInput(ocr) {
     qual,
     semenQual,
     smear: mergeSmear(smearItems),
+    hemostasis,
     unitUnknown,
     rawText,
     unmapped,
@@ -1494,7 +1560,7 @@ function inferPregnant(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, hemostasis, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
   const conditions = ocr?.patient?.conditions || [];
@@ -1856,6 +1922,8 @@ export function runEngine(ocr) {
     semenQual,
     // specs/009: آیتم‌های لامِ خون — خواننده: smearAxis. ⚠️ متنِ چاپ‌شده دارد؛ به مدل و به گراف نمی‌رود (N13).
     smear,
+    // specs/010: فاکتور ۸/۹، vWF، مهارکننده، PTِ کنترل — خواننده: patterns_hemostasis.js و isthScore. به مدل و گراف نمی‌رود (N13).
+    hemostasis,
     ungraded,
     indices: idx,
     unmapped,

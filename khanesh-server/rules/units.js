@@ -143,6 +143,28 @@ export const PRINTED_ONLY_CONVERSIONS = {
   MCHC: { si: /^g\/l$/, factor: 0.1, conv: 'g/dL' },
 };
 
+// ── specs/010: واحدِ فعالیتِ فاکتور / vWF / مهارکننده — فقط واحدِ *چاپ‌شده* ──
+// ⚠️ عمداً بیرون از SI_CONVERSIONS / UNIT_PROFILE: ورود به آن‌ها مقدارِ بی‌واحد را به decideUnit می‌فرستد (درسِ M177)،
+//    و این کلیدها نمره نمی‌گیرند. عددِ بی‌واحد هرگز از روی بزرگی حدس زده نمی‌شود (P48): unitState «unknown».
+//    ۱ IU/dL ≡ ۱٪ پلاسمای طبیعیِ تجمیعی؛ IU/mL صد برابر (۰٫۰۱ IU/mL = ۱٪).
+const HEMOSTASIS_ACTIVITY_UNITS = [
+  [/^(%|٪|percent|iu\/dl|u\/dl|iu\/100ml)$/, 1],
+  [/^(iu\/ml|u\/ml)$/, 100],
+];
+const HEMOSTASIS_INHIB_UNITS = /^(bu|bu\/ml|bethesda|bethesdaunits?|bethesdaunit\/ml)$/;
+export const HEMOSTASIS_KEYS = new Set(["FVIII", "FIX", "VWF_AG", "VWF_ACT", "FVIII_INHIB", "PT_CONTROL"]);
+
+/** مقدارِ عددیِ یک ردیفِ هموستاز → { value, unitState }. value فقط وقتی unitState === "ok" تبدیل‌شده است. */
+export function hemostasisUnit(key, value, unit) {
+  const raw = unit == null ? "" : String(unit).trim();
+  if (!raw) return { value, unitState: "unknown" };
+  const u = normUnit(raw);
+  if (key === "FVIII_INHIB") return HEMOSTASIS_INHIB_UNITS.test(u) ? { value, unitState: "ok" } : { value, unitState: "unrecognised" };
+  if (key === "PT_CONTROL") return /^(s|sec|secs|second|seconds|ثانیه)$/.test(u) ? { value, unitState: "ok" } : { value, unitState: "unrecognised" };
+  for (const [re, f] of HEMOSTASIS_ACTIVITY_UNITS) if (re.test(u)) return { value: Math.round(value * f * 1000) / 1000, unitState: "ok" };
+  return { value, unitState: "unrecognised" };
+}
+
 // املای فارسیِ واحد (پس از حذفِ فاصله و نیم‌فاصله) → املای لاتین
 const FA_UNITS = [
   [/میکروگرمدردسیلیتر/, 'µg/dl'], [/میلیگرمدردسیلیتر/, 'mg/dl'], [/نانوگرمدردسیلیتر/, 'ng/dl'],

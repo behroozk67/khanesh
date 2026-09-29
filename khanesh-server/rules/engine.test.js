@@ -11261,3 +11261,334 @@ test("M246b: شاهدِ منفی — اورژانسِ واقعیِ نوزاد (�
   assert.equal(neonatalTodayOnly(m220Run("40 سال", [m220T("HGB", "14", "g/dL")], "M").p.findings), false);
   assert.equal(neonatalTodayOnly([]), false); assert.equal(neonatalTodayOnly(undefined), false);
 });
+
+// ════════════════════════════════════════════════════════════
+// specs/010 — هموستاز و انعقاد (P61). ⚠️ ماژول‌ها و توابعِ تازه با import پویا خوانده می‌شوند تا اجرای همین فایل روی
+// درختِ پیش از تغییر (e285030) فقط همین تست‌ها را قرمز کند، نه کلِ فایل را (اثباتِ قرمز-اول، N10).
+// ════════════════════════════════════════════════════════════
+const m010T = (name, value, unit, reference) => ({ name, value: String(value), unit, ...(reference ? { reference } : {}) });
+const M010_BASE = [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 14, "g/dL")];
+function m010Run(rows, { sex = "M", age = 25 } = {}) {
+  const patient = { sex };
+  if (age != null) patient.age = age;
+  const e = runEngine({ tests: rows, patient });
+  const p = runPatterns(e);
+  return { e, p, ids: p.findings.map((f) => f.pattern) };
+}
+
+// ---------- M247: املای فاکتور/vWF/مهارکننده/PTِ کنترل — و همسایه‌های یک‌حرفی که نباید نگاشت شوند (research R4) ----------
+// 🔴 پیش‌تر: «Factor VIII Activity 0.5 %» به unmapped می‌رفت و برگهٔ فقط-فاکتور پاسخِ «طبیعی» یا مسیرِ قدیمِ بی‌موتور می‌گرفت (N2).
+// ⚠️ Factor V/VII/X/XI/XII/XIII/II یک حرف با ۸ و ۹ فاصله دارند؛ نگاشتِ اشتباه بدتر از نگاشت‌نشدن است. «Inhibitor» تنها مبهم است.
+test("M247: فاکتور ۸/۹، vWF، مهارکننده و PTِ کنترل به کانالِ hemostasis می‌روند؛ همسایه‌ها و «Inhibitor» تنها unmapped می‌مانند", () => {
+  const MAP = {
+    FVIII: ["Factor VIII", "Factor VIII Activity", "FVIII", "F VIII:C", "FVIII:C", "F8", "Factor 8", "فاکتور ۸", "فاکتور 8", "فاکتور هشت"],
+    FIX: ["Factor IX", "FIX", "F9", "Factor 9", "Factor IX Activity", "فاکتور ۹"],
+    VWF_AG: ["vWF:Ag", "vWF Antigen", "VWF Ag", "von Willebrand Factor Antigen"],
+    VWF_ACT: ["vWF:RCo", "vWF Activity", "Ristocetin cofactor", "vWF:GPIbM"],
+    FVIII_INHIB: ["FVIII Inhibitor", "Bethesda", "Inhibitor (Bethesda)", "Factor IX Inhibitor"],
+    PT_CONTROL: ["PT Control", "Control (PT)"],
+  };
+  for (const [key, names] of Object.entries(MAP)) {
+    for (const n of names) {
+      const e = runEngine({ tests: [m010T(n, 20, key === "PT_CONTROL" ? "sec" : key === "FVIII_INHIB" ? "BU" : "%")], patient: { sex: "M", age: 30 } });
+      assert.ok(e.hemostasis?.[key], `«${n}» باید به ${key} برود؛ unmapped=${JSON.stringify(e.unmapped)}`);
+      assert.ok(!e.unmapped.includes(n), `«${n}» نباید در unmapped بماند`);
+    }
+  }
+  const NEIGHBOURS = ["Factor V", "Factor V Leiden", "Factor VII", "FVII", "Factor X", "Factor XI", "Factor XII", "Factor XIII", "Factor II", "Inhibitor"];
+  for (const n of NEIGHBOURS) {
+    const e = runEngine({ tests: [m010T(n, 40, "%")], patient: { sex: "M", age: 30 } });
+    assert.ok(e.unmapped.includes(n), `«${n}» باید unmapped بماند؛ hemostasis=${JSON.stringify(Object.keys(e.hemostasis ?? {}))}`);
+    assert.equal(e.graded.length, 0, `«${n}» نباید به هیچ کلیدِ نمره‌دار برسد: ${e.graded.map((g) => g.test)}`);
+  }
+});
+
+// ---------- M248: واحد و مهارکننده — تبدیل فقط با واحدِ چاپ‌شده؛ حکمِ مهارکننده فقط از فهرستِ بسته یا مرجعِ خودِ ردیف (FR-006، FR-021، N6) ----------
+test("M248: 0.01 IU/mL = 1٪؛ بی‌واحد ⇒ unknown؛ مهارکننده بی‌آستانهٔ عددی، Undetected منفی است نه مثبت", () => {
+  const h = (rows) => runEngine({ tests: rows, patient: { sex: "M", age: 30 } }).hemostasis ?? {};
+  assert.equal(h([m010T("Factor VIII", 0.01, "IU/mL")]).FVIII?.value, 1);
+  assert.equal(h([m010T("Factor VIII", 1, "IU/dL")]).FVIII?.value, 1);
+  assert.equal(h([m010T("Factor VIII", 3)]).FVIII?.unitState, "unknown");
+  assert.equal(h([m010T("Factor VIII", 3, "mg/dL")]).FVIII?.unitState, "unrecognised");
+  const lt = h([m010T("Factor VIII", "<1", "%")]).FVIII;
+  assert.equal(lt?.lessThan, true); assert.equal(lt?.value, 1);
+  const q = (v, unit, ref) => h([m010T("FVIII Inhibitor", v, unit, ref)]).FVIII_INHIB?.qual;
+  for (const neg of ["Negative", "Not detected", "Undetected", "Non-detected", "Nondetected", "Absent", "Nil", "منفی", "یافت نشد"]) assert.equal(q(neg), "negative", neg);
+  for (const pos of ["Positive", "Detected", "Present", "مثبت"]) assert.equal(q(pos), "positive", pos);
+  for (const unk of ["+/-", "Weak", "Borderline", "Equivocal", "weakly positive"]) assert.equal(q(unk), "unknown", unk);
+  // بی‌مرجعِ چاپ‌شده، هیچ عددی حکم نمی‌گیرد — نه ۰٫۴ نه ۲٫۴ (۰٫۵ BU تأیید نشده، P61 61-d)
+  assert.equal(q(2.4, "BU"), "unknown"); assert.equal(q(0.4, "BU"), "unknown");
+  assert.equal(q(2.4, "BU", "<0.6"), "positive"); assert.equal(q(0.3, "BU", "<0.6"), "negative");
+});
+
+// ---------- M249: مرزهای شدتِ فاکتور (D10 = A) — یک تابع، هر دو لبه؛ زیرِ ۱۶ سال بی‌رده (FR-018، FR-020) ----------
+test("M249: factorBand در ۰٫۹۹/۱/۵/۵٫۵/۳۰/۳۰٫۵/۳۱ و بازوهای سنی", async () => {
+  const { factorBand } = await import("./patterns_utils.js");
+  assert.equal(typeof factorBand, "function", "factorBand وجود ندارد");
+  const it = (v, reference) => ({ value: v, unitState: "ok", reference: reference ?? null, lessThan: false });
+  const want = { 0.99: "severe", 1: "moderate", 5: "moderate", 5.5: "mild", 30: "mild", 30.5: "notJudged", 31: "notJudged" };
+  for (const [v, band] of Object.entries(want)) assert.equal(factorBand(it(Number(v)), 25), band, `بی‌مرجع ${v}`);
+  const wantRef = { 0.99: "severe", 1: "moderate", 5: "moderate", 5.5: "mild", 30: "mild", 30.5: "reduced", 31: "reduced" };
+  for (const [v, band] of Object.entries(wantRef)) assert.equal(factorBand(it(Number(v), "50-150"), 25), band, `با مرجع ${v}`);
+  assert.equal(factorBand(it(90, "50-150"), 25), "inRange");
+  assert.equal(factorBand({ ...it(1), lessThan: true }, 25), "severe", "«<1٪» شدید است");
+  assert.equal(factorBand(it(3), null), "moderate", "سنِ نامعلوم ⇒ مرزهای بزرگسال");
+  for (const age of [8, 3 / 365, 0]) for (const v of [0.5, 3, 30]) assert.equal(factorBand(it(v), age), "paediatric", `سن ${age}، ${v}`);
+  assert.equal(factorBand({ value: 3, unitState: "unknown" }, 25), "unit_unknown");
+});
+
+// ---------- M251: برگهٔ فاکتور هرگز «طبیعی» یا «بی‌توضیح» نمی‌گیرد (US1، FR-001/002/020/021) ----------
+// 🔴 روی e285030: «Factor VIII Activity 0.5 %» هیچ یافته‌ای نداشت (unmapped) ⇒ پاسخِ آمادهٔ «طبیعی» (N2).
+test("M251: فاکتورِ ۸/۹ یافتهٔ factor_activity می‌گیرد، با رده، بی‌نامِ بیماری؛ کودک بی‌رده و بی‌action؛ مهارکننده بی‌حکم", () => {
+  const PAN = {
+    sev: [...M010_BASE, m010T("Factor VIII Activity", 0.5, "%")],
+    iu: [...M010_BASE, m010T("Factor VIII", 0.01, "IU/mL")],
+    fa: [...M010_BASE, m010T("فاکتور ۸", 3, "%")],
+    fix40: [...M010_BASE, m010T("Factor IX", 40, "%")],
+    unitless: [...M010_BASE, m010T("Factor VIII", 3)],
+    inrange: [...M010_BASE, m010T("Factor VIII", 90, "%", "50-150")],
+  };
+  const out = Object.fromEntries(Object.entries(PAN).map(([k, rows]) => [k, m010Run(rows)]));
+  for (const [k, r] of Object.entries(out)) {
+    assert.ok(r.ids.includes("factor_activity"), `${k}: ${r.ids}`);
+    assert.ok(!r.ids.includes("unexplained_abnormal") && !r.ids.includes("unmatched_abnormal"), `${k}: ${r.ids}`);
+    assert.ok(!r.e.unmapped.some((n) => /factor|فاکتور/i.test(n)), `${k}: unmapped=${r.e.unmapped}`);
+    const f = r.p.findings.find((x) => x.pattern === "factor_activity");
+    assert.doesNotMatch(`${f.headline} ${f.must_say}`, /هموفیلی|hemophilia/i, `${k}: نامِ بیماری`);
+  }
+  const fa = (k) => out[k].p.findings.find((x) => x.pattern === "factor_activity");
+  assert.match(fa("sev").must_say, /«شدید»/); assert.equal(fa("sev").urgency, "this_week");
+  assert.match(fa("iu").must_say, /«متوسط»/, "0.01 IU/mL = 1٪ ⇒ متوسط، نه شدید");
+  assert.match(fa("fa").must_say, /«متوسط»/);
+  assert.equal(fa("fix40").urgency, "routine"); assert.match(fa("fix40").must_say, /چاپ نکرده/);
+  assert.match(fa("unitless").must_say, /واحدش چاپ نشده/); assert.doesNotMatch(fa("unitless").must_say, /«(شدید|متوسط|خفیف)»/);
+  assert.doesNotMatch(fa("inrange").must_say, /«(شدید|متوسط|خفیف)»|کم‌بودن/); assert.equal(fa("inrange").urgency, "routine");
+  // سنِ نامعلوم ⇒ مرزهای بزرگسال + جملهٔ «سن روی برگه نبود»
+  const noAge = m010Run([...M010_BASE, m010T("Factor VIII", 3, "%")], { age: null }).p.findings.find((x) => x.pattern === "factor_activity");
+  assert.match(noAge.must_say, /«متوسط»/); assert.match(noAge.must_say, /سنِ بیمار روی برگه نیامده/);
+});
+
+test("M251b: کودک و نوزاد — بی‌ردهٔ بزرگسال، routine، بی‌action (کفِ نوزادی آن را اورژانس نمی‌کند، FR-020)", () => {
+  for (const age of ["3 روزه", 8]) {
+    const r = m010Run([m010T("Factor IX", 30, "%")], { age });
+    const f = r.p.findings.find((x) => x.pattern === "factor_activity");
+    assert.ok(f, `سن ${age}: ${r.ids}`);
+    assert.equal(f.urgency, "routine", `سن ${age}`);
+    assert.equal(f.action, "", `سن ${age}: action باید خالی باشد`);
+    assert.match(f.must_say, /جدولِ مخصوصِ همان سن/);
+    assert.doesNotMatch(f.must_say, /«(شدید|متوسط|خفیف)»/);
+  }
+});
+
+test("M251c: مهارکننده — عددِ بی‌مرجع نقل می‌شود و حکم نمی‌گیرد (this_week)؛ با مرجعِ چاپ‌شده حکم از همان مرجع", () => {
+  const f = (rows) => m010Run([...M010_BASE, ...rows]).p.findings.find((x) => x.pattern === "factor_inhibitor");
+  const noref = f([m010T("FVIII Inhibitor", 2.4, "BU")]);
+  assert.equal(noref.urgency, "this_week"); assert.match(noref.must_say, /2\.4 BU/); assert.match(noref.must_say, /نمی‌شود گفت مثبت است یا منفی/);
+  const pos = f([m010T("FVIII Inhibitor", 2.4, "BU", "<0.6")]);
+  assert.match(pos.must_say, /مثبت گزارش شده/); assert.equal(pos.urgency, "this_week");
+  const neg = f([m010T("Bethesda", "Undetected")]);
+  assert.match(neg.must_say, /منفی گزارش شده/); assert.equal(neg.urgency, "routine");
+  // تا فاکتور هست، مهارکننده درونِ همان یک یافته (یک مالک)
+  const both = m010Run([...M010_BASE, m010T("Factor VIII", 3, "%"), m010T("FVIII Inhibitor", "Positive")]);
+  assert.ok(both.ids.includes("factor_activity") && !both.ids.includes("factor_inhibitor"), String(both.ids));
+  assert.match(both.p.findings.find((x) => x.pattern === "factor_activity").must_say, /مثبت گزارش شده/);
+});
+
+// ---------- M252: N21 — APTTِ بالا با فاکتورهای طبیعی، هموفیلی را القا نمی‌کند ----------
+test("M252: FVIII و FIX در محدودهٔ برگه + APTT 68 ⇒ coagulation_abnormal مالکِ APTT؛ یافتهٔ فاکتور می‌گوید پایین نیستند", () => {
+  const r = m010Run([...M010_BASE, m010T("Factor VIII", 60, "%", "50-150"), m010T("Factor IX", 70, "%", "50-150"),
+    m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")]);
+  const fa = r.p.findings.find((x) => x.pattern === "factor_activity");
+  assert.ok(fa, String(r.ids));
+  assert.match(fa.must_say, /فاکتورهای اندازه‌گیری‌شده پایین نیستند/, "جملهٔ N21 نیامد");
+  assert.doesNotMatch(fa.must_say, /«(شدید|متوسط|خفیف)»|هم‌خوان/);
+  assert.ok(r.ids.includes("coagulation_abnormal"), `APTT بی‌مالک ماند: ${r.ids}`);
+});
+
+// ---------- M254: واگذاریِ دوسویهٔ APTT میانِ factor_activity و coagulation_abnormal (R8، N20، M91e) ----------
+// «مدعیِ APTT» = یافته‌ای که طولانی‌بودنِ APTT را توضیح می‌دهد: coagulation_abnormal، یا factor_activity وقتی «aPTT شما … طولانی‌تر» می‌گوید.
+test("M254: روی هر پنلِ APTTِ بالا دقیقاً یک مدعی؛ مالکیتِ فاکتور هر دو هشدار و جملهٔ داروها را دارد", () => {
+  const claims = (r) => r.p.findings.filter((f) => f.pattern === "coagulation_abnormal" ||
+    (f.pattern === "factor_activity" && /aPTT شما [\d.]+ ثانیه و طولانی‌تر/.test(f.must_say))).map((f) => f.pattern);
+  const PANELS = {
+    fviii_low: { rows: [m010T("Factor VIII", 3, "%"), m010T("APTT", 70, "sec"), m010T("PT", 12, "sec")], owner: "factor_activity" },
+    fix_low: { rows: [m010T("Factor IX", 2, "%"), m010T("APTT", 70, "sec"), m010T("PT", 12, "sec")], owner: "factor_activity" },
+    fviii_low_pt_high: { rows: [m010T("Factor VIII", 3, "%"), m010T("APTT", 70, "sec"), m010T("PT", 18, "sec")], owner: "coagulation_abnormal" },
+    fviii_normal: { rows: [m010T("Factor VIII", 60, "%", "50-150"), m010T("APTT", 70, "sec"), m010T("PT", 12, "sec")], owner: "coagulation_abnormal" },
+    no_factor: { rows: [m010T("APTT", 70, "sec"), m010T("PT", 12, "sec")], owner: "coagulation_abnormal" },
+    fviii_mild_inr: { rows: [m010T("Factor VIII", 20, "%"), m010T("APTT", 70, "sec"), m010T("INR", 2.0, "")], owner: "coagulation_abnormal" },
+  };
+  let reached = 0;
+  for (const [k, { rows, owner }] of Object.entries(PANELS)) {
+    const r = m010Run([...M010_BASE, ...rows]);
+    const c = claims(r);
+    assert.equal(c.length, 1, `${k}: مدعیان = ${c} (باید دقیقاً یکی باشد)؛ ids=${r.ids}`);
+    assert.equal(c[0], owner, `${k}`);
+    reached++;
+    if (owner === "factor_activity") {
+      const f = r.p.findings.find((x) => x.pattern === "factor_activity");
+      assert.ok(f.warnings.some((w) => /آسپرین/.test(w)) && f.warnings.some((w) => /کبودی/.test(w)), `${k}: هشدارها منتقل نشد`);
+      assert.match(f.action, /داروهایی مصرف می‌کنید/, `${k}`);
+      assert.match(f.must_say, /aPTT/, `${k}: aPTT نام برده نشد (تورِ پوشش)`);
+      const orphans = r.p.findings.filter((x) => x.uncovered).flatMap((x) => x.uncovered);
+      assert.ok(!orphans.includes("APTT"), `${k}: APTT به «توضیح داده نشدند» افتاد: ${orphans}`);
+    }
+  }
+  assert.ok(reached >= 5, `فقط ${reached} پنل رسید (سبزِ بی‌معنا، N15)`);
+});
+
+// ---------- M253: فون‌ویلبراند — سه‌حالته، نسبت فقط نقل می‌شود (بی ۰٫۶، FR-021)، شریکِ غایب گفته می‌شود، FVIII:C مالِ همین یافته (I2) ----------
+test("M253: vwf_panel — نسبتِ نقل‌شده، شریکِ غایب، در-محدوده routine، FVIII:C بی‌ردهٔ هموفیلی، پلاکتِ پایین بی‌زمان‌بندیِ رقیب", () => {
+  const vw = (rows, sex = "F") => { const r = m010Run([...M010_BASE, ...rows], { sex, age: 30 }); return { r, f: r.p.findings.find((x) => x.pattern === "vwf_panel") }; };
+  const a = vw([m010T("vWF:Ag", 25, "%"), m010T("vWF:RCo", 10, "%")]).f;
+  assert.match(a.must_say, /0\.4/); assert.doesNotMatch(a.must_say, /۰٫۶|0\.6|نوع ۱|نوع ۲|type/i);
+  assert.equal(a.urgency, "this_week", "بی‌محدودهٔ چاپ‌شده ⇒ قضاوت‌نشدنی ⇒ کفِ این هفته");
+  const b = vw([m010T("vWF Antigen", 25, "%")]).f;
+  assert.match(b.must_say, /روی برگهٔ شما نیست/); assert.deepEqual(b.suggest, ["vWF:RCo"]);
+  const c = vw([m010T("vWF:Ag", 80, "%", "50-160"), m010T("vWF:RCo", 75, "%", "50-160")]).f;
+  assert.equal(c.urgency, "routine"); assert.doesNotMatch(c.must_say, /کمتر از محدوده/);
+  const d = vw([m010T("vWF:RCo", 20, "%", "50-160")]).f;
+  assert.match(d.must_say, /کمتر از محدودهٔ چاپ‌شده/); assert.equal(d.urgency, "this_week");
+  assert.ok(d.warnings.some((w) => /آسپرین/.test(w)));
+  const u = vw([m010T("vWF:Ag", 25)]).f;
+  assert.match(u.must_say, /واحدش چاپ نشده/);
+  // I2 (FR-023): FVIII:Cِ برگهٔ vWF را فقط vwf_panel می‌گوید، بی‌ردهٔ هموفیلی — دوسویه
+  const w = vw([m010T("vWF:Ag", 25, "%"), m010T("vWF:RCo", 10, "%"), m010T("FVIII:C", 3, "%")]);
+  assert.ok(!w.r.ids.includes("factor_activity"), `دو مالک برای FVIII: ${w.r.ids}`);
+  assert.match(w.f.must_say, /FVIII:C/); assert.doesNotMatch(w.f.must_say, /«(شدید|متوسط|خفیف)»/);
+  const w2 = vw([m010T("vWF:Ag", 25, "%"), m010T("Factor IX", 3, "%")]);
+  assert.ok(w2.r.ids.includes("factor_activity") && w2.r.ids.includes("vwf_panel"), `FIX باید مالکِ خودش را داشته باشد: ${w2.r.ids}`);
+  // N20: پلاکتِ پایین کنارِ vWFِ پایین — هیچ must_sayی زمان‌بندی نمی‌گوید
+  const p = m010Run([m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 90, "10^3/uL"),
+    m010T("vWF:Ag", 25, "%", "50-160"), m010T("vWF:RCo", 10, "%", "50-160")], { sex: "F", age: 30 });
+  assert.ok(p.ids.includes("vwf_panel") && p.ids.includes("thrombocytopenia"), String(p.ids));
+  for (const f of p.p.findings.filter((x) => ["vwf_panel", "thrombocytopenia"].includes(x.pattern)))
+    assert.doesNotMatch(f.must_say, /این هفته|همین امروز|فوراً|اورژانس/, `${f.pattern}: زمان‌بندی در must_say`);
+});
+
+// ---------- M250: isthScore — جزءِ بی‌آنالیت null است نه ۰؛ PT فقط با کنترلِ چاپ‌شده (FR-015، N4) ----------
+test("M250: isthScore — PT بی‌کنترل null، PT 14 با کنترل 10 = 1، PLT 45 = 2، همه غایب ⇒ total 0 با چهار missing", async () => {
+  const { isthScore } = await import("./patterns_utils.js");
+  assert.equal(typeof isthScore, "function", "isthScore وجود ندارد");
+  const run = (rows) => isthScore(runEngine({ tests: rows, patient: { sex: "M", age: 60 } }));
+  const a = run([m010T("PLT", 80, "10^3/uL"), m010T("D-dimer", 2, "µg/mL"), m010T("PT", 14, "sec"), m010T("Fibrinogen", 250, "mg/dL")]);
+  assert.deepEqual([a.plt, a.ddimer, a.pt, a.fib, a.total], [1, 2, null, 0, 3]); assert.ok(a.missing.includes("PT_CONTROL"));
+  const b = run([m010T("PLT", 70, "10^3/uL"), m010T("D-dimer", 4.5, "µg/mL"), m010T("PT", 14, "sec"), m010T("PT Control", 10, "sec"), m010T("Fibrinogen", 90, "mg/dL")]);
+  assert.deepEqual([b.plt, b.ddimer, b.pt, b.fib, b.total], [1, 3, 1, 1, 6]);
+  const c = run([m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 300, "ng/mL")]);
+  assert.equal(c.plt, 2); assert.equal(c.ddimer, 0);
+  const d = run([m010T("WBC", 7, "10^3/uL")]);
+  assert.equal(d.total, 0); assert.deepEqual(d.missing.sort(), ["DDIMER", "FIB", "PLT", "PT"]);
+});
+
+// ---------- M255: ردهٔ پایینِ ISTH (dic_isth_score، Q1 = C) — dic_pattern دست‌نخورده، PLT < 50 بیرون، یک دستورِ نهایی ----------
+test("M255: dic_isth_score فقط روی ۵۰ ≤ PLT < ۱۰۰ + D-dimer > ۴۰۰ بی isDIC؛ دستورِ نهایی همان soon؛ must_sayهای همراه بی‌زمان‌بندی", () => {
+  const row = (plt, dd, pt, fib, ctrl) => [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 14, "g/dL"), m010T("PLT", plt, "10^3/uL"),
+    ...(dd != null ? [m010T("D-dimer", dd, "µg/mL")] : []), ...(pt != null ? [m010T("PT", pt, "sec")] : []),
+    ...(fib != null ? [m010T("Fibrinogen", fib, "mg/dL")] : []), ...(ctrl != null ? [m010T("PT Control", ctrl, "sec")] : [])];
+  const on = { nonovert: row(80, 2.0, 14, 250), score5: row(70, 4.5, 14, 250, 10) };
+  const off = { dic: row(60, null, 18, 120), plt40: row(40, 6.0, 12, 300), plt45: row(45, 3.0, 12), plt120: row(120, 3.0, 12), ddnorm: row(80, 0.3, 12) };
+  for (const [k, rows] of Object.entries(on)) {
+    const r = m010Run(rows, { age: 60 });
+    const f = r.p.findings.find((x) => x.pattern === "dic_isth_score");
+    assert.ok(f, `${k}: ${r.ids}`); assert.equal(f.urgency, "soon");
+    assert.doesNotMatch(`${f.headline} ${f.must_say}`, /\bDIC\b|انعقادِ منتشر/, `${k}: نامِ تشخیص`);
+    const recs = buildEngineRecommendations(r.p, r.e);
+    assert.ok(recs.some((x) => /۲۴ تا ۴۸ ساعت/.test(x)), `${k}: دستورِ نهایی soon نیامد: ${recs}`);
+    assert.ok(!recs.some((x) => /^این هفته با پزشک/.test(x)), `${k}: دستورِ زمان‌دارِ رقیب: ${recs}`);
+    for (const g of r.p.findings.filter((x) => x.pattern !== "dic_isth_score" && x.pattern !== "unexplained_abnormal"))
+      assert.doesNotMatch(g.must_say, /این هفته|همین امروز|فوراً/, `${k}/${g.pattern}: زمان‌بندی در must_say`);
+  }
+  assert.match(m010Run(on.nonovert, { age: 60 }).p.findings.find((x) => x.pattern === "dic_isth_score").must_say, /PT امتیاز نگرفت/);
+  assert.match(m010Run(on.score5, { age: 60 }).p.findings.find((x) => x.pattern === "dic_isth_score").must_say, /آستانهٔ ۵ می‌رسد/);
+  for (const [k, rows] of Object.entries(off)) {
+    const r = m010Run(rows, { age: 60 });
+    assert.ok(!r.ids.includes("dic_isth_score"), `${k}: نباید فعال شود: ${r.ids}`);
+  }
+  assert.ok(m010Run(off.dic, { age: 60 }).ids.includes("possible_DIC"), "dic_pattern دست‌نخورده فعال نشد");
+});
+
+// ---------- M256/M257: freeze — هش‌ها روی درختِ e285030 (پیش از specs/010) اندازه‌گیری شده‌اند ----------
+// ⚠️ این دو تست عمداً روی هر دو درخت سبزند (به‌جز بازوی ≥ ۱۰۰۰ در M256): کارشان اثباتِ «دست‌نخورده» است (SC-002، FR-007).
+const m010Hash = (x) => crypto.createHash("sha256").update(JSON.stringify(x)).digest("hex").slice(0, 16);
+const m010P = (sex, age, rows) => runPatterns(runEngine({ tests: rows, patient: { sex, age } }));
+const M010_FREEZE = {
+  plt_500: ["M", 40, [...M010_BASE, m010T("PLT", 500, "10^3/uL")], "40670a0881ed84c1"],
+  plt_999: ["M", 40, [...M010_BASE, m010T("PLT", 999, "10^3/uL")], "f7b93c6b8f44e4bd"],
+  dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "78085365c0e6c25b"],
+  plt40_dd6: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 40, "10^3/uL"), m010T("D-dimer", 6.0, "µg/mL"), m010T("PT", 12, "sec"), m010T("Fibrinogen", 300, "mg/dL")], "5d511d920f533976"],
+  plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "2cadad106d604f76"],
+  plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "0fb1923cfbab47b5"],
+  dd_only: ["M", 70, [...M010_BASE, m010T("D-dimer", 700, "ng/mL")], "3063cfd783be8dcc"],
+  aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "dd28af718362abd1"],
+  pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "f52052b797a228e7"],
+  fib_90: ["M", 40, [...M010_BASE, m010T("Fibrinogen", 90, "mg/dL")], "b9317fdf70b7940b"],
+  tt: ["M", 40, [...M010_BASE, m010T("Thrombin Time", 30, "sec")], "f1317c856c6d3301"],
+  adamts: ["F", 40, [...M010_BASE, m010T("ADAMTS13 activity", 4, "%")], "f1317c856c6d3301"],
+  factor_vii: ["M", 40, [...M010_BASE, m010T("Factor VII", 40, "%")], "f1317c856c6d3301"],
+  bare_inhibitor: ["M", 25, [...M010_BASE, m010T("Inhibitor", "Positive")], "f1317c856c6d3301"],
+  maha: ["F", 40, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 8, "g/dL"), m010T("PLT", 30, "10^3/uL")], "a191747c38d3b902"],
+  plt_80: ["M", 40, [...M010_BASE, m010T("PLT", 80, "10^3/uL")], "e6f130d17464d03e"],
+};
+
+test("M256: پلاکتِ ≥ ۱۰۰۰ ⇒ thrombocytosis «این هفته» بی «در بیشتر موارد واکنشی»؛ ۹۹۹ و ۵۰۰ بایت‌به‌بایت همان پیشین (FR-017)", () => {
+  for (const [label, value, unit] of [["1000", 1000, "10^3/uL"], ["1200", 1200, "10^3/uL"], ["raw", "1200000", "/µL"]]) {
+    const f = m010P("M", 40, [...M010_BASE, m010T("PLT", value, unit)]).findings.find((x) => x.pattern === "thrombocytosis");
+    assert.ok(f, label); assert.equal(f.urgency, "this_week", label);
+    assert.doesNotMatch(f.must_say, /در بیشتر موارد/, label);
+    assert.match(f.action, /این هفته/, label);
+    assert.ok(f.warnings.some((w) => /همان روز/.test(w)), `${label}: هشدارِ همان‌روز`);
+    assert.doesNotMatch(`${f.headline} ${f.must_say}`, /\bITP\b/);
+  }
+  for (const k of ["plt_500", "plt_999"]) {
+    const [sex, age, rows, want] = M010_FREEZE[k];
+    assert.equal(m010Hash(m010P(sex, age, rows)), want, `${k}: خروجی عوض شد`);
+  }
+});
+
+test("M257: freeze — پنل‌های بی‌آنالیتِ تازه و بازه‌های مرجعِ D1–D4 همان e285030‌اند (SC-002)", () => {
+  for (const [k, [sex, age, rows, want]] of Object.entries(M010_FREEZE)) assert.equal(m010Hash(m010P(sex, age, rows)), want, `${k}: خروجی عوض شد`);
+  assert.equal(m010Hash(["PT", "APTT", "DDIMER", "PLT", "FIB", "INR"].map((k) => ADULT_REFS[k])), "ad47784cde525cc9", "بازهٔ مرجعِ انعقاد/پلاکت عوض شد");
+});
+
+// ---------- M258: هیچ متنِ تازه‌ای نامِ بیماری را تشخیصِ بیمار نمی‌گوید و کلیدِ خامِ موتور را نشان نمی‌دهد (FR-010، SC-005، N8) ----------
+// ⚠️ این تست روی e285030 نمی‌تواند قرمز شود (آن متن‌ها آنجا نیستند) — شاهدِ قرمزش در specs/010 ثبت است: با تزریقِ یک رشتهٔ عمداً بد.
+const M258_FORBIDDEN = /هموفیلی|hemophilia|بیماریِ? ?فون|\bvWD\b|\bTTP\b|\bHUS\b|\bDIC\b|انعقادِ منتشر|\bITP\b|ناقلِ? ?(ژن|هموف)/i;
+const M258_RAWKEY = /\b(FVIII_INHIB|VWF_AG|VWF_ACT|PT_CONTROL)\b|(?<![A-Za-z(])FVIII(?![:A-Za-z)])|(?<![A-Za-z(])FIX(?![A-Za-z)])/;
+function m258Scan(findings) {
+  const bad = [];
+  for (const f of findings) for (const s of [f.headline, f.must_say, f.action, f.brief, ...(f.warnings ?? []), ...(f.suggest ?? [])]) {
+    if (typeof s !== "string") continue;
+    if (M258_FORBIDDEN.test(s)) bad.push(`${f.pattern}: نامِ بیماری ⇐ ${s.slice(0, 80)}`);
+    if (M258_RAWKEY.test(s)) bad.push(`${f.pattern}: کلیدِ خام ⇐ ${s.slice(0, 80)}`);
+  }
+  return bad;
+}
+test("M258: متن‌های factor_activity / factor_inhibitor / vwf_panel / dic_isth_score / thrombocytosis≥1000 — بی‌نامِ بیماری، بی‌کلیدِ خام", () => {
+  const NEW = new Set(["factor_activity", "factor_inhibitor", "vwf_panel", "dic_isth_score", "thrombocytosis"]);
+  const P = [
+    [[m010T("Factor VIII", 0.5, "%")]], [[m010T("Factor VIII", 3, "%")]], [[m010T("Factor VIII", 20, "%")]],
+    [[m010T("Factor VIII", 45, "%", "50-150")]], [[m010T("Factor VIII", 90, "%", "50-150")]], [[m010T("Factor VIII", 40, "%")]],
+    [[m010T("Factor VIII", 3)]], [[m010T("Factor IX", 30, "%")], { age: "3 روزه" }], [[m010T("Factor IX", 2, "%"), m010T("APTT", 70, "sec"), m010T("PT", 12, "sec")]],
+    [[m010T("Factor VIII", 60, "%", "50-150"), m010T("Factor IX", 70, "%", "50-150"), m010T("APTT", 68, "sec")]],
+    [[m010T("FVIII Inhibitor", 2.4, "BU")]], [[m010T("Bethesda", "Undetected")]], [[m010T("FVIII Inhibitor", 2.4, "BU", "<0.6")]],
+    [[m010T("Factor VIII", 3, "%"), m010T("FVIII Inhibitor", "Positive")]],
+    [[m010T("vWF:Ag", 25, "%"), m010T("vWF:RCo", 10, "%"), m010T("FVIII:C", 40, "%")]], [[m010T("vWF Antigen", 25, "%")]],
+    [[m010T("vWF:RCo", 20, "%", "50-160")]], [[m010T("vWF:Ag", 25)]],
+    [[m010T("PLT", 80, "10^3/uL"), m010T("D-dimer", 2.0, "µg/mL"), m010T("PT", 14, "sec"), m010T("Fibrinogen", 250, "mg/dL")], { age: 60 }],
+    [[m010T("PLT", 70, "10^3/uL"), m010T("D-dimer", 4.5, "µg/mL"), m010T("PT", 14, "sec"), m010T("PT Control", 10, "sec")], { age: 60 }],
+    [[m010T("PLT", 1200, "10^3/uL")]],
+  ];
+  const reached = new Set();
+  const bad = [];
+  P.forEach(([rows, opt], i) => {
+    const r = m010Run([...M010_BASE, ...rows], opt);
+    const mine = r.p.findings.filter((f) => NEW.has(f.pattern) && (f.pattern !== "thrombocytosis" || f.urgency === "this_week"));
+    if (mine.length) reached.add(i);
+    bad.push(...m258Scan(mine));
+  });
+  assert.ok(reached.size >= 12, `فقط ${reached.size} پنل به یافتهٔ تازه رسید (سبزِ بی‌معنا، N15)`);
+  assert.deepEqual(bad, []);
+  // شاهدِ منفی: اسکنر واقعاً می‌گیرد
+  assert.equal(m258Scan([{ pattern: "x", headline: "شما هموفیلی دارید", must_say: "مقدارِ FVIII_INHIB" }]).length, 2);
+});

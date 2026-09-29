@@ -222,6 +222,8 @@ khanesh-project/
 │   │   │                        #   (castAxis در utils)؛ شکلِ mineral_bone: یک برگه، یک یافتهٔ سیلندر
 │   │   ├── patterns_leukocyte.js  # specs/009 (P56): مونوسیتوز/مونوسیتوپنی، ائوزینوفیلی، بازوفیلی، و یک یافتهٔ لامِ خون
 │   │   │                        #   (بلاست، اوئر، گرانولِ سمی، دوهله، پلگر…) از طبقه‌بندِ smearAxis؛ کانالِ smear در adapter
+│   │   ├── patterns_hemostasis.js  # specs/010 (P61): فعالیتِ فاکتور ۸/۹، مهارکننده (Bethesda)، فون‌ویلبراند — از کانالِ بی‌نمرهٔ
+│   │   │                        #   hemostasis در adapter؛ بی‌مسیرِ اورژانس، بی‌نامِ بیماری، بی‌آستانهٔ تأییدنشده (۰٫۵ BU / ۰٫۶ فقط نقل)
 │   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
@@ -308,11 +310,11 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **eighteen** `patterns_<system>.js` files (the eighteenth, `patterns_leukocyte.js`, from specs/009)
+`patterns.js` no longer holds the rules. It imports **nineteen** `patterns_<system>.js` files (the eighteenth, `patterns_leukocyte.js`, from specs/009; the nineteenth, `patterns_hemostasis.js`, from specs/010)
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-22) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **150 rules, measured
-2026-09-25** (the 145th–149th are `monocytosis`, `monocytopenia`, `eosinophilia`, `basophilia` and `peripheral_smear_findings` in `patterns_leukocyte.js`, specs/009; the 150th is a concurrent session's `erythrocytosis_who_screen` in `patterns_hematology.js`; the 144th is `mild_neutropenia` in `patterns_hematology.js`, second real sheet; the 138th–143rd are `hba2_low`, `hbf_elevated`, `hb_variant`, `zpp_high`, `stfr_index` and `hgb_sex_unknown` in `patterns_hematology.js`, P53 answers; the 136th and 137th are `hba2_elevated` and `microcytosis_no_anemia` in `patterns_hematology.js`, specs/008; the 135th `rbc_indices_implausible`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
+concatenates their `RULES_*` exports into the exported `RULES` array — **161 rules, measured
+2026-09-30** (157 at `e285030`; the 158th–161st are `factor_activity`, `factor_inhibitor` and `vwf_panel` in `patterns_hemostasis.js` and `dic_isth_score` in `patterns_hematology.js`, specs/010. Earlier count: 150 at 2026-09-25 — the 145th–149th are `monocytosis`, `monocytopenia`, `eosinophilia`, `basophilia` and `peripheral_smear_findings` in `patterns_leukocyte.js`, specs/009; the 150th is a concurrent session's `erythrocytosis_who_screen` in `patterns_hematology.js`; the 144th is `mild_neutropenia` in `patterns_hematology.js`, second real sheet; the 138th–143rd are `hba2_low`, `hbf_elevated`, `hb_variant`, `zpp_high`, `stfr_index` and `hgb_sex_unknown` in `patterns_hematology.js`, P53 answers; the 136th and 137th are `hba2_elevated` and `microcytosis_no_anemia` in `patterns_hematology.js`, specs/008; the 135th `rbc_indices_implausible`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
 `unit_unknown_values` in `patterns_unit_unknown.js` from specs/003, plus `folate_deficiency` in
 `patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004, plus
 the seven `urine_cast_*` rules in `patterns_urine_casts.js` and `urine_esterase_without_cells` in
@@ -658,6 +660,12 @@ second one; a recurring entry is the strongest signal in the file.
   both halves map to the same engine key**, so `astalt`, `ptinr` and `cacr` are still refused —
   the agreement requirement is the guard, which is why this isn't the fuzzy matching the rule
   above forbids. Guards `M73`, `M73b`.
+- **Recurred on bleeding-disorder tests (specs/010, 2026-09-29).** «Factor VIII Activity 0.5 %» — a severe-range value — was
+  `unmapped` on `e285030`. Beside a normal Hb the patient got the canned «نتایج شما طبیعی است»; on its own, `graded` was empty
+  and the sheet fell to the legacy model-judged path (N18 at the routing layer). Same for FIX, vWF and the Bethesda inhibitor.
+  Fixed with a separate ungraded `hemostasis` channel plus a reader (`patterns_hemostasis.js`) **and** the `server.js` fallback
+  gate — mapping alone would have been N1. The neighbours one character away (Factor V/VII/X/XI/XII/XIII, bare «Inhibitor»)
+  stay `unmapped` on purpose. Guards `M247`, `M251`, `T32`.
 - **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
   anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
   *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When

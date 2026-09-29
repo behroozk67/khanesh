@@ -338,6 +338,7 @@ const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده ا
 - درصدهای Differential (Neutrophils، Lymphocytes و…) را هم به‌عنوان تست ثبت کن.
 - یادداشت‌های کیفی مثل Anisocytosis (+++) را هم ثبت کن؛ value را همان متن بگذار.
 - ردیف‌ها یا توضیحاتِ لامِ خونِ محیطی را هم ثبت کن، مثل Blasts (%)، Auer rods، Toxic granulation، Döhle bodies، Pelger-Huët یا Pseudo-Pelger؛ نام و value را عیناً همان‌طور که چاپ شده بنویس (مثلاً "Blasts" با value "25" و unit "%"، یا "Auer rods" با value "Present"). توضیحِ آزادِ لام (Comment/Remark/Peripheral smear) را هم با همان متن ثبت کن.
+- ردیف‌های انعقادِ تخصصی را هم ثبت کن، مثل Factor VIII یا Factor IX (فعالیت)، vWF:Ag، vWF:RCo، مهارکننده (Bethesda) و PT Control؛ نام، value و unit را عیناً همان‌طور که چاپ شده بنویس (مثلاً "Factor VIII" با value "3" و unit "%"، یا "Inhibitor (Bethesda)" با value "Negative").
 - مقادیر تیتری (رایت، 2ME، کومبس رایت، ویدال) را عیناً با همان شکل ثبت کن: "1/160" یا "1:160". آن را به عدد تبدیل نکن و ساده‌اش نکن. اگر منفی است، همان "Negative" یا "منفی" را بنویس.
 - مقادیر پلاسی (CRP، RF) را هم عیناً بنویس: "3+" یا "Positive" یا "منفی". اگر عدد و واحد دارد (مثل "24 mg/L")، عدد را در value و واحد را در unit بگذار.
 - اگر عددی تار، مبهم یا مخدوش است، confidence را "low" بگذار. اگر اصلاً خوانا نیست، value را null بگذار.
@@ -988,7 +989,10 @@ const analyzeHandler = async (req, res) => {
       // specs/004 (FR-009): کلیدِ شناخته‌شدهٔ بی‌بازه (noRef) هم مسیرِ موتور را نگه می‌دارد. حالا که
       //    buildNormalResult برای noRef «طبیعی است» نمی‌گوید، دلیلِ کامنتِ بالا («فقط-AMH ⇒ طبیعی») دیگر
       //    برقرار نیست — و مسیرِ قدیم یعنی مدل خودش قضاوت کند (T21).
-      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length)) {
+      // specs/010 (FR-019): برگه‌ای که *فقط* فاکتور ۸/۹، vWF یا مهارکننده دارد هیچ تستِ نمره‌داری ندارد و به مسیرِ قدیم
+      //    می‌افتاد، جایی که مدل خودش شدت را قضاوت می‌کند — همان تکرارِ N18. کانالِ hemostasis مالک دارد (patterns_hemostasis.js).
+      const hasHemostasis = Object.keys(engineCandidate.hemostasis ?? {}).length > 0;
+      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis) {
         console.warn(
           "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
           `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
@@ -1104,6 +1108,8 @@ const analyzeHandler = async (req, res) => {
       }),
       // specs/009 (N13): آیتم‌های لامِ خون متنِ چاپ‌شدهٔ برگه را دارند (raw) — به گراف نمی‌روند.
       smear: undefined,
+      // specs/010 (N13): آیتم‌های هموستاز هم متنِ خامِ ردیف (raw، reference) را دارند — به گراف نمی‌روند.
+      hemostasis: undefined,
     } : null;
 
     // Pass the combined text AND the engine deterministic outputs to the graph

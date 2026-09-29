@@ -14,7 +14,7 @@
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
-import { SURVIVAL_LIMITS } from "./units.js";
+import { SURVIVAL_LIMITS, printedVerdict } from "./units.js";
 import { GERIATRIC_REFS, GERIATRIC_FROM_AGE } from "./refs.js";
 
 // ─── مرزِ «گلبولِ درشت» (ماکروسیتیک) — تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴ ───
@@ -1179,3 +1179,70 @@ const smearCbcComplete = (e) => ["HGB", "WBC", "PLT"].every((k) => e?.graded?.so
 //   acute_leukemia_suspicion نامِ داخلیِ پرچم است و به متن نمی‌رسد. متن همان جملهٔ پیشنهادیِ بازبین است.
 const BLAST_EVAL_SENTENCE = "حضورِ سلول‌های نارس (بلاست) در گردشِ خون نیازمندِ ارزیابیِ فوریِ تخصصیِ خون (هماتولوژی) در سریع‌ترین زمانِ ممکن (اورژانسی) است.";
 export { SMEAR_FA, smearItemFa, smearLeukemicSentence, smearCbcComplete, BLAST_EVAL_SENTENCE };
+
+// ═══ specs/010 — هموستاز (P61) ═══
+// تأییدِ کاربر؛ عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم — مرزهای شدتِ فاکتور (D10 = گزینهٔ A، ۲۰۲۶-۰۹-۲۹).
+// ⚠️ این تنها جای این مقایسه‌هاست (FR-018): خوانشِ «> ۵٪» و «۶٪»ِ متنِ چسبانده‌شده هر دو در کد نباشند.
+const FACTOR_SEVERE_BELOW_PCT = 1;
+const FACTOR_MODERATE_MAX_PCT = 5;
+const FACTOR_MILD_MAX_PCT = 30;
+/**
+ * ردهٔ فعالیتِ فاکتور ۸/۹ (٪). item: آیتمِ کانالِ hemostasis. age: سال یا null.
+ * 'paediatric' | 'unit_unknown' | 'severe' | 'moderate' | 'mild' | 'reduced' | 'inRange' | 'notJudged'
+ * زیرِ ۱۶ سال هیچ مقایسه‌ای نمی‌شود (FR-020): فاکتورِ نوزادِ سالم (به‌ویژه ۹) طبیعتاً پایین است.
+ */
+function factorBand(item, age, sex = null) {
+  if (!item || item.value == null) return "unit_unknown";
+  if (age != null && age < 16) return "paediatric";
+  if (item.unitState !== "ok") return "unit_unknown";
+  const pct = item.value;
+  // «<1٪» مرز است: کمتر از ۱ ⇒ شدید، حتی اگر عدد خودش ۱ باشد.
+  if (pct < FACTOR_SEVERE_BELOW_PCT || (item.lessThan && pct <= FACTOR_SEVERE_BELOW_PCT)) return "severe";
+  if (pct <= FACTOR_MODERATE_MAX_PCT) return "moderate";
+  if (pct <= FACTOR_MILD_MAX_PCT) return "mild";
+  const pv = item.reference ? printedVerdict(item.reference, pct, sex) : null;
+  if (pv === "below") return "reduced";
+  if (pv === "within" || pv === "above") return "inRange";
+  return "notJudged";
+}
+
+/** vWF:RCo / vWF:Ag فقط وقتی هر دو با واحدِ شناخته‌شده چاپ شده‌اند. بی‌آستانه (FR-021): فقط نقل می‌شود. */
+function vwfRatio(h) {
+  const ag = h?.VWF_AG, act = h?.VWF_ACT;
+  if (!ag || !act) return { ratio: null, reason: "partner_missing" };
+  if (ag.unitState !== "ok" || act.unitState !== "ok" || !ag.value) return { ratio: null, reason: "unit_unknown" };
+  return { ratio: Math.round((act.value / ag.value) * 100) / 100, reason: null };
+}
+
+// امتیازِ ISTH برای DIC — فقط داخلِ ردهٔ پایینِ dic_isth_score (Q1 = گزینهٔ C). isDIC و refs دست نخوردند.
+// تأییدِ کاربر؛ عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم. D-dimer به ng/mL (۰٫۴ و ۴٫۰ µg/mL = ۴۰۰ و ۴۰۰۰).
+const ISTH_DDIMER_MODERATE_NGML = 400;
+const ISTH_DDIMER_STRONG_NGML = 4000;
+const ISTH_PT_OVER_CONTROL_1 = 3;
+const ISTH_PT_OVER_CONTROL_2 = 6;
+const ISTH_PLT_1 = 100;
+const ISTH_PLT_2 = 50;
+const ISTH_FIB_MGDL = 100;
+const ISTH_OVERT_FROM = 5;
+/** { plt, ddimer, pt, fib, total, missing[] } — جزءِ بی‌آنالیت null است، هرگز ۰ (N4). */
+function isthScore(e) {
+  const t = val(e);
+  const missing = [];
+  const plt = t.PLT == null ? (missing.push("PLT"), null) : t.PLT < ISTH_PLT_2 ? 2 : t.PLT < ISTH_PLT_1 ? 1 : 0;
+  const ddimer = t.DDIMER == null ? (missing.push("DDIMER"), null)
+    : t.DDIMER > ISTH_DDIMER_STRONG_NGML ? 3 : t.DDIMER > ISTH_DDIMER_MODERATE_NGML ? 2 : 0;
+  const ctrl = e.hemostasis?.PT_CONTROL;
+  const ctrlOk = ctrl?.value != null && (ctrl.unitState === "ok" || ctrl.unitState === "unknown");
+  let pt = null;
+  if (t.PT == null) missing.push("PT");
+  else if (!ctrlOk) missing.push("PT_CONTROL");
+  else {
+    const d = t.PT - ctrl.value;
+    pt = d >= ISTH_PT_OVER_CONTROL_2 ? 2 : d >= ISTH_PT_OVER_CONTROL_1 ? 1 : 0;
+  }
+  const fib = t.FIB == null ? (missing.push("FIB"), null) : t.FIB < ISTH_FIB_MGDL ? 1 : 0;
+  const total = [plt, ddimer, pt, fib].reduce((s, x) => s + (x ?? 0), 0);
+  return { plt, ddimer, pt, fib, total, missing };
+}
+export { factorBand, vwfRatio, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2,
+         FACTOR_SEVERE_BELOW_PCT, FACTOR_MODERATE_MAX_PCT, FACTOR_MILD_MAX_PCT };
