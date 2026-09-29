@@ -42,7 +42,7 @@ When the question is what a range, threshold, grade, or pattern *should* be:
 - Note when sources disagree or when a threshold is population-dependent (sex, age, pregnancy, ethnicity-adjusted eGFR) — the engine has to pick one, and the caller needs to know a choice is being made.
 - For naming questions ("what do Iranian lab sheets call this?"), gather the actual English abbreviations, full names, and Farsi labels that appear on real reports; these become `NAME_MAP` aliases.
 
-`rules/CLINICAL_REVIEW.md` and `rules/REF_DIFF.md` record prior clinical decisions and known unreconciled differences — read them before researching a range from scratch, and say so if your finding contradicts one.
+`docs/reviews/CLINICAL_REVIEW.md` and `docs/reviews/REF_DIFF.md` record prior clinical decisions and known unreconciled differences — read them before researching a range from scratch, and say so if your finding contradicts one.
 
 ## Output
 

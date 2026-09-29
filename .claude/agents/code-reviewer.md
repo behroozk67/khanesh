@@ -42,7 +42,7 @@ New tests in `rules/` are unreachable without a matching `NAME_MAP` entry in `ad
 
 ### 4. Contract drift
 
-The result screen (`ResultView.jsx` and its children) reads `extracted_tests`, `_engine`, `has_critical`, `ocr_warnings`, `pages`, `sources`. If `server.js` renames, reshapes, or conditionally omits any of these, the frontend must change in the same review. Also flag frontend `REF` edits that contradict `refs.js` without a note in `rules/REF_DIFF.md` — the two tables are separate by design, and drift between them is tracked there, not silently.
+The result screen (`ResultView.jsx` and its children) reads `extracted_tests`, `_engine`, `has_critical`, `ocr_warnings`, `pages`, `sources`. If `server.js` renames, reshapes, or conditionally omits any of these, the frontend must change in the same review. Also flag frontend `REF` edits that contradict `refs.js` without a note in `docs/reviews/REF_DIFF.md` — the two tables are separate by design, and drift between them is tracked there, not silently.
 
 ### 5. Privacy
 

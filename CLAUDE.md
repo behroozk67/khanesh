@@ -229,9 +229,8 @@ khanesh-project/
 │   │   ├── coverage.js          # sentence-level check that the LLM kept every must_say
 │   │   ├── engine.test.js       # the clinical regression suite
 │   │   ├── geriatric.test.js    # GERIATRIC_REFS coverage
-│   │   ├── split*.cjs / extract-ids.cjs   # one-off migration scripts; dead, not wired in
-│   │   ├── CLINICAL_REVIEW.md   # clinical audit log — fixed + outstanding defects
-│   │   └── REF_DIFF.md          # known REF (frontend) vs refs.js (backend) range drift
+│   │   ├── (split*.cjs / extract-ids.cjs / patch-frontend*.js archived to tools/archive/, 2026-09-29)
+│   │   ├── (CLINICAL_REVIEW.md, REF_DIFF.md moved to docs/reviews/, 2026-09-29)
 │   ├── .env                     # AVALAI_API_KEY, etc. (gitignored)
 │   └── package.json
 ├── .claude/

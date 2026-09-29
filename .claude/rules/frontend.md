@@ -126,4 +126,4 @@ keyed by engine key — deliberately not in `rules/refs.js`, whose only job is c
 Keep `REF` (in `khanesh/src/labRefs.js` — client-side, manual-entry only) and
 `khanesh-server/rules/` (server-side, authoritative) in sync when a test's range or label changes
 — they are two separate copies by design, not a shared source of truth. Record any deliberate
-divergence in `khanesh-server/rules/REF_DIFF.md`.
+divergence in `docs/reviews/REF_DIFF.md`.
