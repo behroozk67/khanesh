@@ -9735,17 +9735,20 @@ const REAL_0924 = [["WBC", "3.50", null, "10^3/uL"], ["NEUT", "1.38", null, "10^
 test("M191: زیرِ پان‌سیتوپنی Hb و نوتروفیل عدد دارند، کم‌خونی نسخهٔ کوتاه می‌گیرد، و علت‌یابی پیشنهاد می‌شود", () => {
   // 🔴 پیش‌تر: متنِ پان‌سیتوپنی بی‌عدد، normocytic_anemia پنهان، Hb 10.1 هیچ‌جا، HCT/MCH/RDW/نوتروفیل در «توضیح داده
   //    نشدند»، و هیچ آزمایشی پیشنهاد نشد.
+  // P59 (بازبین، ۲۰۲۶-۰۹-۳۰): pancytopenia حالا Hb < 10 می‌خواهد؛ خودِ برگه (Hb 10.1) دیگر آن را فعال نمی‌کند (M245).
+  //   این تست متنِ همان قاعده را با Hbِ ۹٫۹ می‌سنجد، بقیهٔ برگه عیناً همان است.
+  const REAL_0924_HB99 = REAL_0924.map((r) => (r[0] === "HGB" ? ["HGB", "9.9", null, "g/dL"] : r));
   for (const pt of [M40, F30]) {
-    const p = uuuRun(REAL_0924, pt);
+    const p = uuuRun(REAL_0924_HB99, pt);
     assert.equal(p.overall_urgency, "emergency");
     const pan = findPat(p, "pancytopenia");
-    assert.match(pan.must_say, /هموگلوبین 10\.1/);
+    assert.match(pan.must_say, /هموگلوبین 9\.9/);
     assert.match(pan.must_say, /نوتروفیل 1380[^.]*پایین/);
     assert.match(pan.must_say, /B12/);
     for (const s of ["لام خون محیطی", "رتیکولوسیت", "ویتامین B12", "فولات"]) assert.ok(pan.suggest.includes(s), s);
     const nc = findPat(p, "normocytic_anemia");
     assert.ok(nc, `کم‌خونی زیرِ اورژانس پنهان شد: ${fired(p)}`);
-    assert.match(nc.must_say, /هموگلوبین 10\.1/);
+    assert.match(nc.must_say, /هموگلوبین 9\.9/);
     assert.match(nc.must_say, /RDW-SD 64\.2/);
     assert.ok(!findPat(p, "unexplained_abnormal"), `هنوز بی‌توضیح: ${findPat(p, "unexplained_abnormal")?.must_say}`);
   }
@@ -11174,4 +11177,57 @@ test("M244c: hematuria_pattern هرگز تکمیلی نمی‌شود و در sup
   assert.ok(!p.findings.some((x) => x.rule_id === "hematuria_pattern"), "نمایش داده شد");
   assert.ok(p.suppressed_ids.includes("hematuria_pattern"));
   assert.ok(s9Uncovered(p).includes("HGB"), `Hb باید در «توضیح داده نشدند» بماند: ${s9Uncovered(p)}`);
+});
+
+// ---------- M245: P59 — آستانهٔ pancytopenia با Chew & Kamangar و پرچمِ soonِ اوره با BUN/Cr > ۳۰ (تصمیمِ بازبین ۲۰۲۶-۰۹-۳۰) ----------
+const m245Pan = (hb, wbc, plt, extra = []) => s9Run("M", 56, [
+  s9T("Hb", hb, "g/dL"), s9T("WBC", wbc, "10^3/uL"), s9T("PLT", plt, "10^3/uL"), s9T("MCV", 88, "fL"), ...extra,
+]).p;
+const m245HasPan = (p) => p.findings.some((f) => f.rule_id === "pancytopenia");
+
+test("M245: pancytopenia — Hb < 10 و PLT < 100 و (WBC < 4 یا ANC < 1.5)؛ مرزها و Hb 10.1 فعال نمی‌کنند", () => {
+  assert.ok(m245HasPan(m245Pan(9.9, 3.5, 99)), "۹٫۹ / ۳٫۵ / ۹۹ باید فعال شود");
+  assert.ok(!m245HasPan(m245Pan(10, 3.5, 99)), "Hb = 10 دقیقاً روی مرز است (< 10 نیست)");
+  assert.ok(!m245HasPan(m245Pan(9.9, 3.5, 100)), "PLT = 100 روی مرز است");
+  assert.ok(!m245HasPan(m245Pan(9.9, 4.0, 99)), "WBC = 4.0 و ANC نیست");
+  // پیش‌تر (PLT < 150) فعال می‌شد؛ حالا نه — قاعده‌های تکی می‌گیرند
+  assert.ok(!m245HasPan(m245Pan(9.0, 3.5, 120)), "PLT 120 دیگر پان‌سیتوپنی نیست");
+  const p = m245Pan(9.0, 3.5, 120);
+  assert.ok(p.findings.some((f) => f.rule_id === "thrombocytopenia" || f.rule_id === "leukopenia" || /anemia/.test(f.rule_id)),
+    `قاعده‌های تکی باید بگیرند: ${p.findings.map((f) => f.rule_id)}`);
+});
+
+test("M245b: ANC < 1500 با WBCِ در محدوده هم شاخهٔ «سفید» را می‌دهد؛ ANCِ ۱۵۰۰ نه", () => {
+  const anc = (n) => [s9T("Neut #", n, "cells/uL")];
+  assert.ok(m245HasPan(m245Pan(9.0, 4.6, 80, anc(1400))), "ANC 1400 + Hb 9 + PLT 80 باید فعال شود");
+  assert.ok(!m245HasPan(m245Pan(9.0, 4.6, 80, anc(1500))), "ANC = 1500 روی مرز است");
+});
+
+test("M245c: برگهٔ واقعیِ d982209d (Hb 10.1، WBC 3.5، ANC 1.38، PLT 31) دیگر pancytopenia نمی‌گیرد؛ Hb 9.9 می‌گیرد — پیامدِ ثبت‌شده، نه بی‌سروصدا", () => {
+  // ⚠️ این تستِ «تصمیم» است، نه تأییدِ نتیجه: با Hb 10.1 فهرستِ suggestِ لام/رتیکولوسیت/B12/فولات/فریتین خالی می‌شود.
+  //   در P59 برای بازبین ثبت شد.
+  const rows = REAL_0924.map((r) => (r[0] === "HGB" ? ["HGB", "10.1", null, "g/dL"] : r));
+  const p = uuuRun(rows, M40);
+  assert.ok(!findPat(p, "pancytopenia"), "Hb 10.1 ≥ 10 ⇒ pancytopenia نه");
+  assert.ok(findPat(p, "severe_thrombocytopenia"), "PLT 31 هنوز اورژانس است");
+  assert.equal(p.overall_urgency, "emergency");
+  const p2 = uuuRun(REAL_0924.map((r) => (r[0] === "HGB" ? ["HGB", "9.9", null, "g/dL"] : r)), M40);
+  assert.ok(findPat(p2, "pancytopenia"));
+});
+
+test("M245d: اورهٔ بالا — پرچمِ soon فقط با BUN/Cr > 30 و Hbِ پایین؛ ۲۰ تا ۳۰ با Hbِ پایین routine است و منبع نمی‌چسباند", () => {
+  const rows = (cr) => [["urea", "60", "mg/dl"], ["Creatinine", cr, "mg%"], ["Hb", "9", "g/dL"], ["MCV", "88", "fL"]];
+  const at = (cr) => {
+    const e = runEngine({ patient: { age: 45, sex: "M" }, tests: rows(cr).map(([name, value, unit]) => ({ name, value, unit })) });
+    return { e, f: runPatterns(e).findings.find((x) => x.rule_id === "isolated_urea_elevation") };
+  };
+  // اوره ۶۰ ⇒ BUN ≈ ۲۸٫۰؛ کراتینین ۰٫۸ ⇒ نسبت ≈ ۳۵، ۱٫۰ ⇒ ≈ ۲۸ (بین ۲۰ و ۳۰)، ۱٫۲ ⇒ ≈ ۲۳
+  const hi = at("0.8"), mid = at("1.0");
+  assert.ok(hi.f && mid.f, "قاعده باید فعال شود");
+  assert.ok(hi.e.indices.bun_cr > 30, `پیش‌شرط: ${hi.e.indices.bun_cr}`);
+  assert.ok(mid.e.indices.bun_cr > 20 && mid.e.indices.bun_cr <= 30, `پیش‌شرط: ${mid.e.indices.bun_cr}`);
+  assert.equal(hi.f.urgency, "soon");
+  assert.deepEqual(hi.f.sources, ["BUNCR_UGIB_META"]);
+  assert.equal(mid.f.urgency, "routine");
+  assert.ok(!mid.f.sources, "منبع فقط روی شاخه‌ای که آستانه را به کار می‌برد");
 });

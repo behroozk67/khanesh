@@ -701,12 +701,18 @@ export const RULES_HEMATOLOGY = [
   {
     id: "pancytopenia",
     match: (e) => {
+      // 🔴 تصمیمِ بازبین ۲۰۲۶-۰۹-۳۰ (P59): آستانه‌ها با تعریفِ Chew & Kamangar 2024 (CHEW_PANCYTOPENIA، باز و خوانده‌شده) هماهنگ شد:
+      //    Hb < 10 g/dL، (WBC < 4.0 یا ANC < 1.5 ×10⁹/L)، PLT < 100. پیش‌تر «Hb زیرِ بازه + WBC < 4 + PLT < 150» بود؛ برچسبِ
+      //    «پان‌سیتوپنی» بارِ روانی و تشخیصیِ سنگین دارد و موردهای حاشیه‌ای را قاعده‌های تکیِ کم‌خونی/لکوپنی/ترومبوسیتوپنی پوشش می‌دهند.
+      //    ⚠️ شرطِ «Hb زیرِ بازه» می‌ماند (عددِ تازه نیست): Hb < 10 مطلق برای شیرخوارِ ۲ ماهه فیزیولوژیک است (PED_REFS).
+      //    ANC بر حسبِ سلول/µL است (۱٫۵ ×10⁹/L = ۱۵۰۰). ANCِ غایب فقط WBC را می‌سنجد (N4: غیبت ≠ طبیعی، ولی WBC خودش شرط را می‌دهد).
       const t = val(e);
       const hgb = e.graded.find((g) => g.test === "HGB");
+      const leukoOrNeutropenic = (t.WBC != null && t.WBC < 4) || (t.NEUT_ABS != null && t.NEUT_ABS < 1500);
       return (
-        hgb?.abnormal && hgb.dir === "low" &&
-        t.WBC != null && t.WBC < 4 &&
-        t.PLT != null && t.PLT < 150
+        hgb?.abnormal && hgb.dir === "low" && t.HGB != null && t.HGB < 10 &&
+        leukoOrNeutropenic &&
+        t.PLT != null && t.PLT < 100
       );
     },
     // 🔴 برگهٔ واقعی (۲۰۲۶-۰۹-۲۴، Hb 10.1، WBC 3.5، PLT 31): متن هیچ عددی نداشت — «هر سه پایین هستند» — و با
