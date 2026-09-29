@@ -205,6 +205,9 @@ export const RULE_SOURCES = {
   isolated_ldh_elevation: ["MERCK_PRO", "ARUP_CONSULT"],
   // انعقاد
   dic_pattern:          ["ISTH"],
+  // P59 — فقط جایی که سند خوانده و تطبیق داده شد؛ scopeِ هر ورودی می‌گوید چه چیزی را پوشش *نمی‌دهد*.
+  pancytopenia:         ["CHEW_PANCYTOPENIA"],
+  maha_ttp_suspicion:   ["ISTH_TTP"],
   // سرولوژی
   hcv_screen_reactive:  ["CDC_SEROLOGY", "AASLD"],
   hbv_screen_reactive:  ["CDC_SEROLOGY", "AASLD"],

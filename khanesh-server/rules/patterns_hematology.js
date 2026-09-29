@@ -1737,6 +1737,7 @@ export const RULES_HEMATOLOGY = [
         pattern: "coagulation_abnormal",
         // P59 پرسش ۵ (بازبین): PT ایزوله با INRِ طبیعی «routine» است؛ INR معیارِ قابل‌مقایسه است.
         urgency: severe ? "emergency" : isoPt ? "routine" : "this_week",
+        ...(isoPt ? { sources: ["STATPEARLS_INR"] } : {}),   // فقط متنِ «PTِ خام به معرف بستگی دارد»
         always_show: true,
         brief,
         headline: "شاخص‌های لخته شدن خون شما غیرطبیعی هستند",

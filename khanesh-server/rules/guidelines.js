@@ -285,6 +285,51 @@ export const GUIDELINES = {
     scope: 'امتیازدهی DIC',
   },
 
+  // ⚠️ چهار ورودیِ زیر ۲۰۲۶-۰۹-۲۹ اضافه شد؛ صفحهٔ هرکدام همان روز باز و جمله‌های ادعاشده تطبیق داده شد.
+  UKKA_HYPERK: {
+    org: 'UK Kidney Association',
+    fa: 'انجمن کلیهٔ بریتانیا',
+    title: 'Clinical Practice Guidelines — Treatment of Acute Hyperkalaemia in Adults',
+    year: 2023,
+    url: 'https://guidelines.ukkidney.org/hyperkalaemia/',
+    access: 'open',
+    scope: 'شدتِ هیپرکالمی: خفیف ۵٫۵–۵٫۹، متوسط ۶٫۰–۶٫۴، شدید ≥ ۶٫۵؛ نوار قلبیِ فوری از ۶٫۰؛ نمونهٔ جفتِ هپارینه/سرم برای رد پسودوهایپرکالمی. فقط جهتِ بالا.',
+  },
+
+  CHEW_PANCYTOPENIA: {
+    org: 'Chew & Kamangar',
+    fa: 'مقالهٔ مروری «رویکرد به پان‌سیتوپنی» — Clinical Medicine (لندن)',
+    title: 'Approach to pancytopenia: From blood tests to the bedside',
+    year: 2024,
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC11399640/',
+    access: 'open',
+    // ⚠️ فقط ترتیبِ بررسی (شمارش رتیکولوسیت و لام خون نخست؛ سپس هماتینیک‌ها). آستانه‌های تعریفِ مقاله
+    //    (Hb < 10، PLT < 100) با آستانهٔ قاعدهٔ ما (Hb زیرِ بازه، WBC < 4، PLT < 150) یکی نیست؛ منبعِ آستانه نیست.
+    scope: 'ترتیبِ بررسیِ پان‌سیتوپنی: رتیکولوسیت و لام خون، سپس B12/فولات و سایر علل',
+  },
+
+  ISTH_TTP: {
+    org: 'ISTH',
+    fa: 'انجمن بین‌المللی ترومبوز و هموستاز',
+    title: 'ISTH guidelines for the diagnosis of thrombotic thrombocytopenic purpura (Zheng et al.)',
+    year: 2020,
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC8146131/',
+    access: 'open',
+    // ⚠️ مفهوم و فوریت: ترومبوسیتوپنی (< ۱۰۰) + کم‌خونیِ همولیتیکِ میکروآنژیوپاتیک (شیستوسیت، LDH بالا، هاپتوگلوبین پایین).
+    //    آستانهٔ Hb < 10 و PLT < 50 در قاعدهٔ ما از این سند نیست، و قاعده به شواهدِ همولیز نیاز ندارد.
+    scope: 'شکِ TTP در ترومبوسیتوپنی با MAHA؛ شروعِ درمان بدونِ انتظار برای ADAMTS13 در شکِ بالا',
+  },
+
+  STATPEARLS_INR: {
+    org: 'StatPearls (NCBI Bookshelf)',
+    fa: 'مرجعِ آموزشیِ باز — «INR: ارزیابی، پایش و پیامدهای بالینی»',
+    title: 'International Normalized Ratio: Assessment, Monitoring, and Clinical Implications (Shikdar et al.)',
+    year: 2025,
+    url: 'https://www.ncbi.nlm.nih.gov/books/NBK507707/',
+    access: 'open',
+    scope: 'INR تفاوتِ دستگاه و معرف را در PT استاندارد می‌کند (ISI)؛ PTِ خام بین آزمایشگاه‌ها قابل‌مقایسه نیست',
+  },
+
   ACR_EULAR: {
     org: 'ACR/EULAR',
     fa: 'کالج روماتولوژی آمریکا / اتحادیهٔ اروپایی روماتولوژی',

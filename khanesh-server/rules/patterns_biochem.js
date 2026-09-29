@@ -465,6 +465,7 @@ export const RULES_BIOCHEM = [
         urgency,
         blocks_others: critical,
         ...(v != null ? { key_number: v } : {}),
+        ...(high ? { sources: ["UKKA_HYPERK"] } : {}),   // فقط جهتِ بالا؛ پایین منبعِ اختصاصی ندارد
         headline: high
           ? "پتاسیم خون شما بالاست"
           : "پتاسیم خون شما پایین است",

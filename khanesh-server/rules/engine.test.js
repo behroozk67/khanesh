@@ -11043,3 +11043,16 @@ test("M241f: بدونِ blocker هیچ «یافتهٔ تکمیلی» ساخته 
   assert.deepEqual(p.suppressed_ids, []);
   assert.deepEqual(p.supplementary_ids, []);
 });
+
+test("M240g: منبعِ P59 فقط روی شاخه‌ای می‌نشیند که سند همان را می‌گوید — K بالا و PTِ ایزوله بله؛ K پایین و PTِ غیرایزوله نه", () => {
+  const hi = fffFind(j40Run(j40NoBlocker()).p, "hyperkalemia");
+  assert.deepEqual(hi.sources.filter((x) => x === "UKKA_HYPERK"), ["UKKA_HYPERK"], String(hi.sources));
+  const lo = fffFind(j40Run(j40NoBlocker(j40With("Serum K", "2.7"))).p, "hypokalemia");
+  assert.ok(lo && !(lo.sources ?? []).includes("UKKA_HYPERK"), "منبعِ هیپرکالمی روی هیپوکالمی");
+  const iso = fffFind(j40Run(j40NoBlocker()).p, "coagulation_abnormal");
+  assert.ok((iso.sources ?? []).includes("STATPEARLS_INR"), "PTِ ایزوله منبع نگرفت");
+  const nonIso = fffFind(j40Run(j40NoBlocker(j40With("INR", "1.9"))).p, "coagulation_abnormal");
+  assert.ok(nonIso && !(nonIso.sources ?? []).includes("STATPEARLS_INR"), "INR بالا منبعِ «PTِ خام» گرفت");
+  const pan = fffFind(j40Run().p, "pancytopenia");
+  assert.ok(pan.sources.includes("CHEW_PANCYTOPENIA"), String(pan.sources));
+});
