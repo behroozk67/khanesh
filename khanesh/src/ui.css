@@ -132,6 +132,11 @@
 }
 .crit-title { font-size: var(--t-xl); font-weight: var(--w-bold); margin-bottom: var(--s3); }
 .crit-body { font-size: var(--t-sm); line-height: var(--lh-prose); }
+/* نوزادِ «همین امروز» — دستور همان است ولی حالتِ اورژانس نیست؛ کهربایی به‌جای قرمزِ پُر. */
+.crit-banner--today {
+  background: var(--st-out-bg); color: var(--st-out-fg);
+  box-shadow: none; border-color: var(--st-out-fg);
+}
 
 /* ---------- دکمه‌ها ---------- */
 

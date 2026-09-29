@@ -872,3 +872,26 @@ test("T30: _engine.suppressed/suppressed_ids/supplementary برسند، و یا�
   for (const n of ["6400", "4800", "3200"]) assert.ok(interp.includes(n), `عدد ${n} به متنِ بیمار نرسید: ${interp}`);
   assert.equal(body.has_critical, true);
 });
+
+test("T31: _engine.critical_banner — نوزادِ «فقط-به‌خاطرِ-کف» بنرِ نوزادی می‌گیرد، اورژانسِ واقعی و بزرگسال null (job c138671c)", async () => {
+  // 🔴 پیش‌تر: فرانت برای هر has_critical بنرِ بزرگسال (تپش قلب/گیجی/«فردا صبح») می‌گذاشت. متنِ بنرِ نوزادی از rules/neonatal.js
+  //   می‌آید و این‌جا فقط رسیدنش را می‌سنجیم. has_critical در هر دو حالت true می‌ماند.
+  const { NEONATAL_TODAY_BANNER } = await import("./rules/neonatal.js");
+  const t = (name, value, unit = "") => ({ name, value, unit });
+  const neoSheet = { patient: { age: "1 روز", sex: "unknown" }, tests: [
+    t("WBC", "7.4", "10^3/µL"), t("RBC", "3.50", "10^6/µL"), t("HGB", "15.3", "g/dL"), t("HCT", "45.0", "%"),
+    t("MCV", "128.6", "fL"), t("MCHC", "34.0", "g/dL"), t("PLT", "165", "10^3/µL"), t("LYM#", "6.2", "10^3/µL"),
+  ] };
+  const neo = await analyze(neoSheet);
+  assert.equal(neo.status, 200);
+  assert.equal(neo.body.has_critical, true);
+  assert.deepEqual(neo.body._engine.critical_banner, NEONATAL_TODAY_BANNER);
+
+  const real = await analyze({ patient: { age: "1 روز", sex: "unknown" }, tests: [t("K", "7.1", "mmol/L")] });
+  assert.equal(real.body.has_critical, true);
+  assert.equal(real.body._engine.critical_banner, null);
+
+  const adult = await analyze({ patient: { age: 50, sex: "M" }, tests: [t("WBC", "114", "10^3/µL"), t("PLT", "46", "10^3/µL")] });
+  assert.equal(adult.body.has_critical, true);
+  assert.equal(adult.body._engine.critical_banner, null);
+});

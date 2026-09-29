@@ -11231,3 +11231,33 @@ test("M245d: اورهٔ بالا — پرچمِ soon فقط با BUN/Cr > 30 و 
   assert.equal(mid.f.urgency, "routine");
   assert.ok(!mid.f.sources, "منبع فقط روی شاخه‌ای که آستانه را به کار می‌برد");
 });
+
+// ---------- M246: بنرِ بالای صفحهٔ نوزادِ «فقط-به‌خاطرِ-کف» (job c138671c، تصمیمِ کاربر ۲۰۲۶-۰۹-۳۰) ----------
+// 🔴 پیش‌تر: نوزادِ ۱ روزه که فقط از کفِ نوزادی (applyNeonatalFloor) اورژانس شده بود، بنرِ عمومیِ فرانت را می‌گرفت:
+//   «تپش قلب، ضعف شدید، گیجی یا تنگی نفس … منتظر صبح نمانید … لازم نیست الان کسی را بیدار کنید؛ برای اولین ساعت کاری
+//   فردا …» — علائمِ بزرگسال، و «فردا» در تناقض با خودِ تیتر («همین امروز»). حالا سرور بنرِ نوزادی می‌دهد، ولی فقط
+//   وقتی *هر* یافتهٔ اورژانسی از کف آمده؛ نوزادِ دارای اورژانسِ واقعی (هایپرکالمی، لکوسیتوزِ شدید) بنرِ عمومی را نگه می‌دارد.
+test("M246: نوزادِ ۱ روزهٔ job c138671c ⇒ بنرِ «امروز» با علائمِ خطرِ نوزاد، بی‌علائمِ بزرگسال و بی‌«فردا»", async () => {
+  const { neonatalTodayOnly, NEONATAL_TODAY_BANNER } = await import("./neonatal.js");
+  const neo = m220Run("1 روز");
+  assert.ok(neo.p.findings.some((f) => f.urgency === "emergency" && f.neonatal_floor), String(neo.ids));
+  assert.equal(neonatalTodayOnly(neo.p.findings), true);
+  assert.equal(neo.p.has_critical, true, "has_critical دست نخورده");
+  const txt = `${NEONATAL_TODAY_BANNER.title} ${NEONATAL_TODAY_BANNER.body}`;
+  assert.match(txt, /همین امروز/); assert.match(txt, /پزشکِ نوزاد/); assert.match(txt, /تشنج/); assert.match(txt, /شیر نمی‌خورد/);
+  assert.doesNotMatch(txt, /تپش قلب|گیجی|تنگی نفس|ضعف شدید|فردا|صبح|بیدار|۱۱۵/, txt);
+});
+
+test("M246b: شاهدِ منفی — اورژانسِ واقعیِ نوزاد (نه کف) و اورژانسِ بزرگسال بنرِ نوزادی نمی‌گیرند", async () => {
+  const { neonatalTodayOnly } = await import("./neonatal.js");
+  const real = [m220T("WBC", "114", "10^3/µL"), m220T("PLT", "46", "10^3/µL")];
+  const neoReal = m220Run("1 روز", real);
+  assert.ok(neoReal.p.findings.some((f) => f.urgency === "emergency" && !f.neonatal_floor), String(neoReal.ids));
+  assert.equal(neonatalTodayOnly(neoReal.p.findings), false);
+  const neoK = m220Run("1 روز", [m220T("K", "7.1", "mmol/L")]);
+  assert.equal(neonatalTodayOnly(neoK.p.findings), false, String(neoK.ids));
+  assert.equal(neonatalTodayOnly(m220Run("40 سال", real, "M").p.findings), false);
+  // بدونِ هیچ اورژانسی هم false است (لیستِ خالی «همه از کف» حساب نمی‌شود)
+  assert.equal(neonatalTodayOnly(m220Run("40 سال", [m220T("HGB", "14", "g/dL")], "M").p.findings), false);
+  assert.equal(neonatalTodayOnly([]), false); assert.equal(neonatalTodayOnly(undefined), false);
+});

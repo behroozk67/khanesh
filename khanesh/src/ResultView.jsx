@@ -376,6 +376,11 @@ export default function ResultView({ result, asText, asList }) {
 
   const ctx = buildVerdictContext(tests, urgency, uncoveredKeys);
 
+  // نوزادی که فقط به‌خاطرِ کفِ «همین امروز» اورژانس شده: متنِ بنر را سرور می‌دهد (rules/neonatal.js). بدونِ آن
+  // (یا سرورِ قدیمی) بنرِ عمومی می‌آید. شکلِ ناقص = بنرِ عمومی، نه بنرِ خالی.
+  const cb = eng?.critical_banner;
+  const todayBanner = cb && typeof cb.title === "string" && typeof cb.body === "string" ? cb : null;
+
   // گروه‌بندی به تفکیک دستگاه بدن؛ کلیدِ ناشناخته در «سایر» می‌افتد و
   // هرگز ناپدید نمی‌شود.
   const bucket = {};
@@ -395,12 +400,14 @@ export default function ResultView({ result, asText, asList }) {
              role="alert" چون این تنها رشتهٔ واقعاً فوریِ صفحه است و تا امروز
              یک <div> ساده بود که هیچ اسکرین‌ریدری اعلامش نمی‌کرد. */}
       {result.has_critical && (
-        <div className="crit-banner" role="alert">
-          <p className="crit-title">این نتیجه باید همین امروز دیده شود</p>
+        <div className={todayBanner ? "crit-banner crit-banner--today" : "crit-banner"} role="alert">
+          <p className="crit-title">{todayBanner ? asText(todayBanner.title) : "این نتیجه باید همین امروز دیده شود"}</p>
           <p className="crit-body">
-            اگر تپش قلب، ضعف شدید، گیجی یا تنگی نفس دارید، منتظر صبح نمانید — به نزدیک‌ترین
-            اورژانس بروید یا با ۱۱۵ تماس بگیرید. اگر حالتان خوب است، لازم نیست الان کسی را بیدار
-            کنید؛ برای اولین ساعت کاری فردا با پزشک تماس بگیرید و همین برگه را همراه ببرید.
+            {todayBanner ? asText(todayBanner.body) : (
+              "اگر تپش قلب، ضعف شدید، گیجی یا تنگی نفس دارید، منتظر صبح نمانید — به نزدیک‌ترین " +
+              "اورژانس بروید یا با ۱۱۵ تماس بگیرید. اگر حالتان خوب است، لازم نیست الان کسی را بیدار " +
+              "کنید؛ برای اولین ساعت کاری فردا با پزشک تماس بگیرید و همین برگه را همراه ببرید."
+            )}
           </p>
         </div>
       )}
