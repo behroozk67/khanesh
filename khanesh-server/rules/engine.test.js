@@ -1819,11 +1819,18 @@ test("پوشش/قلبی: با تروپونینِ مثبت، CK-MB زیرِ او�
   const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" },
     tests: [{ name: "Troponin I", value: "Positive" }, { name: "CK-MB", value: 45 }] }));
   // specs/009 (R6، M200) — عمداً تغییر کرد: یافتهٔ CK-MB زیرِ اورژانس پنهان می‌ماند ولی CK_MB را «پوشش‌داده» می‌کرد،
-  //   پس عددِ ۴۵ هیچ‌جا دیده نمی‌شد. حالا یافتهٔ CK-MB همچنان پنهان است و خودِ عدد فقط در یک خطِ کوتاهِ «توضیح داده نشدند» می‌آید.
-  assert.deepEqual(p.findings.map((f) => f.rule_id), ["troponin_positive", "unexplained_abnormal"],
-    "فقط اورژانس + خطِ کوتاهِ تور");
-  assert.deepEqual(p.findings[1].uncovered, ["CK_MB"]);
-  assert.equal(p.findings[1].must_say, p.findings[1].brief, "زیرِ اورژانس فقط نسخهٔ کوتاه");
+  //   پس عددِ ۴۵ هیچ‌جا دیده نمی‌شد. دورِ بعد (M241، ۲۰۲۶-۰۹-۲۹) عمداً دوباره تغییر کرد: حالا همان یافته به شکلِ
+  //   «یافتهٔ تکمیلی» برمی‌گردد (جملهٔ اولِ خودِ قاعده + عدد) و خطِ «توضیح داده نشدند» دیگر نیست؛ فوریت و ترتیبِ اورژانس همان است.
+  assert.deepEqual(p.findings.map((f) => f.rule_id), ["troponin_positive", "ckmb_high"],
+    "اورژانس + یافتهٔ تکمیلیِ CK-MB");
+  const ck = p.findings[1];
+  assert.equal(ck.supplementary, true);
+  assert.equal(ck.urgency, "this_week", "فوریتِ خودِ یافته دست‌نخورده");
+  assert.ok(ck.must_say.startsWith("یافتهٔ تکمیلی 1 از 1 (جدا از دستور اورژانسی): "), ck.must_say);
+  assert.ok(ck.must_say.includes("CK-MB 45 (طبیعی 0–25)"), "عدد از گزارش نمی‌افتد: " + ck.must_say);
+  assert.equal(ck.action, "", "دستورِ زمان‌دارِ دوم نمی‌آید (N20)");
+  assert.deepEqual(p.suppressed_ids, ["ckmb_high"]);
+  assert.deepEqual(p.supplementary_ids, ["ckmb_high"]);
   assert.equal(p.overall_urgency, "emergency");
 });
 
@@ -2946,7 +2953,7 @@ test("M48: پتاسیمِ ۵.۶ قاعده دارد و در unmatched_abnormal �
 
   const f = p.findings.find((x) => x.pattern === "hyperkalemia");
   assert.match(f.must_say, /5\.6/, "مقدار باید در متن گفته شود");
-  assert.equal(f.urgency, "this_week");
+  assert.equal(f.urgency, "soon"); // P59 پرسش ۶: K ۵٫۵–۵٫۹ ⇒ ۲۴ تا ۴۸ ساعت
   assert.ok(!f.blocks_others, "باندِ غیربحرانی نباید بقیهٔ یافته‌ها را بپوشاند");
 });
 
@@ -10880,9 +10887,16 @@ test("M240c: F4 — اورهٔ بالا با کراتینینِ طبیعی صا�
   assert.ok(fffFind(p, "isolated_urea_elevation"), "قاعده فعال نشد");
   const u = fffFind(j40Run(j40NoBlocker()).p, "isolated_urea_elevation"); // متنِ کامل، نه brief
   assert.match(u.must_say, /اوره شما 60 است و از حد طبیعی \(15–45\) بالاتر است، ولی کراتینین 0.85 طبیعی است/);
-  assert.match(u.must_say, /نسبت اوره به کراتینین \(BUN\/Cr\) 33 است و بالاتر از ۲۰ است/);
+  // P59 پرسش ۴: با Hbِ پایین (7.1) و BUN/Cr = 33 ⇒ خونریزیِ گوارشی در صدر و فوریتِ soon
+  assert.match(u.must_say, /هموگلوبین 7.1 هم پایین است و نسبتِ اوره به کراتینین \(BUN\/Cr\) 33 است.*خونریزی در دستگاه گوارش.*مدفوعِ تیره/);
+  assert.match(u.action, /۲۴ تا ۴۸ ساعت/);
   assert.match(u.must_say, /eGFR\) حدود 80/);
-  assert.equal(u.urgency, "routine");
+  assert.equal(u.urgency, "soon");
+  // نقطهٔ کنترل: همان برگه با Hbِ طبیعی ⇒ متنِ قبلی، routine
+  const u2 = fffFind(j40Run(j40NoBlocker(j40With("Hb", "13.5"))).p, "isolated_urea_elevation");
+  assert.match(u2.must_say, /نسبت اوره به کراتینین \(BUN\/Cr\) 33 است و بالاتر از ۲۰ است/);
+  assert.ok(!/مدفوعِ تیره|هموگلوبین/.test(u2.must_say), u2.must_say);
+  assert.equal(u2.urgency, "routine");
   // نسبتِ عادی (مرد ۴۰ ساله، اورهٔ ۴۶، کراتینین ۱.۱ ⇒ ≈۱۹.۵؛ زنِ ۵۶ ساله با این کراتینین eGFR<۶۰ می‌گیرد و مالِ kidney است): علتِ پیش‌کلیوی نمی‌گوید
   const low = fffFind(fffRun(j40NoBlocker(j40With("urea", "46")).map((r) => (r[0] === "Creatinine" ? ["Creatinine", "1.1", "mg%"] : r)), { age: 40, sex: "M" }).p, "isolated_urea_elevation");
   assert.ok(low, "نسبتِ عادی فعال نشد");
@@ -10906,7 +10920,9 @@ test("M240c: F4 — اورهٔ بالا با کراتینینِ طبیعی صا�
 test("M240d: F5 — PTِ خامِ کمی بالا با INR و APTTِ طبیعی «طولانی‌شدنِ زمان لخته شدن» نمی‌گوید؛ INRِ بالا یا غایب متنِ کلی می‌گیرد (N4)", () => {
   const c = fffFind(j40Run().p, "coagulation_abnormal");
   assert.match(c.brief, /PT\) 14.5 \(حد طبیعی 10–13\) کمی بالاتر است ولی INR 1.2 در محدوده است/);
-  assert.equal(c.urgency, "this_week"); // فوریت دست‌نخورده (P59-ه: تصمیمِ بازبین)
+  assert.equal(c.urgency, "routine"); // P59 پرسش ۵ (بازبین): PT ایزوله با INRِ طبیعی routine
+  assert.match(c.action, /نوبتِ عادی.*PT و INR تکرار شود/);
+  assert.ok(!/کبد|ویتامین K/.test(fffText(c)), "جملهٔ قاطعِ علت‌ها با INRِ طبیعی نباید بیاید");
   const solo = fffFind(j40Run(J40_ROWS.filter((r) => ["pt", "INR", "PTT"].includes(r[0]))).p, "coagulation_abnormal");
   assert.match(solo.must_say, /INR \(که PT را بین آزمایشگاه‌ها قابل‌مقایسه می‌کند\) 1.2 و در محدوده است و APTT هم طبیعی است/);
   assert.match(solo.must_say, /PT و INR باید تکرار شود/);
@@ -10922,7 +10938,8 @@ test("M240d: F5 — PTِ خامِ کمی بالا با INR و APTTِ طبیعی 
 
 test("M240e: F6 — پتاسیمِ غیربحرانی اقدامِ صریح می‌گیرد: تکرار با نمونهٔ تازه + حدِّ علائم؛ هم تنها و هم زیرِ اورژانسِ دیگر", () => {
   const k = fffFind(j40Run([["Serum K", "5.9", "meq/l"]]).p, "hyperkalemia");
-  assert.equal(k.urgency, "this_week");
+  assert.equal(k.urgency, "soon"); // P59 پرسش ۶ (بازبین)
+  assert.match(k.action, /۲۴ تا ۴۸ ساعت/);
   assert.match(k.action, /پتاسیم را با نمونهٔ تازه تکرار کنید/);
   assert.match(k.action, /اگر تپش قلب، ضعف شدید یا بی‌حسی دارید، زودتر مراجعه کنید/);
   const { e, p } = j40Run();
@@ -10940,4 +10957,89 @@ test("M240e: F6 — پتاسیمِ غیربحرانی اقدامِ صریح می
 test("M240f: پس از رفع، عددِ K، PT، اوره، لنفوسیت و MCHC در متنِ یافتهٔ صاحبشان آمده است", () => {
   const txt = j40Run().p.findings.map(fffText).join(" ");
   for (const s of ["پتاسیم شما 5.9", "PT) 14.5", "اوره شما 60", "لنفوسیت 473", "MCHC 29"]) assert.ok(txt.includes(s), `«${s}» در متن نیست`);
+});
+
+// ---------- M241: یافتهٔ کم‌فوریتی که زیرِ blocker پنهان می‌شد ولی عددی را توضیح می‌دهد، «یافتهٔ تکمیلی» می‌شود، نه حذف (N18/N2؛ job 40b8a901، fff90f58، ۲۰۲۶-۰۹-۲۹) ----------
+// 🔴 پیش از اصلاح (اندازه‌گیری‌شده): زیرِ blocks_others هر یافتهٔ کم‌فوریتِ بی‌always_show کاملاً از فهرست حذف می‌شد و کلیدهایش
+//    (M200: «پنهان پوشش نمی‌دهد») به خطِ «توضیحِ آمادهٔ اختصاصی نداریم» می‌رفت — یعنی عددی که موتور برایش قاعده داشت،
+//    «بی‌توضیح» خوانده می‌شد. راه‌حلِ قبلی فقط per-rule بود (always_show + brief روی K/PT/اوره). حالا ریشه: یافته‌ای که
+//    عددِ بی‌توضیحی را نام می‌برد به شکلِ فشرده (جملهٔ اولِ خودِ قاعده + عدد) برمی‌گردد؛ یافته‌ای که چیزِ تازه‌ای
+//    نمی‌گوید پنهان می‌ماند تا اورژانس رقیق نشود. blocks_others، فوریتِ کلی، ترتیب و actionِ اورژانس دست نمی‌خورند.
+const M241_WBC80 = () => s9Run("M", 50, [
+  s9T("WBC", 80, "10^3/uL"), s9T("Hb", 12, "g/dL"), s9T("PLT", 450, "10^3/uL"), ...s9Diff(70, 8, 4, 6, 5),
+]);
+
+test("M241: WBC 80 — لنفوسیت/ائوزینوفیل/مونوسیتِ بالا زیرِ اورژانس «یافتهٔ تکمیلی» می‌گیرند، با عدد، و از «توضیح داده نشدند» بیرون می‌آیند", () => {
+  const { p } = M241_WBC80();
+  assert.equal(p.findings[0].rule_id, "extreme_leukocytosis", "blocker همچنان اول است");
+  assert.equal(p.overall_urgency, "emergency");
+  assert.equal(p.has_critical, true);
+  const sup = p.findings.filter((f) => f.supplementary);
+  assert.deepEqual(sup.map((f) => f.rule_id), ["cll_suspicion_nccn", "eosinophilia", "monocytosis"]);
+  sup.forEach((f, i) => assert.ok(
+    f.must_say.startsWith(`یافتهٔ تکمیلی ${i + 1} از 3 (جدا از دستور اورژانسی): `), `برچسب/شمارش: ${f.must_say}`));
+  const text = s9Text(p);
+  for (const n of ["6400", "4800", "3200"]) assert.ok(text.includes(n), `عدد ${n} در متنِ نمایشی نیست`);
+  const un = s9Uncovered(p);
+  for (const k of ["LYMPH_ABS", "EOS_ABS", "MONO_ABS"]) assert.ok(!un.includes(k), `${k} هنوز «بی‌توضیح» است: ${un}`);
+  // شمارش و شناسه‌ها به خروجیِ موتور می‌رسند (قراردادِ _engine)
+  assert.equal(p.suppressed, 3);
+  assert.deepEqual([...p.suppressed_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis"]);
+  assert.deepEqual([...p.supplementary_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis"]);
+});
+
+test("M241b: یافتهٔ تکمیلی فوریتِ خودش را نگه می‌دارد ولی هیچ دستور/هشدار/پیشنهادِ زمان‌دارِ دومی نمی‌آورد (N20) و دستورِ نهاییِ اورژانس عوض نمی‌شود", () => {
+  const { e, p } = M241_WBC80();
+  // بدونِ این، حلقهٔ پایین روی کدِ قدیمی (که یافتهٔ تکمیلی ندارد) بی‌مصرف سبز می‌شود (N15).
+  assert.equal(p.findings.filter((x) => x.supplementary).length, 3, "پیش‌شرط: سه یافتهٔ تکمیلی");
+  for (const f of p.findings.filter((x) => x.supplementary)) {
+    assert.equal(f.action, "", `${f.rule_id}: دستورِ زمان‌دارِ دوم`);
+    assert.deepEqual(f.warnings, []);
+    assert.deepEqual(f.suggest, []);
+    assert.deepEqual(f.protected, []);
+    assert.ok(["this_week", "routine", "soon"].includes(f.urgency), "فوریتِ خودِ یافته دست‌نخورده");
+  }
+  const blocker = p.findings[0];
+  assert.match(blocker.must_say, /^گلبول سفید 80 است — چندین برابر حد بالای طبیعی/);
+  assert.match(blocker.action, /^همین/, blocker.action);
+  const recs = buildEngineRecommendations(p, e);
+  assert.ok(!recs.some((r) => /این هفته|نوبتِ عادی/.test(r)), `تایم‌لاینِ رقیب در توصیه‌ها: ${recs.join(" | ")}`);
+});
+
+test("M241c: یافتهٔ کم‌فوریتی که فقط کلیدهایی را می‌گوید که متنِ دیگری گفته، پنهان می‌ماند — اورژانس رقیق نمی‌شود، ولی شمارشش در suppressed_ids می‌آید", () => {
+  const { p } = j40Run();                       // پان‌سیتوپنی؛ leukopenia و thrombocytopenia همان عددها را pancytopenia می‌گوید
+  const ids = p.findings.map((f) => f.rule_id);
+  assert.equal(ids[0], "pancytopenia", "blocker همچنان اول است");
+  assert.ok(!ids.includes("leukopenia") && !ids.includes("thrombocytopenia"), `تکراری نمایش داده شد: ${ids}`);
+  assert.deepEqual([...p.suppressed_ids].sort(), ["leukopenia", "thrombocytopenia"]);
+  assert.deepEqual(p.supplementary_ids, []);
+  assert.equal(p.suppressed, 2);
+});
+
+test("M241d: job 40b8a901 — K 5.9 و PT 14.5 در متنِ نمایشی نام برده می‌شوند (نه فقط در فهرستِ بی‌توضیح‌ها) و pancytopenia همچنان اورژانسیِ اول است", () => {
+  const { p } = j40Run();
+  assert.equal(p.findings[0].rule_id, "pancytopenia");
+  assert.equal(p.findings[0].urgency, "emergency");
+  assert.ok(!p.findings.some((f) => f.rule_id === "unexplained_abnormal"), "هنوز بی‌توضیح");
+  const k = p.findings.find((f) => f.rule_id === "potassium_critical");
+  const c = p.findings.find((f) => f.rule_id === "coagulation_abnormal");
+  assert.match(k.must_say, /پتاسیم شما 5\.9/);
+  assert.match(c.must_say, /PT\) 14\.5/);
+});
+
+test("M241e: job fff90f58 — WBC 36.6 زیرِ اورژانسِ ترومبوسیتوپنی توضیحِ قاعدهٔ خودش را دارد، نه یک سطر در فهرست", () => {
+  const { p } = fffRun(FFF90_ROWS, { age: 0.75, sex: "M" });
+  assert.equal(p.findings[0].urgency, "emergency");
+  assert.ok(!p.findings.some((f) => f.rule_id === "unexplained_abnormal"), "WBC به فهرستِ بی‌توضیح رفت");
+  const w = p.findings.find((f) => f.rule_id === "leukocytosis_with_cytopenia");
+  assert.ok(w, "قاعدهٔ لکوسیتوز نمایش داده نشد");
+  assert.match(w.must_say, /36\.6/);
+});
+
+test("M241f: بدونِ blocker هیچ «یافتهٔ تکمیلی» ساخته نمی‌شود — پنلِ بی‌اورژانس دست‌نخورده است", () => {
+  const { p } = j40Run(j40NoBlocker());
+  assert.ok(!p.findings.some((f) => f.supplementary), "بدونِ blocker نباید یافتهٔ تکمیلی باشد");
+  assert.equal(p.suppressed, 0);
+  assert.deepEqual(p.suppressed_ids, []);
+  assert.deepEqual(p.supplementary_ids, []);
 });

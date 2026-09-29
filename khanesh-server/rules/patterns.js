@@ -291,8 +291,32 @@ function willBrief(f, findings) {
   return Number.isFinite(br) && !!f.always_show && rank(f.urgency) > br && !!f.brief;
 }
 
+/** جملهٔ اولِ must_say — همان جمله‌ای که server.js برای key_number هم برمی‌دارد (عدد و جهت در آن است). */
+const firstSentence = (s) => String(s ?? "").split(/(?<=[.؟!])\s/)[0].trim();
+/**
+ * متنِ فشردهٔ «یافتهٔ تکمیلی»: جملهٔ اولِ خودِ قاعده، بی‌هیچ متنِ تازه. برچسب و شمارش را انتخابِ یافته‌ها می‌گذارد.
+ * ⚠️ فقط از همان یافته می‌خواند؛ چیزی نمی‌سازد و timeline ندارد (action و warnings و suggest نمی‌آیند — N20).
+ */
+const compactBody = (f) => firstSentence(f.must_say) || String(f.headline ?? "").trim();
+/**
+ * متنِ نمایشیِ یافتهٔ تکمیلی: جملهٔ اول + مقدارِ کلیدهایی که به‌خاطرشان برگشت، اگر جمله عددشان را نگفته باشد —
+ * همان قالبِ خطِ «توضیح داده نشدند» (نام، عدد، طبیعی). بدونِ این، عددِ CK-MB ۴۵ از گزارش می‌افتاد و فقط اسمش می‌ماند.
+ * @param named ردیف‌های engineOut.abnormal که این یافته نامشان را می‌برد و هیچ متنِ دیگری نگفته بود.
+ */
+function compactText(f, named = []) {
+  const body = compactBody(f);
+  const says = (a) => new RegExp(`(^|[^0-9.])${String(a.value).replace(/[.+*?^${}()|[]\]/g, "\const lacking = named.filter((a) => !body.includes(String(a.value)));")}($|[^0-9])`).test(body);
+  const lacking = named.filter((a) => !says(a));
+  if (!lacking.length) return body;
+  const list = lacking.map((a) => `${faName(a.test)} ${a.value}${a.range ? ` (طبیعی ${a.range})` : ""}`).join("، ");
+  return `${body.replace(/[.؟!]+$/, "")} — مقدار روی برگه: ${list}.`;
+}
+
 export function runPatterns(engineOut) {
   const findings = [];
+  // یافته‌های کم‌فوریتی که زیرِ blocker پنهان می‌شدند ولی عددی را توضیح می‌دهند که هیچ متنِ نمایشی نمی‌گوید —
+  // به‌جای حذف، به‌صورتِ فشرده نشان داده می‌شوند (پر می‌شود در تورِ ایمنی ۲، مصرف می‌شود در «انتخاب یافته‌ها»).
+  const rescued = new Map(); // یافته → ردیف‌های غیرطبیعیِ بی‌توضیحی که به‌خاطرشان برمی‌گردد
   // ⚠️ قاعده‌ای که throw کند، یافته‌اش بی‌صدا از گزارشِ بیمار حذف می‌شود.
   //    تا امروز فقط یک console.error می‌خورد — یعنی روی سرورِ پرودکشن هیچ‌کس
   //    نمی‌فهمید، و خروجی همچنان «کامل» به نظر می‌رسید. این همان چیزی است که
@@ -389,7 +413,7 @@ export function runPatterns(engineOut) {
     //    متنی که واقعاً نشان داده می‌شود (brief و brief_warnings) پوشش می‌دهد، نه با RULE_READS.
     // 🔴 specs/009 (R6، M200): همین کلاس برای یافته‌ای که زیرِ blocker *کاملاً* پنهان می‌شود. WBC 80 + بازوفیل ۵٪ →
     //    cml_suspicion و cll_suspicion_nccn match می‌شدند، زیرِ extreme_leukocytosis پنهان می‌ماندند و BASO_ABS/LYMPH_ABS را
-    //    «پوشش‌داده» می‌کردند: بازوفیلِ ۴۰۰۰ و لنفوسیتِ ۶۴۰۰ نه در متن بودند نه در این تور. یافتهٔ پنهان هیچ پوششی نمی‌دهد.
+    //    «پوشش‌داده» می‌کردند: بازوفیلِ ۴۰۰۰ و لنفوسیتِ ۶۴۰۰ نه در متن بودند نه در این تور. یافتهٔ پنهان با RULE_READS هیچ پوششی نمی‌دهد؛ فقط اگر متنِ فشردهٔ «یافتهٔ تکمیلی» عددی را نام ببرد (rescued، پایین‌تر) پوشش با همان متن حساب می‌شود.
     const br = blockerRankOf(findings);
     const hidden = new Set(Number.isFinite(br)
       ? findings.filter((f) => rank(f.urgency) > br && !f.always_show)
@@ -407,9 +431,26 @@ export function runPatterns(engineOut) {
         : [f.headline, f.must_say, f.action, (f.warnings ?? []).join(" ")].join(" "))
       .join(" ");
 
-    const orphans = engineOut.abnormal
+    let orphans = engineOut.abnormal
       .filter((a) => !covered.has(a.test) && !textNamesTest(text, a.test))
       .sort((a, b) => rankOf(b) - rankOf(a));
+
+    // 🔴 job 40b8a901 / fff90f58: یافتهٔ پنهان‌شده‌ای که *خودش* عددی را نام می‌برد که هیچ متنِ نمایشی نمی‌گوید، قبلاً
+    //    بی‌صدا حذف می‌شد و همان عدد زیرِ «توضیحِ آمادهٔ اختصاصی نداریم» می‌آمد — بیمار عددِ دارای‌توضیحِ موتور را
+    //    «بی‌توضیح» می‌خواند (N18/N2). حالا چنین یافته‌ای به شکلِ فشرده برمی‌گردد. یافته‌ای که چیزِ تازه‌ای نمی‌گوید
+    //    (کلیدهایش را متنِ دیگری گفته، مثلِ leukopenia زیرِ pancytopenia) پنهان می‌ماند تا اورژانس رقیق نشود؛ شمارشش در
+    //    suppressed/suppressed_ids می‌ماند. ملاک، متنِ فشرده است نه RULE_READS (N18: پوششْ خاصیتِ متنِ دیده‌شده است).
+    if (orphans.length > 0 && hidden.size > 0) {
+      const seen = (f) => `${f.headline ?? ""} ${compactBody(f)}`;
+      for (const f of hidden) {
+        const named = orphans.filter((a) => textNamesTest(seen(f), a.test));
+        if (named.length) rescued.set(f, named);
+      }
+      if (rescued.size > 0) {
+        const extra = [...rescued.keys()].map((f) => `${f.headline ?? ""} ${compactText(f, rescued.get(f))}`).join(" ");
+        orphans = orphans.filter((a) => !textNamesTest(extra, a.test));
+      }
+    }
 
     if (orphans.length > 0) {
       const hasCritical = orphans.some((a) => a.level === "critical");
@@ -485,10 +526,14 @@ export function runPatterns(engineOut) {
 
   // always_show: یافته‌ای که حتی زیر یک blockerِ مهم‌تر هم نباید پنهان شود
   //   (مثل D-dimer که همیشه باید دست‌کم یک اشارهٔ کوتاه داشته باشد). بقیهٔ
-  //   موارد کم‌اهمیت‌تر طبق روال پنهان می‌شوند تا پیام اورژانس رقیق نشود.
-  const selected = hasBlocker
-    ? findings.filter((f) => rank(f.urgency) <= blockerRank || f.always_show)
-    : findings;
+  //   موارد کم‌اهمیت‌تر طبق روال پنهان می‌شوند تا پیام اورژانس رقیق نشود —
+  //   مگر اینکه عددی را توضیح بدهند که هیچ متنِ نمایشی نمی‌گوید (rescued، تورِ ایمنی ۲):
+  //   آن‌ها «یافتهٔ تکمیلی» می‌شوند، نه حذف.
+  const isDemoted = (f) => hasBlocker && rank(f.urgency) > blockerRank && !f.always_show;
+  const demoted = findings.filter(isDemoted);
+  const selected = findings.filter((f) => !isDemoted(f));
+  // به ترتیبِ فوریت (پایدار) تا شمارهٔ «۱ از n» همان ترتیبی باشد که بعد از shown.sort دیده می‌شود.
+  const supplementary = demoted.filter((f) => rescued.has(f)).sort((x, y) => rank(x.urgency) - rank(y.urgency));
 
   // یافتهٔ always_show که فقط به‌خاطر همین استثنا زیر یک blocker مانده،
   //   نسخهٔ کوتاهش (brief) را می‌گیرد تا پیام اورژانس را شلوغ نکند.
@@ -498,6 +543,20 @@ export function runPatterns(engineOut) {
       ? { ...f, must_say: f.brief, warnings: f.brief_warnings ?? [], suggest: [] }
       : f
   );
+  // یافتهٔ تکمیلی: فقط جملهٔ اولِ خودِ قاعده، با برچسب و شمارش. action/warnings/suggest/protected نمی‌آیند —
+  // فوریت و دستورِ نهایی و ترتیبِ اورژانس دست‌نخورده می‌ماند (این‌ها فوریتِ پایین‌تر از blocker دارند و
+  // pickFinalAction/overall_urgency را عوض نمی‌کنند). forbid و key_number می‌مانند.
+  supplementary.forEach((f, i) => {
+    shown.push({
+      ...f,
+      must_say: `یافتهٔ تکمیلی ${i + 1} از ${supplementary.length} (جدا از دستور اورژانسی): ${compactText(f, rescued.get(f))}`,
+      action: "",
+      warnings: [],
+      suggest: [],
+      protected: [],
+      supplementary: true,
+    });
+  });
 
   shown.sort((a, b) => rank(a.urgency) - rank(b.urgency));
 
@@ -512,8 +571,11 @@ export function runPatterns(engineOut) {
     findings: shown,
     overall_urgency: shown[0]?.urgency ?? "none",
     has_critical: shown.some((f) => f.urgency === "emergency"),
-    // چند مورد کم‌اهمیت‌تر پنهان شد — برای شفافیت
-    suppressed: hasBlocker ? findings.length - shown.length : 0,
+    // چند یافته زیرِ blocker از متنِ کامل افتاد (پیش از این: همه حذف می‌شدند؛ حالا آن‌هایی که عددِ بی‌توضیح را
+    // می‌گویند فشرده برمی‌گردند). suppressed_ids همهٔ آن‌هاست، supplementary_ids فقط زیرمجموعهٔ نمایش‌داده‌شده.
+    suppressed: demoted.length,
+    suppressed_ids: demoted.map((f) => f.rule_id),
+    supplementary_ids: supplementary.map((f) => f.rule_id),
     // قاعده‌هایی که استثنا دادند و یافته‌شان از گزارش افتاد. آرایهٔ خالی یعنی
     // هیچ‌کدام نیفتاده — نه اینکه کسی نگاه نکرده. ⚠️ اگر روزی ناخالی شد،
     // یعنی بیمار یک گزارشِ ناقص گرفته و هیچ‌جای دیگری این را نمی‌گوید.

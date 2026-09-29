@@ -1429,6 +1429,15 @@ structural, not specific to that rule.
   changed on purpose: the net's routine action is a list of names, with no timeline. Guard `M200`. **Rule:** before
   deciding what a finding covers, ask whether the patient will see it at all.
 
+- ⚠️ **Recurred 2026-09-29 on an adult pancytopenia sheet (P59, job `40b8a901`), through the same door as N20's `blocks_others` entry.**
+  `pancytopenia` hid three findings that each *had* a rule: K 5.5–5.9 (`hyperkalemia`), an isolated PT rise
+  (`coagulation_abnormal`) and a high urea with normal creatinine (no rule at all). The first two were suppressed and covered
+  nothing (M200), so K and PT fell into «توضیح داده نشدند»; the third fell through the same net. Fixed with `always_show` +
+  `brief` (+ `brief_warnings`) on K and PT, and a new `isolated_urea_elevation`. Guards `M240`–`M240f`; `M187` changed on purpose.
+  **Rule:** when a blocker can hide a finding, that finding needs `always_show` + a brief that names its own number — check every
+  rule whose analyte can appear beside an emergency, not only the one that exposed it. Red-before was proven by stash
+  (`pass 668 · fail 8`). Still open in `MEDICAL_RULES.md` P59: six reviewer questions and the sources for four rules.
+
 ### N19 — Covering the borderline case and not the frank one
 2026-08-06, `borderline_b12_deficiency`. Same session as N18, found by the same probe.
 
