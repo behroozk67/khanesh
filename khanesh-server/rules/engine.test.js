@@ -11057,6 +11057,69 @@ test("M240g: منبعِ P59 فقط روی شاخه‌ای می‌نشیند که
   assert.ok(pan.sources.includes("CHEW_PANCYTOPENIA"), String(pan.sources));
 });
 
+// ---------- M241g/h: بازبینیِ جملهٔ اولِ قاعده‌های پنهان‌شدنی (شرطِ پرسش ۲ از P60، ۲۰۲۶-۰۹-۲۹) ----------
+// اندازه‌گیری: ۴۳۶ نوع جملهٔ اول از ۱۱۸ قاعدهٔ پنهان‌شدنی در کلِ سوئیت ثبت و خوانده شد. «این اعداد نشان می‌دهند…» (liver_pattern)،
+// «برای قطعی‌شدنِ تشخیص، این آزمایش باید تکرار شود — … معطل هم نکنید» (glycemia)، «برخلافِ کمبودِ آهن…» (anemia_chronic_disease)
+// تنها و زیرِ اورژانس به چیزی ارجاع می‌دهند که بیمار ندیده؛ و rbc_indices_implausible می‌گوید «معمولاً اثرِ نمونه یا دستگاه» که
+// کنارِ Hbِ بحرانی خطرناک است. این دو تست با یک قاعدهٔ ساختگیِ موقت در RULES مکانیزم را می‌سنجند.
+const m241Fake = (over) => ({
+  id: "m241_fake",
+  match: () => true,
+  build: () => ({
+    pattern: "m241_fake", urgency: "this_week",
+    headline: "لنفوسیت‌های شما بالاتر از حد طبیعی است",
+    must_say: "این اعداد نشان می‌دهند چیزی تحریک شده است. جملهٔ دوم.",
+    action: "این هفته پزشک.", suggest: [], warnings: [],
+    ...over,
+  }),
+});
+const m241WithFake = (fake, fn) => {
+  RULES.push(fake);
+  try { return fn(); } finally { RULES.pop(); }
+};
+
+test("M241g: جملهٔ اولِ بی‌زمینه («این اعداد…») در یافتهٔ تکمیلی جایش را به headlineِ خودبسندهٔ همان قاعده می‌دهد", () => {
+  const f = m241WithFake(m241Fake({}), () => M241_WBC80().p.findings.find((x) => x.rule_id === "m241_fake"));
+  assert.ok(f, "یافتهٔ ساختگی تکمیلی نشد");
+  assert.equal(f.supplementary, true);
+  assert.ok(!/این اعداد/.test(f.must_say), f.must_say);
+  assert.ok(f.must_say.includes("لنفوسیت‌های شما بالاتر از حد طبیعی است"), f.must_say);
+  assert.ok(f.must_say.includes("6400"), "عدد هنوز می‌آید: " + f.must_say);
+});
+
+test("M241h: یافتهٔ technical یا no_supplementary هرگز تکمیلی نمی‌شود؛ کلیدش در suppressed_ids می‌ماند و به «توضیح داده نشدند» می‌رود", () => {
+  for (const flag of [{ technical: true }, { no_supplementary: true }]) {
+    const p = m241WithFake(m241Fake({ ...flag, must_say: "جملهٔ اول بدونِ ارجاع." }), () => M241_WBC80().p);
+    assert.ok(!p.findings.some((x) => x.rule_id === "m241_fake"), `${Object.keys(flag)} نمایش داده شد`);
+    assert.ok(p.suppressed_ids.includes("m241_fake"), "باید در suppressed_ids بماند");
+    assert.ok(!p.supplementary_ids.includes("m241_fake"));
+  }
+  // ریشه‌ای: rbc_indices_implausible خودش no_supplementary دارد
+  const impl = RULES.find((r) => r.id === "rbc_indices_implausible");
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [
+    { name: "Hb", value: "14", unit: "g/dL" }, { name: "Hct", value: "30", unit: "%" }, { name: "MCHC", value: "46.7", unit: "g/dL" },
+    { name: "MCV", value: "90", unit: "fL" }, { name: "RBC", value: "3.3", unit: "10^6/uL" } ] });
+  assert.ok(impl.match(e), "پیش‌شرط: پنلِ ناهماهنگ باید rbc_indices_implausible را فعال کند");
+  assert.equal(impl.build(e).no_supplementary, true);
+});
+
+// ---------- M242: پرامپت برچسبِ «یافتهٔ تکمیلی» را نگه می‌دارد (P60، اجرای زندهٔ ۲۰۲۶-۰۹-۲۹) ----------
+// 🔴 اندازه‌گیری‌شده با مدلِ واقعی روی پنل WBC 80: هر سه عددِ تکمیلی (6400، 4800، 3200) در متن آمد ولی برچسبِ «(جدا از دستور
+//    اورژانسی)» در یک پاراگرافِ عادی حل شد؛ تورِ جمله‌به‌جمله برچسب را نمی‌سنجد چون جملهٔ مستقل نیست. قاعدهٔ ۰.۷ پرامپت فقط
+//    قالب‌بندی است (N9: پرامپت قضاوت نمی‌کند). این تست فقط دو چیز را قفل می‌کند: قاعده هست، و عبارتِ آغازینِ نقل‌شده در آن
+//    همان است که موتور واقعاً می‌سازد — وگرنه اگر برچسب عوض شود، پرامپت بی‌صدا به چیزی اشاره می‌کند که دیگر وجود ندارد.
+//    اینکه مدلِ واقعی رعایت می‌کند را فقط اجرای زنده می‌سنجد.
+test("M242: قاعدهٔ ۰.۷ پرامپت هست و به همان پیشوندی اشاره می‌کند که موتور برای یافتهٔ تکمیلی می‌سازد", () => {
+  const rule = ENGINE_SYSTEM_PROMPT.split("\n").join(" ").match(/۰\.۷\..*?(?=۱\. فیلد)/s)?.[0] ?? "";
+  assert.ok(rule.includes("یافتهٔ تکمیلی"), "قاعدهٔ ۰.۷ در پرامپت نیست");
+  assert.ok(rule.includes("جدا از دستور اورژانسی"), rule);
+  const sup = M241_WBC80().p.findings.find((f) => f.supplementary);
+  assert.ok(sup, "پیش‌شرط: یافتهٔ تکمیلی");
+  // عبارتِ آغازینِ واقعی: «یافتهٔ تکمیلی {i} از {n} (جدا از دستور اورژانسی):» — دو تکهٔ ثابتش باید در پرامپت هم باشند
+  assert.match(sup.must_say, /^یافتهٔ تکمیلی \d+ از \d+ \(جدا از دستور اورژانسی\): /);
+  for (const part of ["یافتهٔ تکمیلی", "جدا از دستور اورژانسی"]) assert.ok(sup.must_say.includes(part) && rule.includes(part), part);
+});
+
 test("M243: MCVِ ۹۰ در نوزادِ ۲ ماهه طبیعی است (جدولِ تأییدشدهٔ ۲۰۲۶-۰۹-۳۰، P57-۱۰)؛ MCVِ ۹۰ در یک‌روزه هنوز طبق P57 «پایین» است", () => {
   const sheet = [m220T("HGB", "11.0", "g/dL"), m220T("MCV", "90", "fL")];
   const two = m220Run("2 ماه", sheet).e.graded.find((g) => g.test === "MCV");
@@ -11074,4 +11137,41 @@ test("M243b: P59-7 گزینهٔ ب — اورهٔ بالا با BUN/Cr > ۲۰ د
   assert.doesNotMatch(ok.must_say + ok.brief, /می‌خواند تا|بیشتر با کم‌آبی/);
   assert.match(ok.must_say, /به‌تنهایی علتِ/);
   assert.equal(ok.urgency, "routine");
+});
+
+// ---------- M244: بندِ (ج) پرسش ۲ از P60 — جملهٔ اولِ تعریفی و hematuria_pattern (تأییدِ کاربر ۲۰۲۶-۰۹-۲۹) ----------
+// 🔴 پیش از این: «LDH آنزیمی است که تقریباً در همهٔ سلول‌ها…» تنها زیرِ اورژانس (فقط با پسوندِ «مقدار روی برگه» کامل می‌شد)؛
+//    «لنفوسیت‌ها … در عفونتِ ویروسی بالا می‌روند» بی‌هیچ زمینه؛ و جملهٔ نوارِ hematuria_pattern («رنگدانهٔ هموگلوبین») Hb را
+//    در تورِ نام‌برداری «نام‌برده‌شده» می‌کرد. فهرستِ صریحِ id، نه heuristic؛ هیچ متنِ فارسیِ تازه‌ای ساخته نشده.
+test("M244: LDHِ واقعی زیرِ اورژانس با headlineِ قاعده می‌آید، نه جملهٔ تعریفی، و عدد می‌آید", () => {
+  const { p } = s9Run("M", 50, [
+    s9T("WBC", 80, "10^3/uL"), s9T("Hb", 12, "g/dL"), s9T("PLT", 450, "10^3/uL"), ...s9Diff(70, 8, 4, 6, 5),
+    s9T("LDH", 900, "U/L"), s9T("AST", 20, "U/L"), s9T("ALT", 20, "U/L"),
+  ]);
+  const f = p.findings.find((x) => x.rule_id === "isolated_ldh_elevation");
+  assert.ok(f && f.supplementary, "پیش‌شرط: LDH تکمیلی شد");
+  assert.ok(f.must_say.includes("LDH بالاتر از حد طبیعی است؛ این عدد به‌تنهایی یک بیماری را مشخص نمی‌کند"), f.must_say);
+  assert.ok(!f.must_say.includes("آنزیمی است که تقریباً"), f.must_say);
+  assert.ok(f.must_say.includes("LDH 900"), f.must_say);
+});
+
+test("M244b: سه id فهرستِ headline-only به‌جای جملهٔ اولِ تعریفی headline می‌گیرند؛ idِ دیگر جملهٔ اولش را نگه می‌دارد", () => {
+  const asId = (id) => ({ ...m241Fake({ must_say: "جملهٔ تعریفیِ بی‌ادعا. جملهٔ دوم." }), id });
+  for (const id of ["isolated_ldh_elevation", "pancreas_pattern", "viral_lymphocytosis"]) {
+    const f = m241WithFake(asId(id), () => M241_WBC80().p.findings.find((x) => x.rule_id === id && x.supplementary));
+    assert.ok(f, `${id}: تکمیلی نشد`);
+    assert.ok(f.must_say.includes("لنفوسیت‌های شما بالاتر از حد طبیعی است"), `${id}: ${f.must_say}`);
+    assert.ok(!f.must_say.includes("جملهٔ تعریفیِ بی‌ادعا"), `${id}: ${f.must_say}`);
+  }
+  const ctl = m241WithFake(asId("some_other_rule"), () => M241_WBC80().p.findings.find((x) => x.rule_id === "some_other_rule"));
+  assert.ok(ctl.must_say.includes("جملهٔ تعریفیِ بی‌ادعا"), "نقطهٔ کنترل: idِ خارج از فهرست جملهٔ اولش را نگه می‌دارد");
+});
+
+test("M244c: hematuria_pattern هرگز تکمیلی نمی‌شود و در suppressed_ids می‌ماند؛ Hb با نامِ «هموگلوبین» در جملهٔ نوار نام‌برده‌شده نمی‌شود", () => {
+  const fake = { ...m241Fake({ must_say: "نوارِ آزمایشِ ادرار به رنگدانهٔ هموگلوبین واکنش می‌دهد. جملهٔ دوم.", headline: "نوارِ ادرارِ شما به خون واکنش داده" }), id: "hematuria_pattern" };
+  const p = m241WithFake(fake, () => s9Run("M", 50, [
+    s9T("WBC", 80, "10^3/uL"), s9T("Hb", 12, "g/dL"), s9T("PLT", 450, "10^3/uL"), ...s9Diff(70, 8, 4, 6, 5) ]).p);
+  assert.ok(!p.findings.some((x) => x.rule_id === "hematuria_pattern"), "نمایش داده شد");
+  assert.ok(p.suppressed_ids.includes("hematuria_pattern"));
+  assert.ok(s9Uncovered(p).includes("HGB"), `Hb باید در «توضیح داده نشدند» بماند: ${s9Uncovered(p)}`);
 });

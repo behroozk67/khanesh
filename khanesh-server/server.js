@@ -70,6 +70,12 @@ function engineDebug(engineOut, patternOut) {
     //    چسباندنِ آن پرچمِ کل‌پنلی به هر ردیفِ غیرطبیعی، کنارِ یافته‌ای که با
     //    اطمینان فقر آهن را توضیح می‌دهد، تناقض می‌سازد.
     uncovered: patternOut.findings.flatMap((f) => f.uncovered ?? []),
+    // ⚠️ یافته‌هایی که زیرِ یک blocker (اورژانس) از متنِ کامل افتادند. `suppressed` تعدادِ همه‌شان (قراردادِ قدیمی: عدد)،
+    //    `suppressed_ids` شناسه‌هایشان، و `supplementary` آن زیرمجموعه‌ای که به شکلِ فشردهٔ «یافتهٔ تکمیلی» نمایش داده شد
+    //    چون عددی را توضیح می‌داد که متنِ دیگری نمی‌گفت. مابقی عمداً پنهان‌اند (محتوایشان را متنِ دیگری گفته).
+    suppressed: patternOut.suppressed ?? 0,
+    suppressed_ids: patternOut.suppressed_ids ?? [],
+    supplementary: patternOut.supplementary_ids ?? [],
     indices: engineOut.indices,
     tests: serializeGraded(engineOut),
     // ── منابعِ گایدلاینیِ یافته‌ها (شفافیت) ──
@@ -1177,7 +1183,7 @@ const analyzeHandler = async (req, res) => {
       //    جمله‌های افتاده اینجا برگردند، عدد هم با آن‌ها برمی‌گردد و تضمینِ بعدی
       //    دیگر فعال نمی‌شود — پس یک جمله دو بار اضافه نمی‌شود.
       const numbered = patternOut.findings.filter(
-        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null
+        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary
       );
       if (numbered.length) {
         const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;
@@ -1364,7 +1370,7 @@ const analyzeHandler = async (req, res) => {
       //    جمله‌های افتاده اینجا برگردند، عدد هم با آن‌ها برمی‌گردد و تضمینِ بعدی
       //    دیگر فعال نمی‌شود — پس یک جمله دو بار اضافه نمی‌شود.
       const numbered = patternOut.findings.filter(
-        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null
+        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary
       );
       if (numbered.length) {
         const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;

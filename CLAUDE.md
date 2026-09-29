@@ -1437,6 +1437,23 @@ structural, not specific to that rule.
   **Rule:** when a blocker can hide a finding, that finding needs `always_show` + a brief that names its own number — check every
   rule whose analyte can appear beside an emergency, not only the one that exposed it. Red-before was proven by stash
   (`pass 668 · fail 8`). Still open in `MEDICAL_RULES.md` P59: six reviewer questions and the sources for four rules.
+- ⚠️ **The per-rule fix above was the wrong altitude, and the structural one landed 2026-09-29 (P60).** `always_show` + `brief` has to be
+  remembered for every rule that can sit under a blocker; the next one nobody remembers fails the same way. `runPatterns` now rescues
+  *any* hidden finding whose compact text (first sentence of its own `must_say` + the sheet's value) names a number nothing else
+  explained: it comes back as `supplementary`, labelled «یافتهٔ تکمیلی i از n (جدا از دستور اورژانسی)», with no `action`/`warnings`/
+  `suggest`. A hidden finding that says nothing new stays hidden (`leukopenia` under `pancytopenia`) and is counted in
+  `_engine.suppressed_ids`. Guards `M241`–`M241f`, `T30`. **Two things to know:** the task that asked for this described a repro
+  (only 3 findings on `40b8a901`) that does not reproduce on `HEAD` or the working tree — K/PT/urea were already displayed by the per-rule
+  fix, so `M241d`/`M241e` are green-before; the mechanism tests are the red-before ones. And the first version of the compact text
+  named the analyte but dropped its number (`CK-MB` without `45`) — worse than the old «توضیح داده نشدند» line, which had it.
+  The P60 first-sentence review (436 sentence variants, 118 hideable rules, all read) found dangling openers («این اعداد…», «برای قطعی‌شدنِ
+  تشخیص، این آزمایش…») and two device-error rules whose «معمولاً اثرِ نمونه یا دستگاه» is dangerous beside a critical Hb. Fixed with a
+  headline fallback (`DANGLING_START`) and `technical`/`no_supplementary` exclusion; guards `M241g`/`M241h`. **The regex's first draft matched
+  the prefix «آن», so «آنزیمی…» and «آنتی‌بادی…» were treated as dangling — only the CK-MB test caught it. A Persian prefix match needs a
+  word boundary.** Also: a `$&` inside a `String.replace` replacement string silently spliced source text into `patterns.js` (found by
+  reading the file, not by the suite) — write regex-bearing edits with the Edit tool, not `node -e`.
+  P60 closed 2026-09-29: prompt rule ۰.۷ keeps the «یافتهٔ تکمیلی» label (live model dropped it on run 1, kept it on run 2; n=1 each, `M242`);
+  `COMPACT_HEADLINE_ONLY` / `NO_SUPPLEMENTARY_IDS` are explicit id lists, `M244`–`M244c`.
 
 ### N19 — Covering the borderline case and not the frank one
 2026-08-06, `borderline_b12_deficiency`. Same session as N18, found by the same probe.

@@ -59,6 +59,10 @@ _engine = {
   urgency:  "emergency" | "soon" | "this_week" | "routine" | "none",   // soon = ۲۴ تا ۴۸ ساعت (2026-09-28، P56)
   abnormal: <number>,       // count only — kept for backward compat, prefer tests[]
   uncovered: [engine_key, …],   // keys no rule picked up — see the warning below
+  suppressed: <number>,         // findings dropped from the full text under an emergency blocker (2026-09-29, P60)
+  suppressed_ids: [rule_id, …], //   …which ones
+  supplementary: [rule_id, …],  //   …the subset shown as a compact «یافتهٔ تکمیلی» because it explained a number nothing else did
+                                //   (absent on an older server — treat as empty; nothing in the UI reads these yet)
   indices:  { egfr, ca_measured, ca_corrected, … },   // derived values, NOT on the patient's sheet
   tests:    [ { key, name, value, range, refSource,
                 abnormal, dir, fa, level, ctcaeGrade, nearLimit, source } ],

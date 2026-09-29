@@ -852,3 +852,23 @@ test("T29: «---.-» (جای‌نگهدارِ دستگاه) مثلِ مقدار�
   assert.ok(warnings.some((w) => /^MXD#: مقدار خوانا نبود/.test(w)), warnings.join(" | "));
   assert.ok(!warnings.some((w) => /^(WBC|Nitrite):/.test(w)), "عددِ واقعی و «منفی»ِ نوار ناخوانا نیستند (N6)");
 });
+
+test("T30: _engine.suppressed/suppressed_ids/supplementary برسند، و یافتهٔ تکمیلیِ افتاده از متنِ مدل برگردانده شود (job 40b8a901/fff90f58، ۲۰۲۶-۰۹-۲۹)", async () => {
+  // 🔴 پیش‌تر: suppressed فقط در لاگِ trace بود و در _engine نبود — فرانت/بازبین نمی‌دانستند چه چیزی زیرِ اورژانس پنهان شد؛
+  //   و یافتهٔ کم‌فوریتِ پنهان اصلاً به متنِ بیمار نمی‌رسید. مدلِ stub اینجا هیچ‌کدام را نمی‌نویسد.
+  const panel = { patient: { age: 50, sex: "M" }, tests: [
+    { name: "WBC", value: "80", unit: "10^3/uL" }, { name: "Hb", value: "12", unit: "g/dL" }, { name: "PLT", value: "450", unit: "10^3/uL" },
+    { name: "Neut %", value: "70", unit: "%" }, { name: "Lymph %", value: "8", unit: "%" }, { name: "Mono %", value: "4", unit: "%" },
+    { name: "Eos %", value: "6", unit: "%" }, { name: "Baso %", value: "5", unit: "%" },
+  ] };
+  const { status, body } = await analyze(panel);
+  assert.equal(status, 200);
+  const eng = body._engine;
+  assert.equal(eng.suppressed, 3, JSON.stringify(eng.suppressed));
+  assert.deepEqual([...eng.suppressed_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis"]);
+  assert.deepEqual([...eng.supplementary].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis"]);
+  assert.ok(!(eng.uncovered ?? []).some((k) => ["LYMPH_ABS", "EOS_ABS", "MONO_ABS"].includes(k)), `هنوز بی‌توضیح: ${eng.uncovered}`);
+  const interp = body.interpretation ?? "";
+  for (const n of ["6400", "4800", "3200"]) assert.ok(interp.includes(n), `عدد ${n} به متنِ بیمار نرسید: ${interp}`);
+  assert.equal(body.has_critical, true);
+});

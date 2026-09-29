@@ -300,7 +300,22 @@ const firstSentence = (s) => String(s ?? "").split(/(?<=[.؟!])\s/)[0].trim();
  * متنِ فشردهٔ «یافتهٔ تکمیلی»: جملهٔ اولِ خودِ قاعده، بی‌هیچ متنِ تازه. برچسب و شمارش را انتخابِ یافته‌ها می‌گذارد.
  * ⚠️ فقط از همان یافته می‌خواند؛ چیزی نمی‌سازد و timeline ندارد (action و warnings و suggest نمی‌آیند — N20).
  */
-const compactBody = (f) => firstSentence(f.must_say) || String(f.headline ?? "").trim();
+// جملهٔ اولی که بی‌زمینه نامفهوم است («این اعداد…»، «برای قطعی‌شدنِ تشخیص، این آزمایش…»، «برخلافِ کمبودِ آهن…») تنها و زیرِ اورژانس
+// به چیزی ارجاع می‌دهد که بیمار ندیده؛ به‌جایش headline می‌آید (عنوانِ خودبسندهٔ همان قاعده). بازبینیِ ۲۰۲۶-۰۹-۲۹، شرطِ پرسش ۲ از P60.
+// ⚠️ با مرزِ واژه: «آنزیمی…» و «آنتی‌بادی…» با «آن» شروع می‌شوند و نباید گرفتار شوند (تستِ CK-MB این را گرفت).
+const DANGLING_START = /^(این|آن|همین|چنین|برخلاف|برای|یک آزمایش|پس|بنابراین|همچنین)(?=[\s،—])/;
+// جملهٔ اولِ تعریفی که دربارهٔ عددِ بیمار ادعایی ندارد («LDH آنزیمی است که…»، «لیپاز آنزیمی است…»، «لنفوسیت‌ها نوعی گلبول سفیدند که در
+// عفونتِ ویروسی بالا می‌روند») — فهرستِ صریحِ id (نه heuristic): headline می‌آید. تأییدِ کاربر ۲۰۲۶-۰۹-۲۹، بندِ (ج) پرسش ۲ از P60.
+const COMPACT_HEADLINE_ONLY = new Set(["isolated_ldh_elevation", "pancreas_pattern", "viral_lymphocytosis"]);
+// یافته‌ای که هرگز «یافتهٔ تکمیلی» نمی‌شود: hematuria_pattern در جملهٔ نوار «رنگدانهٔ هموگلوبین» را می‌گوید و تورِ نام‌برداری با آن
+// Hb را «نام‌برده‌شده» می‌شمرد؛ خودش هم کلیدِ graded ندارد (کیفی است)، پس چیزی از بیمار گرفته نمی‌شود. همین تأیید.
+const NO_SUPPLEMENTARY_IDS = new Set(["hematuria_pattern"]);
+const compactBody = (f) => {
+  const s = firstSentence(f.must_say);
+  const head = String(f.headline ?? "").trim();
+  if (COMPACT_HEADLINE_ONLY.has(f.rule_id) && head) return head;
+  return s && !DANGLING_START.test(s) ? s : head || s;
+};
 /**
  * متنِ نمایشیِ یافتهٔ تکمیلی: جملهٔ اول + مقدارِ کلیدهایی که به‌خاطرشان برگشت، اگر جمله عددشان را نگفته باشد —
  * همان قالبِ خطِ «توضیح داده نشدند» (نام، عدد، طبیعی). بدونِ این، عددِ CK-MB ۴۵ از گزارش می‌افتاد و فقط اسمش می‌ماند.
@@ -308,7 +323,8 @@ const compactBody = (f) => firstSentence(f.must_say) || String(f.headline ?? "")
  */
 function compactText(f, named = []) {
   const body = compactBody(f);
-  const says = (a) => new RegExp(`(^|[^0-9.])${String(a.value).replace(/[.+*?^${}()|[]\]/g, "\const lacking = named.filter((a) => !body.includes(String(a.value)));")}($|[^0-9])`).test(body);
+  const esc = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const says = (a) => new RegExp(`(^|[^0-9.])${esc(a.value)}($|[^0-9])`).test(body);
   const lacking = named.filter((a) => !says(a));
   if (!lacking.length) return body;
   const list = lacking.map((a) => `${faName(a.test)} ${a.value}${a.range ? ` (طبیعی ${a.range})` : ""}`).join("، ");
@@ -446,6 +462,8 @@ export function runPatterns(engineOut) {
     if (orphans.length > 0 && hidden.size > 0) {
       const seen = (f) => `${f.headline ?? ""} ${compactBody(f)}`;
       for (const f of hidden) {
+        // یافتهٔ فنی (خطای نمونه/دستگاه) یا آن‌که خودش کنار گذاشته، تکمیلی نمی‌شود؛ کلیدش به خطِ صادقانهٔ «توضیح داده نشدند» می‌رود.
+        if (f.technical || f.no_supplementary || NO_SUPPLEMENTARY_IDS.has(f.rule_id)) continue;
         const named = orphans.filter((a) => textNamesTest(seen(f), a.test));
         if (named.length) rescued.set(f, named);
       }

@@ -1672,6 +1672,8 @@ export const RULES_HEMATOLOGY = [
       if (crisis) {
         return {
           pattern: "rbc_indices_implausible",
+          // P60: جملهٔ «معمولاً اثرِ نمونه یا دستگاه» تنها و زیرِ اورژانس می‌تواند عددِ بحرانیِ Hb را بی‌اهمیت جلوه دهد؛ «یافتهٔ تکمیلی» نمی‌شود.
+          no_supplementary: true,
           urgency: "routine",
           key_number: mchc.value,
           headline: "شاخص‌های گلبول قرمزِ این برگه با هم جور درنمی‌آیند",
@@ -1693,6 +1695,8 @@ export const RULES_HEMATOLOGY = [
       const mcvHigh = mcv?.abnormal && mcv.dir === "high";
       return {
         pattern: "rbc_indices_implausible",
+        // P60: جملهٔ «معمولاً اثرِ نمونه یا دستگاه» تنها و زیرِ اورژانس می‌تواند عددِ بحرانیِ Hb را بی‌اهمیت جلوه دهد؛ «یافتهٔ تکمیلی» نمی‌شود.
+        no_supplementary: true,
         urgency: "routine",
         key_number: mchc.value,
         headline: "شاخص‌های گلبول قرمزِ این برگه با هم جور درنمی‌آیند",
