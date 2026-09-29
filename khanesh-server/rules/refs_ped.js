@@ -46,6 +46,7 @@ const M = m => m / 12;
 // نام برده نشده و این جلسه منبع را باز نکرد) — برچسبِ منبع همین را می‌گوید، نه ادعای کتاب (همان رسمِ SPECS008_SOURCE).
 export const P57_SOURCE = 'User-approved 2026-09-28 (P57, pasted reference)';
 // CALIPER، Am J Clin Pathol 2020، Beckman Coulter DxH 900، سالمِ ۰ تا <۲۱ سال، متنِ باز: https://pmc.ncbi.nlm.nih.gov/articles/PMC7403759/ (جدولِ ۱، ۲۰۲۶-۰۹-۲۹)
+export const NATHAN_OSKI_SOURCE = 'Nathan & Oski (table supplied by user, approved 2026-09-30; book not opened)';
 export const CALIPER_SOURCE = 'CALIPER 2020 (Am J Clin Pathol, DxH 900), PMC7403759';
 
 export const PED_REFS = {
@@ -84,11 +85,17 @@ export const PED_REFS = {
     { maxAge: D(28),  range: [30, 36], source: P57_SOURCE },
     { maxAge: 16,     range: [32, 35] },
   ],
+  // ۲۰۲۶-۰۹-۳۰ (تأییدِ کاربر): جدولِ «Nathan & Oski» چسبانده‌شده (±۲SD) — کتاب باز نشده، پس منبعِ منتشرشده نیست.
+  //   ردیفِ قبلیِ ۰–۳ ماه (۱۰۰–۱۳۰) MCVِ ۹۰ در ۲ ماهگی را «پایین» می‌خواند، ولی جدول ۷۷–۱۱۵ می‌دهد (P57-۱۰).
   MCV: [                                    // fL
-    { maxAge: M(3),   range: [100, 130] },
-    { maxAge: M(4),   range: [85,  100] },
-    { maxAge: 4,      range: [70,   86] },
-    { maxAge: 12,     range: [77,   91] },
+    { maxAge: D(3),   range: [100, 130] },                          // ۰–۳ روز: بی‌تغییر — MCH ۳۲–۴۲ و MCHC ۳۰–۳۶ (P57) با MCV تا ۱۳۰ می‌خواند (M220)
+    { maxAge: D(14),  range: [86, 126], source: NATHAN_OSKI_SOURCE },   // ۴ روز – ۲ هفته (۱ هفته ۸۸–۱۲۶، ۲ هفته ۸۶–۱۲۴)
+    { maxAge: M(2),   range: [85, 123], source: NATHAN_OSKI_SOURCE },   // ۲ هفته – ۲ ماه («۱ ماهگی»)
+    { maxAge: M(3),   range: [77, 115], source: NATHAN_OSKI_SOURCE },   // ۲ – ۳ ماه («۲ ماهگی»)
+    { maxAge: M(6),   range: [74, 108], source: NATHAN_OSKI_SOURCE },   // ۳ – ۶ ماه
+    { maxAge: 2,      range: [70,  86], source: NATHAN_OSKI_SOURCE },   // ۶ ماه – ۲ سال
+    { maxAge: 6,      range: [75,  87], source: NATHAN_OSKI_SOURCE },   // ۲ – ۶ سال
+    { maxAge: 12,     range: [77,  95], source: NATHAN_OSKI_SOURCE },   // ۶ – ۱۲ سال
   ],
   NEUT_ABS: [                               // ×10⁹/L → /µL (×1000)
     { maxAge: D(3),   range: [5000, 13000] },

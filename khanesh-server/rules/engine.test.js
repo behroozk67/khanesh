@@ -11056,3 +11056,22 @@ test("M240g: منبعِ P59 فقط روی شاخه‌ای می‌نشیند که
   const pan = fffFind(j40Run().p, "pancytopenia");
   assert.ok(pan.sources.includes("CHEW_PANCYTOPENIA"), String(pan.sources));
 });
+
+test("M243: MCVِ ۹۰ در نوزادِ ۲ ماهه طبیعی است (جدولِ تأییدشدهٔ ۲۰۲۶-۰۹-۳۰، P57-۱۰)؛ MCVِ ۹۰ در یک‌روزه هنوز طبق P57 «پایین» است", () => {
+  const sheet = [m220T("HGB", "11.0", "g/dL"), m220T("MCV", "90", "fL")];
+  const two = m220Run("2 ماه", sheet).e.graded.find((g) => g.test === "MCV");
+  assert.ok(two && !two.abnormal, JSON.stringify(two));
+  const day = m220Run("1 روز", sheet).e.graded.find((g) => g.test === "MCV");
+  assert.ok(day && day.abnormal && day.dir === "low", JSON.stringify(day));
+});
+
+test("M243b: P59-7 گزینهٔ ب — اورهٔ بالا با BUN/Cr > ۲۰ دیگر نمی‌گوید «بیشتر با کم‌آبی … تا کلیه»؛ می‌گوید نسبت به‌تنهایی علت را مشخص نمی‌کند؛ فوریتِ soon با Hbِ پایین دست‌نخورده", () => {
+  const solo = fffFind(j40Run(j40NoBlocker()).p, "isolated_urea_elevation");
+  assert.doesNotMatch(solo.must_say, /می‌خواند تا|بیشتر با کم‌آبی/);
+  assert.match(solo.must_say, /می‌تواند نشانهٔ خونریزی در دستگاه گوارش باشد/);
+  assert.equal(solo.urgency, "soon");
+  const ok = fffFind(j40Run(j40NoBlocker(j40With("Hb", "13.5"))).p, "isolated_urea_elevation");
+  assert.doesNotMatch(ok.must_say + ok.brief, /می‌خواند تا|بیشتر با کم‌آبی/);
+  assert.match(ok.must_say, /به‌تنهایی علتِ/);
+  assert.equal(ok.urgency, "routine");
+});
