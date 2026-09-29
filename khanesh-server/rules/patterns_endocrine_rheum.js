@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, CRP_RE, RF_RE } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, CRP_RE, RF_RE, has, macroMcvCut } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -334,3 +334,137 @@ export const RULES_ENDOCRINE_RHEUM = [
       };
     },
   }];
+
+// ═══ merged from patterns_endocrine_new.js (2026-09-29): appended verbatim, nothing edited or deduplicated. ═══
+// No rule id existed in both files. Array order in patterns.js is unchanged: RULES_ENDOCRINE_RHEUM then its _NEW array.
+
+export const RULES_ENDOCRINE_NEW = [
+  // ── تیروئید ──
+  // 🔴 حذف‌شده (۲۰۲۶-۰۹-۱۷): `overt_hypothyroidism` و `overt_thyrotoxicosis`.
+  //
+  // هر دو زیرمجموعهٔ محضِ قاعدهٔ `thyroid` در patterns_endocrine_rheum.js بودند
+  // و هر بار که فعال می‌شدند آن یکی هم فعال می‌شد. اندازه‌گیری‌شده روی کدِ
+  // پیش از حذف، نه استنتاج‌شده:
+  //
+  //   TSH ۶.۰ / FT4 ۰.۷ → thyroid_hypo_overt  «این هفته وقت بگیرید.»        (this_week)
+  //                      + overt_hypothyroidism «…مشورت کنید.»              (routine)
+  //   TSH ۰.۰۵ / FT4 ۲.۵ → thyroid_hyper_overt + overt_thyrotoxicosis       (هر دو this_week)
+  //
+  // موردِ اول از موردِ دوم بدتر است: دو فوریتِ متفاوت روی عددِ یکسان، و
+  // فوریتی که بیمار روی آن کارت می‌خواند کم‌گویی است — بدترین جهتِ خطا در
+  // این پروژه. `overall_urgency` درست می‌ماند چون بیشینه گرفته می‌شود، پس
+  // هیچ گاردی آن را نمی‌دید. کلاسِ N20.
+  //
+  // ⚠️ پیش از حذف، طبقِ N16، پوششِ هر دو اندازه‌گیری شد (حذف تنها ویرایشی است
+  //    که اثری از خود به جا نمی‌گذارد):
+  //  • `thyroid` هر چیزی که این دو می‌گفتند را دارد و بیشتر: بازهٔ مرجع را
+  //    نقل می‌کند، سازوکار را توضیح می‌دهد، anti-TPO و یافته‌های همراه
+  //    (سدیم/CK/هموگلوبین) را اضافه می‌کند و هشدارِ «طوفانِ تیروئیدی» دارد.
+  //  • شاخهٔ FT3ِ `overt_thyrotoxicosis` پوششِ تازه نبود: `thyroid_t3_toxicosis`
+  //    از قبل در همان قاعده وجود دارد و روی FT4ِ طبیعی + FT3ِ بالا با فوریتِ
+  //    this_week فعال می‌شود. گاردِ M99c همین را قفل می‌کند.
+  //  • «لووتیروکسین» عمداً منتقل نشد: تجویزِ دارو کارِ این موتور نیست — همان
+  //    تصمیمی که در N22 برای استاتین گرفته شد.
+  //  • تنها محتوای منحصربه‌فرد، جملهٔ بارداری بود که به شاخهٔ کم‌کاریِ واضحِ
+  //    `thyroid` منتقل شد (گاردِ M99d) — و آنجا به جنسیت مقید شد، وگرنه به
+  //    بیمارِ مرد هم گفته می‌شد.
+  //  • `ft4 > 1.8` و `ft3 > 4.4` هاردکد بودند در حالی که refs.js سقفِ FT4 را
+  //    ۲.۳ و FT3 را ۴.۴ می‌داند؛ یعنی FT4ِ ۱.۹–۲.۳ (که «طبیعی» است) را
+  //    «پرکاریِ واضح» می‌خواند — کلاسِ N3. حذف این را هم می‌بندد، ولی برای آن
+  //    بازه فوریت از this_week به routine می‌آید؛ در MEDICAL_RULES.md بندِ
+  //    P45 برای بازبین ثبت شد. گاردها: M99، M99b، M99c، M99d.
+
+  // ── ویتامین B12 ──
+  // 🔴 باگ واقعی (اندازه‌گیری‌شده، ۲۰۲۶-۰۸-۰۶): قاعدهٔ مرزیِ زیر بازهٔ
+  //    ۱۵۰–۳۹۹ را می‌گیرد و هیچ قاعده‌ای زیرِ ۱۵۰ نداشت. یعنی موتور موردِ
+  //    *مرزی* را توضیح می‌داد و دربارهٔ کمبودِ *آشکار* ساکت بود: B12=۸۰ روی
+  //    یک پنلِ کامل فقط unmatched_abnormal می‌گرفت («توضیح آماده‌ای نداریم»).
+  //
+  // ⚠️ آستانهٔ ۱۵۰ عددِ تازه‌ای نیست: همان مرزِ پایینِ باندی است که قاعدهٔ
+  //    مرزیِ زیر خودش اعلام می‌کند و در متنش به بیمار هم می‌گوید. این قاعده
+  //    فقط ناحیه‌ای را می‌پوشاند که آن یکی صراحتاً بیرون گذاشته. منبعِ
+  //    منتشرشدهٔ این عدد هنوز در مخزن ثبت نشده — P21 در MEDICAL_RULES.md.
+  {
+    id: "overt_b12_deficiency",
+    match: (e) => {
+      const b12 = val(e).B12;
+      return b12 != null && b12 < 150;
+    },
+    build: (e) => {
+      const b12 = val(e).B12;
+      const mcv = val(e).MCV;
+      const hgb = e.graded.find((g) => g.test === "HGB");
+
+      // شاخهٔ سه‌حالتهٔ N4 — «اندازه‌گیری نشده» نباید با «طبیعی» یکی شود.
+      // مهم‌تر: آسیبِ عصبیِ کمبود B12 می‌تواند *بدون* کم‌خونی رخ دهد، پس
+      // شمارش خونِ طبیعی این احتمال را رد نمی‌کند و گفتنش لازم است.
+      let bloodTxt;
+      if (mcv == null && !hgb) {
+        bloodTxt = " شمارش خون (CBC) روی این برگه نیست؛ برای دیدن اثر این کمبود روی گلبول‌های قرمز لازم است.";
+      } else if (mcv != null && mcv > macroMcvCut(e)) {
+        bloodTxt = ` گلبول‌های قرمز شما هم بزرگ‌تر از حد طبیعی هستند (MCV=${mcv})، که با همین کمبود می‌خواند.`;
+      } else {
+        bloodTxt = " شمارش خون شما این اثر را نشان نمی‌دهد، ولی این کمبود را رد نمی‌کند: آسیب عصبی ناشی از کمبود B12 می‌تواند پیش از هر تغییری در گلبول‌های قرمز شروع شود.";
+      }
+
+      // P49-ج (تأییدِ ۲۰۲۶-۰۹-۱۹): آنتی‌بادیِ «مثبت» کنارِ B12ِ پایین ⇒ «احتمالِ پرنیشیوز؛ تشخیص با پزشک».
+      // کیفی می‌ماند (N6). فهرستِ سفید روی *کلِ* مقدار، نه جست‌وجوی زیررشته: بازبینی (C1، C2) نشان داد
+      // «Undetected» و «+/-» با /detected|\+/ «مثبت است» می‌شدند. مثبتِ ضعیف، مبهم، «1+»، عدد و منفی
+      // تفسیر نمی‌شوند و در خطِ «تفسیر نشدند» می‌مانند — فقط «Positive»ِ صریح تأیید شده است.
+      const POSITIVE_WORDS = new Set(["positive", "pos", "مثبت", "reactive", "detected"]);
+      const pos = (k) => {
+        const s = String(e.ungraded?.[k]?.value ?? "").trim().toLowerCase().replace(/[.!]+$/, "");
+        return POSITIVE_WORDS.has(s);
+      };
+      const ifPos = pos("ANTI_IF"), apcaPos = pos("APCA");
+      const abTxt =
+        (ifPos
+          ? " آنتی‌بادیِ ضدِ فاکتورِ داخلیِ شما مثبت است. همراهِ B12ِ پایین، این احتمالِ کم‌خونیِ پرنیشیوز را " +
+            "مطرح می‌کند — بیماریِ خودایمنی‌ای که جذبِ B12 از روده را مختل می‌کند. تشخیص با پزشک است."
+          : "") +
+        (apcaPos
+          ? " آنتی‌بادیِ ضدِ سلولِ جداریِ معدهٔ شما مثبت است. این آنتی‌بادی در کم‌خونیِ پرنیشیوز شایع است " +
+            "ولی اختصاصی نیست و در افرادِ دیگر هم دیده می‌شود؛ تشخیص با پزشک است."
+          : "");
+      const explains = [...(ifPos ? ["ANTI_IF"] : []), ...(apcaPos ? ["APCA"] : [])];
+
+      return {
+        pattern: "overt_b12_deficiency",
+        urgency: "this_week",
+        headline: "کمبود آشکار ویتامین B12",
+        must_say:
+          `سطح ویتامین B12 شما ${b12} است — نه مرزی، بلکه پایین‌تر از محدوده‌ای که ` +
+          `کمبود در آن قطعی در نظر گرفته می‌شود (زیر ۱۵۰).${bloodTxt}${abTxt}`,
+        ...(explains.length ? { explains } : {}),
+        action:
+          "این هفته با پزشک وقت بگیرید. تعیین علتِ کمبود (تغذیه، جذب، دارو) پیش از شروع درمان اهمیت دارد.",
+        warnings: [
+          "خودسرانه فولات یا اسید فولیک مصرف نکنید. فولات می‌تواند کم‌خونیِ ناشی از کمبود B12 را بهتر کند در حالی که آسیب عصبی ادامه پیدا می‌کند و دیرتر دیده شود.",
+          "اگر گزگز یا بی‌حسیِ دست و پا، تعادلِ نامطمئن، یا فراموشیِ تازه دارید، همین را به پزشک بگویید — این‌ها می‌توانند به همین کمبود مربوط باشند.",
+        ],
+        suggest: ["MMA", "فولات", "شمارش خون (CBC)"],
+        key_number: b12,
+      };
+    },
+  },
+  {
+    id: "borderline_b12_deficiency",
+    match: (e) => {
+      const b12 = val(e).B12;
+      return b12 != null && b12 >= 150 && b12 <= 399;
+    },
+    build: (e) => {
+      const b12 = val(e).B12;
+      const mcv = val(e).MCV;
+      return {
+        pattern: "borderline_b12_deficiency",
+        urgency: "routine",
+        headline: "سطح مرزی ویتامین B12",
+        must_say: `سطح B12 شما ${b12} است که در محدوده مرزی (۱۵۰ تا ۳۹۹) قرار دارد.` + (mcv != null && mcv > 95 ? ` با توجه به بزرگ بودن گلبول‌های قرمز (MCV=${mcv})، احتمال کمبود بافتی این ویتامین بالا است.` : " ممکن است بافت‌های بدن دچار کمبود باشند حتی اگر عدد در محدوده طبیعی آزمایشگاه باشد."),
+        action: "با پزشک مشورت کنید. برای تشخیص دقیق‌تر کمبود بافتی ممکن است آزمایش MMA توصیه شود.",
+        suggest: ["MMA", "فولات"],
+        key_number: b12
+      };
+    }
+  }
+];

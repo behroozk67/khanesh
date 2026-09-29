@@ -5394,7 +5394,7 @@ test("M93b: قاعده‌ای که throw کند در rules_failed می‌نشی�
 
 // ⚠️ N16: حذفِ یک قاعده هیچ اثری در سورس نمی‌گذارد. مجموعهٔ شناسه‌ها قفل می‌شود.
 test("M92d: مجموعهٔ شناسه‌های patterns_biochem_new همانی است که ثبت شده", async () => {
-  const { RULES_BIOCHEM_NEW } = await import("./patterns_biochem_new.js");
+  const { RULES_BIOCHEM_NEW } = await import("./patterns_biochem.js");
   assert.deepEqual(
     RULES_BIOCHEM_NEW.map((r) => r.id).sort(),
     [

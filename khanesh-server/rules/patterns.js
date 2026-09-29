@@ -1,12 +1,9 @@
 import { RULES_INFECTIOUS } from "./patterns_infectious.js";
-import { RULES_NEPHROLOGY } from "./patterns_nephrology.js";
-import { RULES_NEPHROLOGY_NEW } from "./patterns_nephrology_new.js";
+import { RULES_NEPHROLOGY, RULES_NEPHROLOGY_NEW } from "./patterns_nephrology.js";
 import { RULES_HEMATOLOGY } from "./patterns_hematology.js";
-import { RULES_BIOCHEM } from "./patterns_biochem.js";
+import { RULES_BIOCHEM, RULES_BIOCHEM_NEW } from "./patterns_biochem.js";
 import { levelGrade } from "./patterns_utils.js";
-import { RULES_BIOCHEM_NEW } from "./patterns_biochem_new.js";
-import { RULES_ENDOCRINE_RHEUM } from "./patterns_endocrine_rheum.js";
-import { RULES_ENDOCRINE_NEW } from "./patterns_endocrine_new.js";
+import { RULES_ENDOCRINE_RHEUM, RULES_ENDOCRINE_NEW } from "./patterns_endocrine_rheum.js";
 import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
 import { RULES_MINERAL_BONE } from "./patterns_mineral_bone.js";
 import { RULES_CARDIAC } from "./patterns_cardiac.js";
