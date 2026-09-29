@@ -36,3 +36,7 @@ labmat-prototype/node_modules/
 # متنِ بالینیِ واقعی ساخته می‌شود و برای بازبینیِ دستیِ diff مفید است، عمداً track می‌ماند.
 /khanesh-server/promptfoo/.promptfoo-output.json
 /khanesh-server/.promptfoo/
+
+# secrets / patient data
+/data/
+/database.sqlite

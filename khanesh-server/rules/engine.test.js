@@ -9139,8 +9139,11 @@ test("M187: کم‌خونیِ میکروسیتیک زیرِ پان‌سیتوپ�
   const un = p.findings.find((f) => f.rule_id === "unexplained_abnormal");
   for (const k of ["HCT", "MCH", "RDW_SD", "RDW_CV"])
     assert.ok(!(un?.uncovered ?? []).includes(k), `${k} «بی‌توضیح» علامت خورد: ${un?.uncovered}`);
-  // لنفوپنی هنوز قاعده ندارد — باید در تور بماند، نه اینکه بی‌صدا حذف شود.
-  assert.ok(un?.uncovered.includes("LYMPH_ABS"), `LYMPH_ABS از تور افتاد: ${un?.uncovered}`);
+  // 🔴 عمداً عوض شد (job 40b8a901، F1): لنفوسیتِ پایین زیرِ پان‌سیتوپنی حالا در همان یافته جمله دارد، پس از تور می‌افتد؛
+  //    شرطِ «نه بی‌صدا حذف شود» هنوز برقرار است — یا در تور است یا در متنِ pancytopenia نامش آمده.
+  const pan = p.findings.find((f) => f.rule_id === "pancytopenia");
+  assert.ok((un?.uncovered ?? []).includes("LYMPH_ABS") || /لنفوسیت 60/.test(pan.must_say), `LYMPH_ABS بی‌صدا حذف شد: ${un?.uncovered}`);
+  assert.match(pan.must_say, /لنفوسیت 60 \(حد طبیعی[^)]*\) هم پایین است/);
 });
 
 test("M187b: خواندنِ RBC/RDW هر جهت را جمله می‌دهد — RBCِ بالا و RDWِ پایین بی‌صدا «پوشش‌داده» نمی‌شوند (M156)", () => {
@@ -10509,8 +10512,8 @@ test("M220e: فوریتِ نوتروفیلِ غایب کف است نه سقف �
 test("M221: P57 پرسش ۷ و ۴ — Hbِ ۱۵.۳ در روزِ ۲۰ طبیعی است (۸–۳۰ روز: ۱۲.۰–۱۶.۵)؛ لنفوسیتِ ۶۲۰۰ در روزِ اول طبیعی است (۰–۳ روز: ۲۰۰۰–۷۵۰۰)", () => {
   const hb = (age) => runEngine({ patient: { age, sex: null }, tests: [m220T("HGB", "15.3", "g/dL")] }).graded.find((g) => g.test === "HGB");
   assert.equal(hb("20 روز").abnormal, false, `روزِ ۲۰: ${hb("20 روز").range}`);
-  assert.equal(hb("20 روز").range, "12–16.5");
-  assert.equal(hb("40 روز").range, "9.5–12.5", "تکهٔ ۳۰ روز تا ۳ ماه همان عددِ قبلی است");
+  assert.equal(hb("20 روز").range, "11.5–16.5");
+  assert.equal(hb("40 روز").range, "9.5–13", "پاسخِ بازبین بند ۵: ۲۹ روز تا ۳ ماه ۹٫۵–۱۳٫۰");
   const ly = runEngine({ patient: { age: "1 روز" }, tests: [m220T("WBC", "12", "10^3/µL"), m220T("LYM#", "6.2", "10^3/µL")] })
     .graded.find((g) => g.test === "LYMPH_ABS");
   assert.equal(ly.range, "2000–7500"); assert.equal(ly.abnormal, false);
@@ -10818,4 +10821,123 @@ test("M235c: شیرخوار (بازهٔ RCPCH) و برگهٔ بی‌اورژان
   assert.equal(p.overall_urgency, "this_week");
   assert.deepEqual(wbcOwners(p), ["reactive_leukocytosis_with_cytopenia"]);
   assert.match(buildEngineRecommendations(p, e)[0], /این هفته با پزشک وقت بگیرید/);
+});
+
+// ---------- M240–M240f: job 40b8a901 (پان‌سیتوپنیِ بزرگسال با اوره/PT/K بالا، برگهٔ واقعی ۲۰۲۶-۰۹-۲۸، P59) ----------
+// 🔴 پیش از این: pancytopenia + normocytic_anemia + unexplained_abnormal؛ پنج ردیف (LYMPH_ABS، K، UREA، MCHC، PT) در «۵ نتیجهٔ
+//    دیگر» بی‌توضیح ماندند و در توصیه‌ها نه «تکرارِ K با نمونهٔ تازه» بود نه حدِّ علائم. K و PT در واقع قاعده داشتند
+//    (potassium_critical، coagulation_abnormal) ولی زیرِ blocksِ پان‌سیتوپنی کاملاً پنهان بودند و پوششی نمی‌دادند (M200).
+const J40_ROWS = [
+  ["urea", "60", "mg/dl"], ["Creatinine", "0.85", "mg%"], ["Serum Na", "143", "meq/l"], ["Serum K", "5.9", "meq/l"],
+  ["WBC", "3.5", "x1000/mm³"], ["R.B.C", "2.61", "Mill/mm³"], ["Hb", "7.1", "gm/dl"], ["Hct", "24.1", "%"],
+  ["M.C.V", "92", "fL"], ["M.C.H", "27", "Pgm"], ["M.C.H.C", "29", "gr/dl"], ["Platelet", "53", "x1000/mm³"],
+  ["Mixed", "2.8", "%"], ["Neut", "83.7", "%"], ["Lymph", "13.5", "%"], ["PTT", "33", "sec"], ["pt", "14.5", "Sec."],
+  ["INR", "1.2", "Index"],
+];
+const J40_PT = { age: 56, sex: "F" };
+const j40Run = (rows = J40_ROWS) => fffRun(rows, J40_PT);
+const j40With = (name, value, unit) => J40_ROWS.map((r) => (r[0] === name ? [name, value, unit ?? r[2]] : r));
+// همان برگه بدونِ پان‌سیتوپنی (WBC و پلاکت طبیعی) تا متنِ *کاملِ* یافته‌ها، نه brief، دیده شود.
+const j40NoBlocker = (rows = J40_ROWS) =>
+  rows.map((r) => (r[0] === "WBC" ? ["WBC", "6.0", r[2]] : r[0] === "Platelet" ? ["Platelet", "250", r[2]] : r));
+
+test("M240: job 40b8a901 — تریاژ اورژانسی دست‌نخورده و هر پنج ردیفِ بی‌توضیح (LYMPH_ABS/K/UREA/MCHC/PT) صاحب دارد", () => {
+  const { e, p } = j40Run();
+  assert.equal(p.overall_urgency, "emergency");
+  assert.equal(p.has_critical, true);
+  const ids = p.findings.map((f) => f.pattern);
+  for (const id of ["pancytopenia", "normocytic_anemia", "hyperkalemia", "coagulation_abnormal", "isolated_urea_elevation"]) {
+    assert.ok(ids.includes(id), `${id} نیامد: ${ids}`);
+  }
+  assert.ok(!ids.includes("unexplained_abnormal"), `هنوز بی‌توضیح: ${fffText(fffFind(p, "unexplained_abnormal"))}`);
+  // عددهای موتور دست نخورده‌اند: لنفوسیت ۴۷۳ همچنان به درجهٔ CTCAE «شدید» می‌رسد (P59-الف: تغییرِ درجه با بازبین است)
+  const ly = e.graded.find((g) => g.test === "LYMPH_ABS");
+  assert.equal(ly.value, 473);
+  assert.equal(ly.level, "marked");
+});
+
+test("M240a: F1 — لنفوسیتِ پایین زیرِ پان‌سیتوپنی «بیماریِ جدا» خوانده نمی‌شود و نوتروفیلِ طبیعی گفته می‌شود", () => {
+  const pan = fffFind(j40Run().p, "pancytopenia");
+  assert.match(pan.must_say, /لنفوسیت 473 \(حد طبیعی 1000–4800\) هم پایین است/);
+  assert.match(pan.must_say, /نوتروفیل در محدوده است، پس افتِ گلبول‌های سفید بیشتر از لنفوسیت‌هاست/);
+  assert.match(pan.must_say, /به‌تنهایی یک بیماریِ جدا نیست/);
+});
+
+test("M240b: F3 — MCHCِ پایین در کم‌خونیِ نورموسیتیک (متنِ کامل و brief) یک جمله در همان یافته است؛ MCHCِ بالا «کم‌رنگ» نمی‌شود", () => {
+  const { p } = j40Run();
+  assert.match(fffFind(p, "normocytic_anemia").brief, /MCH 27، MCHC 29 هم بخشی از همین کم‌خونی است/);
+  const full = fffFind(j40Run(j40NoBlocker()).p, "normocytic_anemia");
+  assert.match(full.must_say, /MCHC 29 \(حد طبیعی 32–36\) هم پایین است، یعنی گلبول‌ها کمی کم‌رنگ‌تر از معمول‌اند/);
+  // «سه کم‌خونیِ جدا» نیست: قاعدهٔ مستقلِ MCHC ساخته نشده
+  assert.ok(!p.findings.some((f) => /mchc|hypochrom/i.test(f.pattern)), p.findings.map((f) => f.pattern).join());
+  // نقطهٔ کنترل: MCHCِ بالا (۳۷) جملهٔ «کم‌رنگ» نمی‌گیرد
+  const hiM = fffFind(j40Run(j40NoBlocker(j40With("M.C.H.C", "37"))).p, "normocytic_anemia");
+  assert.ok(!/کم‌رنگ/.test(hiM?.must_say ?? ""), hiM?.must_say);
+});
+
+test("M240c: F4 — اورهٔ بالا با کراتینینِ طبیعی صاحب دارد؛ سه‌حالته روی BUN/Cr؛ دقیقاً یک صاحب کنارِ kidney و urea_bun_emergency (M91e)", () => {
+  const { p } = j40Run();
+  assert.ok(fffFind(p, "isolated_urea_elevation"), "قاعده فعال نشد");
+  const u = fffFind(j40Run(j40NoBlocker()).p, "isolated_urea_elevation"); // متنِ کامل، نه brief
+  assert.match(u.must_say, /اوره شما 60 است و از حد طبیعی \(15–45\) بالاتر است، ولی کراتینین 0.85 طبیعی است/);
+  assert.match(u.must_say, /نسبت اوره به کراتینین \(BUN\/Cr\) 33 است و بالاتر از ۲۰ است/);
+  assert.match(u.must_say, /eGFR\) حدود 80/);
+  assert.equal(u.urgency, "routine");
+  // نسبتِ عادی (مرد ۴۰ ساله، اورهٔ ۴۶، کراتینین ۱.۱ ⇒ ≈۱۹.۵؛ زنِ ۵۶ ساله با این کراتینین eGFR<۶۰ می‌گیرد و مالِ kidney است): علتِ پیش‌کلیوی نمی‌گوید
+  const low = fffFind(fffRun(j40NoBlocker(j40With("urea", "46")).map((r) => (r[0] === "Creatinine" ? ["Creatinine", "1.1", "mg%"] : r)), { age: 40, sex: "M" }).p, "isolated_urea_elevation");
+  assert.ok(low, "نسبتِ عادی فعال نشد");
+  assert.match(low.must_say, /در محدودهٔ عادی است/);
+  assert.ok(!/کم‌آبی/.test(low.must_say), "نسبتِ عادی نباید علتِ پیش‌کلیوی بگوید");
+  // کراتینین روی برگه نیست ⇒ «نیست» می‌گوید، نه «طبیعی» (N4)
+  const noCr = fffFind(j40Run(j40NoBlocker(J40_ROWS.filter((r) => r[0] !== "Creatinine"))).p, "isolated_urea_elevation");
+  assert.ok(noCr, "بدونِ کراتینین فعال نشد");
+  assert.match(noCr.must_say, /کراتینین روی این برگه نیست/);
+  assert.ok(!/کراتینین [\d.]+ طبیعی است/.test(noCr.must_say));
+  // کراتینینِ بالا ⇒ فقط kidney
+  const kid = j40Run(j40NoBlocker(j40With("Creatinine", "2.4"))).p;
+  assert.ok(kid.findings.some((f) => /kidney|prerenal/.test(f.pattern)), kid.findings.map((f) => f.pattern).join());
+  assert.ok(!fffFind(kid, "isolated_urea_elevation"), "دو صاحب برای یک اوره");
+  // اورهٔ ≥۲۰۰ ⇒ فقط urea_bun_emergency
+  const em = j40Run(j40With("urea", "250")).p;
+  assert.ok(fffFind(em, "urea_bun_emergency"));
+  assert.ok(!fffFind(em, "isolated_urea_elevation"), "دو صاحب برای اورهٔ ۲۵۰");
+});
+
+test("M240d: F5 — PTِ خامِ کمی بالا با INR و APTTِ طبیعی «طولانی‌شدنِ زمان لخته شدن» نمی‌گوید؛ INRِ بالا یا غایب متنِ کلی می‌گیرد (N4)", () => {
+  const c = fffFind(j40Run().p, "coagulation_abnormal");
+  assert.match(c.brief, /PT\) 14.5 \(حد طبیعی 10–13\) کمی بالاتر است ولی INR 1.2 در محدوده است/);
+  assert.equal(c.urgency, "this_week"); // فوریت دست‌نخورده (P59-ه: تصمیمِ بازبین)
+  const solo = fffFind(j40Run(J40_ROWS.filter((r) => ["pt", "INR", "PTT"].includes(r[0]))).p, "coagulation_abnormal");
+  assert.match(solo.must_say, /INR \(که PT را بین آزمایشگاه‌ها قابل‌مقایسه می‌کند\) 1.2 و در محدوده است و APTT هم طبیعی است/);
+  assert.match(solo.must_say, /PT و INR باید تکرار شود/);
+  assert.ok(!/طولانی‌تر از حد معمول/.test(solo.must_say));
+  // INRِ بالا ⇒ متنِ کلیِ قبلی
+  const hi = fffFind(j40Run(j40NoBlocker(j40With("INR", "1.8"))).p, "coagulation_abnormal");
+  assert.match(hi.must_say, /طولانی‌تر از حد معمول/);
+  // INR روی برگه نیست ⇒ «INR در محدوده» گفته نمی‌شود
+  const noInr = fffFind(j40Run(j40NoBlocker(J40_ROWS.filter((r) => r[0] !== "INR"))).p, "coagulation_abnormal");
+  assert.match(noInr.must_say, /طولانی‌تر از حد معمول/);
+  assert.ok(!/INR/.test(noInr.brief.replace(/PT\)/, "")) || !/در محدوده/.test(noInr.brief), noInr.brief);
+});
+
+test("M240e: F6 — پتاسیمِ غیربحرانی اقدامِ صریح می‌گیرد: تکرار با نمونهٔ تازه + حدِّ علائم؛ هم تنها و هم زیرِ اورژانسِ دیگر", () => {
+  const k = fffFind(j40Run([["Serum K", "5.9", "meq/l"]]).p, "hyperkalemia");
+  assert.equal(k.urgency, "this_week");
+  assert.match(k.action, /پتاسیم را با نمونهٔ تازه تکرار کنید/);
+  assert.match(k.action, /اگر تپش قلب، ضعف شدید یا بی‌حسی دارید، زودتر مراجعه کنید/);
+  const { e, p } = j40Run();
+  const recs = buildEngineRecommendations(p, e);
+  assert.match(recs[0], /همین امروز با پزشک تماس بگیرید/, `دستورِ نهایی: ${recs[0]}`);
+  assert.ok(recs.some((r) => /پتاسیم را با نمونهٔ تازه تکرار کنید/.test(r)), recs.join("\n"));
+  assert.ok(recs.some((r) => /تپش قلب، ضعف شدید عضلانی یا بی‌حسی.*اورژانس/.test(r)), recs.join("\n"));
+  assert.ok(!recs.some((r) => /این هفته با پزشک مطرح کنید/.test(r)), "رقیبِ «این هفته» کنارِ دستورِ نهایی (N20): " + recs.join("\n"));
+  // K بحرانی دست نخورده
+  const crit = fffFind(j40Run(j40With("Serum K", "6.5")).p, "hyperkalemia");
+  assert.equal(crit.urgency, "emergency");
+  assert.match(crit.action, /همین حالا به اورژانس/);
+});
+
+test("M240f: پس از رفع، عددِ K، PT، اوره، لنفوسیت و MCHC در متنِ یافتهٔ صاحبشان آمده است", () => {
+  const txt = j40Run().p.findings.map(fffText).join(" ");
+  for (const s of ["پتاسیم شما 5.9", "PT) 14.5", "اوره شما 60", "لنفوسیت 473", "MCHC 29"]) assert.ok(txt.includes(s), `«${s}» در متن نیست`);
 });

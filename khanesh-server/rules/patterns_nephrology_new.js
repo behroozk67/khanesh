@@ -90,6 +90,56 @@ export const RULES_NEPHROLOGY_NEW = [
     }
   },
 
+  // ── job 40b8a901 (F4): اورهٔ بالا با کراتینینِ طبیعی ──
+  // `kidney` فقط با کراتینینِ بالا یا eGFR < ۶۰ فعال می‌شود و urea_bun_emergency از ۲۰۰؛ پس اوره ۶۰ کنارِ کراتینین ۰.۸۵ هیچ
+  // صاحبی نداشت و BUN/Cr (۳۳) و eGFR در هیچ متنی مصرف نمی‌شدند. این قاعده همان خلأ را می‌بندد و *تشخیص نمی‌دهد*:
+  // سه‌حالته روی نسبتِ BUN/Cr (بالای ۲۰ — همان آستانهٔ prerenal در kidney / کمتر / کراتینین غایب)، بی‌هیچ عددِ تازه.
+  // فوریتِ routine و فهرستِ علل متنی‌اند و در P59 در انتظار تأییدِ بازبین‌اند.
+  {
+    id: "isolated_urea_elevation",
+    match: (e) => {
+      const u = e.graded.find((g) => (g.test === "UREA" || g.test === "UREA_N") && g.abnormal && g.dir === "high");
+      if (!u) return false;
+      const cr = e.graded.find((g) => g.test === "CREAT");
+      const egfr = e.indices.egfr;
+      // صاحبانِ دیگر: کراتینینِ بالا یا eGFR < ۶۰ ⇒ kidney؛ اورهٔ بسیار بالا ⇒ urea_bun_emergency (می‌پرسیم فعال می‌شود، نه آستانه).
+      if ((cr?.abnormal && cr.dir === "high") || (egfr != null && egfr < 60)) return false;
+      return !RULES_NEPHROLOGY_NEW.find((r) => r.id === "urea_bun_emergency").match(e);
+    },
+    build: (e) => {
+      const u = e.graded.find((g) => (g.test === "UREA" || g.test === "UREA_N") && g.abnormal && g.dir === "high");
+      const cr = e.graded.find((g) => g.test === "CREAT");
+      const ratio = e.indices.bun_cr, egfr = e.indices.egfr;
+      const name = u.test === "UREA_N" ? "BUN" : "اوره";
+      const crFa = cr ? (cr.abnormal ? null : `کراتینین ${cr.value} طبیعی است`) : null;
+      const ratioFa = cr == null
+        ? "کراتینین روی این برگه نیست، پس از روی این برگه نمی‌شود گفت کلیه‌ها سالم‌اند یا نه؛ کراتینین باید اضافه شود."
+        : ratio == null ? ""
+        : ratio > 20
+          ? `نسبت اوره به کراتینین (BUN/Cr) ${ratio} است و بالاتر از ۲۰ است؛ چنین نسبتی بیشتر با کم‌آبی، مصرفِ زیادِ پروتئین، خونریزی در دستگاه گوارش یا بعضی داروها (مثل کورتیکواستروئیدها) می‌خواند تا با مشکلِ خودِ کلیه.`
+          : `نسبت اوره به کراتینین (BUN/Cr) ${ratio} است و در محدودهٔ عادی است.`;
+      const egfrFa = egfr != null ? ` شاخص تخمینی کار کلیه (eGFR) حدود ${egfr} است و پایین‌تر از ۶۰ نیست.` : "";
+      return {
+        pattern: "isolated_urea_elevation",
+        urgency: "routine",
+        always_show: true,
+        brief:
+          `${name} شما ${u.value} (حد طبیعی ${u.range}) بالاتر از حد است` +
+          (crFa ? ` ولی ${crFa}` : "") + ". " +
+          (ratio != null && ratio > 20 ? `نسبت اوره به کراتینین ${ratio} است و بیشتر با کم‌آبی یا علتِ غیرکلیوی می‌خواند. ` : "") +
+          "این را در همان مراجعه با پزشک مطرح کنید.",
+        headline: `${name} خون شما بالاتر از حد طبیعی است`,
+        must_say:
+          `${name} شما ${u.value} است و از حد طبیعی (${u.range}) بالاتر است` + (crFa ? `، ولی ${crFa}. ` : ". ") +
+          ratioFa + egfrFa +
+          " اورهٔ بالا با کراتینینِ طبیعی به‌تنهایی به معنای بیماریِ کلیه نیست؛ پزشک آن را کنار بقیهٔ برگه و علائم می‌سنجد.",
+        action: "نتیجه را در نوبتِ عادی با پزشک مطرح کنید و بگویید چه داروهایی مصرف می‌کنید.",
+        suggest: ["تکرار اوره و کراتینین"],
+        warnings: [],
+      };
+    },
+  },
+
   // ── الکترولیت‌ها (هیپوناترمی) ──
   // ⚠️ قاعدهٔ `severe_hyponatremia` اینجا حذف شد و عمداً جایگزین نشده.
   //    اندازه‌گیری‌شده: Na 118 هم آن را و هم `sodium_critical` را فعال می‌کرد —

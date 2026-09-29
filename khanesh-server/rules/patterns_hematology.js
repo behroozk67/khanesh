@@ -46,7 +46,7 @@ function normocyticBrief(e, hgb) {
   const rdwsN = rdwsAll.filter((x) => !adultInChild(x));
   const rdwsAdult = rdwsAll.filter(adultInChild);
   const sameN = [
-    ["HCT", "هماتوکریت"], ["RBC", "گلبول قرمز"], ["MCH", "MCH"],
+    ["HCT", "هماتوکریت"], ["RBC", "گلبول قرمز"], ["MCH", "MCH"], ["MCHC", "MCHC"],
   ].map(([k, fa]) => { const x = gOf(k); return x?.abnormal && x.dir === "low" && !adultInChild(x) ? `${fa} ${x.value}` : null; })
     .concat(rdwsN.map((x) => `${x.test === "RDW_SD" ? "RDW-SD" : "RDW-CV"} ${x.value}`))
     .filter(Boolean);
@@ -56,7 +56,7 @@ function normocyticBrief(e, hgb) {
         (mcvN ? `، با گلبول‌هایی به اندازهٔ طبیعی (MCV ${mcvN.value})` : "") +
         (sameN.length ? `؛ ${sameN.join("، ")} هم بخشی از همین کم‌خونی است` : "") + ". "
       : "همچنین کم‌خونی دیده می‌شود. ") +
-    adultRangeSentence([...["HCT", "RBC", "MCH"].map(gOf).filter((x) => x?.abnormal && x.dir === "low" && adultInChild(x)), ...rdwsAdult]) +
+    adultRangeSentence([...["HCT", "RBC", "MCH", "MCHC"].map(gOf).filter((x) => x?.abnormal && x.dir === "low" && adultInChild(x)), ...rdwsAdult]) +
     (rdwsN.length
       ? "اندازهٔ گلبول‌ها با هم یکسان نیست (RDW بالا)؛ وقتی اندازهٔ متوسطِ گلبول طبیعی است، این می‌تواند کمبودِ هم‌زمانِ دو چیز (مثلاً آهن و B12 یا فولات) باشد. "
       : "") +
@@ -81,6 +81,13 @@ function anemiaCompanionsFa(e, macro) {
       ? `${fmt(m)} بالاست، چون هر گلبولِ بزرگ‌تر هموگلوبینِ بیشتری در خود دارد؛ این با بزرگ بودنِ گلبول‌ها جور است. `
       : `${fmt(m)} هم پایین است، یعنی هر گلبول هموگلوبینِ کمتری از معمول دارد. `;
   }
+  // job 40b8a901 (F3): MCHCِ پایین در کم‌خونیِ نورموسیتیک — MCHC = Hb ÷ Hct، پس پایین بودنش یعنی گلبول‌ها کم‌رنگ‌ترند.
+  //   فقط جهتِ هم‌سو (پایین) نام برده می‌شود؛ MCHCِ بالا به اسفروسیتوز/artefact می‌رود و این‌جا عمداً نیست (M156).
+  //   یک جمله در همان متنِ کم‌خونی، نه قاعدهٔ جدا، تا بیمار «سه کم‌خونی» نخواند.
+  const mc = gOf("MCHC");
+  if (!macro && mc?.abnormal && mc.dir === "low" && !adultRangeInChild(e, mc)) {
+    out += `${fmt(mc)} هم پایین است، یعنی گلبول‌ها کمی کم‌رنگ‌تر از معمول‌اند؛ پزشک این را کنار فریتین و آهن می‌سنجد. `;
+  }
   return out;
 }
 // نسخهٔ کوتاهِ macrocytic_anemia زیرِ اورژانسِ دیگر — خواهرِ normocyticBrief (N20: «وقتی یکی always_show گرفت، خواهرها را هم»).
@@ -103,6 +110,47 @@ function wbcHighDiffClause(e) {
   const w = e.graded.find((g) => g.test === "WBC");
   return ` گلبول سفید ${w.value} است و از بازه (${w.range}) بالاتر است؛ وقتی گلبول سفید بالاست و تعدادِ نوتروفیل در دست نیست، ` +
     "شمارشِ افتراقیِ دستی روی لامِ خونِ محیطی، با جست‌وجوی سلول‌های نارس (بلاست)، لازم است.";
+}
+// job 40b8a901 (F5): PT بالا و هیچ شاخصِ دیگرِ انعقاد غیرطبیعی نیست. INR باید *اندازه‌گیری‌شده و طبیعی* باشد؛ INRِ غایب
+//   «طبیعی» نیست (N4) و برگه همان متنِ کلیِ قبلی را می‌گیرد. بیرون از قاعده (M156: PT/INR/APTT در RULE_READS نیایند).
+function ptIsolatedMild(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const pt = g("PT"), inr = g("INR"), aptt = g("APTT"), fib = g("FIB");
+  return !!(pt?.abnormal && pt.dir === "high" && inr && !inr.abnormal &&
+    !(aptt?.abnormal && aptt.dir === "high") && !(fib?.abnormal && fib.dir === "low"));
+}
+function coagulationIsolatedPtText(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const pt = g("PT"), inr = g("INR"), aptt = g("APTT");
+  return `زمان پروترومبین (PT) شما ${pt.value} است و از حد طبیعی (${pt.range}) کمی بالاتر است، ولی INR (که PT را بین آزمایشگاه‌ها قابل‌مقایسه می‌کند) ${inr.value} و در محدوده است` +
+    (aptt && !aptt.abnormal ? ` و APTT هم طبیعی است` : "") + ". " +
+    "PTِ خام به معرفِ هر آزمایشگاه بستگی دارد، پس این تفاوت به‌تنهایی نشانهٔ اختلالِ انعقادی نیست؛ برای اطمینان PT و INR باید تکرار شود. " +
+    "اگر وارفارین یا داروی رقیق‌کنندهٔ دیگری مصرف می‌کنید، یا بیماریِ کبدی یا کمبودِ ویتامین K دارید، به پزشک بگویید.";
+}
+// نسخهٔ کوتاه زیرِ اورژانسِ دیگر (خواهرِ normocyticBrief؛ N20). فقط شاخص‌های همین یافته را با عددشان می‌گوید.
+function coagulationBrief(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  if (ptIsolatedMild(e)) {
+    const pt = g("PT"), inr = g("INR");
+    return `زمان پروترومبین (PT) ${pt.value} (حد طبیعی ${pt.range}) کمی بالاتر است ولی INR ${inr.value} در محدوده است؛ تکرارِ PT و INR را در همان مراجعه با پزشک مطرح کنید.`;
+  }
+  const items = [["PT", "PT (زمان پروترومبین)", "high"], ["INR", "INR", "high"], ["APTT", "APTT", "high"], ["FIB", "فیبرینوژن", "low"]]
+    .map(([k, fa, dir]) => { const x = g(k); return x?.abnormal && x.dir === dir ? `${fa} ${x.value} (حد طبیعی ${x.range})` : null; })
+    .filter(Boolean);
+  return `شاخص‌های لخته شدنِ خون هم غیرطبیعی است: ${items.join("، ")}. این را در همان مراجعه با پزشک مطرح کنید و بگویید چه داروهایی مصرف می‌کنید.`;
+}
+// job 40b8a901 (F1): لنفوسیتِ مطلقِ پایین زیرِ پان‌سیتوپنی. درجهٔ «شدید» از جدولِ CTCAE می‌آید (< ۵۰۰ = G3) و دست نمی‌خورد؛
+//   ولی خواننده نباید آن را «لنفوپنیِ ایزولهٔ شدید» بخواند: WBC کمی پایین است و این کاهش همان افتِ سلول‌های سفید است.
+//   بیرون از قاعده تا LYMPH_ABS در RULE_READSِ pancytopenia نیاید و جهتِ دیگر (بالا) بی‌صدا «پوشش‌داده» نشود (M156).
+function lymphClauseInPancytopenia(e) {
+  const ly = e.graded.find((g) => g.test === "LYMPH_ABS");
+  if (!ly?.abnormal) return "";
+  if (ly.dir === "high") return ` لنفوسیت ${ly.value} بالاتر از حد طبیعی (${ly.range}) است؛ پزشک آن را کنارِ همین تصویر می‌سنجد.`;
+  const neut = e.graded.find((g) => g.test === "NEUT_ABS");
+  const neutOk = neut && !neut.abnormal;
+  return ` لنفوسیت ${ly.value} (حد طبیعی ${ly.range}) هم پایین است` +
+    (neutOk ? `؛ نوتروفیل در محدوده است، پس افتِ گلبول‌های سفید بیشتر از لنفوسیت‌هاست` : "") +
+    `. این کاهش بخشی از همین تصویرِ کلیِ خون است و به‌تنهایی یک بیماریِ جدا نیست؛ پزشک آن را کنار بقیه می‌سنجد.`;
 }
 function neutLowClause(e) {
   const n = e.graded.find((g) => g.test === "NEUT_ABS");
@@ -678,7 +726,7 @@ export const RULES_HEMATOLOGY = [
         urgency: "emergency",
         headline: "هر سه نوع سلول خونی کمتر از حد طبیعی هستند",
         must_say:
-          `${num(hgb, "هموگلوبین")}، ${num(wbc, "گلبول سفید")} و ${num(plt, "پلاکت")} — هر سه پایین هستند.` + neutClause + " " +
+          `${num(hgb, "هموگلوبین")}، ${num(wbc, "گلبول سفید")} و ${num(plt, "پلاکت")} — هر سه پایین هستند.` + neutClause + lymphClauseInPancytopenia(e) + " " +
           "وقتی هر سه ردهٔ سلولی با هم افت می‌کنند، معمولاً مشکل از خودِ مغز استخوان (کارخانهٔ ساخت سلول‌های خونی) یا تخریب گستردهٔ آن‌هاست و نیاز به بررسی فوری دارد. " +
           "یکی از علت‌های درمان‌پذیرِ آن کمبودِ ویتامین B12 یا فولات است؛ لام خون محیطی، رتیکولوسیت، B12، فولات و فریتین آزمایش‌های نخستِ علت‌یابی‌اند.",
         action: actionUnlessAnemiaCrisis(e, "همین امروز با پزشک تماس بگیرید."),
@@ -1681,13 +1729,20 @@ export const RULES_HEMATOLOGY = [
       // PT>25، فیبرینوژن<100، یا INR>3 → فوری
       const severe = (pt && pt.value > 25) || (fib && fib.value < 100) ||
                      (inr && inr.value > 3);
+      // job 40b8a901 (F5): PTِ خام کمی بالا با INR و APTTِ طبیعی «زمان لخته شدن طولانی» نیست — INR همان PT است که
+      //   بین معرف‌ها قابل‌مقایسه شده. متن سه‌حالته است و عددِ سه شاخص را می‌گوید؛ فوریت دست‌نخورده (P59، تصمیمِ بازبین).
+      const isoPt = ptIsolatedMild(e);
+      const brief = coagulationBrief(e);
       return {
         pattern: "coagulation_abnormal",
         urgency: severe ? "emergency" : "this_week",
+        always_show: true,
+        brief,
         headline: "شاخص‌های لخته شدن خون شما غیرطبیعی هستند",
-        must_say:
-          "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
-          "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند.",
+        must_say: isoPt
+          ? coagulationIsolatedPtText(e)
+          : "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
+            "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند.",
         action: severe
           ? "همین امروز با پزشک تماس بگیرید."
           : "این هفته با پزشک وقت بگیرید. حتماً بگویید چه داروهایی مصرف می‌کنید.",
@@ -1697,6 +1752,9 @@ export const RULES_HEMATOLOGY = [
           "اگر خونریزی غیرعادی یا کبودی بی‌دلیل دیدید، همان روز به پزشک مراجعه کنید.",
         ],
         blocks_others: severe,
+        brief_warnings: [
+          "اگر خونریزی غیرعادی یا کبودیِ بی‌دلیل دیدید، همان روز به پزشک مراجعه کنید.",
+        ],
       };
     },
   },
