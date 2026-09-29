@@ -1,6 +1,6 @@
 ---
 name: professional-interpretation
-description: Make a Khanesh/LabMate clinical interpretation read like a professional's write-up (magnitude, mechanism, confirmation criteria, concrete next steps, red-flags, caveats) WITHOUT upgrading the LLM — by enriching the deterministic engine's `must_say` findings. Use when the user says an interpretation is too shallow/basic ("ابتدایی"), wants "تفسیر حرفه‌ای‌تر", or asks to enrich a pattern/test in khanesh-server/rules/patterns.js.
+description: Make a Khanesh/LabMate clinical interpretation read like a professional's write-up (magnitude, mechanism, confirmation criteria, concrete next steps, red-flags, caveats) WITHOUT upgrading the LLM — by enriching the deterministic engine's `must_say` findings. Use when the user says an interpretation is too shallow/basic ("ابتدایی"), wants "تفسیر حرفه‌ای‌تر", or asks to enrich a pattern/test in khanesh-server/rules/patterns_*.js.
 ---
 
 # Professional Interpretation Enrichment
@@ -8,7 +8,7 @@ description: Make a Khanesh/LabMate clinical interpretation read like a professi
 The depth of an interpretation lives in the engine's findings, **not** in the model. The
 LLM only rewrites `must_say` into fluent Persian (see [architecture.md](../rules/architecture.md)) —
 it never decides anything. So "make it more professional" = write richer `must_say` /
-`warnings` / `suggest` in `khanesh-server/rules/patterns.js`. A cheap model formatting a
+`warnings` / `suggest` in the right `khanesh-server/rules/patterns_<system>.js`. A cheap model formatting a
 rich finding beats an expensive model formatting a thin one, and stays deterministic and safe.
 
 Do **not** propose a model upgrade, a smarter prompt that "reasons more," or moving clinical
@@ -31,7 +31,7 @@ Every enriched finding should carry, in Persian, as many of these as apply:
 
 ## How to enrich a rule's `build(e)`
 
-Inside a rule in `patterns.js`, `build(e)` returns
+Inside a rule in a `patterns_<system>.js` file, `build(e)` returns
 `{ pattern, urgency, headline, must_say, action, suggest, forbid, warnings, blocks_others, key_number? }`.
 
 - Read values with `val(e)` (`t.HBA1C`, `t.GLU_F`, …) and graded results with

@@ -1,0 +1,24 @@
+# ارزیابیِ promptfoo برای ENGINE_SYSTEM_PROMPT — مسیرِ موتور، نه مسیرِ legacy.
+#
+# این فایل خودِ منطقِ بالینی را قضاوت نمی‌کند (آن کارِ eval-medical-reviewer
+# و moteur قواعد است — اصل I قانون‌نامه). فقط می‌سنجد که مدل، متنِ آمادهٔ
+# موتور را بدونِ افتادن/تحریف به فارسی بازنویسی می‌کند یا نه.
+#
+# پیش‌نیاز: AVALAI_API_KEY در khanesh-server/.env یا محیط.
+# اجرا:
+#   npm run promptfoo:fixtures   # تولیدِ fixtures.json از موتورِ واقعی
+#   npm run promptfoo:eval       # اجرای واقعیِ فراخوانیِ مدل (هزینه‌بر)
+
+prompts:
+  - file://prompt.mjs
+
+providers:
+  - id: openai:chat:gpt-4o-mini # با TEXT_MODEL در khanesh-server/.env هماهنگ نگه دار
+    config:
+      apiBaseUrl: https://api.avalai.ir/v1
+      apiKeyEnvar: AVALAI_API_KEY
+      temperature: 0.3
+
+tests: file://fixtures.json
+
+outputPath: .promptfoo-output.json

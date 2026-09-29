@@ -16,22 +16,22 @@ The engine is a pipeline, and most questions are really "where in the pipeline d
 2. `rules/adapter.js` — free-text name → canonical key via `NAME_MAP`, unit conversion, age/sex inference, `NEUT#` vs `NEUT%`, failed-differential detection
 3. `rules/refs.js` + `rules/refs_ped.js` — reference range lookup (`getRef`; pediatric tried first for age <16, falling back to adult)
 4. `rules/grade.js` — picks the mode: `severity` (`ctcae.js`), `classifier` (`interpret.js`), or `binary` fallback
-5. `rules/patterns.js` — the `RULES` array and `runPatterns()`, multi-test clinical patterns and `overall_urgency`
+5. `rules/patterns_<system>.js` — the rules themselves; `rules/patterns.js` aggregates them into `RULES` and owns `runPatterns()`, suppression and `overall_urgency`
 6. `rules/prompt.js` — `ENGINE_SYSTEM_PROMPT`, findings payload, normal-result and fallback builders
 7. `server.js` again — the safety-net post-processing, then `buildMedlineContext()` enrichment
-8. `khanesh/src/Tafsir.jsx` — which response fields the UI actually reads
+8. `khanesh/src/ResultView.jsx` (with `Scorecard.jsx`, `resultStates.js`) — which response fields the UI actually reads
 
 When asked why a specific input produces a specific output, walk it stage by stage and name the exact function and line where the behavior is decided. The fastest confirmation is usually to run the engine directly rather than reason about it:
 
 ```bash
 cd khanesh-server && node -e "import('./rules/adapter.js').then(m => { \
-  const e = m.runEngine({ tests: [{ name: 'Creatinine', value: '1.0' }] }); \
+  const e = m.runEngine({ patient: { age: 50, sex: 'M' }, tests: [{ name: 'Creatinine', value: '1.0', unit: 'mg/dL' }] }); \
   console.dir(e, { depth: null }); })"
 ```
 
 `rules/engine.test.js` is also a map of past bugs — each test names a defect that has already happened. Grep it before concluding something is a new bug.
 
-For a "where is X defined" question, remember a lab test is spread across four files by design: `refs.js`/`refs_ped.js`, `adapter.js` `NAME_MAP`, `ctcae.js` or `interpret.js`, and possibly `patterns.js`. An answer that names only one of them is incomplete.
+For a "where is X defined" question, remember a lab test is spread across five files by design: `refs.js`/`refs_ped.js`, `adapter.js` `NAME_MAP`, `ctcae.js` or `interpret.js`, `names.js` `FA_NAMES`, and possibly a `patterns_<system>.js`. An answer that names only one of them is incomplete.
 
 ### Clinical / external research
 

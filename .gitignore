@@ -25,3 +25,14 @@ labmat-prototype/node_modules/
 # بچرخد — تاریخچهٔ گیت هنوز آن را دارد. قاعدهٔ bare تا هیچ .envی دوباره
 # track نشود؛ کلیدِ واقعی همیشه از متغیرِ محیطی/.envِ محلی می‌آید.
 .env
+.env.*
+
+# ردیابیِ درخواست‌ها (trace.js با TRACE_DISK=1 مقادیرِ بالینیِ بیمار اینجا
+# می‌نویسد — وعدهٔ کامنتِ خودِ trace.js که تا امروز در gitignore نبود)
+/khanesh-server/.traces/
+
+# خروجیِ اجراهای promptfoo — قابل بازتولید (npm run promptfoo:eval)، commit نمی‌شود.
+# fixtures.json هم قابل بازتولید است (npm run promptfoo:fixtures) ولی چون از
+# متنِ بالینیِ واقعی ساخته می‌شود و برای بازبینیِ دستیِ diff مفید است، عمداً track می‌ماند.
+/khanesh-server/promptfoo/.promptfoo-output.json
+/khanesh-server/.promptfoo/

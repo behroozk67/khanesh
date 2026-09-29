@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Reviews changes to Khanesh/LabMate for patient-safety and architecture violations — engine-vs-LLM boundary breaks, reference-range or unit errors, missed NAME_MAP spellings, frontend/backend API-contract drift, non-Persian user-facing strings. Use after editing anything in khanesh-server/rules/, server.js, or Tafsir.jsx, and whenever the user asks to review a diff, branch, or specific clinical change.
+description: Reviews changes to Khanesh/LabMate for patient-safety and architecture violations — engine-vs-LLM boundary breaks, reference-range or unit errors, missed NAME_MAP spellings, frontend/backend API-contract drift, non-Persian user-facing strings. Use after editing anything in khanesh-server/rules/, server.js, or the result-rendering frontend (ResultView.jsx, Tafsir.jsx), and whenever the user asks to review a diff, branch, or specific clinical change.
 tools: Read, Grep, Glob, Bash, TodoWrite
 ---
 
@@ -31,9 +31,9 @@ Flag as a violation:
 
 - **Reference ranges** — new/changed values in `refs.js` or `refs_ped.js` must cite a source consistent with the file's existing basis (Henry's Clinical Diagnosis for adult, RCPCH 2016 for pediatric). Check sex-split and age-split shapes are right, and that a pediatric key does not silently shadow or lose the adult fallback.
 - **A key defined in only one refs file** — a test present in `refs_ped.js` but missing from `ADULT_REFS` (or the reverse) makes `getRef()` return `null` for that population, which silently drops the test from `graded` and from every pattern that reads it. This has already caused a real bug (HbA1c for adults). Check both files whenever a key is touched.
-- **Units** — every conversion (e.g. urea → BUN via `÷2.14`) must be applied on exactly one path, with the resulting unit matching what `refs.js` assumes. Check mg/dL vs mmol/L, `10^3/µL` vs `/µL`, `%` vs absolute.
+- **Units** — every conversion (e.g. the SI → conventional table in `units.js`; urea is deliberately *not* converted to BUN) must be applied on exactly one path, with the resulting unit matching what `refs.js` assumes. Check mg/dL vs mmol/L, `10^3/µL` vs `/µL`, `%` vs absolute.
 - **Grading mode** — a test graded through `severity` (CTCAE) must genuinely have a severity scale; a categorical result (MCV, MCH, TSH) belongs in `interpret.js` classifiers, not CTCAE. Wrong mode produces fake "Grade 3" language.
-- **Urgency** — any new or changed `overall_urgency` in `patterns.js`. Under-calling an emergency (missed hyperkalemia, missed critical Hb) is the worst defect class in this repo; over-calling routine findings as `emergency` is also a real harm.
+- **Urgency** — any new or changed `urgency` in a `patterns_*.js` rule, or change to how `patterns.js` derives `overall_urgency`. Under-calling an emergency (missed hyperkalemia, missed critical Hb) is the worst defect class in this repo; over-calling routine findings as `emergency` is also a real harm.
 - **Specimen and context confusion** — urine values must not be read as blood (urine pH vs blood pH, urine WBC `/hpf` vs blood WBC), corrected values must be used where the engine defines one (Na corrected for glucose, Ca for albumin), and analyzer artifacts (very high WBC with a collapsed differential) must not be reported as true neutropenia.
 
 ### 3. Adapter coverage
@@ -42,7 +42,7 @@ New tests in `rules/` are unreachable without a matching `NAME_MAP` entry in `ad
 
 ### 4. Contract drift
 
-`Tafsir.jsx` reads `extracted_tests`, `_engine`, `has_critical`, `ocr_warnings`, `pages`, `sources`. If `server.js` renames, reshapes, or conditionally omits any of these, the frontend must change in the same review. Also flag frontend `REF` edits that contradict `refs.js` without a note in `rules/REF_DIFF.md` — the two tables are separate by design, and drift between them is tracked there, not silently.
+The result screen (`ResultView.jsx` and its children) reads `extracted_tests`, `_engine`, `has_critical`, `ocr_warnings`, `pages`, `sources`. If `server.js` renames, reshapes, or conditionally omits any of these, the frontend must change in the same review. Also flag frontend `REF` edits that contradict `refs.js` without a note in `rules/REF_DIFF.md` — the two tables are separate by design, and drift between them is tracked there, not silently.
 
 ### 5. Privacy
 

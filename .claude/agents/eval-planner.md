@@ -15,7 +15,7 @@ Read `CLAUDE.md` and the relevant file in `.claude/rules/`. For anything clinica
 Then find the truth on disk, don't assume it:
 
 - which sub-project owns the change (`khanesh/` vs `khanesh-server/` — they are independent packages)
-- for a new lab test, all five files from `.claude/rules/rules-engine.md` (`refs.js`, `adapter.js` NAME_MAP, `ctcae.js`/`interpret.js`, `patterns.js`, `names.js` FA_NAMES) — listing four of them is the N1 bug
+- for a new lab test, all five files from `.claude/rules/rules-engine.md` (`refs.js`, `adapter.js` NAME_MAP, `ctcae.js`/`interpret.js`, the right `patterns_<system>.js`, `names.js` FA_NAMES) — listing four of them is the N1 bug
 - whether the change reaches patient-facing text, and if so, which surface renders it
 
 ## Output — write it to the run directory
