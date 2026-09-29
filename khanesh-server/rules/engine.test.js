@@ -10529,7 +10529,12 @@ test("M221b: P57 (پاسخ ۲۰۲۶-۰۹-۲۹) — RDW-CV: زیرِ ۲۸ روز 
   assert.equal(g(d40, "RDW_CV")?.range, "13–16"); assert.equal(g(d40, "RDW_CV")?.abnormal, false);
   assert.equal(g(d40, "RDW_SD")?.range, "40–52"); assert.equal(g(d40, "RDW_SD")?.abnormal, false);
   assert.equal(g(e("40 روز", "17.3", "45"), "RDW_CV")?.dir, "high");
-  assert.equal(g(e("4 ماه", "13", "45"), "RDW_CV")?.range, "11.5–14.5", "بعد از ۳ ماه قاعدهٔ عمومیِ RCPCH (بزرگسال) برمی‌گردد");
+  // پس از ۳ ماه CALIPER (P58 پرسش ۳، PMC7403759): زیرِ ۲ سال ۱۲.۲–۱۷.۷، ۲ تا <۱۶ سال ۱۲.۲–۱۵.۲؛ RDW-SD ۳۳.۷–۴۹.۶ و ۳۵.۹–۴۳.۳
+  assert.equal(g(e("4 ماه", "13", "45"), "RDW_CV")?.range, "12.2–17.7");
+  assert.equal(g(e("4 ماه", "13", "45"), "RDW_SD")?.range, "33.7–49.6");
+  assert.equal(g(e("3 سال", "13", "40"), "RDW_CV")?.range, "12.2–15.2");
+  assert.equal(g(e("3 سال", "13", "40"), "RDW_SD")?.range, "35.9–43.3");
+  assert.equal(g(e("3 سال", "16", "40"), "RDW_CV")?.dir, "high");
 });
 
 test("M221e: P57 (پاسخ ۲۰۲۶-۰۹-۲۹) — MCH روزِ ۰–۳ ⇒ ۳۲–۴۲ (نه ۳۱–۳۷)؛ روزِ ۱۰ همان ۳۱–۳۷", () => {
@@ -10640,7 +10645,8 @@ test("M230: job fff90f58 — «لکوسیتوز + سیتوپنیِ شدید» ص
   assert.match(f.must_say, /نوتروفیل در دست نیست/, "غیبتِ نوتروفیل باید گفته شود (E2-ج)");
   assert.match(f.must_say, /شمارشِ افتراقیِ دستی/);
   assert.match(f.must_say, /بلاست/);
-  assert.match(f.action, /هماتولوژیستِ اطفال/);
+  assert.match(f.action, /متخصصِ خون \(هماتولوژیست\)/);
+  assert.doesNotMatch(f.action, /اطفال/, "تصمیمِ کاربر ۲۰۲۶-۰۹-۲۹: همان «هماتولوژیست» برای کودک");
   assert.ok(f.suggest.includes("گسترش خون محیطی با شمارش افتراقی دستی و بررسی بلاست"), String(f.suggest));
   for (const s of ["شمارش رتیکولوسیت", "بیلی‌روبین مستقیم و غیرمستقیم", "هاپتوگلوبین", "کومبس مستقیم", "LDH",
                    "کراتینین", "اوره", "آزمایش کامل ادرار", "اسید اوریک", "پتاسیم"]) assert.ok(f.suggest.includes(s), s);
@@ -10724,8 +10730,9 @@ test("M233: RDW/RBCِ شیرخوار که با بازهٔ بزرگسال سنج�
   const nb = fffFind(fffRun().p, "normocytic_anemia");
   const briefInf = nb.brief;
   assert.doesNotMatch(briefInf, /کمبودِ هم‌زمان/, briefInf);
-  assert.match(briefInf, /گلبول قرمز 2\.53 \(4\.5–5\.9\) و RDW-CV 15 \(11\.5–14\.5\) با بازهٔ بزرگسالان سنجیده شدند/);
-  assert.doesNotMatch(briefInf, /گلبول قرمز 2\.53 هم بخشی/, "عددِ سنجیده‌شده با بازهٔ بزرگسال «بخشی از همین کم‌خونی» شمرده نمی‌شود");
+  // P58 پرسش ۳: RBC/RDWِ شیرخوار حالا بازهٔ CALIPER دارند؛ RBC 2.53 زیرِ ۲.۹۰ است ⇒ بخشی از همین کم‌خونی
+  assert.match(briefInf, /گلبول قرمز 2\.53 هم بخشی/);
+  assert.doesNotMatch(briefInf, /بازهٔ بزرگسالان/);
   // بزرگسال، همان برگه: RDWِ هنری بازهٔ خودِ اوست ⇒ جمله سرِ جایش (جهتِ دیگرِ همین گیت)
   const ad = fffFind(fffRun(FFF90_ROWS, { age: 40, sex: "M" }).p, "normocytic_anemia");
   assert.match(ad.brief, /کمبودِ هم‌زمانِ دو چیز/);
@@ -10734,8 +10741,8 @@ test("M233: RDW/RBCِ شیرخوار که با بازهٔ بزرگسال سنج�
   const full = fffFind(fffRun([fffTest("Hb", "9", "g/dL"), fffTest("MCV", "80", "fL"), fffTest("RBC", "3.5", "10^6/uL"),
     fffTest("PLT", "250", "10^3/uL")], { age: 0.75, sex: "M" }).p, "normocytic_anemia");
   assert.ok(full, "کم‌خونیِ نورموسیتیکِ شیرخوار نیامد");
-  assert.match(full.must_say, /گلبول قرمز 3\.5 \(4\.5–5\.9\) با بازهٔ بزرگسالان سنجیده شد/);
-  assert.doesNotMatch(full.must_say, /گلبول قرمز 3\.5 \(حد طبیعی/);
+  // RBC 3.5 با بازهٔ CALIPER (۲.۹۰–۵.۱۶) طبیعی است؛ متن نه از «بازهٔ بزرگسالان» می‌گوید نه آن را «کم» می‌خواند
+  assert.doesNotMatch(full.must_say, /بازهٔ بزرگسالان|گلبول قرمز 3\.5/);
 });
 
 test("M234: «آزمایشِ …» دوبار «آزمایش» نمی‌گیرد؛ LDH/پتاسیمِ روی برگه دوباره درخواست نمی‌شوند (N8)", async () => {

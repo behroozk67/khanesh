@@ -45,6 +45,8 @@ const M = m => m / 12;
 // P57 (پاسخِ بازبینِ بالینی، چسبانده‌شده ۲۰۲۶-۰۹-۲۸؛ به Nathan & Oski، RCPCH و Nelson ارجاع داده شده ولی جدول/صفحه‌ای
 // نام برده نشده و این جلسه منبع را باز نکرد) — برچسبِ منبع همین را می‌گوید، نه ادعای کتاب (همان رسمِ SPECS008_SOURCE).
 export const P57_SOURCE = 'User-approved 2026-09-28 (P57, pasted reference)';
+// CALIPER، Am J Clin Pathol 2020، Beckman Coulter DxH 900، سالمِ ۰ تا <۲۱ سال، متنِ باز: https://pmc.ncbi.nlm.nih.gov/articles/PMC7403759/ (جدولِ ۱، ۲۰۲۶-۰۹-۲۹)
+export const CALIPER_SOURCE = 'CALIPER 2020 (Am J Clin Pathol, DxH 900), PMC7403759';
 
 export const PED_REFS = {
 
@@ -125,16 +127,23 @@ export const PED_REFS = {
     { maxAge: D(7),   range: [4.2, 6.2], source: P57_SOURCE },
     { maxAge: D(28),  range: [3.5, 5.2], source: P57_SOURCE },
     { maxAge: M(3),   range: [3.2, 4.8], source: P57_SOURCE },
+    // P58 پرسش ۳ (۲۰۲۶-۰۹-۲۹): پاسخِ بازبین فقط سقف داشت؛ کف‌ها از CALIPER (متنِ باز، جدولِ ۱ بازبینی‌شده در PMC7403759).
+    { maxAge: 1,      range: [2.90, 5.16], source: CALIPER_SOURCE },  // ۳ ماه تا <۱ سال (هر دو جنس)
+    { maxAge: 14,     range: [3.94, 5.08], source: CALIPER_SOURCE },  // ۱ تا ۱۴ سال؛ پسر ۴.۱۰–۵.۰۸، دختر ۳.۹۴–۴.۹۷ ⇒ پوششِ هر دو
   ],
   // P57 پرسش ۲: RDW-CVِ نوزادِ ترم (زیرِ ۱ ماه) ۱۴.۵–۱۸.۵٪ («حداقل ۱۸.۰ تا ۱۸.۵» ⇒ کرانِ خودِ بازه). RDW-SD (fL) در پاسخ نیامد.
   // پاسخِ ۲۰۲۶-۰۹-۲۹: زیرِ ۲۸ روز ۱۴.۵–۱۹.۰ (سقف از ۱۸.۵ بالا رفت — پاسخِ تازه جانشینِ قبلی است)؛ ۲۸ روز تا ۳ ماه ۱۳.۰–۱۶.۰.
   RDW_CV: [
     { maxAge: D(28),  range: [14.5, 19.0], source: P57_SOURCE },
     { maxAge: M(3),   range: [13.0, 16.0], source: P57_SOURCE },
+    { maxAge: 2,      range: [12.2, 17.7], source: CALIPER_SOURCE },  // ۳ ماه تا <۲ سال
+    { maxAge: 16,     range: [12.2, 15.2], source: CALIPER_SOURCE },  // ۲ تا <۲۱ سال
   ],
   RDW_SD: [                                 // fL — پاسخِ ۲۰۲۶-۰۹-۲۹ (پیش‌تر بی‌بازه)
     { maxAge: D(28),  range: [55, 75], source: P57_SOURCE },
     { maxAge: M(3),   range: [40, 52], source: P57_SOURCE },
+    { maxAge: 2,      range: [33.7, 49.6], source: CALIPER_SOURCE },  // ۳ ماه تا <۲ سال
+    { maxAge: 16,     range: [35.9, 43.3], source: CALIPER_SOURCE },  // ۲ تا <۱۶ سال
   ],
   // LYMPH_PCT: بازهٔ ۲۰–۴۰٪ برداشته شد (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۹ پس از دیدنِ اثرش)؛ درصدها مثلِ قبل سنجیده نمی‌شوند.
   HCT: [                                    // PCV، fraction → %
