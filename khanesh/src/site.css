@@ -273,7 +273,10 @@
   display: grid; grid-template-columns: 1fr; gap: var(--s8); align-items: start;
 }
 @media (min-width: 980px) {
-  .site-hero-grid { grid-template-columns: 1fr 1fr; gap: var(--s14); }
+  /* نامتقارن: متن ستونِ غالب است و کارتِ نمونه کوچک‌تر و پایین‌تر از خطِ تیتر
+     می‌نشیند، نه هم‌قدِ متن. */
+  .site-hero-grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: var(--s14); }
+  .site-hero-grid .site-hero-result { margin-block-start: var(--s12); }
 }
 .site-hero h1 {
   font-size: var(--t-hero); font-weight: var(--w-bold);
@@ -327,6 +330,31 @@
 .site-figure--band img { aspect-ratio: 2.2/1; object-fit: cover; object-position: center 38%; }
 .site-figure--hero { }
 .site-figure--band { aspect-ratio: 2.2 / 1; margin-block: var(--s10); }
+
+/* ---------- نمونهٔ نتیجه در هیرو (HeroResult.jsx) ---------- */
+.site-hero-result {
+  margin: 0; padding: var(--s8); background: var(--card);
+  border: 1px solid var(--border-card); border-radius: var(--r-2xl);
+  box-shadow: var(--sh-md);
+}
+.site-hero-result-cap {
+  display: flex; align-items: baseline; gap: var(--s5); flex-wrap: wrap;
+  padding-bottom: var(--s4); border-bottom: 1px solid var(--line);
+  font-size: var(--t-2xs); color: var(--ink-2);
+}
+.site-hero-result-cap b {
+  font-weight: var(--w-bold); color: var(--ink);
+  border: 1px dashed var(--ink-2); border-radius: var(--r-pill); padding: var(--s1) var(--s4);
+}
+.site-hero-result-foot { margin-top: var(--s5); font-size: var(--t-xs); line-height: var(--lh-body); color: var(--ink-2); }
+/* تنها حرکتِ معنادارِ هیرو: نشانگر از ابتدای باندِ طبیعی تا جای عدد می‌رود. */
+@media (prefers-reduced-motion: no-preference) {
+  .site-hero-result .band-marker { animation: site-marker-in 700ms var(--ease) 200ms both; }
+}
+@keyframes site-marker-in {
+  from { inset-inline-start: calc(var(--band-start) - 7px); opacity: 0; }
+  to   { opacity: 1; }
+}
 
 /* ---------- تابلوها ----------
    الگو چهار تابلوی رنگیِ اشباع داشت (سرمه‌ای، مرجانی، …). حالا دو ارزش از
@@ -487,7 +515,13 @@
 
 /* ---------- «اعداد بر چه مبنایی» ---------- */
 
-.site-basis { background: var(--sunken); }
+.site-basis { background: var(--ink); color: var(--on-ink); }
+.site-basis .site-h2 { color: var(--on-ink); }
+.site-basis .site-lede { color: var(--on-ink-2); }
+.site-basis .site-source-mark { background: var(--on-ink); color: var(--ink); }
+.site-basis .site-source-txt i { color: var(--on-ink-2); }
+.site-basis .btn--secondary { background: transparent; color: var(--on-ink); border-color: var(--on-ink); }
+.site-basis .btn--secondary:hover:not(:disabled) { background: var(--on-ink); color: var(--ink); }
 .site-basis-grid {
   display: grid; grid-template-columns: 1fr 1fr;
   gap: var(--s5) var(--s12); margin-bottom: var(--s11);

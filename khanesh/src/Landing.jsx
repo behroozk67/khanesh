@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { REF, ALL } from "./labRefs.js";
 import { BRAND_FA } from "./Logo.jsx";
 import { LabMateLogo } from "./LabMateLogo.jsx";
+import HeroResult from "./HeroResult.jsx";
 import "./site.css";
 
 // ============================================================
@@ -191,17 +192,7 @@ function Hero() {
           <Link to="/tests" className="btn btn--primary btn--pill btn--lg">همهٔ آزمایش‌ها</Link>
         </div>
 
-        <div className="site-figure site-figure--hero">
-          <img
-            src="/lab/hero_ai_desk-1080.webp"
-            srcSet="/lab/hero_ai_desk-640.webp 640w, /lab/hero_ai_desk-1080.webp 1080w, /lab/hero_ai_desk-1600.webp 1600w"
-            sizes="(min-width: 980px) 524px, 100vw"
-            fetchPriority="high"
-            alt="تصویر فوتورئال از برگه آزمایش روی میز با هولوگرام‌های هوش مصنوعی و شبکه عصبی دیجیتال"
-            width="1080" height="1080"
-           
-          />
-        </div>
+        <HeroResult />
       </div>
     </header>
   );
