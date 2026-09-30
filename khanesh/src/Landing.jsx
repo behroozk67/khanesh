@@ -193,10 +193,13 @@ function Hero() {
 
         <div className="site-figure site-figure--hero">
           <img
-            src="/lab/hero_ai_desk.webp"
+            src="/lab/hero_ai_desk-1080.webp"
+            srcSet="/lab/hero_ai_desk-640.webp 640w, /lab/hero_ai_desk-1080.webp 1080w, /lab/hero_ai_desk-1600.webp 1600w"
+            sizes="(min-width: 980px) 524px, 100vw"
+            fetchPriority="high"
             alt="تصویر فوتورئال از برگه آزمایش روی میز با هولوگرام‌های هوش مصنوعی و شبکه عصبی دیجیتال"
-            width="2160" height="2160"
-            className="animated-pov"
+            width="1080" height="1080"
+           
           />
         </div>
       </div>
@@ -219,7 +222,7 @@ function HowItWorks() {
           <Link to="/tests" className="btn btn--secondary btn--pill">راهنمای آزمایش‌ها</Link>
         </div>
         <div className="site-how-hero-image">
-          <img src="/lab/couple.png" alt="یک زوج جوان خندان" width="1024" height="1024" decoding="async" />
+          <img src="/lab/couple.webp" alt="یک زوج جوان خندان" width="1024" height="1024" decoding="async" />
         </div>
       </div>
 
@@ -255,8 +258,8 @@ function HowItWorks() {
 // قابِ تصویریِ عریض میانِ بخش‌ها. عکس‌ها واقعی‌اند و از Unsplash با پروانهٔ
 // آزاد؛ اعتبارِ هر عکس در public/lab/CREDITS.md ثبت شده است.
 const BANDS = {
-  warm: { src: "/lab/doctor-tablet.png", alt: "پزشک زن در حال بررسی اطلاعات پزشکی در تبلت" },
-  cool: { src: "/lab/lab_modern_tech.png", alt: "محیط مدرن آزمایشگاهی با تمرکز بر فناوری‌های پیشرفته" },
+  warm: { src: "/lab/doctor-tablet.webp", alt: "پزشک زن در حال بررسی اطلاعات پزشکی در تبلت" },
+  cool: { src: "/lab/lab_modern_tech.webp", alt: "محیط مدرن آزمایشگاهی با تمرکز بر فناوری‌های پیشرفته" },
 };
 
 function Band({ tone }) {
@@ -277,21 +280,21 @@ function FeaturedGuides() {
   const cards = [
     {
       tone: "deep", kicker: "تیروئید", kicker2: "آزمایش",
-      img: "/lab/thyroid_card.png",
+      img: "/lab/thyroid_card.webp",
       t: "آزمایش عملکرد تیروئید",
       d: "TSH و T4 نشان می‌دهند تیروئید چقدر فعال است. این راهنما توضیح می‌دهد هر عدد چه چیزی را می‌سنجد و چرا معمولاً TSH اولین آزمایشی است که پزشک درخواست می‌کند.",
       to: "/tests/thyroid",
     },
     {
       tone: "soft", kicker: "شمارش", kicker2: "کامل خون",
-      img: "/lab/cbc_card.png",
+      img: "/lab/cbc_card.webp",
       t: "شمارش کامل خون (CBC)",
       d: "CBC گلبول‌های قرمز، گلبول‌های سفید و پلاکت‌ها را می‌شمارد و شاخص‌هایی مثل MCV و MCH را به دست می‌دهد؛ همان‌هایی که انواع کم‌خونی را از هم جدا می‌کنند.",
       to: "/tests/wellness",
     },
     {
       tone: "warm", kicker: "قند", kicker2: "و دیابت",
-      img: "/lab/diabetes_card.png",
+      img: "/lab/diabetes_card.webp",
       t: "قند خون و HbA1c",
       d: "قند ناشتا وضعیت همان لحظه را نشان می‌دهد و HbA1c میانگین حدود سه ماه گذشته را. آستانه‌های این راهنما بر پایهٔ راهنمای ADA است.",
       to: "/tests/disease",
@@ -367,7 +370,7 @@ function Resources() {
       <div className="site-res-grid">
         <article className="site-res">
           <div className="site-figure">
-            <img src="/lab/res-1.png" alt="دست‌های دستکش‌پوش، دو لولهٔ نمونهٔ خون را بالای سانتریفیوژ نگه داشته‌اند" loading="lazy" decoding="async" width="1024" height="1024" />
+            <img src="/lab/res-1.webp" alt="دست‌های دستکش‌پوش، دو لولهٔ نمونهٔ خون را بالای سانتریفیوژ نگه داشته‌اند" loading="lazy" decoding="async" width="1024" height="1024" />
           </div>
           <h3>چطور از برگهٔ آزمایش عکس بگیریم</h3>
           <p>
@@ -380,7 +383,7 @@ function Resources() {
         <article className="site-res site-res--lead">
           <span className="site-pick">پیشنهاد ویژه</span>
           <div className="site-figure">
-            <img src="/lab/res-2.png" alt="جالوله‌ای پر از لوله‌های نمونهٔ خون با درپوش‌های آبی، سبز، قرمز و بنفش" loading="lazy" decoding="async" width="1024" height="1024" />
+            <img src="/lab/res-2.webp" alt="جالوله‌ای پر از لوله‌های نمونهٔ خون با درپوش‌های آبی، سبز، قرمز و بنفش" loading="lazy" decoding="async" width="1024" height="1024" />
           </div>
           <h3>مقادیر مرجع (رنج نرمال) به چه معناست؟</h3>
           <p>
@@ -391,7 +394,7 @@ function Resources() {
 
         <article className="site-res">
           <div className="site-figure">
-            <img src="/lab/res-3.png" alt="دستگاه آنالایزر خودکار آزمایشگاه در کنار یک نمایشگر لمسی" loading="lazy" decoding="async" width="1024" height="1024" />
+            <img src="/lab/res-3.webp" alt="دستگاه آنالایزر خودکار آزمایشگاه در کنار یک نمایشگر لمسی" loading="lazy" decoding="async" width="1024" height="1024" />
           </div>
           <h3>واحدهای SI و واحدهای متعارف</h3>
           <p>
@@ -424,7 +427,7 @@ function Updates() {
           <Link className="site-more" to="/app">بیشتر بدانید ←</Link>
         </div>
         <div className="site-figure">
-          <img src="/lab/news.png" alt="کاروسل نمونهٔ یک دستگاه آنالایزر، پر از لوله‌های درپوش‌دار" loading="lazy" decoding="async" width="1024" height="1024" />
+          <img src="/lab/news.webp" alt="کاروسل نمونهٔ یک دستگاه آنالایزر، پر از لوله‌های درپوش‌دار" loading="lazy" decoding="async" width="1024" height="1024" />
         </div>
       </article>
     </section>

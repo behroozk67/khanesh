@@ -1,37 +1,33 @@
-import { BRAND_FA } from "./Logo.jsx";
+import LogoBadge, { BRAND_FA, BRAND_LATIN } from "./Logo.jsx";
 
-const NAVY = "#0B162C";
 const LOGO_FONT = "'Poppins', 'Segoe UI', system-ui, Arial, sans-serif";
 const FA_FONT = "'Vazirmatn', system-ui, sans-serif";
 export const BRAND_SLOGAN = "دستیار هوشمند تفسیر آزمایش";
 
 export function LabMateMark({ size = 44, title }) {
   return (
-    <img 
-      src="/logo.png" 
-      alt={title || "Logo"} 
-      style={{ width: size, height: size, objectFit: 'contain' }} 
-    />
+    <span role="img" aria-label={title || BRAND_FA} style={{ display: "inline-flex" }}>
+      <LogoBadge size={size} />
+    </span>
   );
 }
 
 export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA }) {
-  const ink = variant === "light" ? "#ffffff" : NAVY;
-  const sloganInk = variant === "light" ? "#e7ecf8" : "#111111";
+  const ink = variant === "light" ? "var(--on-ink)" : "var(--ink)";
+  const sloganInk = variant === "light" ? "var(--on-ink-2)" : "var(--ink-2)";
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} title={`${title} — ${BRAND_SLOGAN}`}>
-      <img src="/logo.png" alt="LabMate Logo" style={{ height: height, objectFit: 'contain' }} />
+      <LogoBadge size={height} />
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '6px' }}>
         <span style={{ 
           fontFamily: LOGO_FONT, 
           fontSize: `${height * 0.45}px`, 
-          fontWeight: "800", 
-          letterSpacing: "2px", 
+          fontWeight: "var(--w-bold)",
           lineHeight: 1,
           color: ink 
         }}>
-          LABMAT
+          {BRAND_LATIN}
         </span>
         <span style={{ 
           fontFamily: FA_FONT, 
