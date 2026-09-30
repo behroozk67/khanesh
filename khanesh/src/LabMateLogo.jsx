@@ -1,7 +1,6 @@
 import { BRAND_FA } from "./Logo.jsx";
 
 const NAVY = "#0B162C";
-const LOGO_FONT = "'Poppins', 'Segoe UI', system-ui, Arial, sans-serif";
 const FA_FONT = "'Vazirmatn', system-ui, sans-serif";
 export const BRAND_SLOGAN = "دستیار هوشمند تفسیر آزمایش";
 
@@ -21,17 +20,17 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA })
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} title={`${title} — ${BRAND_SLOGAN}`}>
-      <img src="/logo.png" alt="LabMate Logo" style={{ height: height, objectFit: 'contain' }} />
+      <img src="/logo.png" alt={title} style={{ height: height, objectFit: 'contain' }} />
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '6px' }}>
         <span style={{ 
-          fontFamily: LOGO_FONT, 
-          fontSize: `${height * 0.45}px`, 
-          fontWeight: "800", 
-          letterSpacing: "2px", 
-          lineHeight: 1,
+          fontFamily: FA_FONT,
+          fontSize: `${height * 0.45}px`,
+          fontWeight: "800",
+          lineHeight: 1.1,
+          direction: "rtl",
           color: ink 
         }}>
-          LABMAT
+          {BRAND_FA}
         </span>
         <span style={{ 
           fontFamily: FA_FONT, 

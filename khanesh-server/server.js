@@ -1679,7 +1679,7 @@ app.get("/", (_req, res) => {
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="utf-8">
-  <title>سرور خوانش (LabMate)</title>
+  <title>سرور آزمایار</title>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
     .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; max-width: 500px; text-align: center; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); }

@@ -197,7 +197,7 @@ function Hero() {
             srcSet="/lab/hero-tablet-640.webp 640w, /lab/hero-tablet-960.webp 960w, /lab/hero-tablet-1536.webp 1536w"
             sizes="(min-width: 980px) 440px, 100vw"
             fetchPriority="high"
-            alt="مردی تبلتی در دست دارد که نمونه‌ای از نتیجهٔ LabMate را با نوارِ محدودهٔ مرجع نشان می‌دهد"
+            alt="مردی تبلتی در دست دارد که نمونه‌ای از نتیجهٔ آزمایار را با نوارِ محدودهٔ مرجع نشان می‌دهد"
             width="1536" height="1024"
           />
         </div>
