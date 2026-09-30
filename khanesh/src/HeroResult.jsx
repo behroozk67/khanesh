@@ -1,5 +1,6 @@
 import RangeBand from "./RangeBand.jsx";
 import Num from "./Num.jsx";
+import { BRAND_FA } from "./Logo.jsx";
 import { REF, LOCAL_STATES, statusOf } from "./labRefs.js";
 
 // ============================================================
@@ -43,19 +44,24 @@ function SampleRow({ k, v }) {
 
 export default function HeroResult() {
   return (
-    <figure className="site-hero-result" aria-label="نمونهٔ نمایشی از یک نتیجه">
-      <figcaption className="site-hero-result-cap">
-        <b>نمونه</b>
-        <span>عددها نمایشی‌اند و از برگهٔ شما نیستند</span>
-      </figcaption>
-      <ul className="row-list">
-        {SAMPLE.map((s) => (
-          <SampleRow key={s.key} k={s.key} v={s.v} />
-        ))}
-      </ul>
-      <p className="site-hero-result-foot">
-        برای هر عددِ برگهٔ شما همین نوار رسم می‌شود: عدد کجای محدودهٔ مرجع ایستاده است.
-      </p>
-    </figure>
+    <div className="site-device">
+      <div className="site-device-screen">
+        <span className="site-device-pill" aria-hidden="true">{BRAND_FA}</span>
+        <figure className="site-hero-result" aria-label="نمونهٔ نمایشی از یک نتیجه">
+          <figcaption className="site-hero-result-cap">
+            <b>نمونه</b>
+            <span>عددها نمایشی‌اند و از برگهٔ شما نیستند</span>
+          </figcaption>
+          <ul className="row-list">
+            {SAMPLE.map((s) => (
+              <SampleRow key={s.key} k={s.key} v={s.v} />
+            ))}
+          </ul>
+          <p className="site-hero-result-foot">
+            برای هر عددِ برگهٔ شما همین نوار رسم می‌شود: عدد کجای محدودهٔ مرجع ایستاده است.
+          </p>
+        </figure>
+      </div>
+    </div>
   );
 }
