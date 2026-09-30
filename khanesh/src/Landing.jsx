@@ -151,6 +151,26 @@ export function Nav() {
   );
 }
 
+// ویدیوی هیرو: یک بار پخش می‌شود و روی آخرین فریم (صفحهٔ تفسیر) می‌ماند، نه حلقه.
+// با prefers-reduced-motion فقط همان فریمِ آخر نشان داده می‌شود. صفحهٔ تبلت در
+// ویدیو ساختهٔ مدل نیست؛ فریم‌به‌فریم جایگزین شده (جزئیات در public/lab/CREDITS.md).
+const HERO_ALT = "دست‌هایی تبلتی را گرفته‌اند که ابتدا بارگذاریِ برگهٔ آزمایش و سپس تفسیرِ یک آزمایش را در آزمایار نشان می‌دهد";
+function HeroVideo() {
+  const [still] = useState(
+    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  );
+  if (still) {
+    return <img src="/lab/hero-tablet-poster.webp" alt={HERO_ALT} width="640" height="800" />;
+  }
+  return (
+    <video autoPlay muted playsInline preload="auto" poster="/lab/hero-tablet-poster.webp"
+           width="640" height="800" aria-label={HERO_ALT}>
+      <source src="/lab/hero-tablet.mp4" type="video/mp4" />
+      <source src="/lab/hero-tablet.webm" type="video/webm" />
+    </video>
+  );
+}
+
 function Hero() {
   // ⚠️ ترتیب نسبت به نسخهٔ قبل عوض شد. آنجا هر سه بندِ معرفی داخلِ یک کادرِ
   //    حاشیه‌دار **بالای** <h1> می‌نشستند، به این نیت که خواننده اول بفهمد
@@ -192,14 +212,7 @@ function Hero() {
         </div>
 
         <div className="site-figure site-figure--hero">
-          <img
-            src="/lab/hero-tablet-960.webp"
-            srcSet="/lab/hero-tablet-640.webp 640w, /lab/hero-tablet-960.webp 960w, /lab/hero-tablet-1536.webp 1536w"
-            sizes="(min-width: 980px) 440px, 100vw"
-            fetchPriority="high"
-            alt="مردی تبلتی در دست دارد که نمونه‌ای از نتیجهٔ آزمایار را با نوارِ محدودهٔ مرجع نشان می‌دهد"
-            width="1536" height="1024"
-          />
+          <HeroVideo />
         </div>
       </div>
     </header>
