@@ -1636,7 +1636,7 @@ app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimite
   }
 });
 
-app.get("/health", (_req, res) =>
+const healthHandler = (_req, res) =>
   res.json({
     ok: true,
     textModel: TEXT_MODEL,
@@ -1669,8 +1669,37 @@ app.get("/health", (_req, res) =>
     trace: isTraceEnabled() ? "on (⚠️ دادهٔ بالینی نگه داشته می‌شود)" : "off",
     // کارهای در حافظه. اگر مدام نزدیک سقف بود، یعنی TTL یا سقف کم است.
     jobsInMemory: jobCount(),
-  })
-);
+  });
+
+app.get("/health", healthHandler);
+app.get("/api/health", healthHandler);
+
+app.get("/", (_req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>سرور خوانش (LabMate)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 32px; max-width: 500px; text-align: center; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); }
+    h1 { font-size: 22px; margin-bottom: 12px; color: #38bdf8; }
+    p { color: #94a3b8; font-size: 15px; line-height: 1.6; margin-bottom: 24px; }
+    a.btn { display: inline-block; background: #2563eb; color: #ffffff; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: bold; transition: 0.2s background; }
+    a.btn:hover { background: #1d4ed8; }
+    .badge { display: inline-block; background: #14532d; color: #4ade80; padding: 4px 12px; border-radius: 999px; font-size: 13px; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">سرور بک‌اند فعال است (Port 8787)</div>
+    <h1>به سرور واسط خوانش خوش آمدید</h1>
+    <p>اینجا سرور پس‌زمینه (API) است. برای مشاهده ظاهر سایت و ورود برگه آزمایش، دکمه زیر را بزنید:</p>
+    <a class="btn" href="http://localhost:5173/">ورود به پیش‌نمایش سایت (Port 5173)</a>
+  </div>
+</body>
+</html>`);
+});
 
 // Global Error Handler
 app.use((err, req, res, next) => {
