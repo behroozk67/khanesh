@@ -1185,7 +1185,7 @@ export { SMEAR_FA, smearItemFa, smearLeukemicSentence, smearCbcComplete, BLAST_E
 // ⚠️ این تنها جای این مقایسه‌هاست (FR-018): خوانشِ «> ۵٪» و «۶٪»ِ متنِ چسبانده‌شده هر دو در کد نباشند.
 const FACTOR_SEVERE_BELOW_PCT = 1;
 const FACTOR_MODERATE_MAX_PCT = 5;
-const FACTOR_MILD_MAX_PCT = 30;
+const FACTOR_MILD_MAX_PCT = 40;   // WFH: خفیف >۵ تا <۴۰٪ (بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰؛ پیش‌تر ۳۰ بی‌منبع)
 /**
  * ردهٔ فعالیتِ فاکتور ۸/۹ (٪). item: آیتمِ کانالِ hemostasis. age: سال یا null.
  * 'paediatric' | 'unit_unknown' | 'severe' | 'moderate' | 'mild' | 'reduced' | 'inRange' | 'notJudged'
@@ -1199,7 +1199,7 @@ function factorBand(item, age, sex = null) {
   // «<1٪» مرز است: کمتر از ۱ ⇒ شدید، حتی اگر عدد خودش ۱ باشد.
   if (pct < FACTOR_SEVERE_BELOW_PCT || (item.lessThan && pct <= FACTOR_SEVERE_BELOW_PCT)) return "severe";
   if (pct <= FACTOR_MODERATE_MAX_PCT) return "moderate";
-  if (pct <= FACTOR_MILD_MAX_PCT) return "mild";
+  if (pct < FACTOR_MILD_MAX_PCT) return "mild";
   const pv = item.position ?? null;   // حکم با عددِ چاپ‌شده در برابرِ محدودهٔ چاپ‌شده، نه ٪ (adapter: hemostasisItem)
   if (pv === "below") return "reduced";
   if (pv === "within" || pv === "above") return "inRange";

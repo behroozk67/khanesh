@@ -1236,7 +1236,8 @@ test("M25: کتونِ منفیِ اندازه‌گیری‌شده → هشدار
   const f = runPatterns(e).findings.find((x) => x.pattern === "hhs_pattern");
   assert.ok(f, "باید HHS فعال شود");
   // عمداً در must_say است نه warnings — چون فقط must_sayِ اورژانسی ضامنِ سرور دارد
-  assert.ok(/۷۸٪/.test(f.must_say) && /بتاهیدروکسی/.test(f.must_say),
+  assert.ok(!/۷۸/.test(f.must_say) && /بتاهیدروکسی/.test(f.must_say),   // «۷۸٪» بی‌منبع بود؛ برداشته شد (بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰)
+
     "باید در must_say بگوید نوارِ ادرار بتاهیدروکسی‌بوتیرات را نمی‌بیند");
 });
 
@@ -5187,7 +5188,7 @@ test("M91: قندِ ۲۶۰ بدونِ شواهدِ کتواسیدوز اورژا
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "severe_hyperglycemia_uncertain_ketosis");
   assert.ok(f, `یافتهٔ قندِ بالا نیامد؛ آمده‌ها: ${p.findings.map((x) => x.pattern).join("، ")}`);
-  assert.equal(f.urgency, "this_week", "قندِ ۲۶۰ گریدِ ۳ CTCAE است، نه ۴");
+  assert.equal(f.urgency, "soon", "قندِ ۲۶۰ گریدِ ۳ CTCAE است، نه ۴؛ ارزیابیِ ۲۴–۴۸ ساعته (بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰)");
   assert.equal(f.key_number, 260);
   assert.ok(!p.has_critical, "قندِ ۲۶۰ به‌تنهایی نباید has_critical بسازد");
   // N4/N21: تستی که روی برگه نیست، باید *گفته شود* که نیست.
@@ -6032,7 +6033,7 @@ test("M103: قواعدِ تکراریِ فصل ۲۵ هیچ یافتهٔ تازه
     [[["TSH", "0.05"], ["FT4", "3.0", "ng/dL"]], ["thyroid_hyper_overt[this_week]"]],
     [[["TSH", "0.05"], ["FT4", "1.2", "ng/dL"], ["FT3", "6.0", "pg/mL"]], ["thyroid_t3_toxicosis[this_week]"]],
     [[["Na", "128"], ["Glucose", "400", "mg/dL"]],
-      ["diabetes_range[this_week]", "severe_hyperglycemia_uncertain_ketosis[this_week]"]],
+      ["severe_hyperglycemia_uncertain_ketosis[soon]", "diabetes_range[this_week]"]],
     [[["Serum Osmolality", "310"], ["Na", "140"], ["Glucose", "90", "mg/dL"], ["Urea", "30", "mg/dL"]],
       ["osmolal_gap_high[this_week]"]],
   ];
@@ -11317,20 +11318,22 @@ test("M248: 0.01 IU/mL = 1٪؛ بی‌واحد ⇒ unknown؛ مهارکننده 
   for (const pos of ["Positive", "Detected", "Present", "مثبت"]) assert.equal(q(pos), "positive", pos);
   for (const unk of ["+/-", "Weak", "Borderline", "Equivocal", "weakly positive"]) assert.equal(q(unk), "unknown", unk);
   // بی‌مرجعِ چاپ‌شده، هیچ عددی حکم نمی‌گیرد — نه ۰٫۴ نه ۲٫۴ (۰٫۵ BU تأیید نشده، P61 61-d)
-  assert.equal(q(2.4, "BU"), "unknown"); assert.equal(q(0.4, "BU"), "unknown");
+  assert.equal(q(2.4, ""), "unknown");
+  // با واحدِ BU و بی‌محدودهٔ چاپ‌شده: Nijmegen ≥۰٫۶ مثبت، <۰٫۵ منفی، بینِ آن مرزی (بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰؛ M268)
+  assert.equal(q(2.4, "BU"), "positive"); assert.equal(q(0.4, "BU"), "negative"); assert.equal(q(0.55, "BU"), "unknown");
   assert.equal(q(2.4, "BU", "<0.6"), "positive"); assert.equal(q(0.3, "BU", "<0.6"), "negative");
 });
 
 // ---------- M249: مرزهای شدتِ فاکتور (D10 = A) — یک تابع، هر دو لبه؛ زیرِ ۱۶ سال بی‌رده (FR-018، FR-020) ----------
-test("M249: factorBand در ۰٫۹۹/۱/۵/۵٫۵/۳۰/۳۰٫۵/۳۱ و بازوهای سنی", async () => {
+test("M249: factorBand در ۰٫۹۹/۱/۵/۵٫۵/۳۹/۴۰/۴۰٫۵ و بازوهای سنی", async () => {
   const { factorBand } = await import("./patterns_utils.js");
   assert.equal(typeof factorBand, "function", "factorBand وجود ندارد");
   const { printedVerdict } = await import("./units.js");
   // position را adapter (hemostasisItem) با عددِ چاپ‌شده حساب می‌کند؛ اینجا همان را می‌سازیم (M259).
   const it = (v, reference) => ({ value: v, unitState: "ok", reference: reference ?? null, position: reference ? printedVerdict(reference, v) : null, lessThan: false });
-  const want = { 0.99: "severe", 1: "moderate", 5: "moderate", 5.5: "mild", 30: "mild", 30.5: "notJudged", 31: "notJudged" };
+  const want = { 0.99: "severe", 1: "moderate", 5: "moderate", 5.5: "mild", 39: "mild", 40: "notJudged", 40.5: "notJudged" };
   for (const [v, band] of Object.entries(want)) assert.equal(factorBand(it(Number(v)), 25), band, `بی‌مرجع ${v}`);
-  const wantRef = { 0.99: "severe", 1: "moderate", 5: "moderate", 5.5: "mild", 30: "mild", 30.5: "reduced", 31: "reduced" };
+  const wantRef = { 0.99: "severe", 1: "moderate", 5: "moderate", 5.5: "mild", 39: "mild", 40: "reduced", 40.5: "reduced" };
   for (const [v, band] of Object.entries(wantRef)) assert.equal(factorBand(it(Number(v), "50-150"), 25), band, `با مرجع ${v}`);
   assert.equal(factorBand(it(90, "50-150"), 25), "inRange");
   assert.equal(factorBand({ ...it(1), lessThan: true }, 25), "severe", "«<1٪» شدید است");
@@ -11408,8 +11411,8 @@ test("M264: نوزادِ ردهٔ هفته‌ای ارجاع دارد (FVIII/FIX
 
 test("M251c: مهارکننده — عددِ بی‌مرجع نقل می‌شود و حکم نمی‌گیرد (this_week)؛ با مرجعِ چاپ‌شده حکم از همان مرجع", () => {
   const f = (rows) => m010Run([...M010_BASE, ...rows]).p.findings.find((x) => x.pattern === "factor_inhibitor");
-  const noref = f([m010T("FVIII Inhibitor", 2.4, "BU")]);
-  assert.equal(noref.urgency, "this_week"); assert.match(noref.must_say, /2\.4 BU/); assert.match(noref.must_say, /نمی‌شود گفت مثبت است یا منفی/);
+  const noref = f([m010T("FVIII Inhibitor", 2.4, "")]);
+  assert.equal(noref.urgency, "this_week"); assert.match(noref.must_say, /2\.4/); assert.match(noref.must_say, /نمی‌شود گفت مثبت است یا منفی/);
   const pos = f([m010T("FVIII Inhibitor", 2.4, "BU", "<0.6")]);
   assert.match(pos.must_say, /مثبت گزارش شده/); assert.equal(pos.urgency, "this_week");
   const neg = f([m010T("Bethesda", "Undetected")]);
@@ -11517,11 +11520,13 @@ test("M255: dic_isth_score فقط روی ۵۰ ≤ PLT < ۱۰۰ + D-dimer > ۴۰�
   for (const [k, rows] of Object.entries(on)) {
     const r = m010Run(rows, { age: 60 });
     const f = r.p.findings.find((x) => x.pattern === "dic_isth_score");
-    assert.ok(f, `${k}: ${r.ids}`); assert.equal(f.urgency, "soon");
+    assert.ok(f, `${k}: ${r.ids}`); assert.equal(f.urgency, k === "score5" ? "emergency" : "soon");   // امتیاز ≥۵ ⇒ emergency (M269)
     assert.doesNotMatch(`${f.headline} ${f.must_say}`, /\bDIC\b|انعقادِ منتشر/, `${k}: نامِ تشخیص`);
     const recs = buildEngineRecommendations(r.p, r.e);
-    assert.ok(recs.some((x) => /۲۴ تا ۴۸ ساعت/.test(x)), `${k}: دستورِ نهایی soon نیامد: ${recs}`);
-    assert.ok(!recs.some((x) => /^این هفته با پزشک/.test(x)), `${k}: دستورِ زمان‌دارِ رقیب: ${recs}`);
+    if (k !== "score5") {
+      assert.ok(recs.some((x) => /۲۴ تا ۴۸ ساعت/.test(x)), `${k}: دستورِ نهایی soon نیامد: ${recs}`);
+      assert.ok(!recs.some((x) => /^این هفته با پزشک/.test(x)), `${k}: دستورِ زمان‌دارِ رقیب: ${recs}`);
+    } else assert.ok(recs.some((x) => /اورژانس/.test(x)), `${k}: دستورِ اورژانسی نیامد: ${recs}`);
     for (const g of r.p.findings.filter((x) => x.pattern !== "dic_isth_score" && x.pattern !== "unexplained_abnormal"))
       assert.doesNotMatch(g.must_say, /این هفته|همین امروز|فوراً/, `${k}/${g.pattern}: زمان‌بندی در must_say`);
   }
@@ -11676,4 +11681,78 @@ test("M263: تکرارِ ردیفِ هموستاز در unmapped می‌آید؛
   assert.ok(!same.unmapped.includes("Factor VIII"));
   const { SUGGEST_TESTS } = await import("./patterns.js");
   for (const k of ["aPTT", "فیبرینوژن", "vWF:RCo", "vWF:Ag"]) assert.ok(SUGGEST_TESTS[k], k);
+});
+
+// ── بازبینیِ متخصصِ آزمایشگاه، ۲۰۲۶-۰۹-۳۰ (پاسخ‌های پژوهشِ چسبانده‌شده؛ سه اصلاحِ بی‌عددِ تازه) ──
+test("M265: Hb ۱۷ در نوزاد طبیعی است؛ آستانهٔ WHO بزرگسال روی زیر ۱۶ سال اجرا نمی‌شود (61-f، N3)", () => {
+  // 🔴 پیش‌تر erythrocytosis_who_screen با کفِ نوزادی اورژانس می‌شد.
+  const n = m010Run([m010T("WBC", 15, "10^3/uL"), m010T("Hb", 17, "g/dL")], { age: "3 روزه" });
+  assert.ok(!n.ids.includes("erythrocytosis_who_screen"), n.ids.join(", "));
+  const c = m010Run([m010T("WBC", 7, "10^3/uL"), m010T("Hb", 17, "g/dL")], { age: 10 });
+  assert.ok(!c.ids.includes("erythrocytosis_who_screen"), c.ids.join(", "));
+  // کنترلِ منفی: بزرگسال هنوز می‌گیرد
+  const a = m010Run([m010T("WBC", 7, "10^3/uL"), m010T("Hb", 17, "g/dL")], { age: 30 });
+  assert.ok(a.ids.includes("erythrocytosis_who_screen"), a.ids.join(", "));
+});
+
+test("M266: ردهٔ خفیفِ فاکتور ۸/۹ تا <۴۰٪ است (WFH: خفیف >۵ تا <۴۰٪)", () => {
+  const band = (v) => m010Run([...M010_BASE, m010T("Factor VIII Activity", v, "%", "50-150")]).p.findings
+    .find((f) => f.pattern === "factor_activity");
+  for (const v of [35, 39]) assert.match(band(v)?.must_say || "", /خفیف/, String(v));
+  assert.doesNotMatch(band(42)?.must_say || "", /ردهٔ خفیف/, "۴۲ خفیف نیست");
+});
+
+test("M267: isolated_thrombocytopenia فوریتِ «today» (بیرونِ جدولِ رتبه) نمی‌دهد؛ actionِ اورژانسی ⇒ emergency (N20)", async () => {
+  const { RULES } = await import("./patterns.js");
+  const r = RULES.find((x) => x.id === "isolated_thrombocytopenia");
+  const e = runEngine({ tests: [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 14, "g/dL"), m010T("PLT", 25, "10^3/uL")], patient: { sex: "M", age: 40 } });
+  assert.ok(r.match(e));
+  const f = r.build(e);
+  assert.ok(["emergency", "soon", "this_week", "routine", "none"].includes(f.urgency), f.urgency);
+  assert.equal(f.urgency, "emergency");
+});
+
+test("M268: مهارکنندهٔ Bethesda — «Positive (2.4 BU)» مثبت، «0.0 BU» منفی، ۰٫۵۵ مرزی؛ بی‌واحدِ BU حکم نمی‌دهد (61-d)", () => {
+  const q = (v, u) => m010Run([...M010_BASE, m010T("FVIII Inhibitor", v, u)]).e.hemostasis?.FVIII_INHIB?.qual;
+  assert.equal(q("Positive (2.4 BU)", ""), "positive");
+  assert.equal(q("Negative (0.0 BU)", ""), "negative");
+  assert.equal(q("2.4", "BU"), "positive");
+  assert.equal(q("0.6", "BU"), "positive");
+  assert.equal(q("0.0", "BU"), "negative");
+  assert.equal(q("0.55", "BU"), "unknown", "مرزی");
+  assert.equal(q("2.4", ""), "unknown", "بی‌واحد: حکم نه");
+});
+
+test("M269: امتیازِ ISTH ≥ ۵ بدونِ isDIC ⇒ emergency با actionِ اورژانسی؛ زیرِ ۵ همان soon (61-b)", () => {
+  const hi = m010Run([...M010_BASE.slice(0, 1), m010T("Hb", 13, "g/dL"), m010T("PLT", 80, "10^3/uL"), m010T("D-dimer", 4.0, "µg/mL"), m010T("PT", 19, "sec"), m010T("PT Control", 12, "sec")], { age: 60 });
+  const f = hi.p.findings.find((x) => x.pattern === "dic_isth_score");
+  assert.equal(f?.urgency, "emergency", hi.ids.join(", "));
+  assert.match(f.action, /اورژانس/);
+  const lo = m010Run([m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 80, "10^3/uL"), m010T("D-dimer", 2.0, "µg/mL")], { age: 60 });
+  const g = lo.p.findings.find((x) => x.pattern === "dic_isth_score");
+  assert.equal(g?.urgency, "soon");
+  assert.match(g.action, /۲۴ تا ۴۸/);
+});
+
+test("M270: قند ۲۵۰–۵۰۰ بدونِ کتون ⇒ soon با «۲۴ تا ۴۸ ساعت»؛ بالای ۵۰۰ هنوز emergency؛ «۷۸٪» در متن نیست (P42)", () => {
+  const a = m010Run([m010T("FBS", 300, "mg/dL")], { age: 50 }).p.findings.find((x) => x.pattern === "severe_hyperglycemia_uncertain_ketosis");
+  assert.equal(a?.urgency, "soon");
+  assert.match(a.action, /۲۴ تا ۴۸/);
+  assert.doesNotMatch(a.must_say, /۷۸/);
+  const b = m010Run([m010T("FBS", 520, "mg/dL")], { age: 50 }).p.findings.find((x) => x.pattern === "severe_hyperglycemia_uncertain_ketosis" || x.pattern === "hhs_pattern" || x.pattern === "dka_pattern");
+  assert.equal(b?.urgency, "emergency");
+});
+
+test("M271: هشدارِ پسودوهایپرکالمی از پلاکت >۵۰۰ (نه ۶۰۰) فعال می‌شود؛ ۴۸۰ نه", async () => {
+  const { preanalyticalCaveats } = await import("./preanalytical.js");
+  const ids = (plt) => preanalyticalCaveats(m010Run([m010T("Potassium", 5.8, "mEq/L"), m010T("PLT", plt, "10^3/uL")], { age: 40 }).e).map((c) => c.id);
+  assert.ok(ids(550).includes("pseudohyperkalemia_cell_count"));
+  assert.ok(!ids(480).includes("pseudohyperkalemia_cell_count"));
+});
+
+test("M272: isolated_thrombocytopenia با D-dimer/PT بالا «ایزوله» نیست (61-e)", () => {
+  const iso = m010Run([m010T("WBC", 7, "10^3/uL"), m010T("Hb", 14, "g/dL"), m010T("PLT", 70, "10^3/uL")], { age: 40 });
+  assert.ok(iso.ids.includes("isolated_thrombocytopenia"), iso.ids.join(", "));
+  const coag = m010Run([m010T("WBC", 7, "10^3/uL"), m010T("Hb", 14, "g/dL"), m010T("PLT", 70, "10^3/uL"), m010T("PT", 16, "sec")], { age: 40 });
+  assert.ok(!coag.ids.includes("isolated_thrombocytopenia"), coag.ids.join(", "));
 });

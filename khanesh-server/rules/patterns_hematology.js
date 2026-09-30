@@ -358,10 +358,14 @@ export const RULES_HEMATOLOGY = [
       if (t.FIB == null) suggest.push("فیبرینوژن");
       return {
         pattern: "dic_isth_score",
-        urgency: "soon",
-        headline: "پلاکتِ کم و D-dimerِ بالا با هم — آزمایش‌ها باید زود تکرار شوند",
+        urgency: s.total >= ISTH_OVERT_FROM ? "emergency" : "soon",   // امتیاز ≥۵ = DICِ آشکار؛ بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰ (61-b)
+        headline: s.total >= ISTH_OVERT_FROM
+          ? "پلاکتِ کم و D-dimerِ بالا با هم — نیازمندِ بررسیِ فوریِ همین امروز"
+          : "پلاکتِ کم و D-dimerِ بالا با هم — آزمایش‌ها باید زود تکرار شوند",
         must_say: lines.join(" "),
-        action: "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید تا پلاکت، D-dimer، PT و فیبرینوژن تکرار شوند.",
+        action: s.total >= ISTH_OVERT_FROM
+          ? "همین امروز، بدون انتظار برای نوبتِ مطب، به اورژانس یا بیمارستان مراجعه کنید تا پلاکت، D-dimer، PT و فیبرینوژن دوباره سنجیده شوند."
+          : "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید تا پلاکت، D-dimer، PT و فیبرینوژن تکرار شوند.",
         suggest,
         warnings: ["اگر خونریزیِ غیرعادی، کبودیِ بی‌دلیل، تنگیِ نفس یا درد و تورمِ ناگهانیِ پا داشتید، همان موقع به اورژانس بروید."],
       };
@@ -1157,6 +1161,7 @@ export const RULES_HEMATOLOGY = [
     match: (e) => {
       const hgb = e.graded.find((g) => g.test === "HGB");
       if (hgb?.value == null || !e.sex) return false;
+      if (e.age != null && isPediatricRCPCH(e.age)) return false;   // آستانهٔ WHO بزرگسال است؛ Hb ۱۵–۲۱ در نوزاد طبیعی است (N3، 61-f)
       const who = e.sex === "M" ? 16.5 : 16.0;
       if (hgb.value < who) return false;
       // erythrocytosisِ خودش (بالای بازهٔ موتور + RBC بالا + MCV≥80) فوریت و متنِ خودش را دارد؛

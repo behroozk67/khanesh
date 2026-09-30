@@ -325,14 +325,18 @@ export const RULES_MALIGNANCY = [
       const hgb = e.graded.find((g) => g.test === "HGB");
       const wbc = e.graded.find((g) => g.test === "WBC");
 
-      return (!hgb || !hgb.abnormal) && (!wbc || !wbc.abnormal);
+      // «ایزوله» یعنی هیچ شاخصِ انعقادی هم بالا/پایین نباشد؛ با D-dimer/PT/aPTT/INR بالا یا فیبرینوژنِ پایین،
+      // مالکِ برگه الگوی مصرفی/انعقادی است، نه این (بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰، 61-e).
+      const coagOff = e.graded.some((g) => g.abnormal &&
+        ((["DDIMER", "PT", "APTT", "INR"].includes(g.test) && g.dir === "high") || (g.test === "FIB" && g.dir === "low")));
+      return (!hgb || !hgb.abnormal) && (!wbc || !wbc.abnormal) && !coagOff;
     },
     build: (e) => {
       const t = val(e);
       const isCritical = t.PLT < 30;
       return {
         pattern: "isolated_thrombocytopenia",
-        urgency: isCritical ? "today" : "this_week",
+        urgency: isCritical ? "emergency" : "this_week",   // «today» در هیچ جدولِ رتبه نبود؛ actionِ «بلافاصله به اورژانس» ⇒ emergency (N20)
         headline: "افت ایزوله پلاکت‌ها (ترومبوسیتوپنی)",
         must_say: `شمارش پلاکت‌های شما به زیر ۱۰۰ هزار افت کرده در حالی که سایر رده‌های خونی طبیعی هستند. این حالت می‌تواند ایمنی (ITP) یا ثانویه به عفونت‌های ویروسی باشد.${isCritical ? ' افت شدید زیر ۳۰ هزار خطر خونریزی را به شدت بالا می‌برد.' : ''}`,
         action: isCritical ? "امروز بلافاصله به اورژانس یا هماتولوژیست مراجعه کنید." : "در هفته جاری به پزشک داخلی یا خون مراجعه کنید.",

@@ -75,7 +75,7 @@ export const PREANALYTICAL_RULES = [
       if (!(isHigh(k) && k.value < 6.5)) return false;
       const plt = g(e, 'PLT');
       const wbc = g(e, 'WBC');
-      return (plt != null && plt.value >= 600) || (wbc != null && wbc.value >= 50);
+      return (plt != null && plt.value >= 500) || (wbc != null && wbc.value >= 50);
     },
     text:
       'وقتی پلاکت یا گلبول‌های سفید خیلی بالا باشند، همین سلول‌ها هنگام لخته‌شدنِ ' +

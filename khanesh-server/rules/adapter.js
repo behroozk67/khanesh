@@ -562,7 +562,8 @@ function hemostasisItem(key, t, sex) {
   const raw = String(t.value ?? "").trim();
   const reference = t.reference ?? null;
   const item = { raw, unit: t.unit ?? null, reference, value: null, unitState: null, qual: null, lessThan: false };
-  const word = key === "FVIII_INHIB" ? inhibWord(raw) : null;
+  // «Positive (2.4 BU)» / «Negative (0.0)»: واژه + عددِ داخلِ پرانتز — واژه حکم است، عدد فقط نقل می‌شود.
+  const word = key === "FVIII_INHIB" ? (inhibWord(raw) ?? inhibWord(raw.replace(/\s*[(\[].*[)\]]\s*$/, ""))) : null;
   if (word) { item.qual = word; return item; }
   // «<1» / «کمتر از ۱»: عدد مرز است، نه مقدار — «<1٪» شدید است، نه متوسط.
   const lt = /^\s*(<|≤|کمتر\s*از)/.test(raw);
@@ -578,6 +579,11 @@ function hemostasisItem(key, t, sex) {
   if (key === "FVIII_INHIB") {
     const pv = reference ? printedVerdict(reference, n, sex) : null;
     item.qual = pv === "above" ? "positive" : (pv === "within" || pv === "below") ? "negative" : "unknown";
+    // بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰ (61-d): بی‌محدودهٔ چاپ‌شده و با واحدِ BU، روشِ Nijmegen-Bethesda: ≥۰٫۶ مثبت، <۰٫۵ منفی؛
+    //   ۰٫۵ تا <۰٫۶ مرزی ⇒ «unknown» (جوابِ روشن نیست، فوریتِ کف). آستانه وابسته به روش است و واژهٔ چاپ‌شده/محدودهٔ برگه مقدم است.
+    if (pv == null && !reference && /^\s*(n?bu|bethesda)/i.test(String(t.unit ?? ""))) {
+      item.qual = n >= 0.6 ? "positive" : n < 0.5 ? "negative" : "unknown";
+    }
   }
   return item;
 }
