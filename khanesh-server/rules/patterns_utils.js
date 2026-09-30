@@ -1189,11 +1189,11 @@ const FACTOR_MILD_MAX_PCT = 30;
 /**
  * ردهٔ فعالیتِ فاکتور ۸/۹ (٪). item: آیتمِ کانالِ hemostasis. age: سال یا null.
  * 'paediatric' | 'unit_unknown' | 'severe' | 'moderate' | 'mild' | 'reduced' | 'inRange' | 'notJudged'
- * زیرِ ۱۶ سال هیچ مقایسه‌ای نمی‌شود (FR-020): فاکتورِ نوزادِ سالم (به‌ویژه ۹) طبیعتاً پایین است.
+ * ⚠️ سن دیگر ردهٔ کودک را حذف نمی‌کند (۲۰۲۶-۰۹-۳۰؛ WFH: ردهٔ <۱ / ۱–۵ / ۵–۴۰٪ برای کودک هم به کار می‌رود؛ FVIII و vWF از تولد
+ *    نزدیکِ بزرگسال‌اند). فقط FIX در ماه‌های اول جمله‌ای دربارهٔ تأییدِ سنی می‌گیرد (patterns_hemostasis).
  */
 function factorBand(item, age, sex = null) {
   if (!item || item.value == null) return "unit_unknown";
-  if (age != null && age < 16) return "paediatric";
   if (item.unitState !== "ok") return "unit_unknown";
   const pct = item.value;
   // «<1٪» مرز است: کمتر از ۱ ⇒ شدید، حتی اگر عدد خودش ۱ باشد.
@@ -1215,9 +1215,13 @@ function vwfRatio(h) {
 }
 
 // امتیازِ ISTH برای DIC — فقط داخلِ ردهٔ پایینِ dic_isth_score (Q1 = گزینهٔ C). isDIC و refs دست نخوردند.
-// تأییدِ کاربر؛ عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم. D-dimer به ng/mL (۰٫۴ و ۴٫۰ µg/mL = ۴۰۰ و ۴۰۰۰).
-const ISTH_DDIMER_MODERATE_NGML = 400;
-const ISTH_DDIMER_STRONG_NGML = 4000;
+// ISTH خودش عددِ مطلقِ D-dimer نمی‌دهد (PMC7769303: «cut-off levels … have not been defined»). مبنا: مضربی از حدِ بالای مرجعِ خودِ موتور
+// (ULN)، مثلِ ماشین‌حسابِ ISTHِ بیمارستانِ اولم (شدید > ۷×ULN). اینجا «متوسط» = بالای ULN (یعنی غیرطبیعی در موتور) و «شدید» = بیش از ۷×ULN.
+// تصمیمِ چندعامله ۲۰۲۶-۰۹-۳۰ (پژوهشگر ⇒ راستی‌آزما ⇒ مدیر)؛ منبعِ دوم نیست. ⚠️ فرضِ D-dimer در FEU است؛ آزمایشگاهِ DDU حدودِ نصفِ عدد
+// می‌دهد و کم‌امتیاز می‌گیرد. isDIC (≥ ۵۰۰۰) عمداً دست نخورد.
+const ISTH_DDIMER_ULN_NGML = 500;   // = ADULT_REFS.DDIMER بالا (refs.js)
+const ISTH_DDIMER_MODERATE_NGML = ISTH_DDIMER_ULN_NGML;
+const ISTH_DDIMER_STRONG_NGML = 7 * ISTH_DDIMER_ULN_NGML;
 const ISTH_PT_OVER_CONTROL_1 = 3;
 const ISTH_PT_OVER_CONTROL_2 = 6;
 const ISTH_PLT_1 = 100;

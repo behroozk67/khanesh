@@ -19,6 +19,9 @@
 ### تأییدِ کاربر (۲۰۲۶-۰۹-۳۰)
 متن‌های فارسیِ factor_activity / factor_inhibitor / vwf_panel / dic_isth_score / thrombocytosis≥۱۰۰۰ همان‌طور که در `f7e107c` هست تأیید شد. جملهٔ `OCR_PROMPT` (server.js:341) هم تأیید شد. بندهای 61-a…61-g هنوز باز.
 
+### سامانهٔ سه‌عاملی (۲۰۲۶-۰۹-۳۰)
+پژوهشگر ⇒ راستی‌آزما ⇒ مدیر؛ اعمال‌شده: D-dimerِ ISTH (متوسط=ULN=500، شدید=3500) و برداشتنِ مرزِ ۱۶ سالِ فاکتورها؛ جزئیات و موارد بی‌تغییر در `MEDICAL_RULES.md` بند 61-h. `npm test` ⇒ `784 · 765 · 0 · 19`. باز: `FACTOR_MILD_MAX_PCT` (۳۰ در برابر ۴۰).
+
 ### باقی‌مانده برای specs/010 (همه در `MEDICAL_RULES.md` P61)
 1. **تأییدِ کاربر روی متن‌های فارسیِ تازه** (فهرستشان در گزارشِ پایانِ /speckit-implement؛ قالب‌های factor_activity/inhibitor/vwf_panel/dic_isth_score/thrombocytosis ≥۱۰۰۰ و جملهٔ OCR_PROMPT).
 2. **61-a** اعدادِ ADAMTS13 و TT بزرگسال (فعلاً unmapped/«تفسیر نشدند»). **61-b** ISTH ≥ ۵ بدونِ `isDIC`: اورژانس یا همان `soon`. **61-c** تأییدِ اینکه هیچ ردهٔ فاکتور اورژانس نیست. **61-d** پذیرشِ ۰٫۵ BU و ۰٫۶. **61-e** دو مشکلِ پیش‌ازاین در `isolated_thrombocytopenia` (فوریتِ `"today"` بیرونِ جدولِ رتبه؛ «سایر رده‌ها طبیعی» روی برگهٔ دارای D-dimer/PT بالا). **61-f** باگِ قدیمیِ نوزادِ ۳ روزه با Hb 17 ⇒ `erythrocytosis_who_screen` اورژانس (پنلِ `neo_hb17` در probe؛ اصلاح نشد). بندهای D7، D8، D9، D11، D12.

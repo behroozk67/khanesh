@@ -11335,7 +11335,7 @@ test("M249: factorBand در ۰٫۹۹/۱/۵/۵٫۵/۳۰/۳۰٫۵/۳۱ و بازو
   assert.equal(factorBand(it(90, "50-150"), 25), "inRange");
   assert.equal(factorBand({ ...it(1), lessThan: true }, 25), "severe", "«<1٪» شدید است");
   assert.equal(factorBand(it(3), null), "moderate", "سنِ نامعلوم ⇒ مرزهای بزرگسال");
-  for (const age of [8, 3 / 365, 0]) for (const v of [0.5, 3, 30]) assert.equal(factorBand(it(v), age), "paediatric", `سن ${age}، ${v}`);
+  for (const age of [8, 3 / 365, 0]) for (const [v, band] of [[0.5, "severe"], [3, "moderate"], [30, "mild"]]) assert.equal(factorBand(it(v), age), band, `سن ${age}، ${v}`);
   assert.equal(factorBand({ value: 3, unitState: "unknown" }, 25), "unit_unknown");
 });
 
@@ -11370,16 +11370,18 @@ test("M251: فاکتورِ ۸/۹ یافتهٔ factor_activity می‌گیرد، 
   assert.match(noAge.must_say, /«متوسط»/); assert.match(noAge.must_say, /سنِ بیمار روی برگه نیامده/);
 });
 
-test("M251b: کودک و نوزاد — بی‌ردهٔ بزرگسال، routine، بی‌action (کفِ نوزادی آن را اورژانس نمی‌کند، FR-020)", () => {
-  for (const age of ["3 روزه", 8]) {
-    const r = m010Run([m010T("Factor IX", 30, "%")], { age });
-    const f = r.p.findings.find((x) => x.pattern === "factor_activity");
-    assert.ok(f, `سن ${age}: ${r.ids}`);
-    assert.equal(f.urgency, "routine", `سن ${age}`);
-    assert.equal(f.action, "", `سن ${age}: action باید خالی باشد`);
-    assert.match(f.must_say, /جدولِ مخصوصِ همان سن/);
-    assert.doesNotMatch(f.must_say, /«(شدید|متوسط|خفیف)»/);
-  }
+// ۲۰۲۶-۰۹-۳۰ (WFH: ردهٔ <۱/۱–۵/۵–۴۰٪ برای کودک هم؛ FVIII/vWF از تولد نزدیکِ بزرگسال): مرزِ ۱۶ سال برداشته شد.
+test("M251b: کودک ≥ ۲۸ روز رده و action می‌گیرد؛ نوزاد رده می‌گیرد ولی بی‌action (بی بنرِ اورژانس)؛ FIXِ کمتر از ۶ ماه جملهٔ تأییدِ سنی", () => {
+  const kid = m010Run([m010T("Factor VIII", 0.5, "%")], { age: 8 }).p.findings.find((x) => x.pattern === "factor_activity");
+  assert.equal(kid.urgency, "this_week"); assert.match(kid.must_say, /«شدید»/); assert.match(kid.action, /این هفته/);
+  const neo = m010Run([m010T("Factor VIII", 0.5, "%")], { age: "3 روزه" });
+  const nf = neo.p.findings.find((x) => x.pattern === "factor_activity");
+  assert.match(nf.must_say, /«شدید»/); assert.match(nf.must_say, /هماتولوژیست/);
+  assert.equal(nf.action, ""); assert.ok(!neo.p.findings.some((x) => x.urgency === "emergency"), "نوزاد: بنرِ اورژانس نباید بیاید");
+  const fix = m010Run([m010T("Factor IX", 3, "%")], { age: 0.2 }).p.findings.find((x) => x.pattern === "factor_activity");
+  assert.match(fix.must_say, /ماه‌های اولِ زندگی/);
+  const fix8 = m010Run([m010T("Factor IX", 3, "%")], { age: 8 }).p.findings.find((x) => x.pattern === "factor_activity");
+  assert.doesNotMatch(fix8.must_say, /ماه‌های اولِ زندگی/);
 });
 
 test("M251c: مهارکننده — عددِ بی‌مرجع نقل می‌شود و حکم نمی‌گیرد (this_week)؛ با مرجعِ چاپ‌شده حکم از همان مرجع", () => {
@@ -11611,11 +11613,11 @@ test("M259: عددِ IU/mL با محدودهٔ IU/mL سنجیده می‌شود�
   assert.match(ok.must_say, /در محدودهٔ چاپ‌شده/);
 });
 // M260 🔴 پیش‌تر: D-dimer 450 (طبیعی در موتور، ۵۰۰) با PLT 95 ⇒ soon و متنِ «D-dimer بالاست».
-test("M260: dic_isth_score وقتی D-dimer در محدودهٔ عادی است، آن را «بالا» نمی‌نامد", () => {
-  const r = m010Run([...M010_BASE, m010T("PLT", 95, "10^3/uL"), m010T("D-dimer", 0.45, "µg/mL")], { age: 60 });
-  const f = r.p.findings.find((x) => x.pattern === "dic_isth_score");
-  assert.ok(f, r.ids.join());
-  assert.doesNotMatch(f.must_say, /D-dimer بالاست/); assert.match(f.must_say, /محدودهٔ عادیِ آزمایشگاه/);
+test("M260: dic_isth_score فقط وقتی D-dimer بالاتر از ULNِ موتور (۵۰۰) است؛ شدید از ۷×ULN (۳۵۰۰) — ۲۰۲۶-۰۹-۳۰", async () => {
+  const { isthScore } = await import("./patterns_utils.js");
+  const sc = (dd) => isthScore(runEngine({ tests: [m010T("D-dimer", dd, "ng/mL")], patient: { sex: "M", age: 60 } })).ddimer;
+  assert.deepEqual([450, 500, 501, 3500, 3501].map(sc), [0, 0, 2, 2, 3]);
+  for (const dd of [0.45, 0.5]) assert.ok(!m010Run([...M010_BASE, m010T("PLT", 95, "10^3/uL"), m010T("D-dimer", dd, "µg/mL")], { age: 60 }).ids.includes("dic_isth_score"), `${dd}`);
   const hi = m010Run([...M010_BASE, m010T("PLT", 95, "10^3/uL"), m010T("D-dimer", 2.0, "µg/mL")], { age: 60 }).p.findings.find((x) => x.pattern === "dic_isth_score");
   assert.match(hi.must_say, /D-dimer بالاست/);
 });

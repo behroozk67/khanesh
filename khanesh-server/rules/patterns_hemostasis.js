@@ -51,7 +51,6 @@ function factorSentence(e, key) {
     case "reduced": return { band, text: `${name} شما ${q} است؛ از محدودهٔ طبیعیِ چاپ‌شده روی برگه (${it.reference}) کمتر است، ولی بالاتر از ۳۰٪ و بیرون از رده‌های شدت است.` };
     case "inRange": return { band, text: `${name} شما ${q} است و در محدودهٔ چاپ‌شده روی برگه (${it.reference}) قرار دارد.` };
     case "notJudged": return { band, text: `${name} شما ${q} است؛ این عدد بالاتر از ۳۰٪ است، ولی برگه محدودهٔ طبیعی‌اش را چاپ نکرده، پس از روی این برگه نمی‌شود گفت طبیعی است یا کمی پایین.` };
-    case "paediatric": return { band, text: `${name} شما ${q} است. در کودکان، به‌ویژه نوزادان، مقدارِ طبیعیِ فاکتورهای انعقادی با سن تغییر می‌کند و این عدد باید با جدولِ مخصوصِ همان سن سنجیده شود؛ رده‌های بزرگسال برای این سن به کار نمی‌روند.` };
     default: return { band, text: `${name} روی برگه «${it.raw}» نوشته شده، ولی واحدش چاپ نشده یا شناخته نشد؛ بدونِ واحد نمی‌شود آن را رده‌بندی کرد.` };
   }
 }
@@ -85,11 +84,13 @@ export const RULES_HEMOSTASIS = [
       const parts = keys.map((k) => factorSentence(e, k));
       const bands = parts.map((p) => p.band);
       const anyLow = bands.some((b) => LOW_BANDS.has(b));
-      const allPaed = bands.every((b) => b === "paediatric");
       const lines = parts.map((p) => p.text);
       if (anyLow) {
         lines.push("فاکتورهای ۸ و ۹ پروتئین‌هایی هستند که برای لخته‌شدنِ خون لازم‌اند. کم‌بودنِ فعالیتشان الگویی است که یک هماتولوژیست (متخصصِ خون) باید بررسی کند: آزمایش را تکرار کند، علتِ آن را مشخص کند و بگوید چه احتیاط‌هایی لازم است.");
-        if (e.age == null) lines.push("سنِ بیمار روی برگه نیامده بود؛ این رده‌ها برای بزرگسال است.");
+        if (e.age == null) lines.push("سنِ بیمار روی برگه نیامده بود؛ این رده‌ها بر پایهٔ مرزهای معمول است و سنِ بیمار در آن‌ها لحاظ نشده است.");
+        // فاکتور ۹ در ماه‌های اولِ زندگی به‌طور طبیعی پایین است (WFH)؛ ردهٔ شدید/متوسط هنوز قابلِ تشخیص است، ولی تأییدِ سنی لازم است. عددی نمی‌آید.
+        if (e.age != null && e.age < 0.5 && keys.includes("FIX") && LOW_BANDS.has(factorBand(e.hemostasis.FIX, e.age, e.sex)))
+          lines.push("فاکتور ۹ در ماه‌های اولِ زندگی به‌طور طبیعی پایین‌تر از بزرگسالان است؛ هماتولوژیست باید این عدد را با مقدارِ مخصوصِ همان سن مقایسه و در صورتِ لزوم آزمایش را بعداً تکرار کند.");
       }
 
       // APTT — سه‌حالته (N21، N4). مالکیت فقط وقتی APTT تنها شاخصِ غیرطبیعی است (factorOwnsAptt)؛ وگرنه coagulation_abnormal توضیحش می‌دهد.
@@ -117,7 +118,7 @@ export const RULES_HEMOSTASIS = [
       const week = bands.some((b) => WEEK_BANDS.has(b)) || inh?.state === "positive" || inh?.state === "unknown";
       const urgency = week ? "this_week" : "routine";
       // کودک/نوزاد: جمله توضیح می‌دهد، دستور نمی‌دهد — بی action، کفِ نوزادی (applyNeonatalFloor) آن را اورژانس نمی‌کند (R12).
-      const action = (allPaed && !inh) || neonateQuiet(e, inh?.state === "positive")
+      const action = neonateQuiet(e, inh?.state === "positive")
         ? ""
         : actionFor(urgency, {
           week: "این هفته با پزشک یا هماتولوژیست وقت بگیرید. حتماً بگویید چه داروهایی مصرف می‌کنید.",
