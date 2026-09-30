@@ -1054,6 +1054,8 @@ five analytes wider.
   value explicitly. An index that can be produced by two opposite clinical states must never carry
   a one-directional sentence.
 
+- ⚠️ **Recurred 2026-09-30 in specs/010 (found by code review of `610f215`, not by a test): the number was converted, the range wasn't.** `hemostasisUnit` turned `0.45 IU/mL` into 45 %, then `printedVerdict` compared 45 with the row's own printed range `0.5-1.5` — so a *low* vWF read «بالاتر از محدودهٔ چاپ‌شده» and a low FVIII read «در محدوده» (with a false «فاکتورها پایین نیستند»). Fixed by computing the verdict from the *printed* number (`item.position`, `hemostasisItem`). **Rule: a printed range travels with the printed unit; never compare a converted value to it.** Same review: a neonatal floor made `vWF` in range / Bethesda negative an «همین امروز» emergency (any finding with an `action` is floored — give a neonate an action only when the finding is abnormal), and `dic_isth_score` + `d_dimer_elevated` both owned one D-dimer (N20). Guards `M259`–`M263`, all red before (stash).
+
 ### N17 — A rule that reads a key which doesn't exist fails as a confident false claim, not as silence
 2026-08-06, `ckd_pattern_diagnostic` in `patterns_nephrology_new.js`. Fixed; recorded because the
 *failure mode* is the reusable part.

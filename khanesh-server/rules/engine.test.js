@@ -11325,7 +11325,9 @@ test("M248: 0.01 IU/mL = 1٪؛ بی‌واحد ⇒ unknown؛ مهارکننده 
 test("M249: factorBand در ۰٫۹۹/۱/۵/۵٫۵/۳۰/۳۰٫۵/۳۱ و بازوهای سنی", async () => {
   const { factorBand } = await import("./patterns_utils.js");
   assert.equal(typeof factorBand, "function", "factorBand وجود ندارد");
-  const it = (v, reference) => ({ value: v, unitState: "ok", reference: reference ?? null, lessThan: false });
+  const { printedVerdict } = await import("./units.js");
+  // position را adapter (hemostasisItem) با عددِ چاپ‌شده حساب می‌کند؛ اینجا همان را می‌سازیم (M259).
+  const it = (v, reference) => ({ value: v, unitState: "ok", reference: reference ?? null, position: reference ? printedVerdict(reference, v) : null, lessThan: false });
   const want = { 0.99: "severe", 1: "moderate", 5: "moderate", 5.5: "mild", 30: "mild", 30.5: "notJudged", 31: "notJudged" };
   for (const [v, band] of Object.entries(want)) assert.equal(factorBand(it(Number(v)), 25), band, `بی‌مرجع ${v}`);
   const wantRef = { 0.99: "severe", 1: "moderate", 5: "moderate", 5.5: "mild", 30: "mild", 30.5: "reduced", 31: "reduced" };
@@ -11591,4 +11593,63 @@ test("M258: متن‌های factor_activity / factor_inhibitor / vwf_panel / dic
   assert.deepEqual(bad, []);
   // شاهدِ منفی: اسکنر واقعاً می‌گیرد
   assert.equal(m258Scan([{ pattern: "x", headline: "شما هموفیلی دارید", must_say: "مقدارِ FVIII_INHIB" }]).length, 2);
+});
+
+// ---------- M259–M263: بازبینیِ کدِ کامیتِ 610f215 (specs/010) ----------
+// M259 🔴 پیش‌تر: «vWF:Ag 0.45 IU/mL (0.5-1.5)» ×۱۰۰ می‌شد ۴۵ و با ۰٫۵–۱٫۵ مقایسه می‌شد ⇒ «بالاتر از محدوده»؛ «FVIII 0.4 IU/mL (0.5-1.5)» ⇒ «در محدوده» (N12).
+test("M259: عددِ IU/mL با محدودهٔ IU/mL سنجیده می‌شود، نه با ٪ — جهت وارونه نمی‌شود", () => {
+  const v = m010Run([...M010_BASE, m010T("vWF:Ag", 0.45, "IU/mL", "0.5-1.5"), m010T("vWF:RCo", 0.4, "IU/mL", "0.5-1.5")], { sex: "F", age: 30 });
+  const w = v.p.findings.find((f) => f.pattern === "vwf_panel");
+  assert.ok(w, v.ids.join());
+  assert.match(w.must_say, /کمتر از محدودهٔ چاپ‌شده/); assert.doesNotMatch(w.must_say, /بالاتر از محدودهٔ چاپ‌شده/);
+  assert.equal(w.urgency, "this_week");
+  const f = m010Run([...M010_BASE, m010T("Factor VIII", 0.4, "IU/mL", "0.5-1.5"), m010T("APTT", 50, "sec")]);
+  const fa = f.p.findings.find((x) => x.pattern === "factor_activity");
+  assert.ok(fa, f.ids.join()); assert.doesNotMatch(fa.must_say, /در محدودهٔ چاپ‌شده|پایین نیستند/);
+  // شاهدِ منفی: همان عدد در ٪ با محدودهٔ ٪ همان حکم را می‌دهد، و مقدارِ واقعاً طبیعی هنوز طبیعی است
+  const ok = m010Run([...M010_BASE, m010T("Factor VIII", 0.9, "IU/mL", "0.5-1.5")]).p.findings.find((x) => x.pattern === "factor_activity");
+  assert.match(ok.must_say, /در محدودهٔ چاپ‌شده/);
+});
+// M260 🔴 پیش‌تر: D-dimer 450 (طبیعی در موتور، ۵۰۰) با PLT 95 ⇒ soon و متنِ «D-dimer بالاست».
+test("M260: dic_isth_score وقتی D-dimer در محدودهٔ عادی است، آن را «بالا» نمی‌نامد", () => {
+  const r = m010Run([...M010_BASE, m010T("PLT", 95, "10^3/uL"), m010T("D-dimer", 0.45, "µg/mL")], { age: 60 });
+  const f = r.p.findings.find((x) => x.pattern === "dic_isth_score");
+  assert.ok(f, r.ids.join());
+  assert.doesNotMatch(f.must_say, /D-dimer بالاست/); assert.match(f.must_say, /محدودهٔ عادیِ آزمایشگاه/);
+  const hi = m010Run([...M010_BASE, m010T("PLT", 95, "10^3/uL"), m010T("D-dimer", 2.0, "µg/mL")], { age: 60 }).p.findings.find((x) => x.pattern === "dic_isth_score");
+  assert.match(hi.must_say, /D-dimer بالاست/);
+});
+// M261 🔴 پیش‌تر: dic_isth_score (soon) و d_dimer_elevated (this_week) هم‌زمان دربارهٔ یک D-dimer (N20).
+test("M261: D-dimer فقط یک مالک دارد — dic_isth_score یا d_dimer_elevated، نه هر دو", () => {
+  for (const [plt, dd] of [[80, 2.0], [95, 0.45], [70, 4.5], [120, 2.0], [80, 0.3], [40, 2.0]]) {
+    const r = m010Run([...M010_BASE, m010T("PLT", plt, "10^3/uL"), m010T("D-dimer", dd, "µg/mL")], { age: 60 });
+    const owners = r.ids.filter((i) => i === "dic_isth_score" || i === "d_dimer_elevated");
+    assert.ok(owners.length <= 1, `PLT ${plt} / DD ${dd}: ${owners}`);
+  }
+  const r = m010Run([...M010_BASE, m010T("PLT", 80, "10^3/uL"), m010T("D-dimer", 2.0, "µg/mL")], { age: 60 });
+  assert.ok(r.ids.includes("dic_isth_score") && !r.ids.includes("d_dimer_elevated"));
+  assert.ok(m010Run([...M010_BASE, m010T("PLT", 250, "10^3/uL"), m010T("D-dimer", 2.0, "µg/mL")], { age: 60 }).ids.includes("d_dimer_elevated"));
+});
+// M262 🔴 پیش‌تر: نوزادِ ۳ روزه با vWF در محدوده یا Bethesda منفی ⇒ کفِ نوزادی ⇒ emergency و بنرِ «همین امروز».
+test("M262: نتیجهٔ طبیعی/منفیِ هموستاز در نوزاد اورژانس نمی‌شود؛ مهارکنندهٔ مثبت و vWFِ کم می‌شود", () => {
+  const neo = { age: "3 روزه" };
+  const ok = m010Run([m010T("vWF:Ag", 150, "%", "50-160"), m010T("vWF:RCo", 140, "%", "50-160")], neo);
+  assert.ok(!ok.p.findings.some((f) => f.urgency === "emergency"), JSON.stringify(ok.p.findings.map((f) => [f.pattern, f.urgency])));
+  const neg = m010Run([m010T("Factor VIII", 30, "%"), m010T("Bethesda", "Negative")], neo);
+  assert.ok(!neg.p.findings.some((f) => f.urgency === "emergency"), JSON.stringify(neg.p.findings.map((f) => [f.pattern, f.urgency])));
+  const inh = m010Run([m010T("Bethesda", "Positive")], neo);
+  assert.ok(inh.p.findings.some((f) => f.pattern === "factor_inhibitor" && f.urgency === "emergency"));
+  const low = m010Run([m010T("vWF:Ag", 20, "%", "50-160")], neo);
+  assert.ok(low.p.findings.some((f) => f.pattern === "vwf_panel" && f.urgency === "emergency"));
+  // بزرگسال بی‌تغییر
+  assert.equal(m010Run([m010T("vWF:Ag", 150, "%", "50-160")]).p.findings.find((f) => f.pattern === "vwf_panel").urgency, "routine");
+});
+// M263: ردیفِ دومِ همان تست بی‌صدا حذف نمی‌شود؛ برگهٔ فقط-PT-Control «همه‌چیز طبیعی» نمی‌شود؛ ردیف‌های SUGGEST_TESTS
+test("M263: تکرارِ ردیفِ هموستاز در unmapped می‌آید؛ SUGGEST_TESTS برای پیشنهادهای تازه", async () => {
+  const e = runEngine({ tests: [m010T("Factor VIII", 3, "%"), m010T("Factor VIII", 90, "%")], patient: { sex: "M", age: 30 } });
+  assert.equal(e.hemostasis.FVIII.raw, "3"); assert.ok(e.unmapped.includes("Factor VIII"));
+  const same = runEngine({ tests: [m010T("Factor VIII", 3, "%"), m010T("Factor VIII", 3, "%")], patient: { sex: "M", age: 30 } });
+  assert.ok(!same.unmapped.includes("Factor VIII"));
+  const { SUGGEST_TESTS } = await import("./patterns.js");
+  for (const k of ["aPTT", "فیبرینوژن", "vWF:RCo", "vWF:Ag"]) assert.ok(SUGGEST_TESTS[k], k);
 });

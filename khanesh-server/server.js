@@ -991,7 +991,8 @@ const analyzeHandler = async (req, res) => {
       //    برقرار نیست — و مسیرِ قدیم یعنی مدل خودش قضاوت کند (T21).
       // specs/010 (FR-019): برگه‌ای که *فقط* فاکتور ۸/۹، vWF یا مهارکننده دارد هیچ تستِ نمره‌داری ندارد و به مسیرِ قدیم
       //    می‌افتاد، جایی که مدل خودش شدت را قضاوت می‌کند — همان تکرارِ N18. کانالِ hemostasis مالک دارد (patterns_hemostasis.js).
-      const hasHemostasis = Object.keys(engineCandidate.hemostasis ?? {}).length > 0;
+      // PT Control تنها زمینه است، نه نتیجه (بازبینیِ کد): برگهٔ فقط-PT-Control «همه‌چیز طبیعی است» نگیرد.
+      const hasHemostasis = Object.keys(engineCandidate.hemostasis ?? {}).some((k) => k !== "PT_CONTROL");
       if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis) {
         console.warn(
           "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +

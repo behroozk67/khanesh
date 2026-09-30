@@ -1200,7 +1200,7 @@ function factorBand(item, age, sex = null) {
   if (pct < FACTOR_SEVERE_BELOW_PCT || (item.lessThan && pct <= FACTOR_SEVERE_BELOW_PCT)) return "severe";
   if (pct <= FACTOR_MODERATE_MAX_PCT) return "moderate";
   if (pct <= FACTOR_MILD_MAX_PCT) return "mild";
-  const pv = item.reference ? printedVerdict(item.reference, pct, sex) : null;
+  const pv = item.position ?? null;   // حکم با عددِ چاپ‌شده در برابرِ محدودهٔ چاپ‌شده، نه ٪ (adapter: hemostasisItem)
   if (pv === "below") return "reduced";
   if (pv === "within" || pv === "above") return "inRange";
   return "notJudged";

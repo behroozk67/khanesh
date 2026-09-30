@@ -341,7 +341,10 @@ export const RULES_HEMATOLOGY = [
       const ctrl = e.hemostasis?.PT_CONTROL;
       const lines = [
         "پلاکتِ کم همراه با D-dimerِ بالا می‌تواند نشانهٔ فعال‌شدنِ هم‌زمانِ لخته‌سازی و مصرفِ عواملِ انعقادی در بدن باشد، و برای سنجیدنش یک امتیازبندیِ استاندارد (ISTH) به کار می‌رود.",
-        `پلاکتِ شما ${t.PLT} است (امتیاز ${s.plt}) و D-dimer بالاست (امتیاز ${s.ddimer}).`,
+        // ⚠️ حدِ امتیازبندی (۴۰۰) پایین‌تر از حدِ بالای مرجعِ موتور (۵۰۰) است؛ عددِ بین‌شان را «بالا» نمی‌نامیم (N12، بازبینیِ کد).
+        e.graded.find((g) => g.test === "DDIMER")?.abnormal
+          ? `پلاکتِ شما ${t.PLT} است (امتیاز ${s.plt}) و D-dimer بالاست (امتیاز ${s.ddimer}).`
+          : `پلاکتِ شما ${t.PLT} است (امتیاز ${s.plt}) و D-dimerِ شما ${t.DDIMER} ng/mL است؛ این عدد از حدِ امتیازبندی (${ISTH_DDIMER_MODERATE_NGML} ng/mL) بالاتر ولی هنوز در محدودهٔ عادیِ آزمایشگاه است (امتیاز ${s.ddimer}).`,
       ];
       if (s.pt != null) lines.push(`PT شما ${t.PT} ثانیه است، یعنی ${Math.round((t.PT - ctrl.value) * 10) / 10} ثانیه بیشتر از زمانِ کنترلِ آزمایشگاه که ${ctrl.value} ثانیه است (امتیاز ${s.pt}).`);
       else if (t.PT != null) lines.push("PT امتیاز نگرفت، چون زمانِ کنترلِ آزمایشگاه روی برگه چاپ نشده است.");
@@ -374,7 +377,9 @@ export const RULES_HEMATOLOGY = [
     match: (e) => {
       const d = e.graded.find((g) => g.test === "DDIMER");
       if (!(d?.abnormal && d.dir === "high")) return false;
-      return !isDIC(e);   // اگر DIC فعال است، آن الگوی اورژانسی پوشش می‌دهد
+      // اگر DIC فعال است، آن الگوی اورژانسی پوشش می‌دهد؛ و اگر امتیازِ ISTH فعال است همان مالکِ D-dimer است —
+      // دو یافته دربارهٔ یک عدد با دو زمان‌بندی (soon و this_week) N20 است. «فعال است؟» از خودِ قاعده پرسیده می‌شود.
+      return !isDIC(e) && !RULES_HEMATOLOGY.find((r) => r.id === "dic_isth_score").match(e);
     },
     build: (e) => {
       const d = e.graded.find((g) => g.test === "DDIMER");

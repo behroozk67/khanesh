@@ -572,6 +572,9 @@ function hemostasisItem(key, t, sex) {
   item.value = value;
   item.unitState = unitState;
   item.lessThan = lt;
+  // ⚠️ حکمِ عدد در برابرِ محدودهٔ چاپ‌شده باید با *عددِ چاپ‌شده* باشد، نه مقدارِ تبدیل‌شده به ٪: برگه‌ای که «0.45 IU/mL (0.5-1.5)»
+  //    می‌نویسد محدوده‌اش هم IU/mL است، و مقایسهٔ ۴۵ با ۰٫۵–۱٫۵ جهت را وارونه می‌کرد (بازبینیِ کد، N12).
+  item.position = reference && unitState === "ok" ? printedVerdict(reference, n, sex) : null;
   if (key === "FVIII_INHIB") {
     const pv = reference ? printedVerdict(reference, n, sex) : null;
     item.qual = pv === "above" ? "positive" : (pv === "within" || pv === "below") ? "negative" : "unknown";
@@ -1253,6 +1256,8 @@ export function ocrToEngineInput(ocr) {
       const hk = mapKey(key);
       if (HEMOSTASIS_KEYS.has(hk)) {
         if (!hemostasis[hk]) hemostasis[hk] = hemostasisItem(hk, t, sexHint);
+        // ردیفِ دومِ همان تست با مقدارِ دیگر (مثلاً روشِ یک‌مرحله‌ای و کروموژنیک): اولی ملاک می‌ماند، ولی دومی بی‌صدا گم نشود (N2).
+        else if (String(t.value ?? "").trim() !== hemostasis[hk].raw) unmapped.push(t.name);
         continue;
       }
     }

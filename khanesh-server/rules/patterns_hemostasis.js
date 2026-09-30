@@ -7,7 +7,7 @@
 // ⚠️ هیچ مسیرِ اورژانسی در این فایل نیست (P61 پرسشِ 61-c): عدد شدتِ اختلال را می‌گوید، نه خونریزیِ جاری را.
 // ⚠️ آستانهٔ عددیِ تأییدنشده (۰٫۵ BU، نسبتِ ۰٫۶) اینجا نیست (FR-021، P61 پرسشِ 61-d): نقل می‌شوند، حکم نمی‌گیرند.
 import { factorBand, vwfRatio } from "./patterns_utils.js";
-import { printedVerdict } from "./units.js";
+import { isNeonate } from "./neonatal.js";
 import { faName } from "./names.js";
 
 function actionFor(urgency, { week, routine }) {
@@ -17,6 +17,9 @@ function actionFor(urgency, { week, routine }) {
 const FACTOR_FA = { FVIII: "فاکتور ۸", FIX: "فاکتور ۹" };
 const LOW_BANDS = new Set(["severe", "moderate", "mild", "reduced"]);
 const WEEK_BANDS = new Set(["severe", "moderate"]);
+// نوزاد (< ۲۸ روز): کفِ نوزادی (applyNeonatalFloor) هر یافتهٔ دارای action را «همین امروز» می‌کند. پس برای نوزاد action فقط وقتی
+// که یافته واقعاً غیرطبیعی است بماند (مهارکنندهٔ مثبت، vWFِ کمتر از محدودهٔ برگه) — نتیجهٔ منفی یا در محدوده بنرِ اورژانس نسازد (N3/N20).
+const neonateQuiet = (e, abnormal) => isNeonate(e.age) && !abnormal;
 const quote = (it) => `${it.raw}${it.unit ? ` ${it.unit}` : ""}`;
 
 // همان دو هشدارِ coagulation_abnormal — وقتی این یافته مالکِ APTT است، باید همراهش بیاید (M155: فهرستِ هشدارها هم منتقل می‌شود).
@@ -114,7 +117,7 @@ export const RULES_HEMOSTASIS = [
       const week = bands.some((b) => WEEK_BANDS.has(b)) || inh?.state === "positive" || inh?.state === "unknown";
       const urgency = week ? "this_week" : "routine";
       // کودک/نوزاد: جمله توضیح می‌دهد، دستور نمی‌دهد — بی action، کفِ نوزادی (applyNeonatalFloor) آن را اورژانس نمی‌کند (R12).
-      const action = allPaed && !inh
+      const action = (allPaed && !inh) || neonateQuiet(e, inh?.state === "positive")
         ? ""
         : actionFor(urgency, {
           week: "این هفته با پزشک یا هماتولوژیست وقت بگیرید. حتماً بگویید چه داروهایی مصرف می‌کنید.",
@@ -149,7 +152,7 @@ export const RULES_HEMOSTASIS = [
         urgency,
         headline: inh.state === "positive" ? "آزمایشِ مهارکنندهٔ فاکتورِ انعقادیِ شما مثبت است" : "آزمایشِ مهارکنندهٔ فاکتورِ انعقادی",
         must_say: inh.text,
-        action: actionFor(urgency, {
+        action: neonateQuiet(e, inh.state === "positive") ? "" : actionFor(urgency, {
           week: "این هفته با پزشک یا هماتولوژیست وقت بگیرید.",
           routine: "در نوبتِ عادی با پزشک مطرح کنید.",
         }),
@@ -175,7 +178,7 @@ export const RULES_HEMOSTASIS = [
           lines.push(`${name} روی برگه «${it.raw}» نوشته شده، ولی واحدش چاپ نشده یا شناخته نشد؛ بدونِ واحد نمی‌شود آن را سنجید.`);
           continue;
         }
-        const pv = it.reference ? printedVerdict(it.reference, it.value, e.sex) : null;
+        const pv = it.position ?? null;   // با عددِ چاپ‌شده، نه ٪ (adapter: hemostasisItem)
         if (pv === "below") { below = true; lines.push(`${name} شما ${quote(it)} و کمتر از محدودهٔ چاپ‌شده روی برگه (${it.reference}) است.`); }
         else if (pv === "above") lines.push(`${name} شما ${quote(it)} و بالاتر از محدودهٔ چاپ‌شده روی برگه (${it.reference}) است.`);
         else if (pv === "within") lines.push(`${name} شما ${quote(it)} و در محدودهٔ چاپ‌شده روی برگه (${it.reference}) است.`);
@@ -201,7 +204,7 @@ export const RULES_HEMOSTASIS = [
             ? "آزمایشِ فاکتور فون‌ویلبراندِ شما نیاز به تفسیرِ هماتولوژیست دارد"
             : "آزمایشِ فاکتور فون‌ویلبراندِ شما در محدودهٔ برگه است",
         must_say: lines.join(" "),
-        action: actionFor(urgency, {
+        action: neonateQuiet(e, below) ? "" : actionFor(urgency, {
           week: "این هفته با پزشک یا هماتولوژیست وقت بگیرید.",
           routine: "در نوبتِ عادی با پزشک مطرح کنید.",
         }),

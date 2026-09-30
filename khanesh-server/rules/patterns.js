@@ -77,6 +77,11 @@ export const SUGGEST_TESTS = {
   "GGT": ["GGT"],
   "PT": ["PT"],
   "FIB": ["FIB"],
+  // specs/010 (N8): پیشنهادهای هموستاز؛ «تکرار آزمایش انعقاد» تکرار است و ردیف نمی‌خواهد.
+  "aPTT": ["APTT"],
+  "فیبرینوژن": ["FIB"],
+  "vWF:RCo": ["VWF_ACT"],
+  "vWF:Ag": ["VWF_AG"],
   "CK": ["CK"],
   "HbA1c": ["HBA1C"],
   "بیلی‌روبین": ["BILI_T"],
@@ -204,6 +209,7 @@ export const RULE_SOURCES = {
   isolated_ldh_elevation: ["MERCK_PRO", "ARUP_CONSULT"],
   // انعقاد
   dic_pattern:          ["ISTH"],
+  dic_isth_score:       ["ISTH"],
   // P59 — فقط جایی که سند خوانده و تطبیق داده شد؛ scopeِ هر ورودی می‌گوید چه چیزی را پوشش *نمی‌دهد*.
   pancytopenia:         ["CHEW_PANCYTOPENIA"],
   maha_ttp_suspicion:   ["ISTH_TTP"],
@@ -364,7 +370,7 @@ export function runPatterns(engineOut) {
   //    به کاربر گفته می‌شد «درخواست آزمایش فریتین از پزشک».
   //    اینجا فیلتر می‌شود — نه در ساخت توصیه‌ها — چون suggest از طریق پرامپت
   //    به LLM هم می‌رود و مدل صادقانه بازگویش می‌کند. سرِ منبع باید پاک باشد.
-  const measured = new Set((engineOut?.graded ?? []).map((g) => g.test));
+  const measured = new Set([...(engineOut?.graded ?? []).map((g) => g.test), ...Object.keys(engineOut?.hemostasis ?? {})]);
   for (const f of findings) {
     if (f.suggest?.length) {
       f.suggest = f.suggest.filter((s) => !alreadyMeasured(s, measured));
