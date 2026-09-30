@@ -2910,6 +2910,8 @@ ADAMTS13 (N2).
   2. **کودک ۲۸ روز تا ۱۵ سال** (FR-020): `factor_activity` برای هر سنِ زیرِ ۱۶ بی‌رده و بی‌action است. FVIII ۰٫۵٪ در پسرِ ۸ ساله ⇒ routine و بی‌دستور. فاکتورها در ماه‌های اولِ زندگی به بازهٔ بزرگسال می‌رسند؛ مرزِ ۱۶ سال احتمالاً بسیار گشاد است.
   3. **قالبِ نتیجهٔ مهارکننده:** «Positive (2.4 BU)» و «0.0 BU» بی‌مرجع ⇒ «جواب روشن نیست» (this_week) — جهتِ ایمن ولی ناروشن؛ و نامِ عمومیِ «Factor Inhibitor»/«Inhibitor Assay» به FVIII_INHIB نگاشت می‌شود در حالی که «Inhibitor» تنها عمداً نگاشت نمی‌شود.
 
+- **تأییدِ متن (کاربر، ۲۰۲۶-۰۹-۳۰):** قالب‌های `factor_activity`، `factor_inhibitor`، `vwf_panel`، `dic_isth_score`، `thrombocytosis` ≥۱۰۰۰ در `f7e107c` تأیید شد. جملهٔ `OCR_PROMPT` (server.js:341) هم تأیید شد.
+
 **قفل:** `M247`–`M263` (`engine.test.js`)، `T32` (`api-contract.test.js`).
 
 ## رویه نسخه‌بندی و بایگانی (Versioning & Archiving)

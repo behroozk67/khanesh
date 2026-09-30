@@ -16,6 +16,9 @@
 ### بازبینیِ کد (۲۰۲۶-۰۹-۳۰) — انجام شد، کامیت‌نشده
 `code-reviewer` روی `610f215` اجرا شد؛ ۵ نقصِ کد رفع شد (مقیاسِ IU/mL، «D-dimer بالاست» روی ۴۰۰–۵۰۰، دو مالکِ D-dimer، کفِ نوزادیِ کاذب، ردیفِ تکراری/SUGGEST_TESTS/PT-Control-تنها). قفل `M259`–`M263` (قرمز-اول با stash اثبات شد). `npm test` ⇒ `784 · 765 · 0 · 19`. منبعِ ISTH به `dic_isth_score` وصل شد (جدول را از PMC7769303 باز و تطبیق دادم؛ Taylor 2001 خودش بسته بود). سه پرسشِ بالینیِ تازه = `61-g` در `MEDICAL_RULES.md`.
 
+### تأییدِ کاربر (۲۰۲۶-۰۹-۳۰)
+متن‌های فارسیِ factor_activity / factor_inhibitor / vwf_panel / dic_isth_score / thrombocytosis≥۱۰۰۰ همان‌طور که در `f7e107c` هست تأیید شد. جملهٔ `OCR_PROMPT` (server.js:341) هم تأیید شد. بندهای 61-a…61-g هنوز باز.
+
 ### باقی‌مانده برای specs/010 (همه در `MEDICAL_RULES.md` P61)
 1. **تأییدِ کاربر روی متن‌های فارسیِ تازه** (فهرستشان در گزارشِ پایانِ /speckit-implement؛ قالب‌های factor_activity/inhibitor/vwf_panel/dic_isth_score/thrombocytosis ≥۱۰۰۰ و جملهٔ OCR_PROMPT).
 2. **61-a** اعدادِ ADAMTS13 و TT بزرگسال (فعلاً unmapped/«تفسیر نشدند»). **61-b** ISTH ≥ ۵ بدونِ `isDIC`: اورژانس یا همان `soon`. **61-c** تأییدِ اینکه هیچ ردهٔ فاکتور اورژانس نیست. **61-d** پذیرشِ ۰٫۵ BU و ۰٫۶. **61-e** دو مشکلِ پیش‌ازاین در `isolated_thrombocytopenia` (فوریتِ `"today"` بیرونِ جدولِ رتبه؛ «سایر رده‌ها طبیعی» روی برگهٔ دارای D-dimer/PT بالا). **61-f** باگِ قدیمیِ نوزادِ ۳ روزه با Hb 17 ⇒ `erythrocytosis_who_screen` اورژانس (پنلِ `neo_hb17` در probe؛ اصلاح نشد). بندهای D7، D8، D9، D11، D12.
