@@ -13,15 +13,19 @@ import "./site.css";
 //   ۲. «راهنماهای منتخب» — دو کارتِ بزرگ با بلوکِ رنگی
 //   ۳. «راهنماهای بیشتر» — شبکهٔ جعبه‌ها؛ هر ۱۷ دسته
 //   ۴. «آزمایش‌های پرکاربرد» روی یک نوارِ فرورفته
-//   ۵. برای هر جعبهٔ بخشِ ۳ یک بخشِ کامل با فهرستِ آزمایش‌هایش
-//   ۶. «فهرست الفبایی» — نوارِ حروف و ستون‌های حرف‌به‌حرف
+//   ۵. «فهرست الفبایی» — جستجو، نوارِ حروف و ستون‌های حرف‌به‌حرف
 //
-// ⚠️ بخشِ ۶ **یک حرف در هر بار** نشان می‌دهد، نه هر ۳۰۱ آزمایش را با هم. سه
+// فهرستِ آزمایش‌های هر دسته در این صفحه تکرار نمی‌شود؛ هر جعبهٔ بخشِ ۳ به
+// صفحهٔ خودش («/tests/<id>») می‌رود و آن فهرست آنجاست. یک بخشِ پنجمِ جدا که
+// همان فهرست را اینجا هم بیاورد، ۱۷ دسته × ده‌ها ردیف به یک صفحهٔ بلند
+// اضافه می‌کرد و با فهرستِ الفبایی دقیقاً همان آزمایش‌ها را دوباره می‌شمرد.
+//
+// ⚠️ بخشِ ۵ **یک حرف در هر بار** نشان می‌دهد، نه هر ۳۰۱ آزمایش را با هم. سه
 //    دلیل، به همین ترتیبِ اهمیت:
 //      • ۳۰۱ ردیفِ پشتِ‌هم فهرست نیست، دیوار است؛ چشم حرفِ T را پیدا نمی‌کند.
 //      • حرفِ انتخاب‌شده در «?az=» می‌نشیند، پس «/tests?az=T» یک نشانیِ
 //        اشتراک‌گذاشتنی است و دکمهٔ برگشتِ مرورگر کار می‌کند.
-//      • بخشِ ۵ (راهنمای دسته‌ها) بلافاصله بالای همین بخش است؛ دو فهرستِ
+//      • بخشِ ۴ (آزمایش‌های پرکاربرد) بلافاصله بالای همین بخش است؛ دو فهرستِ
 //        بلندِ پشتِ سرِ هم یعنی هیچ‌کدام خوانده نمی‌شود.
 //    حالتِ پیش‌فرض «A» است و ستون‌های عددی (۱، ۲، ۵) داخلِ همان حالت‌اند —
 //    هفت آزمایشِ عددی به‌تنهایی یک نمایِ کامل را نمی‌ارزند.
@@ -97,12 +101,12 @@ const FEATURED = [
 // ---------- دو کارتِ «آزمایش‌های پرکاربرد» ----------
 const POPULAR = [
   {
-    to: "/tests/disease", tone: "warm", cta: "دیدن آزمایش‌ها",
+    to: "/tests/disease", tone: "warm", cta: "دیدن آزمایش‌ها", k1: "CMP", k2: "پنل متابولیک",
     t: "پنل کامل متابولیک (CMP)",
     d: "پنل کامل متابولیک چهارده اندازه‌گیری روی یک نمونهٔ خون است و قند، کلیه، کبد و الکترولیت‌ها را با هم نشان می‌دهد. بیشترِ این عددها در فرمِ ورودِ دستی پشتیبانی می‌شوند.",
   },
   {
-    to: "/tests/std", tone: "soft", cta: "دیدن آزمایش‌ها",
+    to: "/test/chlamydia-pcr", tone: "soft", cta: "دیدن راهنما", k1: "کلامیدیا", k2: "آزمایش",
     t: "آزمایش کلامیدیا",
     d: "کلامیدیا شایع‌ترین عفونتِ مقاربتیِ باکتریایی است و اغلب هیچ نشانه‌ای ندارد. این آزمایش هنوز در تفسیرِ خودکار پوشش داده نمی‌شود.",
   },
@@ -128,6 +132,16 @@ const colOf = (label) => {
   if (c >= "A" && c <= "Z") return c;
   return FA_COL;
 };
+// یکسان‌سازیِ متنِ جستجو: حروفِ عربی → فارسی، ارقامِ فارسی/عربی → لاتین، فاصله‌ها.
+const normQ = (x) =>
+  String(x)
+    .replace(/ي/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[‌\s]+/g, " ")
+    .trim()
+    .toLowerCase();
 const bucketOf = (col) => (col === FA_COL ? FA_KEY : col >= "A" ? col : HOME_KEY);
 
 export default function Tests() {
@@ -135,7 +149,7 @@ export default function Tests() {
   const azRef = useRef(null);
 
   // فهرستِ الفبایی = همهٔ آزمایش‌های همهٔ دسته‌ها، یکتا‌شده بر اساس نام.
-  const { buckets, total } = useMemo(() => {
+  const { buckets, total, rows } = useMemo(() => {
     const uniq = new Map();
     GUIDES.forEach((g) =>
       g.items.forEach((it) => {
@@ -164,8 +178,22 @@ export default function Tests() {
         .map(([col, list]) => [col, list.sort((a, b) => a.n.localeCompare(b.n, loc))]);
       out.set(key, sorted);
     });
-    return { buckets: out, total: rows.length };
+    return { buckets: out, total: rows.length, rows };
   }, []);
+
+  // ---------- جستجو ----------
+  // روی نام، توضیح و اسلاگ می‌گردد. «ي/ك» عربی و ارقامِ فارسی یکسان می‌شوند تا
+  // تایپ با کیبوردِ عربی یا با ارقامِ فارسی نتیجهٔ خالی ندهد.
+  const [q, setQ] = useState("");
+  const results = useMemo(() => {
+    const t = normQ(q);
+    if (t.length < 2) return null;
+    const words = t.split(" ");
+    return rows.filter((it) => {
+      const hay = normQ(`${it.n} ${it.d || ""} ${it.slug || it.k || ""}`);
+      return words.every((w) => hay.includes(w));
+    });
+  }, [q, rows]);
 
   // کلیدِ نامعتبر در نشانی (?az=ZZ) به حالتِ پیش‌فرض برمی‌گردد، نه به صفحهٔ خالی.
   const asked = (params.get(AZ_PARAM) || "").trim();
@@ -228,6 +256,53 @@ export default function Tests() {
         </div>
       </header>
 
+      {/* ---------- جستجوی آزمایش ---------- */}
+      <section className="site-wrap site-search" aria-label="جستجوی آزمایش">
+        <label htmlFor="test-search" className="site-search-label">
+          دنبالِ آزمایشِ مشخصی هستید؟
+        </label>
+        <input
+          id="test-search"
+          className="site-search-input"
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={`جستجو در ${toFaDigits(total)} آزمایش — مثلاً TSH، فریتین یا کلامیدیا`}
+          autoComplete="off"
+          enterKeyHint="search"
+        />
+        {results && (
+          <div role="status" aria-live="polite">
+            <p className="site-search-count">
+              {results.length
+                ? `${toFaDigits(results.length)} آزمایش پیدا شد`
+                : "آزمایشی با این نام پیدا نشد. نامِ لاتین یا بخشی از آن را امتحان کنید."}
+            </p>
+            {results.length > 0 && (
+              <ul className="site-tests site-search-results">
+                {results.slice(0, 30).map((it) => (
+                  <li key={it.n}>
+                    <Link className={`site-test${it.tier === "form" ? "" : " site-test--info"}`} to={it.to}>
+                      <b>
+                        {it.n}
+                        {it.u && <i>{it.u}</i>}
+                      </b>
+                      {it.d && <p>{it.d}</p>}
+                      <em className={`site-t-${it.tier}`}>
+                        {it.tier === "form" ? "راهنمای آزمایش ←" : `${TIER[it.tier]} — راهنما ←`}
+                      </em>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {results.length > 30 && (
+              <p className="site-search-count">۳۰ نتیجهٔ اول نشان داده شد؛ عبارت را دقیق‌تر کنید.</p>
+            )}
+          </div>
+        )}
+      </section>
+
       {/* ---------- ۲. راهنماهای منتخب ---------- */}
       <section className="site-wrap site-sec">
         <h2 className="site-h2">راهنماهای منتخب</h2>
@@ -263,9 +338,10 @@ export default function Tests() {
           <div className="site-tiles site-tiles--2">
             {POPULAR.map((c) => (
               <article className="site-tile" key={c.t}>
-                <span className={`site-tile-art site-tile-art--${c.tone}`} aria-hidden="true">
-                  <b>{c.t}</b>
-                </span>
+                <Link className={`site-tile-art site-tile-art--${c.tone}`} to={c.to} aria-hidden="true" tabIndex={-1}>
+                  <b>{c.k1}</b>
+                  <span>{c.k2}</span>
+                </Link>
                 <h3><Link to={c.to}>{c.t}</Link></h3>
                 <p>{c.d}</p>
                 <Link className="btn btn--secondary btn--pill" to={c.to}>{c.cta}</Link>
@@ -275,9 +351,7 @@ export default function Tests() {
         </div>
       </section>
 
-
-
-      {/* ---------- ۶. فهرست الفبایی ---------- */}
+      {/* ---------- ۵. فهرست الفبایی ---------- */}
       <section className="site-wrap site-sec" ref={azRef}>
         <h2 className="site-h2">آزمایش‌ها از A تا Z</h2>
         <p className="site-lede">
@@ -383,7 +457,7 @@ export default function Tests() {
   );
 }
 
-// دکمهٔ «برو بالا». صفحه شش بخش دارد و نوارِ حروف وسطِ آن است؛ بعد از باز
+// دکمهٔ «برو بالا». صفحه پنج بخش دارد و نوارِ حروف وسطِ آن است؛ بعد از باز
 // کردنِ یک حرف، راهِ برگشت به نوار (و به سرصفحهٔ چسبان) اسکرولِ دستیِ بلند
 // است. ⚠️ با visibility پنهان می‌شود، نه با opacity به‌تنهایی: دکمهٔ نامرئیِ
 // با opacity:0 هنوز در ترتیبِ Tab و در درختِ دسترسی هست.

@@ -41,9 +41,11 @@ import { INFECTIOUS } from "./extra.infectious.js";
 import { VITAMINS } from "./extra.vitamins.js";
 import { GENETIC } from "./extra.genetic.js";
 import { ATHOME } from "./extra.athome.js";
+import { PANELS } from "./extra.panels.js";
 
 export const EXTRA_TESTS = {
   ...ALLERGY, ...WELLNESS, ...INFLAMMATION, ...CANCER, ...HEAVYMETAL,
   ...PREGNANCY, ...CARDIAC, ...HORMONE, ...STD, ...DISEASE, ...IMMUNITY,
   ...THYROID, ...DRUG, ...INFECTIOUS, ...VITAMINS, ...GENETIC, ...ATHOME,
+  ...PANELS,
 };

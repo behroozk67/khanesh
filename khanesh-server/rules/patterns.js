@@ -210,6 +210,8 @@ export const RULE_SOURCES = {
   // انعقاد
   dic_pattern:          ["ISTH"],
   dic_isth_score:       ["ISTH"],
+  factor_activity:      ["WFH_HEMOPHILIA"],
+  factor_inhibitor:     ["WFH_HEMOPHILIA"],
   // P59 — فقط جایی که سند خوانده و تطبیق داده شد؛ scopeِ هر ورودی می‌گوید چه چیزی را پوشش *نمی‌دهد*.
   pancytopenia:         ["CHEW_PANCYTOPENIA"],
   maha_ttp_suspicion:   ["ISTH_TTP"],

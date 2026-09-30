@@ -448,6 +448,17 @@ export const GUIDELINES = {
       '(خفیف ۱۶–۳۰، متوسط ۳۰–۱۰۰، شدید >۱۰۰ µmol/L)؛ نقطهٔ تصمیمِ BNP=۱۰۰ pg/mL و ' +
       'ردِ NT-proBNP<۳۰۰ pg/mL؛ و کات‌آفِ سن‌تعدیل‌شدهٔ D-dimer (۱۰×سن برای ≥۵۰ سال)',
   },
+
+  WFH_HEMOPHILIA: {
+    org: 'World Federation of Hemophilia (WFH)',
+    fa: 'فدراسیون جهانی هموفیلی — راهنمای مدیریت هموفیلی (ویرایش سوم، ۲۰۲۰)',
+    title: 'Guidelines for the Management of Hemophilia, 3rd edition',
+    year: 2020,
+    url: 'https://www1.wfh.org/publications/files/pdf-1863.pdf',
+    access: 'open',
+    scope:
+      'طبقه‌بندی شدت هموفیلی بر پایهٔ سطح فاکتور انعقادی (جدول ۲-۱: شدید <۱٪، متوسط ۱–۵٪، خفیف >۵ تا <۴۰٪)؛ پایش و سنجش مهارکننده‌ها (تست نایمیخن-بتسدا، عیار مثبت ≥۰.۶ BU/mL)',
+  },
 };
 
 /** یک شناسهٔ منبع → رکورد. شناسهٔ ناشناس → null (نه پرتاب خطا؛ متن نباید بشکند). */

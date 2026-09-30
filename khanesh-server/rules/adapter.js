@@ -1209,6 +1209,9 @@ export function ocrToEngineInput(ocr) {
           const conv = +(tv * BRANCH_FACTORS.TROPONIN_NGL_TO_UGL).toFixed(4);
           unitConversions.push({ test: "TROPONIN_I", raw: tv, from: u, value: conv, to: "µg/L", basis: t._basis ?? "printed" });
           tests.TROPONIN_I = conv;
+          // حدِ بالای ۹۹ امِ چاپ‌شدهٔ خودِ سنجه (ng/L ⇒ µg/L)؛ خاصیتِ سنجه است نه آنالیت (چهارمین تعریفِ جهانیِ MI).
+          { const pr = t.reference ? parseReference(t.reference, inferSex(ocr)) : null;
+            if (pr?.hi > 0 && pr.hi <= 1000) tests._trop_uln = +(pr.hi * BRANCH_FACTORS.TROPONIN_NGL_TO_UGL).toFixed(6); }
         } else {
           // ng/mL و µg/L عددشان یکی است → دست‌نخورده.
           // ⚠️ واحدِ نانوشته عمداً *حدس زده نمی‌شود*، برخلافِ D-dimer بالاتر.
@@ -1440,6 +1443,10 @@ export function ocrToEngineInput(ocr) {
     if (engineKey === "DDIMER") {
       const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
       tests._ddimer_raw = v;
+      // حدِ بالای چاپ‌شدهٔ خودِ برگه (عددِ چاپ‌شده ÷ حدِ چاپ‌شده ⇒ بی‌وابستگی به واحد). ISTH: «متوسط/شدید» نسبت به بازهٔ
+      // همان آزمایشگاه است (CLSI EP28؛ بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰). بازه‌ای که کنارِ عدد معقول نباشد (×۱۰۰۰) نادیده می‌ماند (B7).
+      { const pr = t.reference ? parseReference(t.reference, inferSex(ocr)) : null;
+        if (pr?.hi > 0 && v > 0 && v / pr.hi <= 1000) tests._ddimer_ratio = v / pr.hi; }
       if (/(mg\/l|µg\/ml|μg\/ml|ug\/ml)/.test(u)) {
         tests.DDIMER = Math.round(v * 1000);          // mg/L یا µg/mL → ng/mL
       } else if (/(ng\/ml|µg\/l|μg\/l|ug\/l)/.test(u)) {
@@ -1621,6 +1628,7 @@ export function runEngine(ocr) {
   //    این خط پرچم به قاعده نمی‌رسد. (`_ddimer_raw` دقیقاً همین‌طور نوشته شد و
   //    تا امروز هیچ‌کس نمی‌خواندش — نمونهٔ زندهٔ همین تله.)
   if (tests._trop_hs) derived.trop_hs_assay = true;
+  if (tests._trop_uln != null) derived.trop_uln_ugl = tests._trop_uln;
 
   const graded = [];
   // کیفی‌های بی‌خواننده (QUAL_NO_READER) از اول اینجا‌اند — خطِ «تفسیر نشدند»، نه qual (specs/004، N25).
@@ -1942,5 +1950,6 @@ export function runEngine(ocr) {
     noRef,
     diffFailed,
     abnormal: graded.filter((g) => g.abnormal),
+    ...(tests._ddimer_ratio != null ? { _ddimer_uln_ratio: tests._ddimer_ratio } : {}),
   };
 }

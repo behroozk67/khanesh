@@ -134,6 +134,24 @@
   margin-top: calc(var(--s10) * -1); margin-bottom: var(--s11);
 }
 
+/* ---------- جستجوی آزمایش ---------- */
+
+.site-search { padding-block: var(--s8); }
+.site-search-label {
+  display: block; margin-bottom: var(--s3);
+  font-weight: 600; color: var(--ink);
+}
+.site-search-input {
+  width: 100%; max-width: var(--read);
+  padding: var(--s4) var(--s5);
+  font: inherit; font-size: var(--t-md);
+  color: var(--ink); background: var(--bg, #fff);
+  border: 1px solid var(--line); border-radius: 999px;
+}
+.site-search-input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.site-search-count { margin-block: var(--s4); color: var(--ink-2); }
+.site-search-results { margin-bottom: var(--s6); }
+
 /* ---------- سرصفحه ---------- */
 
 .site-nav {

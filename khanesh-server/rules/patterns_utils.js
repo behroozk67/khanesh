@@ -1221,7 +1221,8 @@ function vwfRatio(h) {
 // می‌دهد و کم‌امتیاز می‌گیرد. isDIC (≥ ۵۰۰۰) عمداً دست نخورد.
 const ISTH_DDIMER_ULN_NGML = 500;   // = ADULT_REFS.DDIMER بالا (refs.js)
 const ISTH_DDIMER_MODERATE_NGML = ISTH_DDIMER_ULN_NGML;
-const ISTH_DDIMER_STRONG_NGML = 7 * ISTH_DDIMER_ULN_NGML;
+const ISTH_DDIMER_STRONG_MULT = 7;   // «شدید» = بیش از ۷×ULN (ماشین‌حسابِ Ulm؛ منبعِ دوم نیست)
+const ISTH_DDIMER_STRONG_NGML = ISTH_DDIMER_STRONG_MULT * ISTH_DDIMER_ULN_NGML;
 const ISTH_PT_OVER_CONTROL_1 = 3;
 const ISTH_PT_OVER_CONTROL_2 = 6;
 const ISTH_PLT_1 = 100;
@@ -1229,12 +1230,19 @@ const ISTH_PLT_2 = 50;
 const ISTH_FIB_MGDL = 100;
 const ISTH_OVERT_FROM = 5;
 /** { plt, ddimer, pt, fib, total, missing[] } — جزءِ بی‌آنالیت null است، هرگز ۰ (N4). */
+/** امتیازِ D-dimer در ISTH: با حدِ بالای چاپ‌شدهٔ برگه (مضرب از ULN) اگر باشد، وگرنه ULNِ موتور. null = اندازه‌گیری نشده. */
+function isthDdimerPoints(e) {
+  const t = val(e);
+  if (t.DDIMER == null) return null;
+  const ratio = e._ddimer_uln_ratio ?? t.DDIMER / ISTH_DDIMER_ULN_NGML;
+  return ratio > ISTH_DDIMER_STRONG_MULT ? 3 : ratio > 1 ? 2 : 0;
+}
 function isthScore(e) {
   const t = val(e);
   const missing = [];
   const plt = t.PLT == null ? (missing.push("PLT"), null) : t.PLT < ISTH_PLT_2 ? 2 : t.PLT < ISTH_PLT_1 ? 1 : 0;
-  const ddimer = t.DDIMER == null ? (missing.push("DDIMER"), null)
-    : t.DDIMER > ISTH_DDIMER_STRONG_NGML ? 3 : t.DDIMER > ISTH_DDIMER_MODERATE_NGML ? 2 : 0;
+  const ddimer = isthDdimerPoints(e);
+  if (ddimer == null) missing.push("DDIMER");
   const ctrl = e.hemostasis?.PT_CONTROL;
   const ctrlOk = ctrl?.value != null && (ctrl.unitState === "ok" || ctrl.unitState === "unknown");
   let pt = null;
@@ -1248,5 +1256,5 @@ function isthScore(e) {
   const total = [plt, ddimer, pt, fib].reduce((s, x) => s + (x ?? 0), 0);
   return { plt, ddimer, pt, fib, total, missing };
 }
-export { factorBand, vwfRatio, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2,
+export { factorBand, vwfRatio, isthScore, isthDdimerPoints, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2,
          FACTOR_SEVERE_BELOW_PCT, FACTOR_MODERATE_MAX_PCT, FACTOR_MILD_MAX_PCT };

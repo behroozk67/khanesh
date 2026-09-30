@@ -11360,6 +11360,7 @@ test("M251: فاکتورِ ۸/۹ یافتهٔ factor_activity می‌گیرد، 
     assert.ok(!r.e.unmapped.some((n) => /factor|فاکتور/i.test(n)), `${k}: unmapped=${r.e.unmapped}`);
     const f = r.p.findings.find((x) => x.pattern === "factor_activity");
     assert.doesNotMatch(`${f.headline} ${f.must_say}`, /هموفیلی|hemophilia/i, `${k}: نامِ بیماری`);
+    assert.ok(f.sources?.includes("WFH_HEMOPHILIA"), `${k}: منبعِ WFH به یافته متصل است`);
   }
   const fa = (k) => out[k].p.findings.find((x) => x.pattern === "factor_activity");
   assert.match(fa("sev").must_say, /«شدید»/); assert.equal(fa("sev").urgency, "this_week");
@@ -11755,4 +11756,32 @@ test("M272: isolated_thrombocytopenia با D-dimer/PT بالا «ایزوله» 
   assert.ok(iso.ids.includes("isolated_thrombocytopenia"), iso.ids.join(", "));
   const coag = m010Run([m010T("WBC", 7, "10^3/uL"), m010T("Hb", 14, "g/dL"), m010T("PLT", 70, "10^3/uL"), m010T("PT", 16, "sec")], { age: 40 });
   assert.ok(!coag.ids.includes("isolated_thrombocytopenia"), coag.ids.join(", "));
+});
+
+test("M273: امتیازِ ISTH برای D-dimer نسبت به حدِ بالای چاپ‌شدهٔ برگه است؛ بی‌حدِ چاپ‌شده همان ULNِ موتور (M260 بی‌تغییر)", () => {
+  const pan = (dd, ref) => [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 80, "10^3/uL"), m010T("D-dimer", dd, "ng/mL", ref)];
+  const fires = (rows) => m010Run(rows, { age: 60 }).ids.includes("dic_isth_score");
+  // 🔴 پیش‌تر: ۴۰۰ < ۵۰۰ ⇒ هیچ امتیازی، هرچند برگه می‌گفت حد ۲۵۰ است
+  assert.ok(fires(pan(400, "<250")), "۴۰۰ با حدِ چاپ‌شدهٔ ۲۵۰ بالاست");
+  assert.ok(!fires(pan(400, "<500")), "۴۰۰ با حدِ چاپ‌شدهٔ ۵۰۰ طبیعی است");
+  assert.ok(!fires(pan(400)), "بی‌حدِ چاپ‌شده: ULNِ موتور ۵۰۰");
+  assert.ok(fires(pan(600)), "بی‌حدِ چاپ‌شده: ۶۰۰ بالای ULNِ موتور");
+  // «شدید» = بیش از ۷×ULNِ چاپ‌شده: ۲۰۰۰ با حدِ ۲۵۰ (۸×) ⇒ ۳ امتیاز
+  const r = m010Run(pan(2000, "<250"), { age: 60 });
+  const f = r.p.findings.find((x) => x.pattern === "dic_isth_score");
+  assert.match(f?.must_say || "", /امتیاز 3/);
+  // واحدِ چاپ‌شده بی‌اثر است: همان ۸× با µg/mL
+  const u = m010Run([m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 80, "10^3/uL"), m010T("D-dimer", 2.0, "µg/mL", "<0.25")], { age: 60 });
+  assert.match(u.p.findings.find((x) => x.pattern === "dic_isth_score")?.must_say || "", /امتیاز 3/);
+});
+
+test("M274: تروپونین hs با حدِ ۹۹ امِ چاپ‌شده: بالاتر ولی ≤۳۰ ng/L ⇒ soon، بالای ۳۰ ⇒ emergency؛ حدِ چاپ‌شدهٔ بالاتر از ۳۰ عددِ زیرِ آن را ساکت می‌کند", () => {
+  const f = (v, ref) => m010Run([m010T("hs-cTnI", v, "ng/L", ref)], { age: 60 }).p.findings.find((x) => x.pattern === "troponin_hs_above_99th");
+  assert.equal(f(20, "<14")?.urgency, "soon");
+  assert.match(f(20, "<14").must_say, /14 ng\/L/);
+  assert.equal(f(45, "<14")?.urgency, "emergency");
+  assert.equal(f(45)?.urgency, "emergency", "بی‌حدِ چاپ‌شده: رفتارِ قبلی (آستانهٔ ۳۰)");
+  assert.equal(f(20), undefined, "بی‌حدِ چاپ‌شده ۲۰ ساکت است (رفتارِ قبلی)");
+  assert.equal(f(10, "<14"), undefined, "زیرِ حدِ چاپ‌شده");
+  assert.equal(f(35, "<50"), undefined, "برگه می‌گوید تا ۵۰ طبیعی است");
 });
