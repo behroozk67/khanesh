@@ -276,7 +276,7 @@
   /* نامتقارن: متن ستونِ غالب است و کارتِ نمونه کوچک‌تر و پایین‌تر از خطِ تیتر
      می‌نشیند، نه هم‌قدِ متن. */
   .site-hero-grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: var(--s14); }
-  .site-hero-grid .site-device { margin-block-start: var(--s12); }
+  .site-hero-grid .site-figure--hero { margin-block-start: var(--s12); max-width: 440px; justify-self: center; }
 }
 .site-hero h1 {
   font-size: var(--t-hero); font-weight: var(--w-bold);
@@ -330,47 +330,6 @@
 .site-figure--band img { aspect-ratio: 2.2/1; object-fit: cover; object-position: center 38%; }
 .site-figure--hero { }
 .site-figure--band { aspect-ratio: 2.2 / 1; margin-block: var(--s10); }
-
-/* ---------- نمونهٔ نتیجه در هیرو (HeroResult.jsx) ---------- */
-/* تبلتِ نمایشی: قابِ تیره + صفحه. ⚠️ ۱۴ پیکسلِ قاب و شیب، هندسهٔ شیء‌اند نه
-   ریتمِ فاصله؛ از مقیاس بیرون‌اند. روی گوشی صاف می‌شود تا از عرض بیرون نزند. */
-.site-device {
-  max-width: 400px; margin-inline: auto; padding: 14px;
-  background: var(--ink); border-radius: var(--r-2xl);
-  box-shadow: var(--sh-lg, 0 12px 24px rgba(15, 21, 19, 0.12));
-}
-@media (min-width: 980px) {
-  .site-device { transform: rotate(-4deg); }
-}
-.site-device-screen {
-  position: relative; background: var(--card); border-radius: var(--r-lg);
-  padding: var(--s6) var(--s7) var(--s7);
-}
-.site-device-pill {
-  display: block; width: max-content; margin: 0 auto var(--s5);
-  padding: var(--s1) var(--s6); border-radius: var(--r-pill);
-  background: var(--ink); color: var(--on-ink);
-  font-family: system-ui, sans-serif; font-size: var(--t-micro); font-weight: var(--w-semibold);
-}
-.site-hero-result { margin: 0; }
-.site-hero-result-cap {
-  display: flex; align-items: baseline; gap: var(--s5); flex-wrap: wrap;
-  padding-bottom: var(--s4); border-bottom: 1px solid var(--line);
-  font-size: var(--t-2xs); color: var(--ink-2);
-}
-.site-hero-result-cap b {
-  font-weight: var(--w-bold); color: var(--ink);
-  border: 1px dashed var(--ink-2); border-radius: var(--r-pill); padding: var(--s1) var(--s4);
-}
-.site-hero-result-foot { margin-top: var(--s5); font-size: var(--t-xs); line-height: var(--lh-body); color: var(--ink-2); }
-/* تنها حرکتِ معنادارِ هیرو: نشانگر از ابتدای باندِ طبیعی تا جای عدد می‌رود. */
-@media (prefers-reduced-motion: no-preference) {
-  .site-hero-result .band-marker { animation: site-marker-in 700ms var(--ease) 200ms both; }
-}
-@keyframes site-marker-in {
-  from { inset-inline-start: calc(var(--band-start) - 7px); opacity: 0; }
-  to   { opacity: 1; }
-}
 
 /* ---------- تابلوها ----------
    الگو چهار تابلوی رنگیِ اشباع داشت (سرمه‌ای، مرجانی، …). حالا دو ارزش از

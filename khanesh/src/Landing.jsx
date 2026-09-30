@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { REF, ALL } from "./labRefs.js";
 import { BRAND_FA } from "./Logo.jsx";
 import { LabMateLogo } from "./LabMateLogo.jsx";
-import HeroResult from "./HeroResult.jsx";
 import "./site.css";
 
 // ============================================================
@@ -192,7 +191,16 @@ function Hero() {
           <Link to="/tests" className="btn btn--primary btn--pill btn--lg">همهٔ آزمایش‌ها</Link>
         </div>
 
-        <HeroResult />
+        <div className="site-figure site-figure--hero">
+          <img
+            src="/lab/hero-tablet-960.webp"
+            srcSet="/lab/hero-tablet-640.webp 640w, /lab/hero-tablet-960.webp 960w, /lab/hero-tablet-1536.webp 1536w"
+            sizes="(min-width: 980px) 440px, 100vw"
+            fetchPriority="high"
+            alt="مردی تبلتی در دست دارد که نمونه‌ای از نتیجهٔ LabMate را با نوارِ محدودهٔ مرجع نشان می‌دهد"
+            width="1536" height="1024"
+          />
+        </div>
       </div>
     </header>
   );
