@@ -86,11 +86,12 @@ export const RULES_HEMOSTASIS = [
       const anyLow = bands.some((b) => LOW_BANDS.has(b));
       const lines = parts.map((p) => p.text);
       if (anyLow) {
+        // فاکتور ۹ در سالِ اولِ زندگی به‌طور طبیعی پایین است (WFH)؛ ردهٔ شدید/متوسط هنوز قابلِ تشخیص است، ولی تأییدِ سنی لازم است. عددی نمی‌آید.
+        // جملهٔ سنی پیش از جملهٔ «هماتولوژیست باید بررسی کند» می‌آید تا ردهٔ عددی بی‌قیدِ سن خوانده نشود (بازبینیِ bf9a02c، N3).
+        if (e.age != null && e.age < 1 && keys.includes("FIX") && LOW_BANDS.has(factorBand(e.hemostasis.FIX, e.age, e.sex)))
+          lines.push("فاکتور ۹ در ماه‌های اولِ زندگی به‌طور طبیعی پایین‌تر از بزرگسالان است؛ هماتولوژیست باید این عدد را با مقدارِ مخصوصِ همان سن مقایسه و در صورتِ لزوم آزمایش را بعداً تکرار کند.");
         lines.push("فاکتورهای ۸ و ۹ پروتئین‌هایی هستند که برای لخته‌شدنِ خون لازم‌اند. کم‌بودنِ فعالیتشان الگویی است که یک هماتولوژیست (متخصصِ خون) باید بررسی کند: آزمایش را تکرار کند، علتِ آن را مشخص کند و بگوید چه احتیاط‌هایی لازم است.");
         if (e.age == null) lines.push("سنِ بیمار روی برگه نیامده بود؛ این رده‌ها بر پایهٔ مرزهای معمول است و سنِ بیمار در آن‌ها لحاظ نشده است.");
-        // فاکتور ۹ در ماه‌های اولِ زندگی به‌طور طبیعی پایین است (WFH)؛ ردهٔ شدید/متوسط هنوز قابلِ تشخیص است، ولی تأییدِ سنی لازم است. عددی نمی‌آید.
-        if (e.age != null && e.age < 0.5 && keys.includes("FIX") && LOW_BANDS.has(factorBand(e.hemostasis.FIX, e.age, e.sex)))
-          lines.push("فاکتور ۹ در ماه‌های اولِ زندگی به‌طور طبیعی پایین‌تر از بزرگسالان است؛ هماتولوژیست باید این عدد را با مقدارِ مخصوصِ همان سن مقایسه و در صورتِ لزوم آزمایش را بعداً تکرار کند.");
       }
 
       // APTT — سه‌حالته (N21، N4). مالکیت فقط وقتی APTT تنها شاخصِ غیرطبیعی است (factorOwnsAptt)؛ وگرنه coagulation_abnormal توضیحش می‌دهد.
@@ -118,7 +119,10 @@ export const RULES_HEMOSTASIS = [
       const week = bands.some((b) => WEEK_BANDS.has(b)) || inh?.state === "positive" || inh?.state === "unknown";
       const urgency = week ? "this_week" : "routine";
       // کودک/نوزاد: جمله توضیح می‌دهد، دستور نمی‌دهد — بی action، کفِ نوزادی (applyNeonatalFloor) آن را اورژانس نمی‌کند (R12).
-      const action = neonateQuiet(e, inh?.state === "positive")
+      // ردهٔ شدید/متوسط در نوزاد (تأییدِ کاربر ۲۰۲۶-۰۹-۳۰): ارجاعِ «این هفته» می‌ماند و کفِ نوزادی آن را اورژانس نمی‌کند (no_neonatal_floor)؛
+      // مهارکنندهٔ مثبت همچنان از کف می‌گذرد. فوریت و جمله یک تصمیم‌اند (N20).
+      const neoWeekBand = isNeonate(e.age) && inh?.state !== "positive" && bands.some((b) => WEEK_BANDS.has(b));
+      const action = neonateQuiet(e, inh?.state === "positive" || neoWeekBand)
         ? ""
         : actionFor(urgency, {
           week: "این هفته با پزشک یا هماتولوژیست وقت بگیرید. حتماً بگویید چه داروهایی مصرف می‌کنید.",
@@ -137,6 +141,7 @@ export const RULES_HEMOSTASIS = [
             : "فعالیتِ فاکتورِ انعقادیِ شما اندازه‌گیری شده است",
         must_say: lines.join(" "),
         action,
+        ...(neoWeekBand ? { no_neonatal_floor: true } : {}),
         suggest,
         warnings: anyLow || inh?.state === "positive" ? COAG_WARNINGS.slice() : [],
       };

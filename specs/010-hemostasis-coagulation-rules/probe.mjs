@@ -35,6 +35,10 @@ export const PANELS = {
   // ── T004 ──
   factor_only_fviii: ["M", 25, [T("Factor VIII Activity", 0.5, "%")]],
   fix_neonate: ["M", "3 روزه", [T("Factor IX", 30, "%")]],
+  fviii_neonate_severe: ["M", "3 روزه", [T("Factor VIII Activity", 0.5, "%")]],
+  fix_neonate_severe: ["M", "3 روزه", [T("Factor IX", 3, "%")]],
+  fix_neonate_25: ["M", "3 روزه", [T("Factor IX", 25, "%")]],
+  fix_06y_4: ["M", 0.6, [T("Factor IX", 4, "%")]],
   neo_hb17: ["M", "3 روزه", [T("WBC", 15, "10^3/uL"), T("Hb", 17, "g/dL")]],
   fviii_child: ["M", 8, [...BASE, T("Factor VIII", 20, "%")]],
   fviii_noage: ["M", null, [...BASE, T("Factor VIII", 20, "%")]],

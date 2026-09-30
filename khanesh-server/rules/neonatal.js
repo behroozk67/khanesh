@@ -55,7 +55,7 @@ export const NEONATAL_NO_FLOOR_KEYS = new Set(["RDW_SD", "RDW_CV"]);
 export function applyNeonatalFloor(findings, engineOut) {
   if (engineOut?._probe || !isNeonate(engineOut?.age)) return;
   for (const f of findings) {
-    if (!f.action || f.technical || !FLOORED.has(f.urgency)) continue;
+    if (!f.action || f.technical || f.no_neonatal_floor || !FLOORED.has(f.urgency)) continue;
     if (f.uncovered?.length && f.uncovered.every((k) => NEONATAL_NO_FLOOR_KEYS.has(k))) continue;
     // تورِ «هیچ قاعده‌ای نبود» (patterns.js) فیلدِ uncovered ندارد — همهٔ غیرطبیعی‌ها را از خودِ موتور می‌خوانیم.
     if (f.pattern === "unmatched_abnormal" && engineOut.abnormal?.length && engineOut.abnormal.every((a) => NEONATAL_NO_FLOOR_KEYS.has(a.test))) continue;

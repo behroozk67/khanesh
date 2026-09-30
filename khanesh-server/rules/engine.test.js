@@ -11377,11 +11377,33 @@ test("M251b: کودک ≥ ۲۸ روز رده و action می‌گیرد؛ نوز�
   const neo = m010Run([m010T("Factor VIII", 0.5, "%")], { age: "3 روزه" });
   const nf = neo.p.findings.find((x) => x.pattern === "factor_activity");
   assert.match(nf.must_say, /«شدید»/); assert.match(nf.must_say, /هماتولوژیست/);
-  assert.equal(nf.action, ""); assert.ok(!neo.p.findings.some((x) => x.urgency === "emergency"), "نوزاد: بنرِ اورژانس نباید بیاید");
+  // تصمیمِ کاربر ۲۰۲۶-۰۹-۳۰ (بازبینیِ bf9a02c): نوزادِ ردهٔ شدید/متوسط ارجاعِ «این هفته» می‌گیرد، بی آنکه کفِ نوزادی اورژانسش کند
+  assert.equal(nf.urgency, "this_week"); assert.match(nf.action, /این هفته.*هماتولوژیست/);
+  assert.ok(!neo.p.findings.some((x) => x.urgency === "emergency"), "نوزاد: بنرِ اورژانس نباید بیاید");
   const fix = m010Run([m010T("Factor IX", 3, "%")], { age: 0.2 }).p.findings.find((x) => x.pattern === "factor_activity");
   assert.match(fix.must_say, /ماه‌های اولِ زندگی/);
   const fix8 = m010Run([m010T("Factor IX", 3, "%")], { age: 8 }).p.findings.find((x) => x.pattern === "factor_activity");
   assert.doesNotMatch(fix8.must_say, /ماه‌های اولِ زندگی/);
+});
+
+test("M264: نوزادِ ردهٔ هفته‌ای ارجاع دارد (FVIII/FIX)؛ نوزادِ ردهٔ خفیف بی‌action؛ مهارکنندهٔ مثبت همچنان از کفِ نوزادی می‌گذرد؛ جملهٔ سنیِ FIX تا یک سال و پیش از «هماتولوژیست»", () => {
+  const fa = (rows, age) => m010Run(rows, { age }).p.findings.find((x) => x.pattern === "factor_activity");
+  for (const row of [m010T("Factor VIII", 0.5, "%"), m010T("Factor IX", 3, "%")]) {
+    const f = fa([row], "3 روزه");
+    assert.equal(f.urgency, "this_week"); assert.match(f.action, /این هفته.*هماتولوژیست/); assert.ok(!f.neonatal_floor);
+  }
+  // ردهٔ خفیف در نوزاد: فوریتِ routine، بی action (کف اورژانسش نکند)
+  const mild = fa([m010T("Factor IX", 25, "%")], "3 روزه");
+  assert.equal(mild.urgency, "routine"); assert.equal(mild.action, "");
+  // جملهٔ سنی پیش از جملهٔ «هماتولوژیست باید بررسی کند»
+  const i = mild.must_say.indexOf("ماه‌های اولِ زندگی"), j = mild.must_say.indexOf("باید بررسی کند");
+  assert.ok(i >= 0 && j > i, `ترتیب: ${i} ${j}`);
+  // بین ۰٫۵ و ۱ سال هم جملهٔ سنی می‌آید؛ در ۱ سالگی نه
+  assert.match(fa([m010T("Factor IX", 4, "%")], 0.6).must_say, /ماه‌های اولِ زندگی/);
+  assert.doesNotMatch(fa([m010T("Factor IX", 4, "%")], 1.5).must_say, /ماه‌های اولِ زندگی/);
+  // مهارکنندهٔ مثبت در نوزاد: هنوز کفِ نوزادی
+  const inh = m010Run([m010T("Factor VIII", 3, "%"), m010T("FVIII Inhibitor", "Positive")], { age: "3 روزه" }).p.findings.find((x) => x.pattern === "factor_activity");
+  assert.equal(inh.urgency, "emergency"); assert.ok(inh.neonatal_floor);
 });
 
 test("M251c: مهارکننده — عددِ بی‌مرجع نقل می‌شود و حکم نمی‌گیرد (this_week)؛ با مرجعِ چاپ‌شده حکم از همان مرجع", () => {
