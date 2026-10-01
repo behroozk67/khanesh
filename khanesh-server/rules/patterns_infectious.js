@@ -2,7 +2,7 @@ import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, wh
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
-import { isNeonate, ageFa, nextNeonatalBand, NEONATAL_DANGER_WARNING, NEONATAL_TODAY_ACTION } from "./neonatal.js";
+import { isNeonate, ageFa, nextNeonatalBand, NEONATAL_DANGER_WARNING, NEONATAL_SAMEDAY_ACTION } from "./neonatal.js";
 
 export const RULES_INFECTIOUS = [
   // ═══════════ سرولوژی غربالگری (هپاتیت B/C، HIV) ═══════════
@@ -372,7 +372,7 @@ function neonatalLymphocytosis(e) {
       (next ? `بازهٔ لنفوسیت در روزهای اولِ عمر روزبه‌روز عوض می‌شود — برای ${next.label} ${next.range} است — پس یک عدد در این روزها به ساعتِ دقیقِ تولد حساس است. ` : "") +
       "در روزهای اولِ عمر، معنای این عدد را پزشکِ نوزاد کنارِ معاینه و بقیهٔ شمارشِ خون تعیین می‌کند.",
     // P57 پرسش ۵: فوریت را applyNeonatalFloor به «امروز» می‌برد؛ جمله همان.
-    action: NEONATAL_TODAY_ACTION,
+    action: NEONATAL_SAMEDAY_ACTION,
     suggest: ["تکرار CBC"],
     warnings: [NEONATAL_DANGER_WARNING],
   };

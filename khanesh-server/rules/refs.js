@@ -410,6 +410,8 @@ export const NEONATAL_NO_ADULT_FALLBACK = new Set(['RBC', 'RDW_CV', 'RDW_SD']);
 export function getRef(testKey, sex, age, { pregnant = false } = {}) {
   if (REPRO_HORMONE_KEYS.has(testKey) && ((age != null && age < 16) || !sex)) return null;
   if (NEONATAL_NO_ADULT_FALLBACK.has(testKey) && inNeonatalRedCellPeriod(age) && !getPedRef(testKey, age)) return null;
+  // بیلی‌روبینِ غیرمستقیمِ نوزادِ < ۱۴ روز: بازهٔ منبع‌دار نداریم و بازهٔ بزرگسال (۰٫۱–۱) غلط است ⇒ سنجیده نمی‌شود (P63).
+  if (testKey === 'BILI_I' && age != null && age * 365 < 14 && !getPedRef(testKey, age)) return null;
   if (testKey === 'HGB' && pregnant && sex === 'F') return hgbRef(sex, age, { pregnant });
   if (isPediatricRCPCH(age)) {
     const ped = getPedRef(testKey, age);

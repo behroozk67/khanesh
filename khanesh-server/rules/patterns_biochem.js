@@ -3,6 +3,7 @@ import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
+import { isNeonate } from "./neonatal.js";
 
 /**
  * پیش‌شرطِ الگوی زنجیره‌ایِ منیزیم: منیزیمِ پایین به‌همراه پتاسیم یا کلسیمِ پایین.
@@ -1050,6 +1051,19 @@ export const RULES_BIOCHEM = [
       const t = val(e);
       const g = t.GLU_F ?? t.GLU_2H ?? t.GLU_RANDOM;
       const severe = g < 54;   // سطح بالینی مهم
+      // نوزادِ < ۲۸ روز با قندِ < ۴۰ mg/dL اورژانسِ واقعی است (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱؛ آستانه و منبع: P63 — منتظرِ بازبین).
+      // اورژانس از شدتِ خودِ عدد می‌آید، نه از کفِ نوزادی؛ جملهٔ بزرگسال («این هفته») برای او ناامن است.
+      if (isNeonate(e.age) && g < 40) {
+        return {
+          pattern: "neonatal_hypoglycemia",
+          urgency: "emergency",
+          headline: "قند خونِ نوزاد بسیار پایین است",
+          must_say: `قند خونِ نوزاد ${g} است و کمتر از ۴۰ میلی‌گرم در دسی‌لیتر است. در نوزاد این خطرناک است، چون مغزِ نوزاد برای انرژی به قند وابسته است و قندِ پایین می‌تواند به آن آسیب بزند. نوزاد باید همین حالا دیده شود تا قندش دوباره اندازه‌گیری و در صورت نیاز درمان شود.`,
+          action: "همین حالا نوزاد را به اورژانسِ کودکان یا نزدیک‌ترین بیمارستان ببرید؛ منتظرِ نوبتِ مطب نمانید.",
+          suggest: [],
+          warnings: [],
+        };
+      }
       return {
         pattern: severe ? "hypoglycemia_significant" : "hypoglycemia_mild",
         urgency: severe ? "this_week" : "routine",

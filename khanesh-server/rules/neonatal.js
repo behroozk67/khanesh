@@ -26,25 +26,15 @@ export function ageFa(age) {
 export const NEONATAL_DANGER_WARNING =
   "اگر نوزاد تب دارد یا بدنش سرد است، شیر نمی‌خورد یا بد شیر می‌خورد، تند نفس می‌کشد یا هنگامِ نفس قفسهٔ سینه‌اش به داخل کشیده می‌شود، تشنج می‌کند، یا بی‌حال است و فقط با تحریک حرکت می‌کند، منتظر نمانید و همان ساعت به اورژانس بروید.";
 
-// P57 پرسش ۵ (بازبین، ۲۰۲۶-۰۹-۲۸): «این هفته» برای نوزاد ناامن است — هر یافتهٔ غیرطبیعی در دورهٔ نوزادی دست‌کم «امروز».
-//   موتور سطحِ «امروز» ندارد؛ soon («۲۴ تا ۴۸ ساعت») از سقفِ «حداکثر ۲۴ ساعت» می‌گذرد، پس کف = emergency با همین دستورِ
-//   «همین امروز» — همان جفتِ فوریت/جمله که leukopeniaِ شدید دارد (N20). رفتنِ فوری به اورژانس فقط با علائمِ خطر است.
-export const NEONATAL_TODAY_ACTION = "همین امروز این برگه را به پزشکِ نوزاد (متخصصِ کودکان) نشان دهید یا با او تماس بگیرید.";
-// بنرِ بالای صفحه برای نوزادی که *فقط* به‌خاطرِ کفِ بالا اورژانس شده (تصمیمِ کاربر ۲۰۲۶-۰۹-۳۰): بنرِ عمومیِ ResultView
-//   «تپش قلب، گیجی، تنگی نفس» و «برای اولین ساعت کاری فردا» می‌گفت — برای نوزادی که باید *امروز* دیده شود هر دو غلط‌اند.
-//   دو جمله همان دو ثابتِ بالا/پایین‌اند؛ متنِ بالینیِ تازه‌ای اینجا نیست. urgency و has_critical دست نمی‌خورند.
-export const NEONATAL_TODAY_BANNER = {
-  title: "این نتیجه باید همین امروز دیده شود",
-  body: `${NEONATAL_TODAY_ACTION} ${NEONATAL_DANGER_WARNING}`,
-};
-/** true اگر هر یافتهٔ اورژانسیِ نمایش‌داده‌شده فقط به‌خاطرِ کفِ نوزادی اورژانس شده باشد (نه شدتِ خودِ عدد). */
-export function neonatalTodayOnly(findings) {
-  const emerg = (findings ?? []).filter((f) => f.urgency === "emergency");
-  return emerg.length > 0 && emerg.every((f) => f.neonatal_floor === true);
-}
-const FLOORED = new Set(["routine", "this_week", "soon"]);
+// P57 پرسش ۵ (بازبین، ۲۰۲۶-۰۹-۲۸): «این هفته» برای نوزاد ناامن است — هر یافتهٔ غیرطبیعی در دورهٔ نوزادی دست‌کم «همان روز».
+// ⚠️ تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱ (job 5fdd233a) این کف را عوض کرد: پیش‌تر کف = emergency بود، و نوزادی که تنها عددِ غیرطبیعی‌اش
+//   MCH 38 بود بنرِ اورژانس و has_critical می‌گرفت. حالا کف = soon با دستورِ «همین امروز نزدِ پزشک» (نه «اورژانس»)؛ emergency فقط از
+//   شدتِ خودِ عدد می‌آید (هایپرکالمی، قندِ < ۴۰، بیلی‌روبینِ ≥ ۱۵، نوتروفیلِ < ۵۰۰، …) و soon هرگز has_critical نمی‌سازد.
+//   ⚠️ urgency=soon (برچسبِ «۲۴ تا ۴۸ ساعت») و جملهٔ «همین امروز» کنارِ هم‌اند؛ جمله چیزی است که بیمار می‌خواند (N20) و سخت‌گیرانه‌تر است.
+export const NEONATAL_SAMEDAY_ACTION = "همین امروز این برگه را به پزشکِ نوزاد (متخصصِ کودکان) نشان دهید یا با او تماس بگیرید.";
+const FLOORED = new Set(["routine", "this_week"]);
 // تصمیمِ کاربر ۲۰۲۶-۰۹-۲۹: RDW (CV و SD) فقط شاخصِ کمکی‌اند؛ اگر تنها عددِ بی‌مالکِ برگه باشند، کفِ نوزادی
-//   «همین امروز» نمی‌سازد (بدونِ این، نوزادِ ۱ روزه با RDW-SD 80 تنها ⇒ emergency، N3). یافتهٔ بی‌مالک همان سطحِ خودش را می‌ماند.
+//   «۲۴ تا ۴۸ ساعت» نمی‌سازد (بدونِ این، نوزادِ ۱ روزه با RDW-SD 80 تنها ⇒ soon، N3). یافتهٔ بی‌مالک همان سطحِ خودش را می‌ماند.
 export const NEONATAL_NO_FLOOR_KEYS = new Set(["RDW_SD", "RDW_CV"]);
 /**
  * کفِ فوریتِ نوزادی — در runPatterns، پیش از انتخاب/سرکوبِ یافته‌ها. فقط یافته‌ای که دستور دارد (action ناتهی) و فنی نیست
@@ -59,9 +49,9 @@ export function applyNeonatalFloor(findings, engineOut) {
     if (f.uncovered?.length && f.uncovered.every((k) => NEONATAL_NO_FLOOR_KEYS.has(k))) continue;
     // تورِ «هیچ قاعده‌ای نبود» (patterns.js) فیلدِ uncovered ندارد — همهٔ غیرطبیعی‌ها را از خودِ موتور می‌خوانیم.
     if (f.pattern === "unmatched_abnormal" && engineOut.abnormal?.length && engineOut.abnormal.every((a) => NEONATAL_NO_FLOOR_KEYS.has(a.test))) continue;
-    f.urgency = "emergency";
+    f.urgency = "soon";
     f.neonatal_floor = true;
-    f.action = NEONATAL_TODAY_ACTION;
+    f.action = NEONATAL_SAMEDAY_ACTION;
     if (!(f.warnings ?? []).includes(NEONATAL_DANGER_WARNING)) f.warnings = [...(f.warnings ?? []), NEONATAL_DANGER_WARNING];
   }
 }

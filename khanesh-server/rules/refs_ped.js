@@ -44,6 +44,7 @@ const M = m => m / 12;
 // ============================================================
 // P57 (پاسخِ بازبینِ بالینی، چسبانده‌شده ۲۰۲۶-۰۹-۲۸؛ به Nathan & Oski، RCPCH و Nelson ارجاع داده شده ولی جدول/صفحه‌ای
 // نام برده نشده و این جلسه منبع را باز نکرد) — برچسبِ منبع همین را می‌گوید، نه ادعای کتاب (همان رسمِ SPECS008_SOURCE).
+export const BILI_NEO_SOURCE = 'CALIPER via PMC11042559 (newborn bilirubin, 2026-10-01) — pending reviewer (P63)';
 export const P57_SOURCE = 'User-approved 2026-09-28 (P57, pasted reference)';
 // CALIPER، Am J Clin Pathol 2020، Beckman Coulter DxH 900، سالمِ ۰ تا <۲۱ سال، متنِ باز: https://pmc.ncbi.nlm.nih.gov/articles/PMC7403759/ (جدولِ ۱، ۲۰۲۶-۰۹-۲۹)
 export const NATHAN_OSKI_SOURCE = 'Nathan & Oski (table supplied by user, approved 2026-09-30; book not opened)';
@@ -315,9 +316,15 @@ export const PED_REFS = {
     { maxAge: 15,     range: [80, 800] },   // ۳–۱۵ سال — تصمیمِ مالک
     { maxAge: 16,     range: [49, 242] },   // ۱۵–۱۶ سال — RCPCH، دست‌نخورده
   ],
+  // ⚠️ نوزادِ < ۱۴ روز (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱، P63): ردیفِ زیر («۱۴ روز – ۱۶ سال») پیش‌تر از سنِ صفر هم اعمال می‌شد و بیلی‌روبینِ
+  //   ۹٫۵۸ در روزِ ۳ «بالا» خوانده می‌شد. بازهٔ این سن از CALIPER (تأییدشده در PMC11042559، نوزادانِ ۲–۱۱ روزه، ۹۵٪): تام ۴–۲۵۳ µmol/L،
+  //   مستقیم ۶–۱۷ µmol/L (حدِ بالای مستقیم با آستانهٔ NASPGHAN «> ۱ mg/dL» می‌خواند). منبع باز نشد جز همان مقاله؛ در انتظارِ بازبین.
+  //   اورژانسِ بیلی‌روبین جدا از این بازه است: bilirubin_emergency در ≥ ۱۵ mg/dL (patterns_utils).
   BILI_T: [                                 // µmol/L → mg/dL
+    { maxAge: D(14),  range: r(4, 253, CONV.BILI), source: BILI_NEO_SOURCE },   // 0 – 14 روز
     { maxAge: 16,     range: r(0, 21, CONV.BILI) },   // 14 روز – 16 سال
   ],
+  BILI_D: [ { maxAge: D(14), range: r(0, 17, CONV.BILI), source: BILI_NEO_SOURCE } ],   // 0 – 14 روز؛ بعد از آن بازهٔ بزرگسال
   GGT: [ { maxAge: 16, range: [9, 40] } ],
 
   // ---- قلبی (صفحه ۳) ----

@@ -151,6 +151,10 @@ const NAME_MAP = {
   tp: "TP", totalprotein: "TP",
   bili: "BILI_T", bilirubintotal: "BILI_T", totalbilirubin: "BILI_T", tbil: "BILI_T",
   tbili: "BILI_T", بیلیروبینتام: "BILI_T", بیلیروبینکل: "BILI_T",
+  // «T. Bilirubin(Clot)» — چاپِ واقعیِ یک آزمایشگاه؛ norm() نقطه/پرانتز را می‌خورد (job 5fdd233a، N2)
+  tbilirubin: "BILI_T", tbilirubinclot: "BILI_T",
+  dbilirubin: "BILI_D", dbilirubinclot: "BILI_D",
+  ibilirubin: "BILI_I", ibilirubinclot: "BILI_I",
   bilirubindirect: "BILI_D", directbilirubin: "BILI_D", dbil: "BILI_D",
   directbili: "BILI_D", dbili: "BILI_D", conjugatedbilirubin: "BILI_D",
   conjugatedbili: "BILI_D", بیلیروبینمستقیم: "BILI_D",

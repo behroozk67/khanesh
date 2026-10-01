@@ -2002,6 +2002,18 @@ not by a test.
   reader of `ungraded` for it.** Guard `M190b`. `resolveAlias`'s plural and trailing-`e` rules make every short name one character away from
     another analyte. Guards `M186`–`M186c`.
 
+### N26 — A floor that turns every abnormal number in a newborn into an emergency
+2026-10-01, `neonatal.js` (job `5fdd233a`). Fixed by user decision; recorded because the *pair* of defects is the reusable part.
+
+- **Tried (P57 Q5):** `applyNeonatalFloor` raised every actionable finding for age < 28 days to `emergency`, so "this week" never reached a newborn.
+- **Broke:** a newborn sheet whose only abnormal value was MCH 38 got the emergency banner and `has_critical: true`. Separately, `T. Bilirubin(Clot)`
+  was `unmapped` (`norm()` → `tbilirubinclot`), so the one value that mattered for that baby never reached the engine — the patient read
+  «توضیح آماده نداریم» next to an emergency banner (N2 + N18 + N20 in one report).
+- **Fix:** aliases `tbilirubin`/`tbilirubinclot` (+ D/I) in `NAME_MAP`; the floor is now `soon` with the sentence «همین امروز نزدِ پزشک» (not «اورژانس»), `emergency` only
+  comes from the number's own severity, and neonatal glucose < 40 became its own emergency (`neonatal_hypoglycemia`). Banner code deleted (it only served floor-only emergencies). Guards `M246`, `M246b` (alias half red-first by stash), `T31`.
+- **Rule:** a safety floor must be a *floor on the timeline*, never a promotion to the highest tier. Anything that raises every finding to
+  `emergency` makes `has_critical` meaningless on exactly the population where it matters. Still open: neonatal bilirubin is graded against the adult range (P63).
+
 ---
 
 ## Rules

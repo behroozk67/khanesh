@@ -10,7 +10,7 @@ import { factorOwnsAptt } from "./patterns_hemostasis.js";
 //   دربارهٔ یک عدد نمی‌سازیم. «آیا آن قاعده فعال می‌شود»، نه تکرارِ آستانه‌ها (M91e).
 const LEUK_CYTO_IDS = new Set(["leukocytosis_with_cytopenia", "reactive_leukocytosis_with_cytopenia"]);
 const leukCytopeniaOwns = (e) => RULES_MALIGNANCY.some((r) => LEUK_CYTO_IDS.has(r.id) && r.match(e));
-import { isNeonate, inNeonatalRedCellPeriod, ageFa, NEONATAL_DANGER_WARNING, NEONATAL_TODAY_ACTION, neutMissingText, neonatalContextText,
+import { isNeonate, inNeonatalRedCellPeriod, ageFa, NEONATAL_DANGER_WARNING, NEONATAL_SAMEDAY_ACTION, neutMissingText, neonatalContextText,
   plateletAbnormal, plateletIndicesText, indicesInconsistentText, neonatalLowRbcClause } from "./neonatal.js";
 
 // ─── specs/008 بازبینیِ دور ۲ (R2-B4): هشدارِ ناقل بودن — هر یافته‌ای که جملهٔ HbA2ِ «صفت» را می‌گوید آن را هم دارد ───
@@ -580,7 +580,7 @@ export const RULES_HEMATOLOGY = [
           "معمولاً اولین قدم تکرارِ CBC است، و اگر نوزاد علامتی دارد، پزشک بررسیِ عفونتِ نوزادی را در نظر می‌گیرد." +
           neutLowClause(e),
         // P57 پرسش ۵: فوریتِ «امروز» را applyNeonatalFloor در runPatterns می‌گذارد؛ جمله از همان‌جا می‌آید (N20).
-        action: NEONATAL_TODAY_ACTION,
+        action: NEONATAL_SAMEDAY_ACTION,
         suggest: diffOwned ? ["تکرار CBC"] : ["تکرار CBC", "شمارش افتراقی"],
         warnings: [NEONATAL_DANGER_WARNING],
       };
@@ -683,8 +683,8 @@ export const RULES_HEMATOLOGY = [
         action: urgency === "emergency"
           ? `همین امروز با ${doc} تماس بگیرید. اگر ${neo ? "نوزاد تب دارد" : "تب دارید"}، فوراً به اورژانس بروید.`
           : urgency === "this_week"
-            ? (neo ? NEONATAL_TODAY_ACTION : "این هفته با پزشک وقت بگیرید.")
-            : neo ? NEONATAL_TODAY_ACTION : `در نوبتِ عادی با ${doc} مطرح کنید.`,
+            ? (neo ? NEONATAL_SAMEDAY_ACTION : "این هفته با پزشک وقت بگیرید.")
+            : neo ? NEONATAL_SAMEDAY_ACTION : `در نوبتِ عادی با ${doc} مطرح کنید.`,
         // D1: پیشنهاد به همین استنتاج گره خورده — نه «شمارش افتراقی»ِ عمومیِ leukopenia (که با diffOwned کنار می‌رود).
         suggest: [wbcHighGraded(e) ? MANUAL_DIFF_BLAST_SUGGEST : "شمارش افتراقی (عدد نوتروفیل)"],
         warnings: neo ? [NEONATAL_DANGER_WARNING] : [],
@@ -1715,7 +1715,7 @@ export const RULES_HEMATOLOGY = [
         ...(rbcLow ? { key_number: rbc.value } : {}),
         headline: "بعضی از شاخص‌های گلبول قرمزِ نوزاد پایین‌تر از بازهٔ این سن است",
         must_say: `${parts.join(" و ")}. ${hgbFa} ${neonatalLowRbcClause(e)}`,
-        action: NEONATAL_TODAY_ACTION,
+        action: NEONATAL_SAMEDAY_ACTION,
         suggest: ["تکرار CBC"],
         warnings: [NEONATAL_DANGER_WARNING],
       };

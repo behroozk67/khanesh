@@ -873,27 +873,17 @@ test("T30: _engine.suppressed/suppressed_ids/supplementary برسند، و یا�
   assert.equal(body.has_critical, true);
 });
 
-test("T31: _engine.critical_banner — نوزادِ «فقط-به‌خاطرِ-کف» بنرِ نوزادی می‌گیرد، اورژانسِ واقعی و بزرگسال null (job c138671c)", async () => {
-  // 🔴 پیش‌تر: فرانت برای هر has_critical بنرِ بزرگسال (تپش قلب/گیجی/«فردا صبح») می‌گذاشت. متنِ بنرِ نوزادی از rules/neonatal.js
-  //   می‌آید و این‌جا فقط رسیدنش را می‌سنجیم. has_critical در هر دو حالت true می‌ماند.
-  const { NEONATAL_TODAY_BANNER } = await import("./rules/neonatal.js");
+test("T31: نوزاد — برگهٔ بی‌خطر (کف) has_critical نمی‌گیرد و بنرِ نوزادی نیست؛ اورژانسِ واقعی (K 7.1) has_critical می‌گیرد (job 5fdd233a)", async () => {
+  // 🔴 پیش‌تر کفِ نوزادی هر عددِ غیرطبیعی را اورژانس می‌کرد (MCH 38 تنها ⇒ بنرِ «همین امروز» + has_critical). حالا soon.
   const t = (name, value, unit = "") => ({ name, value, unit });
-  const neoSheet = { patient: { age: "1 روز", sex: "unknown" }, tests: [
-    t("WBC", "7.4", "10^3/µL"), t("RBC", "3.50", "10^6/µL"), t("HGB", "15.3", "g/dL"), t("HCT", "45.0", "%"),
-    t("MCV", "128.6", "fL"), t("MCHC", "34.0", "g/dL"), t("PLT", "165", "10^3/µL"), t("LYM#", "6.2", "10^3/µL"),
-  ] };
-  const neo = await analyze(neoSheet);
+  const neo = await analyze({ patient: { age: "3 روز", sex: "unknown" }, tests: [t("MCH", "38", "pg"), t("T. Bilirubin(Clot)", "9.58", "mg/dl")] });
   assert.equal(neo.status, 200);
-  assert.equal(neo.body.has_critical, true);
-  assert.deepEqual(neo.body._engine.critical_banner, NEONATAL_TODAY_BANNER);
+  assert.equal(neo.body.has_critical, false);
+  assert.notEqual(neo.body._engine.urgency, "emergency");
+  assert.equal(neo.body._engine.critical_banner, null);
 
   const real = await analyze({ patient: { age: "1 روز", sex: "unknown" }, tests: [t("K", "7.1", "mmol/L")] });
   assert.equal(real.body.has_critical, true);
-  assert.equal(real.body._engine.critical_banner, null);
-
-  const adult = await analyze({ patient: { age: 50, sex: "M" }, tests: [t("WBC", "114", "10^3/µL"), t("PLT", "46", "10^3/µL")] });
-  assert.equal(adult.body.has_critical, true);
-  assert.equal(adult.body._engine.critical_banner, null);
 });
 
 test("T32: برگهٔ فاکتور ۸ مسیرِ موتور و factor_activity می‌گیرد — نه «طبیعی»، نه مسیرِ قدیم (specs/010، FR-019، N2/N18)", async () => {

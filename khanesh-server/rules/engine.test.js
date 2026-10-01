@@ -7081,7 +7081,7 @@ test("M129: بیلی‌روبین — «0.3-1.2» واحد را تعیین می�
   const n14 = uuu([["Total Bilirubin", "14", "<15"]], neo);
   assert.ok(!n14.graded.some((g) => g.test === "BILI_T"), `نوزاد با بازهٔ بزرگسال سنجیده شد: ${JSON.stringify(n14.graded)}`);
   const f14 = findPat(runPatterns(n14), "unit_unknown_values");
-  assert.ok(f14 && ["this_week", "emergency"].includes(f14.urgency), JSON.stringify(f14?.urgency));
+  assert.ok(f14 && ["this_week", "soon", "emergency"].includes(f14.urgency), JSON.stringify(f14?.urgency));
   assert.equal(findPat(uuuRun([["Total Bilirubin", "18", "up to 12"]], neo), "unit_unknown_values")?.urgency, "emergency");
 });
 
@@ -10461,11 +10461,11 @@ test("M220: نوزادِ ۱ روزه (job c138671c) — بی‌ویروس/مغز
   assert.equal(g("RDW_SD").range, "55–75"); assert.equal(g("RDW_SD").dir, "high");
   // P57 پرسش ۵: هیچ یافتهٔ دستوردارِ نوزاد «این هفته» نیست
   const p = runPatterns(e);
-  assert.equal(p.overall_urgency, "emergency");
+  assert.equal(p.overall_urgency, "soon"); // تصمیمِ ۲۰۲۶-۱۰-۰۱: کفِ نوزادی soon است، نه emergency
   // تصمیمِ ۲۰۲۶-۰۹-۲۹: تورِ بی‌مالکِ این برگه فقط RDW-SD و LYMPH_PCT دارد ⇒ معاف از کف (M221f)، همان routine
   assert.deepEqual(un.uncovered.sort(), ["RDW_SD"]); assert.equal(un.urgency, "routine");
   for (const f of p.findings.filter((x) => x.action && x.pattern !== "unexplained_abnormal")) {
-    assert.equal(f.urgency, "emergency", f.pattern);
+    assert.equal(f.urgency, "soon", f.pattern);
     assert.doesNotMatch([f.must_say, f.action, ...(f.warnings ?? [])].join(" "), /این هفته|نوبتِ? عادی|چند هفته/, f.pattern);
   }
 });
@@ -10596,7 +10596,7 @@ test("M221d: P57 پرسش ۵ — در دورهٔ نوزادی هیچ یافته�
   const neo = m220Run("10 روز", sheet);
   const f = neo.p.findings.find((x) => x.action);
   assert.ok(f, String(neo.ids));
-  assert.equal(f.urgency, "emergency"); assert.equal(f.neonatal_floor, true);
+  assert.equal(f.urgency, "soon"); assert.equal(f.neonatal_floor, true); // تصمیمِ ۲۰۲۶-۱۰-۰۱: کف = soon
   assert.match(f.action, /همین امروز/); assert.doesNotMatch(f.action, /اورژانس/);
   assert.ok(f.warnings.some((w) => /تشنج/.test(w)));
   for (const age of ["2 ماه", "40 سال"]) {
@@ -11234,34 +11234,77 @@ test("M245d: اورهٔ بالا — پرچمِ soon فقط با BUN/Cr > 30 و 
   assert.ok(!mid.f.sources, "منبع فقط روی شاخه‌ای که آستانه را به کار می‌برد");
 });
 
-// ---------- M246: بنرِ بالای صفحهٔ نوزادِ «فقط-به‌خاطرِ-کف» (job c138671c، تصمیمِ کاربر ۲۰۲۶-۰۹-۳۰) ----------
-// 🔴 پیش‌تر: نوزادِ ۱ روزه که فقط از کفِ نوزادی (applyNeonatalFloor) اورژانس شده بود، بنرِ عمومیِ فرانت را می‌گرفت:
-//   «تپش قلب، ضعف شدید، گیجی یا تنگی نفس … منتظر صبح نمانید … لازم نیست الان کسی را بیدار کنید؛ برای اولین ساعت کاری
-//   فردا …» — علائمِ بزرگسال، و «فردا» در تناقض با خودِ تیتر («همین امروز»). حالا سرور بنرِ نوزادی می‌دهد، ولی فقط
-//   وقتی *هر* یافتهٔ اورژانسی از کف آمده؛ نوزادِ دارای اورژانسِ واقعی (هایپرکالمی، لکوسیتوزِ شدید) بنرِ عمومی را نگه می‌دارد.
-test("M246: نوزادِ ۱ روزهٔ job c138671c ⇒ بنرِ «امروز» با علائمِ خطرِ نوزاد، بی‌علائمِ بزرگسال و بی‌«فردا»", async () => {
-  const { neonatalTodayOnly, NEONATAL_TODAY_BANNER } = await import("./neonatal.js");
-  const neo = m220Run("1 روز");
-  assert.ok(neo.p.findings.some((f) => f.urgency === "emergency" && f.neonatal_floor), String(neo.ids));
-  assert.equal(neonatalTodayOnly(neo.p.findings), true);
-  assert.equal(neo.p.has_critical, true, "has_critical دست نخورده");
-  const txt = `${NEONATAL_TODAY_BANNER.title} ${NEONATAL_TODAY_BANNER.body}`;
-  assert.match(txt, /همین امروز/); assert.match(txt, /پزشکِ نوزاد/); assert.match(txt, /تشنج/); assert.match(txt, /شیر نمی‌خورد/);
-  assert.doesNotMatch(txt, /تپش قلب|گیجی|تنگی نفس|ضعف شدید|فردا|صبح|بیدار|۱۱۵/, txt);
+// ---------- M246: کفِ نوزادیِ «soon» (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱، job 5fdd233a) ----------
+// 🔴 پیش‌تر: کفِ نوزادی هر یافتهٔ دستوردار را emergency می‌کرد. نوزادی که تنها عددِ غیرطبیعی‌اش MCH 38 بود بنرِ اورژانس و
+//   has_critical می‌گرفت. حالا کف soon («۲۴ تا ۴۸ ساعت») است و emergency فقط از شدتِ خودِ عدد می‌آید.
+test("M246: عددِ غیرطبیعیِ ساده در نوزاد ⇒ soon و has_critical نه؛ اورژانسِ واقعی (K 7.1، WBC 114 + PLT 46، بیلی‌روبین ≥۱۵) هنوز emergency", () => {
+  const neo = m220Run("1 روز", [m220T("MCH", "45", "pg"), m220T("PLT", "120", "10^3/µL")]);
+  assert.ok(neo.p.findings.some((f) => f.neonatal_floor && f.urgency === "soon"), String(neo.ids));
+  assert.ok(!neo.p.findings.some((f) => f.urgency === "emergency"), String(neo.ids));
+  assert.equal(neo.p.overall_urgency, "soon");
+  assert.equal(neo.p.has_critical, false, "soon هرگز has_critical نمی‌سازد");
+  for (const tests of [[m220T("K", "7.1", "mmol/L")], [m220T("WBC", "114", "10^3/µL"), m220T("PLT", "46", "10^3/µL")]]) {
+    const r = m220Run("1 روز", tests);
+    assert.equal(r.p.overall_urgency, "emergency", String(r.ids));
+    assert.ok(r.p.findings.some((f) => f.urgency === "emergency" && !f.neonatal_floor), String(r.ids));
+  }
 });
 
-test("M246b: شاهدِ منفی — اورژانسِ واقعیِ نوزاد (نه کف) و اورژانسِ بزرگسال بنرِ نوزادی نمی‌گیرند", async () => {
-  const { neonatalTodayOnly } = await import("./neonatal.js");
-  const real = [m220T("WBC", "114", "10^3/µL"), m220T("PLT", "46", "10^3/µL")];
-  const neoReal = m220Run("1 روز", real);
-  assert.ok(neoReal.p.findings.some((f) => f.urgency === "emergency" && !f.neonatal_floor), String(neoReal.ids));
-  assert.equal(neonatalTodayOnly(neoReal.p.findings), false);
-  const neoK = m220Run("1 روز", [m220T("K", "7.1", "mmol/L")]);
-  assert.equal(neonatalTodayOnly(neoK.p.findings), false, String(neoK.ids));
-  assert.equal(neonatalTodayOnly(m220Run("40 سال", real, "M").p.findings), false);
-  // بدونِ هیچ اورژانسی هم false است (لیستِ خالی «همه از کف» حساب نمی‌شود)
-  assert.equal(neonatalTodayOnly(m220Run("40 سال", [m220T("HGB", "14", "g/dL")], "M").p.findings), false);
-  assert.equal(neonatalTodayOnly([]), false); assert.equal(neonatalTodayOnly(undefined), false);
+test("M246c: نوزادِ < ۲۸ روز — قندِ < ۴۰ اورژانسِ واقعی است (نه کف)؛ قندِ ۴۲ و بزرگسالِ ۳۵ نه (P63)", () => {
+  const run = (age, v) => m220Run(age, [m220T("Glucose", v, "mg/dL")], "M");
+  const lo = run("5 روز", "35").p.findings.find((f) => f.pattern === "neonatal_hypoglycemia");
+  assert.ok(lo, "قندِ ۳۵ در نوزاد اورژانس نشد"); assert.equal(lo.urgency, "emergency"); assert.ok(!lo.neonatal_floor);
+  assert.match(lo.action, /همین حالا/); assert.doesNotMatch(lo.action, /این هفته/);
+  const mid = run("5 روز", "42");
+  assert.ok(!mid.ids.includes("neonatal_hypoglycemia"), String(mid.ids));
+  assert.ok(mid.p.findings.every((f) => f.urgency !== "emergency"), String(mid.ids));
+  const adult = run("40 سال", "35");
+  assert.ok(!adult.ids.includes("neonatal_hypoglycemia")); assert.notEqual(adult.p.overall_urgency, "emergency");
+});
+
+test("M246d: نوزادِ < ۲۸ روز — K ≥ ۶ اورژانس (K ۵٫۹ نه)؛ Hb ۸٫۵ «همین امروز»؛ بیلی‌روبین ≥ ۱۵ اورژانس و ۱۴٫۹ «همین امروز» (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱، P63)", () => {
+  const run = (name, v, unit) => m220Run("5 روز", [m220T(name, v, unit)]);
+  assert.equal(run("K", "6.0", "mmol/L").p.overall_urgency, "emergency");
+  assert.equal(run("K", "5.9", "mmol/L").p.has_critical, false);
+  const hb = run("HGB", "8.5", "g/dL");
+  assert.equal(hb.p.has_critical, false); assert.ok(hb.p.findings.every((f) => f.urgency !== "emergency"), String(hb.ids));
+  assert.ok(hb.p.findings.some((f) => /همین امروز/.test(f.action ?? "")), String(hb.ids));
+  const b15 = run("Total Bilirubin", "15", "mg/dL");
+  assert.equal(b15.p.overall_urgency, "emergency"); assert.ok(b15.ids.includes("bilirubin_emergency"));
+  const b149 = run("Total Bilirubin", "14.9", "mg/dL");
+  assert.equal(b149.p.has_critical, false, String(b149.ids));
+  assert.ok(b149.p.findings.every((f) => f.urgency !== "emergency"), String(b149.ids));
+  assert.ok(b149.p.findings.some((f) => /همین امروز/.test(f.action ?? "")), String(b149.ids));
+});
+
+test("M246e: بیلی‌روبینِ نوزادِ < ۱۴ روز با بازهٔ نوزادی (CALIPER) سنجیده می‌شود، نه ۰–۱٫۲۳ی بزرگسال؛ بعد از ۱۴ روز و بزرگسال دست‌نخورده (P63)", () => {
+  const g = (age, name, v, unit = "mg/dL") => { const r = m220Run(age, [m220T(name, v, unit)], "M"); return { r, g: r.e.graded.find((x) => /^BILI_/.test(x.test)) }; };
+  // 🔴 پیش‌تر: ۹٫۵۸ در روزِ ۳ «بالا» (بازهٔ بزرگسال ۰–۱٫۲۳) و «همین امروز» می‌گرفت.
+  const ok = g("3 روز", "Total Bilirubin", "9.58");
+  assert.equal(ok.g.abnormal, false, JSON.stringify(ok.g)); assert.equal(ok.g.range, "0.23–14.8");
+  assert.equal(ok.r.p.findings.length, 0, String(ok.r.ids));
+  assert.equal(g("3 روز", "Total Bilirubin", "160", "µmol/L").g.abnormal, false, "۱۶۰ µmol/L ≈ ۹٫۴ mg/dL");
+  assert.equal(g("3 روز", "Direct Bilirubin", "0.6").g.abnormal, false);
+  const dh = g("3 روز", "Direct Bilirubin", "1.4");
+  assert.equal(dh.g.dir, "high"); assert.ok(dh.r.p.findings.every((f) => f.urgency !== "emergency"), String(dh.r.ids));
+  assert.equal(g("3 روز", "Indirect Bilirubin", "9").g, undefined, "غیرمستقیمِ نوزاد بازهٔ بزرگسال می‌گرفت");
+  // بعد از ۱۴ روز همان ردیفِ RCPCH (۰–۱٫۲۳)؛ بزرگسال ۰٫۱–۱٫۲
+  const late = g("20 روز", "Total Bilirubin", "9");
+  assert.equal(late.g.dir, "high"); assert.equal(late.g.range, "0–1.23");
+  assert.equal(late.r.p.has_critical, false); assert.ok(late.r.p.findings.some((f) => /همین امروز/.test(f.action ?? "")), String(late.r.ids));
+  assert.equal(g("40 سال", "Total Bilirubin", "1.0").g.range, "0.1–1.2");
+});
+
+test("M246b: job 5fdd233a — بیلی‌روبینِ «T. Bilirubin(Clot)» به BILI_T می‌رسد (N2) و MCH 38 به‌تنهایی اورژانس نمی‌سازد", () => {
+  for (const name of ["T. Bilirubin(Clot)", "T. Bilirubin", "T.Bilirubin"]) {
+    const e = runEngine({ patient: { age: "3 روز" }, tests: [m220T(name, "9.58", "mg/dl")] });
+    assert.ok(e.graded.some((g) => g.test === "BILI_T"), `${name}: ${JSON.stringify(e.unmapped)}`);
+  }
+  const e = runEngine({ patient: { age: "3 روز" }, tests: [m220T("MCH", "38", "pg"), m220T("T. Bilirubin(Clot)", "9.58", "mg/dl")] });
+  assert.deepEqual(e.unmapped, []);
+  const p = runPatterns(e);
+  assert.notEqual(p.overall_urgency, "emergency", JSON.stringify(p.findings.map((f) => [f.pattern, f.urgency])));
+  assert.equal(p.has_critical, false);
 });
 
 // ════════════════════════════════════════════════════════════
@@ -11408,7 +11451,7 @@ test("M264: نوزادِ ردهٔ هفته‌ای ارجاع دارد (FVIII/FIX
   assert.doesNotMatch(fa([m010T("Factor IX", 4, "%")], 1.5).must_say, /ماه‌های اولِ زندگی/);
   // مهارکنندهٔ مثبت در نوزاد: هنوز کفِ نوزادی
   const inh = m010Run([m010T("Factor VIII", 3, "%"), m010T("FVIII Inhibitor", "Positive")], { age: "3 روزه" }).p.findings.find((x) => x.pattern === "factor_activity");
-  assert.equal(inh.urgency, "emergency"); assert.ok(inh.neonatal_floor);
+  assert.equal(inh.urgency, "soon"); assert.ok(inh.neonatal_floor);
 });
 
 test("M251c: مهارکننده — عددِ بی‌مرجع نقل می‌شود و حکم نمی‌گیرد (this_week)؛ با مرجعِ چاپ‌شده حکم از همان مرجع", () => {
@@ -11669,9 +11712,9 @@ test("M262: نتیجهٔ طبیعی/منفیِ هموستاز در نوزاد ا
   const neg = m010Run([m010T("Factor VIII", 30, "%"), m010T("Bethesda", "Negative")], neo);
   assert.ok(!neg.p.findings.some((f) => f.urgency === "emergency"), JSON.stringify(neg.p.findings.map((f) => [f.pattern, f.urgency])));
   const inh = m010Run([m010T("Bethesda", "Positive")], neo);
-  assert.ok(inh.p.findings.some((f) => f.pattern === "factor_inhibitor" && f.urgency === "emergency"));
+  assert.ok(inh.p.findings.some((f) => f.pattern === "factor_inhibitor" && f.urgency === "soon"));
   const low = m010Run([m010T("vWF:Ag", 20, "%", "50-160")], neo);
-  assert.ok(low.p.findings.some((f) => f.pattern === "vwf_panel" && f.urgency === "emergency"));
+  assert.ok(low.p.findings.some((f) => f.pattern === "vwf_panel" && f.urgency === "soon"));
   // بزرگسال بی‌تغییر
   assert.equal(m010Run([m010T("vWF:Ag", 150, "%", "50-160")]).p.findings.find((f) => f.pattern === "vwf_panel").urgency, "routine");
 });

@@ -17,7 +17,7 @@ import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
 import { RULES_HEMOSTASIS } from "./patterns_hemostasis.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
-import { applyNeonatalFloor } from "./neonatal.js";
+import { applyNeonatalFloor, isNeonate } from "./neonatal.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
@@ -389,9 +389,12 @@ export function runPatterns(engineOut) {
     const worst = [...engineOut.abnormal].sort(
       (a, b) => (rankOf(b) - rankOf(a))
     )[0];
-    const hasCritical = engineOut.abnormal.some((a) => a.level === "critical");
+    // نوزادِ < ۲۸ روز: بیلی‌روبین با بازهٔ بزرگسال سنجیده می‌شود، پس ۹ تا ۱۴ «بحرانی» درمی‌آید. اورژانسِ بیلی‌روبینِ نوزاد فقط از
+    //   bilirubin_emergency (≥ ۱۵ mg/dL) می‌آید؛ این تور آن را بحرانی نمی‌شمارد و کفِ نوزادی «همین امروز» می‌گذارد (P63).
+    const neoBili = (a) => isNeonate(engineOut.age) && /^BILI_/.test(a.test);
+    const hasCritical = engineOut.abnormal.some((a) => a.level === "critical" && !neoBili(a));
     const hasMarked = engineOut.abnormal.some(
-      (a) => a.level === "marked" || a.level === "critical" || levelGrade(a) >= 3
+      (a) => !neoBili(a) && (a.level === "marked" || a.level === "critical" || levelGrade(a) >= 3)
     );
     // بحرانی → emergency، شدید → this_week، بقیه → routine
     const urgency = hasCritical ? "emergency" : hasMarked ? "this_week" : "routine";

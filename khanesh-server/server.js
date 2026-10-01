@@ -31,7 +31,6 @@ import "dotenv/config";
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
 import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue } from "./rules/adapter.js";
 import { getRef, isNeonate } from "./rules/refs.js";
-import { NEONATAL_TODAY_BANNER, neonatalTodayOnly } from "./rules/neonatal.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
 import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef } from "./rules/prompt.js";
@@ -79,7 +78,7 @@ function engineDebug(engineOut, patternOut) {
     supplementary: patternOut.supplementary_ids ?? [],
     // ⚠️ بنرِ بالای صفحه برای نوزادِ «فقط-به‌خاطرِ-کف»: متنش از rules/neonatal.js می‌آید، نه از فرانت (N12: متنِ بالینیِ فرانت‌اند
     //    هیچ تورِ ایمنی ندارد). null ⇒ فرانت بنرِ عمومی را نشان می‌دهد. has_critical دست نمی‌خورد.
-    critical_banner: neonatalTodayOnly(patternOut.findings) ? NEONATAL_TODAY_BANNER : null,
+    critical_banner: null,
     indices: engineOut.indices,
     tests: serializeGraded(engineOut),
     // ── منابعِ گایدلاینیِ یافته‌ها (شفافیت) ──
