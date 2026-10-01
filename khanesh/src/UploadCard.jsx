@@ -7,7 +7,7 @@ import { toFaDigits } from "./digits.js";
 import { progressText, etaText } from "./analyzeJob.js";
 
 // ============================================================
-// کارتِ تفسیرِ هوشمند — آپلود عکس، اجرا، انتظار، و خودِ نتیجه.
+// کارتِ تفسیر — آپلود عکس، اجرا، انتظار، و خودِ نتیجه.
 //
 // دو نکتهٔ دسترسی‌پذیری که اینجا درست شد:
 //   • ناحیهٔ آپلود دیگر یک <div role="button"> دور یک input مخفی نیست؛
@@ -29,7 +29,7 @@ export default function UploadCard({
   return (
     <section className="card" aria-labelledby="ai-h">
       <h2 className="card-title" id="ai-h">
-        <span aria-hidden="true">🤖</span> تفسیر هوشمند
+        تفسیر آزمایش
       </h2>
       <p className="hint">
         برای تحلیل عمیق‌تر، مقادیر را در فرم بالا وارد کنید یا عکس برگهٔ آزمایش را آپلود کنید و
@@ -177,8 +177,8 @@ export default function UploadCard({
         {aiLoading
           ? "در حال تحلیل…"
           : images.length > 1
-          ? `✨ تفسیر ${toFaDigits(images.length)} صفحه · ${etaText(images.length)}`
-          : `✨ تفسیر هوشمند · ${etaText(images.length)}`}
+          ? `تفسیر ${toFaDigits(images.length)} صفحه · ${etaText(images.length)}`
+          : `تفسیر آزمایش · ${etaText(images.length)}`}
       </button>
 
       {/* حالتِ انتظار: پیشرفتِ واقعیِ صفحه‌به‌صفحه، نه نوارِ ساختگی.

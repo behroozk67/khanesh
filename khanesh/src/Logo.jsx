@@ -45,7 +45,7 @@ export default function LogoBadge({ size = 170 }) {
       {/* متن حلقوی بالا */}
       <text fill={ink} fontSize="11" fontWeight="700" letterSpacing="2.5">
         <textPath href="#arcTop" startOffset="50%" textAnchor="middle">
-          {`${BRAND_LATIN} • هوشمند • دقیق`}
+          {`${BRAND_LATIN} • تفسیر آزمایش`}
         </textPath>
       </text>
 
@@ -87,7 +87,7 @@ export default function LogoBadge({ size = 170 }) {
 
       {/* زیرنویس فارسی */}
       <text x="100" y="151" textAnchor="middle" fill={inkSoft} fontSize="8.5" fontWeight="600">
-        همراه و راهنمای هوشمند
+        همراهِ فهمیدنِ آزمایش
       </text>
       <text x="100" y="162" textAnchor="middle" fill={inkSoft} fontSize="8.5" fontWeight="600">
         نتایج آزمایش

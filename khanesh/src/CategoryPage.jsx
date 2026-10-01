@@ -1,7 +1,7 @@
 import { useParams, Navigate } from "react-router-dom";
 import Guide from "./Guide.jsx";
 import { toFaDigits } from "./digits.js";
-import { guideById, TIER } from "./testCatalog.js";
+import { guideById, tierLabel } from "./testCatalog.js";
 import { CATEGORY_PAGES, SYMPTOMS } from "./guideContent.js";
 
 // صفحهٔ یک دستهٔ آزمایش — «/tests/<id>».
@@ -36,7 +36,7 @@ export default function CategoryPage() {
         // پنل → صفحهٔ همان دسته. `hint` وضعیتِ پوشش را نگه می‌دارد، چون لینک
         // داشتن دیگر معنایش «تفسیر می‌شود» نیست.
         to: it.to,
-        hint: it.tier === "form" ? undefined : TIER[it.tier],
+        hint: tierLabel(it),
       })),
     },
   };

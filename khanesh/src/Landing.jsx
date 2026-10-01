@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { REF, ALL } from "./labRefs.js";
+import { searchHref, searchTests } from "./testSearch.js";
 import { BRAND_FA } from "./Logo.jsx";
 import { LabMateLogo } from "./LabMateLogo.jsx";
+import { FAQ_ITEMS } from "./landingFaqData.jsx";
+import { FaqModal } from "./LandingFaq.jsx";
 import "./site.css";
 
 // ============================================================
@@ -41,7 +43,6 @@ const BRAND = BRAND_FA;
 export default function Landing() {
   return (
     <div className="site" dir="rtl">
-      <Nav />
       <Hero />
       <HowItWorks />
       <FeaturedGuides />
@@ -56,6 +57,9 @@ export default function Landing() {
 // Nav/Footer از این فایل بیرون داده می‌شوند تا «راهنمای آزمایش‌ها» و صفحه‌های
 // مقاله همان سرصفحه و پاصفحه را داشته باشند و دو نسخهٔ واگرا از یک نوارِ
 // ناوبری به وجود نیاید.
+// پیوندهای نوارِ کپسولیِ صفحهٔ محتوا. پیش‌فرضِ PillNav همین است؛ لندینگ
+// پیوندهای لنگریِ خودش را صریحاً می‌فرستد. صادر نمی‌شود تا صادراتِ فایل
+// فقط کامپوننت بماند (هشدارِ fast-refresh در oxlint).
 const NAV_LINKS = [
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
   { to: "/tests", label: "منابع" },
@@ -67,41 +71,106 @@ const NAV_LINKS = [
 //
 // زیر ۹۸۰ پیکسل همین سه بخش داخلِ منوی کشویی می‌روند و فقط نشان و دکمهٔ
 // همبرگری می‌مانند.
-export function Nav() {
-  const [open, setOpen] = useState(false);
+// ⚠️ جست‌وجویی که هیچ‌جا نمی‌رود یک کنترلِ مرده است — و یکی که حینِ تایپ
+//    هیچ نشان نمی‌دهد همین‌طور: قبلاً اینجا فقط نامِ لاتینِ REF می‌گشت و
+//    عبارتِ فارسیِ ناموجود بی‌صدا به «/tests» برمی‌گشت، یعنی از دیدِ کاربر
+//    «جست‌وجو کار نمی‌کند». حالا هم submit و هم پیشنهادهای زنده از ایندکسِ
+//    مشترکِ testSearch.js می‌خوانند: نامِ فارسی/لاتین، توضیح و اسلاگ، با
+//    یکسان‌سازیِ «ي/ك» و ارقامِ فارسی. مقصد را همان ماژول می‌دهد (searchHref)
+//    تا Enter و کلیک روی پیشنهاد به جایِ مختلف نروند: آزمایشِ فرمی → خانهٔ
+//    ورودِ دستیِ همان آزمایش در برنامه، بقیه → صفحهٔ راهنمایشان.
+//
+//    منطق در یک جا می‌نشیند چون حالا دو نوارِ سرصفحه (کپسولی و معمولی) هر دو
+//    سرچ دارند؛ رفتارِ دوگانه یعنی دو نسخهٔ واگرا از یک جستجو.
+function useTestSearch() {
   const [q, setQ] = useState("");
   const navigate = useNavigate();
 
-  // ⚠️ جست‌وجویی که هیچ‌جا نمی‌رود یک کنترلِ مرده است. این یکی نامِ آزمایش را
-  //    در همان جدولِ ورودِ دستی می‌گیرد و اگر پیدا شد مستقیم همان خانهٔ فرم را
-  //    باز می‌کند («/?test=<key>»)، وگرنه فهرستِ کاملِ آزمایش‌ها را نشان می‌دهد.
-  function onSearch(e) {
+  function submit(e) {
     e.preventDefault();
-    const needle = q.trim().toLowerCase();
-    setOpen(false);
-    if (!needle) { navigate("/tests"); return; }
-    const hit = ALL.find(
-      (k) => REF[k].label.toLowerCase().includes(needle) || k.includes(needle)
-    );
-    navigate(hit ? `/app?test=${hit}` : "/tests");
+    const hit = searchTests(q, 1)[0];
+    // بی‌نتیجه: به فهرستِ کامل. پیامِ «پیدا نشد» را خودِ پیشنهادهای زنده
+    // حینِ تایپ نشان می‌دهند، پس اینجا سکوتِ بی‌بازخورد معنا ندارد.
+    navigate(hit ? searchHref(hit) : "/tests");
   }
 
-  const search = (id) => (
-    <form className="site-search" role="search" onSubmit={onSearch}>
+  return { q, setQ, submit };
+}
+
+// خانهٔ جستجو + پیشنهادهای زنده. dir="rtl" روی خودِ فرم عمدی است: نوارِ
+// کپسولی dir="ltr" دارد (چیدمانِ فیزیکیِ طرحِ مرجع)، و بدونِ این، آیکن به
+// سمتِ چپِ ورودی می‌رفت و متنِ فارسی چپ‌چین می‌شد — یعنی همان خانه در دو
+// صفحه دو شکلِ مختلف.
+function SearchForm({ id, q, setQ, onSubmit }) {
+  const [open, setOpen] = useState(false);
+  const hits = useMemo(() => searchTests(q, 8), [q]);
+  const typed = q.trim().length >= 2;   // همان دستِ کمِ testSearch (MIN_LEN)
+  const show = open && typed;
+
+  return (
+    <form
+      className="site-search"
+      role="search"
+      dir="rtl"
+      onSubmit={onSubmit}
+      // بیرون‌رفتنِ فوکوس از خانه (کلیک روی نتیجه یا جایِ خالی) پیشنهاد را
+      // می‌بندد؛ جلوی mousedown تا پیش از کلیک بسته نشود.
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false); }}
+      onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
+    >
       <label className="sr-only" htmlFor={id}>جست‌وجوی نام آزمایش</label>
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-        <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
-        <path d="M16.5 16.5 L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      </svg>
+      {/* آیکن داخلِ دکمهٔ submit است: کلیکِ روی ذره‌بین باید جست‌وجو کند،
+          نه اینکه بی‌اثر باشد (svg با pointer-events: none کلیک را نمی‌گرفت). */}
+      <button className="site-search-go" type="submit" aria-label="جست‌وجو">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+          <path d="M16.5 16.5 L21 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </button>
       <input
         id={id}
         type="search"
         value={q}
-        onChange={(e) => setQ(e.target.value)}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
         placeholder="جست‌وجوی آزمایش"
+        autoComplete="off"
+        enterKeyHint="search"
+        aria-expanded={show}
+        aria-controls={`${id}-pop`}
       />
+      {show && (
+        <ul className="site-search-pop" id={`${id}-pop`} aria-live="polite">
+          {hits.length ? (
+            hits.map((it) => (
+              <li key={it.n}>
+                {/* mousedown روی خودِ پیشنهاد جلوی blurِ زودهنگام را می‌گیرد؛
+                    onMouseDown لازم است چون preventDefault روی لینک، کلیکِ
+                    معمولی/میانی را هم نادیده نمی‌گیرد — فقط فوکوس را نگه می‌دارد. */}
+                <Link to={searchHref(it)} onMouseDown={(e) => e.preventDefault()} onClick={() => setOpen(false)}>
+                  <b>{it.n}</b>
+                  {it.d && <span>{it.d}</span>}
+                </Link>
+              </li>
+            ))
+          ) : (
+            <li className="site-search-note">
+              آزمایشی با این نام پیدا نشد. نامِ لاتین یا بخشی از آن را امتحان کنید.
+            </li>
+          )}
+        </ul>
+      )}
     </form>
   );
+}
+
+export function Nav() {
+  const [open, setOpen] = useState(false);
+  const { q, setQ, submit } = useTestSearch();
+
+  // بستنِ منوی کشویی پس از جستجو بخشِ همین نوار است، نه منطقِ جستجو.
+  const onSearch = (e) => { submit(e); setOpen(false); };
+  const search = (id) => <SearchForm id={id} q={q} setQ={setQ} onSubmit={onSearch} />;
 
   return (
     <nav className="site-nav">
@@ -151,135 +220,284 @@ export function Nav() {
   );
 }
 
-// ویدیوی هیرو: یک بار پخش می‌شود و روی آخرین فریم (صفحهٔ تفسیر) می‌ماند، نه حلقه.
-// با prefers-reduced-motion فقط همان فریمِ آخر نشان داده می‌شود. صفحهٔ تبلت در
-// ویدیو ساختهٔ مدل نیست؛ فریم‌به‌فریم جایگزین شده (جزئیات در public/lab/CREDITS.md).
-const HERO_ALT = "دست‌هایی تبلتی را گرفته‌اند که ابتدا بارگذاریِ برگهٔ آزمایش و سپس تفسیرِ یک آزمایش را در آزمایار نشان می‌دهد";
-function HeroVideo() {
-  const [still] = useState(
-    () => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-  );
-  if (still) {
-    return <img src="/lab/hero-tablet-poster.webp" alt={HERO_ALT} width="640" height="800" />;
-  }
+// هیروی تمام‌عرض: عکس پس‌زمینه است و متن روی آن می‌نشیند. نوارِ کپسولیِ بالا فقط
+// در همین صفحه است؛ Nav صادرشده در بالای فایل سرصفحهٔ بقیهٔ صفحه‌هاست.
+// ⚠️ تصویر تولیدِ مدل است و رابطِ روی تبلتش ساختگی است (جزئیات در public/lab/CREDITS.md).
+const HERO_ALT = "مردی روی مبل نشسته و تبلتی در دست دارد که نمایی از شاخص‌های آزمایش را نشان می‌دهد";
+
+const HERO_LINKS = [
+  { to: "/tests", label: "راهنمای آزمایش‌ها" },
+  { href: "#faq", label: "پرسش‌های متداول" },
+  { href: "#basis", label: "منابع و استانداردها" },
+];
+
+// منوی تمام‌صفحهٔ کنارِ دکمهٔ نُه‌نقطه: ورقِ سفیدِ گرد، عنوان، دکمه، پیوندهای درشت و دو ستونِ کوچک.
+// ⚠️ فقط به صفحه‌هایی لینک می‌دهد که وجود دارند؛ چیزی از طرحِ مرجع (وبلاگ، فرصت‌های شغلی…) نیامده.
+const MENU_MAIN = [
+  { to: "/tests", label: "راهنمای آزمایش‌ها" },
+  { href: "#how", label: "چطور کار می‌کند" },
+  { href: "#faq", label: "پرسش‌های متداول" },
+  { href: "#basis", label: "منابع و استانداردها" },
+];
+const MENU_COLS = [
+  {
+    h: "بیشتر بدانید",
+    items: [
+      { to: "/how-to-capture", label: "عکس‌برداری از برگه" },
+      { to: "/reference-ranges", label: "محدودهٔ مرجع" },
+      { to: "/units-guide", label: "واحدهای آزمایش" },
+    ],
+  },
+  {
+    h: "دسته‌های آزمایش",
+    items: [
+      { to: "/tests/thyroid", label: "تیروئید" },
+      { to: "/tests/cardiac", label: "قلب و چربی خون" },
+      { to: "/tests/hormone", label: "هورمون‌ها" },
+    ],
+  },
+];
+
+function DotsIcon({ open }) {
+  // بسته: نُه نقطهٔ پُر. باز: الگوی شطرنجی با نقطه‌های کم‌رنگ، مثل طرحِ مرجع.
   return (
-    <video autoPlay muted playsInline preload="auto" poster="/lab/hero-tablet-poster.webp"
-           width="640" height="800" aria-label={HERO_ALT}>
-      <source src="/lab/hero-tablet.mp4" type="video/mp4" />
-      <source src="/lab/hero-tablet.webm" type="video/webm" />
-    </video>
+    <span className={open ? "lh-dots is-open" : "lh-dots"} aria-hidden="true">
+      {Array.from({ length: 9 }, (_, i) => <i key={i} />)}
+    </span>
+  );
+}
+
+// نوارِ کپسولی — سرصفحهٔ لندینگ و صفحه‌هایی که همان چیدمان را می‌خواهند
+// (الان /tests). ⚠️ نسخهٔ دومِ این نوار نسازید: هر تغییرِ دیداری باید هر دو
+// صفحه را یک‌جا عوض کند؛ تفاوتِ دو صفحه فقط در همین چهار پراپ است.
+//   links      → پیوندهای داخلِ کپسول (پیش‌فرض: پیوندهای نوارِ معمولی؛ لندینگ
+//                لنگرهای داخلیِ خودش را می‌فرستد)
+//   sheetMain  → پیوندهای منوی نُه‌نقطه (پیش‌فرض: همان پیوندهای داخلِ کپسول)
+//   withSearch → خانهٔ جستجو داخلِ کپسول و داخلِ منو (زیرِ ۹۸۰ فقط داخلِ منو)
+//   page       → روی صفحهٔ محتوایی؛ چند قاعدهٔ بُعدیِ فقط-آن-صفحه را روشن می‌کند
+export function PillNav({ links = NAV_LINKS, sheetMain = links, withSearch = false, page = false }) {
+  const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const { q, setQ, submit } = useTestSearch();
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const close = () => setOpen(false);
+  // جستجو هم منوی نُه‌نقطه را می‌بندد، هم به مقصد می‌رود (رفتارِ نوارِ معمولی).
+  const onSearch = (e) => { submit(e); close(); };
+  const item = (l, cls) =>
+    l.to ? (
+      <Link key={l.label} to={l.to} className={cls} onClick={close}>{l.label}</Link>
+    ) : (
+      <a key={l.label} href={l.href} className={cls} onClick={close}>{l.label}</a>
+    );
+
+  // dir="ltr" روی خودِ nav: چیدمانِ فیزیکیِ طرحِ مرجع (نُه‌نقطه سمتِ چپ، دکمهٔ
+  // اصلی سمتِ راست) مستقل از زبانِ صفحه است؛ متنِ داخلِ خودشان rtl دارند.
+  return (
+    <nav
+      dir="ltr"
+      className={
+        [scrolled ? "lh-nav" : "lh-nav lh-nav--top", page ? "lh-nav--page" : ""]
+          .filter(Boolean)
+          .join(" ")
+      }
+      aria-label="ناوبری اصلی"
+    >
+      <button
+        type="button"
+        className="lh-grid"
+        aria-label="باز کردن منو"
+        aria-expanded={open}
+        aria-controls="lh-menu"
+        onClick={() => setOpen(true)}
+      >
+        <DotsIcon open={false} />
+      </button>
+
+      <div className="lh-pill">
+        {/* ستونِ اول: لینک‌ها و — فقط وقتی withSearch — خانهٔ جستجو.
+            لینک‌ها همان `direction: rtl` قبلی را دارند؛ ظرفِ جدید فقط
+            جایِ دو فرزند در یک ستونِ grid است. */}
+        <div className="lh-pill-start">
+          <div className="lh-pill-links">{links.map((l) => item(l))}</div>
+          {withSearch && <SearchForm id="pill-q" q={q} setQ={setQ} onSubmit={onSearch} />}
+        </div>
+        <Link to="/landing" className="lh-pill-brand" aria-label={BRAND}>
+          {scrolled ? <span className="lh-pill-name">{BRAND}</span> : <LabMateLogo height={83} variant="dark" />}
+        </Link>
+        <Link to="/app" className="lh-pill-cta">
+          <span>تحلیل نتایج من</span>
+          {/* پیکان به چپ = «جلو» در متنِ راست‌به‌چپ؛ خطیِ نازک، داخلِ دایرهٔ روشن */}
+          <i className="lh-pill-cta-ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+                 strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M11 6l-6 6 6 6" />
+            </svg>
+          </i>
+        </Link>
+      </div>
+
+      {open && (
+        <>
+          <div className="lh-scrim" onClick={close} aria-hidden="true" />
+          <div id="lh-menu" className="lh-sheet" role="dialog" aria-modal="true" aria-label="منو" dir="rtl">
+            <div className="lh-sheet-head">
+              <h2>منو</h2>
+              <Link to="/app" className="lh-sheet-cta" onClick={close}>تحلیل نتایج من</Link>
+              <button type="button" className="lh-sheet-x" aria-label="بستن منو" onClick={close} autoFocus>
+                <DotsIcon open />
+              </button>
+            </div>
+            {/* زیرِ ۹۸۰ خانهٔ جستجوی داخلِ کپسول پنهان است، پس تنها راهِ
+                دیدنش همین‌جاست — همان الگوی نوارِ معمولی (site-menu). */}
+            {withSearch && (
+              <div className="lh-sheet-search">
+                <SearchForm id="pill-menu-q" q={q} setQ={setQ} onSubmit={onSearch} />
+              </div>
+            )}
+            <p className="lh-sheet-h">کاوش</p>
+            <div className="lh-sheet-main">{sheetMain.map((l) => item(l))}</div>
+            <div className="lh-sheet-cols">
+              {MENU_COLS.map((c) => (
+                <div key={c.h}>
+                  <p className="lh-sheet-h">{c.h}</p>
+                  {c.items.map((l) => item(l))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </nav>
   );
 }
 
 function Hero() {
-  // ⚠️ ترتیب نسبت به نسخهٔ قبل عوض شد. آنجا هر سه بندِ معرفی داخلِ یک کادرِ
-  //    حاشیه‌دار **بالای** <h1> می‌نشستند، به این نیت که خواننده اول بفهمد
-  //    ابزار چه می‌کند و چه نمی‌کند و بعد به دکمه برسد. آن نیت درست است ولی
-  //    راهش این نبود: کادر پیش از تیتر، هم عنوانِ صفحه را از نگاهِ اول حذف
-  //    می‌کرد و هم برای کاربرِ اسکرین‌ریدر <h1> را پشتِ یک بلوکِ متنی می‌بُرد.
-  //    حالا تیتر اول است و هر سه بند بلافاصله زیرِ آن — دکمه همچنان بعد از
-  //    همهٔ متن می‌آید، پس همان نیت حفظ شده است.
+  const [faq, setFaq] = useState(null);
   return (
-    <header className="site-wrap site-hero">
-      <div className="site-hero-grid">
-        <div>
-          {/* ⚠️ بدونِ <br /> عمدی. تیتر ۴۵ نویسه است و .site-hero h1 هم
-              text-wrap: balance دارد، پس مرورگر خودش دو سطرِ هم‌وزن می‌سازد و
-              نقطهٔ شکست را روی همان ویرگول می‌گذارد. با <br />ِ دستی سه سطر
-              می‌شد و «را بفهمید،» تنها روی سطرِ دوم می‌ماند — اندازه‌گیری‌شده
-              در ۱۲۸۰ پیکسل. */}
-          <h1>جواب آزمایشتان را بفهمید، آگاهانه تصمیم بگیرید</h1>
+    <header className="lh" dir="ltr">
+      <img className="lh-bg" src="/lab/labmate_hero_mockup.webp" alt={HERO_ALT}
+           width="2752" height="1929" fetchpriority="high" decoding="async" />
+      <PillNav links={HERO_LINKS} sheetMain={MENU_MAIN} />
 
-          <p className="site-hero-lede">
-            {BRAND} نتیجهٔ آزمایش شما را با زبانی ساده و روشن توضیح می‌دهد: اینکه هر عدد دقیقاً
-            چه چیزی را می‌سنجد، محدودهٔ طبیعی آن کجاست و اگر خارج از این محدوده باشد چه معنایی دارد.
-          </p>
-          <p className="site-hero-lede">
-            ما ده‌ها آزمایش رایج را پوشش داده‌ایم. برای اطمینان خاطر شما، محدوده‌های مرجع از معتبرترین
-            منابع پزشکی استخراج شده‌اند و وضعیت طبیعی یا غیرطبیعی بودن نتایج توسط یک سیستم دقیقِ علمی
-            سنجیده می‌شود، نه هوش مصنوعی. نقش هوش مصنوعی در اینجا، تنها ساده‌سازی این یافته‌های تخصصی برای شماست.
+      <div className="lh-body">
+        <div className="lh-copy" dir="rtl">
+          <h1>فهمِ آزمایش، با زبانی روشن و منبعی معتبر</h1>
+          <p className="lh-sub">
+            برگهٔ آزمایش را عکس بگیرید یا عددها را وارد کنید؛ شرحی روشن و منبع‌دار دریافت می‌کنید.
           </p>
 
-          <div className="site-intro">
-            <p className="site-intro-fine">
-              {BRAND} جای پزشک را نمی‌گیرد و تشخیص نمی‌دهد. هدفش این است که آماده‌تر و با
-              پرسش‌های روشن‌تر به ویزیت بروید. محدودیت‌ها و منابع را{" "}
-              <Link to="/tests">اینجا</Link> بخوانید.
-            </p>
+          <div className="lh-faq" id="faq">
+            {/* فقط سه پرسشِ اول روی هیرو؛ بقیه در ستونِ کناریِ ورقِ پرسش‌ها هستند (اندیس‌ها یکی‌اند). */}
+            {FAQ_ITEMS.slice(0, 3).map((f, i) => (
+              <button key={f.q} type="button" className="lh-acc lh-acc-btn"
+                      aria-haspopup="dialog" onClick={() => setFaq(i)}>
+                <span>{f.q}</span><i aria-hidden="true" />
+              </button>
+            ))}
           </div>
 
-          <Link to="/tests" className="btn btn--primary btn--pill btn--lg">همهٔ آزمایش‌ها</Link>
+          <p className="lh-fine">
+            {BRAND} جایگزین پزشک نیست و بیماری را تشخیص نمی‌دهد. محدودیت‌ها و منابع را{" "}
+            <a href="#basis">اینجا</a> بخوانید.
+          </p>
         </div>
 
-        <div className="site-figure site-figure--hero">
-          <HeroVideo />
-        </div>
       </div>
+
+      {faq !== null && <FaqModal index={faq} onSelect={setFaq} onClose={() => setFaq(null)} />}
     </header>
   );
 }
 
+// چهار گامِ کار: عکس + کارتِ شیشه‌ایِ شناور + عنوان و توضیح زیرِ عکس.
+// ⚠️ کارت‌های شناور نمونهٔ توضیحی‌اند، نه نتیجهٔ واقعی؛ زیرِ شبکه هم همین نوشته شده.
+// عکس‌ها تزئینی‌اند (alt خالی): معنا را عنوان و کارتِ شیشه‌ای می‌رساند.
 function HowItWorks() {
+  const steps = [
+    {
+      img: "/lab/res-1.webp",
+      t: "عکس یا ورودِ عددها",
+      d: "از برگه عکس بگیرید (تا پنج عکس) یا مقدارها را خودتان تایپ کنید.",
+      glass: (
+        <>
+          <div className="hw-glass-t"><span>برگهٔ آزمایش بارگذاری شد</span><b aria-hidden="true">✓</b></div>
+          <div className="hw-glass-s">۳ صفحه · عددها خوانده شد</div>
+        </>
+      ),
+    },
+    {
+      img: "/lab/lab_modern_tech.webp",
+      t: "سنجش با منابعِ معتبر",
+      d: "هر عدد با محدودهٔ مرجعِ متناسب با سن و جنسِ شما سنجیده می‌شود و نامِ راهنما کنارِ یافته می‌آید.",
+      glass: (
+        <>
+          <div className="hw-glass-t"><span>هموگلوبین ۱۱٫۲</span><em className="hw-chip hw-chip--warn">پایین‌تر از محدوده</em></div>
+          <div className="hw-glass-s">محدودهٔ مرجع ۱۲ تا ۱۶ · منبع: Henry's</div>
+        </>
+      ),
+    },
+    {
+      img: "/lab/labmate_hero_mockup.webp", pos: "38% center",
+      t: "شرحی روشن",
+      d: "عددها کنارِ هم دیده می‌شوند: هموگلوبینِ پایین در کنارِ MCV و فریتینِ پایین معنایی دیگر دارد.",
+      glass: (
+        <>
+          <div className="hw-glass-t"><span>الگوی کمبودِ آهن مطرح است</span></div>
+          <div className="hw-glass-s">هموگلوبین، MCV و فریتین هر سه پایین‌اند</div>
+        </>
+      ),
+    },
+    {
+      img: "/lab/couple.webp",
+      t: "گامِ بعدی",
+      d: "می‌گوییم چه آزمایشی تکرار شود و چه چیزهایی را به پزشک بگویید؛ مقدارِ نگران‌کننده اول از همه می‌آید.",
+      glass: (
+        <>
+          <div className="hw-glass-t"><span>برای گفت‌وگو با پزشک</span><em className="hw-chip hw-chip--ok">آماده</em></div>
+          <div className="hw-glass-s">آزمایش فریتین · سابقهٔ خونریزی و رژیم غذایی</div>
+        </>
+      ),
+    },
+  ];
   return (
     <section className="site-wrap site-sec" id="how">
-      <h2 className="site-h2" style={{ marginBottom: "3rem", marginTop: "-1rem" }}>فرآیند تحلیل نتایج</h2>
-
-      {/* پنل جایگزین‌شده مشابه اسکرین‌شات (دوستونی با گوشهٔ گرد) */}
-      <div className="site-how-hero">
-        <div className="site-how-hero-content">
-          <h3>تحلیل هوشمند، تصمیم‌گیری آگاهانه</h3>
-          <p>
-            پشت هر عدد در برگه آزمایش، پیامی درباره سلامتی شما نهفته است. سیستم هوشمند ما این اعداد را از زبان پزشکی به زبان ساده ترجمه می‌کند تا دقیقاً بدانید هر فاکتور چه معنایی دارد و وضعیت سلامتی‌تان در چه سطحی است.
-          </p>
-          <Link to="/tests" className="btn btn--secondary btn--pill">راهنمای آزمایش‌ها</Link>
-        </div>
-        <div className="site-how-hero-image">
-          <img src="/lab/couple.webp" alt="یک زوج جوان خندان" width="1024" height="1024" decoding="async" />
-        </div>
+      <div className="hw-head">
+        <h2 className="site-h2">از برگهٔ آزمایش تا شرحی روشن</h2>
+        <p>همه‌چیز با یک عکس از برگه شروع می‌شود.</p>
       </div>
 
-      <Band tone="warm" />
-
-      <div className="site-block">
-        <h3 className="site-h3">نگاه جامع به نتایج، نه فقط یک عدد ساده</h3>
-        <p>
-          بدن شما یک سیستم یکپارچه است و ما نیز نتایج آزمایش شما را با همین رویکرد بررسی می‌کنیم. سیستم هوشمند ما فراتر از ارزیابی تک‌تک اعداد عمل کرده و با تحلیل ارتباط میان شاخص‌های مختلف، تصویری دقیق و جامع از وضعیت سلامتی‌تان ارائه می‌دهد. ما الگوهای پنهان را شناسایی می‌کنیم تا شما با اطمینان و آرامش خاطر، درک کاملی از شرایط خود داشته باشید.
-        </p>
+      <div className="hw-grid">
+        {steps.map((s, i) => (
+          <article className="hw-card" key={s.t}>
+            <div className="hw-media">
+              <img src={s.img} alt="" loading="lazy" decoding="async" width="1024" height="1024"
+                   style={s.pos ? { objectPosition: s.pos } : undefined} />
+              <span className="hw-badge" aria-hidden="true">{["۱", "۲", "۳", "۴"][i]}</span>
+              <div className="hw-glass">{s.glass}</div>
+            </div>
+            <h3>{s.t}</h3>
+            <p>{s.d}</p>
+          </article>
+        ))}
       </div>
 
-      <div className="site-panel site-panel--soft">
-        <h3>پشت هر یافته، منبعش هم نوشته می‌شود</h3>
-        <p>
-          دقت و شفافیت، پایه و اساس تحلیل‌های ماست. هر آستانه و تفسیری که دریافت می‌کنید، مستقیماً به معتبرترین استانداردهای بالینی جهانی ارجاع داده شده و منبع علمی آن در کنار هر یافته درج می‌شود. همچنین، اگر عوامل محیطی مانند ناشتا نبودن یا شرایط خاص نمونه‌گیری بر نتایج اثر گذاشته باشند، با شفافیت کامل به شما اطلاع می‌دهیم تا هیچ ابهامی در درک اعداد باقی نماند.
-        </p>
-      </div>
-
-      <Band tone="cool" />
-
-      <div className="site-block">
-        <h3 className="site-h3">قدم بعدی را آگاهانه بردارید</h3>
-        <p>
-          جواب آزمایش پایان راه نیست، بلکه نقطه شروعی برای سلامتی شماست. ما به شما می‌گوییم هر یافته چه معنایی دارد، چه زمانی نیاز به تکرار آزمایش است و دقیقاً چه نکاتی را با پزشک خود در میان بگذارید.
-        </p>
-        <Link to="/app" className="btn btn--secondary btn--pill">تحلیل نتایج من</Link>
+      <p className="hw-note">کارت‌های روی عکس‌ها نمونه‌اند و برای توضیحِ روند آمده‌اند؛ نتیجهٔ آزمایشِ واقعی نیستند.</p>
+      <div className="hw-cta">
+        <Link to="/app" className="btn btn--primary btn--pill btn--lg">تحلیل نتایج من</Link>
       </div>
     </section>
-  );
-}
-
-// قابِ تصویریِ عریض میانِ بخش‌ها. عکس‌ها واقعی‌اند و از Unsplash با پروانهٔ
-// آزاد؛ اعتبارِ هر عکس در public/lab/CREDITS.md ثبت شده است.
-const BANDS = {
-  warm: { src: "/lab/doctor-tablet.webp", alt: "پزشک زن در حال بررسی اطلاعات پزشکی در تبلت" },
-  cool: { src: "/lab/lab_modern_tech.webp", alt: "محیط مدرن آزمایشگاهی با تمرکز بر فناوری‌های پیشرفته" },
-};
-
-function Band({ tone }) {
-  const b = BANDS[tone];
-  return (
-    <div className="site-figure site-figure--band">
-      <img src={b.src} alt={b.alt} loading="lazy" decoding="async" width="1440" height="480" />
-    </div>
   );
 }
 
@@ -294,21 +512,21 @@ function FeaturedGuides() {
       tone: "deep", kicker: "تیروئید", kicker2: "آزمایش",
       img: "/lab/thyroid_card.webp",
       t: "آزمایش عملکرد تیروئید",
-      d: "TSH و T4 نشان می‌دهند تیروئید چقدر فعال است. این راهنما توضیح می‌دهد هر عدد چه چیزی را می‌سنجد و چرا معمولاً TSH اولین آزمایشی است که پزشک درخواست می‌کند.",
+      d: "TSH و T4 نشان می‌دهند تیروئید کم‌کار است یا پرکار. این راهنما شرح می‌دهد هر شاخص چه چیزی را می‌سنجد و چرا پزشک معمولاً نخست TSH را درخواست می‌کند.",
       to: "/tests/thyroid",
     },
     {
       tone: "soft", kicker: "شمارش", kicker2: "کامل خون",
       img: "/lab/cbc_card.webp",
       t: "شمارش کامل خون (CBC)",
-      d: "CBC گلبول‌های قرمز، گلبول‌های سفید و پلاکت‌ها را می‌شمارد و شاخص‌هایی مثل MCV و MCH را به دست می‌دهد؛ همان‌هایی که انواع کم‌خونی را از هم جدا می‌کنند.",
+      d: "شمارش کامل خون سه رده را می‌سنجد: گلبول قرمز (حمل اکسیژن)، گلبول سفید (دفاع در برابر عفونت) و پلاکت (انعقاد). شاخص‌هایی چون MCV و MCH نوعِ کم‌خونی را از یکدیگر بازمی‌شناسانند.",
       to: "/tests/wellness",
     },
     {
       tone: "warm", kicker: "قند", kicker2: "و دیابت",
       img: "/lab/diabetes_card.webp",
       t: "قند خون و HbA1c",
-      d: "قند ناشتا وضعیت همان لحظه را نشان می‌دهد و HbA1c میانگین حدود سه ماه گذشته را. آستانه‌های این راهنما بر پایهٔ راهنمای ADA است.",
+      d: "قند ناشتا وضعیتِ همان لحظه را نشان می‌دهد و HbA1c میانگینِ سه ماهِ اخیر را. آستانه‌ها از راهنمای ADA برگرفته شده است.",
       to: "/tests/disease",
     },
   ];
@@ -351,12 +569,12 @@ function ReviewBasis() {
     { k: "I", n: "IFCC / EFLM", r: "واحدهای SI و تغییر معنادار نتیجه" },
   ];
   return (
-    <section className="site-basis">
+    <section className="site-basis" id="basis">
       <div className="site-wrap site-sec">
-        <h2 className="site-h2">اعداد بر چه مبنایی بررسی می‌شوند</h2>
+        <h2 className="site-h2">مبنای علمی</h2>
         <p className="site-lede">
-          {BRAND} هیئت بازبینی پزشکی ندارد و چنین ادعایی هم نمی‌کند. آنچه پشت هر عدد ایستاده
-          همین منابع منتشرشده است، و منبع هر یافته کنار خودش نشان داده می‌شود.
+          {BRAND} هیئت بازبینی پزشکی ندارد و چنین ادعایی نیز نمی‌کند. مبنای کار همین منابعِ
+          منتشرشده است و منبعِ هر یافته در کنارِ آن نمایش داده می‌شود.
         </p>
         <div className="site-basis-grid">
           {sources.map((s) => (
@@ -384,10 +602,10 @@ function Resources() {
           <div className="site-figure">
             <img src="/lab/res-1.webp" alt="دست‌های دستکش‌پوش، دو لولهٔ نمونهٔ خون را بالای سانتریفیوژ نگه داشته‌اند" loading="lazy" decoding="async" width="1024" height="1024" />
           </div>
-          <h3>چطور از برگهٔ آزمایش عکس بگیریم</h3>
+          <h3>شیوهٔ عکس‌برداری از برگهٔ آزمایش</h3>
           <p>
-            نور یکنواخت باشد، برگه صاف و بدون سایه بیفتد، و اگر چند صفحه است همه را با هم
-            بفرستید. هر عددی که درست خوانده نشود، درست هم تفسیر نمی‌شود.
+            برگه را بر سطحی صاف، زیرِ نورِ یکنواخت و بی‌سایه قرار دهید و اگر چندصفحه‌ای است،
+            همهٔ صفحات را با هم بفرستید. عددی که درست خوانده نشود، درست تفسیر هم نخواهد شد.
           </p>
           <Link className="site-more" to="/how-to-capture">بیشتر بدانید ←</Link>
         </article>
@@ -397,9 +615,9 @@ function Resources() {
           <div className="site-figure">
             <img src="/lab/res-2.webp" alt="جالوله‌ای پر از لوله‌های نمونهٔ خون با درپوش‌های آبی، سبز، قرمز و بنفش" loading="lazy" decoding="async" width="1024" height="1024" />
           </div>
-          <h3>مقادیر مرجع (رنج نرمال) به چه معناست؟</h3>
+          <h3>محدودهٔ مرجع (رنج نرمال) به چه معناست؟</h3>
           <p>
-            پشت هر عدد در برگه آزمایش شما، یک «محدودهٔ مرجع» یا رنج نرمال قرار دارد. اما برخلاف تصور رایج، قرار گرفتن عدد شما خارج از این محدوده همیشه به معنای بیماری نیست؛ همان‌طور که طبیعی بودن آن هم تضمین‌کنندهٔ سلامت کامل نخواهد بود. در این نوشته با زبانی ساده توضیح داده‌ایم که این محدوده‌ها چگونه تعیین می‌شوند و چرا از یک آزمایشگاه به آزمایشگاه دیگر متفاوت‌اند.
+            در کنارِ هر مقدار روی برگه، یک «محدودهٔ مرجع» (همان رنجِ نرمال) چاپ شده است. بیرون از محدوده بودن همواره نشانهٔ بیماری نیست و درون آن بودن نیز سلامتِ کامل را تضمین نمی‌کند. این نوشته توضیح می‌دهد این محدوده‌ها چگونه تعیین می‌شوند و چرا از آزمایشگاهی به آزمایشگاهِ دیگر تفاوت دارند.
           </p>
           <Link className="site-more" to="/reference-ranges">بیشتر بدانید ←</Link>
         </article>
@@ -410,9 +628,9 @@ function Resources() {
           </div>
           <h3>واحدهای SI و واحدهای متعارف</h3>
           <p>
-            اگر برگهٔ شما HbA1c را با mmol/mol نوشته باشد و نتیجه آن را با درصد نشان دهد، این
-            دو عدد شبیه یک اشتباه به نظر می‌رسند. برای همین هر تبدیل واحدی که انجام شود، کنارِ
-            عدد اصلیِ برگه نشان داده می‌شود.
+            اگر برگه HbA1c را بر حسبِ mmol/mol گزارش کرده باشد و نتیجه با درصد نمایش داده شود،
+            دو عددِ ناهمخوان به نظر می‌رسند. از این رو هر تبدیلِ واحد در کنارِ مقدارِ اصلیِ
+            برگه نشان داده می‌شود.
           </p>
           <Link className="site-more" to="/units-guide">بیشتر بدانید ←</Link>
         </article>
@@ -430,11 +648,11 @@ function Updates() {
       <article className="site-news">
         <div>
           <span className="site-news-date">۵ مرداد ۱۴۰۵</span>
-          <h3>لایهٔ استانداردها به موتور اضافه شد</h3>
+          <h3>اکنون منبعِ هر یافته نیز ذکر می‌شود</h3>
           <p>
-            از این نسخه، هر آستانه‌ای که از یک راهنمای منتشرشده آمده باشد، منبعش کنار همان
-            یافته نوشته می‌شود. تبدیل واحدهای SI، نکته‌های کیفیت نمونه بر پایهٔ CLSI و
-            «کمترین تغییر معنادار» بر پایهٔ EFLM هم به نتیجه اضافه شدند.
+            از این نسخه، هر آستانه‌ای که برگرفته از راهنمایی منتشرشده باشد، منبعِ آن در کنارِ
+            همان یافته می‌آید. تبدیلِ واحدهای SI، نکاتِ کیفیتِ نمونه (CLSI) و «کمترین تغییرِ
+            معنادار» (EFLM) نیز به نتیجه افزوده شد.
           </p>
           <Link className="site-more" to="/app">بیشتر بدانید ←</Link>
         </div>
@@ -454,7 +672,7 @@ export function Footer() {
           <LabMateLogo height={52} variant="light" />
         </Link>
         <p>
-          {BRAND} جایگزین مشورت، تشخیص یا درمان پزشکی نیست. برای هر تصمیم درمانی با پزشک
+          {BRAND} جایگزین مشاورهٔ پزشکی، تشخیص یا درمان نیست؛ برای هر تصمیمِ درمانی با پزشک
           مشورت کنید. بخشی از متن‌های آموزشی از{" "}
           <a href="https://medlineplus.gov" target="_blank" rel="noopener noreferrer">MedlinePlus</a>{" "}
           (کتابخانهٔ ملی پزشکی آمریکا) گرفته شده است.

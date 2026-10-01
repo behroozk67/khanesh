@@ -451,7 +451,7 @@ export default function Tafsir() {
             این ابزار آموزشی است و جایگزین پزشک نیست.
           </p>
           <p>
-            بخشی از اطلاعات تفسیر هوشمند از{" "}
+            بخشی از اطلاعاتِ توضیحی از{" "}
             <a href="https://medlineplus.gov" target="_blank" rel="noopener noreferrer" className="link">
               MedlinePlus.gov
             </a>{" "}

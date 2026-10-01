@@ -1,6 +1,6 @@
 import { Navigate } from "react-router-dom";
 import Guide from "./Guide.jsx";
-import { extraBySlug, TIER } from "./testCatalog.js";
+import { extraBySlug, tierLabel } from "./testCatalog.js";
 import { CATEGORY_PAGES } from "./guideContent.js";
 import { EXTRA_TESTS } from "./content/extraTests.js";
 import { SRC } from "./sources.js";
@@ -188,7 +188,7 @@ export default function ExtraTestPage({ slug }) {
       .map((it) => ({
         n: it.n,
         to: it.to,
-        hint: it.tier === "form" ? undefined : TIER[it.tier],
+        hint: tierLabel(it),
       })),
   };
 

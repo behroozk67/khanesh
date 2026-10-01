@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toFaDigits } from "./digits.js";
 import { BRAND_FA } from "./Logo.jsx";
-import { Nav, Footer } from "./Landing.jsx";
-import { GUIDES, TIER, catPath } from "./testCatalog.js";
+import { Footer, PillNav } from "./Landing.jsx";
+import { GUIDES, tierLabel, catPath } from "./testCatalog.js";
 import "./site.css";
 
 // ============================================================
@@ -13,7 +13,7 @@ import "./site.css";
 //   ۲. «راهنماهای منتخب» — دو کارتِ بزرگ با بلوکِ رنگی
 //   ۳. «راهنماهای بیشتر» — شبکهٔ جعبه‌ها؛ هر ۱۷ دسته
 //   ۴. «آزمایش‌های پرکاربرد» روی یک نوارِ فرورفته
-//   ۵. «فهرست الفبایی» — جستجو، نوارِ حروف و ستون‌های حرف‌به‌حرف
+//   ۵. «فهرست الفبایی» — نوارِ حروف و ستون‌های حرف‌به‌حرف
 //
 // فهرستِ آزمایش‌های هر دسته در این صفحه تکرار نمی‌شود؛ هر جعبهٔ بخشِ ۳ به
 // صفحهٔ خودش («/tests/<id>») می‌رود و آن فهرست آنجاست. یک بخشِ پنجمِ جدا که
@@ -132,16 +132,6 @@ const colOf = (label) => {
   if (c >= "A" && c <= "Z") return c;
   return FA_COL;
 };
-// یکسان‌سازیِ متنِ جستجو: حروفِ عربی → فارسی، ارقامِ فارسی/عربی → لاتین، فاصله‌ها.
-const normQ = (x) =>
-  String(x)
-    .replace(/ي/g, "ی")
-    .replace(/ك/g, "ک")
-    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
-    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
-    .replace(/[‌\s]+/g, " ")
-    .trim()
-    .toLowerCase();
 const bucketOf = (col) => (col === FA_COL ? FA_KEY : col >= "A" ? col : HOME_KEY);
 
 export default function Tests() {
@@ -149,7 +139,7 @@ export default function Tests() {
   const azRef = useRef(null);
 
   // فهرستِ الفبایی = همهٔ آزمایش‌های همهٔ دسته‌ها، یکتا‌شده بر اساس نام.
-  const { buckets, total, rows } = useMemo(() => {
+  const { buckets, total } = useMemo(() => {
     const uniq = new Map();
     GUIDES.forEach((g) =>
       g.items.forEach((it) => {
@@ -181,19 +171,7 @@ export default function Tests() {
     return { buckets: out, total: rows.length, rows };
   }, []);
 
-  // ---------- جستجو ----------
-  // روی نام، توضیح و اسلاگ می‌گردد. «ي/ك» عربی و ارقامِ فارسی یکسان می‌شوند تا
-  // تایپ با کیبوردِ عربی یا با ارقامِ فارسی نتیجهٔ خالی ندهد.
-  const [q, setQ] = useState("");
-  const results = useMemo(() => {
-    const t = normQ(q);
-    if (t.length < 2) return null;
-    const words = t.split(" ");
-    return rows.filter((it) => {
-      const hay = normQ(`${it.n} ${it.d || ""} ${it.slug || it.k || ""}`);
-      return words.every((w) => hay.includes(w));
-    });
-  }, [q, rows]);
+  // جستجوی میانِ صفحه حذف شد (بالای فایل)؛ `rows` همچنان پایهٔ سطل‌های الفبایی است.
 
   // کلیدِ نامعتبر در نشانی (?az=ZZ) به حالتِ پیش‌فرض برمی‌گردد، نه به صفحهٔ خالی.
   const asked = (params.get(AZ_PARAM) || "").trim();
@@ -223,8 +201,10 @@ export default function Tests() {
   }, []);
 
   return (
-    <div className="site" dir="rtl">
-      <Nav />
+    // site--pill: جایِ نوارِ کپسولیِ fixed را از بالای صفحه کنار می‌گذارد
+    // (قواعدش در انتهای site.css، کنارِ خودِ نوار).
+    <div className="site site--pill" dir="rtl">
+      <PillNav withSearch page />
 
       {/* ---------- ۱. سربرگ ---------- */}
       <header className="site-wrap site-hero">
@@ -256,52 +236,9 @@ export default function Tests() {
         </div>
       </header>
 
-      {/* ---------- جستجوی آزمایش ---------- */}
-      <section className="site-wrap site-search" aria-label="جستجوی آزمایش">
-        <label htmlFor="test-search" className="site-search-label">
-          دنبالِ آزمایشِ مشخصی هستید؟
-        </label>
-        <input
-          id="test-search"
-          className="site-search-input"
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={`جستجو در ${toFaDigits(total)} آزمایش — مثلاً TSH، فریتین یا کلامیدیا`}
-          autoComplete="off"
-          enterKeyHint="search"
-        />
-        {results && (
-          <div role="status" aria-live="polite">
-            <p className="site-search-count">
-              {results.length
-                ? `${toFaDigits(results.length)} آزمایش پیدا شد`
-                : "آزمایشی با این نام پیدا نشد. نامِ لاتین یا بخشی از آن را امتحان کنید."}
-            </p>
-            {results.length > 0 && (
-              <ul className="site-tests site-search-results">
-                {results.slice(0, 30).map((it) => (
-                  <li key={it.n}>
-                    <Link className={`site-test${it.tier === "form" ? "" : " site-test--info"}`} to={it.to}>
-                      <b>
-                        {it.n}
-                        {it.u && <i>{it.u}</i>}
-                      </b>
-                      {it.d && <p>{it.d}</p>}
-                      <em className={`site-t-${it.tier}`}>
-                        {it.tier === "form" ? "راهنمای آزمایش ←" : `${TIER[it.tier]} — راهنما ←`}
-                      </em>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {results.length > 30 && (
-              <p className="site-search-count">۳۰ نتیجهٔ اول نشان داده شد؛ عبارت را دقیق‌تر کنید.</p>
-            )}
-          </div>
-        )}
-      </section>
+      {/* جستجوی آزمایشِ میانِ صفحه حذف شد: خانهٔ جستجوی داخلِ نوارِ کپسولی
+          (PillNav) تنها نقطهٔ جستجوست؛ دو ورودیِ هم‌نام در یک صفحه، نتیجه را
+          بین دو فهرست تقسیم می‌کرد و «کدام سرچ؟» را از کاربر می‌پرسید. */}
 
       {/* ---------- ۲. راهنماهای منتخب ---------- */}
       <section className="site-wrap site-sec">
@@ -430,7 +367,7 @@ export default function Tests() {
                       </b>
                       {it.d && <p>{it.d}</p>}
                       <em className={`site-t-${it.tier}`}>
-                        {it.tier === "form" ? "راهنمای آزمایش ←" : `${TIER[it.tier]} — راهنما ←`}
+                        {tierLabel(it) ? `${tierLabel(it)} — راهنما ←` : "راهنمای آزمایش ←"}
                       </em>
                     </Link>
                   </li>

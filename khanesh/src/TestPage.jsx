@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { useParams } from "react-router-dom";
 import Guide from "./Guide.jsx";
 import { REF } from "./labRefs.js";
-import { catOfTest, TIER } from "./testCatalog.js";
+import { catOfTest, tierLabel } from "./testCatalog.js";
 import { CATEGORY_PAGES } from "./guideContent.js";
 import { TEST_PAGES } from "./testContent.js";
 import { SRC } from "./sources.js";
@@ -186,7 +186,7 @@ export default function TestPage() {
       .map((it) => ({
         n: it.n,
         to: it.to,
-        hint: it.tier === "form" ? undefined : TIER[it.tier],
+        hint: tierLabel(it),
       })),
   };
 
