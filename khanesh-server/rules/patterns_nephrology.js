@@ -1,5 +1,6 @@
 import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence , epithelialState , squamousSentence } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { canBePregnant } from "./patterns_utils.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
@@ -122,11 +123,13 @@ export const RULES_NEPHROLOGY = [
         esteraseInBacteriuria(e) +
         // specs/006 (FR-023): سلول‌های سنگفرشیِ زیاد همین «آلودگی» را تأیید می‌کنند — یک یافته، یک پیشنهادِ تکرار (M175d).
         squamousSentence(e),
-      action: "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، یا اگر باردار هستید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است.",
+      action: canBePregnant(e)
+        ? "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، یا اگر باردار هستید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است."
+        : "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است.",
       suggest: ["تکرار آزمایش ادرار با نمونه‌ی وسط ادرار (midstream) و ظرف استریل"],
-      warnings: [
-        "⚠️ اگر باردار هستید، وجود باکتری در ادرار حتی بدون علامت مهم است و باید حتماً با پزشک زنان مطرح شود.",
-      ],
+      warnings: canBePregnant(e)
+        ? ["⚠️ اگر باردار هستید، وجود باکتری در ادرار حتی بدون علامت مهم است و باید حتماً با پزشک زنان مطرح شود."]
+        : [],
     }),
   },
 
@@ -189,6 +192,7 @@ export const RULES_NEPHROLOGY = [
     },
     build: (e) => {
       const g = urineGrade(e, /protein|پروتئین/i);
+      const pregList = (w) => (canBePregnant(e) ? [w] : []);
       const pregWarn = "اگر باردار هستید، وجود پروتئین در ادرار — به‌خصوص همراه با فشار خون بالا — مهم است و باید بدون تأخیر با پزشک زنان مطرح کنید.";
 
       if (g <= 0.5) {
@@ -202,7 +206,7 @@ export const RULES_NEPHROLOGY = [
             "معمولاً با یک نمونه‌ی صبحگاهی تکرار می‌شود.",
           action: "نوبت عادی. اگر تکرار شد یا علامت دارید، با پزشک مطرح کنید.",
           suggest: ["تکرار آزمایش با نمونه‌ی اول صبح"],
-          warnings: [pregWarn],
+          warnings: pregList(pregWarn),
         };
       }
 
@@ -217,7 +221,7 @@ export const RULES_NEPHROLOGY = [
             "ولی بهتر است تکرار و در صورت تداوم بررسی شود. یک نمونه‌ی تکی قطعی نیست.",
           action: "نوبت عادی. برای اطمینان تکرار و در صورت تداوم با پزشک مطرح کنید.",
           suggest: ["تکرار آزمایش ادرار", "نسبت آلبومین به کراتینین (ACR) در صورت تداوم"],
-          warnings: [pregWarn],
+          warnings: pregList(pregWarn),
         };
       }
 
@@ -234,7 +238,7 @@ export const RULES_NEPHROLOGY = [
             "نسبت آلبومین به کراتینین ادرار (ACR) — برای اندازه‌گیری دقیق",
             "بررسی عملکرد کلیه (کراتینین، eGFR)",
           ],
-          warnings: [pregWarn],
+          warnings: pregList(pregWarn),
         };
       }
 
@@ -252,7 +256,7 @@ export const RULES_NEPHROLOGY = [
           "بررسی عملکرد کلیه (کراتینین، eGFR)",
           "بررسی توسط پزشک",
         ],
-        warnings: [pregWarn],
+        warnings: pregList(pregWarn),
       };
     },
   },

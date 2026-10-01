@@ -33,7 +33,7 @@ import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlacehold
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
-import { ENGINE_SYSTEM_PROMPT, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef } from "./rules/prompt.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
@@ -1241,7 +1241,9 @@ const analyzeHandler = async (req, res) => {
     if (engineCandidate) {
       // ═══ مسیر موتور ═══
       const messages = [
-        { role: "system", content: ENGINE_SYSTEM_PROMPT },
+        { role: "system", content: isNeonate(engineOut?.age) ? `${ENGINE_SYSTEM_PROMPT}
+
+${NEONATAL_PROMPT_ADDENDUM}` : ENGINE_SYSTEM_PROMPT },
         // ورود دستی بارداری/بیماری زمینه‌ای را در patient می‌فرستد؛ فقط زمینهٔ لحن،
         // نه ورودیِ گرید. مسیر عکس این‌ها را ندارد و null می‌ماند.
         buildEnginePrompt(engineOut, patternOut, medlineContext, patient),

@@ -56,6 +56,46 @@ export function applyNeonatalFloor(findings, engineOut) {
   }
 }
 
+// ═══ لحنِ نوزاد (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱) ═══
+// خواننده والدِ نوزاد است و دربارهٔ «نوزاد» می‌خواند، نه «شما». قاعده‌ها برای بزرگسال نوشته شده‌اند («پتاسیم خون شما»،
+// «در بزرگسالان…»، ایبوپروفن، ورزش) و بازنویسی‌شان یک‌به‌یک ممکن نیست؛ پس یک لایهٔ قطعی روی خروجیِ نوزاد:
+//   ۱) بندهایی که فقط به بزرگسال می‌خورند حذف می‌شوند (به مرزِ «.» و «؛» بریده می‌شود، تا بندِ درستِ همان جمله بماند)؛
+//   ۲) «شما» ⇒ «نوزاد»؛ «مراجعه کنید» ⇒ «نوزاد را … ببرید».
+// ⚠️ متنِ تازهٔ بالینی نیست؛ فقط حذف و جایگزینیِ واژه. بازبین ببیند (P63).
+const ADULT_ONLY = /(?<!از )بزرگسال|ورزش|الکل|سیگار|باردار|قاعدگی|ایبوپروفن|ناپروکسن|آسپرین|استامینوفن|مکمل گیاهی|رژیم|رانندگی|کورتون/;
+const MED_WORDS = /ایبوپروفن|ناپروکسن|آسپرین|استامینوفن|مکمل گیاهی|مسکن|کورتون/;
+export const NEONATAL_MED_WARNING = "بدونِ نظرِ پزشکِ نوزاد هیچ دارو یا مکملی به نوزاد ندهید.";
+export function neonatalVoice(text) {
+  if (typeof text !== "string" || !text) return text;
+  const parts = text.split(/([.؛؟!\n])/);
+  const kept = [];
+  for (let i = 0; i < parts.length; i += 2) {
+    const clause = parts[i], delim = parts[i + 1] ?? "";
+    if (clause && ADULT_ONLY.test(clause)) continue;
+    kept.push(clause + delim);
+  }
+  let s = kept.join("").trim();
+  if (!s) return "";
+  s = s
+    .replace(/(?:به )?(بخش اورژانس بیمارستان|پزشک یا اورژانس|پزشک|اورژانس|بیمارستان) مراجعه کنید/g, (m, w) => w === "پزشک یا اورژانس" || w === "پزشک" ? `نوزاد را نزدِ ${w} ببرید` : `نوزاد را به ${w} ببرید`)
+    .replace(/(^|[\s(«])شما(?=[\s،.؛:)»]|$)/g, "$1نوزاد")
+    .replace(/شماست/g, "نوزاد است");
+  return s;
+}
+export function applyNeonatalVoice(findings, engineOut) {
+  if (engineOut?._probe || !isNeonate(engineOut?.age)) return;
+  const arr = (a) => {
+    let med = false;
+    const out = (a ?? []).map((w) => { const v = neonatalVoice(w); if (!v && MED_WORDS.test(w)) med = true; return v; }).filter(Boolean);
+    if (med && !out.includes(NEONATAL_MED_WARNING)) out.push(NEONATAL_MED_WARNING);
+    return out;
+  };
+  for (const f of findings) {
+    for (const k of ["headline", "must_say", "action", "brief"]) if (typeof f[k] === "string") f[k] = neonatalVoice(f[k]);
+    for (const k of ["warnings", "brief_warnings"]) if (Array.isArray(f[k])) f[k] = arr(f[k]);
+  }
+}
+
 /**
  * ردیفِ *بعدیِ* PED_REFS برای همان کلید، اگر هنوز داخلِ دورهٔ نوزادی است — تا متن بگوید بازه روزبه‌روز عوض می‌شود.
  * خروجی: { label: «۲ تا ۳ روزگی»، range: «3000–9000» } یا null.

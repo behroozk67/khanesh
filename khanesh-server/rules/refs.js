@@ -369,6 +369,12 @@ export const GERIATRIC_REFS = {
   //      جایش hgbRef() بالا (ردیفِ ≥۷۰).
   MCV: { both: [82, 102], unit: 'fL' },
   ALP: { M: [80, 300], F: [64, 300], unit: 'U/L' },
+  // اوره/BUN در سالمند (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱، P65): AACB harmonised reference intervals (consensus) برای ≥ ۷۰ سال، اوره mmol/L:
+  //   زن ۴٫۰–۹٫۰، مرد ۴٫۵–۱۰٫۰ ⇒ ×۶٫۰۰۶ = mg/dL (گردشده) و BUN = ×۲٫۸. ⚠️ سندِ AACB باز نشد (۴۰۴)؛ فقط نقلِ نتایجِ جستجو. دادهٔ اندازه‌گیری‌شدهٔ
+  //   چینی (PMC8115101، ≥۷۰ سال، ۲٫۵–۹۷٫۵٪) سقفِ پایین‌تری می‌دهد: مرد ۳٫۷–۸٫۲، زن ۳٫۰۷–۷٫۳۴ mmol/L. انتخابِ AACB سقفِ بالاتر یعنی ازوتمیِ خفیفِ
+  //   سالمند دیرتر «بالا» می‌شود — بازبین ببیند. شروع از ۷۵ می‌ماند (GERIATRIC_FROM_AGE)، نه ۷۰ِ AACB.
+  UREA:   { M: [27, 60], F: [24, 54], unit: 'mg/dL' },
+  UREA_N: { M: [13, 28], F: [11, 25], unit: 'mg/dL' },
 };
 
 import { getPedRef, getPedRefSource, isPediatricRCPCH, PED_REFS } from './refs_ped.js';

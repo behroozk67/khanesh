@@ -3775,7 +3775,9 @@ test("M58c: تور دوم هیچ‌وقت blocks_others نمی‌شود", () => 
   const f = p.findings.find((x) => x.rule_id === "unexplained_abnormal");
   assert.ok(f, `تور باید روشن می‌شد؛ الگوها: ${p.findings.map((x) => x.rule_id).join("، ")}`);
   assert.equal(f.blocks_others, false);
-  assert.match(f.must_say, /اسید اوریک/, "اسیدِ اوریکِ بی‌قاعده باید نام برده شود");
+  // ⚠️ اسید اوریک از ۲۰۲۶-۱۰-۰۱ مالک دارد (hyperuricemia، M276)؛ اورهٔ ۹۵ (کنارِ کراتینینِ بالا) هنوز بی‌قاعده است.
+  assert.ok(f.must_say.includes("اوره"), "اورهٔ بی‌قاعده باید نام برده شود");
+  assert.ok(!f.must_say.includes("اسید اوریک"), "اسید اوریک دیگر بی‌قاعده نیست");
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -6354,7 +6356,7 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
     U1: [{ age: 30, sex: "F" }, [["Color", "Yellow"], ["Appearance", "Clear"], ["Specific Gravity", "1.020"], ["pH", "6"], ["WBC", "15-20", "/hpf"], ["RBC", "8-10", "/hpf"]], "36e704b09115ca66"],
     U2: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.015"], ["Nitrite", "Positive"], ["Leukocyte Esterase", "Positive"], ["WBC", "20-25"]], "7c70c5473cb2f281"],
     U3: [{ age: 50, sex: "M" }, [["Urine Protein", "3+"], ["Urine Glucose", "2+"], ["Ketone", "2+"]], "84811a0618256be2"],
-    U4: [{ age: 30, sex: "M" }, [["pH", "5"], ["Specific Gravity", "1.030"], ["Bacteria", "Many"]], "d3039b47b6c5dcd9"],
+    U4: [{ age: 30, sex: "M" }, [["pH", "5"], ["Specific Gravity", "1.030"], ["Bacteria", "Many"]], "af1dba53d8bbe636"], // ⚠️ ۲۰۲۶-۱۰-۰۱: «اگر باردار هستید» از برگهٔ مرد حذف شد (M276b)؛ اثبات: با canBePregnant≡true همین هشِ قبلی برمی‌گشت
     U5: [{ age: 60, sex: "M" }, [["Urine Blood", "2+"], ["RBC", "10-12", "/hpf"], ["Pus cells", "2-3"]], "562daaa177d9d3a6"],
     U6: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.010"], ["pH", "7"]], "030bb4f5e6f4a91f"],
     C1: [{ age: 40, sex: "M" }, [["WBC", "7000"], ["RBC", "4.8"], ["Hb", "14", "g/dL"], ["PLT", "250000"], ["MCV", "88"]], "7dd79d6187162b00"],
@@ -7711,7 +7713,7 @@ test("M163: نوزاد، بیلی‌روبینِ اورژانسی — یک دس�
   assert.doesNotMatch(f.must_say, /همین امروز/, f.must_say);
   // توضیحِ نمودارِ ساعتی می‌ماند — حذفِ جمله نبود، حذفِ دستورِ دوم بود.
   assert.match(f.must_say, /به ساعت بستگی/);
-  assert.match(f.action, /همین حالا به اورژانس/);
+  assert.match(f.action, /همین حالا نوزاد را به اورژانس ببرید/); // لحنِ نوزاد (M246f)
 });
 
 // ═══════════ specs/005 مرحلهٔ الف — سیلندرِ ادرار و ناهمخوانیِ نوار با میکروسکوپ (P50، N25) ═══════════
@@ -7773,13 +7775,13 @@ test("M164d: برگه‌های بی‌سیلندر بایت‌به‌بایت ه
   // هش‌ها روی درختِ کاریِ 395a5d7 پیش از هر تغییر گرفته شدند (specs/005.../frozen-before.json).
   // این آزمون باید پیش از اصلاح هم سبز باشد — قرمز بودنش یعنی پنل غلط است، نه موتور.
   const PANELS = {
-    F1: [uaRows([["Blood", "+3"], ["RBC", "20-30", "/hpf"], ["Protein", "+2"]]), "3e7cffff98ebb543"],
+    F1: [uaRows([["Blood", "+3"], ["RBC", "20-30", "/hpf"], ["Protein", "+2"]]), "4e83768b46572462"], // ⚠️ همان: هشدارِ بارداریِ پروتئینوری از برگهٔ مرد حذف شد (M276b)
     F2: [uaRows([["Leukocyte Esterase", "+2"], ["WBC", "15-20", "/hpf"]], { nitrite: "Positive", bacteria: "Many" }), "0c01081d2bd2a9c9"],
     // ⚠️ F3 عمداً عوض شد — specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp).
     F3: [[["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["WBC", "7.2"], ["PLT", "250"], ["Ferritin", "6", "ng/mL"]], "eb13a977d93629ff"], // ⚠️ P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff).
     F4: [[["Hb", "13.5", "g/dL"], ["MCV", "88", "fL"], ["PLT", "250"], ["Creatinine", "1.0", "mg/dL"],
           ["FBS", "95", "mg/dL"], ...uaRows([["RBC", "1-2", "/hpf"], ["WBC", "2-3", "/hpf"]])], "afa275a4d0cd7a69"], // ⚠️ عمداً عوض شد — job fff90f58 (P58، N8): ردیفِ «کراتینین» در SUGGEST_TESTS ⇒ normocytic_anemia دیگر کنارِ Creatinine 1.0ِ همین برگه «کراتینین» پیشنهاد نمی‌دهد؛ تنها تفاوتِ خروجی همین یک رشته در suggest است (diffِ کاملِ خروجی روی درختِ پیش‌از‌اصلاح سنجیده شد). // ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
-    F7: [uaRows([["WBC", "1-2", "/hpf"]], { bacteria: "Many" }), "fa883df5ac4f000c"],
+    F7: [uaRows([["WBC", "1-2", "/hpf"]], { bacteria: "Many" }), "2d753638ee88a4b4"],
   };
   for (const [k, [rows, h]] of Object.entries(PANELS)) assert.equal(uaSnap(rows), h, `پنلِ ${k} عوض شد`);
 });
@@ -8160,9 +8162,9 @@ test("M170: پیشنهادِ «تکرار …» به «درخواست آزمای
 //    یا — با واحدِ /hpf — در qual می‌نشستند و هیچ قاعده‌ای نمی‌خواندشان: بی‌صدا گم می‌شدند (N25/N18).
 //    بیلی‌روبین و اوروبیلینوژنِ نوار هم در qual بودند و هیچ خواننده‌ای نداشتند.
 // sha هر برگه روی b9068df، پیش از مرحلهٔ ب (اندازه‌گیری‌شده، نه نوشته‌شده).
-const UB_FROZEN = { uti: "b062f04819ee84f2", hem: "79c3b1c3edcc6952", rbccast: "e4ad5c0d2305304a", gran: "f96d3a80e3b86903",
+const UB_FROZEN = { uti: "f5a3594639e8c80b", hem: "79c3b1c3edcc6952", rbccast: "e4ad5c0d2305304a", gran: "f96d3a80e3b86903",
   biliD: "c994d35593dc69ff", biliI: "4411aa0bdfe5986b", biliE: "b6944cd0079a43a5", hemol: "8c9c9e6020419ee3" /* ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff). */ /* ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp) */,
-  bact: "fa883df5ac4f000c", tubcast: "ea3b269da2e1e80c" };
+  bact: "2d753638ee88a4b4", tubcast: "ea3b269da2e1e80c" };
 const ubIds = (rows, patient) => uaIds(uaRun(rows, patient));
 const ubFind = (rows, id, patient) => uaRun(rows, patient).findings.find((f) => f.pattern === id || f.pattern?.startsWith(id));
 const ubEngine = (rows) => runEngine({ patient: { age: 40, sex: "M" }, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
@@ -8837,7 +8839,8 @@ test("M183c: بحرانِ هماتوکریتِ بی‌Hb برای کودک و ن
     const p = hctOnly("18", pt);
     const f = findPat(p, "severe_anemia_crisis");
     assert.ok(f, `${JSON.stringify(pt)}: ${fired(p).join(",")}`);
-    assert.equal(f.action, hbAction);
+    // نوزاد (< ۲۸ روز) همان دستور را با لحنِ نوزاد می‌گیرد (M246f): «نوزاد را به … ببرید»، نه «مراجعه کنید».
+    assert.equal(f.action, pt.age < 0.07 ? neonatalVoice(hbAction) : hbAction);
     assert.ok(!findPat(p, "low_rbc_hct_without_anemia"), JSON.stringify(pt));
   }
   assert.ok(!findPat(hctOnly("25", { age: 6, sex: "M" }), "severe_anemia_crisis"));
@@ -10409,6 +10412,8 @@ test("M206: املاهای تازهٔ لام — «Blast: seen»، سرِ ردی
 // کراتینین و «مکملِ آهن شروع نکنید» — و در کلِ متن یک بار هم «نوزاد» نیامد. نوتروفیلِ غایب (سقفش ۱۲۰۰ در برابرِ ۵۰۰۰–۱۳۰۰۰)
 // هیچ‌جا گفته نشد.
 const m220T = (name, value, unit = "") => ({ name, value, unit });
+import { neonatalVoice } from "./neonatal.js";
+import * as require_utils from "./patterns_utils.js";
 const M220_SHEET = [
   m220T("WBC", "7.4", "10^3/µL"), m220T("RBC", "3.50", "10^6/µL"), m220T("HGB", "15.3", "g/dL"), m220T("HCT", "45.0", "%"),
   m220T("MCV", "128.6", "fL"), m220T("MCH", "43.7", "pg"), m220T("MCHC", "34.0", "g/dL"), m220T("PLT", "165", "10^3/µL"),
@@ -11293,6 +11298,86 @@ test("M246e: بیلی‌روبینِ نوزادِ < ۱۴ روز با بازهٔ 
   assert.equal(late.g.dir, "high"); assert.equal(late.g.range, "0–1.23");
   assert.equal(late.r.p.has_critical, false); assert.ok(late.r.p.findings.some((f) => /همین امروز/.test(f.action ?? "")), String(late.r.ids));
   assert.equal(g("40 سال", "Total Bilirubin", "1.0").g.range, "0.1–1.2");
+});
+
+test("M246f: لحنِ نوزاد — متنِ بیمار دربارهٔ «نوزاد» است، نه «شما»؛ بی‌بندِ بزرگسال و بی‌«مراجعه کنید»؛ بزرگسال دست‌نخورده (P63)", async () => {
+  const { buildNormalResult } = await import("./prompt.js");
+  const sheets = [
+    [["MCH", "38", "pg"], ["Total Bilirubin", "20", "mg/dL"]], [["Glucose", "35", "mg/dL"]], [["K", "6.5", "mmol/L"]], [["Na", "118", "mmol/L"]],
+    [["PLT", "30", "10^3/µL"]], [["HGB", "8.5", "g/dL"]], [["WBC", "40", "10^3/µL"]], [["CRP", "80", "mg/L"]], [["Creatinine", "2.5", "mg/dL"]],
+    [["Calcium", "12.5", "mg/dL"]], [["ALT", "200", "U/L"]], [["TSH", "30", "mIU/L"]],
+  ];
+  const BAD = /شما|بزرگسال|ایبوپروفن|ناپروکسن|آسپرین|استامینوفن|ورزش|مکمل گیاهی|مراجعه کنید/;
+  let seen = 0;
+  for (const s of sheets) {
+    const r = m220Run("5 روز", s.map(([n, v, u]) => m220T(n, v, u)), "M");
+    for (const f of r.p.findings) {
+      seen++;
+      const all = [f.headline, f.must_say, f.action, f.brief, ...(f.warnings ?? []), ...(f.brief_warnings ?? [])].filter(Boolean).join(" | ");
+      assert.doesNotMatch(all, BAD, `${s[0][0]} / ${f.pattern}: ${all}`);
+    }
+  }
+  assert.ok(seen >= sheets.length, "تعداد یافته‌ها کم است");
+  // شاهدِ منفی: همان پتاسیم در بزرگسال همان لحنِ «شما» را دارد
+  const adult = m220Run("40 سال", [m220T("K", "6.5", "mmol/L")], "M");
+  assert.match(adult.p.findings.map((f) => f.must_say).join(" "), /شما/);
+  // دستورِ اورژانس: نوزاد را ببرید، نه «مراجعه کنید»
+  const k = m220Run("5 روز", [m220T("K", "6.5", "mmol/L")], "M").p.findings.find((f) => f.urgency === "emergency");
+  assert.match(k.action, /نوزاد را به اورژانس ببرید/);
+  // هشدارِ داروی بزرگسال حذف و یک جملهٔ دارویِ نوزادی جایش می‌آید
+  const plt = m220Run("5 روز", [m220T("PLT", "30", "10^3/µL")], "M").p.findings.find((f) => f.pattern === "severe_thrombocytopenia");
+  assert.ok(plt.warnings.some((w) => /دارو یا مکملی به نوزاد ندهید/.test(w)), JSON.stringify(plt.warnings));
+  // پاسخِ آمادهٔ «طبیعی» هم
+  const normal = buildNormalResult(m220Run("5 روز", [m220T("K", "4.5", "mmol/L")], "M").e);
+  assert.doesNotMatch(`${normal.summary} ${normal.interpretation} ${normal.disclaimer}`, /شما/);
+  assert.match(normal.summary, /نوزاد/);
+});
+
+test("M276: اسید اوریکِ بالا مالک دارد — دیگر به «توضیح نداریم» نمی‌افتد؛ کراتینین سه‌حالته؛ زیر ۱۶ سال نه (job e99696ee، N1/N4)", () => {
+  const run = (age, sex, tests) => m220Run(age, tests.map(([n, v, u]) => m220T(n, v, u)), sex);
+  // 🔴 پیش‌تر: URIC 10.9 تنها ⇒ unexplained_abnormal («توضیحِ آمادهٔ اختصاصی نداریم»).
+  const hi = run("78 سال", "F", [["Uric Acid", "10.9", "mg/dL"], ["Creatinine", "1.65", "mg/dL"]]);
+  assert.ok(hi.ids.includes("hyperuricemia"), String(hi.ids));
+  assert.ok(!hi.p.findings.some((f) => f.pattern === "unexplained_abnormal" || f.pattern === "unmatched_abnormal"), String(hi.ids));
+  const f = hi.p.findings.find((x) => x.pattern === "hyperuricemia");
+  assert.ok(f.must_say.includes("10.9") && f.must_say.includes("نقرس") && f.must_say.includes("کراتینین (1.65) هم بالاست"), f.must_say);
+  assert.equal(f.urgency, "routine");
+  // سه حالتِ کراتینین
+  const ok = run("50 سال", "M", [["Uric Acid", "10", "mg/dL"], ["Creatinine", "0.9", "mg/dL"]]).p.findings.find((x) => x.pattern === "hyperuricemia");
+  assert.ok(ok.must_say.includes("کراتینین (0.9) بالا نیست"), ok.must_say);
+  const none = run("50 سال", "M", [["Uric Acid", "10", "mg/dL"]]).p.findings.find((x) => x.pattern === "hyperuricemia");
+  assert.match(none.must_say, /کراتینین روی این برگه نیست/); assert.deepEqual(none.suggest, ["کراتینین"]);
+  // نرمال یا پایین ⇒ بی‌یافته؛ کودک ⇒ قاعده نمی‌گیرد
+  assert.ok(!run("50 سال", "M", [["Uric Acid", "6", "mg/dL"]]).ids.includes("hyperuricemia"));
+  assert.ok(!run("10 سال", "M", [["Uric Acid", "10", "mg/dL"]]).ids.includes("hyperuricemia"));
+});
+
+test("M276b: «اگر باردار هستید» فقط برای زنِ در سنِ باروری یا ناشناخته — مرد و زنِ ۷۸ ساله نمی‌شنوند (job e99696ee)", () => {
+  const alp = (age, sex) => {
+    const r = m220Run(age, [m220T("ALP", "311", "U/L")], sex);
+    const f = r.p.findings.find((x) => x.pattern === "alp_high_nonliver");
+    assert.ok(f, `${age}/${sex}: ${r.ids}`);
+    return [f.must_say, f.action, ...(f.warnings ?? [])].join(" ");
+  };
+  // 🔴 پیش‌تر هر چهار حالت «باردار» می‌گرفتند.
+  assert.doesNotMatch(alp("78 سال", "F"), /باردار/);
+  assert.doesNotMatch(alp("40 سال", "M"), /باردار/);
+  assert.doesNotMatch(alp("60 سال", "F"), /باردار/);
+  assert.match(alp("30 سال", "F"), /باردار/);
+  const { canBePregnant } = require_utils;
+  assert.equal(canBePregnant({ sex: null, age: null }), true, "ناشناخته ⇒ جمله می‌ماند");
+  assert.equal(canBePregnant({ sex: "F", age: 11 }), false); assert.equal(canBePregnant({ sex: "F", age: 55 }), true);
+});
+
+test("M277: اورهٔ سالمند (≥ ۷۵) بازهٔ AACB می‌گیرد؛ ۷۴ سال و بزرگسال همان ۱۵–۴۵ (P65)", () => {
+  const u = (age, sex, v, name = "Urea") => runEngine({ patient: { age, sex }, tests: [m220T(name, v, "mg/dL")] }).graded.find((x) => /^UREA/.test(x.test));
+  // 🔴 پیش‌تر: اورهٔ ۵۰ در زنِ ۷۸ ساله با ۱۵–۴۵ «بالا» بود.
+  const f = u(78, "F", "50"); assert.equal(f.range, "24–54"); assert.equal(f.abnormal, false);
+  const m = u(78, "M", "55"); assert.equal(m.range, "27–60"); assert.equal(m.abnormal, false);
+  assert.equal(u(78, "M", "62").dir, "high");
+  assert.equal(u(74, "M", "55").range, "15–45"); assert.equal(u(74, "M", "55").dir, "high");
+  assert.equal(u(40, "M", "50").range, "15–45");
+  const bun = u(78, "F", "22", "BUN"); assert.equal(bun.range, "11–25"); assert.equal(bun.abnormal, false);
 });
 
 test("M246b: job 5fdd233a — بیلی‌روبینِ «T. Bilirubin(Clot)» به BILI_T می‌رسد (N2) و MCH 38 به‌تنهایی اورژانس نمی‌سازد", () => {

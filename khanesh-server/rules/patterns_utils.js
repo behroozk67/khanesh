@@ -1258,3 +1258,12 @@ function isthScore(e) {
 }
 export { factorBand, vwfRatio, isthScore, isthDdimerPoints, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2,
          FACTOR_SEVERE_BELOW_PCT, FACTOR_MODERATE_MAX_PCT, FACTOR_MILD_MAX_PCT };
+
+// بارداری فقط برای زنِ در سنِ باروری معنا دارد. پیش‌تر جملهٔ «اگر باردار هستید» به مرد و زنِ ۷۸ ساله هم گفته می‌شد (۲۰۲۶-۱۰-۰۱).
+// سن/جنسِ ناشناخته ⇒ true (جمله می‌ماند)؛ مرد، یا سنِ معلومِ < ۱۲ یا > ۵۵ ⇒ false. آستانه‌ها قراردادی‌اند و بازبین ببیند (P64).
+export function canBePregnant(e) {
+  if (e?.sex === "M") return false;
+  const a = e?.age;
+  if (typeof a === "number" && (a < 12 || a > 55)) return false;
+  return true;
+}

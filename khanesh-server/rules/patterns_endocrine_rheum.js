@@ -1,5 +1,6 @@
 import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, CRP_RE, RF_RE, has, macroMcvCut } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { canBePregnant } from "./patterns_utils.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
@@ -185,7 +186,7 @@ export const RULES_ENDOCRINE_RHEUM = [
             // تنها محتوای منحصربه‌فردِ `overt_hypothyroidism` که با حذفِ آن قاعده
             // (patterns_endocrine_new.js) نباید از بین می‌رفت. مقید به جنسیت، وگرنه
             // به بیمارِ مرد هم گفته می‌شد. فقط در کم‌کاریِ واضح، نه تحت‌بالینی.
-            (overt && e.sex !== "M"
+            (overt && canBePregnant(e)
               ? " اگر باردار هستید یا قصد بارداری دارید، این یافته اهمیت بیشتری دارد و باید زودتر با پزشک مطرح شود."
               : ""),
           action: overt ? "این هفته وقت بگیرید." : "نوبت عادی. معمولاً این آزمایش چند هفته بعد تکرار می‌شود.",

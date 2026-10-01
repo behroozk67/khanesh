@@ -15,6 +15,7 @@ import { normalizeFa } from "./coverage.js";
 import { TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
 import { levelGrade } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { isNeonate, neonatalVoice } from "./neonatal.js";
 
 // ⚠️ سقفِ «حداکثر N جمله» در interpretation با قاعدهٔ ۱ («must_say را کامل
 //    منتقل کن») در تضاد است و باید از بلندترین must_say بزرگ‌تر بماند.
@@ -68,6 +69,13 @@ export const ENGINE_SYSTEM_PROMPT = `
 }
 
 فهرستِ توصیه‌ها را ننویس — از موتور ساخته می‌شود.
+`.trim();
+
+// بیمارِ نوزادِ < ۲۸ روز: خواننده والدِ نوزاد است (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱). این بند فقط *لحن* را عوض می‌کند.
+export const NEONATAL_PROMPT_ADDENDUM = `
+## بیمارِ این برگه نوزادِ کمتر از ۲۸ روز است
+خواننده والدِ نوزاد است و دربارهٔ «نوزاد» می‌خواند. بنویس «نوزاد» یا «نوزادتان»، نه «شما»؛ «قند شما» نه، «قندِ نوزاد».
+چیزی که فقط به بزرگسال می‌خورد (دارو، ورزش، الکل، رژیم، رانندگی) ننویس. باقیِ قواعدِ بالا همان است.
 `.trim();
 
 const URGENCY_FA = {
@@ -481,6 +489,11 @@ export function missingSuggestions(modelRecs, patterns, engineOut) {
  * حداقلِ ایمن را مستقیم از خروجی موتور می‌سازد.
  */
 export function buildEngineFallbackResult(engineOut, patterns) {
+  const r = buildEngineFallbackResultAdult(engineOut, patterns);
+  return isNeonate(engineOut?.age) ? neonatalResultVoice(r) : r;
+}
+
+function buildEngineFallbackResultAdult(engineOut, patterns) {
   const findings = patterns.findings;
   const headlines = findings.map((f) => f.headline).filter(Boolean);
   const mustSay = findings.map((f) => f.must_say).filter(Boolean);
@@ -520,6 +533,23 @@ export function unexplainedNoRef(noRef, findings) {
  * اگر موتور هیچ الگویی پیدا نکرد — همه‌چیز طبیعی
  */
 export function buildNormalResult(engineOut) {
+  const r = buildNormalResultAdult(engineOut);
+  return isNeonate(engineOut?.age) ? neonatalResultVoice(r) : r;
+}
+
+// همان متنِ آماده با لحنِ نوزاد: «شما» ⇒ «نوزاد» و دستورِ «نشان دهید» برای نوزاد.
+function neonatalResultVoice(r) {
+  const v = (s) => neonatalVoice(s);
+  return {
+    ...r,
+    summary: v(r.summary),
+    interpretation: v(r.interpretation),
+    general_recommendations: (r.general_recommendations ?? []).map((s) => v(s)),
+    disclaimer: v(r.disclaimer),
+  };
+}
+
+function buildNormalResultAdult(engineOut) {
   const borderline = engineOut.graded.filter((g) => g.nearLimit);
   // ⚠️ specs/004 (FR-009، N2): مقدارِ بی‌بازه (noRef) قضاوت نشده، و قضاوت‌نشده «طبیعی» نیست.
   //    پیش از این، برگهٔ «روی ۴۰» یا «پرولاکتین ۴۰» می‌خواند «نتایج آزمایش شما در محدوده طبیعی است».
