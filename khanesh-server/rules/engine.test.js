@@ -6358,7 +6358,7 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
     U5: [{ age: 60, sex: "M" }, [["Urine Blood", "2+"], ["RBC", "10-12", "/hpf"], ["Pus cells", "2-3"]], "562daaa177d9d3a6"],
     U6: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.010"], ["pH", "7"]], "030bb4f5e6f4a91f"],
     C1: [{ age: 40, sex: "M" }, [["WBC", "7000"], ["RBC", "4.8"], ["Hb", "14", "g/dL"], ["PLT", "250000"], ["MCV", "88"]], "7dd79d6187162b00"],
-    C2: [{ age: 40, sex: "M" }, [["WBC", "15.2"], ["Neut %", "85"], ["PLT", "120"]], "14948cee4e0a4063"], // ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff).
+    C2: [{ age: 40, sex: "M" }, [["WBC", "15.2"], ["Neut %", "85"], ["PLT", "120"]], "320ae9d0b6aee6af"], // ⚠️ M275 (۲۰۲۶-۱۰-۰۱): جملهٔ نوتروفیلِ مطلق به leukocytosis اضافه شد و unexplained_abnormal رفت — freezediff: فقط همین. // ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff).
     // ⚠️ C3 عمداً عوض شد (specs/007، US1): فقط رشتهٔ بازهٔ RBCِ زن در متن، «4.5–5.1» → «4.1–5.1» — سنجیده شد
     //    (c3، کپیِ پیش از 007 در برابرِ درختِ کاری): یافته‌ها، فوریت و حکمِ RBC 5.2 (بالا) یکسان‌اند.
     // ⚠️ C3 دوباره عمداً عوض شد — specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp).
@@ -8699,8 +8699,9 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   // اندیس‌های ۲ و ۴.
   // ⚠️ عمداً عوض شد — برگهٔ واقعیِ ۲۰۲۶-۰۹-۲۴ (M191): اقدامِ روتینِ unexplained_abnormal حالا نامِ موارد را می‌گوید، و پان‌سیتوپنی سه عدد + آزمایش‌های علت‌یابی دارد و کم‌خونی زیرش کوتاه می‌آید. سنجیده شد (freezediff، 953f513 در برابرِ درختِ کاری): فرقِ دیگری نیست.
   // اندیس‌های ۲، ۳، ۶، ۷، ۹، ۱۰.
+  // ⚠️ اندیس ۹ عمداً عوض شد (M275، ۲۰۲۶-۱۰-۰۱): leukocytosis نوتروفیلِ مطلقِ بالا را می‌گوید و unexplained_abnormal رفت — freezediff: فقط همین.
   // ⚠️ 3، 5، 10 عمداً عوض شد (M192، ۲۰۲۶-۰۹-۲۴): کم‌خونی RBC/HCT/MCHِ هم‌جهت را نام می‌برد و unexplained_abnormal رفت — freezediff: فقط همین.
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","18aac54750fa6eae","c64514d508978a83","d8a1f02d9094c245","a9607b22be77c6ff","fbd1b6e99fa613df","371853a2c0670570","3640ea1dcabdc7e5","c591957e9fffff16","313d655887004c45","9009a89c3c39fd82"];
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","18aac54750fa6eae","c64514d508978a83","d8a1f02d9094c245","a9607b22be77c6ff","fbd1b6e99fa613df","371853a2c0670570","3640ea1dcabdc7e5","0ed13ed3d9931064","313d655887004c45","9009a89c3c39fd82"];
   assert.deepEqual(P.map(snap), EXPECTED);
 });
 
@@ -10979,23 +10980,23 @@ test("M241: WBC 80 — لنفوسیت/ائوزینوفیل/مونوسیتِ با
   assert.equal(p.overall_urgency, "emergency");
   assert.equal(p.has_critical, true);
   const sup = p.findings.filter((f) => f.supplementary);
-  assert.deepEqual(sup.map((f) => f.rule_id), ["cll_suspicion_nccn", "eosinophilia", "monocytosis"]);
+  assert.deepEqual(sup.map((f) => f.rule_id), ["cll_suspicion_nccn", "eosinophilia", "neutrophilia", "monocytosis"]);
   sup.forEach((f, i) => assert.ok(
-    f.must_say.startsWith(`یافتهٔ تکمیلی ${i + 1} از 3 (جدا از دستور اورژانسی): `), `برچسب/شمارش: ${f.must_say}`));
+    f.must_say.startsWith(`یافتهٔ تکمیلی ${i + 1} از 4 (جدا از دستور اورژانسی): `), `برچسب/شمارش: ${f.must_say}`));
   const text = s9Text(p);
-  for (const n of ["6400", "4800", "3200"]) assert.ok(text.includes(n), `عدد ${n} در متنِ نمایشی نیست`);
+  for (const n of ["6400", "4800", "3200", "56000"]) assert.ok(text.includes(n), `عدد ${n} در متنِ نمایشی نیست`);
   const un = s9Uncovered(p);
-  for (const k of ["LYMPH_ABS", "EOS_ABS", "MONO_ABS"]) assert.ok(!un.includes(k), `${k} هنوز «بی‌توضیح» است: ${un}`);
+  for (const k of ["LYMPH_ABS", "EOS_ABS", "MONO_ABS", "NEUT_ABS"]) assert.ok(!un.includes(k), `${k} هنوز «بی‌توضیح» است: ${un}`);
   // شمارش و شناسه‌ها به خروجیِ موتور می‌رسند (قراردادِ _engine)
-  assert.equal(p.suppressed, 3);
-  assert.deepEqual([...p.suppressed_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis"]);
-  assert.deepEqual([...p.supplementary_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis"]);
+  assert.equal(p.suppressed, 4);
+  assert.deepEqual([...p.suppressed_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
+  assert.deepEqual([...p.supplementary_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
 });
 
 test("M241b: یافتهٔ تکمیلی فوریتِ خودش را نگه می‌دارد ولی هیچ دستور/هشدار/پیشنهادِ زمان‌دارِ دومی نمی‌آورد (N20) و دستورِ نهاییِ اورژانس عوض نمی‌شود", () => {
   const { e, p } = M241_WBC80();
   // بدونِ این، حلقهٔ پایین روی کدِ قدیمی (که یافتهٔ تکمیلی ندارد) بی‌مصرف سبز می‌شود (N15).
-  assert.equal(p.findings.filter((x) => x.supplementary).length, 3, "پیش‌شرط: سه یافتهٔ تکمیلی");
+  assert.equal(p.findings.filter((x) => x.supplementary).length, 4, "پیش‌شرط: چهار یافتهٔ تکمیلی");
   for (const f of p.findings.filter((x) => x.supplementary)) {
     assert.equal(f.action, "", `${f.rule_id}: دستورِ زمان‌دارِ دوم`);
     assert.deepEqual(f.warnings, []);
@@ -11784,4 +11785,52 @@ test("M274: تروپونین hs با حدِ ۹۹ امِ چاپ‌شده: بال�
   assert.equal(f(20), undefined, "بی‌حدِ چاپ‌شده ۲۰ ساکت است (رفتارِ قبلی)");
   assert.equal(f(10, "<14"), undefined, "زیرِ حدِ چاپ‌شده");
   assert.equal(f(35, "<50"), undefined, "برگه می‌گوید تا ۵۰ طبیعی است");
+});
+
+// ---------- M275: نوتروفیلِ مطلقِ بالا مالک دارد (برگهٔ واقعی ۲۰۲۶-۱۰-۰۱، job 6be0c63d) ----------
+// 🔴 پیش‌تر: WBC 15.3 + Neut 75% ⇒ NEUT_ABS 11475 (> ۷۸۰۰) هیچ قاعده‌ای نداشت و فقط در «توضیحِ آماده نداریم» می‌آمد (N1/N18).
+const m275Sheet = (wbc, neutPct) => [
+  m010T("W.B.C", wbc, "x1000/mm³", "4-10"), m010T("Hb", 11.2, "gm/dl"), m010T("M.C.V", 86, "fl", "80-96"),
+  m010T("Platelet", 300, "x1000/mm³", "150-450"), m010T("Neut", neutPct, "%", "45-75"), m010T("Lymphocyte", 100 - neutPct, "%", "20-45"),
+];
+test("M275: WBC بالا + نوتروفیلِ مطلقِ بالا ⇒ leukocytosis نوتروفیل را می‌گوید، یافتهٔ دوم و «توضیح نداریم» نیست", () => {
+  const { e, p, ids } = m010Run(m275Sheet(15.3, 75), { age: 40 });
+  const n = e.graded.find((g) => g.test === "NEUT_ABS");
+  assert.ok(n?.abnormal && n.dir === "high", "پیش‌شرط: NEUT_ABS باید بالا درجه‌بندی شود");
+  assert.ok(ids.includes("leukocytosis"), ids.join(", "));
+  assert.ok(!ids.includes("neutrophilia"), "یک یافته دربارهٔ یک عدد (N20)");
+  assert.match(p.findings.find((f) => f.pattern === "leukocytosis").must_say, /نوتروفیلِ مطلق 11475/);
+  assert.match(p.findings.find((f) => f.pattern === "leukocytosis").must_say, /روی برگه نیست/);
+  assert.ok(!(p.uncovered || []).includes("NEUT_ABS"), `NEUT_ABS هنوز بی‌مالک: ${JSON.stringify(p.uncovered)}`);
+});
+test("M275b: WBC طبیعی + نوتروفیلِ مطلقِ بالا ⇒ neutrophilia، routine، بدونِ «کلِ گلبول سفید بالاست»", () => {
+  const { p, ids } = m010Run(m275Sheet(10.5, 80), { age: 40 });
+  assert.ok(ids.includes("neutrophilia"), ids.join(", "));
+  assert.ok(!ids.includes("leukocytosis"));
+  const f = p.findings.find((x) => x.pattern === "neutrophilia");
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /در محدوده است/);
+  assert.ok(!(p.uncovered || []).includes("NEUT_ABS"));
+});
+test("M275c: نوتروفیلِ طبیعی ⇒ نه neutrophilia و نه جملهٔ نوتروفیل در leukocytosis", () => {
+  const a = m010Run(m275Sheet(10.5, 60), { age: 40 });
+  assert.ok(!a.ids.includes("neutrophilia"));
+  const b = m010Run(m275Sheet(11.5, 60), { age: 40 });
+  assert.ok(b.ids.includes("leukocytosis"));
+  assert.doesNotMatch(b.p.findings.find((f) => f.pattern === "leukocytosis").must_say, /نوتروفیل/);
+});
+
+// M275d: WBC ≥ ۵۰ (extreme_leukocytosis) — نوتروفیلِ بالا دیگر بی‌مالک نیست و کنارِ اورژانس «موقتی/نوبتِ عادی» نمی‌گوید
+test("M275d: WBC 80 + Neut 70% ⇒ NEUT_ABS مالک دارد (بی‌اقدام، بی‌دلگرمی) و دستورِ دومی نمی‌سازد", () => {
+  const { p, ids } = m010Run(m275Sheet(80, 70), { age: 40 });
+  assert.ok(ids.includes("extreme_leukocytosis"), ids.join(", "));
+  assert.ok(ids.includes("neutrophilia") || (p.supplementary || []).includes("neutrophilia") || (p.suppressed_ids || []).includes("neutrophilia"), `neutrophilia گم شد: ${ids}`);
+  const f = p.findings.find((x) => x.pattern === "neutrophilia");
+  if (f) {
+    assert.equal(f.action, "");
+    assert.doesNotMatch(f.must_say, /موقتی|نوبتِ عادی/);
+  }
+  const text = JSON.stringify(p.findings.map((x) => x.must_say));
+  assert.match(text, /نوتروفیلِ مطلق 56000|نوتروفیل.{0,40}56000/, "عددِ نوتروفیل باید جایی دیده شود");
+  assert.ok(!ids.includes("unexplained_abnormal") || !/نوتروفیل 56000/.test(JSON.stringify(p.findings.find((x) => x.pattern === "unexplained_abnormal"))), "هنوز در «توضیح نداریم»");
 });

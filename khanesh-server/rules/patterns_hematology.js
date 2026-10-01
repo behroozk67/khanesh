@@ -153,6 +153,26 @@ function lymphClauseInPancytopenia(e) {
     (neutOk ? `؛ نوتروفیل در محدوده است، پس افتِ گلبول‌های سفید بیشتر از لنفوسیت‌هاست` : "") +
     `. این کاهش بخشی از همین تصویرِ کلیِ خون است و به‌تنهایی یک بیماریِ جدا نیست؛ پزشک آن را کنار بقیه می‌سنجد.`;
 }
+// برگهٔ واقعی ۲۰۲۶-۱۰-۰۱ (job 6be0c63d): WBC 15.3 + Neut 75% (محدودهٔ چاپی ۴۵–۷۵، یعنی طبیعی از نگاهِ برگه) → نوتروفیلِ مطلقِ ۱۱۴۷۵
+//   (> ۷۸۰۰) هیچ مالکی نداشت و فقط در «توضیحِ آماده نداریم» آمد (N1/N18). آستانه همان حدِ بالای refs.js است — عددِ تازه‌ای نیست.
+//   بیرون از قاعده تا NEUT_ABS در RULE_READSِ leukocytosis نیاید و جهتِ پایین بی‌صدا «پوشش‌داده» نشود (M156).
+//   عددِ مطلق شاید روی برگه نباشد (فقط درصد چاپ شده) — جمله این را می‌گوید (N5).
+const NEUT_DERIVED_NOTE = " اگر برگهٔ شما نوتروفیل را به درصد نوشته، این عدد از ضربِ درصد در تعدادِ کلِ گلبول‌های سفید حساب شده و روی برگه نیست.";
+function neutHighGraded(e) {
+  const n = e.graded.find((g) => g.test === "NEUT_ABS");
+  return n?.abnormal && n.dir === "high" ? n : null;
+}
+function neutHighClause(e) {
+  const n = neutHighGraded(e);
+  return n
+    ? ` نوتروفیلِ مطلق ${n.value} است (حد طبیعی ${n.range}) و بخشِ اصلیِ این افزایش از نوتروفیل‌هاست — سلول‌هایی که در پاسخ به عفونتِ باکتریایی و التهاب زیاد می‌شوند.` + NEUT_DERIVED_NOTE
+    : "";
+}
+// «آیا leukocytosis فعال می‌شود» — یک تعریف برای match و برای neutrophilia (M91e: آستانه را دوباره ننویس).
+function leukocytosisOwns(e) {
+  const w = e.graded.find((g) => g.test === "WBC");
+  return !!(w?.abnormal && w.dir === "high" && w.value < 50 && !leukCytopeniaOwns(e));
+}
 function neutLowClause(e) {
   const n = e.graded.find((g) => g.test === "NEUT_ABS");
   return n?.abnormal && n.dir === "low"
@@ -475,7 +495,7 @@ export const RULES_HEMATOLOGY = [
     id: "leukocytosis",
     match: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
-      return w?.abnormal && w.dir === "high" && w.value < 50 && !leukCytopeniaOwns(e);
+      return leukocytosisOwns(e);
     },
     build: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
@@ -489,8 +509,48 @@ export const RULES_HEMATOLOGY = [
           "گلبول سفید بالا اغلب پاسخ بدن به عفونت یا التهاب است؛ استرس، ورزش شدید یا برخی داروها (مثل کورتون) هم موقتاً آن را بالا می‌برند. " +
           (marked
             ? "این افزایش قابل‌توجه است و بهتر است زودتر بررسی شود."
-            : "یک آزمایش به‌تنهایی علت را مشخص نمی‌کند؛ روند آن در تکرار مهم‌تر است."),
+            : "یک آزمایش به‌تنهایی علت را مشخص نمی‌کند؛ روند آن در تکرار مهم‌تر است.") +
+          neutHighClause(e),
         action: marked ? "این هفته با پزشک وقت بگیرید." : "نوبت عادی با پزشک.",
+        suggest: ["CRP", "تکرار CBC"],
+        warnings: [],
+      };
+    },
+  },
+  // نوتروفیلِ مطلقِ بالا وقتی leukocytosis مالکِ WBC نیست (WBC طبیعی/ثبت‌نشده) — با WBC بالا همان یافته جمله‌اش را می‌گوید (N20).
+  {
+    id: "neutrophilia",
+    match: (e) => {
+      return !!neutHighGraded(e) && !leukocytosisOwns(e);
+    },
+    build: (e) => {
+      const n = neutHighGraded(e);
+      const w = e.graded.find((g) => g.test === "WBC");
+      // WBC بالا ولی مالکِ دیگری دارد (≥ ۵۰ یا لکوسیتوز+سیتوپنی): جملهٔ دلگرم‌کنندهٔ «موقتی» و «نوبتِ عادی» کنارِ آن یافته
+      //   دستورِ دوم می‌سازد (N20) — فقط عدد، بی‌علت و بی‌اقدام.
+      if (w?.abnormal && w.dir === "high") {
+        return {
+          pattern: "neutrophilia",
+          urgency: "routine",
+          headline: "نوتروفیلِ مطلقِ شما بالاتر از حد طبیعی است",
+          must_say:
+            `نوتروفیلِ مطلق شما ${n.value} است (حد طبیعی ${n.range}؛ اگر برگه فقط درصد چاپ کرده، این عدد از ضربِ درصد در گلبول‌های سفید حساب شده و روی برگه نیست) و بخشی از همان افزایشِ گلبول‌های سفید است که در یافتهٔ دیگرِ این گزارش آمده؛ پزشک آن را کنارِ همان تصویر می‌سنجد.`,
+          action: "",
+          suggest: [],
+          warnings: [],
+        };
+      }
+      return {
+        pattern: "neutrophilia",
+        urgency: "routine",
+        headline: "نوتروفیل‌های خون شما کمی بالاتر از حد طبیعی است",
+        must_say:
+          `نوتروفیلِ مطلق شما ${n.value} است (حد طبیعی ${n.range}). ` +
+          "نوتروفیل بخشی از گلبول‌های سفید است که با عفونت‌های باکتریایی مقابله می‌کند. " +
+          (w ? "تعدادِ کلِ گلبول‌های سفیدِ شما در محدوده است. " : "تعدادِ کلِ گلبول‌های سفید روی این برگه نیست. ") +
+          "افزایشِ نوتروفیل بیشتر وقت‌ها موقتی است — عفونت، التهاب، سیگار، استرسِ جسمی، ورزشِ شدید یا داروهایی مثل کورتون — و یک آزمایش به‌تنهایی علت را مشخص نمی‌کند. " +
+          "تکرارِ آزمایش نشان می‌دهد این افزایش پایدار است یا نه." + NEUT_DERIVED_NOTE,
+        action: "در نوبتِ عادی با پزشک مطرح کنید و فهرستِ داروهایتان را همراه ببرید.",
         suggest: ["CRP", "تکرار CBC"],
         warnings: [],
       };

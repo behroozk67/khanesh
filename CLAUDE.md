@@ -666,6 +666,10 @@ second one; a recurring entry is the strongest signal in the file.
   Fixed with a separate ungraded `hemostasis` channel plus a reader (`patterns_hemostasis.js`) **and** the `server.js` fallback
   gate — mapping alone would have been N1. The neighbours one character away (Factor V/VII/X/XI/XII/XIII, bare «Inhibitor»)
   stay `unmapped` on purpose. Guards `M247`, `M251`, `T32`.
+- **Recurred on high absolute neutrophils (2026-10-01, job `6be0c63d`, `P62`).** `NEUT_ABS` was mapped, graded and in `refs.js`, but only
+  the *low* direction had rules. Neut 75 % (in the sheet's own range) × WBC 15.3 = 11475 went to «توضیحِ آماده نداریم». Fixed with a clause in
+  `leukocytosis` + `neutrophilia` for a non-high WBC. **A test with `dir` both ways needs a rule per direction** — check `high` for every key that has a `low` rule.
+  Guards `M275`–`M275c`.
 - **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
   anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
   *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When
