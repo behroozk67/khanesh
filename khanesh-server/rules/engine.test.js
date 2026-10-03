@@ -2197,10 +2197,10 @@ test("M34: همین مرز برای MCH هم درست است", () => {
 // آنچه با این تصمیم عوض شد و باید دانسته بماند: با سقفِ ۳۰۶، بزرگسالِ با
 // ALP=۲۰۰ «طبیعی» گزارش می‌شود. کلستاز، بیماریِ استخوانی و پاژه در آن
 // بازه دیده نمی‌شوند. این پیش از اعمال مطرح شد و مالک با آگاهی پذیرفت.
-test("M35: ALP بزرگسال بازهٔ [80,306] است (تصمیمِ مالک، بدونِ تفکیکِ جنس)", () => {
-  assert.deepEqual(getRef("ALP", "M", 40), [80, 306]);
-  assert.deepEqual(getRef("ALP", "F", 40), [80, 306],
-    "تفکیکِ جنس عمداً اعمال نشد — هر دو باید یک بازه بگیرند");
+// ⚠️ عمداً عوض شد (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): بازه‌های بزرگسال از جدولِ فرانت پیروی می‌کنند (جز قند) — docs/reviews/REF_DIFF.md.
+test("M35: ALP بزرگسال طبقِ فرانت: مرد [80,300]، زن [64,300]", () => {
+  assert.deepEqual(getRef("ALP", "M", 40), [80, 300]);
+  assert.deepEqual(getRef("ALP", "F", 40), [64, 300]);
 });
 
 test("M35: بزرگسال با ALP=۳۵۰ بالا علامت می‌خورد", () => {
@@ -5428,16 +5428,18 @@ const _albPanel = (alb, extra = []) =>
     tests: [{ name: "Albumin", value: String(alb), unit: "g/dL" }, ...extra],
   });
 
-test("M94: آلبومینِ ۳.۷ با بازهٔ هنری «پایین» است (با بازهٔ قبلیِ ۳.۵ «طبیعی» بود)", () => {
+// ⚠️ عمداً عوض شد (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): بازه‌های بزرگسال از جدولِ فرانت پیروی می‌کنند (جز قند) — docs/reviews/REF_DIFF.md.
+test("M94: آلبومینِ ۳.۷ با بازهٔ فرانتِ ۳.۵–۵.۰ «طبیعی» است (با بازهٔ هنریِ ۳.۹ «پایین» بود)", () => {
   const alb = _albPanel(3.7).graded.find((g) => g.test === "ALB");
   assert.ok(alb, "آلبومین باید نمره بگیرد");
-  assert.equal(alb.abnormal, true, "۳.۷ زیرِ حدِ پایینِ هنری (۳.۹) است");
-  assert.equal(alb.dir, "low");
+  assert.equal(alb.abnormal, false, "۳.۷ داخلِ بازهٔ ۳.۵–۵.۰ است");
 });
 
-test("M94b: آلبومینِ ۵.۰۵ با بازهٔ هنری «طبیعی» است (با سقفِ قبلیِ ۵.۰ «بالا» می‌شد)", () => {
+// ⚠️ عمداً عوض شد (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): بازه‌های بزرگسال از جدولِ فرانت پیروی می‌کنند (جز قند) — docs/reviews/REF_DIFF.md.
+test("M94b: آلبومینِ ۵.۰۵ با سقفِ فرانتِ ۵.۰ «بالا» است", () => {
   const alb = _albPanel(5.05).graded.find((g) => g.test === "ALB");
-  assert.equal(alb.abnormal, false, "۵.۰۵ داخلِ سقفِ هنری (۵.۱) است");
+  assert.equal(alb.abnormal, true, "۵.۰۵ بالای سقفِ ۵.۰ است");
+  assert.equal(alb.dir, "high");
 });
 
 test("M94c: هاپتوگلوبینِ ۵۰ با بازهٔ هنری «طبیعی» است (با کفِ قبلیِ ۶۰ «پایین» بود)", () => {
@@ -5541,7 +5543,8 @@ test("M94h: پروتئینوریِ شدید با آلبومینِ ۳.۷ «نفر
 
 test("M94i: بازه‌های هنری دقیقاً همان چیزی‌اند که Table 20.2 می‌گوید", () => {
   // هنری ف.۲۰ Table 20.2: آلبومین 39–51 g/L، هاپتوگلوبین 0.4–2.9 g/L.
-  assert.deepEqual(ADULT_REFS.ALB.both, [3.9, 5.1], "آلبومین: 39–51 g/L → 3.9–5.1 g/dL");
+  // ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: فرانت برنده): آلبومین دیگر عددِ هنری (۳.۹–۵.۱) نیست؛ ۳.۵–۵.۰ فرانت. هاپتوگلوبین دست‌نخورده.
+  assert.deepEqual(ADULT_REFS.ALB.both, [3.5, 5.0], "آلبومین: بازهٔ فرانت");
   assert.equal(ADULT_REFS.ALB.unit, "g/dL");
   assert.deepEqual(ADULT_REFS.HAPTO.both, [40, 290], "هاپتوگلوبین: 0.4–2.9 g/L → 40–290 mg/dL");
   assert.equal(ADULT_REFS.HAPTO.unit, "mg/dL");
@@ -5835,7 +5838,8 @@ test("M98c: بیلی‌روبینِ ۱۸ بدونِ اجزا هنوز اورژا
 });
 
 test("M99: کم‌کاریِ واضحِ تیروئید فقط یک یافته دارد و فوریتش this_week است", () => {
-  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.7", unit: "ng/dL" }] }));
+  // ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: بازه‌های فرانت): FT4 با بازهٔ ۰٫۷–۲٫۰ فرانت، ۰٫۷ «طبیعی» است؛ «کم‌کاریِ واضح» FT4ِ ۰٫۶ می‌خواهد.
+  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.6", unit: "ng/dL" }] }));
   const hit = p.findings.filter((f) => /thyroid|hypothyroid/.test(f.pattern));
   assert.equal(hit.length, 1, `${hit.length} یافته دربارهٔ تیروئید آمد: ${hit.map((f) => `${f.pattern}(${f.urgency})`).join("، ")}`);
   assert.equal(hit[0].pattern, "thyroid_hypo_overt");
@@ -5863,7 +5867,7 @@ test("M99c: تیروتوکسیکوزِ T3 (FT4 طبیعی، FT3 بالا) هنو
 });
 
 test("M99d: جملهٔ بارداری از قاعدهٔ حذف‌شده حفظ شد — و به مرد گفته نمی‌شود", () => {
-  const panel = [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.7", unit: "ng/dL" }];
+  const panel = [{ name: "TSH", value: "6.0" }, { name: "FT4", value: "0.6", unit: "ng/dL" }];   // FT4 ۰٫۶ (۰٫۷ با بازهٔ فرانت طبیعی است) — ۲۰۲۶-۱۰-۰۳
   const f = runPatterns(runEngine({ patient: { age: 30, sex: "F" }, tests: panel }));
   const m = runPatterns(runEngine({ patient: { age: 30, sex: "M" }, tests: panel }));
   const fText = f.findings.map((x) => String(x.must_say || "")).join(" ");
@@ -6030,7 +6034,7 @@ test("M103: قواعدِ تکراریِ فصل ۲۵ هیچ یافتهٔ تازه
   //    سه تعارضِ ثبت‌شده در P46 هم همین‌جا منجمدند: TSH 4.8 (آستانهٔ ۴.۵ در برابر ۵.۰)،
   //    Na 128 / قند 400 (ضریبِ ۲.۴ در برابر ۱.۶)، TSH 1.0 / FT4 0.6 (شاخهٔ مرکزی).
   const panels = [
-    [[["TSH", "6.0"], ["FT4", "0.7", "ng/dL"]], ["thyroid_hypo_overt[this_week]"]],
+    [[["TSH", "6.0"], ["FT4", "0.6", "ng/dL"]], ["thyroid_hypo_overt[this_week]"]],   // FT4 ۰٫۶ (بازهٔ فرانت ۰٫۷–۲٫۰؛ ۲۰۲۶-۱۰-۰۳)
     [[["TSH", "4.8"], ["FT4", "1.2", "ng/dL"]], ["thyroid_hypo_subclinical[routine]"]],
     [[["TSH", "12"], ["FT4", "1.2", "ng/dL"]], ["thyroid_hypo_subclinical[routine]"]],
     [[["TSH", "1.0"], ["FT4", "0.6", "ng/dL"]], ["thyroid_ft4_abnormal[routine]"]],
@@ -6363,18 +6367,18 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
     U5: [{ age: 60, sex: "M" }, [["Urine Blood", "2+"], ["RBC", "10-12", "/hpf"], ["Pus cells", "2-3"]], "562daaa177d9d3a6"],
     U6: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.010"], ["pH", "7"]], "030bb4f5e6f4a91f"],
     C1: [{ age: 40, sex: "M" }, [["WBC", "7000"], ["RBC", "4.8"], ["Hb", "14", "g/dL"], ["PLT", "250000"], ["MCV", "88"]], "7dd79d6187162b00"],
-    C2: [{ age: 40, sex: "M" }, [["WBC", "15.2"], ["Neut %", "85"], ["PLT", "120"]], "320ae9d0b6aee6af"], // ⚠️ M275 (۲۰۲۶-۱۰-۰۱): جملهٔ نوتروفیلِ مطلق به leukocytosis اضافه شد و unexplained_abnormal رفت — freezediff: فقط همین. // ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff).
+    C2: [{ age: 40, sex: "M" }, [["WBC", "15.2"], ["Neut %", "85"], ["PLT", "120"]], "ec31215ee9702377"], // ⚠️ M275 (۲۰۲۶-۱۰-۰۱): جملهٔ نوتروفیلِ مطلق به leukocytosis اضافه شد و unexplained_abnormal رفت — freezediff: فقط همین. // ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff).
     // ⚠️ C3 عمداً عوض شد (specs/007، US1): فقط رشتهٔ بازهٔ RBCِ زن در متن، «4.5–5.1» → «4.1–5.1» — سنجیده شد
     //    (c3، کپیِ پیش از 007 در برابرِ درختِ کاری): یافته‌ها، فوریت و حکمِ RBC 5.2 (بالا) یکسان‌اند.
     // ⚠️ C3 دوباره عمداً عوض شد — specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp).
     // ⚠️ C3 عمداً عوض شد (M187): microcytic_anemia حالا RBCِ بالا و RDWِ بالا را نام می‌برد و خطِ «بی‌توضیح» حذف شد؛ یافته‌ها/فوریت/اقدام همان.
     // ⚠️ عمداً عوض شد — P53 پرسش ۱۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): در microcytic_ida_likely فقط دو چیز — بازهٔ MCV از ردیفِ نمره‌دار («۸۰ تا ۱۰۰» → «80–96») و، وقتی فریتین روی برگه است، جملهٔ فریتینِ همان برگه به‌جای «فریتین باید اندازه‌گیری شود». سنجیده شد (freezediff، 953f513 در برابرِ درختِ کاری): یافته‌ها، فوریت و اقدام یکسان‌اند.
-    C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "6c6e407be39c02dd"],
-    C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8", "g/dL"]], "61da5060017f627d"], // ⚠️ M191: پان‌سیتوپنی سه عدد + آزمایش‌های علت‌یابی (freezediff).
+    C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "c28284a71e61800a"],
+    C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8", "g/dL"]], "d1fd65864640b7f3"], // ⚠️ M191: پان‌سیتوپنی سه عدد + آزمایش‌های علت‌یابی (freezediff).
     // ⚠️ C5 عمداً عوض شد — P53 پرسش ۵ (M197، آستانهٔ غربالگریِ WHO): پیش‌تر RBCِ ۶.۴ به unmatched_abnormal
     //    می‌رفت («فقط اقدامِ روتین»)؛ حالا Hb=17.5 داخلِ بازهٔ موتور ولی بالای آستانهٔ WHOِ مرد (۱۶.۵) است، پس
     //    erythrocytosis_who_screen فعال می‌شود و RBC را در متن نام می‌برد. سنجیده شد: تنها فرق همین یافتهٔ تازه است.
-    C5: [{ age: 45, sex: "M" }, [["RBC", "6.4", "10*6/µL"], ["Hb", "17.5", "g/dL"], ["HCT", "53"]], "50925be43ef97519"], // ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff) — دیگر صادق نیست، بالا را ببین.
+    C5: [{ age: 45, sex: "M" }, [["RBC", "6.4", "10*6/µL"], ["Hb", "17.5", "g/dL"], ["HCT", "53"]], "3a313de6eeff425b"], // ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff) — دیگر صادق نیست، بالا را ببین.
     C6: [{ age: 45, sex: "F" }, [["WBC", "7.2"], ["RBC", "4.5", "10*6/µL"], ["Hb", "13", "g/dL"], ["MCV", "88"], ["PLT", "250"]], "34fddffb77c6a593"],
   };
   for (const [id, [patient, rows, want]] of Object.entries(P)) {
@@ -6461,9 +6465,9 @@ test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ ام
   const P = {
     // عمداً بازپایه شد (۲۰۲۶-۱۰-۰۳، P72، M303): actionِ this_weekِ قاعدهٔ kidney «این هفته» گرفت (N20) و
     //   «درخواست آزمایش سونوگرافی/بررسی …» «درخواست …» شد (N8، M306). diffِ HEAD: فقط همین دو.
-    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "cf21c5d5c10471d2"],
+    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "86b8831aef2ac1be"],
     uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
-    thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "7ef4e21f6af2d814"],
+    thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "0da3c35337661135"],
     // prl_thyroid برداشته شد (۲۰۲۶-۱۰-۰۳): پرولاکتین با تأییدِ P46 بند ۱ بازه و قاعده گرفت (hyperprolactinemia، M101–M101e)،
     //   پس این پنل عمداً دیگر با پنلِ تیروئیدِ تنها یکی نیست. گارد روی «فصل ۲۶ پره‌اکلامپسی نمی‌افزاید» می‌ماند.
   };
@@ -7051,8 +7055,8 @@ test("M125: واحدِ چاپ‌شده بایت‌به‌بایت بی‌تغی�
   // ⚠️ عمداً بازپایه شد (P73، ۲۰۲۶-۱۰-۰۳): پنلِ «Total Bilirubin 40 µmol/L» (۱ از ۱۵) پیش‌تر unmatched_abnormal/routine می‌داد و حالا
   //   bilirubin_total_alone/routine؛ فوریتِ کلی یکی است. ۱۴ پنلِ دیگر بایت‌به‌بایت یکسان.
   const EXPECTED = ["f665faa0048dbdf5", "c1d5e82d7ddbc3e0", "92ca4fb75ab86370", "bd45550d31afb2f3", "4436e94e10c7ae54",
-    "81ff9d916b808907", "e4d91c9257556a36", "285da43aacfe795b", "e8bcbab1b2b3f21b", "bebcb999b3e71f23",
-    "3fa9fe79c67138b7", "0851945cd9782082", "09889f9ef3323ae1", "47ef5a64951b1422", "ce878cff6dfacbd5"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
+    "81ff9d916b808907", "e4d91c9257556a36", "995fad1290b5833e", "edac66e5fd40ebf2", "4231b77939cd3a67",
+    "5a3b00c577ab6abf", "c2ef8cb631aa6acb", "09889f9ef3323ae1", "47ef5a64951b1422", "999ba4662ba255d9"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
   const snap = (rows) => {
     const e = runEngine({ patient: { age: 50, sex: "M" }, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
     const p = runPatterns(e);
@@ -7146,9 +7150,11 @@ test("M128: «واحد نامعلوم» زیرِ اورژانسِ دیگر پن�
 
 test("M129: بیلی‌روبین — «0.3-1.2» واحد را تعیین می‌کند؛ نوزاد با بازهٔ بزرگسال سنجیده نمی‌شود (B1، B2)", () => {
   // 🔴 پیش‌تر: بزرگسال ۱۴ کنارِ «0.3-1.2» ⇒ «نامعلوم، routine»؛ نوزادِ ۱۴ کنارِ «<15» ⇒ ۰.۸۲ mg/dL، بی‌یافته.
-  const e = uuu([["Total Bilirubin", "14", "0.3-1.2"]]);
-  assert.equal(e.graded.find((g) => g.test === "BILI_T")?.value, 14);
+  // ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: بازه‌های فرانت): سقفِ بیلی‌روبین ۱٫۴ است، پس ۱۴ (=۱۰×ULN) دیگر «بحرانیِ CTCAE» نیست و this_week می‌شود؛ اورژانس از ۱۵ (bilirubin_emergency) شروع می‌شود.
+  const e = uuu([["Total Bilirubin", "16", "0.3-1.2"]]);
+  assert.equal(e.graded.find((g) => g.test === "BILI_T")?.value, 16);
   assert.equal(runPatterns(e).overall_urgency, "emergency");
+  assert.equal(runPatterns(uuu([["Total Bilirubin", "14", "0.3-1.2"]])).overall_urgency, "this_week");
   assert.equal(uuuRun([["Total Bilirubin", "1.0", "0.3-1.2"]]).findings.length, 0, "بیلی‌روبینِ طبیعی «ممکن است خارج…» گرفت");
   const neo = { age: 0, sex: "M" };
   const n14 = uuu([["Total Bilirubin", "14", "<15"]], neo);
@@ -7490,7 +7496,8 @@ test("M149: فولاتِ گلبولِ قرمز و مسِ ادرارِ ۲۴ساع
   assert.deepEqual(uuu([["Urine Copper", "150", null, "µg/L"]]).unmapped, ["Urine Copper"], "بی‌۲۴ ساعت نگاشت نشود");
   // «Folate» بی‌پیشوند با عددِ بزرگ: هرگز «بالا» (research R8؛ پرسشِ باز در P49)
   const f = uuu([["Folate", "300", null, "ng/mL"]]).graded.find((g) => g.test === "FOLATE");
-  assert.notEqual(f?.dir, "high");
+  // ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: بازهٔ فرانت ۵–۲۵): فولاتِ ۳۰۰ حالا «بالا» است (پیش‌تر سقف ۹۹۹ بود تا مکمل‌خور «غیرطبیعی» نشود). خطرِ ثبت‌شده در P73.
+  assert.equal(f?.dir, "high");
 });
 
 test("M150: آنالیتِ تازه کنارِ CBC یافته‌های CBC را عوض نمی‌کند (سناریوی ۵)", () => {
@@ -7901,7 +7908,7 @@ test("M164d: برگه‌های بی‌سیلندر بایت‌به‌بایت ه
     F1: [uaRows([["Blood", "+3"], ["RBC", "20-30", "/hpf"], ["Protein", "+2"]]), "4e83768b46572462"], // ⚠️ همان: هشدارِ بارداریِ پروتئینوری از برگهٔ مرد حذف شد (M276b)
     F2: [uaRows([["Leukocyte Esterase", "+2"], ["WBC", "15-20", "/hpf"]], { nitrite: "Positive", bacteria: "Many" }), "0c01081d2bd2a9c9"],
     // ⚠️ F3 عمداً عوض شد — specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp).
-    F3: [[["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["WBC", "7.2"], ["PLT", "250"], ["Ferritin", "6", "ng/mL"]], "eb13a977d93629ff"], // ⚠️ P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff).
+    F3: [[["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["WBC", "7.2"], ["PLT", "250"], ["Ferritin", "6", "ng/mL"]], "0f9815f32914c487"], // ⚠️ P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff).
     F4: [[["Hb", "13.5", "g/dL"], ["MCV", "88", "fL"], ["PLT", "250"], ["Creatinine", "1.0", "mg/dL"],
           ["FBS", "95", "mg/dL"], ...uaRows([["RBC", "1-2", "/hpf"], ["WBC", "2-3", "/hpf"]])], "afa275a4d0cd7a69"], // ⚠️ عمداً عوض شد — job fff90f58 (P58، N8): ردیفِ «کراتینین» در SUGGEST_TESTS ⇒ normocytic_anemia دیگر کنارِ Creatinine 1.0ِ همین برگه «کراتینین» پیشنهاد نمی‌دهد؛ تنها تفاوتِ خروجی همین یک رشته در suggest است (diffِ کاملِ خروجی روی درختِ پیش‌از‌اصلاح سنجیده شد). // ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
     F7: [uaRows([["WBC", "1-2", "/hpf"]], { bacteria: "Many" }), "2d753638ee88a4b4"],
@@ -8286,7 +8293,7 @@ test("M170: پیشنهادِ «تکرار …» به «درخواست آزمای
 //    بیلی‌روبین و اوروبیلینوژنِ نوار هم در qual بودند و هیچ خواننده‌ای نداشتند.
 // sha هر برگه روی b9068df، پیش از مرحلهٔ ب (اندازه‌گیری‌شده، نه نوشته‌شده).
 const UB_FROZEN = { uti: "f5a3594639e8c80b", hem: "79c3b1c3edcc6952", rbccast: "e4ad5c0d2305304a", gran: "f96d3a80e3b86903",
-  biliD: "c994d35593dc69ff", biliI: "4411aa0bdfe5986b", biliE: "b6944cd0079a43a5", hemol: "8c9c9e6020419ee3" /* ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff). */ /* ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp) */,
+  biliD: "0ae9760e11a845d1", biliI: "d73f07f5581c19ae", biliE: "b6944cd0079a43a5", hemol: "8c9c9e6020419ee3" /* ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff). */ /* ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp) */,
   bact: "2d753638ee88a4b4", tubcast: "ea3b269da2e1e80c" };
 const ubIds = (rows, patient) => uaIds(uaRun(rows, patient));
 const ubFind = (rows, id, patient) => uaRun(rows, patient).findings.find((f) => f.pattern === id || f.pattern?.startsWith(id));
@@ -8684,11 +8691,12 @@ test("M178: گلبول قرمزِ ۴.۳ در زن طبیعی است — بازه
   const p = uuuRun(g1Panel("4.3"), F30);
   assert.deepEqual(fired(p), []);
   assert.equal(p.overall_urgency, "none");
-  assert.ok(fired(uuuRun(g1Panel("4.09"), F30)).includes("low_rbc_hct_without_anemia"));
-  assert.ok(!fired(uuuRun(g1Panel("4.10"), F30)).includes("low_rbc_hct_without_anemia"));
+  // ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: فرانت برنده): بازهٔ زن ۴.۰–۵.۲ (پیش‌تر ۴.۱۰–۵.۱۰)
+  assert.ok(fired(uuuRun(g1Panel("3.99"), F30)).includes("low_rbc_hct_without_anemia"));
+  assert.ok(!fired(uuuRun(g1Panel("4.00"), F30)).includes("low_rbc_hct_without_anemia"));
   assert.ok(!fired(uuuRun(g1Panel("4.49"), F30)).includes("low_rbc_hct_without_anemia"));
-  assert.equal(g007(uuu(g1Panel("5.10"), F30), "RBC").abnormal, false);
-  const hi = g007(uuu(g1Panel("5.11"), F30), "RBC");
+  assert.equal(g007(uuu(g1Panel("5.20"), F30), "RBC").abnormal, false);
+  const hi = g007(uuu(g1Panel("5.21"), F30), "RBC");
   assert.ok(hi.abnormal && hi.dir === "high");
 });
 
@@ -8698,7 +8706,7 @@ test("M178b: بقیهٔ بازه‌ها دست نخورده‌اند — مرد�
   const r = uuuRun([["Retic", "2.0", null, "%"]], M40);
   assert.deepEqual(fired(r), ["unmatched_abnormal"]);
   assert.equal(g007(uuu([["RDW-SD", "50", null, "fL"]], M40), "RDW_SD").abnormal, false);
-  const old = uuuRun([["Hb", "12.5", null, "g/dL"], ["Hct", "37", null, "%"], ["RBC", "4.0", null, "10*6/uL"], ["MCV", "92", null, "fL"]], { age: 80, sex: "F" });
+  const old = uuuRun([["Hb", "12.5", null, "g/dL"], ["Hct", "37", null, "%"], ["RBC", "3.9", null, "10*6/uL"], ["MCV", "92", null, "fL"]], { age: 80, sex: "F" });
   assert.ok(fired(old).includes("low_rbc_hct_without_anemia"), fired(old).join(","));
 });
 
@@ -8828,7 +8836,7 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   // اندیس‌های ۲، ۳، ۶، ۷، ۹، ۱۰.
   // ⚠️ اندیس ۹ عمداً عوض شد (M275، ۲۰۲۶-۱۰-۰۱): leukocytosis نوتروفیلِ مطلقِ بالا را می‌گوید و unexplained_abnormal رفت — freezediff: فقط همین.
   // ⚠️ 3، 5، 10 عمداً عوض شد (M192، ۲۰۲۶-۰۹-۲۴): کم‌خونی RBC/HCT/MCHِ هم‌جهت را نام می‌برد و unexplained_abnormal رفت — freezediff: فقط همین.
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","18aac54750fa6eae","c64514d508978a83","d8a1f02d9094c245","a9607b22be77c6ff","fbd1b6e99fa613df","371853a2c0670570","3640ea1dcabdc7e5","0ed13ed3d9931064","313d655887004c45","9009a89c3c39fd82"];
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","a9607b22be77c6ff","3bf61851eec439b1","c979a7f9f4e6d5f6","5e02ded58b6743fe","069dca6b516e1253","1327339dfe505b04","f11b85687b38cce4"];
   assert.deepEqual(P.map(snap), EXPECTED);
 });
 
@@ -8947,7 +8955,8 @@ test("M183: یادداشتِ MCHC کنارِ بحرانِ Hb هم می‌آید�
 
 test("M183b: MCVِ بالا کنارِ MCHCِ ناممکن در همان یادداشت گفته می‌شود و بی‌توضیح نمی‌ماند (P52 پرسش ۳)", () => {
   // 🔴 پنلِ آگلوتینینِ سرد: MCV 100 به unexplained_abnormal می‌رفت، جدا از یادداشتی که همان خطا را توضیح می‌داد.
-  const p = uuuRun(g7Panel, M40);
+  // ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳): با بازهٔ ۸۰–۱۰۰ فرانت، ۱۰۰ دیگر «بالا» نیست؛ MCV ۱۰۳ می‌شود.
+  const p = uuuRun(g7Panel.map((r) => (r[0] === "MCV" ? ["MCV", "103", null, "fL"] : r)), M40);
   const n = findPat(p, "rbc_indices_implausible");
   assert.ok(n, fired(p).join(","));
   assert.match(n.must_say, /MCV/);
@@ -9019,7 +9028,8 @@ test("M184c: مرزهای سنیِ ۱۶/۲۰/۵۰/۷۰ — بازهٔ هر سن 
     [{ age: 16, sex: "M" }, "13.6–17.5"], [{ age: 19, sex: "M" }, "13.6–17.5"], [{ age: 20, sex: "M" }, "13.7–17.5"],
     [{ age: 49, sex: "M" }, "13.7–17.5"], [{ age: 50, sex: "M" }, "13.3–17.5"], [{ age: 69, sex: "M" }, "13.3–17.5"],
     [{ age: 70, sex: "M" }, "12.4–17.5"], [{ age: 90, sex: "M" }, "12.4–17.5"],
-    [{ age: 16, sex: "F" }, "12–15.3"], [{ age: 69, sex: "F" }, "12–15.3"], [{ age: 70, sex: "F" }, "11.8–15.3"],
+    // ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: فرانت برنده): سقفِ Hbِ زن ۱۶ (پیش‌تر ۱۵٫۳)
+    [{ age: 16, sex: "F" }, "12–16"], [{ age: 69, sex: "F" }, "12–16"], [{ age: 70, sex: "F" }, "11.8–16"],
   ];
   for (const [pt, range] of cases) assert.equal(hbGr(hbPanel("13", pt)).range, range, JSON.stringify(pt));
   // جفت‌ها دو سوی لبه
@@ -9036,10 +9046,10 @@ test("M184c: مرزهای سنیِ ۱۶/۲۰/۵۰/۷۰ — بازهٔ هر سن 
 test("M184d: قفل — ۱۲ تا ۱۵ ساله، سقف‌ها، بحرانِ Hb و سنِ نامعلوم بی‌تغییر (specs/008 R1)", () => {
   // ✅ سبز روی هر دو درخت: RCPCH برای ۱۲–۱۵ ردیف ندارد و بازهٔ امروزِ بزرگسال (۱۴ / ۱۲.۳) می‌ماند.
   assert.equal(hbGr(hbPanel("13.8", { age: 13, sex: "M" })).range, "14–17.5");
-  assert.equal(hbGr(hbPanel("12.2", { age: 14, sex: "F" })).range, "12.3–15.3");
+  assert.equal(hbGr(hbPanel("12.2", { age: 14, sex: "F" })).range, "12.3–16");   // سقفِ زن ۱۶ (۲۰۲۶-۱۰-۰۳)
   assert.equal(hbGr(hbPanel("17.0", { age: 40, sex: "M" })).abnormal, false);
   assert.equal(hbGr(hbPanel("17.6", { age: 40, sex: "M" })).dir, "high");
-  assert.equal(hbGr(hbPanel("15.4", { age: 40, sex: "F" })).dir, "high");
+  assert.equal(hbGr(hbPanel("16.1", { age: 40, sex: "F" })).dir, "high");
   const crisis = (pt) => findPat(runPatterns(hbPanel("6.5", pt)), "severe_anemia_crisis");
   const ref = crisis({ age: 30, sex: "M" });
   assert.ok(ref);
@@ -9069,11 +9079,11 @@ const ferrPanel = (ferr, pt, extra = []) => uuu([["Hb", pt.sex === "M" ? "15" : 
 test("M185: مردِ ۴۰ ساله با فریتین ۲۰ — درجه‌بندی «طبیعی» (۱۲–۳۰۰) ولی یافتهٔ کمبودِ آهن می‌ماند و «فریتین پایین» نمی‌گوید (Q2، G4)", () => {
   // 🔴 پیش‌تر بازهٔ مرد ۳۰–۳۰۰ بود ⇒ فریتین ۲۰ «پایین». با بازهٔ ۱۲–۳۰۰، اگر قاعده از dir می‌خواند، یافته خاموش می‌شد (N23).
   const e = ferrPanel(20, M40);
-  assert.equal(grOf(e, "FERRITIN").range, "12–300");
-  assert.equal(grOf(e, "FERRITIN").abnormal, false);
+// ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: فرانت برنده): بازهٔ مرد دوباره ۳۰–۳۰۰ است، پس فریتین ۲۰ «پایین» است و یافتهٔ کمبودِ آهن باید باز هم بیاید.
+  assert.equal(grOf(e, "FERRITIN").range, "30–300");
+  assert.equal(grOf(e, "FERRITIN").dir, "low");
   const f = findPat(runPatterns(e), "iron_deficiency");
   assert.ok(f, fired(runPatterns(e)).join(","));
-  assert.doesNotMatch(f.must_say, /فریتین پایین/);
 });
 
 test("M185b: زنِ ≥۵۰ ساله — بازهٔ فریتین ۳۰–۳۰۰ و آستانهٔ کمبودِ آهن زیرِ ۳۰؛ ۴۹ ساله همان ۱۲–۱۵۰ و زیرِ ۱۵ (clarify، G5)", () => {
@@ -9083,7 +9093,8 @@ test("M185b: زنِ ≥۵۰ ساله — بازهٔ فریتین ۳۰–۳۰۰ �
   assert.equal(grOf(e55, "FERRITIN").dir, "low");
   assert.ok(findPat(runPatterns(e55), "iron_deficiency"), fired(runPatterns(e55)).join(","));
   const e49 = ferrPanel(25, { age: 49, sex: "F" });
-  assert.equal(grOf(e49, "FERRITIN").range, "12–150");
+// ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: فرانت برنده): زنِ زیر ۵۰ ساله ۱۵–۱۵۰
+  assert.equal(grOf(e49, "FERRITIN").range, "15–150");
   assert.equal(grOf(e49, "FERRITIN").abnormal, false);
   assert.ok(!findPat(runPatterns(e49), "iron_deficiency"), fired(runPatterns(e49)).join(","));
 });
@@ -9091,11 +9102,11 @@ test("M185b: زنِ ≥۵۰ ساله — بازهٔ فریتین ۳۰–۳۰۰ �
 test("M185c: آهنِ سرم ۵۰–۱۶۰ — آهنِ ۵۵ تنها دیگر «بی‌توضیح» نیست، ولی کم‌خونیِ بیماری مزمن با آهنِ ۵۵ همچنان فعال است (Q2، G6)", () => {
   // 🔴 پیش‌تر بازه ۶۰–۱۵۰ ⇒ آهنِ ۵۵ به unmatched_abnormal می‌رفت؛ آهنِ ۱۵۵ «بالا».
   const e = uuu([["Iron", "55", null, "ug/dL"]], M40);
-  assert.equal(grOf(e, "IRON").abnormal, false);
-  assert.equal(grOf(e, "IRON").range, "50–160");
-  assert.deepEqual(fired(runPatterns(e)), []);
-  assert.equal(grOf(uuu([["Iron", "155", null, "ug/dL"]], M40), "IRON").abnormal, false);
-  assert.equal(grOf(uuu([["Iron", "165", null, "ug/dL"]], M40), "IRON").dir, "high");
+// ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: فرانت برنده): بازهٔ آهن ۶۰–۱۷۰؛ آهنِ ۵۵ «پایین» است.
+  assert.equal(grOf(e, "IRON").dir, "low");
+  assert.equal(grOf(e, "IRON").range, "60–170");
+  assert.equal(grOf(uuu([["Iron", "165", null, "ug/dL"]], M40), "IRON").abnormal, false);
+  assert.equal(grOf(uuu([["Iron", "175", null, "ug/dL"]], M40), "IRON").dir, "high");
   const acd = uuuRun([["Hb", "11", null, "g/dL"], ["MCV", "85", null, "fL"], ["Iron", "55", null, "ug/dL"],
     ["Ferritin", "250", null, "ng/mL"], ["TIBC", "220", null, "ug/dL"]], M40);
   const f = findPat(acd, "anemia_of_chronic_disease");
@@ -9115,7 +9126,7 @@ test("M185d: قفل — فریتین ۱۳ در زنِ ۳۰ ساله، شاخهٔ
   // کودک: بازه از PED_REFS (۱۲–۲۰۰) و آستانه‌های بزرگسال به آن نمی‌رسند — فریتینِ ۲۰ در ۱۰ ساله کمبود نیست.
   assert.ok(!findPat(runPatterns(ferrPanel(20, { age: 10, sex: "M" })), "iron_deficiency"));
   assert.ok(findPat(runPatterns(ferrPanel(8, { age: 10, sex: "M" })), "iron_deficiency"));
-  assert.deepEqual(getRef("TIBC", "M", 40), [250, 400]);
+  assert.deepEqual(getRef("TIBC", "M", 40), [240, 450]);   // ۲۰۲۶-۱۰-۰۳ فرانت
   assert.deepEqual(getRef("TSAT", "F", 40), [20, 55]);
 });
 
@@ -9720,7 +9731,7 @@ test("M190: بارداری ورودیِ موتور است — Hbِ زیرِ ۱۱
   // 🔴 پیش‌تر: patient.pregnant خوانده نمی‌شد؛ Hb 11.5 در بارداری «پایین» (ردیفِ ۱۲.۰) و Hb 10.8 «کم‌خونیِ متوسط».
   const PREG = { age: 28, sex: "F", pregnant: true };
   let e = uuu([["Hb", "11.5", null, "g/dL"]], PREG);
-  assert.equal(hbRow(e).range, "11–15.3");
+  assert.equal(hbRow(e).range, "11–16");   // سقفِ زن ۱۶ (۲۰۲۶-۱۰-۰۳)
   assert.equal(hbRow(e).abnormal, false, "Hb 11.5 در بارداری کم‌خونی نیست");
   assert.equal(hbRow(uuu([["Hb", "11.5", null, "g/dL"]], { age: 28, sex: "F" })).dir, "low", "بی‌بارداری همان ردیفِ ۱۲.۰");
   const p = uuuRun([["Hb", "10.8", null, "g/dL"], ["MCV", "85", null, "fL"]], PREG);
@@ -9849,7 +9860,7 @@ test("M190i: thal_trait_no_anemia در کودک بازهٔ سنی می‌خوا�
   const f = findPat(p, "microcytic_ida_likely");
   assert.ok(f, fired(p).join(","));
   assert.doesNotMatch(f.must_say, /۸۰ تا ۱۰۰/);
-  assert.match(f.must_say, /MCV\) 70 است که کوچک‌تر از حد طبیعی \(80–96\)/);
+  assert.match(f.must_say, /MCV\) 70 است که کوچک‌تر از حد طبیعی \(80–100\)/);
   assert.doesNotMatch(f.must_say, /فریتین باید اندازه‌گیری شود/);
   assert.ok(!f.suggest.includes("فریتین"), JSON.stringify(f.suggest));
   // صفتِ بی‌کم‌خونی با فریتینِ روی برگه دیگر فریتین نمی‌خواهد.
@@ -9889,7 +9900,7 @@ test("M191: زیرِ پان‌سیتوپنی Hb و نوتروفیل عدد دا�
 
 test("M191b: نورموسیتیکِ تنها (بی‌اورژانس) کلیدهای brief را بی‌صدا «پوشش‌داده» نمی‌کند (M156)", () => {
   // brief در کمکیِ بیرونی است؛ اگر درونِ قاعده بود HCTِ *بالا* کنارِ Hbِ پایین بی‌هیچ جمله‌ای از تور می‌افتاد.
-  const p = uuuRun([["Hb", "10", null, "g/dL"], ["MCV", "88", null, "fL"], ["HCT", "52", null, "%"]], M40);
+  const p = uuuRun([["Hb", "10", null, "g/dL"], ["MCV", "88", null, "fL"], ["HCT", "55", null, "%"]], M40);   // ۵۵ (۵۲ با بازهٔ ۴۱–۵۳ فرانت دیگر «بالا» نیست)
   assert.ok(findPat(p, "normocytic_anemia"));
   assert.ok((findPat(p, "unexplained_abnormal")?.uncovered ?? []).includes("HCT"), fired(p).join(","));
 });
@@ -10978,7 +10989,9 @@ const J40_ROWS = [
   ["WBC", "3.5", "x1000/mm³"], ["R.B.C", "2.61", "Mill/mm³"], ["Hb", "7.1", "gm/dl"], ["Hct", "24.1", "%"],
   ["M.C.V", "92", "fL"], ["M.C.H", "27", "Pgm"], ["M.C.H.C", "29", "gr/dl"], ["Platelet", "53", "x1000/mm³"],
   ["Mixed", "2.8", "%"], ["Neut", "83.7", "%"], ["Lymph", "13.5", "%"], ["PTT", "33", "sec"], ["pt", "14.5", "Sec."],
-  ["INR", "1.2", "Index"],
+  // ⚠️ عمداً عوض شد (۲۰۲۶-۱۰-۰۳، تصمیمِ کاربر: بازه‌های فرانت): INRِ برگهٔ واقعی ۱٫۲ بود (داخلِ بازهٔ خودِ آزمایشگاه)، ولی بازهٔ یکپارچه ۰٫۹–۱٫۱ است و ۱٫۲ «بالا» می‌شد و فرضِ «PTِ ایزوله» را می‌شکست؛
+  //   برای حفظِ همان سناریو ۱٫۱ شد.
+  ["INR", "1.1", "Index"],
 ];
 const J40_PT = { age: 56, sex: "F" };
 const j40Run = (rows = J40_ROWS) => fffRun(rows, J40_PT);
@@ -11011,7 +11024,7 @@ test("M240a: F1 — لنفوسیتِ پایین زیرِ پان‌سیتوپنی
 
 test("M240b: F3 — MCHCِ پایین در کم‌خونیِ نورموسیتیک (متنِ کامل و brief) یک جمله در همان یافته است؛ MCHCِ بالا «کم‌رنگ» نمی‌شود", () => {
   const { p } = j40Run();
-  assert.match(fffFind(p, "normocytic_anemia").brief, /MCH 27، MCHC 29 هم بخشی از همین کم‌خونی است/);
+  assert.match(fffFind(p, "normocytic_anemia").brief, /MCHC 29 هم بخشی از همین کم‌خونی است/);
   const full = fffFind(j40Run(j40NoBlocker()).p, "normocytic_anemia");
   assert.match(full.must_say, /MCHC 29 \(حد طبیعی 32–36\) هم پایین است، یعنی گلبول‌ها کمی کم‌رنگ‌تر از معمول‌اند/);
   // «سه کم‌خونیِ جدا» نیست: قاعدهٔ مستقلِ MCHC ساخته نشده
@@ -11058,12 +11071,12 @@ test("M240c: F4 — اورهٔ بالا با کراتینینِ طبیعی صا�
 
 test("M240d: F5 — PTِ خامِ کمی بالا با INR و APTTِ طبیعی «طولانی‌شدنِ زمان لخته شدن» نمی‌گوید؛ INRِ بالا یا غایب متنِ کلی می‌گیرد (N4)", () => {
   const c = fffFind(j40Run().p, "coagulation_abnormal");
-  assert.match(c.brief, /PT\) 14.5 \(حد طبیعی 10–13\) کمی بالاتر است ولی INR 1.2 در محدوده است/);
+  assert.match(c.brief, /PT\) 14.5 \(حد طبیعی 11–13.5\) کمی بالاتر است ولی INR 1.1 در محدوده است/);
   assert.equal(c.urgency, "routine"); // P59 پرسش ۵ (بازبین): PT ایزوله با INRِ طبیعی routine
   assert.match(c.action, /نوبتِ عادی.*PT و INR تکرار شود/);
   assert.ok(!/کبد|ویتامین K/.test(fffText(c)), "جملهٔ قاطعِ علت‌ها با INRِ طبیعی نباید بیاید");
   const solo = fffFind(j40Run(J40_ROWS.filter((r) => ["pt", "INR", "PTT"].includes(r[0]))).p, "coagulation_abnormal");
-  assert.match(solo.must_say, /INR \(که PT را بین آزمایشگاه‌ها قابل‌مقایسه می‌کند\) 1.2 و در محدوده است و APTT هم طبیعی است/);
+  assert.match(solo.must_say, /INR \(که PT را بین آزمایشگاه‌ها قابل‌مقایسه می‌کند\) 1.1 و در محدوده است و APTT هم طبیعی است/);
   assert.match(solo.must_say, /PT و INR باید تکرار شود/);
   assert.ok(!/طولانی‌تر از حد معمول/.test(solo.must_say));
   // INRِ بالا ⇒ متنِ کلیِ قبلی
@@ -11115,23 +11128,23 @@ test("M241: WBC 80 — لنفوسیت/ائوزینوفیل/مونوسیتِ با
   assert.equal(p.has_critical, true);
   const sup = p.findings.filter((f) => f.supplementary);
   // ⚠️ عمداً عوض شد (P73): Hbِ ۱۲ (پایین برای مرد) بدونِ MCV حالا anemia_hb_alone دارد و آن هم زیرِ اورژانس «تکمیلی» می‌شود.
-  assert.deepEqual(sup.map((f) => f.rule_id), ["cll_suspicion_nccn", "eosinophilia", "neutrophilia", "monocytosis", "anemia_hb_alone"]);
+  assert.deepEqual(sup.map((f) => f.rule_id), ["cll_suspicion_nccn", "eosinophilia", "neutrophilia", "thrombocytosis", "monocytosis", "anemia_hb_alone"]);   // ۲۰۲۶-۱۰-۰۳ (بازه‌های فرانت): PLT ۴۵۰ > سقفِ ۴۰۰ ⇒ thrombocytosis هم تکمیلی
   sup.forEach((f, i) => assert.ok(
-    f.must_say.startsWith(`یافتهٔ تکمیلی ${i + 1} از 5 (جدا از دستور اورژانسی): `), `برچسب/شمارش: ${f.must_say}`));
+    f.must_say.startsWith(`یافتهٔ تکمیلی ${i + 1} از 6 (جدا از دستور اورژانسی): `), `برچسب/شمارش: ${f.must_say}`));
   const text = s9Text(p);
   for (const n of ["6400", "4800", "3200", "56000"]) assert.ok(text.includes(n), `عدد ${n} در متنِ نمایشی نیست`);
   const un = s9Uncovered(p);
   for (const k of ["LYMPH_ABS", "EOS_ABS", "MONO_ABS", "NEUT_ABS"]) assert.ok(!un.includes(k), `${k} هنوز «بی‌توضیح» است: ${un}`);
   // شمارش و شناسه‌ها به خروجیِ موتور می‌رسند (قراردادِ _engine)
-  assert.equal(p.suppressed, 5);   // P73: + anemia_hb_alone
-  assert.deepEqual([...p.suppressed_ids].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
-  assert.deepEqual([...p.supplementary_ids].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
+  assert.equal(p.suppressed, 6);   // P73: + anemia_hb_alone؛ ۲۰۲۶-۱۰-۰۳: + thrombocytosis
+  assert.deepEqual([...p.suppressed_ids].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia", "thrombocytosis"]);
+  assert.deepEqual([...p.supplementary_ids].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia", "thrombocytosis"]);
 });
 
 test("M241b: یافتهٔ تکمیلی فوریتِ خودش را نگه می‌دارد ولی هیچ دستور/هشدار/پیشنهادِ زمان‌دارِ دومی نمی‌آورد (N20) و دستورِ نهاییِ اورژانس عوض نمی‌شود", () => {
   const { e, p } = M241_WBC80();
   // بدونِ این، حلقهٔ پایین روی کدِ قدیمی (که یافتهٔ تکمیلی ندارد) بی‌مصرف سبز می‌شود (N15).
-  assert.equal(p.findings.filter((x) => x.supplementary).length, 5, "پیش‌شرط: پنج یافتهٔ تکمیلی (P73: + anemia_hb_alone)");
+  assert.equal(p.findings.filter((x) => x.supplementary).length, 6, "پیش‌شرط: شش یافتهٔ تکمیلی (P73: + anemia_hb_alone؛ فرانت: + thrombocytosis)");
   for (const f of p.findings.filter((x) => x.supplementary)) {
     assert.equal(f.action, "", `${f.rule_id}: دستورِ زمان‌دارِ دوم`);
     assert.deepEqual(f.warnings, []);
@@ -11432,7 +11445,7 @@ test("M246e: بیلی‌روبینِ نوزادِ < ۱۴ روز با بازهٔ 
   const late = g("20 روز", "Total Bilirubin", "9");
   assert.equal(late.g.dir, "high"); assert.equal(late.g.range, "0–1.23");
   assert.equal(late.r.p.has_critical, false); assert.ok(late.r.p.findings.some((f) => /همین امروز/.test(f.action ?? "")), String(late.r.ids));
-  assert.equal(g("40 سال", "Total Bilirubin", "1.0").g.range, "0.1–1.2");
+  assert.equal(g("40 سال", "Total Bilirubin", "1.0").g.range, "0–1.4");   // ۲۰۲۶-۱۰-۰۳ فرانت
 });
 
 test("M246f: لحنِ نوزاد — متنِ بیمار دربارهٔ «نوزاد» است، نه «شما»؛ بی‌بندِ بزرگسال و بی‌«مراجعه کنید»؛ بزرگسال دست‌نخورده (P63)", async () => {
@@ -11809,17 +11822,17 @@ test("M255: dic_isth_score فقط روی ۵۰ ≤ PLT < ۱۰۰ + D-dimer > ۴۰�
 const m010Hash = (x) => crypto.createHash("sha256").update(JSON.stringify(x)).digest("hex").slice(0, 16);
 const m010P = (sex, age, rows) => runPatterns(runEngine({ tests: rows, patient: { sex, age } }));
 const M010_FREEZE = {
-  plt_500: ["M", 40, [...M010_BASE, m010T("PLT", 500, "10^3/uL")], "40670a0881ed84c1"],
-  plt_999: ["M", 40, [...M010_BASE, m010T("PLT", 999, "10^3/uL")], "f7b93c6b8f44e4bd"],
+  plt_500: ["M", 40, [...M010_BASE, m010T("PLT", 500, "10^3/uL")], "73c789652417bb1e"],
+  plt_999: ["M", 40, [...M010_BASE, m010T("PLT", 999, "10^3/uL")], "80b649f8fc4b81ef"],
   // ⚠️ dic_emerg عمداً بازپایه شد (P73): Hbِ ۱۳ (پایین برای مرد ۶۰ ساله، بی‌MCV) پیش‌تر unexplained_abnormal/routine بود، حالا anemia_hb_alone/routine؛
   //   dic_pattern و coagulation_abnormal و فوریتِ کلی (emergency) دست‌نخورده.
-  dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "c60468549c5dd064"],
+  dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "207480882283b17f"],
   plt40_dd6: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 40, "10^3/uL"), m010T("D-dimer", 6.0, "µg/mL"), m010T("PT", 12, "sec"), m010T("Fibrinogen", 300, "mg/dL")], "23f9236f61afb400"],
   plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "0c9e940c3e6edecb"],
-  plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "0fb1923cfbab47b5"],
+  plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "1891b9878d37f409"],
   dd_only: ["M", 70, [...M010_BASE, m010T("D-dimer", 700, "ng/mL")], "3063cfd783be8dcc"],
-  aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "dd28af718362abd1"],
-  pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "f52052b797a228e7"],
+  aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "b35c9851d8754cbd"],
+  pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "0ee02a62f8a75c4f"],
   fib_90: ["M", 40, [...M010_BASE, m010T("Fibrinogen", 90, "mg/dL")], "b9317fdf70b7940b"],
   // ۲۰۲۶-۱۰-۰۳ (P67): TT حالا کلیدِ شناخته‌شده و قاعده‌دار است؛ این تنها ردیفِ freeze است که عمداً عوض شد (M290).
   tt: ["M", 40, [...M010_BASE, m010T("Thrombin Time", 30, "sec")], "fc9c0947e7eb8acf"],
@@ -11827,7 +11840,7 @@ const M010_FREEZE = {
   factor_vii: ["M", 40, [...M010_BASE, m010T("Factor VII", 40, "%")], "f1317c856c6d3301"],
   bare_inhibitor: ["M", 25, [...M010_BASE, m010T("Inhibitor", "Positive")], "f1317c856c6d3301"],
   maha: ["F", 40, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 8, "g/dL"), m010T("PLT", 30, "10^3/uL")], "a191747c38d3b902"],
-  plt_80: ["M", 40, [...M010_BASE, m010T("PLT", 80, "10^3/uL")], "e6f130d17464d03e"],
+  plt_80: ["M", 40, [...M010_BASE, m010T("PLT", 80, "10^3/uL")], "5f0def5fcc135013"],
 };
 
 test("M256: پلاکتِ ≥ ۱۰۰۰ ⇒ thrombocytosis «این هفته» بی «در بیشتر موارد واکنشی»؛ ۹۹۹ و ۵۰۰ بایت‌به‌بایت همان پیشین (FR-017)", () => {
@@ -11847,7 +11860,7 @@ test("M256: پلاکتِ ≥ ۱۰۰۰ ⇒ thrombocytosis «این هفته» ب�
 
 test("M257: freeze — پنل‌های بی‌آنالیتِ تازه و بازه‌های مرجعِ D1–D4 همان e285030‌اند (SC-002)", () => {
   for (const [k, [sex, age, rows, want]] of Object.entries(M010_FREEZE)) assert.equal(m010Hash(m010P(sex, age, rows)), want, `${k}: خروجی عوض شد`);
-  assert.equal(m010Hash(["PT", "APTT", "DDIMER", "PLT", "FIB", "INR"].map((k) => ADULT_REFS[k])), "ad47784cde525cc9", "بازهٔ مرجعِ انعقاد/پلاکت عوض شد");
+  assert.equal(m010Hash(["PT", "APTT", "DDIMER", "PLT", "FIB", "INR"].map((k) => ADULT_REFS[k])), "b88cde506e3af72c", "بازهٔ مرجعِ انعقاد/پلاکت عوض شد");
 });
 
 // ---------- M258: هیچ متنِ تازه‌ای نامِ بیماری را تشخیصِ بیمار نمی‌گوید و کلیدِ خامِ موتور را نشان نمی‌دهد (FR-010، SC-005، N8) ----------

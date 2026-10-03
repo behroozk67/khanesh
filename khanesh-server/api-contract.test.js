@@ -866,9 +866,9 @@ test("T30: _engine.suppressed/suppressed_ids/supplementary برسند، و یا�
   assert.equal(status, 200);
   const eng = body._engine;
   // ⚠️ عمداً عوض شد (P73): + anemia_hb_alone (Hbِ ۱۲ بدونِ MCV)
-  assert.equal(eng.suppressed, 5, JSON.stringify(eng.suppressed));
-  assert.deepEqual([...eng.suppressed_ids].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
-  assert.deepEqual([...eng.supplementary].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
+  assert.equal(eng.suppressed, 6, JSON.stringify(eng.suppressed));   // + thrombocytosis (PLT 450 > سقفِ ۴۰۰ فرانت، ۲۰۲۶-۱۰-۰۳)
+  assert.deepEqual([...eng.suppressed_ids].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia", "thrombocytosis"]);
+  assert.deepEqual([...eng.supplementary].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia", "thrombocytosis"]);
   assert.ok(!(eng.uncovered ?? []).some((k) => ["LYMPH_ABS", "EOS_ABS", "MONO_ABS"].includes(k)), `هنوز بی‌توضیح: ${eng.uncovered}`);
   const interp = body.interpretation ?? "";
   for (const n of ["6400", "4800", "3200"]) assert.ok(interp.includes(n), `عدد ${n} به متنِ بیمار نرسید: ${interp}`);
