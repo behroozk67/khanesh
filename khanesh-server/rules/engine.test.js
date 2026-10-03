@@ -2524,6 +2524,8 @@ const ALLOWED_TEST_NAMES = new Set([
   "CBC", "CRP", "ESR", "TIBC", "LDH", "CK", "GGT", "ALP", "AST", "ALT",
   "BUN", "ABG", "VBG", "ECG", "TSH", "FT3", "FT4", "TSI", "MMA", "FBS",
   "HbA1c", "eGFR", "SPEP", "UPEP", "2ME", "Anti-TPO", "Anti-CCP",
+  // P46: ACTH روی برگهٔ فارسی هم همین‌طور چاپ می‌شود؛ cushing_likely وقتی روی برگه نیست پیشنهادش می‌کند.
+  "ACTH",
 
   // P6 — ده واژهٔ کاملِ انگلیسی که اینجا معاف بودند به فارسی برگردانده شدند
   // (الکترولیت‌ها، اسمولالیتهٔ سرم، کراتینین، بیلی‌روبین، بیلی‌روبین مستقیم،
@@ -6049,7 +6051,7 @@ test("M103: قواعدِ تکراریِ فصل ۲۵ هیچ یافتهٔ تازه
 // ═══ داستانِ ۱ — پرولاکتین (بندهای ۱، ۲، ۱۱ِ P46) ═══
 
 test("M101: پرولاکتینِ بالای تنها دیگر به «همه‌چیز طبیعی است» ختم نمی‌شود",
-  { todo: "P46 بند ۱ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 N2، اندازه‌گیری‌شده روی 3416d63: `Prolactin 80` تنها unmapped بود، صفر یافته،
   //    و server.js در این حالت buildNormalResult() برمی‌گرداند.
   const p = pitRun([{ name: "Prolactin", value: "80" }]);
@@ -6058,7 +6060,7 @@ test("M101: پرولاکتینِ بالای تنها دیگر به «همه‌چ
 });
 
 test("M101b: حدِ پرولاکتین جنسیت‌محور است و جنسیتِ نامعلوم حدِ پایین‌تر را می‌گیرد",
-  { todo: "P46 بند ۱ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 getRef() برای جنسیتِ نامعلوم بازهٔ زن را برمی‌گرداند؛ برای پرولاکتین آن حدِ
   //    بالاتر است (۲۵ در برابر ۲۰) و کم‌خوانی می‌کند — FR-005. prlRef باید مرد را بدهد.
   const at = (sex) => pitRun([{ name: "Prolactin", value: "22" }], { age: 40, sex });
@@ -6068,7 +6070,7 @@ test("M101b: حدِ پرولاکتین جنسیت‌محور است و جنسی�
 });
 
 test("M101c: یافتهٔ پرولاکتین وضعیتِ تیروئیدِ همان برگه را به چهار حالت می‌گوید",
-  { todo: "P46 بند ۱ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 N21/N4: کم‌کاری خودش پرولاکتین را بالا می‌برد. «نبودِ TSH» ≠ «TSHِ طبیعی».
   const prl = { name: "Prolactin", value: "80" };
   const arms = {
@@ -6097,7 +6099,7 @@ test("M101c: یافتهٔ پرولاکتین وضعیتِ تیروئیدِ هم�
 });
 
 test("M101d: پرولاکتینِ بالای ۲۰۰ جملهٔ هیپوفیز دارد؛ ۲۰۰ ندارد؛ هیچ‌کدام تومور را قطعی نمی‌کند",
-  { todo: "P46 بند ۲ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 FR-007/FR-008/FR-009. لبهٔ باند (N19) هر دو طرف آزموده می‌شود.
   const high = pitFind(pitRun([{ name: "Prolactin", value: "250" }]), "hyperprolactinemia");
   const edge = pitFind(pitRun([{ name: "Prolactin", value: "200" }]), "hyperprolactinemia");
@@ -6116,7 +6118,7 @@ test("M101d: پرولاکتینِ بالای ۲۰۰ جملهٔ هیپوفیز د
 });
 
 test("M101e: پرولاکتین در همهٔ سنین با حدِ بزرگسال سنجیده می‌شود (تصمیمِ ثبت‌شده)",
-  { todo: "P46 بند ۱ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 تصمیمِ clarify: همهٔ سنین، حدودِ بزرگسال. هزینه‌اش (بیش‌خوانیِ نوزاد) در P46 ثبت
   //    است. اگر روزی شاخهٔ کودکان بی‌تصمیمِ ثبت‌شده اضافه شود، این آزمون قرمز می‌شود.
   assert.deepEqual(getRef("PRL", "M", 1), getRef("PRL", "M", 40));
@@ -6139,7 +6141,7 @@ const PIT_ADRENAL_PANELS = [
 const pitPanel = (rows) => pitRun(rows.map(([name, value, unit]) => ({ name, value, unit })));
 
 test("M102: هر پنلِ کورتیزول دقیقاً یک یافتهٔ آدرنال می‌دهد، و هر برچسب دست‌کم یک بار می‌آید",
-  { todo: "P46 بندهای ۳ تا ۱۰ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 FR-015 و N20: هم سکوت (صفر یافته) و هم تناقض (دو یافته) شکست است — مثلِ M91e.
   const reached = new Set();
   for (const [label, rows] of PIT_ADRENAL_PANELS) {
@@ -6153,7 +6155,7 @@ test("M102: هر پنلِ کورتیزول دقیقاً یک یافتهٔ آدر
 });
 
 test("M102b: کورتیزولِ بی‌زمان نمره نمی‌گیرد و هیچ حکمی نمی‌دهد",
-  { todo: "P46 — مرحلهٔ ب (کانالِ ungraded)" }, () => {
+  () => {
   // 🔴 FR-010. کورتیزولِ عصر به‌طورِ طبیعی پایین است؛ سنجیدنش با بازهٔ صبح یعنی
   //    «نارساییِ آدرنال» جعلی برای هر نمونهٔ بعدازظهر.
   const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "3", unit: "µg/dL" }] });
@@ -6170,7 +6172,7 @@ test("M102b: کورتیزولِ بی‌زمان نمره نمی‌گیرد و ه
 });
 
 test("M102c: کورتیزولِ پس از دگزامتازون هرگز یافتهٔ نارسایی نمی‌سازد",
-  { todo: "P46 بند ۹ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 FR-003: پایین بودنِ کورتیزول پس از دگزامتازون یعنی سرکوبِ طبیعی، نه نارسایی.
   const p = pitPanel([["Cortisol after Dexamethasone", "1.5", "µg/dL"]]);
   assert.ok(!pitFired(p).some((id) => /insufficiency/.test(id)), `آمده‌ها: ${pitFired(p).join("، ")}`);
@@ -6179,7 +6181,7 @@ test("M102c: کورتیزولِ پس از دگزامتازون هرگز یافت
 });
 
 test("M102d: یافتهٔ کوشینگ منشأ را از ACTHِ همان برگه به چهار حالت می‌گوید",
-  { todo: "P46 بندهای ۵ و ۸ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 FR-011، N21: ACTHِ اندازه‌گیری‌نشده ≠ ACTHِ طبیعی.
   const ufc = ["UFC", "1000", "µg/24h"];
   const arms = {
@@ -6206,14 +6208,14 @@ test("M102d: یافتهٔ کوشینگ منشأ را از ACTHِ همان برگ
 });
 
 test("M102e: کورتیزولِ صبحِ پایین + UFCِ بالا → فقط «نتایجِ متناقض»، نه دو حکم",
-  { todo: "P46 بندهای ۳ و ۷ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 N20: ترتیبِ قاعده‌ها نباید میانِ دو نتیجهٔ متضاد تصمیم بگیرد.
   const p = pitPanel([["Cortisol (8 AM)", "2", "µg/dL"], ["UFC", "100", "µg/24h"]]);
   assert.deepEqual(pitFired(p).filter((id) => PIT_ADRENAL.includes(id)), ["adrenal_discordant"]);
 });
 
 test("M102f: یافته‌های کورتیزول داروهای مخدوش‌کننده را نام می‌برند و هرگز توصیهٔ دارویی نمی‌کنند",
-  { todo: "P46 بندهای ۳ تا ۱۰ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 FR-023، SC-010 (تصمیمِ clarify): پایین → استروئید؛ بالا → استروژن/ضدبارداری؛
   //    متناقض → هر دو؛ بی‌زمان → هیچ‌کدام. هیچ‌جا «قطع کنید».
   const STEROID = /استروئید/, ESTROGEN = /استروژن|ضدبارداری/;
@@ -6232,16 +6234,16 @@ test("M102f: یافته‌های کورتیزول داروهای مخدوش‌ک
 });
 
 test("M103b: CORTISOL هرگز بازه نمی‌گیرد و از کانالِ ungraded به قاعده می‌رسد",
-  { todo: "P46 — مرحلهٔ ب (کانالِ ungraded)" }, () => {
+  () => {
   // 🔴 اگر CORTISOL روزی به ADULT_REFS برود، کورتیزولِ عصرِ طبیعی «پایین» خوانده می‌شود.
   assert.ok(!("CORTISOL" in ADULT_REFS), "CORTISOL نباید بازه داشته باشد");
   const e = runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "3", unit: "µg/dL" }] });
-  assert.equal(e.ungraded?.CORTISOL, 3);
+  assert.equal(e.ungraded?.CORTISOL?.value, 3);
   assert.ok(e.noRef.includes("CORTISOL"), "noRef نباید عوض شود");
 });
 
 test("M103c: کورتیزولِ nmol/L تبدیل می‌شود؛ کورتیزولِ بی‌واحدِ > ۱۰۰ نمره نمی‌گیرد",
-  { todo: "P46 بند ۴ — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   // 🔴 N3: حدس زدنِ واحد از بزرگیِ عدد ممنوع است؛ ولی هیچ کورتیزولِ سرمِ µg/dL بالای
   //    ۱۰۰ نیست و nmol/L تقریباً همیشه هست — همان استثنای HBA1C_IMPLAUSIBLE_AS_PERCENT،
   //    با این تفاوت که اینجا *تبدیل نمی‌کنیم*، فقط نمره نمی‌دهیم.
@@ -6259,7 +6261,7 @@ test("M103c: کورتیزولِ nmol/L تبدیل می‌شود؛ کورتیزو
 });
 
 test("M103d: هیچ یافتهٔ فصل ۲۵ اورژانس نیست، و هر هشت الگو دست‌کم یک بار می‌آید",
-  { todo: "P46 — مرحلهٔ ب" }, () => {
+  () => {
   // 🔴 FR-020. و شرطِ «هر الگو آمد» تا این آزمون با فعال نکردنِ هیچ‌چیز سبز نشود (N15).
   const panels = [
     ...PIT_ADRENAL_PANELS.map(([, rows]) => rows),
@@ -6459,12 +6461,13 @@ test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ ام
     pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "aba7975a9da4b5eb"],
     uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
     thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "7ef4e21f6af2d814"],
-    prl_thyroid: [{ age: 29, sex: "F" }, [["Prolactin", "80"], ["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "7ef4e21f6af2d814"],
+    // prl_thyroid برداشته شد (۲۰۲۶-۱۰-۰۳): پرولاکتین با تأییدِ P46 بند ۱ بازه و قاعده گرفت (hyperprolactinemia، M101–M101e)،
+    //   پس این پنل عمداً دیگر با پنلِ تیروئیدِ تنها یکی نیست. گارد روی «فصل ۲۶ پره‌اکلامپسی نمی‌افزاید» می‌ماند.
   };
   for (const [id, [patient, rows, want]] of Object.entries(P)) {
     assert.equal(semSnap([patient, rows]), want, `تفسیرِ پنلِ تکراریِ ${id} عوض شد`);
     const pats = semRun(rows, patient).findings.map((f) => f.pattern);
-    assert.ok(!pats.some((x) => /preeclamp|hyperprolactin/i.test(x)), `یافتهٔ ممنوع: ${pats}`);
+    assert.ok(!pats.some((x) => /preeclamp/i.test(x)), `یافتهٔ ممنوع: ${pats}`);
   }
 });
 
@@ -6561,23 +6564,84 @@ test("M107: تستوسترونِ پایینِ مرد — دو نمونهٔ صب�
   assert.equal(reproFind(runPatterns(w), "male_gonadal_axis"), undefined);
 });
 
-test("M107b: آسیبِ لوله‌های منی‌ساز (FSHِ بالا + الیگواسپرمی)", { todo: "P47 #11 — بازهٔ FSHِ مرد منبع ندارد" }, () => {
+test("M107b: آسیبِ لوله‌های منی‌ساز (FSHِ بالا + الیگواسپرمی)", () => {
   const man = { age: 35, sex: "M" };
   const p = semRun([...semenWith({ "Sperm Count": "3" }), ["Testosterone", "500", "ng/dL"], ["LH", "5"], ["FSH", "25"]], man);
   assert.match(reproText(reproFind(p, "male_gonadal_axis")), /لوله/);
 });
 
-test("M108: محورِ زن — روزِ سوم؛ یائسگی در برابرِ نارسایی", { todo: "P47 #12–14 — بازه‌های روزِ سوم و سنِ یائسگی منبع ندارند" }, () => {
+test("M108: محورِ زن — روزِ سوم؛ یائسگی در برابرِ نارسایی", () => {
   const young = semRun([["FSH Day 3", "45"], ["LH Day 3", "30"]], { age: 30, sex: "F" });
   assert.match(reproText(reproFind(young, "female_ovarian_axis")), /تخمدان/);
   const normal = semRun([["FSH Day 3", "6"], ["LH Day 3", "5"]], { age: 30, sex: "F" });
   assert.equal(reproFind(normal, "female_ovarian_axis"), undefined, "زنِ سالم الگوی مرکزی گرفت");
 });
 
-test("M108b: AMH و آندروژن‌های زن — سه‌حالته، بی‌تشخیصِ قطعی", { todo: "P47 #16، #18–20 — بی‌منبع" }, () => {
+test("M108b: AMH و DHEA-Sِ زن — AMH فقط با ng/mL و DHEA-S فقط > ۷۰۰، هرگز تشخیصِ قطعی (P47 #16، #18)", () => {
   const w = { age: 30, sex: "F" };
-  assert.doesNotMatch(reproText(reproFind(semRun([["AMH", "15"]], w), "amh_level")), /PCOS دارید/);
-  assert.match(reproText(reproFind(semRun([["DHEA-S", "900", "µg/dL"]], w), "female_androgen_excess")), /آدرنال/);
+  // نسخهٔ قبلی با reproText(undefined) هم سبز می‌شد؛ حالا وجودِ یافته صریحاً سنجیده می‌شود.
+  const hi = reproFind(semRun([["AMH", "15", "ng/mL"]], w), "amh_level");
+  assert.ok(hi, "AMHِ ۱۵ ng/mL یافته نساخت");
+  assert.doesNotMatch(reproText(hi), /PCOS دارید|پلی‌کیستیک دارید/);
+  assert.match(reproText(hi), /تخمدانِ پلی‌کیستیک/);
+  const d = reproFind(semRun([["DHEA-S", "900", "µg/dL"]], w), "female_androgen_excess");
+  assert.ok(d, "DHEA-Sِ ۹۰۰ یافته نساخت");
+  assert.match(reproText(d), /آدرنال/);
+  assert.doesNotMatch(reproText(d), /تومور دارید|سرطان دارید/);
+});
+
+test("M108e: AMH بی‌واحد یا pmol/L حکم نمی‌گیرد؛ پایین/بالا هر دو جهت؛ میانه یافته ندارد (N3، N12)", () => {
+  const w = { age: 30, sex: "F" };
+  const f = (v, unit) => reproFind(semRun([unit ? ["AMH", v, unit] : ["AMH", v]], w), "amh_level");
+  assert.equal(f("15"), undefined, "AMHِ بی‌واحد نباید حکم بگیرد");
+  assert.equal(f("15", "pmol/L"), undefined, "۱۵ pmol/L ≈ ۲.۱ ng/mL است، نه «بالا»");
+  assert.match(f("0.8", "ng/mL").headline, /پایین/);
+  assert.match(f("6", "µg/L").headline, /بالا/);
+  assert.equal(f("3", "ng/mL"), undefined);
+  assert.equal(f("0.8", "ng/mL").must_say.includes("پلی‌کیستیک"), false, "جملهٔ PCOS روی AMHِ پایین");
+  // زیرِ ۱۶ سال و جنسیتِ نامعلوم بی‌قضاوت می‌مانند
+  assert.equal(reproFind(semRun([["AMH", "15", "ng/mL"]], { age: 12, sex: "F" }), "amh_level"), undefined);
+  assert.equal(reproFind(semRun([["AMH", "15", "ng/mL"]], { age: 30, sex: null }), "amh_level"), undefined);
+});
+
+test("M108f: FSHِ روزِ سوم — < ۴۰ نارساییِ زودرس، ۴۰–۵۴ نزدیکِ یائسگی، ≥ ۵۵ و ≤ ۲۵ بی‌یافته؛ LH فقط نقل می‌شود (P47 #12–14)", () => {
+  const at = (fsh, age, extra = []) => reproFind(semRun([["FSH Day 3", String(fsh)], ...extra], { age, sex: "F" }), "female_ovarian_axis");
+  assert.match(reproText(at(45, 30)), /نارساییِ زودرسِ تخمدان/);
+  const mid = reproText(at(45, 47));
+  assert.match(mid, /یائسگی/);
+  assert.doesNotMatch(mid, /زودرس/, "زنِ ۴۷ ساله «زودرس» نمی‌شود");
+  assert.equal(at(45, 60), undefined, "بالا بودنِ FSH در ۶۰ سالگی مورد انتظار است");
+  assert.equal(at(25, 30), undefined, "دقیقاً ۲۵ بیشتر از ۲۵ نیست");
+  assert.equal(at(18, 30), undefined, "۱۰ تا ۲۵ حکمی نمی‌گیرد");
+  assert.match(reproText(at(45, 30, [["LH Day 3", "30"]])), /LHِ روزِ سوم/);
+  assert.doesNotMatch(reproText(at(45, 30)), /LHِ روزِ سوم/);
+  assert.equal(reproFind(semRun([["FSH Day 3", "45"]], { age: 12, sex: "F" }), "female_ovarian_axis"), undefined, "زیرِ ۱۶ سال");
+  assert.equal(reproFind(semRun([["FSH Day 3", "45"]], { age: 30, sex: "M" }), "female_ovarian_axis"), undefined, "مرد");
+});
+
+test("M108g: DHEA-S — فقط > ۷۰۰ µg/dL؛ µmol/L تبدیل می‌شود؛ بی‌واحد، خفیف و مرد حکم نمی‌گیرند (P47 #18، N3)", () => {
+  const w = { age: 30, sex: "F" };
+  const f = (v, unit, p = w) => reproFind(semRun([unit ? ["DHEA-S", v, unit] : ["DHEA-S", v]], p), "female_androgen_excess");
+  assert.ok(f("900", "µg/dL"));
+  assert.equal(f("900", "µg/dL").urgency, "this_week");
+  assert.ok(f("20", "µmol/L"), "۲۰ µmol/L ≈ ۷۳۷ µg/dL باید یافته بدهد");
+  assert.equal(f("300", "µg/dL"), undefined, "۳۰۰ بدونِ بازهٔ سنی حکم نمی‌گیرد");
+  assert.equal(f("700", "µg/dL"), undefined, "دقیقاً ۷۰۰ بیشتر از ۷۰۰ نیست");
+  assert.equal(f("900"), undefined, "بی‌واحد حکم نمی‌گیرد");
+  assert.equal(f("900", "µg/dL", { age: 35, sex: "M" }), undefined, "مرد");
+});
+
+test("M107c: FSHِ مرد — فقط با اسپرمِ کم (یا صفر) نشانهٔ لوله‌های منی‌ساز می‌دهد؛ تنها یا با اسپرمِ طبیعی هیچ (P47 #11)", () => {
+  const man = { age: 35, sex: "M" };
+  const run = (fsh, count) => semRun([...semenWith({ "Sperm Count": String(count) }), ["Testosterone", "500", "ng/dL"], ["FSH", String(fsh)]], man);
+  assert.match(reproText(reproFind(run(25, 3), "male_gonadal_axis")), /لوله/);
+  assert.match(reproText(reproFind(run(25, 0), "male_gonadal_axis")), /لوله/, "آزواسپرمی");
+  assert.equal(reproFind(run(25, 40), "male_gonadal_axis"), undefined, "FSHِ بالا + اسپرمِ طبیعی");
+  assert.equal(reproFind(run(10, 3), "male_gonadal_axis"), undefined, "FSHِ در محدوده");
+  const t = reproText(reproFind(semRun([...semenWith({ "Sperm Count": "3" }), ["Testosterone", "200", "ng/dL"], ["FSH", "25"]], man), "male_gonadal_axis"));
+  assert.match(t, /دو نمونهٔ صبحگاهی/, "شاخهٔ تستوسترونِ پایین سرِ جایش");
+  assert.match(t, /لوله/);
+  assert.doesNotMatch(t, /دارید|قطعی است/);
 });
 
 test("M108c: FSHِ بی‌روزِ زن بی‌قضاوت، با جملهٔ مصوب — و در noRef نیست (بازه هست، روز نیست)", () => {
@@ -7430,12 +7494,12 @@ test("M150: آنالیتِ تازه کنارِ CBC یافته‌های CBC را 
 
 test("M146b: برگه‌ای که مقدارِ بی‌بازه دارد «همه‌چیز طبیعی است» نمی‌گیرد (FR-009، N2)", () => {
   // 🔴 buildNormalResult «نتایج آزمایش شما در محدوده طبیعی است» می‌گفت، حتی کنارِ مقدارِ تفسیرنشده.
-  for (const rows of [[["Zinc", "40", null, "µg/dL"]], [["Zinc", "40", null, "µg/dL"], ["Hb", "14.5", null, "g/dL"]], [["Prolactin", "40"]]]) {
+  for (const rows of [[["Zinc", "40", null, "µg/dL"]], [["Zinc", "40", null, "µg/dL"], ["Hb", "14.5", null, "g/dL"]], [["UFC", "20", null, "µg/24h"]]]) {
     const out = buildNormalResult(uuu(rows));
     const all = `${out.summary} ${out.interpretation}`;
     assert.doesNotMatch(all, /در محدوده طبیعی است|هیچ‌کدام از مقادیر خارج از محدوده مرجع نیست/, JSON.stringify(rows));
     assert.match(all, /تفسیرش?ان با پزشک است/, JSON.stringify(rows));
-    assert.doesNotMatch(all, /\b(ZINC|PRL)\b/, "کلیدِ خام");
+    assert.doesNotMatch(all, /\b(ZINC|UFC)\b/, "کلیدِ خام");
   }
   // و پنلِ واقعاً طبیعی همان جملهٔ قبلی را می‌گیرد
   assert.match(buildNormalResult(uuu([["Hb", "14.5", null, "g/dL"]])).summary, /در محدوده طبیعی است/);
@@ -7531,7 +7595,7 @@ test("M151c: ویلسون زیرِ یک سال اعمال نمی‌شود؛ CRP�
 });
 
 test("M152: MMAِ بالا کنارِ B12ِ مرزی در همان یافتهٔ B12 می‌آید، نه یافتهٔ دوم (FR-015)",
-  { todo: "P49-ب — در انتظارِ تأییدِ بازبین" }, () => {
+  () => {
   const p = uuuRun([["Vitamin B12", "180", null, "pg/mL"], ["Methylmalonic acid", "0.8", null, "µmol/L"]]);
   const b12 = p.findings.filter((f) => /b12/.test(f.pattern));
   assert.equal(b12.length, 1, fired(p).join(","));
@@ -7601,13 +7665,65 @@ test("M153b: آنتی‌بادیِ منفی/عددی تفسیر نمی‌شود�
   assert.deepEqual(unexplainedNoRef(n.noRef, runPatterns(n).findings), ["ANTI_IF"]);
 });
 
-test("M154: روی/مس/سلنیوم/E/C/PLPِ پایین ⇒ یافتهٔ غیرفوری؛ مسِ پایین + رویِ بالا ⇒ جملهٔ جذب",
-  { todo: "P49-د — در انتظارِ تأییدِ بازبین؛ عددهای مس/E/C/PLP هنوز از جدولِ فصل استخراج نشده‌اند" }, () => {
+test("M154: مسِ پایین ⇒ یافتهٔ غیرفوری؛ همراهِ رویِ بالا ⇒ جملهٔ جذب؛ فقط با واحدِ چاپ‌شده (P49-د)", () => {
   const p = uuuRun([["Serum Copper", "40", null, "µg/dL"], ["Zinc", "250", null, "µg/dL"]]);
   const f = p.findings.find((x) => /copper/.test(x.pattern));
   assert.ok(f, fired(p).join(","));
   assert.notEqual(f.urgency, "emergency");
   assert.match(f.must_say, /روی/);
+  assert.match(f.must_say, /جذبِ مس را کم می‌کند/);
+});
+
+test("M154c: مسِ پایین — µmol/L تبدیل می‌شود؛ بی‌واحد، طبیعی و زیرِ یک سال بی‌یافته؛ روی سه‌حالته (P49-د، N3، N4)", () => {
+  const cu = (v, unit, extra = [], patient) => findPat(uuuRun([["Serum Copper", v, null, unit], ...extra], patient), "copper_deficiency");
+  const a = cu("6", "µmol/L");
+  assert.ok(a && /38\.1/.test(a.must_say), "۶ µmol/L = ۳۸.۱ µg/dL");
+  assert.equal(cu("90", "µg/dL"), undefined, "مسِ طبیعی");
+  assert.equal(cu("70", "µg/dL"), undefined, "دقیقاً ۷۰ کمتر از ۷۰ نیست");
+  assert.equal(findPat(uuuRun([["Serum Copper", "40"]]), "copper_deficiency"), undefined, "بی‌واحد حکم نمی‌گیرد");
+  assert.equal(cu("40", "µg/dL", [], { age: "6 months", sex: "M" }), undefined, "زیرِ یک سال مس به‌طورِ طبیعی پایین است");
+  const hi = cu("40", "µg/dL", [["Zinc", "250", null, "µg/dL"]]).must_say;
+  const ok = cu("40", "µg/dL", [["Zinc", "80", null, "µg/dL"]]).must_say;
+  const none = cu("40", "µg/dL").must_say;
+  const unk = cu("40", "µg/dL", [["Zinc", "250"]]).must_say;
+  assert.match(hi, /از حدِ معمولِ حدود 120 بیشتر است/);
+  assert.match(ok, /بالاتر از حدِ معمولِ حدود 120 نیست/);
+  assert.match(none, /رویِ سرم روی این برگه نیست/);
+  assert.match(unk, /واحدش خوانده نشد/);
+  assert.equal(new Set([hi, ok, none, unk]).size, 4);
+  // روی که یافته توضیحش داده از «تفسیر نشدند» بیرون می‌رود؛ رویِ بی‌واحد می‌ماند
+  const e = uuu([["Serum Copper", "40", null, "µg/dL"], ["Zinc", "250", null, "µg/dL"]]);
+  assert.deepEqual(unexplainedNoRef(e.noRef, runPatterns(e).findings), []);
+  const e2 = uuu([["Serum Copper", "40", null, "µg/dL"], ["Zinc", "250"]]);
+  assert.deepEqual(unexplainedNoRef(e2.noRef, runPatterns(e2).findings), ["ZINC"]);
+});
+
+test("M154b: روی، سلنیوم، ویتامین E، ویتامین C و PLPِ پایین",
+  { todo: "P49-د — بی‌منبعِ بازشده: بازهٔ روی ۶۰–۱۰۶/۱۲۰ و سلنیوم ۷–۳۰ ناسازگارند؛ E/C/PLP عددِ قابلِ اتکا ندارند" }, () => {
+  const p = uuuRun([["Zinc", "40", null, "µg/dL"]]);
+  assert.ok(p.findings.some((x) => /zinc/.test(x.pattern)), fired(p).join(","));
+});
+
+test("M152b: MMA سه‌حالته — بالا/طبیعی/واحدِ نامعلوم/نبود؛ nmol/L تبدیل می‌شود؛ یافتهٔ B12 همیشه یکی است (P49-ب، N3، N4)", () => {
+  const run = (b12, mma, unit) => {
+    const rows = [["Vitamin B12", String(b12), null, "pg/mL"], ...(mma != null ? [["Methylmalonic acid", String(mma), null, unit]] : [])];
+    return uuuRun(rows);
+  };
+  const one = (p) => { const x = p.findings.filter((y) => /b12/.test(y.pattern)); assert.equal(x.length, 1, fired(p).join(",")); return x[0]; };
+  assert.match(one(run(180, 0.8, "µmol/L")).must_say, /کمبود را تأیید می‌کند/);
+  assert.match(one(run(180, 0.3, "µmol/L")).must_say, /بیشتر نیست/);
+  assert.match(one(run(180, 800, "nmol/L")).must_say, /از 0\.4 \(µmol\/L\) بیشتر است/, "۸۰۰ nmol/L = ۰.۸ µmol/L");
+  assert.match(one(run(180, 0.8)).must_say, /واحدش خوانده نشد/, "بی‌واحد حکم نمی‌گیرد");
+  assert.doesNotMatch(one(run(180, null)).must_say, /MMA/);
+  // زیرِ ۱۵۰ همین جمله در یافتهٔ آشکار می‌آید و «MMA» دوباره پیشنهاد نمی‌شود
+  const o = one(run(100, 0.8, "µmol/L"));
+  assert.equal(o.pattern, "overt_b12_deficiency");
+  assert.match(o.must_say, /کنارِ B12ِ پایین/);
+  assert.ok(!o.suggest.includes("MMA"), "MMA روی برگه هست؛ دوباره خواستنش N8 است");
+  assert.ok(one(run(100, null)).suggest.includes("MMA"));
+  // MMAِ تفسیرشده از «تفسیر نشدند» بیرون می‌رود
+  const e = uuu([["Vitamin B12", "180", null, "pg/mL"], ["Methylmalonic acid", "0.8", null, "µmol/L"]]);
+  assert.deepEqual(unexplainedNoRef(e.noRef, runPatterns(e).findings), []);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

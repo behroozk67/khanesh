@@ -388,6 +388,36 @@ export const GUIDELINES = {
       'پرولاکتین، کورتیزول (صبح، پس از دگزامتازون، بزاق، ادرارِ ۲۴ ساعته) و ACTH — اعداد در انتظارِ بازبین (P46)',
   },
 
+  ES_CUSHING_DX: {
+    org: 'Endocrine Society',
+    fa: 'انجمن غدد درون‌ریز آمریکا',
+    title: "The Diagnosis of Cushing's Syndrome: An Endocrine Society Clinical Practice Guideline",
+    year: 2008,
+    url: 'https://www.endocrine.org/clinical-practice-guidelines/diagnosis-of-cushing-syndrome',
+    access: 'open',
+    scope: 'غربالگریِ کوشینگ: کورتیزولِ آزاد ادرار (حدِ بالای همان روش؛ هم‌پوشانیِ کاذب تا حدودِ ۴ برابر)، کورتیزولِ بزاقِ نیمه‌شب، آزمونِ ۱ mg دگزامتازون (< ۱.۸ µg/dL)، اثرِ استروژن',
+  },
+
+  ES_PAI_DX: {
+    org: 'Endocrine Society',
+    fa: 'انجمن غدد درون‌ریز آمریکا',
+    title: 'Diagnosis and Treatment of Primary Adrenal Insufficiency: An Endocrine Society Clinical Practice Guideline',
+    year: 2016,
+    url: 'https://www.endocrine.org/clinical-practice-guidelines/primary-adrenal-insufficiency',
+    access: 'open',
+    scope: 'کورتیزولِ صبحِ پایین (زیر ۵ µg/dL با ACTH) و آزمونِ تحریکِ کورتیکوتروپین برای تأیید',
+  },
+
+  ES_HYPERPROLACTINEMIA: {
+    org: 'Endocrine Society',
+    fa: 'انجمن غدد درون‌ریز آمریکا',
+    title: 'Diagnosis and Treatment of Hyperprolactinemia: An Endocrine Society Clinical Practice Guideline',
+    year: 2011,
+    url: 'https://www.endocrine.org/clinical-practice-guidelines/hyperprolactinemia',
+    access: 'open',
+    scope: 'علل پرولاکتینِ بالا (بارداری، شیردهی، دارو، کم‌کاریِ تیروئید، نارسایی کلیه، تومورِ هیپوفیز)؛ افزایشِ شدید و ارزیابیِ هیپوفیز',
+  },
+
   // ---- واحدِ ردیف‌های بی‌واحد (specs/003، P48) ----
   AMA_SI_UNITS: {
     org: 'AMA Manual of Style',

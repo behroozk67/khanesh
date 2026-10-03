@@ -207,7 +207,7 @@ khanesh-project/
 │   │   ├── patterns_endocrine_rheum.js / _endocrine_new.js / _malignancy.js
 │   │   ├── patterns_mineral_bone.js  # ⭐ محور کلسیم/PTH — یک طبقه‌بند، ۱۳ قاعده
 │   │   ├── patterns_cardiac.js  # ⭐ فصل ۱۹ هنری — ۴ قاعده، همه روی عددِ «داخلِ محدوده»
-│   │   ├── patterns_endocrine_pituitary.js  # فصل ۲۵ هنری — عمداً خالی تا تأییدِ P46؛
+│   │   ├── patterns_endocrine_pituitary.js  # فصل ۲۵ هنری — P46 زنده است (پرولاکتین، adrenalAxis + شش برچسب، کورتیزولِ بی‌ساعت) با تأییدِ عاملیِ ۲۰۲۶-۱۰-۰۳، نه بازبینِ انسانی؛
 │   │   │                        #   پرولاکتین/کورتیزول/ACTH فقط شناخته می‌شوند (noRef)
 │   │   ├── patterns_reproductive.js  # فصل ۲۶ هنری — ۵ قاعده، فقط بندهای تأییدشدهٔ P47
 │   │   │                        #   (منی WHO 2021، تستوسترونِ مرد، پروژسترونِ روزِ ۲۱، hCG،

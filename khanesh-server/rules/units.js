@@ -101,8 +101,7 @@ export const SI_CONVERSIONS = {
   // این سه ضریب از جرمِ مولی‌اند، نه از قراردادِ کیت — پس تصمیمِ بالینی نیستند:
   //   کورتیزول ۳۶۲.۴۶ g/mol → ۱ µg/dL = ۲۷.۵۹ nmol/L؛ و µg/24h ↔ nmol/24h ضریبِ ۲.۷۵۹.
   //   ACTH ‏۴۵۴۱ g/mol → ۱ pmol/L = ۴.۵۴۱ pg/mL (نه ۴.۵۱ که در پیش‌نویسِ طراحی آمده بود — غلطِ رقمی).
-  // ⚠️ پرولاکتین (mIU/L ÷ ۲۱.۲) عمداً اینجا نیست: آن ضریب به استانداردِ کیت
-  //    وابسته است و بندِ ۱۱ِ P46 است — تا تأییدِ بازبین وارد نمی‌شود.
+  // پرولاکتین (mIU/L ÷ ۲۱.۲، بندِ ۱۱ِ P46) در PRINTED_ONLY_CONVERSIONS است، نه اینجا — توضیحش آنجاست.
   CORTISOL_AM:  { si: /^nmol\/l$/, factor: 1 / 27.59, conv: 'µg/dL' },
   CORTISOL:     { si: /^nmol\/l$/, factor: 1 / 27.59, conv: 'µg/dL' },
   CORTISOL_DST: { si: /^nmol\/l$/, factor: 1 / 27.59, conv: 'µg/dL' },
@@ -141,6 +140,11 @@ export const SI_CONVERSIONS = {
 export const PRINTED_ONLY_CONVERSIONS = {
   HCT:  { si: /^(l\/l|fraction)$/, factor: 100, conv: '%' },
   MCHC: { si: /^g\/l$/, factor: 0.1, conv: 'g/dL' },
+  // P46 بند ۱۱ (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳: پرولاکتینِ mIU/L نباید به «تفسیر نشدند» برود): ۱ ng/mL = ۲۱.۲ mIU/L، استانداردِ
+  //   WHO ‏۳rd IS ‏۸۴/۵۰۰ (هر آمپول ۵۳ mIU = ۲.۵ µg؛ NIBSC). ⚠️ به استانداردِ کیت وابسته است (کیتِ قدیمیِ ۷۵/۵۰۴ ضریبِ دیگری داشت)،
+  //   پس ردیفِ تبدیل در unitConversions می‌آید. µIU/mL و mU/L عددشان با mIU/L یکی است. فقط با واحدِ چاپ‌شده (N3) —
+  //   عمداً در SI_CONVERSIONS نیست تا PRLِ بی‌واحد (رایج‌ترین شکل، ng/mL) به decideUnit نرود.
+  PRL:  { si: /^(?:miu\/l|[µμu]iu\/ml|mu\/l|[µμu]u\/ml)$/, siUnit: 'mIU/L', factor: 1 / 21.2, conv: 'ng/mL' },
 };
 
 // ── specs/010: واحدِ فعالیتِ فاکتور / vWF / مهارکننده — فقط واحدِ *چاپ‌شده* ──

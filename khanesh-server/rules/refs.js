@@ -288,6 +288,16 @@ export const ADULT_REFS = {
   //   P34)، و به‌جایش قاعدهٔ troponin_hs_above_99th در patterns_cardiac.js
   //   همان بازه را می‌پوشاند و فقط وقتی فعال می‌شود که بدانیم سنجه hs است.
   TROPONIN_I: { both: [0, 0.6], unit: 'µg/L', qualitative_ok: true },
+  // P46 بند ۱ (تأییدِ عاملی، ۲۰۲۶-۱۰-۰۳): حدِ بالای رایجِ آزمایشگاه‌ها — مرد < ۲۰، زنِ غیرباردار < ۲۵ ng/mL.
+  //   حدِ پایین ندارد (پرولاکتینِ پایین یافتهٔ مستقل نیست). جنسیتِ نامعلوم → حدِ مرد: getRef.
+  PRL: { M: [0, 20], F: [0, 25], unit: 'ng/mL' },
+  // P46 بندهای ۴ و ۹ (تأییدِ عاملی ۲۰۲۶-۱۰-۰۳):
+  //   CORTISOL_AM — بازهٔ رایجِ آزمایشگاه‌ها برای نمونهٔ صبح ۵–۲۳ µg/dL (U Michigan ‏۵.۳–۲۲.۵؛ مراجعِ دیگر ۶.۷–۲۲.۶). به روشِ سنجش
+  //     وابسته است. فقط ۱۶ سال به بالا (getRef): کورتیزولِ نوزاد/کودک جدولِ خودش را دارد و بازهٔ بزرگسال حدسِ بی‌منبع است (N26).
+  //   CORTISOL_DST — پس از ۱ mg دگزامتازونِ شبانه: < ۱.۸ µg/dL (۵۰ nmol/L) طبیعی است (Endocrine Society 2008)، پس ۱.۸ و بالاتر «مثبت».
+  //     حدِ بالا ۱.۷۹ نوشته شد چون evaluate با «>» می‌سنجد و ۱.۸ دقیقاً باید مثبت باشد.
+  CORTISOL_AM:  { both: [5, 23], unit: 'µg/dL' },
+  CORTISOL_DST: { both: [0, 1.79], unit: 'µg/dL' },
 };
 
 // ESR — سن و جنس محور
@@ -416,6 +426,8 @@ export const NEONATAL_NO_ADULT_FALLBACK = new Set(['RBC', 'RDW_CV', 'RDW_SD']);
 export function getRef(testKey, sex, age, { pregnant = false } = {}) {
   if (REPRO_HORMONE_KEYS.has(testKey) && ((age != null && age < 16) || !sex)) return null;
   if (NEONATAL_NO_ADULT_FALLBACK.has(testKey) && inNeonatalRedCellPeriod(age) && !getPedRef(testKey, age)) return null;
+  // کورتیزولِ صبح/پس از دگزامتازون: بازهٔ بزرگسال برای زیر ۱۶ سال حدس است (P46) ⇒ سنجیده نمی‌شود، نه با بازهٔ بزرگسال.
+  if ((testKey === 'CORTISOL_AM' || testKey === 'CORTISOL_DST') && age != null && age < 16) return null;
   // بیلی‌روبینِ غیرمستقیمِ نوزادِ < ۱۴ روز: بازهٔ منبع‌دار نداریم و بازهٔ بزرگسال (۰٫۱–۱) غلط است ⇒ سنجیده نمی‌شود (P63).
   if (testKey === 'BILI_I' && age != null && age * 365 < 14 && !getPedRef(testKey, age)) return null;
   if (testKey === 'HGB' && pregnant && sex === 'F') return hgbRef(sex, age, { pregnant });
@@ -436,6 +448,8 @@ export function getRef(testKey, sex, age, { pregnant = false } = {}) {
   const r = ADULT_REFS[testKey];
   if (!r) return null;
   if (r.both) return r.both;
+  // پرولاکتین (P46 بند ۱، FR-005): جنسیتِ نامعلوم حدِ پایین‌تر (مرد) را می‌گیرد، نه بازهٔ زن که کم‌خوانی می‌کند.
+  if (testKey === 'PRL' && !sex) return r.M;
   return sex === 'M' ? r.M : r.F;
 }
 
@@ -453,6 +467,10 @@ export function getRefSource(testKey, age) {
   // فصل ۲۶ (P47): حدهای منی از WHO 2021 است نه جدولِ A5ِ هنری — برچسبِ منبع باید راست بگوید.
   if (/^(SEMEN_|SPERM_)/.test(testKey)) return testKey === 'SEMEN_PH' ? 'Henry ch.26' : 'WHO 2021';
   if (testKey === 'TESTO') return 'Henry ch.26';
+  // P46 بند ۱: عددِ ۲۰/۲۵ حدِ بالای رایجِ آزمایشگاه‌هاست؛ از جدولِ هنری نقل نشده.
+  if (testKey === 'PRL') return 'Typical lab upper limit (P46)';
+  if (testKey === 'CORTISOL_AM') return 'Typical lab range (P46)';
+  if (testKey === 'CORTISOL_DST') return 'Endocrine Society 2008 (P46)';
   // specs/008: بازه‌هایی که کاربر به‌عنوانِ بازبین تأیید کرد — عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم.
   //   HGBِ ۱۲ تا ۱۵ ساله بازهٔ قدیمیِ بزرگسال را نگه داشته (R1)، پس برچسبِ قدیمی را می‌گیرد.
   if (SPECS008_KEYS.has(testKey) && !(testKey === 'HGB' && age != null && age < 16)) return SPECS008_SOURCE;

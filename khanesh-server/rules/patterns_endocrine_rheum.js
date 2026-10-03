@@ -3,6 +3,39 @@ import { faName } from "./names.js";
 import { canBePregnant } from "./patterns_utils.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
+import { normUnit } from "./units.js";
+
+// ── P49-ب (تأییدِ عاملی ۲۰۲۶-۱۰-۰۳، نه بازبینِ انسانی): MMAِ بالا کنارِ B12ِ پایین/مرزی شاهدِ کمبودِ بافتی است ──
+// حدِ بالا ۰.۴۰ µmol/L (= nmol/mL): حدِ مرجعِ آزمایشگاه‌ها (≤ ۰.۴۰؛ مراجعِ دیگر ۳۷۰ nmol/L). فقط با واحدِ چاپ‌شده (N3).
+// نارساییِ کلیه هم MMA را بالا می‌برد و باید گفته شود. Stabler (NEJM 2013) را از خلاصه‌های ثانویه دیدم، نه متنِ اصلی.
+const MMA_HIGH_UMOL = 0.4;
+function mmaUmolL(u) {
+  if (!u || typeof u.value !== "number") return null;
+  const un = normUnit(String(u.unit ?? "")).replace(/[µμ]/g, "u");
+  if (/^(umol\/l|nmol\/ml)$/.test(un)) return u.value;
+  if (/^nmol\/l$/.test(un)) return +(u.value / 1000).toFixed(3);
+  return null;
+}
+// سه‌حالته + واحدِ نامعلوم (N4، N21): بالا / طبیعی / واحدش خوانده نشد / روی برگه نیست.
+function mmaClause(e, borderline) {
+  const u = e.ungraded?.MMA;
+  const entry = u && u.reason === "no_range" ? u : null;
+  if (!entry) return { text: "", suggest: ["MMA"], explains: [] };
+  const v = mmaUmolL(entry);
+  if (v == null) {
+    return { text: " MMAِ شما روی برگه هست ولی واحدش خوانده نشد، پس دربارهٔ آن قضاوت نمی‌کنیم؛ آن را به پزشک نشان دهید.", suggest: [], explains: [] };
+  }
+  if (v > MMA_HIGH_UMOL) {
+    return {
+      text: ` MMAِ شما ${v} و از ${MMA_HIGH_UMOL} (µmol/L) بیشتر است. MMA در کمبودِ بافتیِ B12 زودتر از خودِ B12 بالا می‌رود، پس ${borderline ? "کنارِ B12ِ مرزی" : "کنارِ B12ِ پایین"} این عدد کمبود را تأیید می‌کند؛ نارساییِ کلیه هم MMA را بالا می‌برد و پزشک آن را در نظر می‌گیرد.`,
+      suggest: [], explains: ["MMA"],
+    };
+  }
+  return {
+    text: ` MMAِ شما ${v} است و از ${MMA_HIGH_UMOL} (µmol/L) بیشتر نیست؛ این کمبودِ بافتیِ B12 را ${borderline ? "بعید می‌کند" : "رد نمی‌کند ولی کم‌احتمال‌تر می‌کند"}، و تصمیم با پزشک است.`,
+    suggest: [], explains: ["MMA"],
+  };
+}
 
 export const RULES_ENDOCRINE_RHEUM = [
 
@@ -427,7 +460,8 @@ export const RULES_ENDOCRINE_NEW = [
           ? " آنتی‌بادیِ ضدِ سلولِ جداریِ معدهٔ شما مثبت است. این آنتی‌بادی در کم‌خونیِ پرنیشیوز شایع است " +
             "ولی اختصاصی نیست و در افرادِ دیگر هم دیده می‌شود؛ تشخیص با پزشک است."
           : "");
-      const explains = [...(ifPos ? ["ANTI_IF"] : []), ...(apcaPos ? ["APCA"] : [])];
+      const mm = mmaClause(e, false);
+      const explains = [...(ifPos ? ["ANTI_IF"] : []), ...(apcaPos ? ["APCA"] : []), ...mm.explains];
 
       return {
         pattern: "overt_b12_deficiency",
@@ -435,7 +469,7 @@ export const RULES_ENDOCRINE_NEW = [
         headline: "کمبود آشکار ویتامین B12",
         must_say:
           `سطح ویتامین B12 شما ${b12} است — نه مرزی، بلکه پایین‌تر از محدوده‌ای که ` +
-          `کمبود در آن قطعی در نظر گرفته می‌شود (زیر ۱۵۰).${bloodTxt}${abTxt}`,
+          `کمبود در آن قطعی در نظر گرفته می‌شود (زیر ۱۵۰).${bloodTxt}${abTxt}${mm.text}`,
         ...(explains.length ? { explains } : {}),
         action:
           "این هفته با پزشک وقت بگیرید. تعیین علتِ کمبود (تغذیه، جذب، دارو) پیش از شروع درمان اهمیت دارد.",
@@ -443,7 +477,7 @@ export const RULES_ENDOCRINE_NEW = [
           "خودسرانه فولات یا اسید فولیک مصرف نکنید. فولات می‌تواند کم‌خونیِ ناشی از کمبود B12 را بهتر کند در حالی که آسیب عصبی ادامه پیدا می‌کند و دیرتر دیده شود.",
           "اگر گزگز یا بی‌حسیِ دست و پا، تعادلِ نامطمئن، یا فراموشیِ تازه دارید، همین را به پزشک بگویید — این‌ها می‌توانند به همین کمبود مربوط باشند.",
         ],
-        suggest: ["MMA", "فولات", "شمارش خون (CBC)"],
+        suggest: [...mm.suggest, "فولات", "شمارش خون (CBC)"],
         key_number: b12,
       };
     },
@@ -457,13 +491,17 @@ export const RULES_ENDOCRINE_NEW = [
     build: (e) => {
       const b12 = val(e).B12;
       const mcv = val(e).MCV;
+      const mm = mmaClause(e, true);
       return {
         pattern: "borderline_b12_deficiency",
         urgency: "routine",
         headline: "سطح مرزی ویتامین B12",
-        must_say: `سطح B12 شما ${b12} است که در محدوده مرزی (۱۵۰ تا ۳۹۹) قرار دارد.` + (mcv != null && mcv > 95 ? ` با توجه به بزرگ بودن گلبول‌های قرمز (MCV=${mcv})، احتمال کمبود بافتی این ویتامین بالا است.` : " ممکن است بافت‌های بدن دچار کمبود باشند حتی اگر عدد در محدوده طبیعی آزمایشگاه باشد."),
-        action: "با پزشک مشورت کنید. برای تشخیص دقیق‌تر کمبود بافتی ممکن است آزمایش MMA توصیه شود.",
-        suggest: ["MMA", "فولات"],
+        must_say: `سطح B12 شما ${b12} است که در محدوده مرزی (۱۵۰ تا ۳۹۹) قرار دارد.` + (mcv != null && mcv > 95 ? ` با توجه به بزرگ بودن گلبول‌های قرمز (MCV=${mcv})، احتمال کمبود بافتی این ویتامین بالا است.` : " ممکن است بافت‌های بدن دچار کمبود باشند حتی اگر عدد در محدوده طبیعی آزمایشگاه باشد.") + mm.text,
+        ...(mm.explains.length ? { explains: mm.explains } : {}),
+        action: mm.suggest.length
+          ? "با پزشک مشورت کنید. برای تشخیص دقیق‌تر کمبود بافتی ممکن است آزمایش MMA توصیه شود."
+          : "با پزشک مشورت کنید.",
+        suggest: [...mm.suggest, "فولات"],
         key_number: b12
       };
     }

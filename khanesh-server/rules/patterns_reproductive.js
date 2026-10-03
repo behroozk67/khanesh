@@ -11,8 +11,10 @@
 //   • luteal_progesterone         — بند ۱۵ (> ۳ ng/mL)
 //   • hcg_result                  — بند ۲۱ (> ۵ mIU/mL)؛ منطقهٔ خاکستری منبع ندارد و نیست
 //   • reproductive_hormone_context — بی‌آستانه: مقدارهای بی‌قضاوت
-// ⚠️ عمداً هنوز نیست (بندهای بی‌منبع): محورِ زن (FSH/LH/E2ِ روزِ سوم، سنِ یائسگی)، AMH،
-//    DHEA-S، 17-OHP، تستوسترونِ زن، و «آسیبِ لوله‌های منی‌ساز» (نیازِ بازهٔ FSHِ مرد).
+// تأییدِ عاملی ۲۰۲۶-۱۰-۰۳ (جست‌وجوی منبع، نه بازبینِ انسانی) — جزئیات: P47:
+//   • male_gonadal_axis: شاخهٔ FSHِ بالا + اسپرمِ کم ⇒ لوله‌های منی‌ساز (#11)
+//   • female_ovarian_axis: FSHِ روزِ سوم > ۲۵ (#12–14)؛ amh_level (#16)؛ female_androgen_excess: DHEA-S > ۷۰۰ (#18)
+// ⚠️ عمداً هنوز نیست: بازهٔ LH/E2ِ روزِ سوم و الگوی مرکزی، ضریبِ AMH pmol/L (#17)، 17-OHP و تستوسترونِ زن (#19–۲۰).
 //    این کلیدها در noRef می‌مانند و هشدارِ «تفسیر نشد، با پزشک» به بیمار می‌رسد.
 //
 // اصل‌ها: هر کلید دقیقاً یک مالک (N20)؛ هر آنالیتِ همراه سه‌حالته (N4)؛ هیچ اورژانسی (P47 #22)؛
@@ -21,6 +23,7 @@
 
 import { HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE, getRef } from "./refs.js";
 import { faName } from "./names.js";
+import { normUnit } from "./units.js";
 
 // ── آستانه‌های تشخیصیِ تأییدشده (جدا از بازه‌های مرجع — «یک عدد، یک کار») ──
 /** P47 #15 — DSL `FR_2_1`: پروژسترونِ میان‌لوتئال > ۳ ng/mL → تخمک‌گذاری تأیید. */
@@ -31,11 +34,38 @@ export const ABSTINENCE_MAX_DAYS = 5;
 /** P47 #9 — DSL `SA_2_1`: تحرکِ کلِ < ۳۰٪ → پیشنهادِ رنگ‌آمیزیِ زنده‌مانی. */
 export const VIABILITY_STAIN_BELOW_PCT = 30;
 export { HCG_POSITIVE_ABOVE };
+// ── آستانه‌های تأییدِ عاملی (جست‌وجوی منبع ۲۰۲۶-۱۰-۰۳ — نه بازبینِ انسانی؛ جزئیات در P47) ──
+/** P47 #11: حدِ بالای FSHِ مرد — حدِ رایجِ آزمایشگاه‌ها (۱.۵–۱۲.۴ mIU/mL؛ مراجعِ دیگر ۱۳.۶). به کیت وابسته است. */
+export const FSH_MALE_ULN = 12.4;
+/** P47 #12–14: ESHRE 2016 (نارساییِ زودرسِ تخمدان): FSH > ۲۵ IU/L در زنِ < ۴۰ سال. بالای ۵۵ سال بالا بودنِ FSH مورد انتظار است. */
+export const FSH_POI_IU = 25;
+export const POI_AGE_BELOW = 40;
+export const POSTMENOPAUSE_AGE = 55;
+/** P47 #16: AMH < ۱.۲ ng/mL (POSEIDON، ذخیرهٔ کم)؛ > ۵ ng/mL «معمولاً» بالا در منابعِ PCOS — حدِ دقیق به کیت وابسته است. */
+export const AMH_LOW_NGML = 1.2;
+export const AMH_HIGH_NGML = 5;
+/** P47 #18: DHEA-S زن > ۷۰۰ µg/dL «مطرح‌کنندهٔ تومورِ ترشح‌کنندهٔ هورمون در فوق‌کلیه» (منابعِ آزمایشگاهی: ۷۰۰ تا ۸۰۰). */
+export const DHEAS_VERY_HIGH_UGDL = 700;
 
 const g = (e, key) => e.graded.find((x) => x.test === key);
 const low = (e, key) => { const x = g(e, key); return !!(x?.abnormal && x.dir === "low"); };
 const fmt = (n) => String(+Number(n).toFixed(2));
 const lln = (key) => getRef(key, "M", 40)?.[0];
+// مقدارِ بی‌بازه‌ای که قاعده از ungraded می‌خواند (N17: val(e) فقط graded را می‌بیند).
+const noRangeEntry = (e, k) => {
+  const u = e.ungraded?.[k];
+  return u && u.reason === "no_range" && typeof u.value === "number" ? u : null;
+};
+const unitOf = (u) => normUnit(String(u?.unit ?? "")).replace(/[µμ]|mc/g, "u");
+// AMH فقط با ng/mL (= µg/L) سنجیده می‌شود؛ pmol/L و بی‌واحد حکم نمی‌گیرند (ضریبِ pmol/L قرارداد است — P47 #17، N3).
+const amhNgMl = (u) => (u && /^(ng\/ml|ug\/l)$/.test(unitOf(u)) ? u.value : null);
+// DHEA-S فقط با µg/dL: adapter µmol/L را از قبل به µg/dL تبدیل کرده و ردیفش در unitConversions است.
+const dheasUgDl = (e, u) => (u && (/^ug\/dl$/.test(unitOf(u)) || e.unitConversions?.some((c) => c.test === "DHEAS")) ? u.value : null);
+// P47 #11: FSHِ مردِ بالا + تعدادِ اسپرمِ کم (یا صفر) ⇒ نشانهٔ آسیبِ لوله‌های منی‌ساز (فقط این ترکیب؛ FSHِ بالای تنها حکمی ندارد).
+function tubuleSignal(e) {
+  const f = noRangeEntry(e, "FSH");
+  return !!(e.sex === "M" && f && f.value > FSH_MALE_ULN && low(e, "SPERM_CONC"));
+}
 // حدهای مرجع برای نقل در متن — یک‌بار و بیرون از رشته‌ها، تا هیچ کلیدِ خامی در متنِ بیمار
 // نباشد (M38، N8). عدد از همان ردیفِ refs.js می‌آید که درجه‌بندی را انجام داد.
 const LLN = {
@@ -220,9 +250,10 @@ export const RULES_REPRODUCTIVE = [
   //    برابرِ هیپوفیز) حکم نمی‌شود — فقط نقل، و اگر نیستند پیشنهاد.
   {
     id: "male_gonadal_axis",
-    match: (e) => e.sex === "M" && low(e, "TESTO"),
+    match: (e) => e.sex === "M" && (low(e, "TESTO") || tubuleSignal(e)),
     build: (e) => {
       const t = g(e, "TESTO");
+      const lowT = low(e, "TESTO");
       const lh = e.ungraded?.LH?.value, fsh = e.ungraded?.FSH?.value;
       let axis;
       const suggest = ["تکرار تستوسترون صبحگاهی"];
@@ -236,6 +267,22 @@ export const RULES_REPRODUCTIVE = [
         axis = "LH و FSH (هورمون‌های هیپوفیز) روی برگهٔ شما نیست؛ این دو به پزشک کمک می‌کنند بفهمد علت در خودِ بیضه است یا در هیپوفیز و مغز.";
         suggest.push("LH و FSH");
       }
+      // P47 #11: FSHِ بالا + اسپرمِ کم ⇒ لوله‌های منی‌ساز. جملهٔ «منشأ بیضه یا هیپوفیز» برای حالتی است که تستوسترون پایین است.
+      const tubule = tubuleSignal(e);
+      const tubuleTxt = tubule
+        ? ` FSHِ شما ${fmt(noRangeEntry(e, "FSH").value)} و از حدِ بالای معمولِ مرد (حدود ${FSH_MALE_ULN}) بیشتر است، و غلظتِ اسپرم هم کم است. این ترکیب می‌تواند به آسیبِ لوله‌های منی‌ساز (بخشی از بیضه که اسپرم می‌سازد) اشاره کند؛ به‌تنهایی تشخیص نیست و پزشک با معاینه و آزمایش‌های دیگر علت را روشن می‌کند. حدِ دقیقِ FSH به کیت بستگی دارد.`
+        : "";
+      if (!lowT) {
+        return {
+          pattern: "male_gonadal_axis",
+          urgency: "routine",
+          headline: "FSHِ شما بالاست و تعدادِ اسپرم کم است",
+          must_say: tubuleTxt.trim(),
+          action: "در نوبتِ عادی با پزشک (ترجیحاً متخصص اورولوژی یا ناباروری) مطرح کنید.",
+          suggest: [],
+          sources: ["HENRY_REPRO"],
+        };
+      }
       return {
         pattern: "male_gonadal_axis",
         urgency: "routine",
@@ -243,7 +290,7 @@ export const RULES_REPRODUCTIVE = [
         must_say:
           `تستوسترونِ شما ${fmt(t.value)} ng/dL است و از حدِ ${LLN.testo} ng/dL کمتر است. ` +
           "تستوسترون در طولِ روز تغییر می‌کند و صبح‌ها بیشترین مقدار را دارد؛ برای همین تشخیصِ کمبودِ تستوسترون " +
-          "به دست‌کم دو نمونهٔ صبحگاهی در روزهای جداگانه نیاز دارد و یک عدد به‌تنهایی کافی نیست. " + axis,
+          "به دست‌کم دو نمونهٔ صبحگاهی در روزهای جداگانه نیاز دارد و یک عدد به‌تنهایی کافی نیست. " + axis + tubuleTxt,
         action: "در نوبتِ عادی با پزشک مطرح کنید؛ نمونهٔ تکرار را صبح بدهید.",
         suggest,
         sources: ["HENRY_REPRO"],
@@ -342,6 +389,95 @@ export const RULES_REPRODUCTIVE = [
           " اگر آزمایش خیلی زود (پیش از عقب افتادنِ قاعدگی) انجام شده باشد، ممکن است هنوز منفی باشد؛ اگر قاعدگی‌تان عقب افتاده، آزمایش را چند روز بعد تکرار کنید.",
         action: "اگر قاعدگی عقب افتاده، چند روز بعد تکرار کنید.",
         suggest: [], sources: src,
+      };
+    },
+  },
+
+  // ═══════════════════════════════════════════════════
+  // ۴ب) محورِ تخمدانِ زن (P47 #12–14؛ تأییدِ عاملی ۲۰۲۶-۱۰-۰۳)
+  // ═══════════════════════════════════════════════════
+  // فقط FSHِ روزِ سومِ > ۲۵ (ESHRE 2016). بازهٔ روزِ سومِ LH/E2 و «الگوی مرکزی» (بند ۱۴) منبع ندارند و نیستند؛ LH نقل می‌شود.
+  // FSHِ ۱۰ تا ۲۵ حکمی نمی‌گیرد (حدِ ۱۰ مالِ پیش‌بینیِ IVF است، نه تشخیص) و همان‌طور در «تفسیر نشدند» می‌ماند.
+  {
+    id: "female_ovarian_axis",
+    match: (e) => {
+      const f = noRangeEntry(e, "FSH_D3");
+      return e.sex === "F" && !!f && f.value > FSH_POI_IU && !(e.age != null && e.age >= POSTMENOPAUSE_AGE);
+    },
+    build: (e) => {
+      const f = noRangeEntry(e, "FSH_D3");
+      const lh = noRangeEntry(e, "LH_D3");
+      const young = e.age != null && e.age < POI_AGE_BELOW;
+      const lhTxt = lh ? ` LHِ روزِ سومِ شما ${fmt(lh.value)} است و پزشک آن را کنارِ FSH تفسیر می‌کند.` : "";
+      return {
+        pattern: "female_ovarian_axis",
+        urgency: "routine",
+        headline: "FSHِ روزِ سومِ شما بالاتر از معمول است",
+        must_say:
+          `FSHِ روزِ سومِ شما ${fmt(f.value)} است و از ${FSH_POI_IU} بیشتر است. ` +
+          (young
+            ? "در زنِ زیرِ ۴۰ سال، این سطح اگر قاعدگی نامنظم یا قطع شده باشد با نارساییِ زودرسِ تخمدان (کم شدنِ زودهنگامِ کارِ تخمدان) سازگار است؛ تشخیص به تکرارِ آزمایش چند هفته بعد و بررسیِ پزشک نیاز دارد. "
+            : "این سطح با کم شدنِ کارِ تخمدان و نزدیک بودن به یائسگی سازگار است؛ به‌تنهایی تشخیص نیست و FSH در طولِ چرخه تغییر می‌کند. ") +
+          "داروهای هورمونی و جراحی یا درمانِ تخمدان می‌توانند این عدد را تغییر دهند؛ آن‌ها را به پزشک بگویید." + lhTxt,
+        action: "در نوبتِ عادی با پزشک (ترجیحاً متخصص زنان یا غدد) مطرح کنید.",
+        suggest: [],
+        warnings: [],
+        explains: ["FSH_D3", ...(lh ? ["LH_D3"] : [])],
+      };
+    },
+  },
+
+  // ═══════════════════════════════════════════════════
+  // ۴ج) AMH (P47 #16؛ تأییدِ عاملی ۲۰۲۶-۱۰-۰۳) — فقط با ng/mL، سه‌حالته، بی‌تشخیصِ قطعی
+  // ═══════════════════════════════════════════════════
+  {
+    id: "amh_level",
+    match: (e) => {
+      const v = amhNgMl(noRangeEntry(e, "AMH"));
+      return e.sex === "F" && v != null && (v < AMH_LOW_NGML || v > AMH_HIGH_NGML);
+    },
+    build: (e) => {
+      const v = amhNgMl(noRangeEntry(e, "AMH"));
+      const isLow = v < AMH_LOW_NGML;
+      return {
+        pattern: "amh_level",
+        urgency: "routine",
+        headline: isLow ? "AMHِ شما پایین است" : "AMHِ شما بالاست",
+        must_say: isLow
+          ? `AMHِ شما ${fmt(v)} ng/mL است و از ${AMH_LOW_NGML} کمتر است؛ این می‌تواند یعنی ذخیرهٔ تخمدان کمتر از معمول است. AMH با بالا رفتنِ سن کم می‌شود، قرص‌های ضدبارداریِ هورمونی هم آن را کمی پایین می‌آورند، و این عدد به‌تنهایی شانسِ باروری را پیش‌بینی نمی‌کند. حدِ دقیق به کیت بستگی دارد.`
+          : `AMHِ شما ${fmt(v)} ng/mL است و از ${AMH_HIGH_NGML} بیشتر است؛ AMHِ بالا با تخمدانِ پلی‌کیستیک هم‌خوان است، ولی تشخیص با پزشک و ترکیبِ چند معیار (نظمِ قاعدگی، نشانه‌های آندروژن، سونوگرافی) است و AMH به‌تنهایی کافی نیست. حدِ دقیق به کیت بستگی دارد.`,
+        action: "در نوبتِ عادی با پزشک مطرح کنید.",
+        suggest: [],
+        warnings: [],
+        explains: ["AMH"],
+      };
+    },
+  },
+
+  // ═══════════════════════════════════════════════════
+  // ۴د) DHEA-S بسیار بالا در زن (P47 #18؛ تأییدِ عاملی ۲۰۲۶-۱۰-۰۳)
+  // ═══════════════════════════════════════════════════
+  // فقط > ۷۰۰ µg/dL. بازهٔ سنیِ DHEA-Sِ زن منبعِ یکدست ندارد (منابع ناسازگارند)، پس بالا بودنِ خفیف حکمی نمی‌گیرد.
+  // 17-OHP و تستوسترونِ زن (#19–۲۰) هنوز بی‌منبع‌اند و نیستند.
+  {
+    id: "female_androgen_excess",
+    match: (e) => {
+      const v = dheasUgDl(e, noRangeEntry(e, "DHEAS"));
+      return e.sex === "F" && v != null && v > DHEAS_VERY_HIGH_UGDL;
+    },
+    build: (e) => {
+      const v = dheasUgDl(e, noRangeEntry(e, "DHEAS"));
+      const urgency = "this_week";
+      return {
+        pattern: "female_androgen_excess",
+        urgency,
+        headline: "DHEA-Sِ شما بسیار بالاست",
+        must_say:
+          `DHEA-Sِ شما ${fmt(v)} µg/dL است و از ${DHEAS_VERY_HIGH_UGDL} بیشتر است. DHEA-S هورمونی است که غدهٔ فوق‌کلیه (آدرنال) می‌سازد؛ در زنان مقدارِ بالای ۷۰۰ تا ۸۰۰ گاهی نشانهٔ تومورِ ترشح‌کنندهٔ هورمون در این غده است (نادر)، و علت‌های شایع‌ترِ افزایشِ آندروژن‌ها، مثل تخمدانِ پلی‌کیستیک، معمولاً DHEA-S را تا این حد بالا نمی‌برند. این عدد به‌تنهایی تشخیص نیست و پزشک با آزمایش‌های دیگر و در صورتِ لزوم تصویربرداریِ فوق‌کلیه علت را روشن می‌کند. اگر رویشِ ناگهانیِ مو، صدای کلفت یا بزرگ‌شدنِ سریعِ مو دارید به پزشک بگویید.`,
+        action: urgency === "this_week" ? "این هفته با پزشک مطرح کنید." : "در نوبتِ عادی با پزشک مطرح کنید.",
+        suggest: [],
+        warnings: [],
+        explains: ["DHEAS"],
       };
     },
   },

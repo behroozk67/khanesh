@@ -599,7 +599,13 @@ const PLATELET_INDEX_KEYS = new Set(["PDW", "P_LCR", "PLT_CRIT"]);
 const UNIT_KEPT = new Set(["PDW", "PLT_CRIT", "P_LCR", "CERULOPLASMIN", "U_COPPER_24H",
   // P53 پرسش ۴ و ۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): ZPP فقط با µmol/mol، sTfR فقط با mg/L تفسیر می‌شوند، و درصدِ
   // واریانت‌های هموگلوبین را قاعده‌ها از ungraded می‌خوانند — بی‌بازه می‌مانند (noRef) تا قاعده explains کند.
-  "ZPP", "STFR", "HBA", "HBS", "HBC", "HBE"]);
+  "ZPP", "STFR", "HBA", "HBS", "HBC", "HBE",
+  // P46: کورتیزولِ بی‌ساعت بازه نمی‌گیرد (کورتیزولِ عصر طبیعی پایین است)؛ cortisol_untimed عددش را از اینجا می‌خواند.
+  "CORTISOL",
+  // P46 بندهای ۵–۱۰: سه کلیدِ بی‌بازه که قاعدهٔ adrenalAxis عددشان را از ungraded می‌خواند. حدِ UFC و بزاق به روشِ سنجش بستگی دارد.
+  "UFC", "CORTISOL_SAL", "ACTH",
+  // P47 (AMH، DHEA-S) و P49 (MMA، مس، روی): قاعده‌ها فقط با واحدِ چاپ‌شده حکم می‌دهند (N3)، پس واحد باید با عدد بماند.
+  "AMH", "DHEAS", "MMA", "COPPER", "ZINC"]);
 
 // ═══ specs/008 — ردیف‌های الکتروفورزِ هموگلوبین (R4) ═══
 const HB_AMBIGUOUS = { hbs: "HBS", hbc: "HBC", hbe: "HBE",       // هم‌نامِ نشانگرهای هپاتیتِ B
@@ -1811,7 +1817,7 @@ export function runEngine(ocr) {
     const ref = (NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF });
     if (!ref) {
       noRef.push(key);
-      if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range" };
+      if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range", ...(UNIT_KEPT.has(key) ? { unit: printedUnits[key] ?? null } : {}) };
       else if (UNIT_KEPT.has(key)) ungraded[key] = { value, reason: "no_range", unit: printedUnits[key] ?? null };
       continue;
     }

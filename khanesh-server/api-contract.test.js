@@ -668,13 +668,14 @@ test("T17: هشدارِ «محدوده مرجع نداریم» نامِ فارس
   const { status, body } = await analyze({
     patient: { age: 40, sex: "F" },
     // Hb طبیعی لازم است: بدونِ هیچ تستِ نمره‌دار، server.js کلِ برگه را به مسیرِ قدیم می‌فرستد.
-    tests: [{ name: "Hemoglobin", value: 14, unit: "g/dL" }, { name: "Prolactin", value: 80 }, { name: "Cortisol (8 AM)", value: 12, unit: "µg/dL" }],
+    tests: [{ name: "Hemoglobin", value: 14, unit: "g/dL" }, { name: "UFC", value: 20, unit: "µg/24h" }],
   });
   assert.equal(status, 200);
   const w = (body?.ocr_warnings ?? []).join(" ");
   assert.match(w, /محدوده مرجع نداریم/, `پیش‌شرط: هشدار باید بیاید؛ آمده: ${w}`);
-  assert.doesNotMatch(w, /\bPRL\b|CORTISOL_AM/, `کلیدِ خام به بیمار رسید: ${w}`);
-  assert.match(w, /پرولاکتین/);
+  assert.doesNotMatch(w, /\bPRL\b|\bUFC\b|CORTISOL_AM/, `کلیدِ خام به بیمار رسید: ${w}`);
+  // پرولاکتین و کورتیزولِ صبح با تأییدِ P46 بازه گرفتند؛ نمونهٔ بی‌بازهٔ این تست کورتیزولِ آزادِ ادرار است (حدش به روشِ سنجش بستگی دارد).
+  assert.match(w, /کورتیزولِ آزادِ ادرار/);
   // بازبینی: وقتی این تست‌ها unmapped بودند، هشدار بیمار را به پزشک می‌فرستاد؛ انتقال به noRef
   //   نباید آن تنها جمله را کنار خلاصهٔ «طبیعی» حذف کند.
   const noRefLine = (body?.ocr_warnings ?? []).find((x) => /محدوده مرجع نداریم/.test(x));

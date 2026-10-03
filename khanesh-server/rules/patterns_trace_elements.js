@@ -1,6 +1,6 @@
 // ─── فصلِ ویتامین‌ها و عناصرِ کمیابِ هنری — بندهای تأییدشدهٔ P49 (specs/004، داستانِ ۳) ───
-// P49-الف (سرولوپلاسمین و ویلسون) در ۲۰۲۶-۰۹-۱۹ تأیید شد. P49-ب (MMA) و P49-د (روی، مس، سلنیوم،
-// E، C، PLP) هنوز عدد ندارند و اینجا نیستند — آزمون‌هایشان todo می‌مانند.
+// P49-الف (سرولوپلاسمین و ویلسون) در ۲۰۲۶-۰۹-۱۹ تأیید شد. P49-ب (MMA) در patterns_endocrine_rheum.js، داخلِ یافتهٔ B12.
+// P49-د فقط برای مسِ پایین (تأییدِ عاملی ۲۰۲۶-۱۰-۰۳)؛ روی، سلنیوم، E، C و PLP هنوز عدد ندارند — آزمونِ M154b todo است.
 //
 // سرولوپلاسمین و مسِ ادرار بازهٔ تأییدشده در refs.js ندارند و سنجیده نمی‌شوند (noRef). این قاعده عددِ
 // خامشان را از e.ungraded می‌خواند — نه val(e)، که فقط graded را می‌بیند (N17) — و فقط با واحدِ
@@ -19,6 +19,24 @@ const WILSON_MIN_AGE_Y = 1;
 const G_PER_L_TO_MG_PER_DL = 100;
 const MG_PER_L_TO_MG_PER_DL = 0.1;
 const CU_UG_PER_UMOL = 63.55;
+
+// ── P49-د، فقط مسِ پایین (تأییدِ عاملی ۲۰۲۶-۱۰-۰۳، نه بازبینِ انسانی) ──
+// مسِ سرم < ۷۰ µg/dL (حدِ پایینِ رایجِ آزمایشگاه‌ها: ۷۰–۱۴۰ µg/dL = ۱۱–۲۲ µmol/L). رویِ سرمِ بالا > ۱۲۰ µg/dL «بالاتر از حدِ معمول»
+// (مراجع ۱۰۶ تا ۱۲۰). رویِ زیاد (اغلب مکمل) با جذبِ مس رقابت می‌کند و کمبودِ مس می‌سازد (NIH ODS؛ مقالات). منابعِ عددها لابراتواری و ثانویه‌اند.
+// روی، سلنیوم، E، C و PLP هنوز عدد ندارند و نیستند (M154b).
+const COPPER_LOW_UGDL = 70;
+const ZINC_HIGH_UGDL = 120;
+const CU_UGDL_PER_UMOLL = 6.355;   // جرمِ اتمیِ مس ۶۳.۵۵ ⇒ ۱ µmol/L = ۶.۳۵۵ µg/dL (تعریفی)
+const ZN_UGDL_PER_UMOLL = 6.538;   // جرمِ اتمیِ روی ۶۵.۳۸
+function ugdlOf(entry, perUmol) {
+  if (!entry || typeof entry.value !== "number") return null;
+  const u = normUnit(String(entry.unit ?? "")).replace(/[µμ]|mc/g, "u");
+  if (/^ug\/dl$/.test(u)) return entry.value;
+  if (/^umol\/l$/.test(u)) return +(entry.value * perUmol).toFixed(1);
+  if (/^ug\/l$/.test(u)) return +(entry.value / 10).toFixed(1);
+  return null;
+}
+const noRangeOf = (e, k) => { const u = e.ungraded?.[k]; return u && u.reason === "no_range" ? u : null; };
 
 const unitKey = (u) => normUnit(String(u ?? "")).replace(/[µμ]|mc/g, "u");
 
@@ -65,6 +83,49 @@ function urineCopperClause(e) {
 const wilsonAgeOk = (e) => !(e.age != null && e.age < WILSON_MIN_AGE_Y);
 
 export const RULES_TRACE_ELEMENTS = [
+  {
+    id: "copper_deficiency",
+    // مسِ سرمِ پایین، فقط با واحدِ چاپ‌شده. زیرِ یک سال مس به‌طورِ طبیعی پایین است (همان مرزِ ویلسون).
+    match: (e) => {
+      const cu = ugdlOf(noRangeOf(e, "COPPER"), CU_UGDL_PER_UMOLL);
+      return cu != null && cu < COPPER_LOW_UGDL && wilsonAgeOk(e);
+    },
+    build: (e) => {
+      const entry = noRangeOf(e, "COPPER");
+      const cu = ugdlOf(entry, CU_UGDL_PER_UMOLL);
+      const cuShown = shownWith(entry, cu, "µg/dL");
+      const zEntry = noRangeOf(e, "ZINC");
+      const zn = ugdlOf(zEntry, ZN_UGDL_PER_UMOLL);
+      // روی سه‌حالته + واحدِ نامعلوم (N4، N21): بالا / در محدوده یا پایین / واحدش خوانده نشد / روی برگه نیست.
+      let zTxt, zJudged = false;
+      if (!zEntry) {
+        zTxt = "رویِ سرم روی این برگه نیست؛ مصرفِ مکملِ روی (حتی بدونِ نسخه) را به پزشک بگویید، چون روی زیاد جذبِ مس را کم می‌کند.";
+      } else if (zn == null) {
+        zTxt = "رویِ سرم روی برگه هست ولی واحدش خوانده نشد، پس دربارهٔ آن قضاوت نمی‌کنیم؛ مصرفِ مکملِ روی را به پزشک بگویید.";
+      } else if (zn > ZINC_HIGH_UGDL) {
+        zJudged = true;
+        zTxt = `رویِ سرمِ شما ${shownWith(zEntry, zn, "µg/dL")} است و از حدِ معمولِ حدود ${ZINC_HIGH_UGDL} بیشتر است. روی زیاد، که اغلب از مکمل می‌آید، جذبِ مس را کم می‌کند و می‌تواند یکی از علت‌های این مسِ پایین باشد؛ مصرفِ مکملِ روی را به پزشک بگویید و بدونِ مشورتِ او تغییرش ندهید.`;
+      } else {
+        zJudged = true;
+        zTxt = `رویِ سرمِ شما ${shownWith(zEntry, zn, "µg/dL")} و بالاتر از حدِ معمولِ حدود ${ZINC_HIGH_UGDL} نیست، پس روی زیاد توضیحِ این مسِ پایین به نظر نمی‌رسد؛ مصرفِ مکملِ روی را به هر حال به پزشک بگویید.`;
+      }
+      return {
+        pattern: "copper_deficiency",
+        urgency: "routine",
+        key_number: cu,
+        headline: "مسِ سرمِ شما پایین است",
+        must_say:
+          `مسِ سرمِ شما ${cuShown} است و از حدِ پایینِ معمول (${COPPER_LOW_UGDL}) کمتر است. ` +
+          "علت‌های شناخته‌شده کم‌جذبی (مثلاً پس از جراحیِ معده یا چاقی، یا بیماریِ سلیاک)، رویِ زیاد و تغذیهٔ ناکافی است؛ بیماریِ ویلسون و کمبودِ پروتئینِ خون هم مسِ سرم را پایین می‌آورند. " +
+          zTxt +
+          " کمبودِ مس می‌تواند کم‌خونی، کمیِ گلبول‌های سفید یا گزگز و بی‌حسیِ پاها بسازد؛ اگر این نشانه‌ها را دارید به پزشک بگویید. این عدد به‌تنهایی تشخیص نیست.",
+        action: "در نوبتِ عادی با پزشک مطرح کنید.",
+        suggest: [],
+        warnings: [],
+        explains: ["COPPER", ...(zJudged ? ["ZINC"] : [])],
+      };
+    },
+  },
   {
     id: "wilson_evaluation",
     // دو شاخه: سرولوپلاسمینِ پایین (this_week)، یا زیرِ ۲۰ نیست ولی نشانگرِ التهاب (CRP/ESR) بالاست (routine) — سرولوپلاسمین
