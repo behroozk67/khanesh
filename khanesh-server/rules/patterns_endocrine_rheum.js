@@ -7,8 +7,12 @@ import { repeatDeltaFa } from "./biovar.js";
 import { normUnit } from "./units.js";
 
 // P72 پرسش ۴ (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): TSHِ تنها که از این حد بالاتر باشد ارجاعِ این‌هفته‌ای به متخصص غدد می‌گیرد.
-// ۱۰ mIU/L آستانهٔ رایجِ راهنماها (ATA/ETA) برای ملاحظهٔ درمان فارغ از FT4 است — عددِ بازبینیِ انسانی، نه منبعِ بازشده.
+// منبع (بازشده، تأییدِ کاربر ۲۰۲۶-۱۰-۰۳): ETA 2013 توصیهٔ ۱۳ — «TSH > 10 mU/l» در < ۶۵ سال حتی بی‌علامت ⇒ لووتیروکسین (PMC3923601).
+// ⚠️ ETA «>۱۰» می‌نویسد، موتور «≥۱۰» — ۱۰٫۰ دقیق هم ارجاع می‌گیرد (محتاط‌تر؛ فقط ارجاع است نه درمان).
 const TSH_ENDO_REFER = 10;
+// TSHِ پایین‌تر از این (mU/L) = «سرکوب‌شده». منبع: ATA 2016 توصیه‌های ۷۳–۷۴ (Thyroid 2016;26:1343) — «persistently <0.1 mU/L».
+// ATA «پایدار» می‌خواهد؛ یک عدد پایدار نیست، پس متن تکرار را می‌گوید و فقط ارجاعِ این‌هفته‌ای می‌دهد.
+const TSH_SUPPRESSED = 0.1;
 
 // ── P49-ب (تأییدِ عاملی ۲۰۲۶-۱۰-۰۳، نه بازبینِ انسانی): MMAِ بالا کنارِ B12ِ پایین/مرزی شاهدِ کمبودِ بافتی است ──
 // حدِ بالا ۰.۴۰ µmol/L (= nmol/mL): حدِ مرجعِ آزمایشگاه‌ها (≤ ۰.۴۰؛ مراجعِ دیگر ۳۷۰ nmol/L). فقط با واحدِ چاپ‌شده (N3).
@@ -223,6 +227,7 @@ export const RULES_ENDOCRINE_RHEUM = [
         return {
           pattern: `thyroid_hypo_${overt ? "overt" : ft4Missing ? "ft4_unmeasured" : "subclinical"}`,
           urgency: overt || referEndo ? "this_week" : "routine",
+          sources: referEndo ? ["ETA_SCH_2013"] : undefined,
           headline: "غده تیروئید شما کندتر از حد معمول کار می‌کند",
           must_say:
             `TSH شما ${tsh.value} است (حد طبیعی ${tsh.range})` +
@@ -260,9 +265,12 @@ export const RULES_ENDOCRINE_RHEUM = [
       if (tshLow) {
         const overt = ft4High;
         const ft4Missing = !overt && ft4 == null;
+        // تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳ (P72 پرسش ۳، قرینهٔ TSH ≥ ۱۰): TSHِ < ۰٫۱ بی‌FT4 ⇒ این هفته + ارجاع به متخصص غدد.
+        const referEndo = ft4Missing && Number(tsh.value) < TSH_SUPPRESSED;
         return {
           pattern: `thyroid_hyper_${overt ? "overt" : ft4Missing ? "ft4_unmeasured" : "subclinical"}`,
-          urgency: overt ? "this_week" : "routine",
+          urgency: overt || referEndo ? "this_week" : "routine",
+          sources: referEndo ? ["ATA_HYPER_2016"] : undefined,
           headline: "غده تیروئید شما پرکارتر از حد معمول است",
           must_say:
             `TSH شما ${tsh.value} است (حد طبیعی ${tsh.range})` +
@@ -272,9 +280,10 @@ export const RULES_ENDOCRINE_RHEUM = [
               : ft4Missing ? `${missingFa("FT4")}؛ بدونِ این هورمونِ تیروئید نمی‌توان گفت این پرکاری خفیف است یا واضح، پس قدمِ بعد اندازه‌گیریِ FT4 است.`
               : "چون FT4 هنوز طبیعی است، این پرکاری خفیف («تحت‌بالینی») است؛ برای تأیید معمولاً چند هفته بعد تکرار می‌شود."),
           action: overt ? "این هفته وقت بگیرید."
+            : referEndo ? "این هفته با پزشک مطرح کنید و ارجاع به متخصص غدد و آزمایش FT4 را بخواهید؛ TSHِ بسیار پایین باید تکرار و پیگیری شود."
             : ft4Missing ? "نوبت عادی با پزشک؛ آزمایش FT4 را بخواهید تا معلوم شود پرکاری خفیف است یا واضح."
             : "نوبت عادی. معمولاً این آزمایش چند هفته بعد تکرار می‌شود.",
-          suggest: ["FT4", "FT3", "آنتی‌بادی گیرندهٔ TSH (TRAb)"],
+          suggest: ["FT4", "FT3", "آنتی‌بادی گیرندهٔ TSH (TRAb)", ...(referEndo ? ["بررسی توسط متخصص غدد"] : [])],
           warnings: overt
             ? [
                 "اگر تپش قلب شدید یا نامنظم، تنگی نفس یا درد سینه دارید، زودتر مراجعه کنید.",

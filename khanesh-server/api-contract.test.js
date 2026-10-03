@@ -865,9 +865,10 @@ test("T30: _engine.suppressed/suppressed_ids/supplementary برسند، و یا�
   const { status, body } = await analyze(panel);
   assert.equal(status, 200);
   const eng = body._engine;
-  assert.equal(eng.suppressed, 4, JSON.stringify(eng.suppressed));
-  assert.deepEqual([...eng.suppressed_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
-  assert.deepEqual([...eng.supplementary].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
+  // ⚠️ عمداً عوض شد (P73): + anemia_hb_alone (Hbِ ۱۲ بدونِ MCV)
+  assert.equal(eng.suppressed, 5, JSON.stringify(eng.suppressed));
+  assert.deepEqual([...eng.suppressed_ids].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
+  assert.deepEqual([...eng.supplementary].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
   assert.ok(!(eng.uncovered ?? []).some((k) => ["LYMPH_ABS", "EOS_ABS", "MONO_ABS"].includes(k)), `هنوز بی‌توضیح: ${eng.uncovered}`);
   const interp = body.interpretation ?? "";
   for (const n of ["6400", "4800", "3200"]) assert.ok(interp.includes(n), `عدد ${n} به متنِ بیمار نرسید: ${interp}`);

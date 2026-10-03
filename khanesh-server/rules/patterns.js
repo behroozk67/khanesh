@@ -17,6 +17,7 @@ import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
 import { RULES_HEMOSTASIS } from "./patterns_hemostasis.js";
 import { RULES_COVERAGE_GAPS } from "./patterns_coverage_gaps.js";
 import { RULES_SEROLOGY } from "./patterns_serology.js";
+import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { applyNeonatalFloor, applyNeonatalVoice, isNeonate } from "./neonatal.js";
@@ -50,8 +51,10 @@ export const RULES = [
   ...RULES_LEUKOCYTE,
   ...RULES_HEMOSTASIS,
   ...RULES_COVERAGE_GAPS,
-  ...RULES_SEROLOGY
+  ...RULES_SEROLOGY,
+  ...RULES_P73_GAPS
 ];
+bindP73Owners(RULES);
 
 //    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ
 //    آزمایشی هستند که همین حالا داریم و باید بمانند. تطبیق دقیق تضمین می‌کند
@@ -59,6 +62,12 @@ export const RULES = [
 //    ورودی چندتستی فقط وقتی حذف می‌شود که همهٔ اجزایش موجود باشد.
 export const SUGGEST_TESTS = {
   "فریتین": ["FERRITIN"],
+  // P73 + P72: ارجاع و آزمایشِ ژنتیکی هیچ‌وقت «اندازه‌گیری‌شده» نمی‌شوند؛ کلیدِ ساختگی که روی برگه نمی‌آید جلوی حذفِ ناخواسته را می‌گیرد
+  //   ([] یعنی every ⇒ true ⇒ همیشه حذف). S11 وجودِ ردیف را می‌خواهد.
+  "بررسی توسط متخصص غدد": ["_REFERRAL_ENDO"],
+  "ژن HFE (هموکروماتوز)": ["_GENE_HFE"],
+  // P73 (N8): suggestِ anemia_hb_alone؛ وقتی MCV روی برگه هست آن قاعده اصلاً فعال نمی‌شود، پس این ردیف فقط برای کامل‌بودنِ جدول است.
+  "شاخص‌های گلبول قرمز (MCV، MCH)": ["MCV"],
   "آهن سرم": ["IRON"],
   "TIBC": ["TIBC"],
   "پنل کامل آهن": ["FERRITIN", "IRON", "TIBC"],

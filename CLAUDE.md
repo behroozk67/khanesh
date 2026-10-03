@@ -225,6 +225,8 @@ khanesh-project/
 │   │   ├── patterns_hemostasis.js  # specs/010 (P61): فعالیتِ فاکتور ۸/۹، مهارکننده (Bethesda)، فون‌ویلبراند — از کانالِ بی‌نمرهٔ
 │   │   │                        #   hemostasis در adapter؛ بی‌مسیرِ اورژانس، بی‌نامِ بیماری، بی‌آستانهٔ تأییدنشده (۰٫۵ BU / ۰٫۶ فقط نقل)
 │   │   ├── patterns_coverage_gaps.js  # P67: ردیف‌هایی که خوانده می‌شدند ولی خواننده نداشتند (کشت، Anti-HBs/HBc، ASO، BHB، …)
+│   │   ├── patterns_p73_gaps.js # P73: ۱۰ قاعده برای ۱۲ شکافِ تک‌آزمایشی (HCT/RBC↑، بیلی‌روبین↑، CK↑، آلبومین↓، فریتین/TSAT↑، T4 تام،
+│   │   │                        #   HCO3↓، PCT 0.5–<2، NH3↑، Hb↓ بی‌MCV) — مالک‌های صریح (`P73_OWNERS`)، نه «کلید را خواند»؛ `bindP73Owners(RULES)`
 │   │   ├── patterns_serology.js # specs/012 (P68): VDRL/RPR، سرخجه IgG، کومبس غیرمستقیم، هلیکوباکتر — بی‌هیچ آستانهٔ ثابت (C1):
 │   │   │                        #   فقط مرز/واژهٔ چاپ‌شده؛ Anti-Tg/TRAb در قاعدهٔ thyroid (patterns_endocrine_rheum.js)
 │   │   ├── serology.js          # specs/012: مسیریابی + خوانشِ مجموعهٔ بسته — مشترکِ adapter و قاعده‌ها (یک قاعده برای «مثبت»)
@@ -319,10 +321,10 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **nineteen** `patterns_<system>.js` files (the eighteenth, `patterns_leukocyte.js`, from specs/009; the nineteenth, `patterns_hemostasis.js`, from specs/010)
+`patterns.js` no longer holds the rules. It imports **twenty** `patterns_<system>.js` files (the twentieth, `patterns_p73_gaps.js`, P73; the eighteenth, `patterns_leukocyte.js`, from specs/009; the nineteenth, `patterns_hemostasis.js`, from specs/010)
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-22) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **196 rules, measured
+concatenates their `RULES_*` exports into the exported `RULES` array — **206 rules, measured 2026-10-03 after P73 (+10: `hct_rbc_high`, `bilirubin_total_alone`, `ck_elevated_alone`, `albumin_low_alone`, `iron_markers_high`, `total_t4_abnormal`, `bicarbonate_low_moderate`, `pct_intermediate`, `ammonia_mild_high`, `anemia_hb_alone`; previously 196, measured
 2026-10-03 on the working tree, after specs/012** (19 `RULES_*` imports; the last two are `patterns_coverage_gaps.js`, P67, and
 `patterns_serology.js`, specs/012, whose four ids are `syphilis_screen_result`, `rubella_igg_status`, `indirect_coombs_result` and
 `h_pylori_result` — rule-id diff +4 / −0. Re-measure; don't quote. Previous count: **161 rules, measured
@@ -2094,6 +2096,21 @@ not by a test.
   new kind of row to an existing channel, read every consumer of that channel — including the safety nets — for an assumption
   about what kind of row lives there** (the N25 identity question, asked of the consumer instead of the producer).
 
+
+### N29 — A rule that closes a coverage gap must keep the urgency the gap already had, and must hand off by *saying*, not by *reading*
+2026-10-03, `patterns_p73_gaps.js` (P73). Caught by the suite and by a freeze, not by the rule's own tests.
+
+- **Tried:** give each of the 12 single-analyte gaps its own finding, deriving urgency from `levelGrade(x) >= 2 ? "this_week" : "routine"`.
+- **Broke:** `M129` went red — `Total Bilirubin 14` (critical) had been `emergency` via the `unmatched_abnormal` net, and the new finding made it
+  `this_week`. Closing a gap *lowered* the urgency of the worst input. The net's own mapping (critical ⇒ emergency + `blocks_others`,
+  marked/G≥3 ⇒ this_week, neonatal bilirubin excepted) is now copied as `netUrgency` in the module.
+- **Second miss:** `hct_rbc_high` fired beside a *low* Hb (HCT 52 with Hb 10 — discordant), turning three existing tests red (M179c/M189c/M191b).
+  A "high" rule needs the partner analyte's direction in its `match`, not only in its text.
+- **Rule:** a rule that replaces `unmatched_abnormal` for an analyte inherits that analyte's floor; diff the fired ids *and urgencies* HEAD-vs-tree on the
+  ordinary **and** the worst input. And hand-offs name explicit owner ids (`P73_OWNERS`) — `RULE_READS` says a rule *read* `ALB`
+  (`calcium_abnormal` does, to correct calcium) not that it *explained* albumin.
+- **Freezes re-baselined on purpose** (each with a diff proving only `unmatched/unexplained ⇒ dedicated finding`, same urgency): `M125`, `M257`, `S08`;
+  content assertions `M179c`, `M241*`, `M244c`, `T30`. `M244c` lost its original premise (Hb stays uncovered) because P73 closed that gap — the comment says so.
 
 Detailed instructions are split across `.claude/rules/`:
 

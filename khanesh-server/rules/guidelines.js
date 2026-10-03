@@ -125,7 +125,71 @@ export const GUIDELINES = {
     year: 2016,
     url: 'https://pubmed.ncbi.nlm.nih.gov/27521067/',
     access: 'open',
-    scope: 'TRAb در پرکاریِ آشکار حساسیت ۹۶–۹۷٪ و ویژگی ۹۹٪ برای گریوز؛ توصیه‌های ۹۲–۹۳ دربارهٔ TRAb در بارداری',
+    scope: 'TRAb در پرکاریِ آشکار حساسیت ۹۶–۹۷٪ و ویژگی ۹۹٪ برای گریوز؛ توصیه‌های ۹۲–۹۳ دربارهٔ TRAb در بارداری؛ توصیه‌های ۷۳–۷۴: TSHِ پایدارِ < ۰٫۱ mU/L ⇒ درمانِ پرکاریِ تحت‌بالینی توصیه/بررسی می‌شود',
+  },
+
+  ETA_SCH_2013: {
+    org: 'ETA',
+    fa: 'انجمن تیروئید اروپا',
+    title: '2013 ETA Guideline: Management of Subclinical Hypothyroidism (Eur Thyroid J 2013;2:215-228)',
+    year: 2013,
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC3923601',
+    access: 'open',
+    scope: 'توصیهٔ ۱۳: TSH > ۱۰ mU/L در < ۶۵ سال حتی بی‌علامت ⇒ لووتیروکسین؛ توصیهٔ ۲: TSHِ بالای تنها با FT4ِ طبیعی ⇒ تکرارِ TSH+FT4+anti-TPO پس از ۲–۳ ماه',
+  },
+
+  WHO_MPN_2016: {
+    org: 'WHO',
+    fa: 'سازمان جهانی بهداشت',
+    title: 'WHO 2016 revision of the classification of myeloid neoplasms — polycythemia vera criteria (Blood 2016;127:2391)',
+    year: 2016,
+    url: 'https://www.thebloodproject.com/cases-archive/polycythemia-diagnostic-criteria/polycythemia-vera-diagnostic-criteria/',
+    access: 'open',
+    // ⚠️ عددها را از خلاصه‌های جدولِ معیارها (PMC5807384/PMC5915302 و thebloodproject) دیدم؛ متنِ اصلیِ Blood 2016 را باز نکردم.
+    scope: 'معیار بزرگِ اول: Hb > 16.5 (مرد) / > 16.0 (زن) g/dL یا Hct > 49٪ (مرد) / > 48٪ (زن)',
+  },
+
+  EASL_HH_2022: {
+    org: 'EASL',
+    fa: 'انجمن اروپایی مطالعهٔ کبد',
+    title: 'EASL Clinical Practice Guidelines on Haemochromatosis (J Hepatol 2022;77:479-502)',
+    year: 2022,
+    url: 'https://easl.eu/wp-content/uploads/2022/06/PIIS01688278220021121.pdf',
+    access: 'open',
+    scope: 'TSAT > 45٪ و فریتین > 200 µg/L (زن) یا TSAT > 50٪ و فریتین > 300 µg/L (مرد) ⇒ بارِ آهنِ احتمالی؛ آزمایشِ ژنتیکِ HFE وقتی TSAT بالاست؛ فریتین و آهن در هر بررسیِ آزمایشِ کبدِ غیرطبیعی',
+  },
+
+  AASLD_EASL_HE_2014: {
+    org: 'AASLD/EASL',
+    fa: 'انجمن‌های مطالعهٔ کبدِ آمریکا و اروپا',
+    title: 'Hepatic encephalopathy in chronic liver disease: 2014 practice guideline by AASLD and EASL (J Hepatol 2014;61:642-659)',
+    year: 2014,
+    url: 'https://www.aasld.org/liver-fellow-network/core-series/why-series/why-shouldnt-ammonia-be-used-diagnosis-and-management',
+    access: 'open',
+    // ⚠️ نقلِ جمله‌ها از صفحهٔ AASLD Liver Fellow Network (خلاصهٔ آموزشیِ راهنما) است؛ PDFِ اصلیِ ۲۰۱۴ را باز نکردم.
+    scope: 'آمونیاکِ بالا به‌تنهایی ارزشِ تشخیصی/مرحله‌بندی/پیش‌آگهی ندارد؛ آمونیاکِ طبیعی تشخیصِ HE را زیر سؤال می‌برد',
+  },
+
+  BRAHMS_PCT: {
+    org: 'Thermo Fisher B·R·A·H·M·S',
+    fa: 'ترموفیشر (سازندهٔ کیتِ PCT)',
+    title: 'Procalcitonin (PCT) Reference Ranges card — Diagnosis of systemic bacterial infection/sepsis (after Meisner M, Procalcitonin 2010)',
+    year: 2010,
+    url: 'https://documents.thermofisher.com/TFS-Assets/CDD/Catalogs/PCT-Reference-Card.pdf',
+    access: 'open',
+    // ⚠️ منبعِ سازنده است نه راهنمای انجمنی؛ Surviving Sepsis 2021 PCT را فقط برای قطعِ آنتی‌بیوتیک پیشنهاد می‌کند، نه آستانهٔ تشخیص. PDF را با pdftotext خواندم.
+    scope: 'PCT < 0.5 µg/L عفونتِ سیستمیک بعید؛ 0.5 تا < 2 ممکن (علت‌های دیگر هم PCT را بالا می‌برند، تکرار پس از ۶–۲۴ ساعت)؛ ≥ 2 محتمل',
+  },
+
+  SOETERS_HYPOALB_2019: {
+    org: 'Soeters et al.',
+    fa: 'مرورِ همتاداوری‌شده (JPEN)',
+    title: 'Hypoalbuminemia: Pathogenesis and Clinical Significance (JPEN 2019;43:181-193)',
+    year: 2019,
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC7379941',
+    access: 'open',
+    // ⚠️ مقاله مرورِ روایی است نه راهنمای انجمنی؛ فقط از خلاصهٔ جست‌وجو (علت‌ها: التهاب، کبد، سوءتغذیه، مایع؛ درمان = رفعِ علت) دیدم، متنِ کامل را باز نکردم.
+    scope: 'آلبومینِ پایین نشانهٔ التهاب/بیماری است؛ مدیریت = رفعِ علتِ زمینه‌ای نه تزریقِ آلبومین',
   },
 
   ACOG_RH_PB181: {
@@ -157,7 +221,7 @@ export const GUIDELINES = {
     year: 2024,
     url: 'https://kdigo.org/wp-content/uploads/2024/03/KDIGO-2024-CKD-Guideline.pdf',
     access: 'open',
-    scope: 'طبقه‌بندی CGA، مراحل G1–G5 و A1–A3، شرطِ دوامِ ۳ ماه',
+    scope: 'طبقه‌بندی CGA، مراحل G1–G5 و A1–A3، شرطِ دوامِ ۳ ماه؛ اسیدوزِ متابولیک در CKD: بی‌کربنات ≤ 22 mmol/L، شروعِ قلیا فقط < 18',
   },
 
   ADA_SOC: {
@@ -203,7 +267,7 @@ export const GUIDELINES = {
     access: 'open',
     // ⚠️ آستانهٔ «لیپاز > ۳×ULN» از این سند *نیست* — از گایدلاینِ پانکراتیتِ
     //    حادِ ACG می‌آید که سندِ جداگانه‌ای است و اینجا ثبت نشده.
-    scope: 'ULNِ «سالم» برای ALT و نسبت R در افتراقِ آسیبِ سلولی از انسدادی',
+    scope: 'ULNِ «سالم» برای ALT و نسبت R در افتراقِ آسیبِ سلولی از انسدادی؛ بیلی‌روبینِ بالا ⇒ تفکیکِ مستقیم/غیرمستقیم و بررسیِ الگوی آنزیم‌ها',
   },
 
   AASLD: {
@@ -263,7 +327,7 @@ export const GUIDELINES = {
     year: 2026,
     url: 'https://www.msdmanuals.com/professional',
     access: 'open',
-    scope: 'مکانیسمِ ساده‌شدهٔ یافته‌های آزمایشگاهی',
+    scope: 'مکانیسمِ ساده‌شدهٔ یافته‌های آزمایشگاهی؛ رابدومیولیز: CK > ۵×ULN (مثلاً > 1000 U/L)',
   },
 
   ARUP_CONSULT: {

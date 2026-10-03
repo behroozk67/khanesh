@@ -7048,9 +7048,11 @@ test("M125: واحدِ چاپ‌شده بایت‌به‌بایت بی‌تغی�
     [["TSH", "8.5", "mIU/L"], ["FT4", "0.6", "ng/dL"]], [["hs-cTnI", "45", "ng/L"]], [["D-dimer", "1.5", "mg/L"]],
     [["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["Ferritin", "6", "ng/mL"]],
   ];
+  // ⚠️ عمداً بازپایه شد (P73، ۲۰۲۶-۱۰-۰۳): پنلِ «Total Bilirubin 40 µmol/L» (۱ از ۱۵) پیش‌تر unmatched_abnormal/routine می‌داد و حالا
+  //   bilirubin_total_alone/routine؛ فوریتِ کلی یکی است. ۱۴ پنلِ دیگر بایت‌به‌بایت یکسان.
   const EXPECTED = ["f665faa0048dbdf5", "c1d5e82d7ddbc3e0", "92ca4fb75ab86370", "bd45550d31afb2f3", "4436e94e10c7ae54",
     "81ff9d916b808907", "e4d91c9257556a36", "285da43aacfe795b", "e8bcbab1b2b3f21b", "bebcb999b3e71f23",
-    "e2aade88461d5429", "0851945cd9782082", "09889f9ef3323ae1", "47ef5a64951b1422", "ce878cff6dfacbd5"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
+    "3fa9fe79c67138b7", "0851945cd9782082", "09889f9ef3323ae1", "47ef5a64951b1422", "ce878cff6dfacbd5"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
   const snap = (rows) => {
     const e = runEngine({ patient: { age: 50, sex: "M" }, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
     const p = runPatterns(e);
@@ -8743,7 +8745,8 @@ test("M179b: هماتوکریتِ بحرانی — دقیقاً یک دستور�
 });
 
 test("M179c: مرزهای بحرانِ هماتوکریت — Hb حاکم است، کودک و بی‌واحد و سمتِ بالا دست‌نخورده (freeze، Q2)", () => {
-  assert.deepEqual(fired(hctOnly("18", F30, "%", [["Hb", "9", null, "g/dL"]])), ["unmatched_abnormal", "unexplained_abnormal"]);
+  // ⚠️ عمداً عوض شد (P73): Hbِ ۹ بدونِ MCV دیگر «توضیحِ آماده نداریم» نمی‌گیرد؛ anemia_hb_alone دارد. HCT ۱۸ هنوز بی‌توضیح است.
+  assert.deepEqual(fired(hctOnly("18", F30, "%", [["Hb", "9", null, "g/dL"]])), ["anemia_hb_alone", "unexplained_abnormal"]);
   for (const v of ["21", "25"]) {
     const p = hctOnly(v);
     assert.deepEqual(fired(p), ["low_rbc_hct_without_anemia"], v);
@@ -8755,7 +8758,8 @@ test("M179c: مرزهای بحرانِ هماتوکریت — Hb حاکم است
   const g4 = uuuRun([["Hb", "21", null, "g/dL"], ["Hct", "63", null, "%"], ["RBC", "6.8", null, "10*6/uL"], ["MCV", "92", null, "fL"]], M40);
   assert.ok(fired(g4).includes("erythrocytosis"));
   assert.equal(g4.overall_urgency, "this_week");
-  assert.deepEqual(fired(hctOnly("62", M40)), ["unmatched_abnormal"]);
+  // ⚠️ عمداً عوض شد (P73): HCT ۶۲ تنها دیگر «توضیحِ آماده نداریم» نمی‌گیرد؛ hct_rbc_high دارد.
+  assert.deepEqual(fired(hctOnly("62", M40)), ["hct_rbc_high"]);
 });
 
 const g7Panel = [["Hb", "14", null, "g/dL"], ["Hct", "30", null, "%"], ["RBC", "3.0", null, "10*6/uL"], ["MCV", "100", null, "fL"], ["MCHC", "46.7", null, "g/dL"]];
@@ -11110,23 +11114,24 @@ test("M241: WBC 80 — لنفوسیت/ائوزینوفیل/مونوسیتِ با
   assert.equal(p.overall_urgency, "emergency");
   assert.equal(p.has_critical, true);
   const sup = p.findings.filter((f) => f.supplementary);
-  assert.deepEqual(sup.map((f) => f.rule_id), ["cll_suspicion_nccn", "eosinophilia", "neutrophilia", "monocytosis"]);
+  // ⚠️ عمداً عوض شد (P73): Hbِ ۱۲ (پایین برای مرد) بدونِ MCV حالا anemia_hb_alone دارد و آن هم زیرِ اورژانس «تکمیلی» می‌شود.
+  assert.deepEqual(sup.map((f) => f.rule_id), ["cll_suspicion_nccn", "eosinophilia", "neutrophilia", "monocytosis", "anemia_hb_alone"]);
   sup.forEach((f, i) => assert.ok(
-    f.must_say.startsWith(`یافتهٔ تکمیلی ${i + 1} از 4 (جدا از دستور اورژانسی): `), `برچسب/شمارش: ${f.must_say}`));
+    f.must_say.startsWith(`یافتهٔ تکمیلی ${i + 1} از 5 (جدا از دستور اورژانسی): `), `برچسب/شمارش: ${f.must_say}`));
   const text = s9Text(p);
   for (const n of ["6400", "4800", "3200", "56000"]) assert.ok(text.includes(n), `عدد ${n} در متنِ نمایشی نیست`);
   const un = s9Uncovered(p);
   for (const k of ["LYMPH_ABS", "EOS_ABS", "MONO_ABS", "NEUT_ABS"]) assert.ok(!un.includes(k), `${k} هنوز «بی‌توضیح» است: ${un}`);
   // شمارش و شناسه‌ها به خروجیِ موتور می‌رسند (قراردادِ _engine)
-  assert.equal(p.suppressed, 4);
-  assert.deepEqual([...p.suppressed_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
-  assert.deepEqual([...p.supplementary_ids].sort(), ["cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
+  assert.equal(p.suppressed, 5);   // P73: + anemia_hb_alone
+  assert.deepEqual([...p.suppressed_ids].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
+  assert.deepEqual([...p.supplementary_ids].sort(), ["anemia_hb_alone", "cll_suspicion_nccn", "eosinophilia", "monocytosis", "neutrophilia"]);
 });
 
 test("M241b: یافتهٔ تکمیلی فوریتِ خودش را نگه می‌دارد ولی هیچ دستور/هشدار/پیشنهادِ زمان‌دارِ دومی نمی‌آورد (N20) و دستورِ نهاییِ اورژانس عوض نمی‌شود", () => {
   const { e, p } = M241_WBC80();
   // بدونِ این، حلقهٔ پایین روی کدِ قدیمی (که یافتهٔ تکمیلی ندارد) بی‌مصرف سبز می‌شود (N15).
-  assert.equal(p.findings.filter((x) => x.supplementary).length, 4, "پیش‌شرط: چهار یافتهٔ تکمیلی");
+  assert.equal(p.findings.filter((x) => x.supplementary).length, 5, "پیش‌شرط: پنج یافتهٔ تکمیلی (P73: + anemia_hb_alone)");
   for (const f of p.findings.filter((x) => x.supplementary)) {
     assert.equal(f.action, "", `${f.rule_id}: دستورِ زمان‌دارِ دوم`);
     assert.deepEqual(f.warnings, []);
@@ -11308,7 +11313,10 @@ test("M244c: hematuria_pattern هرگز تکمیلی نمی‌شود و در sup
     s9T("WBC", 80, "10^3/uL"), s9T("Hb", 12, "g/dL"), s9T("PLT", 450, "10^3/uL"), ...s9Diff(70, 8, 4, 6, 5) ]).p);
   assert.ok(!p.findings.some((x) => x.rule_id === "hematuria_pattern"), "نمایش داده شد");
   assert.ok(p.suppressed_ids.includes("hematuria_pattern"));
-  assert.ok(s9Uncovered(p).includes("HGB"), `Hb باید در «توضیح داده نشدند» بماند: ${s9Uncovered(p)}`);
+  // ⚠️ عمداً عوض شد (P73): پیش‌تر Hbِ ۱۲ بی‌توضیح می‌ماند و این تست نشان می‌داد جملهٔ نوارِ ادرار آن را «پوشش» نمی‌دهد.
+  //   حالا anemia_hb_alone (زیرِ اورژانس، تکمیلی) Hb را با متنِ خودش می‌پوشاند — پوششْ از آن قاعده است، نه از جملهٔ نوار.
+  assert.ok(p.supplementary_ids.includes("anemia_hb_alone"), `Hb باید با anemia_hb_alone پوشش بخورد: ${p.supplementary_ids}`);
+  assert.ok(!s9Uncovered(p).includes("HGB"), `Hb هنوز بی‌توضیح: ${s9Uncovered(p)}`);
 });
 
 // ---------- M245: P59 — آستانهٔ pancytopenia با Chew & Kamangar و پرچمِ soonِ اوره با BUN/Cr > ۳۰ (تصمیمِ بازبین ۲۰۲۶-۰۹-۳۰) ----------
@@ -11803,9 +11811,11 @@ const m010P = (sex, age, rows) => runPatterns(runEngine({ tests: rows, patient: 
 const M010_FREEZE = {
   plt_500: ["M", 40, [...M010_BASE, m010T("PLT", 500, "10^3/uL")], "40670a0881ed84c1"],
   plt_999: ["M", 40, [...M010_BASE, m010T("PLT", 999, "10^3/uL")], "f7b93c6b8f44e4bd"],
-  dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "78085365c0e6c25b"],
-  plt40_dd6: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 40, "10^3/uL"), m010T("D-dimer", 6.0, "µg/mL"), m010T("PT", 12, "sec"), m010T("Fibrinogen", 300, "mg/dL")], "5d511d920f533976"],
-  plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "2cadad106d604f76"],
+  // ⚠️ dic_emerg عمداً بازپایه شد (P73): Hbِ ۱۳ (پایین برای مرد ۶۰ ساله، بی‌MCV) پیش‌تر unexplained_abnormal/routine بود، حالا anemia_hb_alone/routine؛
+  //   dic_pattern و coagulation_abnormal و فوریتِ کلی (emergency) دست‌نخورده.
+  dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "c60468549c5dd064"],
+  plt40_dd6: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 40, "10^3/uL"), m010T("D-dimer", 6.0, "µg/mL"), m010T("PT", 12, "sec"), m010T("Fibrinogen", 300, "mg/dL")], "23f9236f61afb400"],
+  plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "0c9e940c3e6edecb"],
   plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "0fb1923cfbab47b5"],
   dd_only: ["M", 70, [...M010_BASE, m010T("D-dimer", 700, "ng/mL")], "3063cfd783be8dcc"],
   aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "dd28af718362abd1"],
@@ -12638,4 +12648,25 @@ test("M311: TSHِ ≥ ۱۰ وقتی FT4 روی برگه نیست ⇒ این هف
   assert.equal(lo.urgency, "routine"); assert.doesNotMatch(lo.action, /متخصص غدد/);
   const withFt4 = t([{ name: "TSH", value: "12" }, { name: "FT4", value: "1.2", unit: "ng/dL" }]).p.findings.find((x) => x.rule_id === "thyroid");
   assert.equal(withFt4.pattern, "thyroid_hypo_subclinical"); assert.equal(withFt4.urgency, "routine");
+  // منبعِ بازشده: ETA 2013 توصیهٔ ۱۳ بر finding می‌نشیند (تأییدِ کاربر ۲۰۲۶-۱۰-۰۳)
+  assert.ok((f.sources ?? []).includes("ETA_SCH_2013"), "منبع ETA به یافته وصل نشد");
+});
+
+test("M312: TSHِ < ۰٫۱ وقتی FT4 روی برگه نیست ⇒ این هفته + ارجاع به متخصص غدد (قرینهٔ M311)؛ ۰٫۱ و TSHِ ۰٫۰۵ با FT4ِ طبیعی همان قبلی (P72، ATA 2016 توصیه ۷۳–۷۴)", () => {
+  const t = (rows) => l1(rows, { age: 40, sex: "F" });
+  const lo = t([{ name: "TSH", value: "0.05" }]);
+  const f = lo.p.findings.find((x) => x.rule_id === "thyroid");
+  assert.equal(f?.pattern, "thyroid_hyper_ft4_unmeasured"); assert.equal(f.urgency, "this_week");
+  assert.match(f.action, /ارجاع به متخصص غدد/); assert.match(f.action, /این هفته/);
+  assert.ok(lo.recs.some((s) => /^درخواست بررسی توسط متخصص غدد از پزشک/.test(s)), lo.recs.join(" | "));
+  assert.ok(lo.recs.some((s) => /FT4/.test(s)));
+  assert.ok((f.sources ?? []).includes("ATA_HYPER_2016"));
+  // مرز: ۰٫۱ دقیق سرکوب‌شده نیست («< ۰٫۱»)؛ ۰٫۲ هم همان قبلی
+  for (const v of ["0.1", "0.2"]) {
+    const b = t([{ name: "TSH", value: v }]).p.findings.find((x) => x.rule_id === "thyroid");
+    assert.equal(b?.urgency, "routine", v); assert.doesNotMatch(b.action, /متخصص غدد/);
+  }
+  // با FT4ِ طبیعیِ چاپ‌شده تحت‌بالینی می‌ماند
+  const withFt4 = t([{ name: "TSH", value: "0.05" }, { name: "FT4", value: "1.2", unit: "ng/dL" }]).p.findings.find((x) => x.rule_id === "thyroid");
+  assert.equal(withFt4.pattern, "thyroid_hyper_subclinical"); assert.equal(withFt4.urgency, "routine");
 });
