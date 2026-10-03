@@ -7,7 +7,7 @@
 // ⚠️ متنِ همهٔ قاعده‌ها حکم نمی‌دهد؛ «مطرح می‌کند». و برای هر ردیف سه‌حالت: بالا / پایین-یا-منفی / نامفهوم.
 // ============================================================
 import { serologyReactive, urinePositive, urineCellCount, castAxis } from "./patterns_utils.js";
-import { utiFires, bacteriuriaFires } from "./patterns_nephrology.js";
+import { utiFires, bacteriuriaFires, bacteriaSignificant } from "./patterns_nephrology.js";
 import { RULES_BIOCHEM } from "./patterns_biochem.js";
 
 const normK = (s) => String(s).toLowerCase().replace(/[\s.\-_()/%#:]/g, "");
@@ -508,18 +508,21 @@ export const RULES_COVERAGE_GAPS = [
     build: (e) => {
       const w = urineCellCount(e, WBC_RE);
       const preg = e.pregnant === true;
+      const bact = bacteriaSignificant(e);
+      const week = preg || bact;   // باکتری + پیوری = دو نشانه در عمل، هم‌سطحِ uti_likely (this_week)
       return {
         pattern: "urine_pyuria_alone",
-        urgency: preg ? "this_week" : "routine",
+        urgency: week ? "this_week" : "routine",
         headline: "در ادرارِ شما گلبولِ سفید بالاتر از حدِ معمول است",
         must_say:
           `گلبولِ سفیدِ ادرار ${w} در هر میدانِ میکروسکوپ است (حدِ معمول تا ۵). گلبولِ سفیدِ ادرار علت‌های متعددی دارد: عفونتِ ادراری (حتی وقتی نوار هنوز منفی است)، سنگ، التهابِ مجاری و گاهی آلودگیِ نمونه. ` +
           "چون نیتریت و لکوسیت‌استرازِ مثبت کنارش نیست، به‌تنهایی نمی‌شود عفونت را قطعی دانست." +
+          (bact ? " باکتریِ قابل‌توجه هم در همین ادرار گزارش شده؛ همراهِ گلبولِ سفیدِ بالا، این‌ها کنارِ هم به عفونتِ ادراری نزدیک‌ترند تا به آلودگیِ نمونه، و کشتِ ادرار آن را روشن می‌کند." : "") +
           (preg ? " " + PREGNANCY_URINE_SENTENCE : ""),
-        action: preg
+        action: week
           ? ACTION.this_week
           : "در نوبتِ عادی با پزشک مطرح کنید. اگر سوزش یا تکررِ ادرار، تب یا درد پهلو دارید، زودتر مراجعه کنید.",
-        suggest: preg ? ["کشت ادرار"] : ["کامل ادرار — تکرار با نمونهٔ وسطِ ادرار در ظرفِ استریل", "کشت ادرار"],
+        suggest: week ? ["کشت ادرار"] : ["کامل ادرار — تکرار با نمونهٔ وسطِ ادرار در ظرفِ استریل", "کشت ادرار"],
         warnings: [],
       };
     },

@@ -25,13 +25,19 @@ function utiFires(e) {
   // حداقل دو نشانه برای احتیاط
   return [le, nit, wbcHigh].filter(Boolean).length >= 2;
 }
-function bacteriuriaFires(e) {
+function bacteriaSignificant(e) {
   // باکتری قابل‌توجه؟ (many یا moderate — few را نمی‌گیریم)
-  const bactSignificant = Object.entries(e.qual || {}).some(
+  return Object.entries(e.qual || {}).some(
     ([k, v]) => /bacteria|باکتری/i.test(k) &&
                 /many|moderate|numerous|زیاد|فراوان|متوسط|\+{2,}/i.test(String(v))
   );
-  if (!bactSignificant) return false;
+}
+function bacteriuriaFires(e) {
+  if (!bacteriaSignificant(e)) return false;
+  // 🔴 ۲۰۲۶-۱۰-۰۳ (P67): «بدونِ التهاب» یعنی بدونِ التهاب. با گلبولِ سفیدِ بالای ۵ التهاب هست — باکتری + پیوری را
+  //    «احتمالاً آلودگیِ نمونه» خواندن نزدیک‌ترین تصویر به عفونت را کم‌خوانی می‌کرد؛ آن را urine_pyuria_alone می‌گیرد.
+  const wbc = urineCellCount(e, WBC_RE);
+  if (wbc != null && wbc > URINE_WBC_UPPER_HPF) return false;
   // نشانه‌های عفونت — اگر باشند، UTI فعال است و این الگو نباید بیاید
   return !utiFires(e);
 }
@@ -70,7 +76,7 @@ function esteraseWithoutCellsFires(e) {
   return Boolean(RULES_NEPHROLOGY.find((r) => r.id === "urine_esterase_without_cells")?.match(e));
 }
 // specs/006: patterns_urinalysis می‌پرسد «باکتریِ بی‌التهاب فعال شد؟» — با همین تابع، نه با بازنویسیِ شرطش.
-export { utiFires, bacteriuriaFires, esteraseWithoutCellsFires };
+export { utiFires, bacteriuriaFires, bacteriaSignificant, esteraseWithoutCellsFires };
 
 export const RULES_NEPHROLOGY = [
 
@@ -110,27 +116,50 @@ export const RULES_NEPHROLOGY = [
   {
     id: "bacteriuria_no_inflammation",
     match: bacteriuriaFires,
-    build: (e) => ({
-      pattern: "bacteriuria_no_inflammation",
-      urgency: "routine",
-      headline: "در آزمایش ادرار شما باکتری دیده شده است",
-      must_say:
-        "در نمونه‌ی ادرار شما باکتری گزارش شده است. " +
-        "یکی از دلایل شایع این موضوع می‌تواند آلوده شدن نمونه هنگام جمع‌آوری باشد — " +
-        "مثلاً وقتی نمونه وسط ادرار و در ظرف استریل گرفته نشده باشد. " +
-        "برای تفسیر درست، بهتر است با پزشک مطرح شود." +
-        // ناهمخوانیِ استراز اینجا گفته می‌شود، نه در یافتهٔ جدا (specs/005، M168c): یک نوار، یک یافته.
-        esteraseInBacteriuria(e) +
-        // specs/006 (FR-023): سلول‌های سنگفرشیِ زیاد همین «آلودگی» را تأیید می‌کنند — یک یافته، یک پیشنهادِ تکرار (M175d).
-        squamousSentence(e),
-      action: canBePregnant(e)
-        ? "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، یا اگر باردار هستید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است."
-        : "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است.",
-      suggest: ["تکرار آزمایش ادرار با نمونه‌ی وسط ادرار (midstream) و ظرف استریل"],
-      warnings: canBePregnant(e)
-        ? ["⚠️ اگر باردار هستید، وجود باکتری در ادرار حتی بدون علامت مهم است و باید حتماً با پزشک زنان مطرح شود."]
-        : [],
-    }),
+    build: (e) => {
+      // ۲۰۲۶-۱۰-۰۳ (P67، تصمیمِ کاربر): در بارداریِ اعلام‌شده و کودکِ زیر ۲ سال باکتریِ ادرار را «احتمالاً آلودگیِ نمونه» نمی‌خوانیم —
+      //   باکتریِ بی‌علامت در بارداری درمان می‌خواهد (IDSA/ACOG/USPSTF) و در شیرخوار هم احتمالِ عفونت بالاست؛ بی‌جملهٔ آلودگی + مراجعه به پزشک.
+      const highRisk = e.pregnant === true || (typeof e.age === "number" && e.age < 2);
+      if (highRisk) {
+        const preg = e.pregnant === true;
+        return {
+          pattern: "bacteriuria_no_inflammation",
+          urgency: "this_week",
+          headline: "در آزمایش ادرار شما باکتری دیده شده است",
+          must_say:
+            "در نمونهٔ ادرار باکتری گزارش شده است. " +
+            (preg
+              ? "در بارداری باکتریِ ادرار حتی بدونِ علامت مهم است، چون می‌تواند به عفونتِ کلیه و زایمانِ زودرس برسد و نیاز به بررسی و گاهی درمان دارد. "
+              : "در کودکِ زیر دو سال باکتریِ ادرار را نمی‌توان کم‌اهمیت دانست؛ عفونتِ ادراری در این سن ممکن است علامتِ مشخصی (جز تب یا بی‌قراری) نداشته باشد و باید پزشک بررسی کند. ") +
+            (urinePositive(e, LE_RE) ? "نوارِ لکوسیت‌استرازِ همین برگه هم مثبت است. " : "") +
+            "برای روشن‌شدنِ نتیجه کشتِ ادرار لازم است.",
+          action: "این هفته با پزشک مطرح کنید. اگر تب، بی‌قراری، استفراغ، سوزش یا درد پهلو هست، همان روز مراجعه کنید.",
+          suggest: ["کشت ادرار"],
+          warnings: ["خودسرانه آنتی‌بیوتیک شروع نکنید — انتخاب و دوزِ درست را پزشک تعیین می‌کند."],
+        };
+      }
+      return {
+        pattern: "bacteriuria_no_inflammation",
+        urgency: "routine",
+        headline: "در آزمایش ادرار شما باکتری دیده شده است",
+        must_say:
+          "در نمونه‌ی ادرار شما باکتری گزارش شده است. " +
+          "یکی از دلایل شایع این موضوع می‌تواند آلوده شدن نمونه هنگام جمع‌آوری باشد — " +
+          "مثلاً وقتی نمونه وسط ادرار و در ظرف استریل گرفته نشده باشد. " +
+          "برای تفسیر درست، بهتر است با پزشک مطرح شود." +
+          // ناهمخوانیِ استراز اینجا گفته می‌شود، نه در یافتهٔ جدا (specs/005، M168c): یک نوار، یک یافته.
+          esteraseInBacteriuria(e) +
+          // specs/006 (FR-023): سلول‌های سنگفرشیِ زیاد همین «آلودگی» را تأیید می‌کنند — یک یافته، یک پیشنهادِ تکرار (M175d).
+          squamousSentence(e),
+        action: canBePregnant(e)
+          ? "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، یا اگر باردار هستید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است."
+          : "اگر علامتی مثل سوزش، تکرر ادرار یا تب دارید، با پزشک مطرح کنید. گاهی تکرار آزمایش با نمونه‌ی درست کمک‌کننده است.",
+        suggest: ["تکرار آزمایش ادرار با نمونه‌ی وسط ادرار (midstream) و ظرف استریل"],
+        warnings: canBePregnant(e)
+          ? ["⚠️ اگر باردار هستید، وجود باکتری در ادرار حتی بدون علامت مهم است و باید حتماً با پزشک زنان مطرح شود."]
+          : [],
+      };
+    },
   },
 
   // ── استراز مثبت بدونِ گلبولِ سفید (specs/005، data-model §4) ──

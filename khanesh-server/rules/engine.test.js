@@ -12376,3 +12376,41 @@ test("M300: P67 پرسش‌ها — TT تا ۲۱ طبیعی؛ پیوری/نیت�
   assert.deepEqual(resolved.suggest, []);
   assert.equal(find290(g290([["ASO", "190", "IU/mL"]]).p, "aso_result").headline.includes("بالاتر"), false);   // حدِ بزرگسال ۲۰۰
 });
+
+test("M301: باکتری + پیوری یک یافته می‌دهند و «آلودگیِ نمونه» نمی‌گوید؛ باکتریِ بی‌پیوری همان bacteriuria_no_inflammation می‌ماند (P67)", () => {
+  // 🔴 روی HEAD (a5c0b36): bacteriuria_no_inflammation «احتمالاً آلودگی» + urine_pyuria_alone — دو حکمِ ناهمخوان دربارهٔ یک ادرار (N20).
+  const both = g290([["Bacteria", "Many"], ["Pus cell", "20-25", "/hpf"]]).p;
+  assert.deepEqual(fired(both), ["urine_pyuria_alone"]);
+  const f = find290(both, "urine_pyuria_alone");
+  assert.equal(f.urgency, "this_week");
+  assert.match(f.must_say, /باکتریِ قابل‌توجه هم/);
+  assert.match(f.action, /این هفته/);
+  assert.doesNotMatch(f.must_say, /آلوده شدن نمونه/);
+  // کنترلِ منفی: باکتری با WBC پایین/غایب همان قبلی است
+  for (const rows of [[["Bacteria", "Many"]], [["Bacteria", "Many"], ["Pus cell", "2-3", "/hpf"]]]) {
+    assert.deepEqual(fired(g290(rows).p), ["bacteriuria_no_inflammation"]);
+  }
+  // پیوریِ بی‌باکتری: همان routine
+  assert.equal(find290(g290([["Pus cell", "20-25", "/hpf"]]).p, "urine_pyuria_alone").urgency, "routine");
+});
+
+test("M302: باکتری با WBC ≤ ۵ — بزرگسالِ عادی «احتمالاً آلودگی»؛ بارداریِ اعلام‌شده و کودکِ < ۲ سال بی‌جملهٔ آلودگی + این هفته + کشت (P67)", () => {
+  const rows = [["Bacteria", "Many"], ["Pus cell", "2-3", "/hpf"]];
+  const adult = find290(g290(rows, { age: 40, sex: "F" }).p, "bacteriuria_no_inflammation");
+  assert.equal(adult.urgency, "routine");
+  assert.match(adult.must_say, /آلوده شدن نمونه/);
+  for (const [label, pt] of [["باردار", { age: 28, sex: "F", pregnant: true }], ["۱ ساله", { age: 1, sex: "M" }], ["نوزاد", { age: 0.05, sex: "F" }]]) {
+    for (const r of [rows, [["Bacteria", "Many"]]]) {
+      const f = find290(g290(r, pt).p, "bacteriuria_no_inflammation");
+      assert.ok(f, label);
+      // نوزادِ < ۲۸ روز: کفِ «همین امروز» (P63، N26) از بالا می‌آید و عمداً بالاتر از this_week است
+      assert.equal(f.urgency, label === "نوزاد" ? "soon" : "this_week", label);
+      assert.doesNotMatch(f.must_say, /آلوده شدن نمونه|آلودگیِ نمونه/, label);
+      assert.match(f.action, label === "نوزاد" ? /همین امروز/ : /این هفته با پزشک/, label);
+      assert.deepEqual(f.suggest, ["کشت ادرار"], label);
+    }
+  }
+  // کنترلِ منفی: ۲ سال و بالاتر و بارداریِ اعلام‌نشده همان بزرگسال‌اند
+  assert.match(find290(g290(rows, { age: 2, sex: "M" }).p, "bacteriuria_no_inflammation").must_say, /آلوده شدن نمونه/);
+  assert.match(find290(g290(rows, { age: 28, sex: "F" }).p, "bacteriuria_no_inflammation").must_say, /آلوده شدن نمونه/);
+});
