@@ -228,6 +228,12 @@ const NAME_MAP = {
   ldh: "LDH",
   haptoglobin: "HAPTO",
   pt: "PT", prothrombintime: "PT",
+  // ۲۰۲۶-۱۰-۰۳ (ممیزیِ پوشش): این پنج «تفسیر نشدند» می‌شدند.
+  myoglobin: "MYOGLOBIN", serummyoglobin: "MYOGLOBIN", میوگلوبین: "MYOGLOBIN",
+  transferrin: "TRANSFERRIN", serumtransferrin: "TRANSFERRIN", trf: "TRANSFERRIN", ترانسفرین: "TRANSFERRIN",
+  antithrombin: "ATIII", antithrombiniii: "ATIII", atiii: "ATIII", at3: "ATIII", antithrombinactivity: "ATIII", antithrombinatiii: "ATIII", آنتیترومبین: "ATIII",
+  thrombintime: "TT", tt: "TT", زمانترومبین: "TT",
+  bandneutrophils: "BAND_PCT", bandneutrophil: "BAND_PCT", bandneut: "BAND_PCT", bands: "BAND_PCT", band: "BAND_PCT", stab: "BAND_PCT", stabs: "BAND_PCT", bandcells: "BAND_PCT", bandforms: "BAND_PCT", stabneutrophils: "BAND_PCT",
   aptt: "APTT", ptt: "APTT",
   fibrinogen: "FIB",
   ddimer: "DDIMER",
@@ -596,6 +602,7 @@ function hemostasisItem(key, t, sex) {
 // سرولوپلاسمین mg/dL یا g/L چاپ می‌شود (۱۰ در برابرِ ۰.۱)، مسِ ادرار µg یا µmol در ۲۴ ساعت. هیچ‌کدام در
 // UNIT_PROFILE نیستند، پس واحدِ چاپ‌شده اینجا نگه داشته می‌شود و قاعده فقط با واحدِ چاپ‌شده حکم می‌دهد (N3).
 // P57 پرسش ۶ — شاخص‌های پلاکتیِ وابسته به دستگاه.
+const ADULT_ONLY_REF_KEYS = new Set(["MYOGLOBIN", "TRANSFERRIN", "ATIII", "TT"]);
 const PLATELET_INDEX_KEYS = new Set(["PDW", "P_LCR", "PLT_CRIT"]);
 const UNIT_KEPT = new Set(["PDW", "PLT_CRIT", "P_LCR", "CERULOPLASMIN", "U_COPPER_24H",
   // P53 پرسش ۴ و ۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): ZPP فقط با µmol/mol، sTfR فقط با mg/L تفسیر می‌شوند، و درصدِ
@@ -796,6 +803,9 @@ const QUALITATIVE_PATTERNS = [
   /^hepatitisc/,          // hepatitiscantibody, hepatitiscab
   /^hepatitisbsurface/,   // hepatitisbsurfaceantigen (= HBsAg)
   /^(anti)?hbs$|^antihbs/,// Anti-HBs — کیفی است، ولی نشانهٔ ایمنی/واکسن، نه عفونت
+  /^hbsab|^hepatitisbsurfaceantibody|^hbcab|^hbcantibody|^hepatitisbcore/,   // 2026-10-03: HBsAb/HBcAb — پیش از این به qual نمی‌رسیدند
+  /^aso|^antistreptolysin/,
+  /^bhydroxybutyrate|^βhydroxybutyrate/,
   /^antihbc/,             // Anti-HBc — عفونتِ گذشته/فعلی، تفسیرش با HBsAg فرق دارد
   /^هپاتیت/, /^ایدز/, /^اچآیوی/,
 ];
@@ -1283,7 +1293,9 @@ export function ocrToEngineInput(ocr) {
     }
 
     if (isQualitative(key)) {
-      qual[t.name] = String(t.value);
+      // مقدارِ عددیِ این ردیف‌ها بدونِ واحد بی‌معناست (BHB mmol/L یا mg/dL؟ ASO IU/mL؟) — واحد کنارِ مقدار می‌ماند، نه حدس.
+      const uq = /^(aso|antistreptolysin|antihbs|hbsab|betahydroxybutyrate|bhb|bhydroxybutyrate)/.test(key) && String(t.unit ?? "").trim() && /^[<>≥≤]?\s*[\d.,]+$/.test(String(t.value).trim());
+      qual[t.name] = uq ? `${String(t.value).trim()} ${String(t.unit).trim()}` : String(t.value);
       continue;
     }
 
@@ -1351,7 +1363,9 @@ export function ocrToEngineInput(ocr) {
       unmapped.push(t.name);
       continue;
     }
-    if (!String(t.unit ?? "").trim() && ((engineKey === "HCT" && v <= 1) || (engineKey === "MCHC" && v > 100))) {
+    // ترانسفرینِ بی‌واحدِ ≤ ۱۰ (g/L است نه mg/dL) و آنتی‌ترومبینِ بی‌واحدِ ≤ ۳ (IU/mL است نه ٪) — N3، حدس نمی‌زنیم.
+    if (!String(t.unit ?? "").trim() && ((engineKey === "HCT" && v <= 1) || (engineKey === "MCHC" && v > 100) ||
+        (engineKey === "TRANSFERRIN" && v <= 10) || (engineKey === "ATIII" && v <= 3))) {
       unmapped.push(t.name);
       continue;
     }
@@ -1535,10 +1549,10 @@ export function ocrToEngineInput(ocr) {
 
   if (diffFailed) {
     // شمارش‌های مطلق را دور بریز — بی‌معنی‌اند
-    for (const k of ["NEUT_ABS", "LYMPH_ABS", "MONO_ABS", "EOS_ABS", "BASO_ABS"]) {
+    for (const k of ["NEUT_ABS", "LYMPH_ABS", "MONO_ABS", "EOS_ABS", "BASO_ABS", "BAND_ABS"]) {
       delete tests[k];
     }
-    for (const k of diffPcts.length ? ["NEUT_PCT","LYMPH_PCT","MONO_PCT","EOS_PCT","BASO_PCT"] : []) {
+    for (const k of diffPcts.length ? ["NEUT_PCT","LYMPH_PCT","MONO_PCT","EOS_PCT","BASO_PCT","BAND_PCT"] : []) {
       delete tests[k];
     }
   }
@@ -1548,7 +1562,7 @@ export function ocrToEngineInput(ocr) {
     const abs = tests.WBC * 1000;
     for (const [p, a] of [
       ["NEUT_PCT", "NEUT_ABS"], ["LYMPH_PCT", "LYMPH_ABS"],
-      ["MONO_PCT", "MONO_ABS"], ["EOS_PCT", "EOS_ABS"], ["BASO_PCT", "BASO_ABS"],
+      ["MONO_PCT", "MONO_ABS"], ["EOS_PCT", "EOS_ABS"], ["BASO_PCT", "BASO_ABS"], ["BAND_PCT", "BAND_ABS"],
     ]) {
       if (tests[p] != null && tests[a] == null) {
         tests[a] = Math.round((abs * tests[p]) / 100);
@@ -1766,7 +1780,15 @@ export function runEngine(ocr) {
   }
 
   for (const [key, value] of Object.entries(tests)) {
-    if (key.startsWith("_") || key.endsWith("_PCT")) continue;
+    if (key.startsWith("_")) continue;
+    // ۲۰۲۶-۱۰-۰۳: درصدِ افتراقیِ بی‌WBC بی‌صدا حذف می‌شد (نه graded، نه ungraded، نه unmapped) و برگه «طبیعی» می‌شد (N2/N4).
+    //   با WBC به مطلق تبدیل شده؛ بی‌آن به ungraded می‌رود و differential_without_wbc می‌خواندش.
+    if (key.endsWith("_PCT")) {
+      if (tests[key.replace("_PCT", "_ABS")] == null) ungraded[key] = { value, reason: "diff_pct_no_wbc" };
+      continue;
+    }
+    // بازهٔ این چهار کلید فقط بزرگسال است؛ زیرِ ۱۶ سال حکم نمی‌دهیم ولی «تفسیر نشدند» هم نمی‌شود — adult_ref_only را قاعده می‌خواند.
+    if (ADULT_ONLY_REF_KEYS.has(key) && age != null && age < 16) { ungraded[key] = { value, reason: "adult_ref_only" }; continue; }
 
     if (key === "HCG") {
       ungraded.HCG = { value, reason: "threshold", ...(rawText.HCG ? { raw: rawText.HCG } : {}) };

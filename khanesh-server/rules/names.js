@@ -15,7 +15,7 @@ export const FA_NAMES = {
   // 🔴 برگهٔ واقعی ۲۰۲۶-۰۹-۲۴: RDW_CV و RDW_SD هر دو «RDW» بودند — دو عددِ متفاوت با یک نام (N8).
   RETIC: "رتیکولوسیت", RETIC_ABS: "شمارشِ مطلقِ رتیکولوسیت", RDW_CV: "RDW-CV", RDW_SD: "RDW-SD", MPV: "MPV", ESR: "ESR (سرعت رسوب)",
   NEUT_ABS: "نوتروفیل", LYMPH_ABS: "لنفوسیت", MONO_ABS: "مونوسیت",
-  EOS_ABS: "ائوزینوفیل", BASO_ABS: "بازوفیل", BAND_ABS: "باند",
+  EOS_ABS: "ائوزینوفیل", BASO_ABS: "بازوفیل", BAND_ABS: "باند", MYOGLOBIN: "میوگلوبین", TRANSFERRIN: "ترانسفرین", ATIII: "آنتی‌ترومبین III", TT: "زمان ترومبین (TT)",
   UREA: "اوره", UREA_N: "BUN (نیتروژن اورهٔ خون)", CREAT: "کراتینین", NA: "سدیم", K: "پتاسیم", CL: "کلر",
   CA: "کلسیم", MG: "منیزیم", PHOS: "فسفر", OSM: "اسمولالیتهٔ سرم",
   // PTH با پرانتزِ لاتین می‌ماند: خودِ برگه «PTH» چاپ می‌کند و بیمار باید

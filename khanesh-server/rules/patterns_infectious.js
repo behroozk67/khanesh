@@ -45,7 +45,7 @@ export const RULES_INFECTIOUS = [
     match: (e) => serologyReactive(
       e,
       /hbsag|hepatitisbsurface|هپاتیتb|استرالیا/i,
-      /^anti|آنتیبادی/i,
+      /^anti|آنتیبادی|antibody|hbsab|hbcab|surfaceab|ab$/i,
     ),
     build: () => ({
       pattern: "hbsag_reactive",

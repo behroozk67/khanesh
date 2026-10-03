@@ -1006,8 +1006,9 @@ test("T42: برگهٔ فقط-ادرار در مسیرِ موتور — نیتر�
   });
   assert.equal(r.status, 200);
   assert.ok(r.body._engine, "مسیرِ موتور گرفته نشد");
+  // ۲۰۲۶-۱۰-۰۳ (P67): نیتریتِ تنها حالا قاعدهٔ خودش را دارد (urine_nitrite_alone) — پس باید «یافته» باشد، نه فقط هشدار.
+  assert.ok(r.body._engine.patterns.includes("urine_nitrite_alone"), "نیتریتِ مثبتِ تنها بی‌یافته ماند");
   const w = (r.body.ocr_warnings ?? []).join(" ");
-  assert.match(w, /Urine Nitrite \(Positive\)/);
   assert.doesNotMatch(w, /Urine Protein/, "ردیفِ منفی نباید نام برده شود");
 });
 

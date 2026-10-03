@@ -2044,6 +2044,15 @@ not by a test.
   (`/api/health`), and its failure must not silently pick "off". If you add a route outside `/api`, check what the
   proxy does with it before a component depends on it.
 
+### N28 — A channel that recognises a row and has no reader is a silent drop, and the test that locked it in was green
+2026-10-03, coverage audit (`P67`). Not one bug: the same N2/N18/N25 shape in fourteen places, found by running every catalogue name through `runEngine` + `runPatterns` instead of reading code.
+
+- **Tried (for as long as these keys existed):** route a recognised row into `qual` / `ungraded` / `graded` and assume a rule reads it.
+- **Broke:** `Blood Culture: Positive`, `Anti-HBc`, `ASO`, serum BHB and a lone `Nitrite` produced **no finding**, so the patient got «نتایج شما طبیعی است». A lone `Neutrophils % 80` (no WBC) was dropped by `if (key.endsWith("_PCT")) continue` — not graded, not ungraded, not unmapped, no warning. `Pus cell` (with a space) never matched `WBC_RE = /puscell/` because the regex is tested against the **raw** key, so `uti_pattern` silently saw one sign instead of two. `Hepatitis B Surface Antibody: Positive` fired `hbsag_reactive` (the exclusion was `/^anti/` and the name starts with «hepatitis»).
+- **Why no guard caught it:** `M36/M37/M38` look at rules that exist. Worse, four existing tests (`M202h`, `M186c`, `M257`'s `tt` row, `T42`) **asserted the gap** («Band stays unmapped», «HBs Ab stays unmapped», «the nitrite is named in a warning») — a freeze on a defect reads as a guard. Changing them was intentional and each is commented.
+- **Rule:** for every key a detector or adapter *recognises*, there must be a named reader — grep the key in `patterns_*.js` before declaring it covered. And probe the **ordinary** input of each: lone, unitless, in a child, in the other unit.
+- **Two decisions worth keeping:** (1) a unit-less number whose unit decides severity (BHB mmol/L vs mg/dL, transferrin g/L vs mg/dL) is never graded by guess — the sentence is conditional or the row goes to `unmapped` (N3/P48). (2) Rules that read a hand-off owner call it (`ketoneOwnerFires`, `utiFires`), never restate its threshold (M91e). Guards `M290`–`M299`.
+
 
 Detailed instructions are split across `.claude/rules/`:
 

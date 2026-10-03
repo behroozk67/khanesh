@@ -11,7 +11,7 @@ const URINE_RBC_UPPER_HPF = 2;
 const URINE_WBC_UPPER_HPF = 5;
 const LE_RE = /leukocyte|استراز|esterase/i;
 const NIT_RE = /nitrite|نیتریت/i;
-const WBC_RE = /wbc|puscell|پوسسل|leukocyt/i;
+const WBC_RE = /wbc|pus\s*cells?|پوس\s*سل|leukocyt/i;   // ۲۰۲۶-۱۰-۰۳: «Pus cell» با فاصله جور نمی‌شد و پیوری بی‌صدا می‌افتاد
 const BLOOD_RE = /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i;
 const RBC_RE = /rbc|گلبول\s*قرمز/i;
 

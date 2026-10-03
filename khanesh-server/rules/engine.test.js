@@ -6355,7 +6355,7 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
   //    سنجیده شد، نه فرض (cmp104، b9068df در برابرِ درختِ کاری): یافته‌ها و نمره‌های هر شش پنلِ ادرار یکسان‌اند و qual
   //    فقط همین یک کلید را اضافه دارد. (۱.۰۳۰ِ U4 درونِ بازهٔ مرجع است و — پس از بازبینیِ #۶ — یافته نمی‌سازد.)
   const P = {
-    U1: [{ age: 30, sex: "F" }, [["Color", "Yellow"], ["Appearance", "Clear"], ["Specific Gravity", "1.020"], ["pH", "6"], ["WBC", "15-20", "/hpf"], ["RBC", "8-10", "/hpf"]], "36e704b09115ca66"],
+    U1: [{ age: 30, sex: "F" }, [["Color", "Yellow"], ["Appearance", "Clear"], ["Specific Gravity", "1.020"], ["pH", "6"], ["WBC", "15-20", "/hpf"], ["RBC", "8-10", "/hpf"]], "b0107ea1f6ce3285"],
     U2: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.015"], ["Nitrite", "Positive"], ["Leukocyte Esterase", "Positive"], ["WBC", "20-25"]], "7c70c5473cb2f281"],
     U3: [{ age: 50, sex: "M" }, [["Urine Protein", "3+"], ["Urine Glucose", "2+"], ["Ketone", "2+"]], "84811a0618256be2"],
     U4: [{ age: 30, sex: "M" }, [["pH", "5"], ["Specific Gravity", "1.030"], ["Bacteria", "Many"]], "af1dba53d8bbe636"], // ⚠️ ۲۰۲۶-۱۰-۰۱: «اگر باردار هستید» از برگهٔ مرد حذف شد (M276b)؛ اثبات: با canBePregnant≡true همین هشِ قبلی برمی‌گشت
@@ -9158,12 +9158,15 @@ test("M186c: قفل — HBsAg، Anti-HBs و Anti-HBc دست نخورده‌ان�
   let e = uuu([["HBsAg", "Positive"]], M40);
   assert.ok("HBsAg" in e.qual);
   assert.deepEqual(fired(runPatterns(e)), ["hbsag_reactive"]);
-  // «HBs Ab» امروز هم unmapped است (سنجیده روی 9deba20) — و باید همان بماند.
-  assert.ok(uuu([["HBs Ab", "Positive"]], M40).unmapped.includes("HBs Ab"));
+  // ۲۰۲۶-۱۰-۰۳ (P67): «HBs Ab» دیگر unmapped نیست — Anti-HBs است و anti_hbs_result می‌خواندش، نه hbsag_reactive (M290).
+  e = uuu([["HBs Ab", "Positive"]], M40);
+  assert.ok("HBs Ab" in e.qual);
+  assert.deepEqual(fired(runPatterns(e)), ["anti_hbs_result"]);
   for (const name of ["Anti-HBs", "Anti-HBc"]) {
     e = uuu([[name, "Positive"]], M40);
     assert.ok(name in e.qual, name);
-    assert.deepEqual(fired(runPatterns(e)), [], name);
+    // ۲۰۲۶-۱۰-۰۳ (P67): این دو حالا قاعدهٔ خودشان را دارند؛ هرگز hbsag_reactive نمی‌شوند (قفلِ اصلیِ R4).
+    assert.deepEqual(fired(runPatterns(e)), [name === "Anti-HBs" ? "anti_hbs_result" : "anti_hbc_result"], name);
   }
 });
 
@@ -10309,7 +10312,8 @@ test("M202g: کنارِ acute_leukemia_suspicion فقط یک یافته از ب�
 
 test("M202h: قفل — «Band» و «Anisocytosis» همان «تفسیر نشدند» می‌مانند؛ واژگانِ لام بسته است نه اسکنرِ عمومی", () => {
   // روی هر دو درخت سبز.
-  for (const [n, v, u] of [["Band", 12, "%"], ["Anisocytosis", "++", null], ["Myelocyte", 7, "%"]]) {
+  // ۲۰۲۶-۱۰-۰۳ (P67): «Band» از این فهرست بیرون آمد — حالا BAND_PCT/BAND_ABS است و bandemia/differential_without_wbc می‌خوانندش (M290).
+  for (const [n, v, u] of [["Anisocytosis", "++", null], ["Myelocyte", 7, "%"]]) {
     const { e } = s9Run("M", 40, s9CBC(9, [s9T(n, v, u)]));
     assert.ok(e.unmapped.includes(n), `«${n}» دیگر در «تفسیر نشدند» نیست`);
     assert.deepEqual(s9Present(e), []);
@@ -11800,7 +11804,8 @@ const M010_FREEZE = {
   aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "dd28af718362abd1"],
   pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "f52052b797a228e7"],
   fib_90: ["M", 40, [...M010_BASE, m010T("Fibrinogen", 90, "mg/dL")], "b9317fdf70b7940b"],
-  tt: ["M", 40, [...M010_BASE, m010T("Thrombin Time", 30, "sec")], "f1317c856c6d3301"],
+  // ۲۰۲۶-۱۰-۰۳ (P67): TT حالا کلیدِ شناخته‌شده و قاعده‌دار است؛ این تنها ردیفِ freeze است که عمداً عوض شد (M290).
+  tt: ["M", 40, [...M010_BASE, m010T("Thrombin Time", 30, "sec")], "fc9c0947e7eb8acf"],
   adamts: ["F", 40, [...M010_BASE, m010T("ADAMTS13 activity", 4, "%")], "f1317c856c6d3301"],
   factor_vii: ["M", 40, [...M010_BASE, m010T("Factor VII", 40, "%")], "f1317c856c6d3301"],
   bare_inhibitor: ["M", 25, [...M010_BASE, m010T("Inhibitor", "Positive")], "f1317c856c6d3301"],
@@ -12220,4 +12225,154 @@ test("M286: کورتیزولِ بی‌واحد فقط یک یافته می‌س�
   assert.ok(f, q.findings.map((x) => x.pattern).join("، "));
   assert.match(f.must_say, /190/);
   assert.match(f.must_say, /6\.89/);
+});
+
+
+// ============================================================
+// M290–M299 — ممیزیِ پوششِ ۲۰۲۶-۱۰-۰۳ (P67): ردیفی که موتور می‌خواند ولی هیچ قاعده‌ای نمی‌دیدش
+// ============================================================
+const g290 = (rows, patient = { age: 40, sex: "M" }) => {
+  const e = runEngine({ patient, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
+  return { e, p: runPatterns(e) };
+};
+const find290 = (p, id) => (p.findings || []).find((f) => f.pattern === id);
+
+test("M290: «Band» و درصدِ افتراقیِ بدونِ WBC دیگر بی‌صدا نمی‌افتند — differential_without_wbc (N2/N4)", () => {
+  // 🔴 روی HEAD: graded=[]، ungraded={}، unmapped=[] ⇒ «طبیعی است» با عددِ ۸۰٪ روی برگه.
+  for (const row of [["Neutrophils %", "80", "%"], ["Lymphocytes %", "10", "%"], ["Band Neutrophils", "15", "%"]]) {
+    const { e, p } = g290([row]);
+    assert.ok(Object.values(e.ungraded).some((u) => u.reason === "diff_pct_no_wbc"), row[0]);
+    const f = find290(p, "differential_without_wbc");
+    assert.ok(f, `${row[0]}: یافته نیامد`);
+    assert.match(f.must_say, /WBC/);
+    assert.doesNotMatch(f.must_say, /بالا بودنِ تعداد|نوتروپنی|نوتروفیلی/);   // درصد حکمِ تعداد نیست
+  }
+  // با WBC همان تبدیلِ پیشین به مطلق؛ Band هم: 15٪ از 12 → 1800 (بالا)
+  const { e, p } = g290([["WBC", "12"], ["Band Neutrophils", "15", "%"]]);
+  assert.equal(e.graded.find((x) => x.test === "BAND_ABS").value, 1800);
+  assert.ok(find290(p, "bandemia"));
+  assert.ok(!find290(p, "differential_without_wbc"));
+});
+
+test("M291: میوگلوبین/ترانسفرین/آنتی‌ترومبین/TT شناخته، سنجیده و قاعده‌دار می‌شوند؛ g/L و IU/mL با واحدِ چاپ‌شده تبدیل می‌شوند", () => {
+  for (const [row, id] of [[["Myoglobin", "300", "ng/mL"], "myoglobin_result"], [["Transferrin", "150", "mg/dL"], "transferrin_result"],
+    [["Antithrombin III", "60", "%"], "antithrombin_result"], [["Thrombin Time", "30", "sec"], "thrombin_time_result"]]) {
+    const { e, p } = g290([row]);
+    assert.deepEqual(e.unmapped, [], row[0]);
+    assert.ok(find290(p, id), `${row[0]}: ${fired(p)}`);
+  }
+  assert.equal(g290([["Transferrin", "2.5", "g/L"]]).e.graded[0].value, 250);       // طبیعی ⇒ بی‌یافته
+  assert.equal(g290([["Antithrombin", "0.9", "IU/mL"]]).e.graded[0].value, 90);
+  // N3: بی‌واحد و ناممکن برای واحدِ متعارف ⇒ نه سنجش، نه حدس
+  assert.ok(g290([["Transferrin", "2.5"]]).e.unmapped.includes("Transferrin"));
+  assert.ok(g290([["Antithrombin III", "0.9"]]).e.unmapped.includes("Antithrombin III"));
+});
+
+test("M292: ردیفِ فقط-بزرگسال برای کودک سنجیده نمی‌شود ولی «تفسیر نشدند» هم نمی‌شود (adult_only_reference_child)", () => {
+  const { e, p } = g290([["Antithrombin III", "60", "%"]], { age: 3, sex: "M" });
+  assert.equal(e.graded.length, 0);
+  assert.deepEqual(e.noRef, []);
+  assert.ok(find290(p, "adult_only_reference_child"));
+});
+
+test("M293: MPV و پروتئین تام قاعده دارند — جملهٔ پلاکت/آلبومین سه‌حالته است (N4)", () => {
+  let f = find290(g290([["MPV", "14", "fL"]]).p, "mpv_result");
+  assert.match(f.must_say, /پلاکت روی این برگه نیست/);
+  f = find290(g290([["MPV", "14", "fL"], ["PLT", "250"]]).p, "mpv_result");
+  assert.match(f.must_say, /پلاکتِ همین برگه طبیعی است/);
+  f = find290(g290([["Total Protein", "4.5", "g/dL"], ["Albumin", "2.5", "g/dL"]]).p, "total_protein_result");
+  assert.match(f.must_say, /آلبومینِ همین برگه هم پایین است/);
+  f = find290(g290([["Total Protein", "4.5", "g/dL"]]).p, "total_protein_result");
+  assert.match(f.must_say, /آلبومین روی این برگه نیست/);
+});
+
+test("M294: Anti-HBs / Anti-HBc — ایمنی ≠ عفونت؛ HBsAg واکنش‌گر ایمنی نمی‌دهد؛ HBs Ab هرگز HBsAg نمی‌شود", () => {
+  const f = (rows) => find290(g290(rows).p, "anti_hbs_result");
+  assert.match(f([["Anti-HBs", "150", "mIU/mL"]]).must_say, /محافظت|واکسن/);
+  assert.match(f([["Anti-HBs", "5", "mIU/mL"]]).must_say, /سطحِ محافظتی.*دیده نمی‌شود/);
+  assert.match(f([["Anti-HBs", "<10", "mIU/mL"]]).must_say, /دیده نمی‌شود/);
+  assert.match(f([["Anti-HBs", "Weakly"]]).must_say, /مثبت یا منفی نیست/);       // N6: بستهٔ کلمه، نه زیررشته
+  assert.doesNotMatch(f([["Anti-HBs", "Undetected"]]).must_say, /واکسنِ هپاتیت B اثر کرده/);
+  const both = g290([["HBsAg", "Reactive"], ["Anti-HBs", "Positive"]]);
+  assert.match(find290(both.p, "anti_hbs_result").must_say, /نباید فرض کنید ایمن/);
+  assert.equal(find290(both.p, "anti_hbs_result").urgency, "this_week");
+  assert.ok(!fired(g290([["Hepatitis B Surface Antibody", "Positive"]]).p).includes("hbsag_reactive"));
+  const c = (rows) => find290(g290(rows).p, "anti_hbc_result");
+  assert.equal(c([["Anti-HBc", "Positive"]]).urgency, "this_week");                // Anti-HBc تنها
+  assert.equal(c([["Anti-HBc", "Positive"], ["Anti-HBs", "Positive"]]).urgency, "routine");
+  assert.match(c([["Anti-HBc", "Negative"]]).must_say, /Anti-HBs می‌گوید/);
+});
+
+test("M295: ASO — آستانه به سن وابسته است؛ بی‌سن حکم نمی‌دهد", () => {
+  const f = (v, patient) => find290(g290([["ASO", v, "IU/mL"]], patient).p, "aso_result");
+  assert.match(f("300", { age: 30, sex: "M" }).headline, /بالاتر/);
+  assert.doesNotMatch(f("300", { age: 9, sex: "M" }).headline, /بالاتر/);          // کودکِ دبستانی: حدِ ~۴۳۰
+  assert.match(f("500", { age: 9, sex: "M" }).headline, /بالاتر/);
+  assert.match(f("300", { sex: "M" }).must_say, /سنِ بیمار روی برگه نیست/);
+  assert.equal(f("500", { age: 30, sex: "M" }).urgency, "routine");
+});
+
+test("M296: کشتِ ادرار/خون — منفی با «no growth»؛ مثبتِ خون «همین امروز»؛ نامفهوم هرگز اطمینان نمی‌دهد", () => {
+  const u = (v) => find290(g290([["Urine Culture", v]]).p, "urine_culture_result");
+  assert.equal(u("E. coli >100000 CFU/mL").urgency, "this_week");
+  assert.equal(u("No growth").urgency, "routine");
+  assert.match(u("Mixed flora").must_say, /آلوده/);
+  assert.match(u("see attached").must_say, /قطعی خواند|روشن/);
+  const b = (v) => find290(g290([["Blood Culture", v]]).p, "blood_culture_result");
+  assert.equal(b("Positive").urgency, "soon");
+  assert.match(b("Positive").action, /همین امروز/);
+  assert.equal(b("No growth").urgency, "routine");
+  assert.equal(b("pending").action, "این هفته با پزشک مطرح کنید.");
+});
+
+test("M297: BHB — ≥ ۳ mmol/L «soon»؛ بی‌واحد حدس نمی‌زند (N3)؛ مالکِ DKA جمله را نمی‌گیرد دوباره", () => {
+  const b = (rows) => find290(g290(rows).p, "bhb_result");
+  assert.equal(b([["Beta-hydroxybutyrate", "3.5", "mmol/L"]]).urgency, "soon");
+  assert.equal(b([["Beta-hydroxybutyrate", "0.3", "mmol/L"]]).urgency, "routine");
+  assert.equal(b([["Beta-hydroxybutyrate", "36", "mg/dL"]]).urgency, "soon");        // ۳۶ ÷ ۱۰٫۴ ≈ ۳٫۵
+  assert.match(b([["Beta-hydroxybutyrate", "3.5"]]).must_say, /بدونِ واحد/);
+  const dka = g290([["Glucose", "480", "mg/dL"], ["Bicarbonate", "8", "mmol/L"], ["Beta-hydroxybutyrate", "Positive"]]).p;
+  assert.ok(fired(dka).includes("dka_pattern"));
+  assert.ok(!fired(dka).includes("bhb_result"), "دو یافته دربارهٔ یک کتون (N20)");
+});
+
+test("M298: نیتریتِ تنها و پیوریِ تنها یافته دارند، و «Pus cell» با فاصله هم خوانده می‌شود؛ با دو نشانه uti_pattern مالک است", () => {
+  const n = g290([["Nitrite", "Positive"]]).p;
+  assert.deepEqual(fired(n), ["urine_nitrite_alone"]);
+  assert.deepEqual(fired(g290([["Pus cell", "20-25", "/hpf"]]).p), ["urine_pyuria_alone"]);
+  const both = fired(g290([["Nitrite", "Positive"], ["Pus cell", "20-25", "/hpf"]]).p);
+  assert.ok(both.includes("uti_likely") && !both.includes("urine_nitrite_alone") && !both.includes("urine_pyuria_alone"), both.join());
+});
+
+test("M299: همهٔ قاعده‌های patterns_coverage_gaps زمان‌بندی و urgency یکی دارند (N20) و قاعده‌ای فارسی‌نشده نیست", () => {
+  const rows = [["Myoglobin", "300", "ng/mL"], ["Transferrin", "150", "mg/dL"], ["Antithrombin III", "60", "%"], ["Thrombin Time", "30", "sec"],
+    ["MPV", "14", "fL"], ["Total Protein", "4.5", "g/dL"], ["ASO", "Positive"], ["Urine Culture", "Positive"], ["Blood Culture", "Positive"],
+    ["Anti-HBs", "Positive"], ["Anti-HBc", "Positive"], ["Beta-hydroxybutyrate", "3.5", "mmol/L"], ["Nitrite", "Positive"]];
+  const { p } = g290(rows);
+  for (const f of p.findings) {
+    if (f.urgency === "routine") assert.doesNotMatch(f.action ?? "", /این هفته|همین امروز|همین حالا/, f.pattern);
+    if (f.urgency === "this_week") assert.doesNotMatch(f.action ?? "", /همین امروز|همین حالا/, f.pattern);
+  }
+  assert.ok(!(p.findings || []).some((f) => /[A-Za-z]{4,}/.test(f.headline.replace(/Anti-HB[sc]|HBsAg|ASO|MPV|BHB|CK/g, ""))), "سرتیترِ غیرفارسی");
+});
+
+test("M300: P67 پرسش‌ها — TT تا ۲۱ طبیعی؛ پیوری/نیتریتِ تنها در بارداریِ اعلام‌شده «این هفته» + کشت؛ Anti-HBc تنها HBV DNA می‌خواهد", () => {
+  assert.equal(g290([["Thrombin Time", "20", "sec"]]).e.graded[0].abnormal, false);   // ۲۰ ثانیه: بالای ۱۹ ولی در محدودهٔ برخی آزمایشگاه‌ها
+  assert.equal(g290([["Thrombin Time", "24", "sec"]]).e.graded[0].dir, "high");
+  const preg = { age: 28, sex: "F", pregnant: true };
+  for (const [row, id] of [[["Pus cell", "20-25", "/hpf"], "urine_pyuria_alone"], [["Nitrite", "Positive"], "urine_nitrite_alone"]]) {
+    const f = find290(g290([row], preg).p, id);
+    assert.equal(f.urgency, "this_week", id);
+    assert.match(f.action, /این هفته/);
+    assert.match(f.must_say, /کشتِ ادرار لازم است/);
+    assert.deepEqual(f.suggest, ["کشت ادرار"]);
+    const non = find290(g290([row], { age: 28, sex: "F" }).p, id);        // بارداریِ اعلام‌نشده: همان قبلی
+    assert.equal(non.urgency, "routine", id);
+    assert.doesNotMatch(non.must_say, /کشتِ ادرار لازم است/);
+  }
+  const iso = find290(g290([["Anti-HBc", "Positive"]]).p, "anti_hbc_result");
+  assert.ok(iso.suggest.some((s) => /HBV DNA/.test(s)));
+  const resolved = find290(g290([["Anti-HBc", "Positive"], ["Anti-HBs", "Positive"]]).p, "anti_hbc_result");
+  assert.deepEqual(resolved.suggest, []);
+  assert.equal(find290(g290([["ASO", "190", "IU/mL"]]).p, "aso_result").headline.includes("بالاتر"), false);   // حدِ بزرگسال ۲۰۰
 });

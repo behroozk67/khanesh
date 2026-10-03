@@ -15,6 +15,7 @@ import { RULES_URINE_CASTS } from "./patterns_urine_casts.js";
 import { RULES_URINALYSIS } from "./patterns_urinalysis.js";
 import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
 import { RULES_HEMOSTASIS } from "./patterns_hemostasis.js";
+import { RULES_COVERAGE_GAPS } from "./patterns_coverage_gaps.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { applyNeonatalFloor, applyNeonatalVoice, isNeonate } from "./neonatal.js";
@@ -46,7 +47,8 @@ export const RULES = [
   ...RULES_URINE_CASTS,
   ...RULES_URINALYSIS,
   ...RULES_LEUKOCYTE,
-  ...RULES_HEMOSTASIS
+  ...RULES_HEMOSTASIS,
+  ...RULES_COVERAGE_GAPS
 ];
 
 //    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ
@@ -61,6 +63,7 @@ export const SUGGEST_TESTS = {
   // specs/008 (N8): الکتروفورزِ روی برگه = HbA2 چاپ شده؛ sTfR را شاخهٔ التهابِ iron_deficiency پیشنهاد می‌دهد.
   "الکتروفورز هموگلوبین": ["HBA2"],
   "گیرندهٔ محلول ترانسفرین (sTfR)": ["STFR"],
+  "CBC کامل با شمارش گلبول‌های سفید": ["WBC"],
   "TSH": ["TSH"],
   "FT4": ["FT4"],
   "FT3": ["FT3"],

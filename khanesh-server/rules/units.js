@@ -140,6 +140,10 @@ export const SI_CONVERSIONS = {
 export const PRINTED_ONLY_CONVERSIONS = {
   HCT:  { si: /^(l\/l|fraction)$/, factor: 100, conv: '%' },
   MCHC: { si: /^g\/l$/, factor: 0.1, conv: 'g/dL' },
+  // ۲۰۲۶-۱۰-۰۳: ترانسفرین g/L (۲–۳٫۶) رایج‌ترین شکلِ چاپ است؛ آنتی‌ترومبین IU/mL (۰٫۸–۱٫۳)؛ میوگلوبین ng/L.
+  TRANSFERRIN: { si: /^g\/l$/, factor: 100, conv: 'mg/dL' },
+  ATIII:       { si: /^(iu\/ml|u\/ml)$/, factor: 100, conv: '%' },
+  MYOGLOBIN:   { si: /^ng\/l$/, factor: 0.001, conv: 'ng/mL' },
   // P46 بند ۱۱ (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳: پرولاکتینِ mIU/L نباید به «تفسیر نشدند» برود): ۱ ng/mL = ۲۱.۲ mIU/L، استانداردِ
   //   WHO ‏۳rd IS ‏۸۴/۵۰۰ (هر آمپول ۵۳ mIU = ۲.۵ µg؛ NIBSC). ⚠️ به استانداردِ کیت وابسته است (کیتِ قدیمیِ ۷۵/۵۰۴ ضریبِ دیگری داشت)،
   //   پس ردیفِ تبدیل در unitConversions می‌آید. µIU/mL و mU/L عددشان با mIU/L یکی است. فقط با واحدِ چاپ‌شده (N3) —
