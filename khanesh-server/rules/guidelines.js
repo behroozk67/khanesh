@@ -83,6 +83,63 @@ export const GUIDELINES = {
     scope: 'حدهای پایینِ مرجعِ آنالیزِ مایع منی (حجم، غلظت، تحرکِ کل و پیش‌رونده، ریخت‌شناسی) — P47',
   },
 
+  // ── specs/012 (P68) — هر پنج منبع ۲۰۲۶-۱۰-۰۳ باز و خوانده شد؛ جملهٔ پشتیبانِ هر ادعا در
+  //    specs/012-new-test-coverage/research.md §P0-8b. هیچ آستانهٔ عددی از این‌ها در کد نیست (C1).
+  CDC_STI_2021: {
+    org: 'CDC',
+    fa: 'مرکز کنترل و پیشگیری بیماری‌های آمریکا',
+    title: 'Sexually Transmitted Infections Treatment Guidelines, 2021 — Syphilis',
+    year: 2021,
+    url: 'https://www.cdc.gov/std/treatment-guidelines/syphilis.htm',
+    access: 'open',
+    scope: 'VDRL/RPR غربالگری است و با آزمایشِ ترپونمایی تأیید می‌شود؛ علت‌های مثبتِ کاذب (بارداری، خودایمنی، عفونت‌ها، سن)',
+  },
+
+  CDC_PINKBOOK_RUBELLA: {
+    org: 'CDC',
+    fa: 'مرکز کنترل و پیشگیری بیماری‌های آمریکا',
+    title: 'Epidemiology and Prevention of Vaccine-Preventable Diseases (Pink Book) — Chapter 20: Rubella',
+    year: 2024,
+    url: 'https://www.cdc.gov/pinkbook/hcp/table-of-contents/chapter-20-rubella.html',
+    access: 'open',
+    scope: 'شاهدِ سرولوژیکِ ایمنی؛ واکسنِ MMR در بارداری منع دارد؛ واکسیناسیونِ پس از زایمان. (حدِ IU/mL در این منبع نیست.)',
+  },
+
+  ACG_HPYLORI_2024: {
+    org: 'ACG',
+    fa: 'کالج گوارش آمریکا',
+    title: 'ACG Clinical Guideline: Treatment of Helicobacter pylori Infection (Am J Gastroenterol 2024;119:1730-1753)',
+    year: 2024,
+    url: 'https://pubmed.ncbi.nlm.nih.gov/39626064/',
+    access: 'paywalled',
+    // متنِ کاملِ AJG باز نشد؛ آنچه خوانده شد خلاصهٔ رسمیِ خودِ ACG است.
+    substitutedBy: 'ACG — H. pylori Guidelines Highlights 2024 (خلاصهٔ رسمیِ ACG)',
+    substitutedUrl: 'https://mediacdn.gi.org/giorgcdn/wp-content/uploads/2025/01/ACG-Hpylori-Guidelines-Highlights-2024-FINAL.pdf.pdf',
+    scope: 'هر عفونتِ تأییدشده درمان می‌شود؛ تستِ تنفسیِ اوره / آنتی‌ژنِ مدفوع؛ پیش از تست PPI دو هفته و آنتی‌بیوتیک/بیسموت چهار هفته قطع',
+  },
+
+  ATA_HYPER_2016: {
+    org: 'ATA',
+    fa: 'انجمن تیروئید آمریکا',
+    title: '2016 ATA Guidelines for Diagnosis and Management of Hyperthyroidism and Other Causes of Thyrotoxicosis (Thyroid 2016;26:1343-1421)',
+    year: 2016,
+    url: 'https://pubmed.ncbi.nlm.nih.gov/27521067/',
+    access: 'open',
+    scope: 'TRAb در پرکاریِ آشکار حساسیت ۹۶–۹۷٪ و ویژگی ۹۹٪ برای گریوز؛ توصیه‌های ۹۲–۹۳ دربارهٔ TRAb در بارداری',
+  },
+
+  ACOG_RH_PB181: {
+    org: 'ACOG',
+    fa: 'کالج متخصصان زنان و مامایی آمریکا',
+    title: 'ACOG Practice Bulletin No. 181: Prevention of Rh D Alloimmunization',
+    year: 2017,
+    url: 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/2017/08/prevention-of-rh-d-alloimmunization',
+    access: 'paywalled',
+    substitutedBy: 'Baylor College of Medicine, Obstetrics guideline «Alloimmunization» (Eppes & Adams, Oct 2025)',
+    substitutedUrl: 'https://www.bcm.edu/sites/default/files/alloimmunization.pdf',
+    scope: 'کومبسِ غیرمستقیم برای تعیینِ آنتی‌بادی و تیتر در بارداری؛ تیترِ بحرانی به نوعِ آنتی‌ژن بستگی دارد',
+  },
+
   WHO_FERRITIN: {
     org: 'WHO',
     fa: 'سازمان جهانی بهداشت',

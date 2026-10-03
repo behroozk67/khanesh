@@ -224,13 +224,18 @@ khanesh-project/
 │   │   │                        #   (بلاست، اوئر، گرانولِ سمی، دوهله، پلگر…) از طبقه‌بندِ smearAxis؛ کانالِ smear در adapter
 │   │   ├── patterns_hemostasis.js  # specs/010 (P61): فعالیتِ فاکتور ۸/۹، مهارکننده (Bethesda)، فون‌ویلبراند — از کانالِ بی‌نمرهٔ
 │   │   │                        #   hemostasis در adapter؛ بی‌مسیرِ اورژانس، بی‌نامِ بیماری، بی‌آستانهٔ تأییدنشده (۰٫۵ BU / ۰٫۶ فقط نقل)
-│   │   ├── patterns_utils.js    # levelGrade, rankOf — shared by every patterns_* file
+│   │   ├── patterns_coverage_gaps.js  # P67: ردیف‌هایی که خوانده می‌شدند ولی خواننده نداشتند (کشت، Anti-HBs/HBc، ASO، BHB، …)
+│   │   ├── patterns_serology.js # specs/012 (P68): VDRL/RPR، سرخجه IgG، کومبس غیرمستقیم، هلیکوباکتر — بی‌هیچ آستانهٔ ثابت (C1):
+│   │   │                        #   فقط مرز/واژهٔ چاپ‌شده؛ Anti-Tg/TRAb در قاعدهٔ thyroid (patterns_endocrine_rheum.js)
+│   │   ├── serology.js          # specs/012: مسیریابی + خوانشِ مجموعهٔ بسته — مشترکِ adapter و قاعده‌ها (یک قاعده برای «مثبت»)
+│   │   ├── patterns_utils.js    # levelGrade, rankOf, qualState (closed-set reader, N6) — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
 │   │   ├── medline.js           # MedlinePlus term extraction + lookup
 │   │   ├── coverage.js          # sentence-level check that the LLM kept every must_say
 │   │   ├── engine.test.js       # the clinical regression suite
 │   │   ├── geriatric.test.js    # GERIATRIC_REFS coverage
+│   │   ├── serology.test.js     # specs/012: S01–S22 (جدا از engine.test.js تا با جلسهٔ هم‌زمان تداخل نکند)
 │   │   ├── (split*.cjs / extract-ids.cjs / patch-frontend*.js archived to tools/archive/, 2026-09-29)
 │   │   ├── (CLINICAL_REVIEW.md, REF_DIFF.md moved to docs/reviews/, 2026-09-29)
 │   ├── .env                     # AVALAI_API_KEY, etc. (gitignored)
@@ -317,8 +322,11 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 `patterns.js` no longer holds the rules. It imports **nineteen** `patterns_<system>.js` files (the eighteenth, `patterns_leukocyte.js`, from specs/009; the nineteenth, `patterns_hemostasis.js`, from specs/010)
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-22) and
-concatenates their `RULES_*` exports into the exported `RULES` array — **161 rules, measured
-2026-09-30** (157 at `e285030`; the 158th–161st are `factor_activity`, `factor_inhibitor` and `vwf_panel` in `patterns_hemostasis.js` and `dic_isth_score` in `patterns_hematology.js`, specs/010. Earlier count: 150 at 2026-09-25 — the 145th–149th are `monocytosis`, `monocytopenia`, `eosinophilia`, `basophilia` and `peripheral_smear_findings` in `patterns_leukocyte.js`, specs/009; the 150th is a concurrent session's `erythrocytosis_who_screen` in `patterns_hematology.js`; the 144th is `mild_neutropenia` in `patterns_hematology.js`, second real sheet; the 138th–143rd are `hba2_low`, `hbf_elevated`, `hb_variant`, `zpp_high`, `stfr_index` and `hgb_sex_unknown` in `patterns_hematology.js`, P53 answers; the 136th and 137th are `hba2_elevated` and `microcytosis_no_anemia` in `patterns_hematology.js`, specs/008; the 135th `rbc_indices_implausible`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
+concatenates their `RULES_*` exports into the exported `RULES` array — **196 rules, measured
+2026-10-03 on the working tree, after specs/012** (19 `RULES_*` imports; the last two are `patterns_coverage_gaps.js`, P67, and
+`patterns_serology.js`, specs/012, whose four ids are `syphilis_screen_result`, `rubella_igg_status`, `indirect_coombs_result` and
+`h_pylori_result` — rule-id diff +4 / −0. Re-measure; don't quote. Previous count: **161 rules, measured
+2026-09-30**; 157 at `e285030`; the 158th–161st are `factor_activity`, `factor_inhibitor` and `vwf_panel` in `patterns_hemostasis.js` and `dic_isth_score` in `patterns_hematology.js`, specs/010. Earlier count: 150 at 2026-09-25 — the 145th–149th are `monocytosis`, `monocytopenia`, `eosinophilia`, `basophilia` and `peripheral_smear_findings` in `patterns_leukocyte.js`, specs/009; the 150th is a concurrent session's `erythrocytosis_who_screen` in `patterns_hematology.js`; the 144th is `mild_neutropenia` in `patterns_hematology.js`, second real sheet; the 138th–143rd are `hba2_low`, `hbf_elevated`, `hb_variant`, `zpp_high`, `stfr_index` and `hgb_sex_unknown` in `patterns_hematology.js`, P53 answers; the 136th and 137th are `hba2_elevated` and `microcytosis_no_anemia` in `patterns_hematology.js`, specs/008; the 135th `rbc_indices_implausible`, specs/007; 113, plus the five `P47` Stage B rules in `patterns_reproductive.js`, plus
 `unit_unknown_values` in `patterns_unit_unknown.js` from specs/003, plus `folate_deficiency` in
 `patterns_hematology.js` and `wilson_evaluation` in `patterns_trace_elements.js` from specs/004, plus
 the seven `urine_cast_*` rules in `patterns_urine_casts.js` and `urine_esterase_without_cells` in
@@ -2052,6 +2060,17 @@ not by a test.
 - **Why no guard caught it:** `M36/M37/M38` look at rules that exist. Worse, four existing tests (`M202h`, `M186c`, `M257`'s `tt` row, `T42`) **asserted the gap** («Band stays unmapped», «HBs Ab stays unmapped», «the nitrite is named in a warning») — a freeze on a defect reads as a guard. Changing them was intentional and each is commented.
 - **Rule:** for every key a detector or adapter *recognises*, there must be a named reader — grep the key in `patterns_*.js` before declaring it covered. And probe the **ordinary** input of each: lone, unitless, in a child, in the other unit.
 - **Two decisions worth keeping:** (1) a unit-less number whose unit decides severity (BHB mmol/L vs mg/dL, transferrin g/L vs mg/dL) is never graded by guess — the sentence is conditional or the row goes to `unmapped` (N3/P48). (2) Rules that read a hand-off owner call it (`ketoneOwnerFires`, `utiFires`), never restate its threshold (M91e). Guards `M290`–`M299`.
+- ⚠️ **Recurred twice more in specs/012 (2026-10-03).** (a) Eight serology names (VDRL, RPR, Rubella IgG, Indirect Coombs,
+  H. pylori Ag/IgG, Anti-Tg, TRAb/TSI) were `unmapped` with **zero findings** — a reactive VDRL or a non-immune rubella in pregnancy
+  read as normal, or went to the model-judged legacy path. (b) The semen page detector recognised `Spermogram`, `Vitality`,
+  viscosity, colour (and fructose/ACP/NAG outside their branch) and parked them in `semenQual`, where no rule named them —
+  «Spermogram: Abnormal» vanished. Fixed with `patterns_serology.js` + a naming line in `semen_analysis` (no verdict). Guards S01–S22
+  (`rules/serology.test.js`), T45–T48.
+- **And the net that names unread rows had the same blind spot one level up:** `unreadQualRows` in `server.js` assumed every
+  `qual` row is urine (`QUAL_WORDS` held only urine words), so the first working version reported a VDRL-only sheet's VDRL as
+  «این ردیف‌های ادرار … توضیح داده نشده‌اند» even though a finding explained it. Caught by T45 before commit. **When you add a
+  new kind of row to an existing channel, read every consumer of that channel — including the safety nets — for an assumption
+  about what kind of row lives there** (the N25 identity question, asked of the consumer instead of the producer).
 
 
 Detailed instructions are split across `.claude/rules/`:

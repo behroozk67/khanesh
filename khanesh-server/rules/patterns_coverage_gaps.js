@@ -6,7 +6,7 @@
 //    منتظرِ بازبینِ انسانی‌اند. هیچ‌کدام emergency نیست؛ سخت‌ترین سطح «soon» (همین امروز) برای کشتِ خونِ مثبت و BHB ≥ ۳ است.
 // ⚠️ متنِ همهٔ قاعده‌ها حکم نمی‌دهد؛ «مطرح می‌کند». و برای هر ردیف سه‌حالت: بالا / پایین-یا-منفی / نامفهوم.
 // ============================================================
-import { serologyReactive, urinePositive, urineCellCount, castAxis } from "./patterns_utils.js";
+import { serologyReactive, urinePositive, urineCellCount, castAxis, qualState } from "./patterns_utils.js";
 import { utiFires, bacteriuriaFires, bacteriaSignificant } from "./patterns_nephrology.js";
 import { RULES_BIOCHEM } from "./patterns_biochem.js";
 
@@ -27,15 +27,7 @@ function qualRows(e, re) {
     .map(([key, v]) => ({ key, raw: String(v).trim(), norm: normK(key) }));
 }
 
-// N6: کیفی یک مجموعهٔ بسته از کلمه است، نه الگوی زیررشته (undetected ⊃ detected، «+/-» ⊃ «+»). کلِ مقدار باید جور شود.
-function qualState(raw) {
-  const s = String(raw).toLowerCase().replace(/\s+/g, " ").trim();
-  if (/^(neg|negative|non[- ]?reactive|nonreactive|not detected|undetected|nondetected|absent|nil|none|منفی|غیر ?واکنش[‌ ]?گر|-)$/.test(s)) return { state: "neg" };
-  if (/^(pos|positive|reactive|detected|present|مثبت|واکنش[‌ ]?گر|پازیتیو|\+{1,4}|[1-4]\+)$/.test(s)) return { state: "pos" };
-  const m = s.match(/^([<>≥≤])?\s*(\d+(?:[.,]\d+)?)\s*(.*)$/);
-  if (m) return { state: "num", n: parseFloat(m[2].replace(",", ".")), cmp: m[1] ?? null, unit: m[3].trim() };
-  return { state: "unknown" };
-}
+// N6: qualState (مجموعهٔ بستهٔ کلمه‌ها) در patterns_utils.js است — specs/012 آن را مشترک کرد.
 
 const NAMES_FA = { NEUT: "نوتروفیل", LYMPH: "لنفوسیت", MONO: "مونوسیت", EOS: "ائوزینوفیل", BASO: "بازوفیل", BAND: "باند (نوتروفیلِ نابالغ)" };
 // نسبتِ معمولِ درصدی در بزرگسال (Henry's / Medscape، حدودی). فقط برای جمله‌ی «در/خارج از نسبتِ معمول»، نه حکم.

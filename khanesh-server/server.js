@@ -93,6 +93,9 @@ export function engineContext(engineOut, patternOut) {
 const QUAL_NEGATIVE = /^\s*(neg|negative|nil|none|absent|not\s*(seen|detected)|normal|trace\s*neg|منفی|ندارد|دیده\s*نشد|طبیعی|-|0|0\s*-\s*[0-2])\s*$/i;
 // نامِ ردیف → واژهٔ فارسی‌ای که یافتهٔ مربوط به آن در متنش می‌آورد. ردیفی که در متنِ هیچ یافته‌ای نیامده «توضیح داده نشد» است.
 const QUAL_WORDS = [
+  // specs/012 (P68): ردیف‌های سرولوژی هم در qual‌اند؛ بی‌این جفت‌ها، برگهٔ فقط-VDRL «ردیفِ ادرارِ توضیح‌داده‌نشده» گزارش می‌شد (T45).
+  [/vdrl|rpr/i, /سیفلیس/], [/rubella|سرخجه/i, /سرخجه/], [/coombs|antibody ?screen|کومبس/i, /کومبس/],
+  [/pylori|helicobacter|\bubt\b|breath|هلیکوباکتر/i, /هلیکوباکتر/], [/thyroglobulin|anti.?tg|trab|\btsi\b|tbii|tsh ?receptor|تیروگلوبولین/i, /تیروگلوبولین|TRAb/],
   [/nitrit/i, /نیتریت/], [/leuk|wbc|pus/i, /گلبول سفید|لکوسیت|چرک|عفونت/], [/rbc|blood|hgb|hemo/i, /خون|گلبول قرمز/],
   [/protein|alb/i, /پروتئین|آلبومین/], [/glu|sugar/i, /قند/], [/keton/i, /کتون/], [/gravity|\bsg\b/i, /وزن مخصوص|غلظت/],
   [/bili/i, /بیلی/], [/urobil/i, /اوروبیلینوژن/], [/cast/i, /سیلندر/], [/crystal|oxalat|urat/i, /کریستال/],

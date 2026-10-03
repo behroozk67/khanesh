@@ -19,6 +19,7 @@ import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcros
 import { runPatterns } from "./patterns.js";
 import { conditionIds } from "./conditions.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
+import { routeSerology } from "./serology.js";
 import { isCastKey, castRoute, isSgKey, sgValue, SG_KEY, isCrystalKey, crystalRoute, epithelialKind, epithelialRoute,
   urineBiliValueState, urobilValueState, smearRow, mergeSmear } from "./patterns_utils.js";
 
@@ -940,6 +941,9 @@ export function ocrToEngineInput(ocr) {
   const abgPages = detectAbgPages(ocr?.tests || []);
   // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
   const semenQual = {};
+  // specs/012 (P68): مرزِ چاپ‌شدهٔ ردیف‌های سرولوژیِ کیفی (سرخجه) و آنتی‌بادی‌های تیروئید با بازهٔ چاپ‌شده — خواننده: serology.js
+  const serologyRef = {};
+  const serologyAssay = {};
   // specs/009: ردیف‌های لامِ خونِ محیطی (بلاست، اوئر، …) — کانالِ جدا، نه qual (N25). ادغام در انتها (mergeSmear).
   const smearItems = [];
   // specs/010: فاکتور ۸/۹، vWF، مهارکننده، PTِ کنترل — بی‌نمره، کانالِ جدا (نه tests، نه qual). خواننده: patterns_hemostasis.js
@@ -1246,6 +1250,21 @@ export function ocrToEngineInput(ocr) {
         qual[t.name] = String(t.value);
       }
       continue;
+    }
+
+    // ═══ specs/012 (P68): سرولوژیِ ردیف ۱ — پیش از بروسلا و isQualitative ═══
+    // 🔴 پیش از این همهٔ این‌ها unmapped بودند و هیچ یافته‌ای نمی‌ساختند (VDRLِ واکنش‌گر → «طبیعی است»، N2/N28).
+    // مسیریابی و خواندن در serology.js است؛ مقدارِ مبهم یا عددِ بی‌مرزِ چاپ‌شده ⇒ unmapped («تفسیر نشدند»)، نه حدس (N6، C1).
+    // کومبسِ بی‌نوع، کومبسِ مستقیم، سرخجه IgM و هلیکوباکتر IgA/IgM عمداً خواننده ندارند ⇒ unmapped، نه qualِ بی‌خواننده.
+    {
+      const sr = routeSerology(key, t, sexHint);
+      if (sr) {
+        if (sr.to === "unmapped") unmapped.push(t.name);
+        else if (sr.to === "qual") { qual[t.name] = String(t.value); serologyRef[t.name] = t.reference ?? null; }
+        else if (sr.to === "assay" && !serologyAssay[sr.key]) serologyAssay[sr.key] = sr;
+        else unmapped.push(t.name);   // ردیفِ دومِ همان آنتی‌بادی: اولی ملاک است، دومی بی‌صدا گم نشود (N2)
+        continue;
+      }
     }
 
     // ═══ سرولوژی بروسلوز: مقدار، تیتر است نه غلظت ═══
@@ -1576,6 +1595,8 @@ export function ocrToEngineInput(ocr) {
     semenQual,
     smear: mergeSmear(smearItems),
     hemostasis,
+    serologyRef,
+    serologyAssay,
     unitUnknown,
     rawText,
     unmapped,
@@ -1603,7 +1624,7 @@ function inferPregnant(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, hemostasis, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, hemostasis, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
   // specs/011 (P66): شناسه یا برچسبِ قدیمیِ فارسی → شناسهٔ کاتالوگ. regexِ سرطان همان قبلی است (در conditions.js).
@@ -1669,6 +1690,8 @@ export function runEngine(ocr) {
   // ⚠️ این کانال به _engine سریال نمی‌شود و val(e) آن را نمی‌خواند (N17).
   const ungraded = {};
   for (const k of noReader) ungraded[k] = { value: noReaderValues[k], reason: "no_range" };
+  // specs/012 (P68، C1): Anti-Tg/TRAb فقط در برابرِ بازهٔ چاپ‌شدهٔ همان ردیف — دلیلِ یکتا «assay_printed» (N25: هیچ خوانندهٔ دیگری این دلیل را نمی‌خواند).
+  for (const [k, a] of Object.entries(serologyAssay ?? {})) ungraded[k] = { value: a.value, cmp: a.cmp, shown: a.shown, unit: a.unit, state: a.state, raw: a.raw, reference: a.reference, reason: "assay_printed" };
   const hcgPositive = (tests.HCG != null && tests.HCG > HCG_POSITIVE_ABOVE) ||
     Object.entries(qual).some(([k, v]) => HCG_QUAL_NAME_RE.test(k) && /pos|positive|مثبت|\+/i.test(String(v)));
   const FEMALE_CYCLE_KEYS = new Set(["LH", "FSH", "E2", "PROG"]);
@@ -1979,6 +2002,8 @@ export function runEngine(ocr) {
     smear,
     // specs/010: فاکتور ۸/۹، vWF، مهارکننده، PTِ کنترل — خواننده: patterns_hemostasis.js و isthScore. به مدل و گراف نمی‌رود (N13).
     hemostasis,
+    // specs/012: مرزِ چاپ‌شدهٔ ردیف‌های سرولوژی (کلید = نامِ خامِ ردیف در qual). به مدل نمی‌رود (N13).
+    serologyRef,
     ungraded,
     indices: idx,
     unmapped,

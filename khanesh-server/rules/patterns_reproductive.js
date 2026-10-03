@@ -104,6 +104,30 @@ function unreadSemenRows(e) {
   return out;
 }
 
+// specs/012 (US4، N28): ردیف‌هایی که adapter به‌عنوانِ «منی» می‌شناسد ولی نه حدِ مرجع دارند نه شاخهٔ خواندن
+//   (Spermogram، Vitality، ویسکوزیته، زمانِ مایع‌شدن، رنگ، و فروکتوز/ACP/NAG بیرون از شاخهٔ خودشان) پیش‌تر در semenQual
+//   می‌ماندند و هیچ یافته‌ای نامشان را نمی‌برد — «Spermogram: Abnormal» بی‌صدا گم می‌شد. حکم نمی‌دهیم؛ فقط نام می‌بریم.
+//   `mentioned`: کلیدهایی که شاخه‌ای در همین build دربارهٔ‌شان جمله ساخته (تا دوبار گفته نشوند).
+function listedSemenRows(e, mentioned = new Set()) {
+  const unread = new Set(unreadSemenRows(e).length ? Object.keys(e.semenQual ?? {}).filter((k) => {
+    const nk = String(k).toLowerCase().replace(/[^a-z]/g, "");
+    return UNREAD_SEMEN_KEYS.includes(k) || GRADE_MOTILITY_RE.test(nk);
+  }) : []);
+  return Object.entries(e.semenQual ?? {})
+    .filter(([k]) => !unread.has(k) && !mentioned.has(k))
+    .map(([k, v]) => `${/^[A-Z_]+$/.test(k) ? faName(k) : k} («${v}»)`);
+}
+
+// CR3 (بازبینیِ کد): برگهٔ منیِ کاملاً طبیعی همیشه «Color: Grey»، «Viscosity: Normal» یا «Liquefaction 20 min» دارد. اگر خودِ
+//   این ردیف‌ها یافته بسازند، هر برگهٔ طبیعی به اورولوژی و تکرار فرستاده می‌شود. پس فقط ردیفی که *نه* واژهٔ طبیعیِ مجموعهٔ بسته
+//   است و *نه* عدد (که بی‌حدِ مرجع قضاوت نمی‌کنیم) قاعده را روشن می‌کند — «Spermogram: Abnormal». وقتی قاعده به هر دلیلی روشن
+//   است، همهٔ ردیف‌ها (طبیعی یا نه) نام برده می‌شوند (N28).
+const SEMEN_NORMAL_WORD = /^(normal|nl|wnl|within normal limits?|complete|completed|grey|gray|greyish|grayish|grey ?white|gray ?white|white|whitish|opalescent|negative|neg|nil|none|absent|طبیعی|نرمال|کامل|خاکستری|سفید|شیری|منفی|ندارد)$/i;
+const flagsSemenRow = (v) => {
+  const s = String(v ?? "").trim().toLowerCase();
+  return s !== "" && !SEMEN_NORMAL_WORD.test(s) && !/^[<>≤≥]?\s*[\d.,]+\s*[a-z%/]*\s*$/i.test(s);
+};
+
 function hcgState(e) {
   const u = e.ungraded?.HCG;
   // raw: «<2» روی برگه — عدد برای حکم، متنِ خام برای نقل (N5).
@@ -140,7 +164,8 @@ export const RULES_REPRODUCTIVE = [
   // ⚠️ هر یافته می‌گوید یک نمونه کافی نیست، و هرگز «نابارور» یا «باروریِ عالی» نمی‌گوید.
   {
     id: "semen_analysis",
-    match: (e) => SEMEN_KEYS.some((k) => g(e, k)?.abnormal) || unreadSemenRows(e).length > 0,
+    match: (e) => SEMEN_KEYS.some((k) => g(e, k)?.abnormal) || unreadSemenRows(e).length > 0 ||
+      Object.entries(e.semenQual ?? {}).some(([k, v]) => !UNREAD_SEMEN_KEYS.includes(k) && flagsSemenRow(v)),
     build: (e) => {
       const conc = g(e, "SPERM_CONC");
       const azoo = conc != null && conc.value === 0;
@@ -217,6 +242,17 @@ export const RULES_REPRODUCTIVE = [
       const unread = unreadSemenRows(e);
       if (unread.length) {
         parts.push(`این ردیف‌ها روی برگهٔ شما هست ولی شکلِ گزارششان با حدهای مرجعِ ما قابلِ مقایسه نیست، پس دربارهٔ آن‌ها قضاوت نمی‌کنیم: ${unread.join("، ")}. این ردیف‌ها را حتماً به پزشک نشان دهید.`);
+      }
+      // specs/012 (US4): ردیف‌های شناخته‌شدهٔ بی‌حدِ مرجع — نام برده می‌شوند، بی‌حکم. فروکتوز/ACP/NAG فقط وقتی شاخهٔ خودشان جمله نساخته.
+      const mentioned = new Set([
+        ...(azoo ? ["SEMEN_FRUCTOSE"] : []),
+        // یادداشتِ ۱ِ بازبینیِ پزشکی: ACP فقط وقتی «گفته شده» که شاخهٔ pHِ بالا واقعاً جمله‌ای دربارهٔ‌اش ساخت.
+        ...(ph?.abnormal && ph.dir === "high" && ["low", "absent", "present"].includes(semenQualState(e, "SEMEN_ACP")) ? ["SEMEN_ACP"] : []),
+        ...(nag === "low" || nag === "absent" ? ["SEMEN_NAG"] : []),
+      ]);
+      const listed = listedSemenRows(e, mentioned);
+      if (listed.length) {
+        parts.push(`این ردیف‌ها هم روی برگهٔ شما آمده‌اند و موتور برایشان حدِ مرجع یا قاعده‌ای ندارد، پس دربارهٔ آن‌ها قضاوت نمی‌کنیم: ${listed.join("، ")}. تفسیرشان با پزشک است.`);
       }
 
       parts.push("یک نمونهٔ مایع منی برای قضاوت کافی نیست، چون این شاخص‌ها از هفته‌ای به هفتهٔ دیگر زیاد تغییر می‌کنند؛ معمولاً آزمایش پس از چند هفته تکرار می‌شود. این نتیجه به‌تنهایی دربارهٔ توانِ باروریِ شما حکم نمی‌دهد.");

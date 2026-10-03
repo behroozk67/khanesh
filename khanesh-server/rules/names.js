@@ -44,6 +44,8 @@ export const FA_NAMES = {
   MANGANESE: "منگنز", COBALT: "کبالت", CHROMIUM: "کروم", MOLYBDENUM: "مولیبدن",
   VIT_B5: "ویتامین B5 (پانتوتنیک اسید)", U_IODINE: "یدِ ادرار",
   TSH: "TSH", FT4: "T4 آزاد", FT3: "T3 آزاد", T3: "T3 تام", T4: "T4 تام", ANTI_TPO: "آنتی‌بادی TPO",
+  // specs/012 (P68): آنتی‌بادی‌های تیروئید — فقط در برابرِ بازهٔ چاپ‌شده سنجیده می‌شوند (ungraded، assay_printed).
+  ANTI_TG: "آنتی‌بادی ضد تیروگلوبولین (Anti-Tg)", TRAB: "آنتی‌بادی گیرندهٔ TSH (TRAb/TSI)",
   CHOL: "کلسترول", HDL: "HDL", LDL: "LDL", TG: "تری‌گلیسیرید",
   // پرانتزِ لاتین می‌ماند چون برگه «Apo B» چاپ می‌کند — همان استدلالِ PTH/HDL.
   APOB: "آپولیپوپروتئین B (Apo B)",

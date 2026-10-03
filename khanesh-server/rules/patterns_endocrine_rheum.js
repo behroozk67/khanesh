@@ -1,6 +1,7 @@
 import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, CRP_RE, RF_RE, has, macroMcvCut } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { canBePregnant } from "./patterns_utils.js";
+import { thyroidAbState, isThyroglobulinKey } from "./serology.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { normUnit } from "./units.js";
@@ -84,9 +85,11 @@ export const RULES_ENDOCRINE_RHEUM = [
       const ft3 = e.graded.find((g) => g.test === "FT3");
       const t3 = e.graded.find((g) => g.test === "T3");
       const tpo = e.graded.find((g) => g.test === "ANTI_TPO");
-      return tsh?.abnormal || ft4?.abnormal || ft3?.abnormal || t3?.abnormal || tpo?.abnormal;
+      return tsh?.abnormal || ft4?.abnormal || ft3?.abnormal || t3?.abnormal || tpo?.abnormal || thyroidAbNotable(e);
     },
-    build: (e) => {
+    // specs/012 (P68): Anti-Tg و TRAb در همین یافته — یک یافته برای تیروئید (N20). بدنهٔ قبلی دست‌نخورده و درون‌خطی می‌ماند
+    //   (RULE_READS منبعِ خودِ قاعده را می‌خواند؛ بیرون بردنش پوشش را عوض می‌کرد — N23). بی‌آنتی‌بادی، خروجی بایت‌به‌بایت همان است (S08).
+    build: (e) => thyroidWithAntibodies(e, (e) => {
       const tsh = e.graded.find((g) => g.test === "TSH");
       const ft4 = e.graded.find((g) => g.test === "FT4");
       const ft3 = e.graded.find((g) => g.test === "FT3");
@@ -287,7 +290,7 @@ export const RULES_ENDOCRINE_RHEUM = [
         suggest: ["تکرار پنل تیروئید", "TSH و FT4"],
         warnings: [],
       };
-    },
+    }),
   },
 
   // ═══════════ کم‌کاری تیروئید + چربی بالا (نکته‌ی کیس ابونی) ═══════════
@@ -507,3 +510,118 @@ export const RULES_ENDOCRINE_NEW = [
     }
   }
 ];
+
+
+// ═══════════ specs/012 (P68): Anti-Tg و TRAb در قاعدهٔ thyroid ═══════════
+// ⚠️ C1: فقط در برابرِ بازهٔ چاپ‌شدهٔ همان ردیف یا واژهٔ آزمایشگاه (thyroidAbState در serology.js). هیچ عددِ ثابتی
+//    (مثلاً «۳ برابرِ حدِ بالا در بارداری») این‌جا نیست؛ بارداری فقط یک جمله اضافه می‌کند و فوریت را عوض نمی‌کند.
+// منبع: ATA 2016 (Ross و همکاران) — حساسیت/ویژگیِ TRAb برای گریوز، توصیه‌های ۹۲–۹۳ دربارهٔ TRAb در بارداری.
+function thyroidAbNotable(e) {
+  return ["ANTI_TG", "TRAB"].some((k) => ["above", "pos"].includes(thyroidAbState(e, k).state));
+}
+
+// CR5: عدد + واحدِ چاپ‌شده یک بار، با همان شکلِ برگه (نه raw که خودش واحد دارد).
+function abValueFa(a) {
+  return a.state === "above" || a.state === "within"
+    ? `${a.shown ?? `${a.cmp ?? ""}${a.value}`}${a.unit ? " " + a.unit : ""}`
+    : `«${a.raw}»`;
+}
+
+// B5 (بازبینیِ پزشکی): Anti-Tg در ایران بیشتر کنارِ تیروگلوبولین و برای پیگیریِ پس از درمانِ سرطانِ تیروئید درخواست می‌شود.
+//   آن‌جا «هاشیموتو» و «اغلب فقط پیگیری» اطمینانِ کاذب است. نشانه: سرطانِ ثبت‌شده (فعال در conditions.js) یا ردیفِ تیروگلوبولین روی برگه.
+function thyroidCancerContext(e) {
+  if ((e.conditions ?? []).includes("cancer")) return true;
+  return [...(e.unmapped ?? []), ...Object.keys(e.qual ?? {})].some((n) => isThyroglobulinKey(n));
+}
+
+function thyroidAbSentences(e, { tsh, ft4 }) {
+  const tg = thyroidAbState(e, "ANTI_TG");
+  const tr = thyroidAbState(e, "TRAB");
+  const tshHigh = tsh?.abnormal && tsh.dir === "high";
+  const cancerCtx = thyroidCancerContext(e);
+  const hyper = (tsh?.abnormal && tsh.dir === "low") || (ft4?.abnormal && ft4.dir === "high");
+  const out = [];
+
+  if (tg.state !== "absent") {
+    const name = "آنتی‌بادی ضد تیروگلوبولین (Anti-Tg)";
+    if ((tg.state === "above" || tg.state === "pos") && cancerCtx) {
+      out.push((tg.state === "above"
+        ? `${name} ${abValueFa(tg)} است و بالاتر از محدودهٔ چاپ‌شدهٔ آزمایشگاه (${tg.reference}). `
+        : `${name} روی برگه ${abValueFa(tg)} گزارش شده. `) +
+        "در پیگیریِ پس از درمانِ سرطانِ تیروئید، این آنتی‌بادی را پزشکِ معالج دنبال می‌کند: وجودش می‌تواند نتیجهٔ تیروگلوبولین را نامعتبر (کاذب پایین) کند، " +
+        "و تغییرِ آن در طولِ زمان اهمیت دارد. تفسیرش با پزشکِ معالجِ شماست.");
+    } else if (tg.state === "above") {
+      out.push(`${name} ${abValueFa(tg)} است و بالاتر از محدودهٔ چاپ‌شدهٔ آزمایشگاه (${tg.reference}). ` +
+        "این آنتی‌بادی، مثلِ آنتی‌بادی TPO، در التهابِ خودایمنیِ تیروئید (مثلاً هاشیموتو) دیده می‌شود" +
+        (tshHigh ? " و کنارِ TSHِ بالای همین برگه با همین علت جور است." : "."));
+    } else if (tg.state === "pos") {
+      out.push(`${name} روی برگه ${abValueFa(tg)} گزارش شده؛ این آنتی‌بادی در التهابِ خودایمنیِ تیروئید (مثلاً هاشیموتو) دیده می‌شود.`);
+    } else if (tg.state === "within") {
+      out.push(`${name} ${abValueFa(tg)} است و در محدودهٔ چاپ‌شدهٔ آزمایشگاه (${tg.reference}).`);
+    } else {
+      out.push(`${name} ${abValueFa(tg)} (منفی) است.`);
+    }
+  }
+
+  if (tr.state !== "absent") {
+    const name = "آنتی‌بادی گیرندهٔ TSH (TRAb/TSI)";
+    if (tr.state === "above" || tr.state === "pos") {
+      let t = tr.state === "above"
+        ? `${name} ${abValueFa(tr)} است و بالاتر از محدودهٔ چاپ‌شدهٔ آزمایشگاه (${tr.reference}).`
+        : `${name} روی برگه ${abValueFa(tr)} گزارش شده.`;
+      if (hyper) t += " کنارِ نشانه‌های پرکاریِ تیروئید در همین برگه، این الگو با بیماری گریوز جور است؛ تأییدِ تشخیص با پزشک است.";
+      else if (tsh || ft4) t += " ولی روی این برگه نشانهٔ پرکاریِ تیروئید (TSHِ پایین یا FT4ِ بالا) دیده نمی‌شود؛ معنای این آنتی‌بادی را پزشک کنارِ بقیهٔ آزمایش‌ها تفسیر می‌کند.";
+      else t += " TSH و FT4 روی این برگه نیستند؛ برای دانستنِ این‌که تیروئید پرکار است یا نه، این دو لازم‌اند.";
+      if (e.pregnant === true) t += " چون باردار هستید، این نتیجه را به پزشکِ زنانِ خود هم نشان دهید؛ پزشک دربارهٔ تکرارِ این آزمایش در بارداری تصمیم می‌گیرد.";
+      out.push(t);
+    } else if (tr.state === "within") {
+      out.push(`${name} ${abValueFa(tr)} است و در محدودهٔ چاپ‌شدهٔ آزمایشگاه (${tr.reference}).`);
+    } else {
+      out.push(`${name} ${abValueFa(tr)} (منفی) است.`);
+    }
+  }
+  return { text: out.join(" "), tg, tr, cancerCtx };
+}
+
+function thyroidWithAntibodies(e, core) {
+  const tgPresent = thyroidAbState(e, "ANTI_TG").state !== "absent";
+  const trPresent = thyroidAbState(e, "TRAB").state !== "absent";
+  if (!tgPresent && !trPresent) return core(e);   // بی‌آنتی‌بادی: همان خروجیِ قبلی (S08)
+
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const tsh = g("TSH"), ft4 = g("FT4");
+  const coreAbnormal = ["TSH", "FT4", "FT3", "T3", "ANTI_TPO"].some((k) => g(k)?.abnormal);
+  const { text, tr, cancerCtx } = thyroidAbSentences(e, { tsh, ft4 });
+  const trNotable = ["above", "pos"].includes(tr.state);
+  const sources = trNotable ? ["ATA_HYPER_2016"] : [];
+
+  if (coreAbnormal) {
+    const f = core(e);
+    return {
+      ...f,
+      must_say: `${f.must_say} ${text}`,
+      // TRAb روی همین برگه است — پیشنهادِ «آنتی‌بادی گیرندهٔ TSH (TRAb)» درخواستِ دوبارهٔ آزمایشِ انجام‌شده است (N8).
+      suggest: trPresent ? (f.suggest ?? []).filter((s) => !/TRAb/.test(s)) : f.suggest,
+      ...(sources.length ? { sources: [...(f.sources ?? []), ...sources] } : {}),
+    };
+  }
+
+  // فقط آنتی‌بادی غیرطبیعی است (match تضمین می‌کند دست‌کم یکی بالا/مثبت است).
+  const suggest = [...(tsh ? [] : ["TSH"]), ...(ft4 ? [] : ["FT4"])];
+  // یادداشتِ ۶ِ بازبینی: فقط آنچه سنجیده شده را «طبیعی» می‌گوییم؛ و در زمینهٔ سرطان اطمینانِ «فقط پیگیری» نمی‌دهیم (B5).
+  const measured = [tsh && "TSH", ft4 && "FT4"].filter(Boolean);
+  const tail = trNotable || cancerCtx ? ""
+    : measured.length
+      ? ` ${measured.join(" و ")}ِ این برگه ${measured.length > 1 ? "طبیعی‌اند" : "طبیعی است"}؛ اغلب فقط پیگیریِ دوره‌ای لازم است.`
+      : " TSH روی این برگه نیست؛ برای دانستنِ این‌که تیروئید درست کار می‌کند یا نه، TSH لازم است.";
+  return {
+    pattern: "thyroid_antibody_positive",
+    urgency: "routine",
+    headline: "آنتی‌بادی تیروئید در خون شما بالاتر از حد است",
+    must_say: text + tail,
+    action: "در نوبتِ عادی با پزشک مطرح کنید.",
+    suggest,
+    warnings: [],
+    ...(sources.length ? { sources } : {}),
+  };
+}

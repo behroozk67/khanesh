@@ -89,6 +89,17 @@ function titreFa(v) {
   return `1/${v}`;
 }
 
+// N6: کیفی یک مجموعهٔ بسته از کلمه است، نه الگوی زیررشته (undetected ⊃ detected، «+/-» ⊃ «+»). کلِ مقدار باید جور شود.
+// specs/012: از patterns_coverage_gaps.js به این‌جا آمد (بی‌تغییر) تا patterns_serology.js هم همین یک فهرست را بخواند — دو فهرست drift می‌کنند.
+export function qualState(raw) {
+  const s = String(raw).toLowerCase().replace(/\s+/g, " ").trim();
+  if (/^(neg|negative|non[- ]?reactive|nonreactive|not detected|undetected|nondetected|absent|nil|none|منفی|غیر ?واکنش[‌ ]?گر|-)$/.test(s)) return { state: "neg" };
+  if (/^(pos|positive|reactive|detected|present|مثبت|واکنش[‌ ]?گر|پازیتیو|\+{1,4}|[1-4]\+)$/.test(s)) return { state: "pos" };
+  const m = s.match(/^([<>≥≤])?\s*(\d+(?:[.,]\d+)?)\s*(.*)$/);
+  if (m) return { state: "num", n: parseFloat(m[2].replace(",", ".")), cmp: m[1] ?? null, unit: m[3].trim() };
+  return { state: "unknown" };
+}
+
 // نام‌های کیفیِ CRP و RF (پس از نرمال‌سازی). یک‌جا تعریف می‌شوند تا بین
 // الگوها drift نکنند.
 const CRP_RE = /^crp$|crpqual|crplatex|creactive|سیآرپی|پروتئینواکنشی/;

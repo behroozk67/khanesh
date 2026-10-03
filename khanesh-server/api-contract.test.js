@@ -1031,3 +1031,65 @@ test("T44: AUTH خاموش — نتیجهٔ کاربرِ ناشناس در جد�
   await new Promise((res) => setTimeout(res, 300));
   assert.equal((await getUserJobs(1)).length, before);
 });
+
+// ─────────── specs/012 (P68): سرولوژیِ ردیف ۱ — قراردادِ مسیرِ سرور (C4) و ادغامِ چندصفحه‌ای (SC-008) ───────────
+// 🔴 پیش از specs/012 برگهٔ فقط-VDRL هیچ تستِ نمره‌دار و هیچ ردیفِ شناخته‌شده‌ای نداشت ⇒ مسیرِ قدیمِ بی‌موتور، جایی که مدل
+//    خودش قضاوت می‌کند (N18 در لایهٔ مسیریابی). و پس از افزودنِ خواننده، شبکهٔ unreadQualRows همان VDRL را «ردیفِ ادرارِ
+//    توضیح‌داده‌نشده» گزارش می‌کرد چون QUAL_WORDS فقط واژه‌های ادرار را می‌شناخت.
+test("T45: برگهٔ فقط-VDRL در مسیرِ موتور می‌ماند، یافتهٔ خودش را دارد و «ردیفِ ادرارِ توضیح‌داده‌نشده» گزارش نمی‌شود", async () => {
+  // سرولوژی از عکسِ برگه می‌آید (فرمِ دستی فیلدِ سرولوژی ندارد و فقط عدد نگه می‌دارد) — پس مسیرِ عکس آزموده می‌شود.
+  const r = await analyzePhoto({ sex: "زن", age: "30" }, { sex: "زن", age: "30 سال" }, [{ name: "VDRL", value: "Reactive 1:8", unit: "", reference: "Non-reactive" }]);
+  assert.equal(r.status, 200);
+  assert.ok(r.body._engine, "مسیرِ موتور گرفته نشد — مدل خودش قضاوت کرد");
+  assert.ok(r.body._engine.patterns.includes("syphilis_screen_result"), `patterns=${r.body._engine.patterns}`);
+  assert.doesNotMatch(JSON.stringify(r.body), /نتایج آزمایش شما در محدوده طبیعی است/, "VDRLِ واکنش‌گر «طبیعی» خوانده شد");
+  const w = (r.body.ocr_warnings ?? []).join(" ");
+  assert.doesNotMatch(w, /VDRL/, `VDRL به‌عنوانِ ردیفِ توضیح‌داده‌نشده گزارش شد: ${w}`);
+});
+
+test("T46: برگهٔ فقط-Anti-Tg (با بازهٔ چاپ‌شده) در مسیرِ موتور می‌ماند و یافتهٔ تیروئید می‌سازد", async () => {
+  const r = await analyzePhoto({ sex: "زن", age: "40" }, { sex: "زن", age: "40 سال" }, [{ name: "Anti-Tg", value: "300", unit: "IU/mL", reference: "<115" }]);
+  assert.equal(r.status, 200);
+  assert.ok(r.body._engine, "مسیرِ موتور گرفته نشد");
+  assert.ok(r.body._engine.patterns.includes("thyroid"), `patterns=${r.body._engine.patterns}`);
+  assert.doesNotMatch(JSON.stringify(r.body), /نتایج آزمایش شما در محدوده طبیعی است/);
+});
+
+test("T47: دو صفحه — چربی (Tg = تری‌گلیسیرید) و تیروئید (Anti-Tg/TRAb)، به هر ترتیب: هیچ ردیفی گم یا جابه‌جا نمی‌شود (N25، SC-008)", async () => {
+  const { mergePages } = await import("./server.js");
+  const { runEngine } = await import("./rules/adapter.js");
+  const { runPatterns } = await import("./rules/patterns.js");
+  const lipid = { ok: true, page: 1, ocr: { patient: { age: "45", sex: "زن" }, tests: [
+    { name: "Cholesterol", value: "190", unit: "mg/dL" }, { name: "Tg", value: "180", unit: "mg/dL" }, { name: "HDL", value: "50", unit: "mg/dL" }] } };
+  const thy = { ok: true, page: 2, ocr: { patient: { age: "45", sex: "زن" }, tests: [
+    { name: "TSH", value: "8", unit: "mIU/L" }, { name: "Anti-Tg", value: "300", unit: "IU/mL", reference: "<115" },
+    { name: "TRAb", value: "0.5", unit: "IU/L", reference: "<1.75" }] } };
+  for (const pages of [[lipid, thy], [thy, lipid]]) {
+    const m = mergePages(pages);
+    assert.equal(m.tests.length, 6, `ردیفی در ادغام گم شد (ترتیب ${pages.map((p) => p.page)}): ${m.tests.map((t) => t.name)}`);
+    const e = runEngine({ patient: { age: 45, sex: "F" }, tests: m.tests });
+    assert.equal(e.graded.find((g) => g.test === "TG")?.value, 180, "Tg دیگر تری‌گلیسیرید ۱۸۰ نیست");
+    assert.equal(e.ungraded?.ANTI_TG?.reason, "assay_printed", "Anti-Tg به assay_printed نرسید");
+    assert.equal(e.ungraded?.TRAB?.reason, "assay_printed", "TRAb به assay_printed نرسید");
+    const f = runPatterns(e).findings;
+    assert.equal(f.filter((x) => /تیروگلوبولین/.test(`${x.headline} ${x.must_say}`)).length, 1, "Anti-Tg در بیش از یک یافته (یا هیچ‌کدام) آمد");
+  }
+});
+
+test("T48: دو صفحه — CBC و منی (با Sperm concentration و Spermogram)، به هر ترتیب: WBC/RBCِ CBC خون می‌مانند و هیچ ردیفی گم نمی‌شود", async () => {
+  const { mergePages } = await import("./server.js");
+  const { runEngine } = await import("./rules/adapter.js");
+  const cbc = { ok: true, page: 1, ocr: { patient: { age: "35", sex: "مرد" }, tests: [
+    { name: "WBC", value: "7.2", unit: "10*3/µL" }, { name: "RBC", value: "4.8", unit: "10*6/µL" }, { name: "Hb", value: "14", unit: "g/dL" }] } };
+  const semen = { ok: true, page: 2, ocr: { patient: { age: "35", sex: "مرد" }, tests: [
+    { name: "Volume", value: "2.5", unit: "mL" }, { name: "Sperm concentration", value: "40", unit: "million/mL" },
+    { name: "WBC", value: "1", unit: "million/mL" }, { name: "RBC", value: "0", unit: "/hpf" }, { name: "Spermogram", value: "Normal" }] } };
+  for (const pages of [[cbc, semen], [semen, cbc]]) {
+    const m = mergePages(pages);
+    assert.equal(m.tests.length, 8, `ردیفی در ادغام گم شد: ${m.tests.map((t) => t.name)}`);
+    const e = runEngine({ patient: { age: 35, sex: "M" }, tests: m.tests });
+    assert.equal(e.graded.find((g) => g.test === "WBC")?.value, 7.2, "WBCِ CBC گم یا جابه‌جا شد");
+    assert.equal(e.graded.find((g) => g.test === "RBC")?.value, 4.8, "RBCِ CBC گم یا جابه‌جا شد");
+    assert.ok(e.graded.some((g) => g.test === "SPERM_CONC"), "غلظتِ اسپرم درجه‌بندی نشد");
+  }
+});
