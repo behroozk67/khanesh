@@ -561,7 +561,8 @@ test("M5: پیشنهادِ آزمایشِ موجود حذف می‌شود ولی
     { graded: [{ test: "FERRITIN" }, { test: "TSH" }] }
   );
   assert.ok(repeats.includes("درخواست تکرار CBC از پزشک"), "«تکرار CBC» باید بماند"); // عمداً عوض شد — M170
-  assert.ok(repeats.includes("درخواست آزمایش پایش دوره‌ای TSH از پزشک"), "«پایش دوره‌ای TSH» باید بماند");
+  // عمداً عوض شد (P72، M306): «پایش» آزمایش نیست ⇒ «درخواست» بی «آزمایش» (N8)؛ هدفِ تست — ماندنِ پیشنهاد — همان است.
+  assert.ok(repeats.includes("درخواست پایش دوره‌ای TSH از پزشک"), "«پایش دوره‌ای TSH» باید بماند");
   assert.ok(!repeats.includes("درخواست آزمایش فریتین از پزشک"), "فریتینِ موجود باید حذف شود");
 });
 
@@ -6458,7 +6459,9 @@ test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ ام
   // تفسیر می‌کند و شاخه‌های پرولاکتین مالِ P46 است. این آزمون ثابت می‌کند فصل ۲۶ به این‌ها
   // هیچ یافتهٔ تازه‌ای اضافه نکرده است. اثرِ انگشت‌ها روی 8ccd67d گرفته شد.
   const P = {
-    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "aba7975a9da4b5eb"],
+    // عمداً بازپایه شد (۲۰۲۶-۱۰-۰۳، P72، M303): actionِ this_weekِ قاعدهٔ kidney «این هفته» گرفت (N20) و
+    //   «درخواست آزمایش سونوگرافی/بررسی …» «درخواست …» شد (N8، M306). diffِ HEAD: فقط همین دو.
+    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "cf21c5d5c10471d2"],
     uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
     thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "7ef4e21f6af2d814"],
     // prl_thyroid برداشته شد (۲۰۲۶-۱۰-۰۳): پرولاکتین با تأییدِ P46 بند ۱ بازه و قاعده گرفت (hyperprolactinemia، M101–M101e)،
@@ -6983,9 +6986,11 @@ test("M123: قندِ ۱۵ِ بی‌واحد دیگر «قند پایین» نی�
   // 🔴 روی edec069: hypoglycemia_significant «قند خون شما پایین‌تر از حد طبیعی است»
   const p = uuRun([["FBS", "15"]]);
   assert.ok(!p.findings.some((f) => /hypoglyc/.test(f.pattern)), `جهتِ وارونه: ${p.findings.map((x) => x.pattern)}`);
+  // عمداً this_week ⇒ soon (P72 پرسش ۵): کفِ فوریتِ «نامعلوم» کمینهٔ دو خوانش است؛ ۱۵ mg/dL حالا اورژانس است و ۲۷۰ mg/dL «soon»،
+  //   پس کمینه soon می‌شود. هنوز غیرِ اورژانس، بی‌جهت («بالا/پایین» نمی‌گوید) و action از همان فوریت مشتق است.
   const f = uuFind(p, "unit_unknown_values");
-  assert.equal(f?.urgency, "this_week");
-  assert.equal(f.action, "این هفته با پزشک مطرح کنید.");
+  assert.equal(f?.urgency, "soon");
+  assert.match(f.action, /۲۴ تا ۴۸ ساعت/);
   assert.match(f.must_say, /با هر کدام از دو واحد که خوانده شود، خارج از محدودهٔ طبیعی است\./);
 });
 
@@ -7017,7 +7022,7 @@ test("M123d: فوریتِ «نامعلوم» — هر دو طبیعی/یکی/ه�
     ["Calcium", "2.4", "routine"],
     ["Calcium", "5.0", "emergency"],    // ۵ mg/dL پایینِ بحرانی؛ ۵ mmol/L (۲۰ mg/dL) بالای بحرانی ⇒ هر دو خطرناک
     ["FBS", "5.5", "routine"],
-    ["FBS", "15", "this_week"],
+    ["FBS", "15", "soon"],              // عمداً this_week ⇒ soon (P72): ۱۵ mg/dL اورژانس، ۲۷۰ mg/dL soon ⇒ کمینه soon
     ["Total Bilirubin", "17", "routine"],
     ["Total Bilirubin", "60", "this_week"], // ۶۰ mg/dL و ۶۰ µmol/L (۳.۵ mg/dL) هر دو بالا
   ];
@@ -11384,7 +11389,9 @@ test("M246c: نوزادِ < ۲۸ روز — قندِ < ۴۰ اورژانسِ و�
   assert.ok(!mid.ids.includes("neonatal_hypoglycemia"), String(mid.ids));
   assert.ok(mid.p.findings.every((f) => f.urgency !== "emergency"), String(mid.ids));
   const adult = run("40 سال", "35");
-  assert.ok(!adult.ids.includes("neonatal_hypoglycemia")); assert.notEqual(adult.p.overall_urgency, "emergency");
+  // عمداً عوض شد (P72 پرسش ۵، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): بزرگسالِ < ۵۴ حالا خودش اورژانس است (hypoglycemia_significant)؛
+  //   هدفِ اصلیِ تست — قاعدهٔ «نوزاد» روی بزرگسال فعال نمی‌شود — همان است (M308).
+  assert.ok(!adult.ids.includes("neonatal_hypoglycemia")); assert.ok(adult.ids.includes("hypoglycemia_significant"));
 });
 
 test("M246d: نوزادِ < ۲۸ روز — K ≥ ۶ اورژانس (K ۵٫۹ نه)؛ Hb ۸٫۵ «همین امروز»؛ بیلی‌روبین ≥ ۱۵ اورژانس و ۱۴٫۹ «همین امروز» (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱، P63)", () => {
@@ -12089,7 +12096,7 @@ import { CONDITIONS as M280_CONDITIONS, ACTIVE_CONDITIONS as M280_ACTIVE, condit
 import { buildEnginePrompt as m283Prompt } from "./prompt.js";
 
 test("M280: کاتالوگِ ده بیماریِ زمینه‌ای — شناسه، برچسبِ تازه و برچسبِ قدیمی همه به شناسه می‌رسند؛ ناشناخته حدس زده نمی‌شود", () => {
-  assert.equal(M280_CONDITIONS.length, 10);
+  assert.equal(M280_CONDITIONS.length, 11);   // عمداً ۱۰ ⇒ ۱۱ (P72، ۲۰۲۶-۱۰-۰۳): `dialysis` — M310
   for (const c of M280_CONDITIONS) {
     assert.ok(/[؀-ۿ]/.test(c.fa), `${c.id}: برچسبِ فارسی ندارد`);
     assert.deepEqual(m280Ids([c.id]).ids, [c.id]);
@@ -12101,8 +12108,9 @@ test("M280: کاتالوگِ ده بیماریِ زمینه‌ای — شناس�
   const r = m280Ids(["none", "سرماخوردگی", "dm2", "dm2"]);
   assert.deepEqual(r.ids, ["dm2"], "تکرار یا none نباید شناسه بسازد");
   assert.deepEqual(r.unknown, ["سرماخوردگی"]);
-  // فقط دو مورد فعال‌اند تا بازبین P66 را تأیید کند — افزودنِ بی‌صدای یکی اینجا قرمز می‌شود.
-  assert.deepEqual([...M280_ACTIVE].sort(), ["cancer", "dm2"]);
+  // فقط این سه مورد فعال‌اند تا بازبین P66 را تأیید کند — افزودنِ بی‌صدای یکی اینجا قرمز می‌شود.
+  // عمداً ۲ ⇒ ۳ (P72، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): `dialysis` — فقط `kidney`/`creatinine_emergency`/`urea_bun_emergency` می‌خوانند (M310).
+  assert.deepEqual([...M280_ACTIVE].sort(), ["cancer", "dialysis", "dm2"]);
 });
 
 test("M281: بیمارِ سرطانی با شناسه همان درجهٔ CTCAE را می‌گیرد که با برچسبِ قدیمی؛ بی‌بیماری، CTCAE نه", () => {
@@ -12413,4 +12421,221 @@ test("M302: باکتری با WBC ≤ ۵ — بزرگسالِ عادی «احت�
   // کنترلِ منفی: ۲ سال و بالاتر و بارداریِ اعلام‌نشده همان بزرگسال‌اند
   assert.match(find290(g290(rows, { age: 2, sex: "M" }).p, "bacteriuria_no_inflammation").must_say, /آلوده شدن نمونه/);
   assert.match(find290(g290(rows, { age: 28, sex: "F" }).p, "bacteriuria_no_inflammation").must_say, /آلوده شدن نمونه/);
+});
+
+// ═══════════ ممیزیِ لایهٔ ۱ (۲۰۲۶-۱۰-۰۳، P72) — ناقض‌های قطعی روی خروجیِ بی‌مدل ═══════════
+const { actionStrength: _l1Strength, pickFinalAction } = await import("./prompt.js");
+const l1 = (tests, patient = { age: 45, sex: "M" }) => {
+  const e = runEngine({ patient, tests });
+  const p = runPatterns(e);
+  return { e, p, recs: buildEngineRecommendations(p, e) };
+};
+const l1Text = (r) => [...r.p.findings.flatMap((f) => [f.headline, f.must_say]), ...r.recs].join(" ");
+
+test("M303: نارساییِ کلیه با فوریتِ emergency دستورِ اورژانس می‌دهد، نه «وقت بگیرید» (N20، P72)", () => {
+  // پیش از رفع: Creatinine 4.8 ⇒ eGFR 14، urgency=emergency و has_critical، ولی تنها دستور
+  // «با پزشک وقت بگیرید و بخواهید این آزمایش تکرار شود.» بود — بی‌هیچ زمان.
+  const r = l1([{ name: "Creatinine", value: "4.8", unit: "mg/dL" }]);
+  const k = r.p.findings.find((f) => f.rule_id === "kidney");
+  assert.equal(k?.urgency, "emergency");
+  assert.ok(_l1Strength(k.action) >= 4, `action بی‌فوریت: ${k.action}`);
+  assert.match(r.recs[0], /اورژانس/);
+  // جملهٔ دیالیز افزوده است، نه جایگزینِ اورژانس
+  assert.match(k.action, /اگر دیالیز می‌شوید، مرکزِ دیالیزِ خود را هم در جریان بگذارید/);
+  assert.doesNotMatch(k.action, /تماس بگیرید/);
+  // this_week (eGFR 30–44) بی‌زمان نمی‌ماند
+  const m = l1([{ name: "Creatinine", value: "2.2", unit: "mg/dL" }]).p.findings.find((f) => f.rule_id === "kidney");
+  assert.equal(m?.urgency, "this_week");
+  assert.match(m.action, /این هفته/);
+});
+
+test("M303b: دستورِ اورژانسِ کلیه دستورِ نهاییِ اورژانسِ فوری‌ترِ همان برگه را نمی‌رباید (P72، بازبینی)", () => {
+  // نسخهٔ اولِ M303 شدتِ ۵ داشت و چون kidney زودتر می‌آمد در تساویِ pickFinalAction برنده می‌شد: بیمارِ دیالیزی با
+  // K 7 به‌جای «همین حالا به اورژانس» «با مرکزِ دیالیز تماس بگیرید» می‌خواند. مالکِ نهایی باید همان HEAD باشد.
+  const cr = { name: "Creatinine", value: "4.8", unit: "mg/dL" };
+  for (const [label, extra, owner] of [
+    ["K 7.0", { name: "Potassium", value: "7.0" }, "potassium_critical"],
+    ["Hb 6", { name: "Hemoglobin", value: "6", unit: "g/dL" }, "severe_anemia_crisis"],
+    ["Na 118", { name: "Sodium", value: "118" }, "sodium_critical"],
+  ]) {
+    const r = l1([cr, extra]);
+    assert.equal(pickFinalAction(r.p.findings)?.rule_id, owner, label);
+    assert.doesNotMatch(r.recs[0], /دیالیز/, label);
+    assert.ok(!r.recs.some((s) => /دیالیز[^.]*تماس/.test(s)), `${label}: ${r.recs.join(" | ")}`);
+  }
+  assert.equal(pickFinalAction(l1([{ name: "Creatinine", value: "8", unit: "mg/dL" }]).p.findings)?.rule_id, "creatinine_emergency");
+});
+
+test("M304: قاعدهٔ thyroid دربارهٔ TSHِ اندازه‌گیری‌نشده «طبیعی» نمی‌گوید؛ FT3ِ بالا متنِ کم‌کاری نمی‌گیرد (N4، N12، P72)", () => {
+  const cases = [
+    ["FT4 بالا تنها", [{ name: "FT4", value: "2.5", unit: "ng/dL" }], "high"],
+    ["FT3 بالا تنها", [{ name: "FT3", value: "6", unit: "pg/mL" }], "high"],
+    ["FT4 پایین تنها", [{ name: "FT4", value: "0.5", unit: "ng/dL" }], "low"],
+  ];
+  for (const [label, tests, dir] of cases) {
+    const r = l1(tests, { age: 35, sex: "F" });
+    const f = r.p.findings.find((x) => x.rule_id === "thyroid");
+    assert.ok(f, label);
+    assert.doesNotMatch(f.must_say, /TSH طبیعی/, label);
+    assert.match(f.must_say, /TSH روی این برگه اندازه‌گیری نشده/, label);
+    if (dir === "high") assert.doesNotMatch(f.must_say, /در کم‌کاریِ معمولِ تیروئید/, label);
+    assert.equal(f.urgency, "this_week", label);
+    assert.match(f.action, /این هفته/, label);
+    assert.ok(r.recs.some((s) => /TSH/.test(s)), `${label}: پیشنهادِ TSH`);
+  }
+  // T3 بالا + TSH طبیعی، بی‌FT4: «(T4) طبیعی است» ادعای دربارهٔ آزمایشِ غایب بود
+  const t3 = l1([{ name: "T3", value: "250", unit: "ng/dL" }, { name: "TSH", value: "1.5" }], { age: 35, sex: "F" })
+    .p.findings.find((x) => x.rule_id === "thyroid");
+  assert.equal(t3.pattern, "thyroid_t3_toxicosis");
+  assert.doesNotMatch(t3.must_say, /T4\) طبیعی/);
+  assert.match(t3.must_say, /FT4 روی این برگه اندازه‌گیری نشده/);
+  // کنترلِ منفی: با TSHِ طبیعیِ چاپ‌شده همان متنِ قبلی
+  const ctl = l1([{ name: "FT4", value: "2.5", unit: "ng/dL" }, { name: "TSH", value: "1.5" }], { age: 35, sex: "F" })
+    .p.findings.find((x) => x.rule_id === "thyroid");
+  assert.equal(ctl.pattern, "thyroid_discordant_ft4_high");
+  assert.match(ctl.must_say, /اما TSH طبیعی است/);
+  assert.equal(ctl.urgency, "routine");
+});
+
+test("M305: TSHِ تنها «FT4 هنوز طبیعی است» نمی‌گوید و تحت‌بالینی برچسب نمی‌خورد (N4، P72)", () => {
+  // پیش از رفع: برگهٔ فقط-TSH — رایج‌ترین برگهٔ تیروئید — «چون هورمون تیروئید (FT4) هنوز طبیعی است»
+  // می‌خواند و در همان گزارش «درخواست آزمایش FT4» می‌آمد.
+  for (const [v, pat] of [["8", "thyroid_hypo_ft4_unmeasured"], ["0.1", "thyroid_hyper_ft4_unmeasured"]]) {
+    const r = l1([{ name: "TSH", value: v }], { age: 35, sex: "F" });
+    const f = r.p.findings.find((x) => x.rule_id === "thyroid");
+    assert.equal(f.pattern, pat, v);
+    assert.doesNotMatch(f.must_say, /FT4\)? هنوز طبیعی/, v);
+    assert.doesNotMatch(f.must_say, /تحت‌بالینی/, v);
+    assert.match(f.must_say, /FT4 روی این برگه اندازه‌گیری نشده/, v);
+    assert.ok(r.recs.some((s) => /FT4/.test(s)), v);
+    assert.doesNotMatch(f.action, /چند هفته بعد تکرار/, v);
+  }
+  // کنترلِ منفی: FT4ِ طبیعیِ چاپ‌شده همان تحت‌بالینی
+  const ctl = l1([{ name: "TSH", value: "8" }, { name: "FT4", value: "1.2", unit: "ng/dL" }], { age: 35, sex: "F" })
+    .p.findings.find((x) => x.rule_id === "thyroid");
+  assert.equal(ctl.pattern, "thyroid_hypo_subclinical");
+  assert.match(ctl.must_say, /هنوز طبیعی است/);
+});
+
+test("M306: پیشنهادی که آزمایش نیست «درخواست آزمایش …» نمی‌شود (N8، P72)", () => {
+  for (const s of ["سونوگرافی شکم", "معاینهٔ ته‌چشم", "بررسی توسط متخصص غدد", "فیبرواسکن", "فشارخون", "پایش دوره‌ای TSH"]) {
+    const out = phraseSuggestion(s);
+    assert.doesNotMatch(out, /درخواست آزمایش/, s);
+    assert.match(out, new RegExp(`^درخواست ${s} از پزشک`), s);
+  }
+  assert.equal(phraseSuggestion("فریتین"), "درخواست آزمایش فریتین از پزشک");
+  const r = l1([{ name: "FBS", value: "49", unit: "mg/dL" }]);
+  assert.ok(!r.recs.some((s) => /درخواست آزمایش اگر/.test(s)), r.recs.join(" | "));
+  assert.ok(r.recs.some((s) => /داروی دیابت/.test(s)), "جملهٔ داروی دیابت نباید گم شود");
+  // درمان و «ارجاعِ اورژانسی» پیشنهادِ آزمایش نیستند
+  const leuk = l1([{ name: "WBC", value: "150" }, { name: "Hemoglobin", value: "6", unit: "g/dL" }, { name: "PLT", value: "20" }]);
+  assert.ok(!leuk.recs.some((s) => /ارجاع فوری اورژانسی|تزریق خون \(Blood/.test(s)), leuk.recs.join(" | "));
+});
+
+test("M307: هیچ یافتهٔ emergency با دستورِ «چند روز/هفته/وقت بگیرید» تنها نمی‌ماند (N20، جاروب، P72)", (t) => {
+  // جاروبِ تک‌آزمایشی روی کلیدهای بزرگسال: هر یافتهٔ emergency ِ نمایش‌داده‌شده یا دستورش فوری است
+  // یا دستورِ اورژانسِ یافتهٔ دیگری را به ارث می‌برد («همان دستورِ فوریِ بالا»).
+  // liver_pattern تا ۲۰۲۶-۱۰-۰۳ استثنای آگاهانه بود (P72 پرسش ۱)؛ با تصمیمِ کاربر (> ۱۰× ⇒ soon، درجهٔ ۴ ⇒ اورژانسِ واقعی) بسته شد.
+  const bad = [];
+  let reached = 0;
+  for (const [key, r] of Object.entries(ADULT_REFS)) {
+    const rng = getRef(key, "M", 45);
+    if (!Array.isArray(rng)) continue;
+    // نامی که واقعاً به همین کلید می‌رسد؛ کلیدی که نرسد شمرده نمی‌شود (پایینِ تست: کفِ پوشش)
+    const probe = (n) => runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name: n, value: String(rng[1]), unit: r.unit ?? "" }] })
+      .graded.some((g) => g.test === key);
+    const name = [key, key.replace(/_/g, " "), FA_NAMES[key]].find((n) => n && probe(n));
+    if (!name) continue;
+    reached++;
+    for (const v of [rng[1] * 2, rng[1] * 4, rng[1] * 10, rng[0] * 0.5, rng[0] * 0.25].filter((x) => x > 0)) {
+      const e = runEngine({ patient: { age: 45, sex: "M" }, tests: [{ name, value: String(+v.toPrecision(3)), unit: r.unit ?? "" }] });
+      for (const f of runPatterns(e).findings) {
+        if (f.urgency !== "emergency" || !f.action || /دستورِ فوریِ بالا/.test(f.action)) continue;
+        if (_l1Strength(f.action) >= 3) continue;
+        bad.push(`${key}=${+v.toPrecision(3)} ${f.rule_id}: ${f.action.slice(0, 60)}`);
+      }
+    }
+  }
+  assert.ok(reached >= 60, `فقط ${reached} کلید رسید — جاروبِ تهی سبزِ بی‌معناست (N15)`);
+  assert.deepEqual([...new Set(bad)], []);
+});
+
+test("M308: کبد — > ۱۰× سقف «soon» با دستورِ ۲۴–۴۸ ساعته (بی‌has_critical)؛ درجهٔ ۴ (> ۲۰×) اورژانسِ واقعی؛ زیرِ ۱۰× this_week (N20، P72)", () => {
+  const f = (name, v) => l1([{ name, value: String(v), unit: "U/L" }]);
+  // پیش از رفع: AST 400 ⇒ emergency + has_critical، ولی «هرچه زودتر (همین چند روز)»
+  const mid = f("AST", 400);
+  const mf = mid.p.findings.find((x) => x.rule_id === "liver_pattern");
+  assert.equal(mf?.urgency, "soon");
+  assert.match(mf.action, /۲۴ تا ۴۸ ساعت/);
+  assert.equal(mid.p.has_critical, false); assert.equal(mid.p.overall_urgency, "soon");
+  // درجهٔ ۴ CTCAE (> ۲۰× سقفِ ALT) — اورژانسِ واقعی با دستورِ اورژانس
+  const hi = f("ALT", 1200);
+  const hf = hi.p.findings.find((x) => x.rule_id === "liver_pattern");
+  assert.equal(hf?.urgency, "emergency");
+  assert.ok(_l1Strength(hf.action) >= 4, hf.action);
+  assert.equal(hi.p.has_critical, true);
+  // کنترلِ منفی: ۲× سقف همان this_week
+  const lo = f("ALT", 90).p.findings.find((x) => x.rule_id === "liver_pattern");
+  assert.equal(lo?.urgency, "this_week"); assert.match(lo.action, /این هفته/);
+});
+
+test("M309: قندِ < ۵۴ بزرگسال اورژانس با دستورِ اورژانس؛ ۵۴–۶۹ routine؛ نوزادِ ۴۰–۵۴ همان تصمیمِ P63 (N20، P72)", () => {
+  const g = (v, patient) => l1([{ name: "FBS", value: String(v), unit: "mg/dL" }], patient ?? { age: 45, sex: "M" });
+  const e49 = g(49).p.findings.find((x) => x.pattern === "hypoglycemia_significant");
+  assert.equal(e49?.urgency, "emergency");
+  assert.equal(g(49).p.has_critical, true);
+  assert.ok(_l1Strength(e49.action) >= 4, e49.action);
+  assert.match(e49.action, /همین امروز به اورژانس/);
+  assert.match(e49.must_say, /۵۴ میلی‌گرم در دسی‌لیتر \(۳ میلی‌مول در لیتر\)/);
+  // واحدِ SI: ۲٫۷ mmol/L ≈ ۴۹ mg/dL همان حکم
+  const si = l1([{ name: "FBS", value: "2.7", unit: "mmol/L" }]).p;
+  assert.equal(si.findings.find((x) => x.pattern === "hypoglycemia_significant")?.urgency, "emergency");
+  // کنترل‌های منفی: ۶۰ کمی پایین ⇒ routine؛ بدونِ اورژانس
+  const m = g(60);
+  assert.equal(m.p.findings.find((x) => x.pattern === "hypoglycemia_mild")?.urgency, "routine");
+  assert.equal(m.p.has_critical, false);
+  // اورژانسِ فوری‌ترِ همان برگه دستورِ نهایی را نمی‌برد (درس M303b): قند ۴۹ + K 7
+  const both = l1([{ name: "FBS", value: "49", unit: "mg/dL" }, { name: "Potassium", value: "7.0" }]);
+  assert.equal(pickFinalAction(both.p.findings)?.rule_id, "potassium_critical");
+  // نوزادِ ۵ روزه با ۴۲: تصمیمِ P63 (اورژانسِ نوزاد فقط < ۴۰) دست‌نخورده — اورژانسِ بزرگسال برایش نیست
+  const neo = l1([{ name: "Glucose", value: "42", unit: "mg/dL" }], { age: "5 روز", sex: "M" });
+  assert.ok(neo.p.findings.every((x) => x.urgency !== "emergency"), neo.p.findings.map((x) => x.rule_id + ":" + x.urgency).join());
+});
+
+test("M310: بیمارِ دیالیزیِ اعلام‌شده برای کراتینین/اوره/eGFRِ بالا اورژانس نمی‌گیرد؛ اورژانس‌های دیگر و غیرِ دیالیزی دست‌نخورده (P72)", () => {
+  const dial = { age: 55, sex: "M", conditions: ["dialysis"] };
+  const rows = [{ name: "Creatinine", value: "8.0", unit: "mg/dL" }, { name: "Urea", value: "220", unit: "mg/dL" }];
+  const d = l1(rows, dial);
+  const k = d.p.findings.find((x) => x.rule_id === "kidney");
+  assert.equal(k?.pattern, "kidney_dialysis"); assert.equal(k.urgency, "routine");
+  assert.equal(d.p.overall_urgency, "routine"); assert.equal(d.p.has_critical, false);
+  assert.ok(!d.p.findings.some((x) => /creatinine_emergency|urea_bun_emergency/.test(x.rule_id)), d.p.findings.map((x) => x.rule_id).join());
+  assert.doesNotMatch(l1Text(d), /eGFR \d|ظرفیت طبیعی کار می‌کنند/);   // eGFR برای بیمارِ دیالیزی معتبر نیست (N5)
+  assert.match(d.recs[0], /تیمِ دیالیز/);
+  // کنترلِ منفی ۱: همان برگه بی‌اعلامِ دیالیز ⇒ اورژانسِ قبلی
+  const nd = l1(rows);
+  assert.equal(nd.p.overall_urgency, "emergency");
+  assert.ok(nd.p.findings.some((x) => x.rule_id === "creatinine_emergency"));
+  // کنترلِ منفی ۲: بیماریِ مزمنِ کلیه (ckd) دیالیز نیست و چیزی را عوض نمی‌کند
+  assert.equal(l1(rows, { age: 55, sex: "M", conditions: ["ckd"] }).p.overall_urgency, "emergency");
+  // کنترلِ منفی ۳: پتاسیمِ ۷ بیمارِ دیالیزی همچنان اورژانس و دستورِ نهایی است
+  const kk = l1([...rows, { name: "Potassium", value: "7.0" }], dial);
+  assert.equal(kk.p.overall_urgency, "emergency");
+  assert.equal(pickFinalAction(kk.p.findings)?.rule_id, "potassium_critical");
+  // هیچ آزمایشِ دیالیزی بی‌توضیح نمی‌ماند (N18)
+  assert.ok(!d.p.findings.some((x) => /unmatched|unexplained/.test(x.rule_id)), d.p.findings.map((x) => x.rule_id).join());
+});
+
+test("M311: TSHِ ≥ ۱۰ وقتی FT4 روی برگه نیست ⇒ این هفته + ارجاع به متخصص غدد؛ ۹٫۹ و TSHِ ۱۲ با FT4ِ طبیعی همان قبلی (P72)", () => {
+  const t = (rows) => l1(rows, { age: 40, sex: "F" });
+  const hi = t([{ name: "TSH", value: "14" }]);
+  const f = hi.p.findings.find((x) => x.rule_id === "thyroid");
+  assert.equal(f?.pattern, "thyroid_hypo_ft4_unmeasured"); assert.equal(f.urgency, "this_week");
+  assert.match(f.action, /ارجاع به متخصص غدد/); assert.match(f.action, /این هفته/);
+  assert.ok(hi.recs.some((s) => /^درخواست بررسی توسط متخصص غدد از پزشک/.test(s)), hi.recs.join(" | "));
+  assert.ok(hi.recs.some((s) => /FT4/.test(s)));
+  const lo = t([{ name: "TSH", value: "9.9" }]).p.findings.find((x) => x.rule_id === "thyroid");
+  assert.equal(lo.urgency, "routine"); assert.doesNotMatch(lo.action, /متخصص غدد/);
+  const withFt4 = t([{ name: "TSH", value: "12" }, { name: "FT4", value: "1.2", unit: "ng/dL" }]).p.findings.find((x) => x.rule_id === "thyroid");
+  assert.equal(withFt4.pattern, "thyroid_hypo_subclinical"); assert.equal(withFt4.urgency, "routine");
 });

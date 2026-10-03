@@ -4,6 +4,9 @@ import { canBePregnant } from "./patterns_utils.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
+// P72: بیمارِ دیالیزیِ اعلام‌شده (specs/011 — شناسهٔ `dialysis`؛ فقط وقتی بیمار خودش گفته).
+const onDialysis = (e) => Array.isArray(e.conditions) && e.conditions.includes("dialysis");
+
 // ═══ نوار در برابرِ میکروسکوپ (specs/005، data-model §4) ═══
 // حدهای بالای طبیعی در میدانِ پربزرگ‌نمایی — Henry فصل ۲۹. ⚠️ در انتظارِ بازبین: P50.
 // (پرسشِ بازِ P50: آیا برای زنان حدِ گشادترِ ۸–۱۰ برای WBC به کار رود؟ فعلاً یک حد برای همه.)
@@ -476,6 +479,22 @@ export const RULES_NEPHROLOGY = [
     build: (e) => {
       const cr = e.graded.find((g) => g.test === "CREAT");
       const crHigh = cr?.abnormal && cr.dir === "high";
+      // P72 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): بیمارِ دیالیزیِ اعلام‌شده برای کراتینین/eGFRِ «بالا» اورژانس نمی‌گیرد — برایش همیشگی است،
+      //   و CKD-EPI برای او اصلاً معتبر نیست (کراتینینِ پایدار فرض می‌کند، N5)، پس eGFR نقل نمی‌شود. اورژانس‌های دیگر (K، Hb…) سرجایشان.
+      if (onDialysis(e)) {
+        return {
+          pattern: "kidney_dialysis",
+          urgency: "routine",
+          headline: "کراتینین شما بالاتر از حد معمول است (بیمار دیالیزی)",
+          must_say:
+            (cr ? `کراتینین شما ${cr.value} است. ` : "") +
+            "چون دیالیز می‌شوید، بالا بودنِ کراتینین و اوره برای شما معمولاً از پیش انتظار می‌رود و معنای آن با افرادِ دیگر یکی نیست؛ شاخصِ تخمینیِ کار کلیه (eGFR) هم برای بیمارِ دیالیزی معتبر نیست و محاسبه نشد. " +
+            "کفایتِ دیالیز را تیمِ دیالیزِ شما با آزمایش‌های دوره‌ای بررسی می‌کند.",
+          action: "نوبت عادی؛ این برگه را در نوبتِ بعدیِ دیالیز به تیمِ دیالیزِ خود نشان دهید.",
+          suggest: [],
+          warnings: [],
+        };
+      }
       const egfr = e.indices.egfr;
       const ratio = e.indices.bun_cr;
       const prerenal = ratio != null && ratio > 20;
@@ -508,9 +527,16 @@ export const RULES_NEPHROLOGY = [
             : "") +
           "یک آزمایش به‌تنهایی این را قطعی نمی‌کند — گاهی کم‌آبی یا یک داروی موقت هم این عدد را جابه‌جا می‌کند؛ برای اینکه «مزمن» به‌حساب بیاید باید این کاهش بیش از سه ماه پایدار بماند." +
           (prerenal ? " نسبت اوره به کراتینین بالاست که به کم‌آبی اشاره دارد." : ""),
-        action: mildEgfrOnly
-          ? "نوبت عادی با پزشک و تکرار آزمایش کلیه پس از چند هفته."
-          : "با پزشک وقت بگیرید و بخواهید این آزمایش تکرار شود.",
+        // N20 (ممیزیِ لایهٔ ۱، P72): دستور از همان urgency ساخته می‌شود. پیش‌تر eGFR 14 «emergency» +
+        //   has_critical بود و تنها دستورِ بیمار «با پزشک وقت بگیرید» — بی‌هیچ زمان. جملهٔ دیالیز شرطی است
+        //   (CONDITIONAL در prompt.js) و *افزوده* است نه جایگزین: نسخهٔ اول («… با مرکزِ دیالیز تماس بگیرید») با شدتِ ۵
+        //   دستورِ نهاییِ K 7 / Hb 6 / Na 118 را می‌ربود و به بیمارِ دیالیزیِ هیپرکالمیک راهِ «فقط تلفن» می‌داد (بازبینی).
+        //   «همین امروز به اورژانس» شدتِ ۴ است (بی «فوراً/بدون تأخیر») ⇒ اورژانسِ فوری‌ترِ همان برگه برنده می‌ماند. گارد M303، M303b، M307.
+        action: severe
+          ? "همین امروز به اورژانس مراجعه کنید و این برگه را همراه ببرید. اگر دیالیز می‌شوید، مرکزِ دیالیزِ خود را هم در جریان بگذارید."
+          : mildEgfrOnly
+            ? "نوبت عادی با پزشک و تکرار آزمایش کلیه پس از چند هفته."
+            : "این هفته با پزشک وقت بگیرید و بخواهید این آزمایش تکرار شود.",
         suggest: ["تکرار کراتینین", "ACR ادرار", "الکترولیت‌ها"],
         warnings: [
           "داروهای مسکن مثل ایبوپروفن و ناپروکسن را بدون مشورت پزشک مصرف نکنید.",
@@ -773,7 +799,7 @@ export const RULES_NEPHROLOGY_NEW = [
     id: "creatinine_emergency",
     match: (e) => {
       const cr = val(e).CREAT;
-      return cr != null && cr >= 5.0;
+      return cr != null && cr >= 5.0 && !onDialysis(e);   // P72: برای بیمارِ دیالیزی همان `kidney_dialysis` است
     },
     build: (e) => {
       const cr = val(e).CREAT;
@@ -793,7 +819,7 @@ export const RULES_NEPHROLOGY_NEW = [
     match: (e) => {
       const urea = val(e).UREA;
       const bun = val(e).UREA_N;
-      return (urea != null && urea >= 200) || (bun != null && bun >= 100);
+      return ((urea != null && urea >= 200) || (bun != null && bun >= 100)) && !onDialysis(e);   // P72
     },
     build: (e) => {
       const urea = val(e).UREA;

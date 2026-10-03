@@ -7,6 +7,7 @@ export const CONDITIONS = [
   { id: "lipid", fa: "چربی خون بالا" },
   { id: "hypothyroid", fa: "کم‌کاری تیروئید" },
   { id: "ckd", fa: "بیماری مزمن کلیه" },
+  { id: "dialysis", fa: "دیالیز (همودیالیز یا صفاقی)" },
   { id: "fatty_liver", fa: "کبد چرب" },
   { id: "ida", fa: "کم‌خونی فقر آهن" },
   { id: "thal_trait", fa: "ناقل تالاسمی (مینور)" },

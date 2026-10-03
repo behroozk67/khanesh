@@ -859,6 +859,11 @@ second one; a recurring entry is the strongest signal in the file.
     as if it were a text result. `isPlaceholderValue` (one rule, shared by `adapter.js` and `server.js`) now marks it
     unreadable. Guards `M230`–`M235c`, `T29`.
   **Rule:** a value the device could not produce is a missing test, not a qualitative one. It needs its own arm.
+- ⚠️ **Recurred 2026-10-03 in `thyroid`, on the most common thyroid sheet there is (P72, found by the layer-1 invariant sweep, not by a
+  test).** `!tshLow` / `!ft4Low` also matched *absent*. A TSH-only sheet read «چون هورمون تیروئید (FT4) هنوز طبیعی است، این کم‌کاری خفیف
+  («تحت‌بالینی») است» and the same report asked for FT4. FT4 high alone read «اما TSH طبیعی است … اغلب خطای آزمایشگاهی» (`routine`). FT3 high
+  alone got the *hypothyroid* paragraph (N12 too). Fixed with `missingFa()`, which also separates "printed but not graded". Guards `M304`, `M305`;
+  `S08` re-baselined on purpose. **The sweep that found it asks one question of every sentence: does it call a test «طبیعی» that isn't graded?**
 
 ### N5 — Printing a derived number as if it were on the patient's sheet
 `9c93319`
@@ -969,6 +974,9 @@ second one; a recurring entry is the strongest signal in the file.
   covered by `npm test` — don't re-audit it by hand. It checks *presence*, not that the Persian
   name differs from the key: for MCH, MCHC, HDL, LDL, INR, TIBC the abbreviation is the correct
   patient-facing name.
+- **Recurred a sixth time, 2026-10-03 (P72):** «درخواست آزمایش سونوگرافی شکم / معاینهٔ ته‌چشم / بررسی توسط متخصص غدد از پزشک», and a whole
+  sentence in `suggest` → «درخواست آزمایش اگر داروی دیابت مصرف می‌کنید حتماً بگویید از پزشک». `phraseSuggestion` now has `NON_LAB`; the
+  sentence moved to `warnings`. Guard `M306`. **`suggest` holds names of things to order, never sentences.**
 
 ### N9 — Editing a prompt to fix clinical wrongness
 Standing rule; the whole architecture is the fix.
@@ -1710,6 +1718,20 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   disagree. **A sentence that explains should not also instruct** — that is what leaves room for a
   second instruction to appear. Guard `M163`; `M134` and `M138` were asserting the retired wording
   and were updated on purpose.
+- ⚠️ **Recurred 2026-10-03 on `kidney`, the original shape exactly (P72).** eGFR < 15 was `emergency` + `has_critical` + `blocks_others`, and the
+  only instruction was «با پزشک وقت بگیرید و بخواهید این آزمایش تکرار شود.» — no timeline at all, under a red banner. Fixed; the dialysis case is a
+  conditional sentence, not a lower urgency. ⚠️ **And the fix's first version broke the neighbouring case — caught by `code-reviewer`, not
+  by the suite.** «بدون تأخیر … یا با مرکزِ دیالیز تماس بگیرید» scored 5, tied every other emergency, and `pickFinalAction` breaks ties by
+  order, so `kidney` stole the final instruction from `potassium_critical`/`severe_anemia_crisis`/`sodium_critical`: a dialysis patient
+  with K 7.0 was offered a phone call. **An `action` you write for one finding is also a candidate for the whole report's last word — test it
+  beside every other emergency that can share the sheet, not alone.** Now strength 4 and the dialysis sentence is additive; guard `M303b`
+  (red on the first version). `liver_pattern` (ALT/AST ≈10× ULN: `emergency` vs «همین چند روز») had the same defect; closed the same day
+  by user decision: >10× ⇒ `soon` + a 24–48 h action, CTCAE grade 4 ⇒ `emergency` + an ER action (`M308`). `M307` sweeps every adult key and
+  fails on any emergency finding whose action is weaker than «امروز» — it first carried `liver_pattern` as a *visible* exemption
+  (`t.diagnostic`, red if it stopped occurring) and that exemption is now gone. That sweep is the cheap detector this entry always
+  lacked: `M70` only covered one module. Same session, user decisions (P72): glucose < 54 ⇒ `emergency` (neonate keeps P63; `M309`),
+  `dialysis` is the third active condition and silences only the creatinine/urea/eGFR emergencies (`M310`), TSH ≥ 10 with no FT4 ⇒ this week +
+  endocrinologist (`M311`). **A new active condition is a clinical decision (P66); `M280` goes red on a silent one — update it on purpose.**
 
 
 ### N21 — Listing the possible causes without saying which ones the same sheet already argues against

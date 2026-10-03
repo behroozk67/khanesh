@@ -16,6 +16,7 @@ export const CONDITIONS = Object.freeze([
   { id: "lipid", fa: "چربی خون بالا" },
   { id: "hypothyroid", fa: "کم‌کاری تیروئید" },
   { id: "ckd", fa: "بیماری مزمن کلیه" },
+  { id: "dialysis", fa: "دیالیز (همودیالیز یا صفاقی)" },
   { id: "fatty_liver", fa: "کبد چرب" },
   { id: "ida", fa: "کم‌خونی فقر آهن" },
   { id: "thal_trait", fa: "ناقل تالاسمی (مینور)" },
@@ -25,7 +26,9 @@ export const CONDITIONS = Object.freeze([
 
 export const NONE_ID = "none";
 
-export const ACTIVE_CONDITIONS = new Set(["dm2", "cancer"]);
+// dialysis: P72 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳) — کراتینین/اوره/eGFRِ بالا برای بیمارِ دیالیزی اورژانس نیست؛ فقط `kidney`،
+//   `creatinine_emergency` و `urea_bun_emergency` آن را می‌خوانند (patterns_nephrology.js). اورژانس‌های دیگر (K، Hb، …) دست‌نخورده‌اند.
+export const ACTIVE_CONDITIONS = new Set(["dm2", "cancer", "dialysis"]);
 
 const BY_ID = new Map(CONDITIONS.map((c) => [c.id, c]));
 const BY_FA = new Map(CONDITIONS.map((c) => [c.fa, c.id]));
