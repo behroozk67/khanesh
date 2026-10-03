@@ -20,6 +20,9 @@ AUTH_REQUIRED=false          # ⚠️ default OFF. "true" enforces the OTP/JWT l
                              #    routes. While off, every request is the same anonymous user
                              #    (userId 1), so `getJobById(jobId, userId)` isolates nothing and
                              #    any caller can read any stored result. See warning below.
+DB_FILE=                     # specs/011: SQLite path override (tests use a temp file). Default ./database.sqlite
+OTP_REQUEST_MAX=5            # per-IP code requests per 15 min (SMS + email share it); per-identifier resend wait is 60 s
+OTP_VERIFY_MAX=20            # per-IP verify attempts per 15 min; a code also burns after 5 wrong tries
 JWT_SECRET=                  # ⚠️ required when AUTH_REQUIRED=true. The in-repo dev fallback makes
                              #    tokens forgeable, so boot REFUSES rather than warns in that case.
 ALLOWED_ORIGINS=             # comma-separated CORS allowlist; empty = any origin. SET THIS IN PRODUCTION
@@ -66,6 +69,11 @@ encryption at rest, and deletion are now open questions that the code does not a
 - **`JWT_SECRET` is enforced, not warned about.** With auth on and the secret still the in-repo dev
   default, anyone who has read the source can mint a valid token, so `authBootReport()` throws
   instead of warning. This is the one place the server refuses to start.
+- **Email sign-in (specs/011)** mirrors SMS: `/api/auth/request-email-otp` + `/verify-email-otp`, 10-minute code.
+  Phone and email are separate accounts. Senders are swapped with `setOtpSenders()`; `GET /health` reports
+  `smsOtp` / `emailOtp` as `mock` or `live`. The token carries `{userId, kind}` only, never the phone or email.
+- **Account deletion:** `DELETE /api/auth/me` with `{confirm:true}` removes user, profile and jobs (DB and
+  in-memory); `requireAuth` now rejects a valid-signature token whose user no longer exists. Guard `T40`.
 - **The SMS sender is still a mock** — the code is only `console.log`ged. Wire a real provider
   before enabling auth, or the login code lives in the server log.
 - `database.sqlite` is gitignored (path-anchored). `npm test` creates it, because importing

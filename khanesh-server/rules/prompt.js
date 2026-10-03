@@ -15,6 +15,9 @@ import { normalizeFa } from "./coverage.js";
 import { TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
 import { levelGrade } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { activeConditionIds, conditionFa } from "./conditions.js";
+
+const activeFa = (input) => activeConditionIds(input).map(conditionFa);
 import { isNeonate, neonatalVoice } from "./neonatal.js";
 
 // ⚠️ سقفِ «حداکثر N جمله» در interpretation با قاعدهٔ ۱ («must_say را کامل
@@ -120,7 +123,9 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
       // زمینهٔ بیمار فقط برای لحن است — یافته‌ها و فوریت را عوض نمی‌کند.
       // (مثلاً می‌توانی بگویی «چون باردار هستید حتماً با پزشک مطرح کنید».)
       ...(patientContext?.pregnant ? { باردار: true } : {}),
-      ...(patientContext?.conditions?.length ? { بیماری_زمینه‌ای: patientContext.conditions } : {}),
+      // ⚠️ specs/011 (P66, FR-019): فقط بیماری‌هایی که موتور واقعاً لحاظشان کرد. «فشار خون» در اینجا یعنی
+      //    مدل می‌تواند دربارهٔ چیزی بنویسد که هیچ قاعده‌ای نسنجیده — همان ادعای «لحاظ شد» که ممنوع است.
+      ...(activeFa(patientContext?.conditions).length ? { بیماری_زمینه‌ای: activeFa(patientContext.conditions) } : {}),
     },
     overall_urgency: patterns.overall_urgency,
     overall_urgency_fa: URGENCY_FA[patterns.overall_urgency],

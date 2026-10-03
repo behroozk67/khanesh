@@ -102,6 +102,11 @@ export function getJobFor(id, userId) {
 }
 
 /** نمایِ روبه‌کلاینت — بدنهٔ نتیجه فقط وقتی کار تمام شده */
+/** حذفِ حساب (specs/011): کارهای در-حافظهٔ این کاربر هم پاک شوند، نه فقط ردیف‌های DB. */
+export function dropJobsForUser(userId) {
+  for (const [id, j] of jobs) if (j.userId === userId) jobs.delete(id);
+}
+
 export function jobView(j) {
   return {
     job_id: j.id,

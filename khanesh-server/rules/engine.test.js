@@ -12078,3 +12078,146 @@ test("M275d: WBC 80 + Neut 70% ⇒ NEUT_ABS مالک دارد (بی‌اقدام
   assert.match(text, /نوتروفیلِ مطلق 56000|نوتروفیل.{0,40}56000/, "عددِ نوتروفیل باید جایی دیده شود");
   assert.ok(!ids.includes("unexplained_abnormal") || !/نوتروفیل 56000/.test(JSON.stringify(p.findings.find((x) => x.pattern === "unexplained_abnormal"))), "هنوز در «توضیح نداریم»");
 });
+
+// ---------- specs/011 (P66): بیماری‌های زمینه‌ایِ گزارش‌شده ----------
+import { CONDITIONS as M280_CONDITIONS, ACTIVE_CONDITIONS as M280_ACTIVE, conditionIds as m280Ids } from "./conditions.js";
+import { buildEnginePrompt as m283Prompt } from "./prompt.js";
+
+test("M280: کاتالوگِ ده بیماریِ زمینه‌ای — شناسه، برچسبِ تازه و برچسبِ قدیمی همه به شناسه می‌رسند؛ ناشناخته حدس زده نمی‌شود", () => {
+  assert.equal(M280_CONDITIONS.length, 10);
+  for (const c of M280_CONDITIONS) {
+    assert.ok(/[؀-ۿ]/.test(c.fa), `${c.id}: برچسبِ فارسی ندارد`);
+    assert.deepEqual(m280Ids([c.id]).ids, [c.id]);
+    assert.deepEqual(m280Ids([c.fa]).ids, [c.id], `برچسبِ «${c.fa}» به ${c.id} نرسید`);
+  }
+  // برچسب‌های ProfileCardِ قدیمی (کلاینت‌های قدیمی و فایل‌های ذخیره‌شده)
+  assert.deepEqual(m280Ids(["دیابت", "فشار خون", "بیماری کلیوی", "بیماری کبدی", "سرطان / شیمی‌درمانی"]).ids,
+    ["dm2", "htn", "ckd", "fatty_liver", "cancer"]);
+  const r = m280Ids(["none", "سرماخوردگی", "dm2", "dm2"]);
+  assert.deepEqual(r.ids, ["dm2"], "تکرار یا none نباید شناسه بسازد");
+  assert.deepEqual(r.unknown, ["سرماخوردگی"]);
+  // فقط دو مورد فعال‌اند تا بازبین P66 را تأیید کند — افزودنِ بی‌صدای یکی اینجا قرمز می‌شود.
+  assert.deepEqual([...M280_ACTIVE].sort(), ["cancer", "dm2"]);
+});
+
+test("M281: بیمارِ سرطانی با شناسه همان درجهٔ CTCAE را می‌گیرد که با برچسبِ قدیمی؛ بی‌بیماری، CTCAE نه", () => {
+  const hb = (conditions) => runEngine({ patient: { age: 50, sex: "F", conditions }, tests: [{ name: "Hb", value: "7.5", unit: "g/dL" }] })
+    .graded.find((g) => g.test === "HGB");
+  const legacy = hb(["سرطان / شیمی‌درمانی"]);
+  const byId = hb(["cancer"]);
+  assert.ok(legacy.ctcaeGrade >= 2, `برچسبِ قدیمی درجهٔ CTCAE نگرفت: ${legacy.ctcaeGrade}`);
+  assert.equal(byId.ctcaeGrade, legacy.ctcaeGrade);
+  assert.equal(byId.source, "CTCAE v5");
+  assert.equal(hb([]).ctcaeGrade, null);
+  assert.equal(hb(["htn"]).ctcaeGrade, null, "فشار خون نباید درجه‌بندیِ سرطانی را روشن کند");
+});
+
+test("M282: دیابتِ گزارش‌شده + LDL ۱۱۴ با قندِ طبیعی → هدفِ زیر ۱۰۰، با جملهٔ «گزارش کرده‌اید» نه «قندِ شما در محدودهٔ دیابت»", () => {
+  const panel = (conditions) => ({
+    patient: { age: 54, sex: "M", conditions },
+    tests: [
+      { name: "Fasting Blood Sugar", value: "95", unit: "mg/dL" },
+      { name: "LDL cholesterol", value: "114", unit: "mg/dL" },
+      { name: "HDL", value: "48", unit: "mg/dL" },
+      { name: "Triglycerides", value: "120", unit: "mg/dL" },
+    ],
+  });
+  const f = runPatterns(runEngine(panel(["dm2"]))).findings.find((x) => x.rule_id === "lipid_profile");
+  assert.ok(f, "دیابتِ گزارش‌شده یافتهٔ چربی نساخت");
+  assert.match(f.must_say, /زیر ۱۰۰/);
+  assert.match(f.must_say, /گزارش کرده‌اید/);
+  assert.ok(!/قندِ شماست|قند در محدودهٔ دیابت باشد/.test(f.must_say), `به قندی استناد شد که برگه نمی‌گوید: ${f.must_say}`);
+  assert.ok(f.sources?.includes("ADA_SOC_CVD"));
+});
+
+test("M282b: نگهبانِ منفی — همان پنل بدونِ دیابت، یا با بیماریِ غیرفعالِ فشار خون، یافتهٔ چربی نمی‌سازد", () => {
+  for (const conditions of [[], ["htn"], ["lipid"]]) {
+    const ids = runPatterns(runEngine({
+      patient: { age: 54, sex: "M", conditions },
+      tests: [{ name: "Fasting Blood Sugar", value: "95", unit: "mg/dL" }, { name: "LDL cholesterol", value: "114", unit: "mg/dL" }],
+    })).findings.map((x) => x.rule_id);
+    assert.ok(!ids.includes("lipid_profile"), `${JSON.stringify(conditions)}: ${ids.join("، ")}`);
+  }
+});
+
+test("M282c: قندِ ۲۰۹ روی برگه — متن همان شاخهٔ برگه است، چه دیابت گزارش شده باشد چه نه", () => {
+  const ms = (conditions) => runPatterns(runEngine({ ...SHEET_0810(), patient: { age: 54, sex: "M", conditions } }))
+    .findings.find((x) => x.rule_id === "lipid_profile").must_say;
+  assert.equal(ms(["dm2"]), ms([]));
+  assert.match(ms([]), /قندِ شماست/);
+});
+
+test("M283: فقط بیماریِ فعال به مدل می‌رسد — «فشار خون» در payload نیست، «دیابت نوع ۲» هست", () => {
+  const e = runEngine({ patient: { age: 54, sex: "M" }, tests: [{ name: "LDL cholesterol", value: "175", unit: "mg/dL" }] });
+  const p = runPatterns(e);
+  const pl = (conditions) => JSON.parse(m283Prompt(e, p, "", { conditions }).content).patient;
+  const both = pl(["htn", "dm2"]);
+  assert.deepEqual(both["بیماری_زمینه‌ای"], ["دیابت نوع ۲"]);
+  assert.ok(!JSON.stringify(both).includes("فشار"), JSON.stringify(both));
+  assert.equal(pl(["htn", "ckd"])["بیماری_زمینه‌ای"], undefined, "بیماری‌های غیرفعال کلید را نباید بسازند");
+  assert.deepEqual(pl(["فشار خون", "دیابت"])["بیماری_زمینه‌ای"], ["دیابت نوع ۲"], "برچسبِ قدیمی هم باید فیلتر شود");
+});
+
+test("M284: برچسبِ قدیمی فقط دقیق — «پیش‌دیابت» و «دیابت بارداری» dm2 نمی‌شوند و هدفِ LDL را روشن نمی‌کنند (بازبینیِ specs/011)", () => {
+  for (const label of ["پیش‌دیابت", "دیابت بارداری", "سابقهٔ خانوادگیِ دیابت"]) {
+    const r = m280Ids([label]);
+    assert.deepEqual(r.ids, [], `«${label}» به ${r.ids} نگاشت شد`);
+    assert.deepEqual(r.unknown, [label]);
+  }
+  const ids = runPatterns(runEngine({
+    patient: { age: 54, sex: "M", conditions: ["پیش‌دیابت"] },
+    tests: [{ name: "LDL cholesterol", value: "114", unit: "mg/dL" }],
+  })).findings.map((x) => x.rule_id);
+  assert.ok(!ids.includes("lipid_profile"), ids.join("، "));
+  // برچسب‌های دقیقِ ProfileCardِ قدیمی همچنان کار می‌کنند (M280 هم همین را می‌گوید)
+  assert.deepEqual(m280Ids(["دیابت"]).ids, ["dm2"]);
+});
+
+
+// ═══ P46 — پرولاکتین و کورتیزولِ بی‌ساعت: نگهبان‌های پس از فعال‌شدن (تأییدِ عاملی ۲۰۲۶-۱۰-۰۳) ═══
+
+test("M285: پرولاکتینِ mIU/L به ng/mL تبدیل می‌شود (÷۲۱.۲) و به «تفسیر نشدند» نمی‌رود — ۴۰۰ mIU/L طبیعی است، نه «بالای ۲۰۰» (N3، P46 بند ۱۱)", () => {
+  // 🔴 اندازه‌گیری‌شده پیش از تبدیل: `Prolactin 400 mIU/L` (≈ ۱۸.۹ ng/mL) با حدِ ng/mL «بالای ۲۰۰ و this_week» می‌شد.
+  //    نسخهٔ اولِ رفع، عدد را به unmapped می‌فرستاد؛ کاربر خواست تفسیر شود، پس تبدیل شد (ضریبِ WHO 84/500، وابسته به کیت).
+  const P = { age: 40, sex: "F" };
+  const e = runEngine({ patient: P, tests: [{ name: "Prolactin", value: "400", unit: "mIU/L" }] });
+  const g = e.graded.find((x) => x.test === "PRL");
+  assert.ok(g && Math.abs(g.value - 18.9) < 0.05 && !g.abnormal, JSON.stringify(g));
+  assert.equal(e.unmapped.length, 0, "نباید به «تفسیر نشدند» برود");
+  const row = e.unitConversions.find((r) => r.test === "PRL");
+  assert.ok(row && row.to === "ng/mL" && row.raw === 400, JSON.stringify(row));
+  assert.ok(!runPatterns(e).findings.some((f) => f.pattern === "hyperprolactinemia"));
+  // عددِ واقعاً بالا بعد از تبدیل یافته می‌گیرد: ۱۰۰۰ mIU/L ≈ ۴۷.۲ ng/mL (routine؛ زیرِ ۲۰۰)
+  const hi = runPatterns(runEngine({ patient: P, tests: [{ name: "Prolactin", value: "1000", unit: "mIU/L" }] }));
+  const f = hi.findings.find((x) => x.pattern === "hyperprolactinemia");
+  assert.ok(f && f.urgency === "routine", hi.findings.map((x) => x.pattern).join("، "));
+  assert.match(f.must_say, /47.2/);
+  // و ۱۰۰۰۰ mIU/L ≈ ۴۷۲ ng/mL جملهٔ هیپوفیز و this_week می‌گیرد
+  const vh = runPatterns(runEngine({ patient: P, tests: [{ name: "Prolactin", value: "10000", unit: "mIU/L" }] }));
+  assert.equal(vh.findings.find((x) => x.pattern === "hyperprolactinemia")?.urgency, "this_week");
+  for (const unit of ["µIU/mL", "uIU/mL", "mU/L"]) {
+    const x = runEngine({ patient: P, tests: [{ name: "Prolactin", value: "400", unit }] });
+    assert.ok(x.graded.some((y) => y.test === "PRL" && Math.abs(y.value - 18.9) < 0.05), `واحدِ ${unit}`);
+  }
+  // نگهبانِ منفی: ng/mL و µg/L و بی‌واحد همان‌طور که بودند — تبدیل نمی‌شوند
+  for (const unit of ["ng/mL", "µg/L", undefined]) {
+    const x = runEngine({ patient: P, tests: [{ name: "Prolactin", value: "80", ...(unit ? { unit } : {}) }] });
+    const y = x.graded.find((z) => z.test === "PRL");
+    assert.ok(y && y.value === 80 && y.abnormal, `واحدِ ${unit}`);
+    assert.ok(!x.unitConversions.some((r) => r.test === "PRL"));
+  }
+});
+
+test("M286: کورتیزولِ بی‌واحد فقط یک یافته می‌سازد (unit_unknown_values)، نه دو یافته برای یک عدد (N20)", () => {
+  // 🔴 اندازه‌گیری‌شده پیش از شرطِ reason: `Cortisol 12` بی‌واحد هم cortisol_untimed و هم unit_unknown_values می‌ساخت.
+  const p = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "12" }] }));
+  const ids = p.findings.map((f) => f.pattern);
+  assert.ok(!ids.includes("cortisol_untimed"), ids.join("، "));
+  assert.ok(ids.includes("unit_unknown_values"), ids.join("، "));
+  // با واحدِ سرمیِ چاپ‌شده همان یافتهٔ بی‌ساعت می‌آید و عددِ nmol/L با معادلش نقل می‌شود (N5)
+  const q = runPatterns(runEngine({ patient: { age: 40, sex: "F" }, tests: [{ name: "Cortisol", value: "190", unit: "nmol/L" }] }));
+  const f = q.findings.find((x) => x.pattern === "cortisol_untimed");
+  assert.ok(f, q.findings.map((x) => x.pattern).join("، "));
+  assert.match(f.must_say, /190/);
+  assert.match(f.must_say, /6\.89/);
+});

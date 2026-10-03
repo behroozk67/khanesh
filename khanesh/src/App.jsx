@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Tafsir from "./Tafsir";
 import AuthGuard from "./AuthGuard";
 import Profile from "./Profile";
+import Intake from "./onboarding/Intake.jsx";
+import StartChoice, { AppEntry } from "./onboarding/StartChoice.jsx";
 
 // ابزار خودش صفحهٔ فرود است.
 //
@@ -35,8 +37,13 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/landing" element={<Landing />} />
-          <Route path="/app" element={<AuthGuard><Tafsir /></AuthGuard>} />
-          <Route path="/tafsir" element={<AuthGuard><Tafsir /></AuthGuard>} />
+          {/* specs/011: ورود → چهار پرسش → انتخابِ روش → عکس | دستی. «/app» اولین گامِ ناتمام را پیدا می‌کند.
+              ⚠️ «/app/:mode» یک مسیر است (نه دو) تا Tafsir بینِ عکس و دستی سوار بماند و داده‌ها پاک نشوند (FR-014). */}
+          <Route path="/app" element={<AuthGuard><AppEntry /></AuthGuard>} />
+          <Route path="/app/intake/:step" element={<AuthGuard><Intake /></AuthGuard>} />
+          <Route path="/app/start" element={<AuthGuard><StartChoice /></AuthGuard>} />
+          <Route path="/app/:mode" element={<AuthGuard><Tafsir /></AuthGuard>} />
+          <Route path="/tafsir" element={<Navigate to="/app" replace />} />
           <Route path="/profile" element={<AuthGuard><Profile /></AuthGuard>} />
           {/* راهنمای آزمایش‌ها: فهرستِ دسته‌ها و فهرستِ الفبایی */}
           <Route path="/tests" element={<Tests />} />

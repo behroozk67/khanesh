@@ -904,3 +904,129 @@ test("T32: برگهٔ فاکتور ۸ مسیرِ موتور و factor_activity �
   assert.ok(a2.body._engine.patterns.includes("factor_activity"), JSON.stringify(a2.body._engine.patterns));
   assert.equal(a2.body.has_critical, false);
 });
+
+// ── specs/011: ورودِ دستیِ ادرار، خطِ «تفسیر بر پایهٔ …»، و اختلافِ برگه/پروفایل ──
+
+test("T37: ورودِ دستیِ ادرار — مقدارِ رشته‌ایِ «+2» و «10-15» به موتور می‌رسد و hematuria می‌سازد (N2/N18)", async () => {
+  // 🔴 پیش‌تر مسیرِ دستی هر ردیفِ غیرعددی را با Number.isFinite دور می‌ریخت؛ ادرارِ دستی بی‌صدا حذف می‌شد.
+  const r = await analyze({
+    patient: { age: 40, sex: "F" },
+    tests: [
+      { name: "Urine Blood", value: "+2", unit: "", kind: "urine" },
+      { name: "Urine RBC", value: "10-15", unit: "/hpf", kind: "urine" },
+    ],
+  });
+  assert.equal(r.status, 200);
+  assert.ok(r.body?._engine?.patterns?.includes("hematuria_pattern"), JSON.stringify(r.body?._engine?.patterns));
+});
+
+test("T38: _engine.context فقط بیماری‌های فعال را نام می‌برد؛ فشار خون هرگز «لحاظ‌شده» گزارش نمی‌شود (FR-016/FR-019)", async () => {
+  const tests = [{ name: "Fasting Blood Sugar", value: "95", unit: "mg/dL" }, { name: "LDL cholesterol", value: "114", unit: "mg/dL" }];
+  const a = await analyze({ patient: { age: "45 سال", sex: "زن", conditions: ["htn", "dm2"] }, tests });
+  assert.equal(a.status, 200);
+  const ctx = a.body?._engine?.context;
+  assert.ok(ctx, "context در _engine نیست");
+  assert.equal(ctx.sex, "زن");
+  assert.equal(ctx.age_text, "۴۵ سال");
+  assert.deepEqual(ctx.conditions_applied, [{ id: "dm2", fa: "دیابت نوع ۲" }]);
+  assert.ok(a.body._engine.patterns.includes("lipid_profile"));
+  const b = await analyze({ patient: { age: "45 سال", sex: "زن", conditions: ["htn"] }, tests });
+  assert.deepEqual(b.body._engine.context.conditions_applied, []);
+  assert.doesNotMatch(JSON.stringify(b.body._engine.context), /فشار/);
+});
+
+async function analyzePhoto(sheetPatient, formPatient, tests) {
+  // یک پاسخِ مدل برای هر دو مرحله: OCR فیلدهای tests/patient را برمی‌دارد، تفسیر summary/interpretation را.
+  llmPayload = { tests, patient: sheetPatient, ...modelSays() };
+  llmRawContent = null;
+  const res = await realFetch(`${baseUrl}/api/analyze`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ imageDataUrls: ["data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="], patient: formPatient }),
+  });
+  return { status: res.status, body: await res.json().catch(() => null) };
+}
+
+test("T39: برگه «مرد»، پروفایل «زن» → با زن سنجیده می‌شود و یک جملهٔ اختلاف در ocr_warnings می‌آید؛ هم‌خوان ⇒ بی‌جمله (FR-017)", async () => {
+  const tests = [{ name: "Hemoglobin", value: "12.5", unit: "g/dL", reference: "" }];
+  const r = await analyzePhoto({ sex: "مرد", age: "45" }, { sex: "زن", age: "45 سال" }, tests);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body._engine.context.sex, "زن");
+  const w = (r.body.ocr_warnings ?? []).join(" ");
+  assert.match(w, /روی برگه جنسیت «مرد» چاپ شده/);
+  const ok = await analyzePhoto({ sex: "زن", age: "45" }, { sex: "زن", age: "45 سال" }, tests);
+  assert.doesNotMatch((ok.body.ocr_warnings ?? []).join(" "), /چاپ شده، ولی|فرق دارد؛ تفسیر با سنِ پروفایل/);
+});
+
+test("T36: احراز هویتِ خاموش — پروفایل و حذفِ حساب ۴۰۹ «local_only» می‌دهند و نامی در پایگاه‌داده نوشته نمی‌شود (research R7)", async () => {
+  // 🔴 در حالتِ خاموش همه userId=1اند؛ نوشتنِ نام یعنی بیمارِ بعدی نامِ قبلی را می‌بیند.
+  const req = (method, url, body) => realFetch(`${baseUrl}${url}`, {
+    method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined,
+  }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }));
+  const p = await req("PATCH", "/api/profile", { firstName: "سارا", lastName: "رضایی" });
+  assert.equal(p.status, 409);
+  assert.equal(p.body.code, "local_only");
+  assert.equal((await req("GET", "/api/profile")).status, 409);
+  assert.equal((await req("DELETE", "/api/auth/me", { confirm: true })).status, 409);
+  const { getProfile } = await import("./database.js");
+  assert.equal(await getProfile(1), null, "پروفایلی برای کاربرِ ناشناس نوشته شد");
+});
+
+// ── specs/011، بازبینیِ کد ──
+
+test("T41: برگهٔ نوزاد با پروفایلِ بزرگسال → اول تأیید (PATIENT_MISMATCH)؛ با «ادامه بده» پروفایل برنده است؛ هم‌گروه ⇒ بی‌پرسش", async () => {
+  // 🔴 پیش‌تر پروفایلِ مادر (۳۲ سال) بی‌صدا جای سنِ «۳ روز»ِ برگه می‌نشست و قندِ ۳۸ِ نوزاد از اورژانس به «این هفته» می‌افتاد.
+  const tests = [{ name: "Glucose", value: "38", unit: "mg/dL", reference: "" }];
+  const a = await analyzePhoto({ age: "3 روز" }, { sex: "زن", age: "32 سال" }, tests);
+  assert.equal(a.status, 422, JSON.stringify(a.body));
+  assert.equal(a.body.code, "PATIENT_MISMATCH");
+  assert.match(a.body.error, /گروهِ سنی/);
+  // تأییدِ صریح ⇒ همان رفتارِ FR-017
+  llmPayload = { tests, patient: { age: "3 روز" }, ...modelSays() };
+  const res = await realFetch(`${baseUrl}/api/analyze`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ imageDataUrls: ["data:image/png;base64,iVBORw0KGgo="], patient: { sex: "زن", age: "32 سال" }, ignorePatientMismatch: true }),
+  });
+  const b = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(b));
+  assert.equal(b._engine.context.age_text, "۳۲ سال");
+  // هم‌گروه (۴۵ و ۴۷) ⇒ بی‌پرسش، فقط جملهٔ اختلاف
+  const c = await analyzePhoto({ age: "47" }, { sex: "زن", age: "45 سال" }, [{ name: "Hemoglobin", value: "12.5", unit: "g/dL", reference: "" }]);
+  assert.equal(c.status, 200);
+});
+
+test("T42: برگهٔ فقط-ادرار در مسیرِ موتور — نیتریتِ مثبتی که هیچ یافته‌ای نامش را نبرد در ocr_warnings نام برده می‌شود (N18)", async () => {
+  const r = await analyze({
+    patient: { age: 40, sex: "F" },
+    tests: [
+      { name: "Urine Specific Gravity", value: "1.040", kind: "urine" },
+      { name: "Urine Nitrite", value: "Positive", kind: "urine" },
+      { name: "Urine Protein", value: "Negative", kind: "urine" },
+    ],
+  });
+  assert.equal(r.status, 200);
+  assert.ok(r.body._engine, "مسیرِ موتور گرفته نشد");
+  const w = (r.body.ocr_warnings ?? []).join(" ");
+  assert.match(w, /Urine Nitrite \(Positive\)/);
+  assert.doesNotMatch(w, /Urine Protein/, "ردیفِ منفی نباید نام برده شود");
+});
+
+test("T43: dm2 فقط وقتی «لحاظ‌شده» است که شاخه‌اش واقعاً یافته ساخت — برگهٔ فقط-CBC آن را در context نمی‌آورد (FR-016)", async () => {
+  const cbc = await analyze({ patient: { age: "45 سال", sex: "زن", conditions: ["dm2"] }, tests: [{ name: "Hemoglobin", value: "10.5", unit: "g/dL" }] });
+  assert.equal(cbc.status, 200);
+  assert.deepEqual(cbc.body._engine.context.conditions_applied, []);
+  const lipid = await analyze({ patient: { age: "45 سال", sex: "زن", conditions: ["dm2"] }, tests: [{ name: "LDL cholesterol", value: "114", unit: "mg/dL" }] });
+  assert.deepEqual(lipid.body._engine.context.conditions_applied, [{ id: "dm2", fa: "دیابت نوع ۲" }]);
+});
+
+test("T44: AUTH خاموش — نتیجهٔ کاربرِ ناشناس در جدولِ jobs ذخیره نمی‌شود (حذف‌شدنی نبود و به اولین کاربرِ ثبت‌نامی می‌رسید)", async () => {
+  const { getUserJobs } = await import("./database.js");
+  const before = (await getUserJobs(1)).length;
+  const r = await realFetch(`${baseUrl}/api/analyze/start`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ patient: { age: 40, sex: "M" }, tests: [{ name: "Hemoglobin", value: "14", unit: "g/dL" }], testResults: "Hb 14" }),
+  });
+  assert.equal(r.status, 202);
+  await new Promise((res) => setTimeout(res, 300));
+  assert.equal((await getUserJobs(1)).length, before);
+});

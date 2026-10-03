@@ -23,19 +23,23 @@ export default function UploadCard({
   aiLoading, aiProgress, aiError, aiResult,
   mismatchError, onIgnoreMismatch, onCancelMismatch,
   typedCount = 0, runAI, onCancel, resultRef,
+  mode = "photo", canRun = true,
 }) {
+  const photo = mode === "photo";
   const [confirmClear, setConfirmClear] = useState(false);
 
   return (
     <section className="card" aria-labelledby="ai-h">
       <h2 className="card-title" id="ai-h">
-        تفسیر آزمایش
+        {photo ? "عکسِ برگهٔ آزمایش" : "تفسیر آزمایش"}
       </h2>
       <p className="hint">
-        برای تحلیل عمیق‌تر، مقادیر را در فرم بالا وارد کنید یا عکس برگهٔ آزمایش را آپلود کنید و
-        دکمهٔ پایین را بزنید.
+        {photo
+          ? "عکسِ همهٔ صفحه‌های برگه را انتخاب کنید و دکمهٔ پایین را بزنید."
+          : "بعد از واردکردنِ مقادیر، دکمهٔ پایین را بزنید."}
       </p>
 
+      {photo && (<>
       <input
         id="lab-photos"
         type="file"
@@ -49,7 +53,7 @@ export default function UploadCard({
           <>
             <span className="dropzone-icon" aria-hidden="true">📄</span>
             <span className="dropzone-main">
-              {imgBusy ? "در حال آماده‌سازی…" : "عکس برگهٔ آزمایش را آپلود کنید (اختیاری)"}
+              {imgBusy ? "در حال آماده‌سازی…" : "عکس برگهٔ آزمایش را انتخاب کنید"}
             </span>
             <span className="dropzone-sub">
               اگر برگه چند صفحه است، همه را با هم انتخاب کنید
@@ -117,6 +121,7 @@ export default function UploadCard({
           ))}
         </ul>
       )}
+      </>)}
 
       {/* نتیجهٔ ذخیره‌شدهٔ بازدید قبلی — پیشنهاد، نه تحمیل */}
       {resumed && !aiResult && !aiLoading && (
@@ -171,15 +176,20 @@ export default function UploadCard({
       <button
         type="button"
         onClick={runAI}
-        disabled={aiLoading || imgBusy}
+        disabled={aiLoading || imgBusy || !canRun}
         className="btn btn--primary btn--block btn--lg"
       >
         {aiLoading
           ? "در حال تحلیل…"
+          : !photo
+          ? `تفسیر آزمایش · ${etaText(0)}`
           : images.length > 1
           ? `تفسیر ${toFaDigits(images.length)} صفحه · ${etaText(images.length)}`
           : `تفسیر آزمایش · ${etaText(images.length)}`}
       </button>
+      {!canRun && !aiLoading && (
+        <p className="hint" role="status">{photo ? "اول حداقل یک عکس انتخاب کنید." : "حداقل یک مقدار وارد کنید."}</p>
+      )}
 
       {/* حالتِ انتظار: پیشرفتِ واقعیِ صفحه‌به‌صفحه، نه نوارِ ساختگی.
           یک دکمهٔ غیرفعال به‌مدت دو دقیقه از «هنگ کردن» قابل‌تشخیص نیست. */}

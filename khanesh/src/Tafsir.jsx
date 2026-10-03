@@ -1,11 +1,23 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
 import { toNumber, toFaDigits } from "./digits.js";
-import { REF, ALL, ageInMonths, statusOf } from "./labRefs.js";
+import { REF, ALL, ageInMonths, statusOf, URINE_FIELDS } from "./labRefs.js";
 import { MAX_IMAGES, looksLikeImage, compressImage } from "./imageIntake.js";
 import { LabMateLogo } from "./LabMateLogo.jsx";
-import ProfileCard from "./ProfileCard.jsx";
 import EntryGrid from "./EntryGrid.jsx";
+import PhotoGuide from "./onboarding/PhotoGuide.jsx";
+import { loadProfile, clearProfile, intakeStep, patientFromProfile, profileSummary } from "./onboarding/profileStore.js";
+import "./onboarding/onboarding.css";
+
+function hasAuthToken() {
+  try { return !!localStorage.getItem("auth_token"); } catch { return false; }
+}
+// همان کارِ «خروج» در Profile.jsx (بی‌توکن: فقط پروفایلِ همین دستگاه پاک می‌شود)؛ بارگیریِ کامل تا AuthGuard و حافظهٔ پروفایل از صفر شروع شوند.
+function signOut() {
+  try { localStorage.removeItem("auth_token"); } catch { /* حالتِ خصوصی */ }
+  clearProfile();
+  window.location.assign("/app");
+}
 import LocalPreview from "./LocalPreview.jsx";
 import UploadCard from "./UploadCard.jsx";
 import {
@@ -22,14 +34,30 @@ import {
 // خودش نشسته — قبلاً همه‌شان یک فایلِ ۱۲۶۲ خطی بودند که ۱۸٪‌اش شیءِ استایل
 // بود، و همان مکانیزم بود که :focus-visible و مدیا-کوئری را غیرممکن می‌کرد.
 
+// specs/011: «/app/photo» و «/app/manual» یک مسیرِ «/app/:mode»اند تا همین کامپوننت سوار بماند و
+//   جابه‌جایی بینِ عکس و دستی چیزی را پاک نکند (FR-014). سن/جنس/بارداری/بیماری از پروفایل می‌آید،
+//   نه از فرمِ همین صفحه (ProfileCard کنار رفت) — یک منبع برای یک تصمیم.
 export default function Tafsir() {
+  const { mode: rawMode } = useParams();
+  const mode = rawMode === "photo" || rawMode === "manual" ? rawMode : null;
+  const [profile, setProfile] = useState(null);
+  const [profileErr, setProfileErr] = useState("");
+  // ⚠️ بازبینیِ کد #5: پیش‌تر خطای بارگذاری پروفایلِ خالی می‌ساخت و تحلیل بی‌سن/جنس/بارداری/بیماری می‌رفت —
+  //    بیمارِ سرطانی بی‌CTCAE، باردار بی‌کفِ Hb، کودک با بازهٔ بزرگسال. حالا خطا نشان داده و اجرا بسته می‌شود.
+  useEffect(() => {
+    let alive = true;
+    loadProfile().then((p) => alive && setProfile(p)).catch((e) => alive && setProfileErr(e.message || "پروفایل باز نشد."));
+    return () => { alive = false; };
+  }, []);
+  const profileReady = !!profile && intakeStep(profile) === "done";
   // 🔴 برگهٔ واقعی ۲۰۲۶-۰۹-۲۴: پیش‌فرضِ «مرد» جنسیتِ چاپ‌شده روی برگه را در مسیرِ عکس کنار می‌زد — خالی یعنی «نگفته».
-  const [sex, setSex] = useState("");
-  const [age, setAge] = useState("");
-  const [ageUnit, setAgeUnit] = useState("year"); // year | month | day
-  const [pregnant, setPregnant] = useState(false);
-  const [conditions, setConditions] = useState([]); // آرایه بیماری‌های زمینه‌ای
+  const sex = profile?.sex ?? "";
+  const age = profile?.ageValue != null ? String(profile.ageValue) : "";
+  const ageUnit = profile?.ageUnit || "year";
+  const pregnant = !!patientFromProfile(profile).pregnant;
+  const conditions = profile?.conditions ?? [];
   const [vals, setVals] = useState({});
+  const [urine, setUrineVals] = useState({});
   const [activeCat, setActiveCat] = useState("cbc");
   const [show, setShow] = useState(false);
   const [expanded, setExpanded] = useState({});
@@ -129,6 +157,8 @@ export default function Tafsir() {
   const months = ageInMonths(age, ageUnit);
 
   const setVal = (k, v) => setVals((s) => ({ ...s, [k]: v }));
+  const setUrine = (k, v) => setUrineVals((s) => ({ ...s, [k]: v }));
+  const urineRows = URINE_FIELDS.filter((f) => urine[f.k] && String(urine[f.k]).trim() !== "");
   const setPrevVal = (k, v) => setPrevVals((s) => ({ ...s, [k]: v }));
 
   const { rows, errs, criticalCount } = useMemo(() => {
@@ -166,10 +196,13 @@ export default function Tafsir() {
 
   // ساخت متن نتایج برای فرستادن به AI
   function buildTestText() {
-    return rows.map((r) => {
-      const m = REF[r.k]; const ref = m.range(sex, months, { pregnant });
-      return `${m.label}: ${r.v} ${m.unit} (محدوده طبیعی: ${ref.low}-${ref.high})`;
-    }).join("\n");
+    return [
+      ...rows.map((r) => {
+        const m = REF[r.k]; const ref = m.range(sex, months, { pregnant });
+        return `${m.label}: ${r.v} ${m.unit} (محدوده طبیعی: ${ref.low}-${ref.high})`;
+      }),
+      ...urineRows.map((f) => `ادرار — ${f.label}: ${urine[f.k]} ${f.unit ?? ""}`.trim()),
+    ].join("\n");
   }
 
   // نام تمیز برای موتور قواعد سمت سرور.
@@ -182,28 +215,25 @@ export default function Tafsir() {
 
   // مقادیر ساختاریافته برای موتور — سرور نباید رشتهٔ نمایشی فارسی را دوباره parse کند
   function buildStructuredTests() {
-    return rows.map((r) => {
-      const m = REF[r.k];
-      // این همان چیزی است که به سرور می‌رود — با parseFloat خام، مقدارِ
-      // فارسی‌تایپ‌شده اینجا NaN و در JSON برابر null می‌شد.
-      return { key: r.k, name: engineName(m.label), value: toNumber(r.v), unit: m.unit };
-    });
+    return [
+      ...rows.map((r) => {
+        const m = REF[r.k];
+        // این همان چیزی است که به سرور می‌رود — با parseFloat خام، مقدارِ
+        // فارسی‌تایپ‌شده اینجا NaN و در JSON برابر null می‌شد.
+        return { key: r.k, name: engineName(m.label), value: toNumber(r.v), unit: m.unit };
+      }),
+      // specs/011: ادرار رشته می‌ماند (kind: "urine") — سرور همان را به لایهٔ ادرارِ adapter می‌دهد (T37).
+      ...urineRows.map((f) => ({ key: f.k, name: f.name, value: String(urine[f.k]).trim(), unit: f.unit ?? "", kind: "urine" })),
+    ];
   }
 
   // ⚠️ موتور سن را فقط از patient.age می‌خواند (نه از سطح بالا).
   //    اگر جای اشتباه برود، سن null می‌شود و محدودهٔ بزرگسال روی کودک اعمال می‌شود.
+  // ⚠️ pregnant دیگر فقط زمینهٔ لحن نیست (P53 پرسش ۲): موتور با آن کفِ Hb را ۱۱.۰ می‌گذارد.
+  // ⚠️ conditions هم نه: شناسهٔ «cancer» درجه‌بندیِ CTCAE را روشن می‌کند و «dm2» هدفِ LDL را (P66).
+  //    نام و شناسهٔ تماس عمداً اینجا نیست — patientFromProfile آن‌ها را نمی‌دهد.
   function buildStructuredPatient() {
-    const unitFa = ageUnit === "day" ? "روز" : ageUnit === "month" ? "ماه" : "سال";
-    return {
-      age: age ? `${age} ${unitFa}` : null,
-      sex: sex === "female" ? "زن" : sex === "male" ? "مرد" : null,
-      // ⚠️ pregnant دیگر فقط زمینهٔ لحن نیست (P53 پرسش ۲): موتور با آن کفِ Hb را ۱۱.۰ می‌گذارد.
-      // ⚠️ conditions دیگر این‌طور نیست: grade.js درجه‌بندی CTCAE را به بیمارِ
-      // سرطانی مشروط می‌کند، پس این آرایه ورودیِ درجه‌بندی است نه فقط لحن.
-      // نفرستادنش یعنی بیمارِ سرطانی درجهٔ CTCAE نمی‌گیرد.
-      pregnant: sex === "female" && pregnant ? true : undefined,
-      conditions: conditions.length ? conditions : undefined,
-    };
+    return patientFromProfile(profile);
   }
 
   function patientInfo() {
@@ -214,16 +244,19 @@ export default function Tafsir() {
     ];
     if (months != null && months < 6) parts.push("توجه: بیمار نوزاد است؛ محدوده‌های مرجع نوزادی لحاظ شود.");
     if (sex === "female" && pregnant) parts.push("وضعیت: باردار");
-    if (conditions.length > 0) parts.push(`بیماری‌های زمینه‌ای: ${conditions.join("، ")}`);
+    // ⚠️ بیماری‌های زمینه‌ای عمداً اینجا نیستند — نه نام، نه شمار: این رشته در مسیرِ قدیم به مدل می‌رود و
+    //    بیماریِ غیرفعال نباید به مدل برسد (FR-019، بازبینیِ کد #7). موتور شناسه‌ها را از patient.conditions می‌خواند.
     return parts.join("، ");
   }
 
   // فراخوانی سرور برای تفسیر
   async function runAI(ignoreMismatch = false) {
     setAiError(""); setMismatchError(false); setAiResult(null);
-    if (rows.length === 0 && images.length === 0) {
-      setAiError("ابتدا مقادیری وارد کنید یا عکس آپلود کنید."); return;
-    }
+    if (!profileReady) { setAiError(profileErr || "پروفایل هنوز بارگذاری نشده است."); return; }
+    // specs/011: هر حالت فقط ورودیِ خودش را می‌فرستد — عکس در حالتِ عکس، اعداد در حالتِ دستی.
+    const usePhotos = mode === "photo";
+    if (usePhotos && images.length === 0) { setAiError("ابتدا عکسِ برگهٔ آزمایش را انتخاب کنید."); return; }
+    if (!usePhotos && rows.length === 0 && urineRows.length === 0) { setAiError("حداقل یک مقدار وارد کنید."); return; }
     setAiLoading(true);
     setAiProgress(null);
     setResumed(null);
@@ -240,7 +273,7 @@ export default function Tafsir() {
       }
       payload.patient = buildStructuredPatient();
 
-      if (images.length) {
+      if (usePhotos) {
         payload.imageDataUrls = images.map((i) => i.dataUrl);
       } else {
         // testResults همچنان می‌رود: هم زمینهٔ MedlinePlus از آن ساخته می‌شود،
@@ -344,7 +377,7 @@ export default function Tafsir() {
   function onExport() {
     // ⚠️ ageUnit حتماً ذخیره شود: بدون آن، فایلی که با «ماه/روز» ساخته شده
     //    هنگام واردات «سال» تفسیر می‌شود و همهٔ محدوده‌های نوزادی غلط می‌شوند.
-    const data = { sex, age, ageUnit, pregnant, conditions, vals, prevVals: compareMode ? prevVals : undefined };
+    const data = { sex, age, ageUnit, pregnant, conditions, vals, urine, prevVals: compareMode ? prevVals : undefined };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -360,12 +393,9 @@ export default function Tafsir() {
     reader.onload = () => {
       try {
         const d = JSON.parse(reader.result);
-        if (d.sex) setSex(d.sex);
-        if (d.age) setAge(d.age);
-        if (d.ageUnit) setAgeUnit(d.ageUnit);
-        if (typeof d.pregnant === "boolean") setPregnant(d.pregnant);
-        if (Array.isArray(d.conditions)) setConditions(d.conditions);
+        // specs/011: سن/جنس/بیماری از پروفایل می‌آیند، نه از فایل — فقط مقادیر وارد می‌شوند.
         if (d.vals) setVals(d.vals);
+        if (d.urine) setUrineVals(d.urine);
         if (d.prevVals) { setPrevVals(d.prevVals); setCompareMode(true); }
         setIoError("");
         setShow(true);
@@ -373,6 +403,9 @@ export default function Tafsir() {
     };
     reader.readAsText(f);
   }
+
+  if (!mode) return <Navigate to="/app" replace />;
+  if (profile && intakeStep(profile) !== "done") return <Navigate to="/app" replace />;
 
   return (
     <div className="page">
@@ -384,51 +417,63 @@ export default function Tafsir() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)' }}>
             <p className="tagline" style={{ margin: 0 }}>تفسیر آموزشی نتایج آزمایش خون</p>
             <Link to="/profile" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)', padding: 'var(--s2) var(--s4)' }}>پروفایل من</Link>
+            <button type="button" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)', padding: 'var(--s2) var(--s4)' }} onClick={signOut}>
+              {hasAuthToken() ? "خروج" : "پاک‌کردن اطلاعات من"}
+            </button>
           </div>
         </header>
 
-        <ProfileCard
-          sex={sex} setSex={setSex}
-          age={age} setAge={setAge}
-          ageUnit={ageUnit} setAgeUnit={setAgeUnit}
-          pregnant={pregnant} setPregnant={setPregnant}
-          conditions={conditions} setConditions={setConditions}
-          compareMode={compareMode} setCompareMode={setCompareMode}
-          months={months}
-        />
+        {profileErr && <div className="warn warn--strong" role="alert">{profileErr} صفحه را دوباره باز کنید.</div>}
 
-        <EntryGrid
-          vals={vals} setVal={setVal}
-          prevVals={prevVals} setPrevVal={setPrevVal}
-          sex={sex} months={months} pregnant={sex === "female" && pregnant} compareMode={compareMode}
-          search={search} setSearch={setSearch}
-          activeCat={activeCat} setActiveCat={setActiveCat}
-          errs={errs}
-          previewOpen={show}
-          onPreview={() => setShow((v) => !v)}
-        />
+        <div className="mode-bar">
+          {profile && <span>تفسیر برای: <b>{profileSummary(profile)}</b> · <Link to="/profile">ویرایش</Link></span>}
+          {mode === "photo"
+            ? <Link to="/app/manual">عکس ندارم؛ دستی وارد می‌کنم ←</Link>
+            : <Link to="/app/photo">عکسِ برگه را دارم ←</Link>}
+        </div>
 
-        {/* ⚠️ پیش‌نمایشِ محلی وقتی نتیجهٔ موتور روی صفحه است رندر نمی‌شود.
-            قبلاً هر دو هم‌زمان بودند و می‌توانستند دربارهٔ یک عدد اختلاف داشته
-            باشند (TSH: ۵.۰ فرانت / ۴.۵ بک‌اند) — بیمار از «طبیعی» اسکرول
-            می‌کرد به «بالا»، برای یک عدد. */}
-        {show && rows.length > 0 && !aiResult && (
-          <LocalPreview
-            rows={rows} vals={vals} prevVals={prevVals}
-            sex={sex} months={months} pregnant={sex === "female" && pregnant} compareMode={compareMode}
-            criticalCount={criticalCount}
-            expanded={expanded} setExpanded={setExpanded}
-            onExport={onExport} onImport={onImport} ioError={ioError}
-            onClose={() => setShow(false)}
-          />
+        {mode === "manual" && (
+          <>
+            <label className="check-row" style={{ marginBottom: 'var(--s6)' }}>
+              <input type="checkbox" checked={compareMode} onChange={(e) => setCompareMode(e.target.checked)} />
+              <span>مقایسه با آزمایش قبلی (وارد کردن دو نوبت)</span>
+            </label>
+
+            <EntryGrid
+              vals={vals} setVal={setVal}
+              prevVals={prevVals} setPrevVal={setPrevVal}
+              sex={sex} months={months} pregnant={sex === "female" && pregnant} compareMode={compareMode}
+              search={search} setSearch={setSearch}
+              activeCat={activeCat}
+              urine={urine} setUrine={setUrine}
+              errs={errs}
+              previewOpen={show}
+              onPreview={() => setShow((v) => !v)}
+            />
+
+            {/* ⚠️ پیش‌نمایشِ محلی وقتی نتیجهٔ موتور روی صفحه است رندر نمی‌شود.
+                قبلاً هر دو هم‌زمان بودند و می‌توانستند دربارهٔ یک عدد اختلاف داشته
+                باشند (TSH: ۵.۰ فرانت / ۴.۵ بک‌اند) — بیمار از «طبیعی» اسکرول
+                می‌کرد به «بالا»، برای یک عدد. */}
+            {show && rows.length > 0 && !aiResult && (
+              <LocalPreview
+                rows={rows} vals={vals} prevVals={prevVals}
+                sex={sex} months={months} pregnant={sex === "female" && pregnant} compareMode={compareMode}
+                criticalCount={criticalCount}
+                expanded={expanded} setExpanded={setExpanded}
+                onExport={onExport} onImport={onImport} ioError={ioError}
+                onClose={() => setShow(false)}
+              />
+            )}
+          </>
         )}
 
-        {/* ⚠️ typedCount: وقتی عکس هست، runAI عمداً فقط عکس‌ها را می‌فرستد
-            (بدنهٔ درخواست یا imageDataUrls است یا testResults، نه هر دو). تا
-            امروز این کار بی‌صدا انجام می‌شد — کسی که ۹ مقدار تایپ کرده و بعد
-            عکس هم گرفته، تفسیری می‌گرفت که آن ۹ عدد در آن نبودند و هیچ‌جا
-            نمی‌گفت چرا. کم‌خوانیِ خاموش بدترین حالتِ شکستِ این اپ است. */}
+        {mode === "photo" && <PhotoGuide />}
+
+        {/* specs/011: هر حالت فقط ورودیِ خودش را می‌فرستد، پس هشدارِ «مقادیرِ تایپ‌شده فرستاده نمی‌شوند»
+            دیگر معنا ندارد (typedCount=0). داده‌های حالتِ دیگر پاک نمی‌شوند — با برگشتن سرِ جایشان‌اند. */}
         <UploadCard
+          mode={mode}
           images={images} imgBusy={imgBusy} onFile={onFile}
           removeImage={removeImage} moveImage={moveImage}
           resumed={resumed}
@@ -439,7 +484,8 @@ export default function Tafsir() {
           mismatchError={mismatchError}
           onIgnoreMismatch={() => runAI(true)}
           onCancelMismatch={() => { setAiError(""); setMismatchError(false); }}
-          typedCount={images.length > 0 ? rows.length : 0}
+          typedCount={0}
+          canRun={profileReady && (mode === "photo" ? images.length > 0 : rows.length + urineRows.length > 0)}
           runAI={() => runAI(false)}
           onCancel={() => abortRef.current?.abort()}
           resultRef={resultRef}

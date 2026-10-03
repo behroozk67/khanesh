@@ -17,6 +17,7 @@ import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcros
 // فقط برای سنجیدنِ «هر خوانشِ ممکن»ِ عددِ بی‌واحد با خودِ موتور (specs/003، B3). patterns.js هیچ‌چیز از
 // adapter.js نمی‌خواند، پس چرخهٔ import نیست.
 import { runPatterns } from "./patterns.js";
+import { conditionIds } from "./conditions.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
 import { isCastKey, castRoute, isSgKey, sgValue, SG_KEY, isCrystalKey, crystalRoute, epithelialKind, epithelialRoute,
   urineBiliValueState, urobilValueState, smearRow, mergeSmear } from "./patterns_utils.js";
@@ -854,7 +855,7 @@ function toNum(v) {
 
 // ---------- استنتاج جنسیت ----------
 // از فیلد patient، یا از محدوده‌ی مرجع خود برگه (Hb 12-16 → زن)
-function inferSex(ocr) {
+export function inferSex(ocr) {
   const p = ocr?.patient;
   if (p?.sex) {
     const s = String(p.sex).toLowerCase();
@@ -881,7 +882,7 @@ function inferSex(ocr) {
 }
 
 // ---------- استنتاج سن (سال) ----------
-function inferAge(ocr) {
+export function inferAge(ocr) {
   const raw = ocr?.patient?.age;
   // ⚠️ سنِ ۰ (نوزاد) سنِ معلوم است، نه «نامعلوم». `!raw` صفر را هم دور می‌انداخت و بیلی‌روبینِ نوزاد با
   //    بازهٔ بزرگسال سنجیده و واحدش از آن تعیین می‌شد (specs/003، بازبینیِ پزشکی B1) — N4.
@@ -1591,8 +1592,9 @@ export function runEngine(ocr) {
   const { tests, qual, semenQual, smear, hemostasis, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
-  const conditions = ocr?.patient?.conditions || [];
-  const isCancerPatient = conditions.some((c) => /سرطان|شیمی.?درمانی|رادیوتراپی|ایمونوتراپی/.test(c));
+  // specs/011 (P66): شناسه یا برچسبِ قدیمیِ فارسی → شناسهٔ کاتالوگ. regexِ سرطان همان قبلی است (در conditions.js).
+  const conditions = conditionIds(ocr?.patient?.conditions).ids;
+  const isCancerPatient = conditions.includes("cancer");
 
   // ═══ تصحیح‌های مشتق (پیش از درجه‌بندی، تا CTCAE و الگوها روی مقدار درست کار کنند) ═══
   const derived = {};
@@ -1944,6 +1946,8 @@ export function runEngine(ocr) {
   return {
     sex, age,
     pregnant: pregnantF,
+    // specs/011: همهٔ شناسه‌های گزارش‌شده؛ قاعده‌ها فقط شناسه‌های ACTIVE_CONDITIONS را می‌خوانند.
+    conditions,
     graded,
     qual,
     // ردیف‌های کیفی/بازه‌ایِ برگهٔ منی (P47). ⚠️ عمداً جدا از qual: قاعده‌های ادرار qual را با

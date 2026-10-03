@@ -203,7 +203,8 @@ export default function TestPage() {
     blocks2,
     cta: {
       t: `عددِ ${m.label} را روی برگه‌تان دارید؟ آن را وارد کنید تا موتور بگوید در کجای محدودهٔ متناسب با سن و جنسیتِ خودتان ایستاده است.`,
-      to: `/?test=${key}`,
+      // specs/011: «/» صفحهٔ فرود است؛ ابزار در «/app/manual» است و ?test= همان بخش را باز می‌کند.
+      to: `/app/manual?test=${key}`,
       label: "وارد کردن عدد این آزمایش",
     },
     resources: cp?.resources,

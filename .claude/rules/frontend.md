@@ -6,7 +6,11 @@
   | path | renders |
   |---|---|
   | `/`, `/landing` | `Landing` (lazy) |
-  | `/app`, `/tafsir` | `Tafsir` — the tool |
+  | `/app` | `AppEntry` — first unfinished step (specs/011) |
+  | `/app/intake/:step` | name → sex → age → conditions (`onboarding/Intake.jsx`) |
+  | `/app/start` | photo or manual (`onboarding/StartChoice.jsx`) |
+  | `/app/:mode` | `Tafsir` — `photo` or `manual`; one route so the instance (and its data) survives a mode switch |
+  | `/tafsir` | `Navigate` to `/app` |
   | `/tests`, `/tests/:cat`, `/test/:key` | the encyclopaedia: `Tests`, `CategoryPage`, `TestPage` (lazy) |
   | `*` | `Navigate` to `/` |
 
@@ -61,6 +65,8 @@ _engine = {
   uncovered: [engine_key, …],   // keys no rule picked up — see the warning below
   suppressed: <number>,         // findings dropped from the full text under an emergency blocker (2026-09-29, P60)
   suppressed_ids: [rule_id, …], //   …which ones
+  context: { sex, age_text, pregnant, conditions_applied: [{ id, fa }] },   // specs/011: what the engine *used*; render the
+                                // «تفسیر بر پایهٔ …» line only from this. Inactive conditions never appear (FR-019)
   critical_banner: { title, body } | null,   // نوزادِ «فقط-به‌خاطرِ-کف» (2026-09-30): متنِ بنرِ بالای صفحه از rules/neonatal.js. null ⇒ بنرِ عمومیِ ResultView. has_critical دست نمی‌خورد
   supplementary: [rule_id, …],  //   …the subset shown as a compact «یافتهٔ تکمیلی» because it explained a number nothing else did
                                 //   (absent on an older server — treat as empty; nothing in the UI reads these yet)
@@ -123,6 +129,14 @@ Each field carries a constraint that is not obvious from its name:
 
 Test grouping by body system is presentation data and lives in `khanesh/src/testCategories.js`,
 keyed by engine key — deliberately not in `rules/refs.js`, whose only job is clinical ranges.
+
+**specs/011 — onboarding.** `ProfileCard.jsx` is gone. Sex/age/pregnancy/conditions come from
+`onboarding/profileStore.js` (server `GET/PATCH /api/profile` when auth is on, `localStorage["azmayar_profile_v1"]`
+when it is off — the server returns 409 `local_only` then, because every request is the same anonymous user).
+`patientFromProfile()` is the only builder of `patient` and never includes the name. Conditions travel as ids
+(`khanesh/src/conditions.js`, mirror of `khanesh-server/rules/conditions.js`); the frontend never decides which are
+active. Manual urine rows go as strings with `kind: "urine"` (`URINE_FIELDS` in `labRefs.js`). Health checks use
+`/api/health` — `/health` is not proxied (N27).
 
 Keep `REF` (in `khanesh/src/labRefs.js` — client-side, manual-entry only) and
 `khanesh-server/rules/` (server-side, authoritative) in sync when a test's range or label changes

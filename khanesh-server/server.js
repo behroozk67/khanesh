@@ -29,7 +29,8 @@ import "dotenv/config";
 // gpt-4o می‌فهمید ولی ۳۵ برابر گران بود — و باز هم برای کم‌خونی
 // ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
-import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue } from "./rules/adapter.js";
+import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue, inferAge, inferSex } from "./rules/adapter.js";
+import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
@@ -43,7 +44,8 @@ import { missingFindingText, stripUnmeasuredClaims, splitSentences } from "./rul
 import { collectProtected, engineStrings, inventedDosage } from "./rules/protected.js";
 import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
 import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "./jobStore.js";
-import authRouter, { requireAuth, authBootReport, AUTH_REQUIRED } from "./auth.js";
+import authRouter, { requireAuth, authBootReport, AUTH_REQUIRED, otpSenderStatus } from "./auth.js";
+import profileRouter from "./profile.js";
 import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById } from "./database.js";
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
@@ -58,6 +60,97 @@ import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById } fro
 //
 //    این یک تغییرِ سریالایز است، نه بالینی: هیچ قضاوتی اینجا انجام نمی‌شود
 //    و `rules/` دست نخورده است.
+const FA_DIGITS = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
+
+/** سنِ موتور (سال، ممکن است کسری) → متنِ فارسی با واحدِ مناسب. */
+export function ageText(years) {
+  if (years == null || !Number.isFinite(years)) return null;
+  if (years >= 1) return `${FA_DIGITS(Math.floor(years))} سال`;
+  const days = Math.round(years * 365.25);
+  if (days < 60) return `${FA_DIGITS(days)} روز`;
+  return `${FA_DIGITS(Math.round(years * 12))} ماه`;
+}
+
+/**
+ * specs/011 (FR-016): «تفسیر بر پایهٔ …» — فقط بیماری‌ای که واقعاً *به کار رفت*:
+ *   • cancer — وقتی دست‌کم یک تست درجهٔ CTCAE گرفت (یعنی دروازهٔ سرطان واقعاً چیزی را عوض کرد)؛
+ *   • بقیه — وقتی یافته‌ای نمایش‌داده‌شده آن را در applied_conditions اعلام کرد (مثلاً شاخهٔ dm2 در lipid_profile).
+ * بازبینیِ کد: پیش‌تر هر dm2ِ گزارش‌شده «لحاظ‌شده» نوشته می‌شد، حتی روی برگهٔ فقط-CBC.
+ */
+export function engineContext(engineOut, patternOut) {
+  const reported = new Set(activeConditionIds(engineOut.conditions));
+  const used = new Set((patternOut?.findings ?? []).flatMap((f) => f.applied_conditions ?? []));
+  if (reported.has("cancer") && (engineOut.graded ?? []).some((g) => g.ctcaeGrade != null)) used.add("cancer");
+  return {
+    sex: engineOut.sex === "M" ? "مرد" : engineOut.sex === "F" ? "زن" : null,
+    age_text: ageText(engineOut.age),
+    pregnant: engineOut.pregnant === true,
+    conditions_applied: [...reported].filter((id) => used.has(id)).map((id) => ({ id, fa: conditionFa(id) })),
+  };
+}
+
+// ردیفِ کیفیِ ادرار که «چیزی دیده شد» می‌گوید. منفی/صفر/طبیعی نه؛ pH و وزنِ مخصوصِ عددی هم نه (اندازه‌اند، نه یافته).
+const QUAL_NEGATIVE = /^\s*(neg|negative|nil|none|absent|not\s*(seen|detected)|normal|trace\s*neg|منفی|ندارد|دیده\s*نشد|طبیعی|-|0|0\s*-\s*[0-2])\s*$/i;
+// نامِ ردیف → واژهٔ فارسی‌ای که یافتهٔ مربوط به آن در متنش می‌آورد. ردیفی که در متنِ هیچ یافته‌ای نیامده «توضیح داده نشد» است.
+const QUAL_WORDS = [
+  [/nitrit/i, /نیتریت/], [/leuk|wbc|pus/i, /گلبول سفید|لکوسیت|چرک|عفونت/], [/rbc|blood|hgb|hemo/i, /خون|گلبول قرمز/],
+  [/protein|alb/i, /پروتئین|آلبومین/], [/glu|sugar/i, /قند/], [/keton/i, /کتون/], [/gravity|\bsg\b/i, /وزن مخصوص|غلظت/],
+  [/bili/i, /بیلی/], [/urobil/i, /اوروبیلینوژن/], [/cast/i, /سیلندر/], [/crystal|oxalat|urat/i, /کریستال/],
+  [/epithel/i, /اپیتلیال|سنگفرشی|کلیه/], [/bacter/i, /باکتری/], [/yeast|candida/i, /قارچ|مخمر/],
+];
+
+/**
+ * specs/011 (بازبینیِ کد، N18): وقتی برگهٔ فقط-ادرار به‌خاطرِ ownedQual در مسیرِ موتور می‌ماند، ردیفِ کیفیِ غیرمنفی‌ای
+ * که هیچ یافتهٔ نمایش‌داده‌شده‌ای نامش را نبرد، نباید بی‌صدا ناپدید شود (نیتریتِ مثبت کنارِ یافتهٔ وزنِ مخصوص).
+ * سوگیری عمداً به سمتِ «نام بردن» است.
+ */
+export function unreadQualRows(engineOut, patternOut) {
+  const text = (patternOut?.findings ?? []).map((f) => `${f.headline ?? ""} ${f.must_say ?? ""}`).join(" ");
+  return Object.entries(engineOut.qual ?? {}).filter(([name, value]) => {
+    const v = String(value ?? "").trim();
+    if (!v || QUAL_NEGATIVE.test(v)) return false;
+    if (/\bph\b|gravity|\bsg\b/i.test(name) && /^[\d.]+$/.test(v)) return false;
+    const pair = QUAL_WORDS.find(([re]) => re.test(name));
+    return !(pair && pair[1].test(text));
+  }).map(([name, value]) => `${name} (${value})`);
+}
+
+/**
+ * specs/011 (FR-017): جنس/سنِ پروفایل با آنچه روی برگه چاپ شده فرق دارد → یک جملهٔ فارسی، وگرنه null.
+ * mergePatient پیش‌تر پروفایل را برنده کرده؛ این فقط *گفتنِ* آن است. اختلافِ سن: بیش از یک سال، یا هر اختلاف زیرِ یک سال.
+ */
+export function profileMismatchNotes(sheet, form) {
+  const notes = [];
+  const sS = inferSex({ patient: sheet }), fS = inferSex({ patient: form });
+  if (sS && fS && sS !== fS) {
+    const fa = (x) => (x === "F" ? "زن" : "مرد");
+    notes.push(`روی برگه جنسیت «${fa(sS)}» چاپ شده، ولی تفسیر با جنسیتِ پروفایلِ شما («${fa(fS)}») انجام شد. اگر پروفایل اشتباه است، آن را اصلاح کنید.`);
+  }
+  const sA = inferAge({ patient: sheet }), fA = inferAge({ patient: form });
+  if (sA != null && fA != null) {
+    const differ = Math.min(sA, fA) < 1 ? Math.abs(sA - fA) * 365.25 >= 1 : Math.abs(sA - fA) > 1;
+    if (differ) notes.push(`سنِ چاپ‌شده روی برگه (${ageText(sA)}) با سنِ پروفایل (${ageText(fA)}) فرق دارد؛ تفسیر با سنِ پروفایل انجام شد.`);
+  }
+  return notes;
+}
+
+/** گروهِ سنیِ هم‌بازه در موتور: نوزاد (< ۲۸ روز)، کودک (< ۱۶)، بزرگسال، سالمند (≥ ۷۵). */
+function ageBand(years) {
+  if (years == null) return null;
+  return years < 28 / 365.25 ? "neonate" : years < 16 ? "child" : years < 75 ? "adult" : "geriatric";
+}
+
+/**
+ * specs/011 (بازبینیِ کد #2): سنِ برگه و سنِ پروفایل در دو گروهِ سنیِ متفاوت‌اند — احتمالاً برگهٔ کسِ دیگری
+ * (مثلاً مادری که برگهٔ نوزادش را با پروفایلِ خودش می‌فرستد). FR-017 پروفایل را برنده می‌کند، ولی در این حالت
+ * بی‌صدا برنده‌کردن یعنی نوزادِ با قندِ ۳۸ با بازهٔ بزرگسال سنجیده شود. پس اول تأیید گرفته می‌شود.
+ */
+export function ageBandMismatch(sheet, form) {
+  const s = inferAge({ patient: sheet }), f = inferAge({ patient: form });
+  const sb = ageBand(s), fb = ageBand(f);
+  return sb && fb && sb !== fb ? { sheet: ageText(s), profile: ageText(f) } : null;
+}
+
 function engineDebug(engineOut, patternOut) {
   return {
     patterns: patternOut.findings.map((f) => f.rule_id),
@@ -79,6 +172,8 @@ function engineDebug(engineOut, patternOut) {
     // ⚠️ بنرِ بالای صفحه برای نوزادِ «فقط-به‌خاطرِ-کف»: متنش از rules/neonatal.js می‌آید، نه از فرانت (N12: متنِ بالینیِ فرانت‌اند
     //    هیچ تورِ ایمنی ندارد). null ⇒ فرانت بنرِ عمومی را نشان می‌دهد. has_critical دست نمی‌خورد.
     critical_banner: null,
+    // specs/011 (FR-016/FR-019): آنچه موتور *واقعاً* به کار برد — از engineOut، نه از درخواست. بیماریِ غیرفعال اینجا نمی‌آید.
+    context: engineContext(engineOut, patternOut),
     indices: engineOut.indices,
     tests: serializeGraded(engineOut),
     // ── منابعِ گایدلاینیِ یافته‌ها (شفافیت) ──
@@ -162,6 +257,7 @@ if (TRUST_PROXY) app.set("trust proxy", /^\d+$/.test(TRUST_PROXY) ? Number(TRUST
 
 app.use(express.json({ limit: "60mb" }));   // ← Nginx روی 50M است؛ Express نباید تنگ‌تر باشد
 app.use("/api/auth", authRouter);
+app.use("/api/profile", profileRouter);   // specs/011 — 409 «local_only» وقتی احراز هویت خاموش است
 
 const AVALAI_API_KEY = process.env.AVALAI_API_KEY;
 const AVALAI_BASE_URL = "https://api.avalai.ir/v1";
@@ -838,6 +934,18 @@ const analyzeHandler = async (req, res) => {
         });
       }
 
+      const band = ageBandMismatch(merged.patient, patient);
+      if (band && !req.body.ignorePatientMismatch) {
+        return res.status(422).json({
+          error:
+            `سنِ چاپ‌شده روی برگه (${band.sheet}) با سنِ پروفایلِ شما (${band.profile}) در یک گروهِ سنی نیست. ` +
+            "اگر این برگه مالِ کسِ دیگری است (مثلاً فرزندتان)، «منصرف شدم» را بزنید و سن را در پروفایل درست کنید؛ " +
+            "اگر مطمئنید برگه مالِ خودتان است، «ادامه بده» را بزنید تا با سنِ پروفایل تفسیر شود.",
+          code: "PATIENT_MISMATCH",
+          detail: { age_band: band },
+        });
+      }
+
       const mergedOcr = {
         tests: merged.tests,
         // 🔴 برگهٔ واقعی ۲۰۲۶-۰۹-۲۴: فرم «مرد» را پیش‌فرض داشت و همین که age یا sex آمده بود، کلِ patientِ فرم
@@ -859,6 +967,7 @@ const analyzeHandler = async (req, res) => {
 
       ocrWarnings = warnings;
       ocrPatient = merged.patient;
+      ocrWarnings.push(...profileMismatchNotes(merged.patient, patient));
       extractedTests = ocrToExtractedTests(mergedOcr);
 
       // صفحهٔ ناموفق نباید بی‌صدا رد شود — کاربر باید بداند تفسیر ناقص است
@@ -888,13 +997,20 @@ const analyzeHandler = async (req, res) => {
     //    (CTCAE گرید ۲، فوریت this_week) به‌صورت «بحرانی — مراجعه فوری» نمایش داده شد.
     //    رشتهٔ نمایشی فارسی عمداً دوباره parse نمی‌شود؛ فرانت ساختار را می‌فرستد.
     if (!hasImage && Array.isArray(tests) && tests.length) {
+      // specs/011: ردیفِ ادرار (kind: "urine") رشته می‌ماند («+2»، «Negative»، «10-15») — همان شکلی که از عکس می‌آید و
+      //   لایهٔ ادرارِ adapter می‌خواند. پیش‌تر Number.isFinite همه‌شان را بی‌صدا دور می‌ریخت (N2/N18). گارد T37.
       const manualTests = tests
-        .map((t) => ({
-          name: String(t?.name ?? t?.key ?? "").trim(),
-          value: typeof t?.value === "number" ? t.value : parseFloat(t?.value),
-          unit: t?.unit ?? "",
-        }))
-        .filter((t) => t.name && Number.isFinite(t.value));
+        .map((t) => {
+          const urine = t?.kind === "urine";
+          return {
+            name: String(t?.name ?? t?.key ?? "").trim(),
+            value: urine ? String(t?.value ?? "").trim() : typeof t?.value === "number" ? t.value : parseFloat(t?.value),
+            unit: t?.unit ?? "",
+            urine,
+          };
+        })
+        .filter((t) => t.name && (t.urine ? t.value !== "" : Number.isFinite(t.value)))
+        .map(({ urine: _u, ...t }) => t);
 
       if (manualTests.length) {
         lastMergedOcr = {
@@ -947,6 +1063,7 @@ const analyzeHandler = async (req, res) => {
     // اگر موتور هیچ‌کدام از تست‌ها را نشناخت، به مسیر قدیمی برمی‌گردیم تا
     // کاربر به‌جای تفسیر، دست خالی نماند.
     let engineCandidate = null;
+    let routedByQual = false;   // specs/011: برگه فقط به‌خاطرِ ردیف‌های کیفیِ صاحب‌دار در مسیرِ موتور ماند
     if (USE_ENGINE && lastMergedOcr) {
       engineCandidate = runEngine(lastMergedOcr);
       // job c138671c (D10): برای نوزاد، فهرستِ «برای مطالعهٔ بیشتر» فقط صفحه‌های عمومیِ شمارشِ خونِ بزرگسال بود.
@@ -992,7 +1109,13 @@ const analyzeHandler = async (req, res) => {
       //    می‌افتاد، جایی که مدل خودش شدت را قضاوت می‌کند — همان تکرارِ N18. کانالِ hemostasis مالک دارد (patterns_hemostasis.js).
       // PT Control تنها زمینه است، نه نتیجه (بازبینیِ کد): برگهٔ فقط-PT-Control «همه‌چیز طبیعی است» نگیرد.
       const hasHemostasis = Object.keys(engineCandidate.hemostasis ?? {}).some((k) => k !== "PT_CONTROL");
-      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis) {
+      // specs/011 (N18، مسیریابی): برگهٔ فقط-ادرار (عکس یا دستی) هیچ تستِ نمره‌داری ندارد و به مسیرِ قدیم می‌افتاد —
+      //   مدل خودش «خون در ادرار» را قضاوت می‌کرد. فقط وقتی در مسیرِ موتور می‌ماند که قاعده‌ای واقعاً یافته‌ای ساخت؛
+      //   ردیفِ کیفیِ بی‌خواننده همان رفتارِ قبلی را دارد (نه «همه‌چیز طبیعی است»). گارد T37.
+      const ownedQual = Object.keys(engineCandidate.qual ?? {}).length > 0 &&
+        runPatterns(engineCandidate).findings.length > 0;
+      routedByQual = ownedQual && engineCandidate.graded.length === 0;
+      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis && !ownedQual) {
         console.warn(
           "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
           `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
@@ -1004,6 +1127,12 @@ const analyzeHandler = async (req, res) => {
     if (engineCandidate) {
       engineOut = engineCandidate;
       patternOut = runPatterns(engineOut);
+      if (routedByQual) {
+        const unread = unreadQualRows(engineOut, patternOut);
+        if (unread.length) {
+          ocrWarnings.push(`این ردیف‌های ادرار چیزی نشان می‌دهند ولی در تفسیرِ بالا جداگانه توضیح داده نشده‌اند؛ آن‌ها را به پزشک نشان دهید: ${unread.join("، ")}`);
+        }
+      }
 
       tr.stage("patterns", {
         findings: patternOut.findings.map((f) => ({
@@ -1110,6 +1239,8 @@ const analyzeHandler = async (req, res) => {
       smear: undefined,
       // specs/010 (N13): آیتم‌های هموستاز هم متنِ خامِ ردیف (raw، reference) را دارند — به گراف نمی‌روند.
       hemostasis: undefined,
+      // specs/011 (FR-019): همان فیلترِ prompt.js — بیماریِ غیرفعال به هیچ عاملِ LLM نمی‌رسد.
+      conditions: activeConditionIds(engineOut.conditions),
     } : null;
 
     // Pass the combined text AND the engine deterministic outputs to the graph
@@ -1527,7 +1658,9 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
   const jobId = createJob({ pagesTotal: imgs.length, userId: req.user?.userId ?? null });
   
   // -- ثبت در دیتابیس --
-  if (req.user && req.user.userId) {
+  // ⚠️ specs/011 (بازبینیِ کد): کاربرِ ناشناس (AUTH خاموش) ذخیره نمی‌شود. همه userId=1اند، پس «حذفِ همه» نمی‌توانست
+  //    این‌ها را پاک کند، و اگر روزی احراز هویت روشن شود اولین کاربرِ ثبت‌نامی (id 1) همهٔ نتایجِ ناشناس را به ارث می‌برد.
+  if (req.user && req.user.userId && !req.user.anonymous) {
     createJobRecord(jobId, req.user.userId, imgs.length).catch(err => console.error("DB createJobRecord error:", err));
   }
 
@@ -1660,6 +1793,8 @@ const healthHandler = (_req, res) =>
     //    را پر می‌کرد و آخرش ۴۰۱ می‌گرفت، یا برای سروری که احراز هویت
     //    نمی‌خواست از او OTP خواسته می‌شد (و فرستندهٔ پیامک هنوز mock است).
     authRequired: AUTH_REQUIRED,
+    // specs/011: آیا کدِ ورود واقعاً فرستاده می‌شود یا فقط در لاگ است.
+    ...otpSenderStatus(),
     ocrMaxTokens: OCR_MAX_TOKENS,
     truncations: avalai.truncations,
     rateLimit: `${RATE_LIMIT_MAX}/${RATE_LIMIT_WINDOW_MIN}min`,

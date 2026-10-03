@@ -294,6 +294,40 @@ export const CATS = {
   vitamin: { label: "ویتامین‌ها", icon: "💊" },
 };
 
+// ---------- بخش‌های ورودِ دستی (specs/011، FR-013) ----------
+// گروه‌بندیِ CATS در بخش‌هایی که بیمار روی برگه می‌بیند. ⚠️ آزمایشِ تازه اضافه نمی‌کند؛ فقط چیدمان است.
+export const SECTIONS = [
+  { id: "blood", label: "خون (CBC و انعقاد)", cats: ["cbc", "iron", "coag"] },
+  { id: "biochem", label: "بیوشیمی", cats: ["diabetes", "heart", "kidney", "liver", "electro"] },
+  { id: "hormone", label: "هورمون", cats: ["thyroid"] },
+  { id: "vitamin", label: "ویتامین‌ها", cats: ["vitamin"] },
+  { id: "urine", label: "ادرار", cats: [] },
+];
+
+export const sectionOfCat = (cat) => SECTIONS.find((s) => s.cats.includes(cat))?.id ?? SECTIONS[0].id;
+
+// آزمایشِ ادرار — کیفی، پس مقدار *رشته* به سرور می‌رود (kind: "urine")، همان شکلی که از عکس می‌آید
+// و لایهٔ ادرارِ adapter.js می‌خواند. ⚠️ نام‌های name همان‌هایی‌اند که adapter امروز نگاشت می‌کند
+// (اندازه‌گیری‌شده با runEngine؛ «Urine pH» و «Urine Leukocytes» نگاشت نمی‌شوند — «pH» و «Leukocyte Esterase» می‌شوند).
+const DIP = ["Negative", "Trace", "+1", "+2", "+3", "+4"];
+const DIP_FA = { Negative: "منفی", Trace: "اثر (±)", "+1": "+۱", "+2": "+۲", "+3": "+۳", "+4": "+۴" };
+export const URINE_FIELDS = [
+  { k: "u_ph", label: "pH", name: "pH", type: "number", hint: "۵ تا ۸" },
+  { k: "u_sg", label: "وزن مخصوص", name: "Urine Specific Gravity", type: "number", hint: "۱.۰۰۵ تا ۱.۰۳۰" },
+  { k: "u_pro", label: "پروتئین", name: "Urine Protein", type: "dip" },
+  { k: "u_glu", label: "قند", name: "Urine Glucose", type: "dip" },
+  { k: "u_blood", label: "خون", name: "Urine Blood", type: "dip" },
+  { k: "u_ket", label: "کتون", name: "Urine Ketone", type: "dip" },
+  { k: "u_nit", label: "نیتریت", name: "Urine Nitrite", type: "posneg" },
+  { k: "u_le", label: "لکوسیت استراز", name: "Leukocyte Esterase", type: "dip" },
+  { k: "u_wbc", label: "گلبول سفید (WBC)", name: "Urine WBC", type: "range", unit: "/hpf", hint: "مثل 2-3" },
+  { k: "u_rbc", label: "گلبول قرمز (RBC)", name: "Urine RBC", type: "range", unit: "/hpf", hint: "مثل 0-2" },
+];
+export const URINE_OPTIONS = {
+  dip: DIP.map((v) => ({ v, fa: DIP_FA[v] })),
+  posneg: [{ v: "Negative", fa: "منفی" }, { v: "Positive", fa: "مثبت" }],
+};
+
 // ---------- حالت‌های پیش‌نمایشِ محلی ----------
 // همان واژگانِ رنگیِ نتیجهٔ موتور (کلاس‌های st-*)، نه یک پالتِ سوم.
 // قبلاً سه واژگانِ رنگی هم‌زمان زنده بودند: ST (بوت‌استرپیِ #dc3545)، TREND،

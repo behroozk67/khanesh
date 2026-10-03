@@ -301,7 +301,11 @@ The old "the tool *is* the landing page" decision was reversed — `/` is `Landi
 | path | renders |
 |---|---|
 | `/` and `/landing` | `Landing` (lazy) |
-| `/app` and `/tafsir` | `Tafsir` — the actual tool |
+| `/app` | `AppEntry` — sends to the first unfinished step (specs/011) |
+| `/app/intake/:step` | `Intake` — name → sex → age → background conditions |
+| `/app/start` | `StartChoice` — photo or manual |
+| `/app/:mode` (`photo`/`manual`) | `Tafsir` — the actual tool; **one** route so switching modes keeps entered data |
+| `/tafsir` | `Navigate` to `/app` |
 | `/tests`, `/tests/:cat`, `/test/:key` | the encyclopaedia (lazy) |
 | `*` | `Navigate` to `/` |
 
@@ -1412,6 +1416,15 @@ structural, not specific to that rule.
   the microcytic text, and that text was never shown. An HbA2 of 5.2 under a K 7.1 emergency lost its number and
   the carrier warning. **Rule:** coverage is a property of the text the patient *sees*. A finding that will be
   briefed covers keys only through `brief` + `brief_warnings` (`willBrief()` in `patterns.js`). Guard `M189c`.
+- ⚠️ **Recurred 2026-10-02 at the routing layer (specs/011): a urine-only sheet skipped the engine.** The fallback gate in
+  `server.js` kept the engine path only for graded tests, owned ungraded/noRef values and hemostasis. A sheet with *only*
+  urine rows (photo or manual) has nothing graded, so it went to the legacy path, where the model judges «خون در ادرار»
+  itself. Fixed with `ownedQual`: stay on the engine path when `qual` is non-empty **and** a rule actually produced a
+  finding. Guard `T37` (red on HEAD — the manual path also dropped every non-numeric value with `Number.isFinite`).
+  **The first version of that fix re-opened N18 one row over** (caught by code review): on `SG 1.040 + Nitrite Positive`
+  only `urine_specific_gravity` fired, and the nitrite vanished — there is no «تفسیر نشدند» line for `qual`. Now
+  `unreadQualRows()` names every non-negative urine row that no shown finding mentions, in `ocr_warnings`. Guard `T42`.
+  Still open (N1): isolated nitrite-positive and isolated pyuria have no rule of their own.
 - **Guards:** `M58`, `M58b` (negative control), `M58c`. Verified against the pre-fix code in a temp
   copy — `M58` and `M58c` go red there. Note the copy needs `node_modules` junctioned in or the
   whole file dies on `Cannot find package 'acorn'`, the same trap the Commands section warns about.
@@ -2016,7 +2029,21 @@ not by a test.
 
 ---
 
-## Rules
+### N27 — A gate that reads its switch through a path the proxy doesn't forward is always open
+2026-10-02, specs/011. Not clinical — but it decides whether a patient's sheet is tied to an identity.
+
+- **Tried (since `AuthGuard.jsx` was written):** ask the server whether sign-in is required with `fetch('/health')`,
+  and keep the build-time hint if that fails.
+- **Broke:** Vite's dev proxy (and the Nginx setup it mirrors) forwards only `/api`. `/health` from the page's own
+  origin returns `index.html`, `json()` throws, the `.catch` swallows it, and the guard keeps the hint — `false`.
+  With `AUTH_REQUIRED=true` on the server, the patient was never shown a sign-in screen, filled in everything, and
+  got a 401 at the end. Found only by running the flow in a browser with auth on; every unit test runs with auth off.
+- **Second defect in the same component:** `Routes` reuses one `AuthGuard` instance across routes, so its
+  `isAuthenticated` state survived sign-out and account deletion. The guard now also requires the token at render time.
+- **Rule:** a client-side switch read from the server must be read through the same prefix as every other API call
+  (`/api/health`), and its failure must not silently pick "off". If you add a route outside `/api`, check what the
+  proxy does with it before a component depends on it.
+
 
 Detailed instructions are split across `.claude/rules/`:
 

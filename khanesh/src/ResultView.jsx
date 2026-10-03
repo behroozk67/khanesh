@@ -357,6 +357,18 @@ function Provenance({ hasEngine }) {
 
 /* ---------- کامپوننت اصلی ---------- */
 
+function ContextLine({ ctx, asText }) {
+  if (!ctx) return null;
+  const parts = [
+    ctx.sex && asText(ctx.sex),
+    ctx.age_text && asText(ctx.age_text),
+    ctx.pregnant && "باردار",
+    ...(Array.isArray(ctx.conditions_applied) ? ctx.conditions_applied.map((c) => asText(c?.fa)) : []),
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  return <p className="ctx-line">تفسیر بر پایهٔ: <b>{parts.join("، ")}</b></p>;
+}
+
 export default function ResultView({ result, asText, asList }) {
   const eng = result._engine;
   const hasEngine = !!eng;
@@ -411,6 +423,10 @@ export default function ResultView({ result, asText, asList }) {
           </p>
         </div>
       )}
+
+      {/* specs/011 (FR-016): آنچه موتور واقعاً به کار برد — فقط از _engine.context، هرگز از پروفایلِ کلاینت.
+             بیماریِ تیک‌خورده‌ای که قاعده ندارد اینجا نمی‌آید (FR-019). سرورِ قدیمی context ندارد ⇒ چیزی رندر نمی‌شود. */}
+      <ContextLine ctx={eng?.context} asText={asText} />
 
       {/* ۱. کارنامه — فقط روی مسیرِ موتور. بدون _engine داده‌ای برای شمردن نیست
              و ادعای «قاعده‌های ثابت» هم آنجا درست نیست. */}

@@ -1,49 +1,90 @@
-import React, { useState, useEffect } from 'react';
-import { LabMateLogo } from "./LabMateLogo.jsx";
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { LabMateLogo } from "./LabMateLogo.jsx";
+import { toFaDigits } from "./digits.js";
+import { conditionFa } from "./conditions.js";
+import { clearJob, clearResult } from "./analyzeJob.js";
+import { loadProfile, clearProfile, AGE_UNIT_FA, pregnancyEligible } from "./onboarding/profileStore.js";
+import "./onboarding/onboarding.css";
+
+// ============================================================
+// پروفایل (specs/011): ویرایشِ هر پاسخِ پرسش‌های آغازین، تاریخچه، و «حذف حساب و اطلاعات من».
+// ⚠️ حذف دو مرحله دارد (دکمه، بعد تأیید). با احراز هویتِ روشن، سرور کاربر/پروفایل/نتایج را پاک می‌کند
+//    (DELETE /api/auth/me، T40)؛ در حالتِ خاموش داده فقط روی همین دستگاه است و همین‌جا پاک می‌شود.
+// ============================================================
+
+function token() {
+  try { return localStorage.getItem('auth_token'); } catch { return null; }
+}
 
 export default function Profile() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [profile, setProfile] = useState(null);
+  const [account, setAccount] = useState(null);   // { phone, email, jobs } — فقط با احراز هویتِ روشن
+  const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const token = localStorage.getItem('auth_token');
-        if (!token) {
-          navigate('/app');
-          return;
-        }
+    let alive = true;
+    loadProfile().then((p) => alive && setProfile(p)).catch((e) => alive && setError(e.message));
+    const t = token();
+    if (t) {
+      fetch('/api/auth/me', { headers: { Authorization: `Bearer ${t}` } })
+        .then(async (r) => {
+          const d = await r.json().catch(() => null);
+          if (!alive) return;
+          if (r.status === 401) { signOut(); return; }
+          if (r.ok) setAccount(d);
+        })
+        .catch(() => {});
+    }
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-        const res = await fetch('/api/auth/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-        
-        if (!res.ok) throw new Error(data.error || 'خطا در دریافت اطلاعات');
-        setUser(data);
-      } catch (err) {
-        setError(err.message);
-        if (err.message.includes('منقضی') || err.message.includes('نامعتبر')) {
-          localStorage.removeItem('auth_token');
-          navigate('/app');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token');
+  function signOut() {
+    try { localStorage.removeItem('auth_token'); } catch { /* حالتِ خصوصی */ }
+    clearProfile();
     navigate('/app');
-  };
+  }
 
-  if (loading) return <div className="page" dir="rtl"><div className="page-loading">در حال بارگذاری پروفایل…</div></div>;
+  async function deleteAll() {
+    setBusy(true); setError('');
+    try {
+      const t = token();
+      if (t) {
+        const r = await fetch('/api/auth/me', {
+          method: 'DELETE',
+          headers: { 'content-type': 'application/json', Authorization: `Bearer ${t}` },
+          body: JSON.stringify({ confirm: true }),
+        });
+        // 409 «local_only»: سرور چیزی نگه نداشته؛ پاک‌کردنِ همین دستگاه کافی است.
+        if (!r.ok && r.status !== 409) {
+          const d = await r.json().catch(() => null);
+          throw new Error(d?.error || 'حذفِ حساب انجام نشد. دوباره تلاش کنید.');
+        }
+      }
+      clearJob();
+      clearResult();
+      signOut();
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+
+  const row = (label, value, step) => (
+    <div className="onb-chip" key={step}>
+      <span>{label}: <b>{value || '—'}</b></span>
+      <Link to={`/app/intake/${step}?edit=1`}>ویرایش</Link>
+    </div>
+  );
+
+  const p = profile;
+  const age = p?.ageValue != null ? `${toFaDigits(p.ageValue)} ${AGE_UNIT_FA[p.ageUnit] ?? 'سال'}` : '';
+  const sex = p?.sex === 'female' ? `زن${pregnancyEligible(p) && p.pregnant ? '، باردار' : ''}` : p?.sex === 'male' ? 'مرد' : '';
+  const conds = p?.conditionsAnswered ? (p.conditions?.length ? p.conditions.map(conditionFa).join('، ') : 'هیچ‌کدام') : '';
 
   return (
     <div className="page" dir="rtl">
@@ -51,57 +92,58 @@ export default function Profile() {
         <header className="site-header" style={{ justifyContent: 'space-between' }}>
           <div className="logo"><Link to="/"><LabMateLogo height={32} /></Link></div>
           <div style={{ display: 'flex', gap: 'var(--s4)' }}>
-            <Link to="/app" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)' }}>داشبورد</Link>
-            <button onClick={handleLogout} className="btn" style={{ fontSize: 'var(--t-sm)', color: 'var(--st-emergency-ink)' }}>خروج</button>
+            <Link to="/app" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)' }}>تفسیرِ آزمایش</Link>
+            {token() && <button type="button" onClick={signOut} className="btn" style={{ fontSize: 'var(--t-sm)' }}>خروج</button>}
           </div>
         </header>
 
-        <main className="site-panel" style={{ maxWidth: 600, margin: '0 auto', marginTop: 'var(--s8)' }}>
-          <h1 style={{ fontSize: 'var(--t-xl)', marginBottom: 'var(--s2)' }}>پروفایل کاربری</h1>
-          {error && <p style={{ color: 'var(--st-emergency-ink)' }}>{error}</p>}
-          
-          {user && (
-            <>
-              <p style={{ color: 'var(--ink-2)', marginBottom: 'var(--s6)' }}>
-                شماره موبایل: <span dir="ltr" style={{ color: 'var(--ink)' }}>{user.phone}</span>
-              </p>
+        <main className="onb-card" style={{ margin: 'var(--s10) auto 0' }}>
+          <h1 className="onb-title">پروفایلِ شما</h1>
+          {account && (account.phone || account.email) && (
+            <p className="onb-note">ورود با <span dir="ltr">{account.phone || account.email}</span></p>
+          )}
+          {error && <p className="onb-err" role="alert">{error}</p>}
 
-              <h2 style={{ fontSize: 'var(--t-lg)', marginBottom: 'var(--s4)' }}>سوابق آزمایش‌های شما</h2>
-              
-              {user.jobs && user.jobs.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s3)' }}>
-                  {user.jobs.map(job => (
-                    <div key={job.id} style={{ padding: 'var(--s4)', border: '1px solid var(--track)', borderRadius: 'var(--r-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <div style={{ fontSize: 'var(--t-sm)', color: 'var(--ink-2)' }}>تاریخ: {new Date(job.created_at).toLocaleDateString('fa-IR')}</div>
-                        <div style={{ marginTop: 'var(--s1)' }}>
-                          وضعیت: 
-                          <span style={{ color: job.status === 'completed' ? 'var(--st-ok-ink)' : job.status === 'failed' ? 'var(--st-emergency-ink)' : 'var(--ink-2)', marginRight: 'var(--s2)' }}>
-                            {job.status === 'completed' ? 'تکمیل شده' : job.status === 'failed' ? 'خطا' : 'در حال پردازش'}
-                          </span>
-                        </div>
-                      </div>
-                      {job.status === 'completed' && (
-                        <button 
-                          className="btn btn--primary" 
-                          style={{ fontSize: 'var(--t-sm)', padding: 'var(--s2) var(--s4)' }}
-                          onClick={() => {
-                            // در حالت واقعی، اینجا باید اطلاعات نتیجه لود شود
-                            // برای سادگی کاربر به صفحه داشبورد برمی‌گردد
-                            navigate('/app');
-                          }}
-                        >
-                          مشاهده
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ color: 'var(--ink-2)' }}>هنوز آزمایشی تحلیل نکرده‌اید.</p>
-              )}
+          {p && (
+            <div style={{ display: 'grid', gap: 'var(--s4)' }}>
+              {row('نام', [p.firstName, p.lastName].filter(Boolean).join(' '), 'name')}
+              {row('جنسیت', sex, 'sex')}
+              {row('سن', age, 'age')}
+              {row('بیماری‌های زمینه‌ای', conds, 'conditions')}
+            </div>
+          )}
+
+          {account?.jobs?.length > 0 && (
+            <>
+              <h2 className="sec-sub">سوابقِ تحلیل</h2>
+              <ul className="onb-list" style={{ listStyle: 'none' }}>
+                {account.jobs.map((job) => (
+                  <li key={job.id} className="onb-chip">
+                    <span>{new Date(job.created_at).toLocaleDateString('fa-IR')}</span>
+                    <span>{job.status === 'done' || job.status === 'completed' ? 'تکمیل شده' : job.status === 'error' || job.status === 'failed' ? 'خطا' : 'در حال پردازش'}</span>
+                  </li>
+                ))}
+              </ul>
             </>
           )}
+
+          <div style={{ marginTop: 'var(--s10)', display: 'grid', gap: 'var(--s4)' }}>
+            {!confirmDelete ? (
+              <button type="button" className="onb-link" style={{ color: 'var(--st-emergency-ink)' }} onClick={() => setConfirmDelete(true)}>
+                حذف حساب و اطلاعات من
+              </button>
+            ) : (
+              <div className="warn" role="alert">
+                <p style={{ margin: 0 }}>
+                  نام، سن، جنسیت، بیماری‌های زمینه‌ای و نتایجِ ذخیره‌شده برای همیشه پاک می‌شوند. این کار برگشت‌پذیر نیست.
+                </p>
+                <div style={{ display: 'flex', gap: 'var(--s4)', marginTop: 'var(--s6)', flexWrap: 'wrap' }}>
+                  <button type="button" className="btn" disabled={busy} onClick={deleteAll}>{busy ? 'در حال حذف…' : 'بله، همه را پاک کن'}</button>
+                  <button type="button" className="btn btn--ghost" disabled={busy} onClick={() => setConfirmDelete(false)}>انصراف</button>
+                </div>
+              </div>
+            )}
+          </div>
         </main>
       </div>
     </div>
