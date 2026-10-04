@@ -14,6 +14,10 @@ import { getRef } from "./refs.js";
 import { canBePregnant } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { normUnit } from "./units.js";
+// P77-۶: آستانه‌های قابل‌تنظیمِ الگوی بحرانِ آدرنال (Na/K/قند منبع‌دار نیستند؛ Endocrine Society فقط الگو را می‌گوید).
+const ADRENAL_CRISIS_NA_BELOW = 130;
+const ADRENAL_CRISIS_K_ABOVE = 5.5;
+const ADRENAL_CRISIS_GLU_BELOW = 70;
 
 // P46 بند ۲: بالای ۲۰۰ ng/mL علت‌های ساده به‌ندرت کافی‌اند و ارزیابیِ هیپوفیز مطرح می‌شود؛ ۲۵۰ حدِ «معمولاً
 // پرولاکتینوما» در دستورالعملِ Endocrine Society 2011 است و بعضی داروها (ریسپریدون، متوکلوپرامید) تا بالای ۲۰۰
@@ -216,7 +220,15 @@ export const RULES_ENDOCRINE_PITUITARY = [
       const f = adrenalFacts(e);
       const reads = ["CORTISOL_AM"];
       const amShown = shownWith(e, "CORTISOL_AM", f.am, "µg/dL");
-      const urgency = "this_week";                // سقفِ فوریت: موتور نمی‌داند حالِ حاد دارید (P46 بند ۱۲)
+      // P77-۶ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ Endocrine Society — Na/K/قند عددهای منبع‌دار نیستند، آستانهٔ قابل‌تنظیم): کورتیزولِ بسیار پایین
+      //    همراهِ Na < ۱۳۰ و K > ۵٫۵ و قند < ۷۰ (هر سه روی همین برگه) ⇒ الگوی بحرانِ آدرنال ⇒ اورژانس؛ وگرنه سقفِ this_week (P46 بند ۱۲).
+      const gv = (k) => e.graded.find((x) => x.test === k)?.value;
+      const naV = gv("NA"), kV = gv("K");
+      const glu = [gv("GLU_F"), gv("GLU_RANDOM")].filter((v) => v != null);
+      const crisis = gv("NA") != null && gv("NA") < ADRENAL_CRISIS_NA_BELOW &&
+                     gv("K") != null && gv("K") > ADRENAL_CRISIS_K_ABOVE &&
+                     glu.some((v) => v < ADRENAL_CRISIS_GLU_BELOW);
+      const urgency = crisis ? "emergency" : "this_week";   // سقفِ فوریتِ غیرِبحران: موتور نمی‌داند حالِ حاد دارید
       return {
         pattern: "adrenal_insufficiency_likely",
         urgency,
@@ -226,8 +238,11 @@ export const RULES_ENDOCRINE_PITUITARY = [
         must_say:
           `${faName(reads[0])} شما ${amShown} است و از ${AM_LIKELY_UGDL} کمتر است. ` +
           "اگر نمونه واقعاً صبح گرفته شده باشد، این سطح با کم‌کاریِ غدهٔ فوق‌کلیه می‌خواند. " + DRUG_LOW +
-          "برای قطعی‌شدن معمولاً آزمونِ تحریکِ ACTH لازم است و تشخیص با پزشک است.",
-        action: urgencyAction(urgency, "این هفته با پزشک مطرح کنید." + AI_RED_FLAG, "در نوبتِ عادی با پزشک مطرح کنید."),
+          "برای قطعی‌شدن معمولاً آزمونِ تحریکِ ACTH لازم است و تشخیص با پزشک است." +
+          (crisis ? ` روی همین برگه سدیم (${naV}) پایین، پتاسیم (${kV}) بالا و قند پایین هم هست؛ این سه‌گانه همراهِ کورتیزولِ پایین الگوی بحرانِ غدهٔ فوق‌کلیه است و ارزیابیِ فوری می‌خواهد.` : ""),
+        action: crisis
+          ? "همین امروز به اورژانس مراجعه کنید و بگویید کورتیزولِ صبحتان بسیار پایین بوده است."
+          : urgencyAction(urgency, "این هفته با پزشک مطرح کنید." + AI_RED_FLAG, "در نوبتِ عادی با پزشک مطرح کنید."),
         suggest: [],
         warnings: [],
       };

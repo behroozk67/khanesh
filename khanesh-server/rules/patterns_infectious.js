@@ -1,8 +1,11 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, CRP_RE, RF_RE } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, CRP_RE, RF_RE, qualVerdict } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { isNeonate, ageFa, nextNeonatalBand, NEONATAL_DANGER_WARNING, NEONATAL_SAMEDAY_ACTION } from "./neonatal.js";
+// P77-۱۰ (تصمیمِ بازبین؛ Chiesa et al.): PCTِ نوزادِ ترم در ≈ ۲۴ ساعت تا حدود ۲۰ ng/mL فیزیولوژیک است.
+const PCT_EARLY_NEONATE_DAYS = 2;
+const PCT_EARLY_NEONATE_95TH = 20;
 
 export const RULES_INFECTIOUS = [
   // ═══════════ سرولوژی غربالگری (هپاتیت B/C، HIV) ═══════════
@@ -110,8 +113,10 @@ export const RULES_INFECTIOUS = [
       const wSig = w?.value >= 80;
       const mSig = m?.value >= 40;
       const cSig = c?.value >= 40;
-      // تعریفِ موردِ فعال: (رایت باارزش + 2ME باارزش) یا (رایتِ زیرِ آستانه ولی کومبسِ باارزش)
-      return (wSig && mSig) || (!wSig && cSig);
+      // تعریفِ موردِ فعال: (رایت باارزش + 2ME باارزش) یا کومبسِ باارزش (با رایتِ زیرِ آستانه یا باارزش).
+      // N19 (لایهٔ ۲): «رایت ≥۱/۸۰ + کومبس ≥۱/۴۰ + 2ME زیرِ آستانه/غایب» نه فعال بود نه wright_only (که کومبس را رد می‌کند) ⇒ فقط
+      //   `unmatched_abnormal` و فوریتِ routine — در حالی‌که رایتِ تنها this_week بود؛ آزمایشِ قوی‌تر فوریت را کم می‌کرد.
+      return (wSig && mSig) || cSig;
     },
     build: (e) => {
       const w = e.graded.find((g) => g.test === "WRIGHT");
@@ -120,6 +125,8 @@ export const RULES_INFECTIOUS = [
       const esr = e.graded.find((g) => g.test === "ESR");
       const wSig = w?.value >= 80;
       const blocked = !wSig && c?.value >= 40;
+      const cSig = c?.value >= 40;
+      const mSig = m?.value >= 40;
       const esrHigh = esr?.value > 40;
       const parts = [];
       if (w) parts.push(`رایت ${titreFa(w.value)}`);
@@ -134,6 +141,8 @@ export const RULES_INFECTIOUS = [
           "تب مالت عفونتی است که معمولاً از شیر و لبنیاتِ غیرپاستوریزه یا تماس با دام می‌گیرند. " +
           (blocked
             ? "نکتهٔ مهم اینجا این است که رایتِ ساده زیر آستانه مانده ولی کومبس رایت مثبت است؛ این حالت وقتی رخ می‌دهد که آنتی‌بادی‌های «بلوک‌کننده» جلوی واکنشِ رایت را می‌گیرند و بیشتر در شکل‌های طولانی‌شده دیده می‌شود. "
+            : (cSig && !mSig)
+              ? "کومبس رایت هم کنارِ رایت مثبت است؛ کومبس رایت آنتی‌بادی‌های ناقص (IgG) را هم نشان می‌دهد و مثبت‌بودنش به‌سود عفونتِ فعال است، هرچند 2ME " + (m ? `${titreFa(m.value)} و زیرِ آستانه` : "انجام نشده") + " مانده. "
             : "مثبت بودنِ 2ME در کنار رایت، به‌سود عفونتِ فعال است — چون 2ME فقط IgG را می‌سنجد و در تب مالت همین IgG است که با بیماریِ فعال و علامت‌دار همراهی دارد. ") +
           (esrHigh ? `ESR شما هم ${esr.value} است؛ ESR بالای ۴۰ با درگیریِ موضعی مثل مهره یا مفصل همراهی دارد و باید جدی گرفته شود. ` : "") +
           "درمانِ تب مالت چند هفته آنتی‌بیوتیکِ ترکیبی است و نیمه‌کاره رها کردنش باعث عود می‌شود، پس حتماً زیر نظر پزشک انجام شود. " +
@@ -195,18 +204,24 @@ export const RULES_INFECTIOUS = [
     },
     build: (e) => {
       const t = val(e);
+      // P77-۱۰ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ Chiesa/Springer): در ۴۸ ساعتِ اولِ زندگی PCT به‌طور فیزیولوژیک بالا می‌رود (صدکِ ۹۵ام ≈ ۲۰ ng/mL در ۲۴ ساعت).
+      //    پس PCT ۲ تا ۲۰ در < ۴۸ ساعت (بی‌لاکتاتِ ≥ ۴) soon است، نه اورژانس؛ بالاتر از آن اورژانس می‌ماند. سنِ ساعتی را موتور ندارد — روز.
+      const early = e.age != null && e.age * 365 < PCT_EARLY_NEONATE_DAYS;
+      const physio = early && !(t.LACTATE >= 4) && t.PCT_SEPSIS <= PCT_EARLY_NEONATE_95TH;
       return {
         pattern: "sepsis_markers",
-        urgency: "emergency",
+        urgency: physio ? "soon" : "emergency",
         headline: "نشانگرهای عفونت شدید در خون شما بالاست",
         must_say:
           (t.LACTATE >= 4 ? `لاکتات ${t.LACTATE} است. ` : "") +
           (t.PCT_SEPSIS >= 2 ? `پروکلسی‌تونین ${t.PCT_SEPSIS} است. ` : "") +
-          "این اعداد نیاز به رسیدگی فوری دارند.",
-        action: "همین حالا به اورژانس مراجعه کنید. این برگه را همراه ببرید.",
+          (physio
+            ? "در ۴۸ ساعتِ اولِ زندگی این شاخص به‌طور طبیعی بالا می‌رود (تا حدود ۲۰ ng/mL در ۲۴ ساعت)، پس به‌تنهایی نشانهٔ عفونت نیست؛ ولی پزشکِ نوزاد باید آن را کنارِ حالِ نوزاد بسنجد."
+            : "این اعداد نیاز به رسیدگی فوری دارند."),
+        action: physio ? NEONATAL_SAMEDAY_ACTION : "همین حالا به اورژانس مراجعه کنید. این برگه را همراه ببرید.",
         suggest: [],
         warnings: [],
-        blocks_others: true,
+        blocks_others: !physio,
       };
     },
   },
@@ -216,7 +231,7 @@ export const RULES_INFECTIOUS = [
     id: "crp_pos_esr_normal",
     match: (e) => {
       const crpPos = Object.entries(e.qual).some(
-        ([k, v]) => /crp/i.test(k) && /\+|positive|مثبت/i.test(v)
+        ([k, v]) => /crp/i.test(k) && qualVerdict(v).state === "pos"   /* N6: «+/-» ⊃ «+»؛ «Reactive» هم مثبت است */
       );
       const esr = e.graded.find((g) => g.test === "ESR");
       return crpPos && esr && !esr.abnormal;

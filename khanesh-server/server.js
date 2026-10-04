@@ -95,6 +95,10 @@ const QUAL_NEGATIVE = /^\s*(neg|negative|nil|none|absent|not\s*(seen|detected)|n
 const QUAL_WORDS = [
   // specs/012 (P68): ردیف‌های سرولوژی هم در qual‌اند؛ بی‌این جفت‌ها، برگهٔ فقط-VDRL «ردیفِ ادرارِ توضیح‌داده‌نشده» گزارش می‌شد (T45).
   [/vdrl|rpr/i, /سیفلیس/], [/rubella|سرخجه/i, /سرخجه/], [/coombs|antibody ?screen|کومبس/i, /کومبس/],
+  // P76: خودایمنی — همین N28: بی‌این جفت‌ها ردیفِ ANA/ANCA «ردیفِ ادرارِ توضیح‌داده‌نشده» گزارش می‌شد.
+  [/\bana\b|antinuclear|dsdna|ds ?dna|\bssa\b|\bssb\b|anti.?(ro|la)\b/i, /ANA|هسته‌ای|anti-dsDNA|Ro|La/], [/anca|\bmpo\b|\bpr3\b/i, /ANCA|MPO|PR3/], [/b27/i, /HLA-B27/], [/ccp|acpa/i, /CCP/],
+  [/\bsm\b|smith|rnp|scl.?70|jo.?1|centromere/i, /Sm|RNP|Scl|Jo|سانترومر/], [/cardiolipin|\bacl\b|glycoprotein|b2gpi|lupus ?anticoag|drvvt/i, /آنتی‌فسفولیپید|کاردیولیپین|لوپوس‌آنتی‌کوآگولان/],
+  [/\bcea\b|\bafp\b|ca ?125|ca ?19|ca ?15|b2m|microglobulin|calcitonin|chromogranin|\bcga\b|\bpsa\b/i, /تومورمارکر|PSA|Free PSA|CEA|AFP|CA|بتا|کلسی‌تونین|کروموگرانین/], [/calprotectin|\bfit\b|fobt|occult|خون مخفی/i, /کالپروتکتین|خونِ مخفی|FIT/],
   [/pylori|helicobacter|\bubt\b|breath|هلیکوباکتر/i, /هلیکوباکتر/], [/thyroglobulin|anti.?tg|trab|\btsi\b|tbii|tsh ?receptor|تیروگلوبولین/i, /تیروگلوبولین|TRAb/],
   [/nitrit/i, /نیتریت/], [/leuk|wbc|pus/i, /گلبول سفید|لکوسیت|چرک|عفونت/], [/rbc|blood|hgb|hemo/i, /خون|گلبول قرمز/],
   [/protein|alb/i, /پروتئین|آلبومین/], [/glu|sugar/i, /قند/], [/keton/i, /کتون/], [/gravity|\bsg\b/i, /وزن مخصوص|غلظت/],

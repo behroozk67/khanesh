@@ -46,6 +46,10 @@ export const ADULT_REFS = {
   MYOGLOBIN:  { M: [28, 72], F: [25, 58], unit: 'ng/mL' },   // Mayo/Michigan Medical Labs؛ µg/L ≡ ng/mL
   TRANSFERRIN:{ both: [200, 360], unit: 'mg/dL' },           // Mayo/Michigan؛ g/L چاپ‌شده ×۱۰۰
   ATIII:      { both: [80, 130], unit: '%' },                // فعالیت؛ Quest/Mayo ‏۸۰–۱۳۰٪؛ IU/mL چاپ‌شده ×۱۰۰
+  // P77-۱۲ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴، گزینهٔ الف؛ Katzmann 2002 / Hutchison 2008): زنجیرهٔ سبکِ آزاد، mg/L، وابسته به کیتِ Freelite.
+  //   نسبتِ κ/λ (۰٫۲۶–۱٫۶۵؛ در نارساییِ کلیه ۰٫۳۷–۳٫۱) در قاعده‌های monoclonal_gammopathy_* خوانده می‌شود، نه اینجا.
+  KAPPA_FLC:  { both: [3.3, 19.4],  unit: 'mg/L' },
+  LAMBDA_FLC: { both: [5.71, 26.3], unit: 'mg/L' },
   TT:         { both: [12, 21],  unit: 's' },                // «معمولاً ۱۲–۱۹»، برخی آزمایشگاه‌ها < ۲۰–۲۲؛ به معرف وابسته — گشاده تا مثبتِ کاذب نسازد (P67 پرسش ۱)
 
   // ---- بیوشیمی (Table A5-4) ----

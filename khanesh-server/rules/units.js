@@ -144,6 +144,16 @@ export const PRINTED_ONLY_CONVERSIONS = {
   TRANSFERRIN: { si: /^g\/l$/, factor: 100, conv: 'mg/dL' },
   ATIII:       { si: /^(iu\/ml|u\/ml)$/, factor: 100, conv: '%' },
   MYOGLOBIN:   { si: /^ng\/l$/, factor: 0.001, conv: 'ng/mL' },
+  // ۲۰۲۶-۱۰-۰۳ (لایهٔ ۲، N3): refs.js لاکتات را mmol/L می‌خواهد ولی برگهٔ ایرانی گاهی mg/dL می‌دهد؛ «لاکتات 18 mg/dL» (≈ ۲ mmol/L، طبیعی)
+  //   با حدِ ۴ سپسیس اورژانسِ کاذب می‌شد. وزنِ مولکولی ۹۰٫۰۸: mg/dL ÷ ۹٫۰۰۸. PCT: pg/mL و ng/L هم‌ارزند (÷۱۰۰۰ ⇒ ng/mL)؛ «PCT 50 pg/mL»
+  //   (= ۰٫۰۵ ng/mL، طبیعی) اورژانس می‌شد. APOB: refs.js mg/dL است؛ g/L ×۱۰۰ («Apo B 1.4 g/L» = ۱۴۰ mg/dL بی‌صدا طبیعی خوانده می‌شد).
+  //   فقط با واحدِ چاپ‌شده — عددِ بی‌واحد حدس زده نمی‌شود (P48).
+  LACTATE:     { si: /^mg\/dl$/, factor: 1 / 9.008, conv: 'mmol/L' },
+  PCT_SEPSIS:  { si: /^(pg\/ml|ng\/l)$/, factor: 0.001, conv: 'ng/mL' },
+  APOB:        { si: /^g\/l$/, factor: 100, conv: 'mg/dL' },
+  // P77-۱۲: FLC در refs.js mg/L است؛ mg/dL ×۱۰. بی‌واحد = mg/L (شکلِ رایجِ Freelite) — فرضِ بازبین‌پذیر، در متنِ قاعده گفته می‌شود.
+  KAPPA_FLC:   { si: /^mg\/dl$/, factor: 10, conv: 'mg/L' },
+  LAMBDA_FLC:  { si: /^mg\/dl$/, factor: 10, conv: 'mg/L' },
   // P46 بند ۱۱ (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳: پرولاکتینِ mIU/L نباید به «تفسیر نشدند» برود): ۱ ng/mL = ۲۱.۲ mIU/L، استانداردِ
   //   WHO ‏۳rd IS ‏۸۴/۵۰۰ (هر آمپول ۵۳ mIU = ۲.۵ µg؛ NIBSC). ⚠️ به استانداردِ کیت وابسته است (کیتِ قدیمیِ ۷۵/۵۰۴ ضریبِ دیگری داشت)،
   //   پس ردیفِ تبدیل در unitConversions می‌آید. µIU/mL و mU/L عددشان با mIU/L یکی است. فقط با واحدِ چاپ‌شده (N3) —

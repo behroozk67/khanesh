@@ -209,6 +209,9 @@ export const PHOS_SYMPTOMATIC_MGDL = 0.99;
 
 // ─────────────────────────────────────────────────────────────
 
+// P77-۵ (تصمیمِ بازبین؛ APSA، وابسته به آزمایشگاه): فسفرِ بالای ≥ ۸٫۹ mg/dL پنیک است.
+const PHOS_PANIC_HIGH_MGDL = 8.9;
+
 export const RULES_MINERAL_BONE = [
 
   // ═══════════════════════════════════════════════════
@@ -657,7 +660,8 @@ export const RULES_MINERAL_BONE = [
           : ` کلسیم شما ${ca.value}${rangeTxt(ca)} است و طبیعی.`;
       return {
         pattern: high ? "hyperphosphatemia" : "hypophosphatemia",
-        urgency: high && renal ? "this_week" : "routine",
+        // P77-۵ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ جدولِ panicِ APSA، وابسته به آزمایشگاه): فسفرِ ≥ ۸٫۹ mg/dL ⇒ soon حتی بی‌نشانهٔ کلیوی.
+        urgency: high && p.value >= PHOS_PANIC_HIGH_MGDL ? "soon" : high && renal ? "this_week" : "routine",
         key_number: p.value,
         headline: high ? "فسفر خون شما بالاست" : "فسفر خون شما پایین است",
         must_say:
@@ -672,9 +676,11 @@ export const RULES_MINERAL_BONE = [
             : "فسفر پایین علت‌های متعددی دارد — از کم‌خوری و سوءجذب تا بعضی داروها.") +
           caClause +
           " هورمون پاراتیروئید (PTH) روی این برگه نیست؛ فسفر و کلسیم را همان هورمون تنظیم می‌کند و اندازه‌گیری‌اش تصویر را کامل می‌کند.",
-        action: high && renal
-          ? "این هفته با پزشک مطرح کنید و به کاهش کار کلیه اشاره کنید."
-          : "این نتیجه را با پزشک در میان بگذارید.",
+        action: high && p.value >= PHOS_PANIC_HIGH_MGDL
+          ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید" + (renal ? " و به کاهش کار کلیه اشاره کنید." : ".")
+          : high && renal
+            ? "این هفته با پزشک مطرح کنید و به کاهش کار کلیه اشاره کنید."
+            : "این نتیجه را با پزشک در میان بگذارید.",
         suggest: ["هورمون پاراتیروئید (PTH)", "کلسیم", "ویتامین D", "بررسی توسط پزشک"],
         warnings: [],
       };

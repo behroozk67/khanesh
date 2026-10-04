@@ -46,9 +46,19 @@ export const FA_NAMES = {
   TSH: "TSH", FT4: "T4 آزاد", FT3: "T3 آزاد", T3: "T3 تام", T4: "T4 تام", ANTI_TPO: "آنتی‌بادی TPO",
   // specs/012 (P68): آنتی‌بادی‌های تیروئید — فقط در برابرِ بازهٔ چاپ‌شده سنجیده می‌شوند (ungraded، assay_printed).
   ANTI_TG: "آنتی‌بادی ضد تیروگلوبولین (Anti-Tg)", TRAB: "آنتی‌بادی گیرندهٔ TSH (TRAb/TSI)",
+  // P76: خودایمنی — بی‌نمره، فقط در برابرِ مرزِ چاپ‌شدهٔ همان ردیف (ungraded، assay_printed)
+  ANA: "آنتی‌بادی ضدهسته‌ای (ANA)", ANTI_DSDNA: "آنتی‌بادی anti-dsDNA", ANTI_RO: "آنتی‌بادی Ro (SSA)", ANTI_LA: "آنتی‌بادی La (SSB)",
+  C_ANCA: "c-ANCA", P_ANCA: "p-ANCA", ANCA: "ANCA", MPO: "آنتی‌بادی MPO", PR3: "آنتی‌بادی PR3", HLA_B27: "HLA-B27",
+  ANTI_CCP: "آنتی‌بادی Anti-CCP", C3: "کمپلمان C3", C4: "کمپلمان C4",
+  // P77
+  ANTI_SM: "آنتی‌بادی Anti-Sm", ANTI_RNP: "آنتی‌بادی Anti-RNP (U1-RNP)", SCL70: "آنتی‌بادی Scl-70", ANTI_CENTROMERE: "آنتی‌بادی سانترومر", JO1: "آنتی‌بادی Anti-Jo-1",
+  ACL_IGG: "کاردیولیپین IgG", ACL_IGM: "کاردیولیپین IgM", ACL: "آنتی‌کاردیولیپین", B2GPI_IGG: "آنتی-β2 گلیکوپروتئین I (IgG)", B2GPI_IGM: "آنتی-β2 گلیکوپروتئین I (IgM)", B2GPI: "آنتی-β2 گلیکوپروتئین I", LUPUS_AC: "لوپوس‌آنتی‌کوآگولان",
+  CEA: "CEA", AFP: "AFP (آلفافتوپروتئین)", CA125: "CA 125", CA199: "CA 19-9", CA153: "CA 15-3", B2M: "بتا-۲ میکروگلوبولین", CALCITONIN: "کلسی‌تونین", CGA: "کروموگرانین A",
+  PSA_TOTAL: "PSA کل", PSA_FREE: "Free PSA", PSA_RATIO: "درصد Free PSA", CALPROTECTIN: "کالپروتکتین مدفوع", FIT: "خونِ مخفی در مدفوع (FIT/FOBT)",
   CHOL: "کلسترول", HDL: "HDL", LDL: "LDL", TG: "تری‌گلیسیرید",
   // پرانتزِ لاتین می‌ماند چون برگه «Apo B» چاپ می‌کند — همان استدلالِ PTH/HDL.
   APOB: "آپولیپوپروتئین B (Apo B)",
+  KAPPA_FLC: "زنجیرهٔ سبکِ آزادِ کاپا (κ)", LAMBDA_FLC: "زنجیرهٔ سبکِ آزادِ لامبدا (λ)",
   HAPTO: "هاپتوگلوبین", PT: "PT (زمان پروترومبین)", APTT: "aPTT", FIB: "فیبرینوژن",
   DDIMER: "D-dimer", INR: "INR", LACTATE: "لاکتات", PCT_SEPSIS: "پروکلسی‌تونین",
   PLT_CRIT: "پلاکت‌کریت (PCT)",

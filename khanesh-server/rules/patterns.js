@@ -17,6 +17,8 @@ import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
 import { RULES_HEMOSTASIS } from "./patterns_hemostasis.js";
 import { RULES_COVERAGE_GAPS } from "./patterns_coverage_gaps.js";
 import { RULES_SEROLOGY } from "./patterns_serology.js";
+import { RULES_AUTOIMMUNE } from "./patterns_autoimmune.js";
+import { AI_KEYS, autoAbState } from "./serology.js";
 import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
@@ -52,6 +54,7 @@ export const RULES = [
   ...RULES_HEMOSTASIS,
   ...RULES_COVERAGE_GAPS,
   ...RULES_SEROLOGY,
+  ...RULES_AUTOIMMUNE,
   ...RULES_P73_GAPS
 ];
 bindP73Owners(RULES);
@@ -82,6 +85,16 @@ export const SUGGEST_TESTS = {
   "تست تأییدی ترپونمایی (TPHA/FTA-ABS)": ["TPHA"],
   "شناسایی آنتی‌بادی و تیتر (کومبس غیرمستقیم)": ["ICT_ANTIBODY_ID"],
   "آنتی‌ژن مدفوع یا تست تنفسی اوره برای هلیکوباکتر": ["HPYLORI_ACTIVE"],
+  // P76: کلیدِ این‌ها یا ساختگی است (ارجاع/پنل) یا فقط وقتی «اندازه‌گیری‌شده» است که عددی با مرزِ چاپی روی برگه آمده (ungraded)؛
+  //   قاعده خودش آنچه روی برگه هست را پیشنهاد نمی‌دهد (patterns_autoimmune.js).
+  "Anti-dsDNA": ["ANTI_DSDNA"],
+  "کولونوسکوپی": ["_COLONOSCOPY"],
+  "Anti-CCP": ["ANTI_CCP"],   // rf_positive این را پیشنهاد می‌دهد؛ measured از autoAbState پر می‌شود (پایین)
+  "C3 و C4": ["C3", "C4"],
+  "پنل ENA (Anti-Sm، Anti-RNP، Anti-Ro، Anti-La)": ["_ENA_PANEL"],
+  "Anti-MPO": ["MPO"],
+  "Anti-PR3": ["PR3"],
+  "بررسی توسط متخصص روماتولوژی": ["_REFERRAL_RHEUM"],
   "FT3": ["FT3"],
   "TSH و FT4": ["TSH", "FT4"],
   "ACTH": ["ACTH"],   // P46: cushing_likely وقتی ACTH روی برگه نیست پیشنهادش می‌کند (N8)
@@ -168,6 +181,22 @@ export const SUGGEST_TESTS = {
   //   را حذف نمی‌کند؛ male_gonadal_axis خودش فقط وقتی پیشنهاد می‌دهد که روی برگه نباشند.
   //   ردیف برای روزی است که بازه‌شان تأیید شود (N8: ردیفِ غایب همیشه به سمتِ غلط می‌شکند).
   "LH و FSH": ["LH", "FSH"],
+  // لایهٔ ۲ (گروه ۷، N8): این رشته‌ها در قاعده‌ها پیشنهاد می‌شدند ولی ردیف نداشتند ⇒ alreadyMeasured «false» برمی‌گرداند و بیمارِ
+  //   دارای آن آزمایش، «درخواست … از پزشک» را زیرِ عددِ خودش می‌دید. همه کلیدهای واقعیِ ADULT_REFS‌اند؛ BUN عمداً به UREA
+  //   نگاشت شد (موتور اوره را تبدیل نمی‌کند — architecture.md گام ۴).
+  "CBC": ["HGB", "WBC", "PLT"],
+  "2ME": ["ME2"],
+  "کومبس رایت": ["COOMBS_WRIGHT"],
+  "ACR ادرار": ["ACR"],
+  "نسبت آلبومین به کراتینین ادرار (ACR)": ["ACR"],
+  "BUN": ["UREA"],
+  "قند خون ناشتا": ["GLU_F"],
+  "HbA1c — میانگین قند سه ماه اخیر": ["HBA1C"],
+  "آنزیم‌های کبدی": ["AST", "ALT"],
+  "عملکرد کبد": ["AST", "ALT"],
+  "ALP و GGT": ["ALP", "GGT"],
+  "عملکرد کلیه": ["CREAT"],
+  "بررسی عملکرد کلیه (کراتینین، eGFR)": ["CREAT"],
 };
 
 /** آیا این پیشنهاد، آزمایشی است که همین حالا اندازه‌گیری شده؟ */
@@ -392,7 +421,9 @@ export function runPatterns(engineOut) {
   //    به کاربر گفته می‌شد «درخواست آزمایش فریتین از پزشک».
   //    اینجا فیلتر می‌شود — نه در ساخت توصیه‌ها — چون suggest از طریق پرامپت
   //    به LLM هم می‌رود و مدل صادقانه بازگویش می‌کند. سرِ منبع باید پاک باشد.
-  const measured = new Set([...(engineOut?.graded ?? []).map((g) => g.test), ...Object.keys(engineOut?.hemostasis ?? {})]);
+  // P76: آزمایش‌های خودایمنیِ روی برگه (کیفی در qual یا عددیِ بی‌نمره در ungraded) هم «اندازه‌گیری‌شده»‌اند.
+  const measured = new Set([...(engineOut?.graded ?? []).map((g) => g.test), ...Object.keys(engineOut?.hemostasis ?? {}),
+    ...AI_KEYS.filter((id) => autoAbState(engineOut ?? {}, id).state !== "absent")]);
   for (const f of findings) {
     if (f.suggest?.length) {
       f.suggest = f.suggest.filter((s) => !alreadyMeasured(s, measured));

@@ -3193,7 +3193,8 @@ test("M50b: منیزیمِ بالا تنها routine است، ولی با نار
   }));
   const f1 = alone.findings.find((x) => x.pattern === "hypermagnesemia");
   assert.ok(f1, `قاعده فعال نشد؛ فعال‌شده‌ها: ${alone.findings.map((x) => x.pattern).join("، ") || "هیچ"}`);
-  assert.equal(f1.urgency, "routine");
+  // 🔴 عمداً عوض شد (۲۰۲۶-۱۰-۰۴، P77-۲، تصمیمِ بازبین): منیزیمِ بالا هر مقدارِ بالای مرجع ⇒ this_week (≥ ۴٫۹ اورژانس)؛ پیش‌تر بی‌نارسایی routine.
+  assert.equal(f1.urgency, "this_week");
   assert.match(f1.must_say, /3\.2/);
 
   // ⚠️ CTCAE هیچ MG_HIGH ندارد، پس تشدید نمی‌تواند از levelGrade بیاید و
@@ -5407,7 +5408,7 @@ test("M92d: مجموعهٔ شناسه‌های patterns_biochem_new همانی �
       "amylase_emergency",
       "apob_elevated",
       "bilirubin_emergency",
-      "diabetes_a1c_diagnostic",
+      // diabetes_a1c_diagnostic حذف شد (لایهٔ ۲، ۲۰۲۶-۱۰-۰۳): glycemia هر HbA1c ≥ ۶٫۵ را می‌گیرد؛ دو یافته با دو زمان‌بندی (N20). MEDICAL_RULES.md P75.
       "familial_hypercholesterolemia_youth",
       "severe_hypercholesterolemia",
       "severe_hyperglycemia_uncertain_ketosis",
@@ -6465,7 +6466,9 @@ test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ ام
   const P = {
     // عمداً بازپایه شد (۲۰۲۶-۱۰-۰۳، P72، M303): actionِ this_weekِ قاعدهٔ kidney «این هفته» گرفت (N20) و
     //   «درخواست آزمایش سونوگرافی/بررسی …» «درخواست …» شد (N8، M306). diffِ HEAD: فقط همین دو.
-    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "86b8831aef2ac1be"],
+    // و دوباره عمداً (۲۰۲۶-۱۰-۰۴، لایهٔ ۲ گروه ۵، M343): PLTِ بی‌Hb/WBC دیگر «سایر رده‌ها طبیعی‌اند» نمی‌گوید — فقط must_sayِ
+    //   isolated_thrombocytopenia عوض شد (probe: بقیهٔ یافته‌ها بایت‌به‌بایت همان).
+    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "db536cbb6c334e6e"],
     uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
     thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "0da3c35337661135"],
     // prl_thyroid برداشته شد (۲۰۲۶-۱۰-۰۳): پرولاکتین با تأییدِ P46 بند ۱ بازه و قاعده گرفت (hyperprolactinemia، M101–M101e)،
@@ -7054,7 +7057,7 @@ test("M125: واحدِ چاپ‌شده بایت‌به‌بایت بی‌تغی�
   ];
   // ⚠️ عمداً بازپایه شد (P73، ۲۰۲۶-۱۰-۰۳): پنلِ «Total Bilirubin 40 µmol/L» (۱ از ۱۵) پیش‌تر unmatched_abnormal/routine می‌داد و حالا
   //   bilirubin_total_alone/routine؛ فوریتِ کلی یکی است. ۱۴ پنلِ دیگر بایت‌به‌بایت یکسان.
-  const EXPECTED = ["f665faa0048dbdf5", "c1d5e82d7ddbc3e0", "92ca4fb75ab86370", "bd45550d31afb2f3", "4436e94e10c7ae54",
+  const EXPECTED = ["f665faa0048dbdf5", "c1d5e82d7ddbc3e0", "3b49baf122f3ba66", "bd45550d31afb2f3", "4436e94e10c7ae54",
     "81ff9d916b808907", "e4d91c9257556a36", "995fad1290b5833e", "edac66e5fd40ebf2", "4231b77939cd3a67",
     "5a3b00c577ab6abf", "c2ef8cb631aa6acb", "09889f9ef3323ae1", "47ef5a64951b1422", "999ba4662ba255d9"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
   const snap = (rows) => {
@@ -8543,7 +8546,9 @@ test("M176: بیلی‌روبینِ ادرار کنارِ الگوی «ژیلب�
 });
 
 test("M176b: شاخهٔ «عضله نه خون» مالکِ بیلی‌روبینِ ادرار نیست (B1، #۱)", () => {
-  const p = ubPages([["Bilirubin", "2+"]], [["LDH", "600", "U/L"], ["CK", "2500", "U/L"], ["AST", "90", "U/L"], ["ALT", "30", "U/L"], ["Haptoglobin", "120", "mg/dL"]]);
+  // لایهٔ ۲ (۲۰۲۶-۱۰-۰۳): CK ۲۵۰۰ «بحرانی» است و شاخهٔ عضله حالا — مثل ck_elevated_alone — اورژانس + blocks_others می‌شود و یافتهٔ
+  //   بیلی‌روبینِ ادرار را زیرِ خود می‌برد؛ پیش‌فرضِ این تست (عضله routine است) عمداً عوض شد. با CK ۶۰۰ (متوسط) مالکیت همان‌طور آزمون می‌شود.
+  const p = ubPages([["Bilirubin", "2+"]], [["LDH", "600", "U/L"], ["CK", "600", "U/L"], ["AST", "90", "U/L"], ["ALT", "30", "U/L"], ["Haptoglobin", "120", "mg/dL"]]);
   const f = p.findings.find((x) => x.pattern === "urine_bilirubin_positive");
   assert.ok(f, `یافتهٔ بیلی‌روبینِ ادرار گم شد: ${ubAll(p)}`);
   assert.equal(f.urgency, "this_week");
@@ -8835,8 +8840,8 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   // ⚠️ عمداً عوض شد — برگهٔ واقعیِ ۲۰۲۶-۰۹-۲۴ (M191): اقدامِ روتینِ unexplained_abnormal حالا نامِ موارد را می‌گوید، و پان‌سیتوپنی سه عدد + آزمایش‌های علت‌یابی دارد و کم‌خونی زیرش کوتاه می‌آید. سنجیده شد (freezediff، 953f513 در برابرِ درختِ کاری): فرقِ دیگری نیست.
   // اندیس‌های ۲، ۳، ۶، ۷، ۹، ۱۰.
   // ⚠️ اندیس ۹ عمداً عوض شد (M275، ۲۰۲۶-۱۰-۰۱): leukocytosis نوتروفیلِ مطلقِ بالا را می‌گوید و unexplained_abnormal رفت — freezediff: فقط همین.
-  // ⚠️ 3، 5، 10 عمداً عوض شد (M192، ۲۰۲۶-۰۹-۲۴): کم‌خونی RBC/HCT/MCHِ هم‌جهت را نام می‌برد و unexplained_abnormal رفت — freezediff: فقط همین.
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","a9607b22be77c6ff","3bf61851eec439b1","c979a7f9f4e6d5f6","5e02ded58b6743fe","069dca6b516e1253","1327339dfe505b04","f11b85687b38cce4"];
+  // ⚠️ 3، 5، 10 عمداً عوض شد (M192، ۲۰۲۶-۰۹-۲۴): کم‌خونی RBC/HCT/MCHِ هم‌جهت را نام می‌برد و unexplained_abnormal رفت — freezediff: فقط همین. // ⚠️ اندیسِ ۱۱ عمداً عوض شد (۲۰۲۶-۱۰-۰۴، P77-۸): هماتوکریتِ کودکِ ۸ ساله بی‌بازهٔ سنی دیگر سنجیده نمی‌شود (noRef)؛ هش با دو ردیفِ بی‌یافتهٔ اول یکی است.
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","a9607b22be77c6ff","3bf61851eec439b1","c979a7f9f4e6d5f6","5e02ded58b6743fe","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
   assert.deepEqual(P.map(snap), EXPECTED);
 });
 

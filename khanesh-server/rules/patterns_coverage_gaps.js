@@ -6,7 +6,7 @@
 //    منتظرِ بازبینِ انسانی‌اند. هیچ‌کدام emergency نیست؛ سخت‌ترین سطح «soon» (همین امروز) برای کشتِ خونِ مثبت و BHB ≥ ۳ است.
 // ⚠️ متنِ همهٔ قاعده‌ها حکم نمی‌دهد؛ «مطرح می‌کند». و برای هر ردیف سه‌حالت: بالا / پایین-یا-منفی / نامفهوم.
 // ============================================================
-import { serologyReactive, urinePositive, urineCellCount, castAxis, qualState } from "./patterns_utils.js";
+import { serologyReactive, urinePositive, urineCellCount, castAxis, qualState, qualVerdict } from "./patterns_utils.js";
 import { utiFires, bacteriuriaFires, bacteriaSignificant } from "./patterns_nephrology.js";
 import { RULES_BIOCHEM } from "./patterns_biochem.js";
 
@@ -25,6 +25,13 @@ function qualRows(e, re) {
   return Object.entries(e.qual ?? {})
     .filter(([k]) => re.test(normK(k)))
     .map(([key, v]) => ({ key, raw: String(v).trim(), norm: normK(key) }));
+}
+
+const EQUIVOCAL_ROW_RE = /crp|troponin|ctn[it]|hiv|hbsag|hcv|hcg|pregnan|بارداری|بتا|تروپونین/;
+function equivocalRows(e) {
+  return Object.entries(e.qual ?? {})
+    .filter(([k, v]) => EQUIVOCAL_ROW_RE.test(normK(k)) && qualVerdict(v).state === "equiv")
+    .map(([key, v]) => ({ key, raw: String(v).trim() }));
 }
 
 // N6: qualState (مجموعهٔ بستهٔ کلمه‌ها) در patterns_utils.js است — specs/012 آن را مشترک کرد.
@@ -166,13 +173,18 @@ function tpBuild(e) {
       ? `آلبومینِ همین برگه هم پایین است (${alb.value})، یعنی کاهش از بخشِ آلبومین می‌آید؛ علت‌های شایع: بیماریِ کبد، ازدست‌رفتنِ پروتئین از کلیه یا روده، سوءتغذیه و التهابِ مزمن. `
       : albState === "normal"
         ? "آلبومینِ همین برگه طبیعی است، پس کاهش از بخشِ گلوبولین‌ها (پروتئین‌های ایمنی) می‌آید. "
-        : "آلبومین روی این برگه نیست؛ برای فهمیدنِ علت لازم است. ";
+        : albState === "high"
+          // 🔴 N4 (لایهٔ ۲): آلبومینِ بالا با پروتئینِ تامِ پایین به «آلبومین روی برگه نیست» می‌افتاد — ادعای دروغ دربارهٔ عددِ چاپ‌شده.
+          ? `آلبومینِ همین برگه بالاتر از حد طبیعی است (${alb.value}) و پروتئینِ تام پایین؛ این ترکیب غیرمعمول است و ارزش دارد پزشک آن را (و احتمال خطای نمونه‌گیری) بررسی کند. `
+          : "آلبومین روی این برگه نیست؛ برای فهمیدنِ علت لازم است. ";
   } else {
     tail = albState === "normal"
       ? "آلبومینِ همین برگه طبیعی است، پس افزایش از بخشِ گلوبولین‌هاست؛ علت‌ها از التهابِ مزمن و عفونت تا گاهی بیماری‌های خونی را شامل می‌شود و با آزمایشِ الکتروفورزِ پروتئین روشن می‌شود. "
       : albState === "high"
         ? "آلبومینِ همین برگه هم بالاست؛ این الگو اغلب به کم‌آبیِ بدن (غلیظ‌شدنِ خون) برمی‌گردد. "
-        : "آلبومین روی این برگه نیست؛ برای فهمیدنِ علتِ افزایش لازم است. ";
+        : albState === "low"
+          ? `آلبومینِ همین برگه پایین است (${alb.value}) و پروتئینِ تام بالا؛ یعنی افزایش از بخشِ گلوبولین‌هاست (نه آلبومین). علت را پزشک با آزمایش‌های تکمیلی مثل الکتروفورزِ پروتئین روشن می‌کند. `
+          : "آلبومین روی این برگه نیست؛ برای فهمیدنِ علتِ افزایش لازم است. ";
   }
   return {
     pattern: "total_protein_result",
@@ -262,7 +274,10 @@ function antiHbcBuild(e) {
     else if (hbsPos) { body = "Anti-HBc مثبت و Anti-HBs هم مثبت است؛ این معمولاً یعنی عفونتِ قبلیِ هپاتیت B که بدن از آن بهبود یافته. نکتهٔ مهم: اگر قرار است داروی سرکوب‌کنندهٔ ایمنی یا شیمی‌درمانی بگیرید، حتماً پزشک را از این نتیجه باخبر کنید، چون ویروس به‌ندرت دوباره فعال می‌شود. "; }
     else { urgency = "this_week"; body = "Anti-HBc مثبت است ولی Anti-HBs روی برگه مثبت نیست و HBsAg هم واکنش‌گر گزارش نشده یا روی برگه نیست. این حالت («Anti-HBc تنها») چند توضیح دارد: عفونتِ قدیمیِ بهبودیافته، عفونتِ کم‌فعال، یا نتیجهٔ مثبتِ کاذب؛ با HBsAg و Anti-HBs روشن می‌شود. "; }
   } else if (st.state === "neg") {
-    body = "Anti-HBc منفی است؛ یعنی نشانه‌ای از تماسِ قبلی با ویروسِ هپاتیت B دیده نشده. (این آزمایش واکسن‌زدن را نشان نمی‌دهد؛ آن را Anti-HBs می‌گوید.) ";
+    // N6/N4: IgM منفی فقط عفونتِ تازه را رد می‌کند؛ «تماسِ قبلی دیده نشد» را فقط Anti-HBc تام می‌تواند بگوید.
+    body = igm
+      ? "Anti-HBc IgM منفی است؛ یعنی نشانهٔ عفونتِ تازهٔ هپاتیت B دیده نشد. این آزمایش تماسِ قدیمیِ قبلی با ویروس را رد نمی‌کند؛ آن را Anti-HBc تام می‌گوید. "
+      : "Anti-HBc منفی است؛ یعنی نشانه‌ای از تماسِ قبلی با ویروسِ هپاتیت B دیده نشده. (این آزمایش واکسن‌زدن را نشان نمی‌دهد؛ آن را Anti-HBs می‌گوید.) ";
   } else {
     body = `Anti-HBc روی برگه به‌صورتِ «${r.raw}» آمده و به‌روشنی مثبت یا منفی نیست؛ از آن نتیجه نمی‌گیریم و با پزشک یا همان آزمایشگاه روشنش کنید. `;
   }
@@ -319,10 +334,17 @@ function asoBuild(e) {
 }
 
 // ── ۱۲) کشت ادرار / کشت خون ──
-function cultureState(raw) {
+function cultureState(raw, kind = "urine") {
   const s = String(raw);
   if (/contaminat|mixed (flora|growth)|آلوده|فلور ?مخلوط/i.test(s)) return "contaminated";
-  if (/no ?growth|negative|sterile|not isolated|no bacteria|عدم ?رشد|رشد ?نکرد|منفی|steril|^-$/i.test(s)) return "neg";
+  // نامِ ارگانیسم = رشد؛ «<10^3 other flora» یا «no significant growth» کنارِ آن منفی‌اش نمی‌کند، و آستانهٔ CFUِ معنادار فقط برای ادرار است
+  //   (در کشتِ خون هر رشدی معنادار است).
+  const ORG = /coli|klebsiella|proteus|pseudomonas|enterobacter|enterococc|staph|strep|candida|acinetobacter|citrobacter|morganella|serratia|salmonella|اشرشیا|کلبسیلا|پروتئوس|استافیلوکوک|استرپتوکوک|انتروکوک|کاندیدا|growth of|رشد (?:کرد|دارد)/i;
+  if (ORG.test(s) && !/(no|without|nil)\s+growth|عدم ?رشد|بدون ?رشد/i.test(s)) return "pos";
+  // N6: «بدون رشد»، «رشد نداشت»، «رشد … مشاهده نشد»، «No significant growth»، «<10000 CFU/mL» (زیرِ حدِ معنادار) منفی‌اند؛
+  //   پیش‌تر فقط «عدم رشد/رشد نکرد» منفی بود و بقیه چون شامل «رشد/growth/cfu» بودند مثبت خوانده می‌شدند.
+  if (/(no|without|nil)\s+(significant\s+|bacterial\s+|organism\s+)?(growth|organisms?)|no ?growth|negative|sterile|not isolated|no bacteria|عدم ?رشد|بدون ?رشد|رشد ?(نکرد|نداشت|نشد|ندارد)|رشدی|منفی|steril|^-$|(رشد|باکتری|میکروب|growth).{0,25}(مشاهده|دیده|یافت) ?نشد/i.test(s)) return "neg";
+  if (kind === "urine" && /<\s*(10[,.]?000|10\s*\^\s*[34]|1[0o]\s*[⁴³])/i.test(s)) return "neg";
   if (/positive|مثبت|growth|cfu|coli|klebsiella|proteus|pseudomonas|enterobacter|enterococc|staph|strep|candida|acinetobacter|citrobacter|morganella|serratia|salmonella|رشد|اشرشیا|کلبسیلا|پروتئوس|استافیلوکوک|استرپتوکوک|انتروکوک|کاندیدا/i.test(s)) return "pos";
   return "unknown";
 }
@@ -348,7 +370,7 @@ function urineCultureBuild(e) {
 }
 function bloodCultureBuild(e) {
   const r = qualRows(e, /^bloodculture/)[0];
-  const st = cultureState(r.raw);
+  const st = cultureState(r.raw, "blood");
   const urgency = st === "pos" ? "soon" : "routine";
   const body = {
     pos: `کشتِ خون «${r.raw}» گزارش شده است؛ یعنی میکروب در خون رشد کرده. این نتیجه را آزمایشگاه معمولاً فوری به پزشک اطلاع می‌دهد. گاهی (به‌ویژه وقتی فقط یک شیشه مثبت است) آلودگیِ پوست هنگامِ نمونه‌گیری است، ولی تا پزشک بررسی نکرده نباید آن را بی‌اهمیت گرفت.`,
@@ -467,6 +489,21 @@ export const RULES_COVERAGE_GAPS = [
   { id: "anti_hbs_result", match: (e) => qualRows(e, ANTIHBS_RE).length > 0, build: antiHbsBuild },
   { id: "anti_hbc_result", match: (e) => qualRows(e, ANTIHBC_RE).length > 0, build: antiHbcBuild },
   { id: "aso_result", match: (e) => qualRows(e, /^aso|^antistreptolysin/).length > 0, build: asoBuild },
+  // N6/N28: نتیجهٔ «مرزی/+/-/نامشخص» در آزمایش‌هایی که قاعده‌شان فقط مثبت یا منفیِ روشن را می‌خواند (CRP، تروپونین، HIV/HBV/HCV،
+  //   hCG) بی‌خواننده می‌ماند و بیمار مسیرِ «نتایج طبیعی است» را می‌گرفت. فقط می‌گوید «مبهم است»؛ حکمی نمی‌دهد.
+  { id: "qual_equivocal_result", match: (e) => equivocalRows(e).length > 0, build: (e) => {
+    const rows = equivocalRows(e);
+    // تروپونینِ مرزی سؤالِ «همین امروز» است (تکرارِ سریالی)، نه نوبتِ عادی — هرگز اورژانس نمی‌شود چون نتیجه مثبت نشده (P75 پرسش).
+    const trop = rows.some((r) => /troponin|ctn[it]|تروپونین/i.test(r.key));
+    const urgency = trop ? "soon" : "routine";
+    return {
+      pattern: "qual_equivocal_result", urgency,
+      headline: "نتیجهٔ یکی از آزمایش‌های شما مبهم است",
+      must_say: rows.map((r) => `نتیجهٔ «${r.key}» روی برگه به‌صورتِ «${r.raw}» آمده و به‌روشنی مثبت یا منفی نیست؛ از آن نتیجه نمی‌گیریم.`).join(" ") +
+        " برای روشن‌شدنش با پزشک یا همان آزمایشگاه مشورت کنید؛ معمولاً تکرارِ آزمایش یا روشِ دقیق‌تر لازم است.",
+      action: ACTION[urgency], suggest: [],
+    };
+  } },
   { id: "urine_culture_result", match: (e) => qualRows(e, /^urineculture/).length > 0, build: urineCultureBuild },
   { id: "blood_culture_result", match: (e) => qualRows(e, /^bloodculture/).length > 0, build: bloodCultureBuild },
   // BHB: اگر یکی از مالک‌های کتون (DKA/HHS/قندِ بسیار بالا) فعال است، او مالکِ جمله است (M91e: «آیا آن قاعده فعال می‌شود»).

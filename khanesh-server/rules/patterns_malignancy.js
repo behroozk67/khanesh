@@ -39,6 +39,28 @@ function lymphSentenceFa(ly, ped) {
       : `لنفوسیت ${ly.value} است و در ${ref} قرار دارد.`;
 }
 
+// P77-۱۲ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ Katzmann 2002، Hutchison 2008 — وابسته به کیتِ Freelite): نسبتِ κ/λ.
+const FLC_RATIO_NORMAL = [0.26, 1.65];
+const FLC_RATIO_RENAL = [0.37, 3.1];
+const FLC_NOTE = " (بازه‌ها برای واحدِ mg/L و کیتِ Freelite است؛ کیت‌های دیگر کمی فرق می‌کنند.)";
+function flcState(e) {
+  const k = e.graded.find((g) => g.test === "KAPPA_FLC");
+  const l = e.graded.find((g) => g.test === "LAMBDA_FLC");
+  if (!k || !l || !(l.value > 0)) return { ratio: null };
+  const renal = e.indices?.egfr != null && e.indices.egfr < 60;
+  const [lo, hi] = renal ? FLC_RATIO_RENAL : FLC_RATIO_NORMAL;
+  const ratio = +(k.value / l.value).toFixed(2);
+  return { ratio, renal, range: `${lo}–${hi}`, abnormal: ratio < lo || ratio > hi };
+}
+function flcRatioFa(e) {
+  const s = flcState(e);
+  if (s.ratio == null) return " نسبتِ کاپا به لامبدا برای تفسیر لازم است و یکی از این دو روی برگه نیست.";
+  return s.abnormal
+    ? ` نسبتِ کاپا به لامبدا ${s.ratio} است و خارج از محدودهٔ ${s.range}${s.renal ? " (مخصوصِ کاهشِ کارِ کلیه)" : ""} قرار دارد؛ یعنی افزایش نامتقارن است.`
+    : ` نسبتِ کاپا به لامبدا ${s.ratio} است و در محدودهٔ ${s.range}${s.renal ? " (مخصوصِ کاهشِ کارِ کلیه)" : ""} قرار دارد؛ افزایشِ هم‌زمانِ هر دو معمولاً از کاهشِ دفعِ کلیوی یا التهاب است و به‌تنهایی نشانهٔ اختلالِ سلولِ پلاسما نیست.`;
+}
+const flcUrgency = (e) => (flcState(e).ratio != null && !flcState(e).abnormal ? "routine" : "this_week");
+
 export const RULES_MALIGNANCY = [
   // ─────────────────────────────────────────
   // 0. زنجیره‌های سبک و گاموپاتی مونوکلونال (MGUS / Multiple Myeloma)
@@ -47,17 +69,23 @@ export const RULES_MALIGNANCY = [
     id: "monoclonal_gammopathy_lambda",
     match: (e) => {
       // پیدا کردن تستی که شامل کلمه LAMBDA یا لامبدا است و مقدارش بالا (high) است
-      const lam = e.graded.find((g) => (g.test.includes("LAMBDA") || g.test.includes("لامبدا")) && g.dir === "high");
-      return !!lam;
+      const lam = e.graded.find((g) => g.test === "LAMBDA_FLC" && g.dir === "high");
+      // هر دو بالا ⇒ مالکِ یافته کاپاست (یک یافته با هر دو عدد، نه دو یافتهٔ هم‌متن) — N20
+      return !!lam && !e.graded.some((g) => g.test === "KAPPA_FLC" && g.dir === "high");
     },
     build: (e) => {
-      const lam = e.graded.find((g) => (g.test.includes("LAMBDA") || g.test.includes("لامبدا")));
+      const lam = e.graded.find((g) => g.test === "LAMBDA_FLC");
       return {
         pattern: "monoclonal_gammopathy_lambda",
-        urgency: "this_week",
+        urgency: flcUrgency(e),
         headline: "افزایش زنجیره سبک لامبدا (Lambda FLC)",
-        must_say: `میزان پروتئین لامبدا در آزمایش شما ${lam.value} است که بالاتر از حد طبیعی است. افزایش نامتقارن زنجیره‌های سبک ایمونوگلوبولین می‌تواند نشان‌دهنده تولید بیش از حد این پروتئین‌ها توسط سلول‌های پلاسما در مغز استخوان باشد (مانند وضعیت MGUS یا میلوم متعدد).`,
-        action: "جهت بررسی‌های تکمیلی (نظیر الکتروفورز پروتئین‌های خون و ادرار) حتماً در اولین فرصت با متخصص خون و سرطان (هماتولوژیست) مشورت کنید.",
+        must_say: `میزان پروتئین لامبدا در آزمایش شما ${lam.value} (حد طبیعی ${lam.range}) است که بالاتر از حد طبیعی است.` + flcRatioFa(e) +
+          (flcState(e).abnormal !== false
+            ? " افزایش نامتقارن زنجیره‌های سبک ایمونوگلوبولین می‌تواند نشان‌دهنده تولید بیش از حد این پروتئین‌ها توسط سلول‌های پلاسما در مغز استخوان باشد (مانند وضعیت MGUS یا میلوم متعدد)."
+            : "") + FLC_NOTE,
+        action: flcUrgency(e) === "routine"
+          ? "در نوبتِ عادی با پزشک مطرح کنید و کارِ کلیه را هم بسنجید."
+          : "جهت بررسی‌های تکمیلی (نظیر الکتروفورز پروتئین‌های خون و ادرار) حتماً در اولین فرصت با متخصص خون و سرطان (هماتولوژیست) مشورت کنید.",
         suggest: ["SPEP", "UPEP", "کلسیم", "کراتینین"],
         key_number: lam.value
       };
@@ -66,17 +94,22 @@ export const RULES_MALIGNANCY = [
   {
     id: "monoclonal_gammopathy_kappa",
     match: (e) => {
-      const kap = e.graded.find((g) => (g.test.includes("KAPPA") || g.test.includes("کاپا")) && g.dir === "high");
+      const kap = e.graded.find((g) => g.test === "KAPPA_FLC" && g.dir === "high");
       return !!kap;
     },
     build: (e) => {
-      const kap = e.graded.find((g) => (g.test.includes("KAPPA") || g.test.includes("کاپا")));
+      const kap = e.graded.find((g) => g.test === "KAPPA_FLC");
+      const lamH = e.graded.find((g) => g.test === "LAMBDA_FLC" && g.dir === "high");
       return {
         pattern: "monoclonal_gammopathy_kappa",
-        urgency: "this_week",
+        urgency: flcUrgency(e),
         headline: "افزایش زنجیره سبک کاپا (Kappa FLC)",
-        must_say: `میزان پروتئین کاپا در آزمایش شما ${kap.value} است که بالاتر از حد طبیعی است. این الگو می‌تواند نشانه اختلالات سلول‌های پلاسما باشد و نیاز به پیگیری دارد.`,
-        action: "جهت ارزیابی و انجام تست‌های الکتروفورز پروتئین به متخصص خون (هماتولوژیست) مراجعه کنید.",
+        must_say: `میزان پروتئین کاپا در آزمایش شما ${kap.value} (حد طبیعی ${kap.range}) است که بالاتر از حد طبیعی است.` +
+          (lamH ? ` لامبدا هم ${lamH.value} (حد طبیعی ${lamH.range}) و بالاتر از حد است.` : "") + flcRatioFa(e) +
+          (flcState(e).abnormal !== false ? " این الگو می‌تواند نشانه اختلالات سلول‌های پلاسما باشد و نیاز به پیگیری دارد." : "") + FLC_NOTE,
+        action: flcUrgency(e) === "routine"
+          ? "در نوبتِ عادی با پزشک مطرح کنید و کارِ کلیه را هم بسنجید."
+          : "جهت ارزیابی و انجام تست‌های الکتروفورز پروتئین به متخصص خون (هماتولوژیست) مراجعه کنید.",
         suggest: ["SPEP", "UPEP"],
         key_number: kap.value
       };
@@ -339,7 +372,11 @@ export const RULES_MALIGNANCY = [
         pattern: "isolated_thrombocytopenia",
         urgency: isCritical ? "emergency" : "this_week",   // «today» در هیچ جدولِ رتبه نبود؛ actionِ «بلافاصله به اورژانس» ⇒ emergency (N20)
         headline: "افت ایزوله پلاکت‌ها (ترومبوسیتوپنی)",
-        must_say: `شمارش پلاکت‌های شما به زیر ۱۰۰ هزار افت کرده در حالی که سایر رده‌های خونی طبیعی هستند. این حالت می‌تواند ایمنی (ITP) یا ثانویه به عفونت‌های ویروسی باشد.${isCritical ? ' افت شدید زیر ۳۰ هزار خطر خونریزی را به شدت بالا می‌برد.' : ''}`,
+        // 🔴 N4 (لایهٔ ۲): «سایر رده‌ها طبیعی‌اند» فقط وقتی Hb و WBC هر دو روی برگه‌اند؛ غایب را نباید «طبیعی» خواند.
+        must_say: `شمارش پلاکت‌های شما به زیر ۱۰۰ هزار افت کرده${
+          e.graded.some((g) => g.test === "HGB" && !g.abnormal) && e.graded.some((g) => g.test === "WBC" && !g.abnormal)
+            ? " در حالی که سایر رده‌های خونی طبیعی هستند"
+            : " و هموگلوبین یا گلبول سفید روی این برگه نیست؛ برای دانستنِ این‌که فقط پلاکت کم است یا رده‌های دیگر هم، شمارشِ کاملِ خون (CBC) لازم است"}. این حالت می‌تواند ایمنی (ITP) یا ثانویه به عفونت‌های ویروسی باشد.${isCritical ? ' افت شدید زیر ۳۰ هزار خطر خونریزی را به شدت بالا می‌برد.' : ''}`,
         action: isCritical ? "امروز بلافاصله به اورژانس یا هماتولوژیست مراجعه کنید." : "در هفته جاری به پزشک داخلی یا خون مراجعه کنید.",
         suggest: ["بررسی اسمیر برای رد کلامپ پلاکتی", "تست‌های ویروسی HCV و HIV"],
         warnings: isCritical ? ["از هرگونه فعالیت فیزیکی شدید که خطر ضربه دارد خودداری کنید."] : [],

@@ -2,9 +2,10 @@ import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, wh
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
+import { ADULT_REFS } from "./refs.js";
 import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 import { isNeonate } from "./neonatal.js";
-import { canBePregnant } from "./patterns_utils.js";
+import { canBePregnant, qualVerdict } from "./patterns_utils.js";
 
 /**
  * پیش‌شرطِ الگوی زنجیره‌ایِ منیزیم: منیزیمِ پایین به‌همراه پتاسیم یا کلسیمِ پایین.
@@ -22,6 +23,23 @@ function mgChain(e) {
   return Boolean((k?.abnormal && k.dir === "low") || (ca?.abnormal && ca.dir === "low"));
 }
 
+// N4/N18 (لایهٔ ۲): «اولین مقدارِ موجود» (GLU_F ?? GLU_2H ?? GLU_RANDOM) به‌جای «کمترین» — FBS 90 کنارِ قندِ تصادفیِ 45 قندِ پایین را
+//   نمی‌دید و فقط «توضیح آماده نداریم» می‌گرفت. خطرِ هایپوگلیسمی را کمترین مقدارِ اندازه‌گیری‌شده تعیین می‌کند.
+function lowestGlucose(...vals) {
+  const xs = vals.filter((x) => x != null);
+  return xs.length ? Math.min(...xs) : null;
+}
+
+// ~۱۰× سقفِ مرجع: ALT > ۳۶۰ (سقف ≈۳۶) یا AST > ۳۳۰ (سقف ≈۳۳) — عددِ P72 (تصمیمِ کاربر)، یک تعریف برای liver_pattern و هم‌ردیفانش.
+function liverMarked(e) {
+  const alt = e.graded.find((g) => g.test === "ALT");
+  const ast = e.graded.find((g) => g.test === "AST");
+  return (alt != null && alt.value > 360) || (ast != null && ast.value > 330);
+}
+
+// P77-۲ (تصمیمِ بازبین؛ منبع: جدولِ panicِ APSA، وابسته به آزمایشگاه): منیزیمِ ≥ ۴٫۹ mg/dL پنیک است.
+const MG_PANIC_HIGH_MGDL = 4.9;
+
 export const RULES_BIOCHEM = [
 
   // ═══════════ پرچم قرمز ═══════════
@@ -30,7 +48,7 @@ export const RULES_BIOCHEM = [
     match: (e) => {
       // کیفی: کلمه‌ی مثبت در qual
       const qualPos = Object.entries(e.qual).some(
-        ([k, v]) => /troponin|ctn[it]|hs.?ctn|cardiac.?troponin/i.test(k) && /positive|مثبت|reactive|واکنش/i.test(v)
+        ([k, v]) => /troponin|ctn[it]|hs.?ctn|cardiac.?troponin/i.test(k) && qualVerdict(v).state === "pos"   /* N6: «Non-reactive» ⊃ reactive */
       );
       // عددی: TROPONIN_I بالای حد مرجع (از graded)
       const trop = e.graded.find((g) => g.test === "TROPONIN_I");
@@ -459,7 +477,8 @@ export const RULES_BIOCHEM = [
       const mgTxt = high || mgLow
         ? ""
         : mg
-          ? " منیزیم شما اندازه‌گیری شده و طبیعی است."
+          // 🔴 N12 (لایهٔ ۲): MGِ بالا هم به شاخهٔ «طبیعی است» می‌افتاد.
+          ? (mg.abnormal ? " منیزیم شما اندازه‌گیری شده و بالاتر از حد طبیعی است." : " منیزیم شما اندازه‌گیری شده و طبیعی است.")
           : " منیزیمِ پایین یکی از علت‌های شایعِ پتاسیمِ پایینِ مقاوم به درمان است — تا منیزیم اصلاح نشود پتاسیم بالا نمی‌آید — و منیزیم روی این برگه اندازه‌گیری نشده است.";
 
       return {
@@ -727,8 +746,10 @@ export const RULES_BIOCHEM = [
       const creat = e.graded.find((g) => g.test === "CREAT");
       const renal = (creat?.abnormal && creat.dir === "high") ||
                     (e.indices.egfr != null && e.indices.egfr < 60);
+      // تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴ (P77-۲، جدولِ panicِ APSA): منیزیمِ بالا هر مقداری بالای مرجع ⇒ this_week، و ≥ ۴٫۹ mg/dL ⇒ اورژانس.
+      //    (پیش‌تر بی‌نارسایی کلیه routine بود و ۶٫۵ هم اورژانس نمی‌شد.) renal دیگر فوریت را تعیین نمی‌کند، فقط جمله را.
       const urgency = high
-        ? (renal ? "this_week" : "routine")
+        ? (v >= MG_PANIC_HIGH_MGDL ? "emergency" : "this_week")
         : (levelGrade(mg) >= 2 ? "this_week" : "routine");
 
       // شاخهٔ سه‌حالتهٔ N4 روی پتاسیم و کلسیم — فقط برای منیزیمِ پایین.
@@ -775,7 +796,9 @@ export const RULES_BIOCHEM = [
                 : "مقدارِ شما هنوز پایین‌تر از حدی است که معمولاً علامت ایجاد می‌کند.")) +
           chainTxt,
         action: high
-          ? "فهرست داروها و مکمل‌هایتان — به‌ویژه داروهای معده و ملین‌ها — را به پزشک نشان بدهید."
+          ? (urgency === "emergency"
+              ? "همین امروز به اورژانس مراجعه کنید و فهرست داروها و مکمل‌هایتان — به‌ویژه داروهای معده و ملین‌ها — را همراه ببرید."
+              : "این هفته با پزشک مطرح کنید و فهرست داروها و مکمل‌هایتان — به‌ویژه داروهای معده و ملین‌ها — را نشان بدهید.")
           : urgency === "this_week"
             ? "این هفته با پزشک مطرح کنید."
             : "نتیجه را با پزشک خود در میان بگذارید تا علت بررسی شود.",
@@ -1016,12 +1039,31 @@ export const RULES_BIOCHEM = [
           headline: marked ? "قند خون شما بسیار بالاتر از حد طبیعی است" : "قند خون شما بالاتر از حد طبیعی است",
           ...(eag != null ? { key_number: eag } : {}),
           must_say: eagPhrase + dxPhrase,
-          action: "این هفته وقت بگیرید" + (marked ? "؛ در صورت داشتن علائم بالا همین امروز." : "."),
+          // 🔴 N20 (لایهٔ ۲، گروه ۶): FBS 300 ⇒ severe_hyperglycemia «ظرفِ ۲۴ تا ۴۸ ساعت» + این یافته «این هفته». وقتی یکی از سه مالکِ
+          //    قندِ بسیار بالا فعال است زمان‌بندی با اوست؛ این یافته فقط محتوا می‌دهد.
+          action: glucoseOwnerFires(e)
+            ? "زمانِ مراجعه را یافتهٔ «قندِ بسیار بالا» تعیین می‌کند؛ این برگه را همراه ببرید."
+            : "این هفته وقت بگیرید" + (marked ? "؛ در صورت داشتن علائم بالا همین امروز." : "."),
           // فهرست پایهٔ دیابتِ تازه‌تشخیص (ADA بخش ۲/۴/۱۲). اگر قطعی است دیگر «تکرار قند» لازم نیست.
           suggest: confirmed
             ? ["HbA1c برای پایش", "ACR ادرار", "eGFR", "پروفایل چربی", "معاینهٔ ته‌چشم"]
             : ["تکرار قند ناشتا", "HbA1c", "ACR ادرار", "eGFR", "پروفایل چربی"],
           warnings,
+        };
+      }
+      // N4/N20 (لایهٔ ۲): HbA1c ≥ ۶٫۵ با شمارشِ خونِ غیرطبیعی (a1cBad) از dmHits بیرون می‌ماند و به‌اشتباه به «پیش‌دیابت» می‌افتاد
+      //   («HbA1c 8 + Hb 9» ⇒ «در محدودهٔ پیش‌دیابت است»، routine). عدد در محدودهٔ دیابت است ولی دقتش در کم‌خونی مشکوک است: نه «پیش‌دیابت»،
+      //   نه حکمِ قطعی — با قندِ ناشتا روشن می‌شود، و فوریتش همان این‌هفته‌ایِ diabetes_range است.
+      if (a1cBad && t.HBA1C >= 6.5) {
+        return {
+          pattern: "a1c_diabetes_range_unreliable",
+          urgency: "this_week",
+          key_number: t.HBA1C,
+          headline: "HbA1c شما در محدودهٔ دیابت است، ولی ممکن است دقیق نباشد",
+          must_say: `HbA1c شما ${t.HBA1C}٪ است که در محدودهٔ دیابت (۶٫۵٪ و بالاتر) قرار می‌گیرد. ولی چون شمارش خونِ شما طبیعی نیست (کم‌خونی یا اندازهٔ غیرعادیِ گلبول‌ها)، HbA1c ممکن است بیشتر یا کمتر از واقع باشد؛ پس به‌تنهایی نمی‌شود دیابت را با آن قطعی یا رد کرد. قندِ خونِ ناشتا این را روشن می‌کند.`,
+          action: "این هفته با پزشک مطرح کنید و قندِ ناشتا را بخواهید.",
+          suggest: ["تکرار قند ناشتا", "HbA1c"],
+          warnings: a1cWarn,
         };
       }
       return {
@@ -1045,12 +1087,12 @@ export const RULES_BIOCHEM = [
     match: (e) => {
       const t = val(e);
       // هر قندی که پایین باشد: ناشتا، دو ساعته، یا تصادفی
-      const g = t.GLU_F ?? t.GLU_2H ?? t.GLU_RANDOM ?? null;
+      const g = lowestGlucose(t.GLU_F, t.GLU_2H, t.GLU_RANDOM);   // کلیدها داخلِ سورسِ قاعده می‌مانند: RULE_READS آن‌ها را «خوانده» می‌شمارد (N18)
       return g != null && g < 70;
     },
     build: (e) => {
       const t = val(e);
-      const g = t.GLU_F ?? t.GLU_2H ?? t.GLU_RANDOM;
+      const g = lowestGlucose(t.GLU_F, t.GLU_2H, t.GLU_RANDOM);
       const severe = g < 54;   // سطح ۲ ADA (۳٫۰ mmol/L) — تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳: اورژانس (P72 پرسش ۵)
       const emergency = severe && !isNeonate(e.age);
       // نوزادِ < ۲۸ روز با قندِ < ۴۰ mg/dL اورژانسِ واقعی است (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱؛ آستانه و منبع: P63 — منتظرِ بازبین).
@@ -1255,14 +1297,27 @@ export const RULES_BIOCHEM = [
 
       // CK بالا + AST بالا + ALT نرمال → عضله، نه کبد
       if (ck?.abnormal && ck.dir === "high" && ast?.abnormal && !alt?.abnormal) {
+        // N19/N20 (لایهٔ ۲): «CK 5000 + AST 400» تنها یک یافتهٔ routine با «ورزش سنگین» می‌گرفت، در حالی‌که همان CK تنها (ck_elevated_alone)
+        //   this_week/emergency است — یعنی هرچه برگه کامل‌تر، بیمار کم‌تر هشدار می‌گرفت. فوریت از درجهٔ CTCAEِ خودِ CK می‌آید (G3 = > ۵×ULN،
+        //   G4 = > ۲۰×ULN؛ همان منبعِ ck_elevated_alone) و action از همان urgency ساخته می‌شود.
+        const ckG = levelGrade(ck);
+        const muscleUrgency = ckG >= 4 ? "emergency" : ckG >= 3 ? "this_week" : "routine";
         return {
           pattern: "muscle_origin_not_liver",
-          urgency: "routine",
+          urgency: muscleUrgency,
+          blocks_others: muscleUrgency === "emergency",
           headline: "یکی از آنزیم‌ها بالاست، ولی احتمالاً از عضله می‌آید نه کبد",
           must_say:
-            "آنزیم AST بالا رفته، ولی چون CK (آنزیم مخصوص عضله) هم بالاست و ALT طبیعی مانده، این الگو بیشتر به عضله می‌خورد تا کبد. ورزش سنگین چند روز اخیر هم می‌تواند این را بسازد.",
-          action: "نوبت عادی. اگر ورزش سنگین کرده‌اید حتماً بگویید.",
-          suggest: ["تکرار CK", "GGT"],
+            "آنزیم AST بالا رفته، ولی چون CK (آنزیم مخصوص عضله) هم بالاست و ALT طبیعی مانده، این الگو بیشتر به عضله می‌خورد تا کبد. " +
+            (ckG >= 3
+              ? `CK شما ${ck.value} است، یعنی چند برابرِ حدِ بالای طبیعی؛ این بیشتر از اثرِ ورزشِ معمول است و آسیبِ قابل‌توجهِ عضله (رابدومیولیز) می‌تواند به کلیه آسیب بزند، پس باید زود بررسی شود.`
+              : "ورزش سنگین چند روز اخیر هم می‌تواند این را بسازد."),
+          action: muscleUrgency === "emergency"
+            ? "همین امروز به اورژانس مراجعه کنید و این برگه را همراه ببرید."
+            : muscleUrgency === "this_week"
+              ? "این هفته با پزشک مطرح کنید. اگر ادرارِ تیره (رنگِ چای یا کولا)، دردِ شدیدِ عضلانی یا کم‌شدنِ ادرار دارید، همان روز به اورژانس بروید."
+              : "نوبت عادی. اگر ورزش سنگین کرده‌اید حتماً بگویید.",
+          suggest: ["تکرار CK", "GGT", ...(ckG >= 3 ? ["کراتینین"] : [])],
           warnings: [],
         };
       }
@@ -1280,9 +1335,7 @@ export const RULES_BIOCHEM = [
 
       // شدت آنزیم: خیلی بالا (چند برابر) → اشاره به آسیب حاد کبدی (مثل هپاتیت حاد)
       // کیس Verlita فصل: ALT/AST > ۱۰۰۰. آستانه محتاطانه: >۱۰ برابر سقف مرجع.
-      const altVeryHigh = alt != null && alt.value > 360;   // ~۱۰× سقف ۳۶
-      const astVeryHigh = ast != null && ast.value > 330;   // ~۱۰× سقف ۳۳
-      const marked = altVeryHigh || astVeryHigh;
+      const marked = liverMarked(e);   // ~۱۰× سقف — تعریفِ مشترک با alcoholic_liver_pattern (N20)
 
       // N20 (P72 پرسش ۱، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): «≈۱۰× سقف» پیش‌تر `emergency` بود ولی دستورش «همین چند روز» —
       //   دو نسخه از یک تصمیم. حالا: > ۱۰× ⇒ `soon` (۲۴ تا ۴۸ ساعت، بی‌has_critical) و جملهٔ action از همان فوریت می‌آید؛
@@ -1539,17 +1592,21 @@ export const RULES_BIOCHEM = [
       const lps = e.graded.find((g) => g.test === "LIPASE");
       const amyHigh = amy?.abnormal && amy.dir === "high";
       const lpsHigh = lps?.abnormal && lps.dir === "high";
+      // P77-۳ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ منبع: CHOP، معیارِ آزمایشگاهیِ ≥ ۳×ULN): لیپازِ ≥ ۳×حدِ بالا ⇒ soon، نه اورژانس.
+      const lipaseSoon = !!(lpsHigh && lps.value >= 3 * ADULT_REFS.LIPASE.both[1]);
 
       if (amyHigh && lpsHigh) {
         // هر دو بالا → قوی‌ترین اشاره به پانکراس
         return {
           pattern: "pancreas_both_high",
-          urgency: "this_week",
+          urgency: lipaseSoon ? "soon" : "this_week",
           headline: "دو آنزیم مربوط به لوزالمعده (پانکراس) بالا هستند",
           must_say:
             "آنزیم‌های آمیلاز و لیپاز هر دو بالاتر از حد طبیعی‌اند. این ترکیب بیشتر به " +
             "التهاب لوزالمعده اشاره دارد و باید توسط پزشک بررسی شود.",
-          action: "این هفته با پزشک مطرح کنید. اگر درد شدید شکم (به‌خصوص همراه تهوع و استفراغ) دارید، زودتر مراجعه کنید.",
+          action: lipaseSoon
+            ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید. اگر درد شدید شکم (به‌خصوص همراه تهوع و استفراغ) دارید، همان روز به اورژانس بروید."
+            : "این هفته با پزشک مطرح کنید. اگر درد شدید شکم (به‌خصوص همراه تهوع و استفراغ) دارید، زودتر مراجعه کنید.",
           suggest: ["سونوگرافی شکم", "بررسی توسط پزشک"],
           warnings: [],
         };
@@ -1559,11 +1616,14 @@ export const RULES_BIOCHEM = [
         // لیپاز بالا (اختصاصی‌تر برای پانکراس)
         return {
           pattern: "lipase_high",
-          urgency: "this_week",
+          urgency: lipaseSoon ? "soon" : "this_week",
           headline: "آنزیم لیپاز شما بالاست",
           must_say:
-            "لیپاز آنزیمی است که بیشتر به لوزالمعده مربوط می‌شود. بالا بودن آن باید بررسی شود.",
-          action: "این هفته با پزشک مطرح کنید.",
+            "لیپاز آنزیمی است که بیشتر به لوزالمعده مربوط می‌شود. بالا بودن آن باید بررسی شود." +
+            (lipaseSoon ? " مقدارِ شما سه برابرِ حدِ بالای طبیعی یا بیشتر است؛ این یکی از معیارهای آزمایشگاهیِ التهابِ حادِ لوزالمعده است و چند روز انتظار منطقی نیست. (میزانِ لیپاز شدتِ بیماری را نشان نمی‌دهد.)" : ""),
+          action: lipaseSoon
+            ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید. اگر درد شدید شکم (به‌خصوص همراه تهوع و استفراغ) دارید، همان روز به اورژانس بروید."
+            : "این هفته با پزشک مطرح کنید.",
           suggest: ["آمیلاز", "سونوگرافی شکم"],
           warnings: [],
         };
@@ -1689,7 +1749,11 @@ export const RULES_BIOCHEM = [
           "وقتی این نسبت بالای ۲ باشد، بیشتر به آسیب کبدیِ ناشی از الکل می‌خورد (هرچند بعضی علل دیگر هم ممکن است). " +
           "نکته: در آسیب کبدیِ الکلی این آنزیم‌ها معمولاً زیر ۳۰۰ می‌مانند؛ اگر خیلی بالاتر (چند هزار) بودند، علت‌های دیگری مثل هپاتیت حاد ویروسی یا مسمومیت مطرح‌تر است." +
           (mcvHigh ? " بزرگ بودن گلبول‌های قرمز (MCV بالا) هم گاهی همراه این الگو دیده می‌شود." : ""),
-        action: "این هفته با پزشک وقت بگیرید و درباره مصرف الکل صادقانه صحبت کنید — این به تشخیص درست کمک می‌کند.",
+        // 🔴 N20 (لایهٔ ۲، گروه ۶): AST 500 + GGT بالا ⇒ liver_pattern «ظرفِ ۲۴ تا ۴۸ ساعت» و این یافته «این هفته». وقتی آنزیم‌ها ≈۱۰× سقف‌اند
+        //    زمان‌بندی با liver_pattern است؛ این یافته فقط توصیهٔ صادقانه دربارهٔ الکل را نگه می‌دارد.
+        action: liverMarked(e)
+          ? "درباره مصرف الکل با پزشک صادقانه صحبت کنید — این به تشخیص درست کمک می‌کند؛ زمانِ مراجعه را یافتهٔ «شاخص‌های کبدِ بسیار بالا» تعیین می‌کند."
+          : "این هفته با پزشک وقت بگیرید و درباره مصرف الکل صادقانه صحبت کنید — این به تشخیص درست کمک می‌کند.",
         suggest: ["GGT", "سونوگرافی کبد", "آنزیم‌های کبدی تکراری"],
         warnings: [
           "اگر الکل مصرف می‌کنید، قطع ناگهانی در برخی افراد خطرناک است — با پزشک درباره روش ایمن مشورت کنید.",
@@ -1831,37 +1895,25 @@ function hhsOwns(e) {
   return !(hco3State(e) === "low" || ketoneState(e) === "positive");
 }
 
+/** آیا `severe_hyperglycemia_uncertain_ketosis` این برگه را برمی‌دارد؟ (یک تعریف، دو خواننده — M91e) */
+function severeGlucoseOwns(e) {
+  const g = topGlucose(e);
+  return !!g && g.value >= 250 && !dkaOwns(e) && !hhsOwns(e);
+}
+/** یکی از سه مالکِ قندِ بسیار بالا/کتواسیدوز فعال است ⇒ زمان‌بندیِ مراجعه با اوست، نه با یافتهٔ دیابت. */
+function glucoseOwnerFires(e) { return dkaOwns(e) || hhsOwns(e) || severeGlucoseOwns(e); }
+
 export const RULES_BIOCHEM_NEW = [
   // ── دیابت و قند ──
-  {
-    id: "diabetes_a1c_diagnostic",
-    match: (e) => {
-      const a1c = val(e).HBA1C;
-      return a1c != null && a1c >= 6.5;
-    },
-    build: (e) => {
-      const a1c = val(e).HBA1C;
-      const glu = val(e).GLU_F;
-      return {
-        pattern: "diabetes_a1c_diagnostic",
-        urgency: "routine",
-        headline: "هموگلوبین A1c در محدودهٔ دیابت است",
-        must_say: `مقدار HbA1c شما ${a1c} درصد است. بر اساس دستورالعمل‌ها، عدد ۶.۵ درصد یا بالاتر نشان‌دهنده دیابت است.` + 
-          (glu >= 126 ? ` قند خون ناشتای شما نیز ${glu} است که این تشخیص را تایید می‌کند.` : " برای تایید نهایی نیاز به آزمایش مجدد یا بررسی قند خون ناشتا است."),
-        action: "با پزشک برای شروع برنامه درمانی، رژیم غذایی و احتمالاً دارو مشورت کنید.",
-        suggest: glu ? ["پنل چربی", "آلبومین ادرار"] : ["FBS", "پنل چربی", "آلبومین ادرار"],
-        key_number: a1c
-      };
-    }
-  },
+  // N20/N16 (لایهٔ ۲): `diabetes_a1c_diagnostic` حذف شد. هر پنلِ HbA1c ≥ ۶٫۵ را `glycemia` هم می‌گیرد (dmHits)، پس دو یافته دربارهٔ یک عدد با دو
+  //   زمان‌بندیِ رقیب بیرون می‌آمد: diabetes_range «این هفته» + این قاعده «با پزشک … برای شروعِ درمان» (routine). محتوای یکتایش (پیشنهادِ
+  //   پنل چربی/آلبومینِ ادرار، جملهٔ «۶٫۵ نشان‌دهندهٔ دیابت») در diabetes_range هست. بی‌واسطه‌ترین اثر: HbA1c 8 با Hb 9 دیگر «پیش‌دیابت» نمی‌گیرد.
   {
     id: "severe_hyperglycemia_uncertain_ketosis",
     match: (e) => {
-      const g = topGlucose(e);
-      if (!g || g.value < 250) return false;
       // واگذاری به قاعده‌های اختصاصی‌تر — پیامِ آن‌ها دقیق‌تر است و دو یافتهٔ
       // هم‌فوریت دربارهٔ یک عدد، گزارش را متناقض می‌کند نه کامل‌تر (N20).
-      return !dkaOwns(e) && !hhsOwns(e);
+      return severeGlucoseOwns(e);
     },
     build: (e) => {
       const g = topGlucose(e);

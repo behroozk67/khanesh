@@ -1,5 +1,51 @@
 # RESUME HERE — خلاصهٔ وضعیت — ۲۰۲۶-۱۰-۰۳
 
+## ۲۰۲۶-۱۰-۰۴ (دوم): پاسخِ بازبین به ۱۵ پرسش پیاده شد (MEDICAL_RULES «P77-پاسخ»؛ M354–M364) — کامیت‌نشده
+**بازاندازه‌گیری‌شده:** `npm test` ⇒ `tests 986 · pass 985 · fail 0 · todo 1` (درختِ کار؛ ۲۱۷ قاعده؛ کارِ هم‌زمانِ خودایمنی داخلش است). تغییرِ عمدی: `M50b`، یک هش در `M180b`. پاسخ‌ها را کاربر از یک دستیارِ دیگر چسباند؛ منبع‌ها را باز نکردم و پله‌های زیرِ اورژانس (Mg، اوره ۱۵۰، فسفر، INR، آدرنال) تصمیمِ طراحی‌اند. فایل‌های تازه برای `git add`: `rules/{patterns_nephrology,patterns_mineral_bone,patterns_infectious,patterns_endocrine_pituitary,refs,names,units,adapter}.js` علاوه بر فهرستِ پایین.
+
+## ۲۰۲۶-۱۰-۰۴ (بعد از P75): لایهٔ ۲ — گروه‌های ۳ (فقط MCV)، ۵، ۶، ۷ پیاده شد (P77) — **کامیت‌نشده**
+**بازاندازه‌گیری‌شده:** `npm test` ⇒ `tests 958 · pass 957 · fail 0 · todo 1` (درختِ کار؛ شاملِ کارِ هم‌زمانِ خودایمنی `patterns_autoimmune.js`/`autoimmune.test.js`، P76 — از من نیست؛ ۲۱۱ قاعده). فرانت دست نخورد.
+- **رفع شد (گاردها `l2.test.js` M341–M353):** N4 در `tpBuild`، `hemolysis_pattern` (عضله)، `isolated_thrombocytopenia`، `mild_neutropenia`، `pancytopenia` (ANC کم + WBC طبیعی)، `overt_b12_deficiency` (بی‌MCV)، `potassium_critical` (Mgِ بالا)؛ مرزِ MCV کودک از `PED_REFS` (`macroMcvCut`/`microMcvCut`)؛ زمان‌بندیِ رقیب: `glycemia`↔FBS 300 (`glucoseOwnerFires`)، `alcoholic_liver_pattern`↔`liver_pattern` (`liverMarked`)، `hscrp_ascvd_risk`↔`crp_elevated`؛ `SUGGEST_TESTS` (۱۳ ردیف)؛ `anemia_macrocytic_mds` کنارِ `mds_suspicion`؛ `hcg_result` دخترِ < ۱۰ سال.
+- **تغییرِ عمدی در تستِ قدیمی:** فقط `M111` (هشِ `pe_components`: PLT بی‌Hb/WBC).
+- ⚠️ **قرمز-اولِ صریح فقط برای بخشی:** تلاشِ تمیز با فایل‌های HEAD روی temp به‌خاطرِ ناهم‌خوانیِ import شکست خورد؛ M341/M342/M347–M350/M353 را پیش از رفع با `probe.mjs` روی موتور دیدم (قرمز)، ولی M343–M346 و M351/M352 فقط با خواندنِ متنِ قدیمی. اگر لازم است با `git archive` + کلِ درخت بازبسنج.
+- **باز (پرسشِ بازبین، `MEDICAL_RULES.md` P77):** HCT کودک، WHO زیرِ ۵ سال، PCT/BNP نوزادِ روزِ اول، زنجیرهٔ سبکِ آزاد (قاعده‌های مرده: بازه یا حذف)، hCG زنِ یائسه. باقی‌ماندهٔ گروه ۷: `hcg` بالا انجام شد؛ ACR/`thyroid_nonthyroidal_illness` بازتولید نشد.
+- **کامیت:** فایل‌به‌فایل؛ این جلسه علاوه بر فهرستِ P75 این‌ها را زد: `rules/{patterns,patterns_biochem,patterns_cardiac,patterns_coverage_gaps,patterns_endocrine_rheum,patterns_hematology,patterns_malignancy,patterns_reproductive,patterns_utils}.js`، `rules/{engine,l2}.test.js`، `MEDICAL_RULES.md`، `note.md`. ⚠️ `patterns.js`، `names.js`، `serology.js`، `server.js`، `units.js` و `patterns_autoimmune.js`/`autoimmune.test.js` کارِ جلسهٔ هم‌زمان هم دارند — پیش از `git add` با `git diff` جدا کنید.
+
+## ۲۰۲۶-۱۰-۰۴ (جدیدترین‌تر): P77 — سندِ مرجعِ کاربر در موتور پیاده شد (مراحل ۱–۴ کامل) — **کامیت‌نشده**
+`node --test` ⇒ `tests 975 · pass 970 · fail 4 · todo 1`؛ ۴ قرمز (`M38` در `patterns_endocrine_pituitary.js`، `M50b`، `M180b`، `M257`) از جلسهٔ هم‌زمانِ دیگرند، نه این کار. قاعده‌ها ۲۰۶ ⇒ ۲۱۷ (+۱۱: ۵ از P76 و ۶ از P77). فایل‌ها: `serology.js` (کلیدهای تازه، `AI_NOREF`، `anaPatternsOf`)، `patterns_autoimmune.js` (بازنویسی)، `autoimmune.test.js` (A01/A04/A10 عمداً عوض)، `autoimmune2.test.js` (تازه، B00–B16)، `names.js`، `patterns.js` (`SUGGEST_TESTS`)، `server.js` (`QUAL_WORDS`)، `MEDICAL_RULES.md` P77. جزئیات، حدهای ثابتِ تازه و پرسش‌های بازبین: P77. **منابعِ اصلی باز نشده‌اند؛ `sources` خالی.**
+- **تله (دوباره N15):** `node -e`/heredoc با رشتهٔ regex در template literal **بک‌اسلش را می‌خورد** (`\s`→`s`، `\b`→backspace U+0008) — این بار در `serology.js` و `server.js`؛ با `grep -nP '[\x00-\x08]'` گرفته شد. regex را فقط با ابزارِ Edit/Write بنویس.
+- **باز:** AFP بی‌واحد unmapped (M105)؛ خودایمنیِ عددیِ بی‌محدوده unmapped (P76/C1)؛ فوریتِ FIT/کلسی‌تونین/PSA منتظر بازبین.
+
+## ۲۰۲۶-۱۰-۰۴ (قبل‌تر): پنلِ خودایمنی/روماتولوژی، مرحلهٔ ۱ و ۲ پیاده شد (P76) — **کامیت‌نشده**
+**بازاندازه‌گیری‌شده:** `node --test` ⇒ `tests 958 · pass 954 · fail 3 · todo 1`؛ شروعِ جلسه `917 · 916 · 0 · 1`. قاعده‌ها ۲۰۶ ⇒ ۲۱۱ (diffِ id: فقط +۵ — `ana_family_result`، `anca_result`، `hla_b27_result`، `anti_ccp_result`، `complement_result`؛ N16).
+- **۳ تستِ قرمز از من نیست:** `M111`، `M180b`، `M257` (هش‌های freeze). ثابت‌شده: با برگرداندنِ سه فایلِ من (`serology.js`، `patterns.js`، `names.js`) به HEAD همان هشِ `plt_80` (`c5c413bc7be25ba5` ≠ مورد انتظار) می‌ماند. علت: جلسهٔ هم‌زمانی `patterns_malignancy.js` (`isolated_thrombocytopenia`، N4)، `patterns_endocrine_rheum.js`، `patterns_hematology.js` و `patterns.js` را هم‌زمان ویرایش می‌کند (mtime ۰۹:۲۱–۰۹:۳۳). بازپایه‌کردنِ هش‌ها با صاحبِ آن کار است؛ **دست نزدم**.
+- **فایل‌های من:** `rules/serology.js` (کلیدهای `AI_RE`، `readAutoValue`، `rangeVerdict`، `autoAbState`، شاخهٔ تازه در `routeSerology`)، `rules/patterns_autoimmune.js` (تازه)، `rules/autoimmune.test.js` (تازه، A00–A27)، `patterns.js` (import + spread + ۴ ردیف `SUGGEST_TESTS` + `measured`)، `names.js`، `server.js` (`QUAL_WORDS`)، `MEDICAL_RULES.md` P76. **`git add` فایل‌به‌فایل** — `patterns.js` و `names.js` را جلسهٔ دیگر هم لمس کرده؛ `git diff` را ببین.
+- **C1:** هیچ آستانهٔ ثابتی نیست؛ مرز فقط از خودِ ردیف. بی‌مرز/سانسورشده/تیترِ بی‌واژه/«+/-» ⇒ `unmapped`.
+- **باز:** مرحله ۳ (تومورمارکرها) و ۴ (کالپروتکتین، FOBT) از طرحِ پایین انجام نشد؛ Anti-Sm/RNP/Scl-70/Jo-1/آنتی‌فسفولیپید نگاشت ندارند؛ پرسش‌های بازبین در P76؛ هیچ `sources` ثبت نشد (هیچ سندی باز نشده).
+- **تله:** در Git Bash، `> $TEMP/x` مسیرِ ویندوز را با بک‌اسلش می‌خورد — `TD=$(cygpath -u "$TEMP")` بزن. و `cd khanesh-server` در یک فراخوانی cwd را برای بعدی‌ها هم عوض می‌کند.
+
+## ۲۰۲۶-۱۰-۰۴ (قبل‌تر): P74 کامیت شد؛ ممیزیِ لایهٔ ۲ اجرا و گروه‌های ۱، ۲، ۴ رفع شد — **کامیت‌نشده**
+**بازاندازه‌گیری‌شده:** `npm test` در `khanesh-server/` ⇒ `tests 917 · pass 916 · fail 0 · todo 1`؛ ۲۰۶ قاعده (`diabetes_a1c_diagnostic` حذف، `qual_equivocal_result` اضافه). فرانت دست نخورد.
+
+### انجام‌شده
+- **P74 کامیت شد:** بازه‌های بزرگسالِ `refs.js` = فرانت، جز قندِ ناشتا (۷۰–۱۱۰). ۸ فایل، فقط همین کار. push نشده.
+- **لایهٔ ۲:** ۶ `eval-medical-reviewer` موازی روی ۱۹ فایلِ `patterns_*.js` + utils (چک‌لیستِ N1–N29، بازتولید با موتورِ واقعی) ⇒ ≈ ۸۲ یافته. گزارش‌ها فقط در scratchpadِ جلسه بود (در مخزن نیست).
+- **گروه ۱ — N6:** `qualVerdict()` در `patterns_utils.js` خوانندهٔ بستهٔ مشترک است (تروپونین ×۲، `serologyReactive`، `qualPositive`، hCG، `crp_pos_esr_normal`)؛ کشتِ منفی (فقط ادرار آستانهٔ CFU دارد؛ نامِ ارگانیسم = رشد)؛ لامِ «<1%»؛ IgM منفی؛ `qual_equivocal_result` (مبهم نام برده می‌شود؛ تروپونینِ مرزی `soon`).
+- **گروه ۲ — N3:** `PRINTED_ONLY_CONVERSIONS` ← LACTATE/PCT_SEPSIS/APOB؛ PRL بی‌واحد با محدودهٔ چاپیِ ≥ ۶۰ ⇒ mIU/L؛ پرهیزِ منی ساعت ÷ ۲۴؛ «1,200» هزارگان؛ مقدارِ سانسورشدهٔ «<6» ⇒ `unmapped` (`censoredIndeterminate` در adapter).
+- **گروه ۴ — N19/N20:** `kidneySevere` (kidney↔GN + GN با `always_show`/`brief`)، `muscle_origin_not_liver` فوریت از CK، `lowestGlucose`، تالاسمیِ Hb < ۸ ⇒ this_week، شاخهٔ A1c-نامعتبر، حذفِ `diabetes_a1c_diagnostic`، `brucella_active` = `(رایت و 2ME) یا کومبس`.
+- **بازبینیِ مستقل (`code-reviewer`):** ۹ یافته، ۸ رفع (`POSITIVE.` تروپونین را می‌انداخت، آستانهٔ `<10000` روی کشتِ خون، `RULE_READS` قندِ پایین، GN پنهان، «TSH <5 mIU/L»، «less than 20%» ⇒ اورژانس، `key_number`)؛ یافتهٔ ۸ (دو اورژانسِ عضله/رابدو) رقابتی نبود (`pickFinalAction` یک دستور می‌دهد).
+- **تست‌ها:** `rules/l2.test.js` M322–M340. M322–M335: ۱۷ از ۱۸ روی HEAD قرمز (M322b کنترلِ جهتِ مخالف). M336–M338 و M340 روی HEAD سبزند (گاردِ رفعِ خودمان). تغییرِ عمدی در قدیمی‌ها: `M92d`، `M125` (یک هش)، `M176b` (CK ۶۰۰).
+- **ثبت:** `MEDICAL_RULES.md` P75، `CLAUDE.md` N30، این فایل.
+
+### مراحلِ باقی‌مانده (به ترتیب)
+1. **کامیت (کاربر نخواسته؛ فقط با درخواست).** `git add` فایل‌به‌فایل: `khanesh-server/rules/{adapter,units,patterns_utils,patterns_biochem,patterns_cardiac,patterns_coverage_gaps,patterns_hematology,patterns_infectious,patterns_nephrology,patterns_reproductive}.js`، `rules/{engine,l2}.test.js`، `MEDICAL_RULES.md`، `CLAUDE.md`، `note.md`. **نه** `-A`: `khanesh/src/{Landing.jsx,onboarding/*,site.css}` کارِ جدایِ کاربر است. هوکِ pre-commit تستِ ایندکس را اجرا می‌کند.
+2. **پرسش‌های بازبینِ پزشکی (P75، آستانهٔ بی‌منبع — کد عدد نمی‌سازد):** Mg بالای تنها (۶٫۵ mg/dL ⇒ routine؛ `CTCAE_MAP.MG.high = null`)، لیپاز ۲۰۰۰ تنها ⇒ this_week، پرشِ اوره ۱۹۰ (routine) / ۲۰۰ (اورژانس)، فسفاتِ بالا ۹٫۵ بی‌نشانهٔ کلیوی، سقفِ this_week در `adrenal_insufficiency_likely` (تصمیمِ P46 بند ۱۲)، `INR` ≥ ۳ ⇒ اورژانس، و **تروپونینِ مرزی = `soon`** (تصمیمِ من، تأیید نشده).
+3. **گروه‌های نخواسته‌شدهٔ لایهٔ ۲:** (۳) آستانهٔ بزرگسال برای کودک: MCV (`macroMcvCut`، `MCV>102`، `<80`)، HCT (ردیفِ اطفال ندارد)، فریتین/TSAT، BNP، PCT نوزاد، شدتِ WHO (`anemiaSeverityFa`)؛ (۵) «طبیعی است» برای آزمایشِ نسنجیده: `hemolysis_pattern` (هاپتوگلوبین)، `pancytopenia` (WBC طبیعی)، `tpBuild` (آلبومینِ پایین «نیست»)، K/Mg، `isolated_thrombocytopenia`، `mild_neutropenia`، `overt_b12_deficiency` (CBC)؛ (۶) زمان‌بندیِ رقیب: FBS ۳۰۰ (`severe_hyperglycemia`+`diabetes_range`)، AST ۵۰۰ (`liver_unspecified`+`alcoholic`)، CRP + `hscrp_ascvd_risk` (روی هر CRPِ ۲–۱۰ آتش می‌شود و می‌گوید «نشانهٔ التهاب نیست»)، ACR، `thyroid_nonthyroidal_illness` (FT3 اضافه ⇒ routine)؛ (۷) `SUGGEST_TESTS` ناقص (CBC، 2ME، کومبس رایت، «ویتامین B12 و فولات»، «ACR ادرار»، «BUN»، «ABG»)، `monoclonal_gammopathy_kappa/lambda` هرگز آتش نمی‌شوند (N17)، قاعده‌های `mds_suspicion` و `anemia_macrocytic_mds` تکراری، `hcg_result` بی‌گیتِ سن.
+4. **لایه‌های ۳–۵ از پیشنهادِ اولِ جلسه:** (۳) مسیرِ قدیمیِ `USE_ENGINE=false` / متنِ بی‌تصویر که مدل شدت را قضاوت می‌کند؛ (۴) فرانت: `LocalPreview.jsx` (تنها متنِ بالینیِ بی‌موتور)، جریانِ کاملِ مرورگر (Playwright قبلاً `CONNECT_TIMEOUT` داد)، مسیرِ «دیالیز» در intake؛ (۵) امنیت: **کلیدِ AvalAI در تاریخچهٔ git است و فقط کاربر می‌تواند در AvalAI بچرخاند**، `AUTH_REQUIRED` پیش‌فرض خاموش، SMS mock، ارسالِ تصویرِ کاملِ برگه به سرویسِ ثالث.
+5. **باز از قبل:** منبع‌های «فقط خلاصهٔ جست‌وجو» (WHO 2016، ACG، Soeters، AASLD/EASL، WHO anaemia)؛ TSH < ۰٫۱ در بارداری؛ اثرهای جانبیِ P74 در انتظارِ بازبین (FT4 ۰٫۷ طبیعی، بیلی‌روبین ۱۴ این‌هفته‌ای، فولات > ۲۵ «بالا»، INR ۱٫۲ «بالا»، PLT ۴۰۰–۴۵۰ «بالا»).
+
+**تله‌های این جلسه:** (الف) Python با `open(..., newline='')` و رشتهٔ `` غیرخام یک backspace (U+0008) در regex گذاشت و `qualVerdict` را بی‌صدا از کار انداخت — بعد از هر ویرایشِ regex `grep -P '[ -]' rules/*.js` بزنید. (ب) فایل‌های rules/ بیشترشان CRLF‌اند؛ ویرایشِ چندخطی با رشتهٔ LF خطِ مختلط می‌سازد. (ج) هر خواننده‌ای که کلیدِ تست را در یک helper ماژول می‌خواند از `RULE_READS` بیرون می‌رود (N18) — کلید را در سورسِ خودِ قاعده نگه دارید. (د) بازبینیِ مستقل: ریویوِ مستقل ۳ رگرسیونِ واقعی در رفعِ خودم پیدا کرد (مثبت‌های از دست‌رفته، آستانهٔ کشتِ خون، RULE_READS)؛ رفعِ N6 بی‌ریویو کامل نیست.
+
 ## ۲۰۲۶-۱۰-۰۳ (آخرین): P72 کامیت شد (`84a0dd5`)؛ TSH < ۰٫۱ + ۱۲ شکافِ پوشش (P73) پیاده و کامیت شد
 `npm test` ⇒ `tests 894 · pass 893 · fail 0 · todo 1` (بازاندازه‌گیری‌شده). جزئیاتِ منبع‌ها و پرسش‌های بازبین: `MEDICAL_RULES.md` P72/P73؛ درس: `CLAUDE.md` N29.
 - مسیرِ دیالیز در intake: بدونِ تغییر کار می‌کند (کاتالوگ → چیپ‌ها → سرور)؛ در مرورگر دیده نشد.
@@ -212,3 +258,15 @@
   2. MCH تنها: به `NEONATAL_NO_FLOOR_KEYS` یا قاعدهٔ اختصاصی — تصمیمِ بالینی، ثبت در `MEDICAL_RULES.md`.
   3. متنِ `unmatched_abnormal` در حالتِ کفِ نوزادی باید دلیل را بگوید، نه «توضیح نداریم» کنارِ «همین امروز».
 - بیلی‌روبینِ نوزاد شدتش به سن (ساعت) و نمودار بستگی دارد؛ موتور بدونِ grade نمی‌تواند شدت بدهد.
+
+## ۲۰۲۶-۱۰-۰۴ — پلنِ پنلِ خودایمنی/روماتولوژی + تومورمارکرها (فقط پلن؛ هیچ کدی تغییر نکرد)
+- **وضعیتِ سنجیده‌شده (`engine-inventory.mjs --search`، نامِ لاتین):** در موتور **نیست**: dsDNA، ANCA، PR3، C4، HLA-B27، کالپروتکتینِ مدفوع، CA 125، CA 19-9، CA 15-3، Beta-2 microglobulin، Chromogranin A، Calcitonin (فقط procalcitonin = `PCT_SEPSIS`)؛ Anti-Ro/La هم ردِ واقعی ندارند. CCP، C3، CEA، AFP، FOBT فقط در متنِ قاعده‌ها آمده‌اند، نه نگاشت/محدوده/قاعدهٔ اختصاصی. PSA/Free PSA = `P70`، منتقل به specs/013، منتظرِ بازبین، بی‌کد. **ادعای «اضافه شده» با درختِ فعلی نمی‌خواند.** `ANA`/`MPO`/`Ro`/`C3` در جست‌وجو substringِ بی‌ربط‌اند.
+- **ورود به دو کانال:**
+  1. کیفی/تیتر (بی‌آستانهٔ ثابت): ANA، anti-dsDNA، ANCA/MPO/PR3، Anti-Ro/La، HLA-B27، FOBT/FIT ⇒ `serology.js` + `patterns_autoimmune.js` (مجموعهٔ بستهٔ واژه‌ها، N6).
+  2. عددیِ بی‌نمره (فقط محدودهٔ چاپ‌شده، الگوی `hemostasis`): تومورمارکرها، B2M، کلسی‌تونین، کروموگرانین، کالپروتکتین، anti-CCP، C3/C4 (واحد g/L و mg/dL) ⇒ `patterns_tumor_markers.js`. بی‌واحد ⇒ نمره نمی‌گیرد (N3/P48).
+- **فایل‌ها (N1):** `adapter.js` (`NAME_MAP` با املای واقعیِ برگه‌های ایرانی از `research`؛ مرزِ `CA`=کلسیم≠CA 125، C3/C4، Ro/La، PSA/Free PSA)، `QUALITATIVE`/`UNIT_GATED`، `refs.js` فقط با منبعِ تأییدشده وگرنه `noRef`، `names.js` `FA_NAMES`، import در `patterns.js`، `SUGGEST_TESTS` (N8).
+- **متن:** هر قاعده سه‌حالته (مثبت/منفی/اندازه‌گیری‌نشده، N4). ANA مثبتِ بی‌dsDNA/ENA بی‌نامِ بیماری. تومورمارکرِ بالا: «تشخیص نیست»، حداکثر `this_week`، بی‌مسیرِ اورژانس. owner صریح و بی‌idِ دوبل (N20/N29).
+- **قفل‌ها:** تست برای هر املای واقعی (هر دو سمت)؛ sweep روی کلیدهای جدید: بی‌`unmatched_abnormal` و بی‌ردیفِ بی‌خواننده (N28)؛ قرمز-اول روی کدِ قدیم (N10)؛ `M36/M37/M38` سبز؛ فارسی فقط با Write/Edit یا Bash (N15d).
+- **ثبت:** آستانه‌های بی‌منبع در `MEDICAL_RULES.md` از `P75` (کنارِ P70).
+- **ترتیب:** ۱) خودایمنی کیفی ← ۲) C3/C4 + anti-CCP ← ۳) تومورمارکرها ← ۴) calprotectin + FOBT؛ بعد از هر مرحله `npm test` و عددِ واقعی؛ قبل از شروع baseline و diffِ مجموعهٔ id قاعده‌ها (N16).
+- **فرض‌ها (تأییدنشده):** محدوده از خودِ برگه می‌آید؛ PSA در specs/013 می‌ماند؛ commit نمی‌شود.

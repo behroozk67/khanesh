@@ -24,6 +24,7 @@
 import { HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE, getRef } from "./refs.js";
 import { faName } from "./names.js";
 import { normUnit } from "./units.js";
+import { qualVerdict } from "./patterns_utils.js";
 
 // ── آستانه‌های تشخیصیِ تأییدشده (جدا از بازه‌های مرجع — «یک عدد، یک کار») ──
 /** P47 #15 — DSL `FR_2_1`: پروژسترونِ میان‌لوتئال > ۳ ng/mL → تخمک‌گذاری تأیید. */
@@ -137,8 +138,11 @@ function hcgState(e) {
     const s = String(v).trim();
     // «Pregnancy test» ممکن است ادرار باشد؛ «خون» را فقط وقتی می‌گوییم که نامِ ردیف بگوید.
     const blood = /beta|β|bhcg|بتا|serum|سرم|خون/i.test(k);
-    if (/^(neg|negative|منفی)/i.test(s)) return { value: null, positive: false, raw: s, blood };
-    if (/pos|positive|مثبت|\+/i.test(s)) return { value: null, positive: true, raw: s, blood };
+    // N6: مجموعهٔ بسته — «Not positive»، «+/-»، «Borderline» پیش‌تر «مثبت» خوانده می‌شدند (زیررشتهٔ pos / +).
+    //   مرزی/نامشخص ⇒ null (حکم نه)؛ qual_equivocal_result (patterns_coverage_gaps) آن را نام می‌برد.
+    const vs = qualVerdict(s).state;
+    if (vs === "neg") return { value: null, positive: false, raw: s, blood };
+    if (vs === "pos") return { value: null, positive: true, raw: s, blood };
   }
   return null;
 }
@@ -154,6 +158,14 @@ const CONTEXT_REASONS = {
     "با تستِ بارداریِ مثبت روی همین برگه، تفسیرِ این عدد با پزشک است.",
   // unit_unknown عمداً اینجا نیست: مالکش unit_unknown_values است (specs/003، N20).
 };
+
+// کفِ سنیِ «بارداری» در محصول ۱۰ سال است (conditions/Intake، specs/011) — عدد تازه‌ای نیست.
+const PREGNANCY_FLOOR_AGE = 10;
+const prepubertalGirl = (e) => e.sex === "F" && e.age != null && e.age < PREGNANCY_FLOOR_AGE;
+// P77-۱۳ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ Snyder/WUSTL): زنِ بالای ۵۵ سال — hCGِ < ۱۴ IU/L تولیدِ طبیعیِ هیپوفیز است؛ ≥ ۱۴ باید بارداری/تومورِ ترشح‌کننده رد شود.
+const POSTMENOPAUSAL_FROM_AGE = 55;
+const HCG_POSTMENOPAUSAL_ULN = 14;
+const postmenopausalWoman = (e) => e.sex === "F" && e.age != null && e.age > POSTMENOPAUSAL_FROM_AGE;
 
 export const RULES_REPRODUCTIVE = [
 
@@ -377,18 +389,45 @@ export const RULES_REPRODUCTIVE = [
     match: (e) => {
       const h = hcgState(e);
       if (!h) return false;
-      return !(e.sex === "M" && !h.positive);   // hCGِ منفیِ مرد طبیعی است و یافته نمی‌خواهد
+      // 🔴 لایهٔ ۲ (گروه ۷): دختربچهٔ زیرِ ۱۰ سال (همان کفِ بارداری در specs/011) تستِ بارداریِ «منفی» یافته نمی‌خواهد، و «مثبت»ش را
+      //    نباید «با بارداری سازگار» خواند (پیش‌تر دخترِ ۶ ساله routine و «سازگار با بارداری» می‌گرفت).
+      return !((e.sex === "M" || prepubertalGirl(e) || postmenopausalWoman(e)) && !h.positive);   // hCGِ منفیِ مرد/دخترِ خردسال/زنِ یائسه طبیعی است و یافته نمی‌خواهد
     },
     build: (e) => {
       const h = hcgState(e);
       const num = h.value != null ? `${h.raw ?? fmt(h.value)} mIU/mL` : `«${h.raw}»`;
       const label = h.blood ? "تستِ بارداریِ خون (بتا اچ‌سی‌جی)" : "تستِ بارداری";
       const src = ["HENRY_REPRO"];
+      if (prepubertalGirl(e)) {
+        return {
+          pattern: "hcg_result", urgency: "this_week",
+          headline: "بتا اچ‌سی‌جی در خونِ شما مثبت است",
+          must_say: `بتا اچ‌سی‌جیِ شما ${num} است. در دخترانِ هم‌سنِ بیمار این هورمون معمولاً نزدیکِ صفر است و مثبت بودنش باید حتماً و زود با پزشکِ غدد یا انکولوژیِ کودکان بررسی شود (بالا رفتنِ آن می‌تواند به بلوغِ زودرس یا بعضی تومورهای سلولِ زایا مربوط باشد؛ این عدد را به «بارداری» نسبت نمی‌دهیم).`,
+          action: "این هفته با پزشکِ غدد یا انکولوژیِ کودکان مطرح کنید.",
+          suggest: [], sources: src,
+        };
+      }
       if (e.sex === "M") {
         return {
           pattern: "hcg_result", urgency: "this_week",
           headline: "بتا اچ‌سی‌جی در خونِ شما مثبت است",
           must_say: `بتا اچ‌سی‌جیِ شما ${num} است. این آزمایش در زنان برای تشخیصِ بارداری به کار می‌رود، ولی در مردان معمولاً نزدیکِ صفر است و مثبت بودنش باید حتماً با پزشک بررسی شود.`,
+          action: "این هفته با پزشک مطرح کنید.",
+          suggest: [], sources: src,
+        };
+      }
+      if (postmenopausalWoman(e)) {
+        const low = h.value != null && h.value < HCG_POSTMENOPAUSAL_ULN;
+        return low ? {
+          pattern: "hcg_result", urgency: "routine",
+          headline: "بتا اچ‌سی‌جی کمی بالاتر از معمولِ تستِ بارداری است",
+          must_say: `بتا اچ‌سی‌جیِ شما ${num} است. در زنانِ بالای ۵۵ سال مقدارهای پایین (تا ۱۴) می‌تواند از غدهٔ هیپوفیز بیاید و به‌تنهایی نشانهٔ بارداری نیست.`,
+          action: "در نوبتِ عادی با پزشک مطرح کنید.",
+          suggest: [], sources: src,
+        } : {
+          pattern: "hcg_result", urgency: "this_week",
+          headline: "بتا اچ‌سی‌جی در خونِ شما مثبت است",
+          must_say: `بتا اچ‌سی‌جیِ شما ${num} است. در زنانِ بالای ۵۵ سال این مقدار معمولاً بالاتر از تولیدِ طبیعیِ هیپوفیز است و باید بارداری یا (بسیار کم‌تر) تومورِ ترشح‌کنندهٔ این هورمون بررسی و رد شود.`,
           action: "این هفته با پزشک مطرح کنید.",
           suggest: [], sources: src,
         };

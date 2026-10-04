@@ -81,6 +81,14 @@ function esteraseWithoutCellsFires(e) {
 // specs/006: patterns_urinalysis می‌پرسد «باکتریِ بی‌التهاب فعال شد؟» — با همین تابع، نه با بازنویسیِ شرطش.
 export { utiFires, bacteriuriaFires, bacteriaSignificant, esteraseWithoutCellsFires };
 
+// «کلیه در حدِ اورژانس»: CTCAE درجهٔ ≥ ۳ کراتینین یا eGFR < ۱۵ (G5). هم `kidney.build` (urgency/blocks_others) و هم `kidney.match`
+//   (واگذاری به glomerulonephritis_pattern) از همین یک تعریف می‌خوانند — کپیِ شرط در دو جا همان N20 است.
+function kidneySevere(e) {
+  const cr = e.graded.find((g) => g.test === "CREAT");
+  const egfr = e.indices.egfr;
+  return levelGrade(cr) >= 3 || (egfr != null && egfr < 15);
+}
+
 export const RULES_NEPHROLOGY = [
 
   // ═══════════ تحلیل ادرار (U/A) ═══════════
@@ -473,7 +481,10 @@ export const RULES_NEPHROLOGY = [
       // رابدومیولیز: CK خیلی بالا + خون ادرار
       if (ckVeryHigh && bloodUrine) return false;
       // گلومرولونفریت: هماچوری + پروتئینوری با هم
-      if ((bloodUrine || (rbcHigh != null && rbcHigh > 3)) && proteinuria) return false;
+      // N19/N20/N29 (لایهٔ ۲): این واگذاری فقط وقتی درست است که kidney اورژانس نباشد. «کراتینین 4.4 + خون و پروتئینِ ادرار» اورژانسِ kidney را
+      //   به glomerulonephritis_pattern (this_week) می‌داد و has_critical می‌افتاد؛ همان کراتینین تنها اورژانس بود. kidneySevere همان
+      //   شرطی است که build برای severe می‌خواند (یک تعریف، نه کپی).
+      if ((bloodUrine || (rbcHigh != null && rbcHigh > 3)) && proteinuria && !kidneySevere(e)) return false;
       return true;
     },
     build: (e) => {
@@ -500,7 +511,7 @@ export const RULES_NEPHROLOGY = [
       const prerenal = ratio != null && ratio > 20;
       const crG = levelGrade(cr);
       // فوریت بر پایهٔ eGFR (مرحله‌بندی CKD) یا شدت CTCAE کراتینین
-      const severe = crG >= 3 || (egfr != null && egfr < 15);          // G5
+      const severe = kidneySevere(e);                                  // G5
       const moderate = crG >= 2 || (egfr != null && egfr < 45);        // G3b/G4
       const mildEgfrOnly = !crHigh && egfr != null && egfr >= 45 && egfr < 60;  // G3a با کراتینین طبیعی
       const urgency = severe ? "emergency" : moderate ? "this_week" : mildEgfrOnly ? "routine" : "this_week";
@@ -722,6 +733,9 @@ export const RULES_NEPHROLOGY = [
       return {
         pattern: "glomerulonephritis_pattern",
         urgency: "this_week",
+        // N18 (لایهٔ ۲): زیرِ اورژانسِ kidney (Cr ≥ ۴) این یافته کاملاً پنهان می‌شد و بیمار هیچ‌جا نمی‌شنید که ادرارش خون و پروتئین دارد.
+        always_show: true,
+        brief: "همچنین در ادرارِ شما هم خون و هم پروتئین دیده می‌شود؛ این ترکیب کنارِ بالا بودنِ کراتینین می‌تواند به التهابِ کلیه (گلومرولونفریت) اشاره کند و پزشک باید آن‌ها را با هم ببیند.",
         headline: "ترکیب نتایج ادرار و خون شما به یک التهاب کلیه اشاره دارد",
         must_say:
           "هم خون و هم پروتئین در ادرار دیده می‌شود" +
@@ -746,6 +760,7 @@ export const RULES_NEPHROLOGY = [
 
 /** نسبتِ BUN/Cr که بالاتر از آن (همراه Hbِ پایین) پرچمِ «soon» می‌خورد. P59، ۲۰۲۶-۰۹-۳۰؛ منبع: BUNCR_UGIB_META. */
 const UGIB_RATIO_CUT = 30;
+const UREA_WEEK_MGDL = 150;   // P77-۴: بی‌منبع، تصمیمِ طراحیِ بازبین (پلهٔ زیرِ پنیکِ ۲۰۰)
 
 export const RULES_NEPHROLOGY_NEW = [
   // ── کلیه (CKD) ──
@@ -877,7 +892,9 @@ export const RULES_NEPHROLOGY_NEW = [
         pattern: "isolated_urea_elevation",
         // منبع فقط روی شاخه‌ای که همان آستانه را به کار می‌برد؛ حمایت از «soon» یا ۲۴ تا ۴۸ ساعت نیست (scopeِ منبع می‌گوید).
         ...(giFlag ? { sources: ["BUNCR_UGIB_META"] } : {}),
-        urgency: giFlag ? "soon" : "routine",
+        // P77-۴ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴): مرزِ اورژانس ۲۰۰ می‌ماند (panic، APSA) ولی زیرِ آن همه routine نباشد؛ پلهٔ this_week از ۱۵۰ mg/dL.
+        //    ⚠️ ۱۵۰ بی‌منبع است — تصمیمِ طراحیِ بازبین، نه عددِ منتشرشده. فقط برای UREA (mg/dL)، نه UREA_N.
+        urgency: giFlag ? "soon" : (u.test === "UREA" && u.value >= UREA_WEEK_MGDL ? "this_week" : "routine"),
         always_show: true,
         brief:
           `${name} شما ${u.value} (حد طبیعی ${u.range}) بالاتر از حد است` +
@@ -891,7 +908,9 @@ export const RULES_NEPHROLOGY_NEW = [
           " اورهٔ بالا با کراتینینِ طبیعی به‌تنهایی به معنای بیماریِ کلیه نیست؛ پزشک آن را کنار بقیهٔ برگه و علائم می‌سنجد.",
         action: giFlag
           ? "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید و بگویید چه داروهایی مصرف می‌کنید."
-          : "نتیجه را در نوبتِ عادی با پزشک مطرح کنید و بگویید چه داروهایی مصرف می‌کنید.",
+          : (u.test === "UREA" && u.value >= UREA_WEEK_MGDL)
+            ? "این هفته با پزشک مراجعه کنید و بگویید چه داروهایی مصرف می‌کنید."
+            : "نتیجه را در نوبتِ عادی با پزشک مطرح کنید و بگویید چه داروهایی مصرف می‌کنید.",
         suggest: ["تکرار اوره و کراتینین"],
         warnings: [],
       };

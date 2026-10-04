@@ -11,6 +11,7 @@
 import { getRef, getRefSource, getUnit, ckdEpiEgfr, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE,
   inNeonatalRedCellPeriod, NEONATAL_NO_ADULT_FALLBACK } from "./refs.js";
 import { evaluate } from "./grade.js";
+import { getPedRef } from "./refs_ped.js";
 import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcrossSystems, BRANCH_FACTORS,
          parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv, normUnit,
          HEMOSTASIS_KEYS, hemostasisUnit } from "./units.js";
@@ -223,6 +224,13 @@ const NAME_MAP = {
   //    می‌شوند و کلیدِ جدایی لازم ندارند. فارسی هم ي→ی و نیم‌فاصله نرمال می‌شود.
   apob: "APOB", apob100: "APOB", apolipoproteinb: "APOB", apolipoproteinb100: "APOB",
   آپولیپوپروتئینb: "APOB", آپوب: "APOB", آپوبی: "APOB",
+  // P77-۱۲: زنجیرهٔ سبکِ آزاد. «Kappa» و «Lambda» تنها هم همین‌اند (در برگهٔ ایرانی دیگر معنایی ندارند).
+  kappa: "KAPPA_FLC", kappaflc: "KAPPA_FLC", kappafreelightchain: "KAPPA_FLC", kappafreelightchains: "KAPPA_FLC",
+  kappafreelightchainflc: "KAPPA_FLC", freekappa: "KAPPA_FLC", freekappalightchain: "KAPPA_FLC", serumfreekappa: "KAPPA_FLC",
+  کاپا: "KAPPA_FLC", زنجیرهسبککاپا: "KAPPA_FLC", زنجیرهسبکآزادکاپا: "KAPPA_FLC",
+  lambda: "LAMBDA_FLC", lambdaflc: "LAMBDA_FLC", lambdafreelightchain: "LAMBDA_FLC", lambdafreelightchains: "LAMBDA_FLC",
+  lambdafreelightchainflc: "LAMBDA_FLC", freelambda: "LAMBDA_FLC", freelambdalightchain: "LAMBDA_FLC", serumfreelambda: "LAMBDA_FLC",
+  لامبدا: "LAMBDA_FLC", زنجیرهسبکلامبدا: "LAMBDA_FLC", زنجیرهسبکآزادلامبدا: "LAMBDA_FLC",
   tg: "TG", triglyceride: "TG", triglycerides: "TG",
   triglicerde: "TG", triglicerid: "TG", triglicerides: "TG", trigliserid: "TG",
   triglycerid: "TG", تریگلیسیرید: "TG", تریگلیسرید: "TG",
@@ -850,6 +858,21 @@ function commaToDot(s) {
   if (/^\d+,\d+$/.test(run)) return s.replace(",", ".");
   return null;
 }
+// مقدارِ سانسورشده («<6»، «>1000») — N5/N6 (لایهٔ ۲). toNum علامتِ < را دور می‌ریخت: «CRP <6 mg/L» (حدِ بالای ۵) ⇒ «CRP شما 6 است … بالاست»
+//    و «CRP <6» بی‌واحد ⇒ «واحد نامعلوم، خارج از محدوده». «<x» فقط می‌گوید مقدار زیرِ x است: وقتی x از حدِ بالای مرجع بیشتر باشد (یا از
+//    حدِ پایین، اگر حدِ پایین > ۰)، طبیعی یا غیرطبیعی بودنش معلوم نیست؛ «>x» وقتی x کمتر از حدِ بالا باشد. نامعلوم ⇒ «تفسیر نشدند»
+//    (unmapped)، نه عددِ ساختگی. فقط وقتی واحدِ ردیف خالی یا همان واحدِ موتور است (مقایسه با بازهٔ متعارف فقط آن‌وقت معنا دارد).
+function censoredIndeterminate(engineKey, t, v, ocr) {
+  const cm = String(t.value ?? "").trim().match(/^(<|≤|>|≥|کمتر\s*از|بیشتر\s*از)/);
+  if (!cm || v == null) return false;
+  // واحدِ چاپ‌شده‌ای که تبدیل نمی‌خواهد (TSH «mIU/L» = «µU/mL») هم مقایسه با بازهٔ موتور را معنادار می‌کند؛ فقط واحدی که تبدیل می‌شود (SI) کنار می‌رود.
+  const pu = String(t.unit ?? "").trim();
+  if (pu && toConventional(engineKey, v, t.unit).converted) return false;
+  const ref = getRef(engineKey, inferSex(ocr), inferAge(ocr) ?? 40);
+  if (!Array.isArray(ref)) return false;
+  const less = /^(<|≤|کمتر)/.test(cm[1]);
+  return less ? (v > ref[1] || (ref[0] > 0 && v > ref[0])) : v < ref[1];
+}
 function toNum(v) {
   if (v == null) return null;
   const pre = commaToDot(String(v)
@@ -1099,7 +1122,8 @@ export function ocrToEngineInput(ocr) {
           const nv = toNum(t.value);
           if (noSperm) tests[sk] = 0;
           // «<1» یا «>40» عدد نیست؛ toNum علامت را می‌انداخت و «کمتر از ۱» به «۱ میلیون» نقل می‌شد (N5).
-          else if (nv != null && !/[+<>≤≥]/.test(rawV)) tests[sk] = nv;
+          // مدتِ پرهیز بر حسب «روز» سنجیده می‌شود؛ «72 hours» (= ۳ روز) «۷۲ روز» خوانده می‌شد (N3، لایهٔ ۲).
+          else if (nv != null && !/[+<>≤≥]/.test(rawV)) tests[sk] = (sk === "SEMEN_ABSTINENCE" && /^(h|hr|hrs|hour|hours|ساعت)$/i.test(u.trim())) ? nv / 24 : nv;
           else semenQual[sk] = rawV;
           continue;
         }
@@ -1288,6 +1312,7 @@ export function ocrToEngineInput(ocr) {
       const nv = toNum(t.value);
       // «3+» و «+++» عدد نیستند حتی اگر toNum رقمی از آن‌ها دربیاورد.
       const looksGraded = /\+/.test(String(t.value));
+      if (nv != null && !looksGraded && ek === "CRP_Q" && censoredIndeterminate(ek, t, nv, ocr)) { unmapped.push(t.name); continue; }
       if (nv != null && !looksGraded) {
         if (ek === "CRP_Q") { t = resolveRowUnit("CRP_Q", t, nv); if (!t) continue; }
         // mg/dL → mg/L برای CRP (برگه‌های ایرانی هر دو را می‌دهند)
@@ -1365,6 +1390,13 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
+    // ═══ مقدارِ سانسورشده («<6»، «>1000») — N5/N6 (لایهٔ ۲) ═══
+    // 🔴 toNum علامتِ < را دور می‌ریخت: «CRP <6 mg/L» (حدِ بالای ۵) ⇒ «CRP شما 6 است … بالاست» و «CRP <6» بی‌واحد ⇒ «واحد نامعلوم، خارج از
+    //    محدوده». «<x» فقط می‌گوید مقدار زیرِ x است: وقتی x از حدِ بالای مرجع بیشتر باشد (یا از حدِ پایین، اگر حدِ پایین > ۰)، طبیعی یا غیرطبیعی بودنش
+    //    معلوم نیست؛ «>x» وقتی x کمتر از حدِ بالا باشد. نامعلوم ⇒ «تفسیر نشدند» (unmapped)، نه عددِ ساختگی. فقط وقتی واحدِ ردیف خالی یا
+    //    همان واحدِ موتور است (مقایسه با بازهٔ متعارف فقط آن‌وقت معنا دارد؛ وگرنه رفتارِ قبلی).
+    if (censoredIndeterminate(engineKey, t, v, ocr)) { unmapped.push(t.name); continue; }
+
     // ═══ specs/007 (N3): هماتوکریتِ بی‌واحدِ ≤ ۱ کسری است (0.39 = ۳۹٪) و MCHCِ بی‌واحدِ > ۱۰۰ g/L است ═══
     //    هیچ‌کدام با واحدِ متعارف ممکن نیست، ولی تبدیل از روی اندازه تا تأییدِ P48/P52 ممنوع است — پس
     //    سنجیده نمی‌شوند و به unmapped می‌روند («تفسیرشان نمی‌کند … با پزشک»). بی‌این، «Hct 0.39»ِ طبیعی
@@ -1392,6 +1424,15 @@ export function ocrToEngineInput(ocr) {
     // ═══ واحدِ نانوشته (specs/003) — پیش از هر تبدیلی، تا شاخه‌های پایین واحدِ قطعی ببینند ═══
     t = resolveRowUnit(engineKey, t, v);
     if (!t) continue;
+
+    // پرولاکتینِ بی‌واحد با محدودهٔ چاپ‌شدهٔ بالای ۶۰ (۱۰۲–۴۹۶) mIU/L است، نه ng/mL: حدِ بالای ng/mL هیچ‌وقت نزدیکِ ۶۰ نیست.
+    //   بدون این، «PRL 400» بی‌واحد ⇒ «۴۰۰ ng/mL … هیپوفیز» (هشدارِ کاذب، N3/N5). بی‌محدودهٔ چاپ‌شده همان رفتارِ قبلی (ng/mL).
+    if (engineKey === "PRL" && !String(t.unit ?? "").trim() && t.reference) {
+      const pr = parseReference(t.reference, inferSex(ocr));
+      if (pr?.hi >= 60) t = { ...t, unit: "mIU/L", _basis: "reference" };
+    }
+    // مدتِ پرهیزِ منی بر حسب «روز» سنجیده می‌شود؛ «72 hours» (= ۳ روز) «۷۲ روز» خوانده می‌شد.
+    if (engineKey === "SEMEN_ABSTINENCE" && /^(h|hr|hrs|hour|hours|ساعت)$/i.test(String(t.unit ?? "").trim())) v = v / 24;
 
     // ═══ IFCC — واحدِ SI روی برگه → واحدِ متعارفی که refs.js می‌فهمد ═══
     // ⚠️ کلاسِ N3: «درجه‌بندیِ عددِ برگه با واحدی که برگه استفاده نکرده».
@@ -1812,6 +1853,14 @@ export function runEngine(ocr) {
     }
     // بازهٔ این چهار کلید فقط بزرگسال است؛ زیرِ ۱۶ سال حکم نمی‌دهیم ولی «تفسیر نشدند» هم نمی‌شود — adult_ref_only را قاعده می‌خواند.
     if (ADULT_ONLY_REF_KEYS.has(key) && age != null && age < 16) { ungraded[key] = { value, reason: "adult_ref_only" }; continue; }
+    // P77-۸ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴، N3): زیرِ ۱۶ سال هماتوکریت بازهٔ سنیِ منبع‌دار ندارد (CALIPER به تفکیکِ سن/جنس می‌خواهد) — با بازهٔ
+    //   بزرگسال سنجیده نمی‌شود (HCT 33 با Hb 11.2 در ۴ ساله «پایین» می‌شد). مثلِ بقیهٔ بی‌بازه‌ها: noRef + ungraded، ولی مقدارش برای
+    //   بحرانِ HCT < ۲۱ (P52-۵، crisisArm) نگه داشته می‌شود. کم‌خونیِ کودک را Hb با بازهٔ سنیِ خودش می‌گوید.
+    if (key === "HCT" && age != null && age < 16 && !getPedRef("HCT", age)) {
+      noRef.push(key);
+      ungraded.HCT = { value, reason: "no_ped_range" };
+      continue;
+    }
 
     if (key === "HCG") {
       ungraded.HCG = { value, reason: "threshold", ...(rawText.HCG ? { raw: rawText.HCG } : {}) };

@@ -16,13 +16,28 @@ import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { SURVIVAL_LIMITS, printedVerdict } from "./units.js";
 import { GERIATRIC_REFS, GERIATRIC_FROM_AGE } from "./refs.js";
+import { getPedRef } from "./refs_ped.js";
 
 // ─── مرزِ «گلبولِ درشت» (ماکروسیتیک) — تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴ ───
 // 🔴 پیش‌تر ۱۰۰ برای همه: مردِ ۷۶ ساله با MCV 101 در فهرستِ اعداد «طبیعی» (بازهٔ سالمندِ ۸۲–۱۰۲) و در متن «بزرگ‌تر از حد
 //    معمول» می‌دید. از ۷۵ سالگی مرز همان سقفِ GERIATRIC_REFS.MCV است — عدد اینجا دوباره نوشته نمی‌شود (M91e).
 export const MACRO_MCV_ABOVE = 100;
+// 🔴 لایهٔ ۲، گروه ۳ (N3): زیرِ ۱۶ سال مرزِ درشت/ریز از بازهٔ سنیِ PED_REFS می‌آید، نه ۱۰۰/۸۰ِ بزرگسال — کودکِ ۸ ساله با MCV 79
+//    (طبیعی: ۷۷–۹۵) «گلبول‌های کوچک» می‌شنید و MCV 98 (بالا) «نرموسیتیک» می‌شد. عدد اینجا دوباره نوشته نمی‌شود (M91e).
 export function macroMcvCut(e) {
+  if (e?.age != null && e.age < 16) {
+    const r = getPedRef("MCV", e.age);
+    if (r) return r[1];
+  }
   return e?.age != null && e.age >= GERIATRIC_FROM_AGE ? GERIATRIC_REFS.MCV.both[1] : MACRO_MCV_ABOVE;
+}
+export const MICRO_MCV_BELOW = 80;
+export function microMcvCut(e) {
+  if (e?.age != null && e.age < 16) {
+    const r = getPedRef("MCV", e.age);
+    if (r) return r[0];
+  }
+  return MICRO_MCV_BELOW;
 }
 
 export function levelGrade(g) {
@@ -53,12 +68,9 @@ function serologyReactive(e, nameRe, excludeRe) {
     const k = norm(rawK);
     if (excludeRe && excludeRe.test(k)) return false;
     if (!nameRe.test(k)) return false;
-    const val = String(v);
-    // اول منفی‌ها و نتایج نامشخص را رد کن (چون "non-reactive" شامل "reactive" است)
-    if (/non[-\s]?reactive|nonreactive|غیرواکنش|negative|منفی|not\s*detected|indeterminate|equivocal|borderline|نامشخص|مرزی/i.test(val)) {
-      return false;
-    }
-    return /reactive|واکنش|positive|مثبت|detected|پازیتیو|reactive/i.test(val);
+    // N6: مجموعهٔ بسته (qualVerdict)، نه substring — «Not reactive»، «غیر واکنش‌گر»، «Undetected»، «Nondetected» پیش‌تر مثبت خوانده می‌شدند.
+    // «Weakly reactive» در غربالگریِ عفونی هم «واکنش‌گر» گزارش می‌شود (برخلافِ VDRL که S02 آن را مبهم می‌خواهد) — کم‌خوانی نشود.
+    return qualVerdict(v).state === "pos" || /^(weakly|weak)[- ]?(reactive|positive)\b/i.test(String(v).trim());
   });
 }
 
@@ -70,9 +82,7 @@ function qualPositive(e, nameRe) {
   const norm = (s) => String(s).toLowerCase().replace(/[\s.\-_()/%#:]/g, "");
   return Object.entries(e.qual).some(([k, v]) => {
     if (!nameRe.test(norm(k))) return false;
-    const s = String(v).trim().toLowerCase();
-    if (/^(neg|negative|منفی|nil|none|no|-)$/i.test(s)) return false;
-    return /pos|positive|مثبت|\+|reactive|واکنش/i.test(s);
+    return qualVerdict(v).state === "pos";   // N6: «+/-» و «Not positive» مثبت نیستند
   });
 }
 
@@ -93,11 +103,34 @@ function titreFa(v) {
 // specs/012: از patterns_coverage_gaps.js به این‌جا آمد (بی‌تغییر) تا patterns_serology.js هم همین یک فهرست را بخواند — دو فهرست drift می‌کنند.
 export function qualState(raw) {
   const s = String(raw).toLowerCase().replace(/\s+/g, " ").trim();
-  if (/^(neg|negative|non[- ]?reactive|nonreactive|not detected|undetected|nondetected|absent|nil|none|منفی|غیر ?واکنش[‌ ]?گر|-)$/.test(s)) return { state: "neg" };
-  if (/^(pos|positive|reactive|detected|present|مثبت|واکنش[‌ ]?گر|پازیتیو|\+{1,4}|[1-4]\+)$/.test(s)) return { state: "pos" };
+  if (/^(neg|negative|non[- ]?reactive|nonreactive|not[- ]reactive|not[- ]positive|not detected|undetected|nondetected|undetectable|not detectable|absent|nil|none|منفی|غیر ?واکنش[‌ ]?گر|واکنش[‌ ]?گر نیست|مثبت نیست|-)$/.test(s)) return { state: "neg" };
+  if (/^(pos|positive|reactive|detected|present)$|^(مثبت|واکنش[‌ ]?گر|پازیتیو|\+{1,4}|[1-4]\+)$/.test(s)) return { state: "pos" };
+  // «+/-»، «±»، مرزی، نامشخص: نه مثبت نه منفی — جدا از «unknown» تا خواننده‌ها نتوانند آن را مثبت بخوانند (N6)
+  if (/^(\+\/-|±|\+-|borderline|equivocal|indeterminate|inconclusive|trace|مرزی|نامشخص|نامعین)$/.test(s)) return { state: "equiv" };
   const m = s.match(/^([<>≥≤])?\s*(\d+(?:[.,]\d+)?)\s*(.*)$/);
-  if (m) return { state: "num", n: parseFloat(m[2].replace(",", ".")), cmp: m[1] ?? null, unit: m[3].trim() };
+  // «1,200» هزارگان است (گروهِ سه‌رقمی)، «5,5» ممیز — همان قاعدهٔ commaToDot در adapter؛ پیش‌تر هر کاما ممیز بود و ASO «1,200» ⇒ ۱٫۲.
+  if (m) return { state: "num", n: parseFloat(/^\d{1,3}(,\d{3})+$/.test(m[2]) ? m[2].replace(/,/g, "") : m[2].replace(",", ".")), cmp: m[1] ?? null, unit: m[3].trim() };
   return { state: "unknown" };
+}
+
+/**
+ * N6 برای خواننده‌های قاعده‌ها: «Reactive (S/CO 12.4)»، «Positive 1:80»، «Detected, 1.2e5 IU/mL» را به همان مجموعهٔ بسته می‌رساند
+ * (پرانتز، شاخصِ عددی و دنبالهٔ بعد از کاما حذف می‌شود) و بعد qualState. هر چه بیرونِ مجموعه بماند «unknown» است — نه مثبت.
+ * ⚠️ «Not reactive» ⊃ «reactive»، «Undetected» ⊃ «detected»، «+/-» ⊃ «+»: substring هرگز.
+ */
+export function qualVerdict(raw) {
+  let s = String(raw ?? "").toLowerCase()
+    .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
+    .replace(/\s+/g, " ").trim();
+  s = s.replace(/\(.*?\)/g, " ").replace(/\s*[,;،؛].*$/, "").trim();
+  // «POSITIVE.»، «Positive: 1/160»، «Positive for troponin»، «Positive ++»، «مثبت ۳+» — دُمِ نقطه‌گذاری/درجه/«for …» مثبت را منفی یا ناشناخته نمی‌کند.
+  if (/^[a-z؀-ۿ]/.test(s)) {
+    s = s.replace(/[:：]\s*\d.*$/, "").replace(/\s+for\s+.*$/, "").replace(/\s+\d.*$/, "").replace(/\s*\+{1,4}$/, "");
+  }
+  s = s.replace(/[.!*\s]+$/, "").trim();
+  // «Repeatedly/Weakly/Strongly reactive|positive» همچنان مثبت‌اند (در VDRL که qualState را مستقیم می‌خواند «Weakly reactive» مبهم می‌ماند — S02).
+  if (/^(repeatedly|persistently|weakly|weak|strongly|strong|highly)[- ](reactive|positive)$/.test(s)) return { state: "pos" };
+  return qualState(s);
 }
 
 // نام‌های کیفیِ CRP و RF (پس از نرمال‌سازی). یک‌جا تعریف می‌شوند تا بین
@@ -649,6 +682,14 @@ const HCT_SURVIVAL_MIN = SURVIVAL_LIMITS.HGB[0] * 3;
  * کدام بازوی بحرانِ کم‌خونی این برگه را مالک است: "hgb"، "hct" یا null.
  * match و build ِ severe_anemia_crisis هر دو از همین می‌خوانند — یک محاسبه، نه دو نسخه.
  */
+/** هماتوکریت: graded، یا (زیرِ ۱۶ سال بی‌بازهٔ سنی، P77-۸) مقدارِ ungraded با reason «no_ped_range» — فقط برای بحران، نه حکمِ بالا/پایین. */
+function hctRecord(e) {
+  const g = e.graded.find((x) => x.test === "HCT");
+  if (g) return g;
+  const u = e.ungraded?.HCT;
+  return u && u.reason === "no_ped_range" ? { test: "HCT", value: u.value, range: null } : null;
+}
+
 function crisisArm(e) {
   const hgb = e.graded.find((g) => g.test === "HGB");
   if (hgb) return hgb.value !== null && Number(hgb.value) < HGB_CRISIS_GDL ? "hgb" : null;
@@ -658,7 +699,7 @@ function crisisArm(e) {
   if (e.ungraded?.HGB || e.noRef?.includes("HGB")) return null;
   // ⚠️ هیچ گیتِ سنی نیست (تصمیمِ کاربر ۱۴۰۵/۰۷/۰۱، P52 پرسش ۵): بازوی Hb هم برای هر سنی است، و Hctِ زیرِ ۲۱ در
   //    کودک و نوزاد همان‌قدر بحرانی است (بازهٔ Hctِ نوزاد ۴۴–۶۴). پیش‌تر کودکِ Hct 18 «در نوبت عادی» می‌گرفت (M183c).
-  const hct = e.graded.find((g) => g.test === "HCT");
+  const hct = hctRecord(e);
   const v = hct && hct.value !== null ? Number(hct.value) : NaN;
   // کفِ مشتق، نه عددِ تازه: کمترین Hbِ زنده‌ماندنی (SURVIVAL_LIMITS، specs/003) × ۳. «HCT 4.5» ردیفِ جابه‌جاست (M182b).
   return v >= HCT_SURVIVAL_MIN && v < HCT_CRISIS_PCT ? "hct" : null;
@@ -1005,7 +1046,7 @@ export { isCastKey, castTypeOf, castTypesIn, castValueState, castRoute, castRows
   urineCellState, CAST_TYPES, HYALINE_CAST_UPPER_LPF };
 export { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, ferritinIdCut, isPedAge, IRON_ACD_LOW_UGDL, ferritinBelowIdCut, ironLowForAcd, hba2State, hba2Measured, hba2Clause, HBA2_TRAIT_ABOVE, HBA2_BEYOND_TRAIT_FROM, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, has, CRP_RE, RF_RE, albLowMarker, ALB_LOW_MARKER_GDL,
          amylaseEmergencyOwns, biliEmergencyOwns, AMYLASE_EMERGENCY_UL, BILI_T_EMERGENCY_MGDL,
-         anemiaCrisisOwns, actionUnlessAnemiaCrisis, ANEMIA_CRISIS_DEFER, HGB_CRISIS_GDL, crisisArm, HCT_CRISIS_PCT };
+         anemiaCrisisOwns, actionUnlessAnemiaCrisis, ANEMIA_CRISIS_DEFER, HGB_CRISIS_GDL, hctRecord, crisisArm, HCT_CRISIS_PCT };
 
 // ═══ specs/009 — شمارشِ افتراقیِ گلبول سفید (P56، در انتظارِ بازبینی) ═══
 // عدد از مرجعِ چسبانده‌شده، منبعِ اصلی نامعلوم — تا تأییدِ کاربر در MEDICAL_RULES.md P56.
@@ -1102,8 +1143,13 @@ function smearRow(name, value, unit) {
       if (!re.test(clause)) continue;
       let pct = null;
       if (k === "blasts") {
-        const m = clause.match(/(?:blasts?|blast\s*cells?|بلاست)\D{0,6}?(\d+(?:\.\d+)?)\s*%/i);
-        if (m && parseFloat(m[1]) <= 100) pct = parseFloat(m[1]);
+        const m = clause.match(/(?:blasts?|blast\s*cells?|بلاست)(\D{0,16}?)(\d+(?:\.\d+)?)\s*%/i);
+        if (m && parseFloat(m[2]) <= 100) {
+          pct = parseFloat(m[2]);
+          // «<1%» و «less than 1%» یعنی «زیرِ حدِ گزارش» نه «۱٪ حاضر» — همان رفتارِ ردیفِ نام‌دارِ Blasts (N6).
+          // و «<20%» عددِ ۲۰ نیست (سقف است): حاضر ولی بی‌درصد — وگرنه «less than 20%» به اورژانسِ بلاستِ ≥۲۰٪ می‌رسید.
+          if (/[<≤]|less\s+than|under|below|کمتر\s*از/i.test(m[1])) pct = pct <= 1 ? 0 : null;
+        }
       }
       const absent = neg || pct === 0;
       items.push({ kind: k, state: absent ? "absent" : "present", pct: absent ? null : pct, raw });

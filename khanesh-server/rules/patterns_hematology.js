@@ -1,4 +1,4 @@
-import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut } from "./patterns_utils.js";
+import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -183,12 +183,19 @@ function neutLowClause(e) {
 // شدتِ کم‌خونی به‌سبکِ WHO: خفیف تا ۱۱، متوسط ۸ تا ۱۱، شدید زیرِ ۸. P53 پرسش ۲ (بارداری): WHO برای بارداری
 // خفیف ۱۰–۱۰.۹، متوسط ۷–۹.۹، شدید زیرِ ۷ — وگرنه بارداری با Hb 10.8 «کم‌خونیِ متوسط» می‌خواند.
 function anemiaSeverityFa(e, hb) {
+  // P77-۹ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ WHO، جدولِ Hb): ۶ تا ۵۹ ماه شدید < ۷، متوسط ۷–۹٫۹، خفیف ۱۰–۱۰٫۹؛ ۵ تا ۱۴ سال همان ۸/۱۱ِ بزرگسال.
+  //    زیرِ ۶ ماه جدولِ WHO نداریم ⇒ بی‌درجه (null؛ فراخواننده «کم‌خونیِ شدید» نمی‌نویسد).
+  if (e.age != null && e.age < 0.5) return null;
+  if (e.age != null && e.age < 5) return hb < 7 ? "شدید" : hb < 10 ? "متوسط" : "خفیف";
   if (e.pregnant) return hb < 7 ? "شدید" : hb < 10 ? "متوسط" : "خفیف";
   return hb < 8 ? "شدید" : hb < 11 ? "متوسط" : "خفیف";
 }
 
 // ─── specs/004: فولات و B12 — سه‌حالته، مشترکِ macrocytic_anemia و folate_deficiency ───
 // شرطِ کم‌خونیِ ماکروسیتیک یک جا نوشته می‌شود؛ folate_deficiency با همین تابع کنار می‌رود (N20).
+// P77-۷ (تصمیمِ بازبین؛ ACP): INR ≥ ۱۰ اورژانس، ۴٫۵ تا < ۱۰ soon.
+const INR_EMERGENCY_FROM = 10;
+const INR_SOON_FROM = 4.5;
 export const macrocyticMatch = (e) => {
   const hgb = e.graded.find((g) => g.test === "HGB");
   return !!(hgb?.abnormal && hgb.dir === "low" && val(e).MCV > macroMcvCut(e));
@@ -640,7 +647,11 @@ export const RULES_HEMATOLOGY = [
         headline: "نوتروفیل‌های خون شما کمی کم است",
         must_say:
           `نوتروفیل شما ${n.value} است (حد طبیعی ${n.range}) — کاهشِ ${deg}. ` +
-          "نوتروفیل بخشی از گلبول‌های سفید است که با عفونت‌های باکتریایی مقابله می‌کند؛ تعدادِ کلِ گلبول‌های سفیدِ شما طبیعی است. " +
+          "نوتروفیل بخشی از گلبول‌های سفید است که با عفونت‌های باکتریایی مقابله می‌کند؛ " +
+          // 🔴 N4 (لایهٔ ۲): «کلِ گلبول‌های سفید طبیعی است» فقط با WBCِ نمره‌دارِ در محدوده؛ WBCِ غایب ادعای دروغ بود.
+          (e.graded.some((g) => g.test === "WBC" && !g.abnormal)
+            ? "تعدادِ کلِ گلبول‌های سفیدِ شما طبیعی است. "
+            : "تعدادِ کلِ گلبول‌های سفید (WBC) روی این برگه نیست و برای تفسیرِ کاملِ این کاهش لازم است. ") +
           (urgency === "routine"
             ? "کاهش در این حد خطرِ عفونت را چندان بالا نمی‌برد. "
             : "") +
@@ -853,9 +864,13 @@ export const RULES_HEMATOLOGY = [
       return {
         pattern: "pancytopenia",
         urgency: "emergency",
-        headline: "هر سه نوع سلول خونی کمتر از حد طبیعی هستند",
+        headline: wbc?.abnormal && wbc.dir === "low" ? "هر سه نوع سلول خونی کمتر از حد طبیعی هستند" : "هموگلوبین، پلاکت و نوتروفیل‌ها هر سه کم‌اند",
         must_say:
-          `${num(hgb, "هموگلوبین")}، ${num(wbc, "گلبول سفید")} و ${num(plt, "پلاکت")} — هر سه پایین هستند.` + neutClause + lymphClauseInPancytopenia(e) + " " +
+          // 🔴 N4/N12 (لایهٔ ۲): match با ANC < 1500 هم فعال می‌شود حتی وقتی WBC در محدوده است؛ «هر سه پایین هستند» آن‌وقت
+          //    دربارهٔ WBCِ طبیعی دروغ بود. حالا جمله از وضعیتِ واقعیِ WBC ساخته می‌شود.
+          (wbc?.abnormal && wbc.dir === "low"
+            ? `${num(hgb, "هموگلوبین")}، ${num(wbc, "گلبول سفید")} و ${num(plt, "پلاکت")} — هر سه پایین هستند.`
+            : `${num(hgb, "هموگلوبین")} و ${num(plt, "پلاکت")} پایین هستند و شمارشِ نوتروفیل‌ها هم کم است${wbc ? ` (گلبول سفیدِ کل ${wbc.value} در محدوده است)` : ""}.`) + neutClause + lymphClauseInPancytopenia(e) + " " +
           "وقتی هر سه ردهٔ سلولی با هم افت می‌کنند، معمولاً مشکل از خودِ مغز استخوان (کارخانهٔ ساخت سلول‌های خونی) یا تخریب گستردهٔ آن‌هاست و نیاز به بررسی فوری دارد. " +
           "یکی از علت‌های درمان‌پذیرِ آن کمبودِ ویتامین B12 یا فولات است؛ لام خون محیطی، رتیکولوسیت، B12، فولات و فریتین آزمایش‌های نخستِ علت‌یابی‌اند.",
         action: actionUnlessAnemiaCrisis(e, "همین امروز با پزشک تماس بگیرید."),
@@ -1193,7 +1208,7 @@ export const RULES_HEMATOLOGY = [
       // RBC بالا + MCV نرمال یا بالا + Hb بالا → پلی‌سیتمی، نه تالاسمی
       return (
         rbc?.abnormal && rbc.dir === "high" &&
-        t.MCV != null && t.MCV >= 80 &&
+        t.MCV != null && t.MCV >= microMcvCut(e) &&
         hgb?.abnormal && hgb.dir === "high"
       );
     },
@@ -1294,7 +1309,7 @@ export const RULES_HEMATOLOGY = [
       // متن باید بگوید هموگلوبین روی برگه نیست و فوریت *برآورد* شده (N4، N5). گلبول قرمزِ پایین هم اینجا
       // نام برده می‌شود، چون low_rbc_hct_without_anemia زیرِ بحران کنار می‌رود و آن را بی‌صاحب می‌گذاشت (N20).
       if (crisisArm(e) === "hct") {
-        const hct = e.graded.find((g) => g.test === "HCT");
+        const hct = hctRecord(e);
         const rbc = e.graded.find((g) => g.test === "RBC");
         const rbcLow = rbc?.abnormal && rbc.dir === "low";
         // N5 (بازبینی N-b): «0.19 L/L» روی برگه چاپ شده، نه «19» — عددِ تبدیل‌شده بی‌عددِ چاپ‌شده ادعای برگه است.
@@ -1303,7 +1318,7 @@ export const RULES_HEMATOLOGY = [
         return {
           ...base,
           must_say:
-            `هماتوکریت شما ${hct.value}٪ است${printed} (حد طبیعی ${hct.range}). هموگلوبین روی این برگه اندازه‌گیری نشده است؛ ` +
+            `هماتوکریت شما ${hct.value}٪ است${printed}${hct.range ? ` (حد طبیعی ${hct.range})` : ""}. هموگلوبین روی این برگه اندازه‌گیری نشده است؛ ` +
             "هماتوکریتِ زیر ۲۱ معمولاً با هموگلوبینِ زیر ۷ همراه است، یعنی کم‌خونیِ بسیار شدیدی که اکسیژن‌رسانی به قلب و مغز را به خطر می‌اندازد. " +
             "این فوریت از هماتوکریت برآورد شده، نه از هموگلوبینِ اندازه‌گیری‌شده." +
             (rbcLow ? ` تعداد گلبول قرمز هم ${rbc.value} است (حد طبیعی ${rbc.range}).` : ""),
@@ -1413,7 +1428,9 @@ export const RULES_HEMATOLOGY = [
       const plt = e.graded.find((g) => g.test === "PLT");
       const pltLow = plt?.abnormal && plt.dir === "low";
 
-      return mcvHigh && pltLow;
+      // 🔴 لایهٔ ۲ (گروه ۷، N20): با Hb 8 · MCV 108 · PLT 60 در ≥۶۰ سال، mds_suspicion و این یافته هر دو «شک به MDS» می‌گفتند (دو متن،
+      //    دو مرز ۱۰۰/۱۰۲). وقتی قاعدهٔ غنی‌تر (mds_suspicion) واقعاً فعال است این کنار می‌رود — «آیا فعال می‌شود»، نه کپیِ شرطش.
+      return mcvHigh && pltLow && !RULES_MALIGNANCY.find((r) => r.id === "mds_suspicion")?.match(e);
     },
     build: (e) => {
       return {
@@ -1433,11 +1450,13 @@ export const RULES_HEMATOLOGY = [
     match: (e) => {
       const t = val(e);
       const hgb = e.graded.find((g) => g.test === "HGB");
-      return hgb?.abnormal && hgb.dir === "low" && t.MCV < 80;
+      return hgb?.abnormal && hgb.dir === "low" && t.MCV < microMcvCut(e);
     },
     build: (e) => {
       const t = val(e);
       const mi = e.indices.mentzer;
+      // N4/N12 (لایهٔ ۲): «تعدادشان زیاد است» فقط وقتی RBC سنجیده‌شده و بالاست؛ منتزر < ۱۳ با RBCِ طبیعی/غایب این ادعا را نمی‌سازد.
+      const rbcHighHere = (() => { const r = e.graded.find((g) => g.test === "RBC"); return !!(r?.abnormal && r.dir === "high"); })();
       // 🔴 P53 پرسش ۷ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): HbA2ِ بالای ۳.۸ (یا ≥۸، هموگلوبینِ هم‌جا) شاخهٔ منتزر را به سمتِ
       //    تالاسمی برمی‌گرداند — کمبودِ آهن HbA2 را پایین می‌آورد، پس HbA2ِ بالا کنارِ گلبولِ کوچک شاهدِ قوی‌ترِ صفت است
       //    تا منتزرِ ≥۱۳. پیش‌تر شاخه عوض نمی‌شد و «کمبودِ آهن محتمل‌تر» کنارِ «صفتِ بتا» می‌آمد.
@@ -1512,7 +1531,9 @@ export const RULES_HEMATOLOGY = [
           : "برای تأیید، فریتین باید اندازه‌گیری شود (فریتین زیر ۳۰ کمبود آهن را تأیید می‌کند؛ ولی چون فریتین در التهاب بالا می‌رود، مقدار طبیعی هم گاهی کمبود آهن را رد نمی‌کند).");
       return {
         pattern: thal ? "microcytic_thal_likely" : "microcytic_ida_likely",
-        urgency: thal ? "routine" : "this_week",
+        // N20 (لایهٔ ۲): شاخهٔ تالاسمی همیشه routine بود، در حالی‌که متنِ همین یافته Hb 7.5 را «کم‌خونیِ شدید» می‌خواند و هشدارِ تنگی نفس
+        //   می‌داد — «نوبت عادی» کنارِ «شدید». کم‌خونیِ شدید (sev، همان WHO بالا) فوریتِ شاخهٔ آهن را می‌گیرد؛ action از همین urgency می‌آید.
+        urgency: thal && sev !== "شدید" ? "routine" : "this_week",
         // زیرِ یک اورژانسِ دیگر (pancytopenia، severe_neutropenia، ...) کاملاً
         // پنهان نشود — آن‌ها دربارهٔ اندازهٔ گلبول و علت‌یابیِ آهن هیچ نمی‌گویند،
         // پس بدونِ این، عددِ Hb/MCV و درخواستِ فریتین از گزارش ناپدید می‌شد.
@@ -1542,7 +1563,7 @@ export const RULES_HEMATOLOGY = [
         ...(hb != null ? { key_number: hb } : {}),
         // P53 پرسش ۷: شاخه‌ای که فقط HbA2 برگردانده دربارهٔ تعدادِ گلبول‌ها چیزی نمی‌داند (RBC می‌تواند پایین باشد).
         headline: thal
-          ? (mi != null && mi < 13
+          ? (mi != null && mi < 13 && rbcHighHere
             ? "گلبول‌های قرمز شما کوچک هستند ولی تعدادشان زیاد است"
             : "گلبول‌های قرمز شما کوچک‌اند و الگو بیشتر به یک ویژگیِ ارثیِ خون می‌خورد")
           : "گلبول‌های قرمز شما کم و کوچک‌تر از حد معمول هستند",
@@ -1555,8 +1576,8 @@ export const RULES_HEMATOLOGY = [
           e,
           thal
             ? (thalWorkup.length
-              ? `نوبت عادی با پزشک. آزمایش ${thalWorkup.join(" و ")} را مطرح کنید${a2 || fc ? " و نتیجهٔ همین برگه را همراه ببرید" : ""}.`
-              : "نوبت عادی با پزشک. نتیجهٔ همین برگه را همراه ببرید.")
+              ? `${sev === "شدید" ? "چون کم‌خونی شدید است، همین چند روز با پزشک وقت بگیرید" : "نوبت عادی با پزشک"}. آزمایش ${thalWorkup.join(" و ")} را مطرح کنید${a2 || fc ? " و نتیجهٔ همین برگه را همراه ببرید" : ""}.`
+              : `${sev === "شدید" ? "چون کم‌خونی شدید است، همین چند روز با پزشک وقت بگیرید" : "نوبت عادی با پزشک"}. نتیجهٔ همین برگه را همراه ببرید.`)
             : `${sev === "شدید" ? "چون کم‌خونی شدید است، همین چند روز با پزشک وقت بگیرید" : "این هفته با پزشک وقت بگیرید"}؛ در بزرگسالان، کمبود آهن باید علت‌یابی شود (به‌ویژه منبع خونریزی پنهان گوارشی).`,
         ),
         suggest: thal
@@ -1582,7 +1603,7 @@ export const RULES_HEMATOLOGY = [
     match: (e) => {
       const t = val(e);
       const hgb = e.graded.find((g) => g.test === "HGB");
-      return hgb?.abnormal && hgb.dir === "low" && t.MCV >= 80 && t.MCV <= macroMcvCut(e);
+      return hgb?.abnormal && hgb.dir === "low" && t.MCV >= microMcvCut(e) && t.MCV <= macroMcvCut(e);
     },
     build: (e) => {
       // رتیکولوسیت کلید تفکیک کم‌خونیِ کم‌تولید از پرتخریب/خونریزی است.
@@ -1866,8 +1887,11 @@ export const RULES_HEMATOLOGY = [
       const fib = e.graded.find((g) => g.test === "FIB");
       const inr = e.graded.find((g) => g.test === "INR");
       // PT>25، فیبرینوژن<100، یا INR>3 → فوری
+      // P77-۷ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ ACP): INR ≥ ۱۰ ⇒ اورژانس، ۴٫۵ تا < ۱۰ ⇒ soon (INR ۳ دیگر اورژانس نیست). PT > 25 و فیبرینوژن < 100 بی‌تغییر.
+      //    «با هر نشانهٔ خونریزی در هر INR اورژانس» را موتور نمی‌بیند (علامت ندارد) ⇒ در warnings گفته می‌شود.
       const severe = (pt && pt.value > 25) || (fib && fib.value < 100) ||
-                     (inr && inr.value > 3);
+                     (inr && inr.value >= INR_EMERGENCY_FROM);
+      const soonInr = !severe && !!(inr && inr.value >= INR_SOON_FROM);
       // job 40b8a901 (F5): PTِ خام کمی بالا با INR و APTTِ طبیعی «زمان لخته شدن طولانی» نیست — INR همان PT است که
       //   بین معرف‌ها قابل‌مقایسه شده. متن سه‌حالته است و عددِ سه شاخص را می‌گوید؛ فوریت دست‌نخورده (P59، تصمیمِ بازبین).
       const isoPt = ptIsolatedMild(e);
@@ -1875,7 +1899,7 @@ export const RULES_HEMATOLOGY = [
       return {
         pattern: "coagulation_abnormal",
         // P59 پرسش ۵ (بازبین): PT ایزوله با INRِ طبیعی «routine» است؛ INR معیارِ قابل‌مقایسه است.
-        urgency: severe ? "emergency" : isoPt ? "routine" : "this_week",
+        urgency: severe ? "emergency" : soonInr ? "soon" : isoPt ? "routine" : "this_week",
         ...(isoPt ? { sources: ["STATPEARLS_INR"] } : {}),   // فقط متنِ «PTِ خام به معرف بستگی دارد»
         always_show: true,
         brief,
@@ -1886,13 +1910,17 @@ export const RULES_HEMATOLOGY = [
             "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند.",
         action: severe
           ? "همین امروز با پزشک تماس بگیرید."
+          : soonInr
+            ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و بگویید چه داروهایی (به‌ویژه وارفارین) مصرف می‌کنید. وارفارین را خودسرانه قطع یا تغییر ندهید."
           : isoPt
             ? "در نوبتِ عادی با پزشک مطرح کنید و بخواهید PT و INR تکرار شود. حتماً بگویید چه داروهایی مصرف می‌کنید."
             : "این هفته با پزشک وقت بگیرید. حتماً بگویید چه داروهایی مصرف می‌کنید.",
         suggest: ["تکرار آزمایش انعقاد"],
         warnings: [
           "تا مشخص شدن علت، آسپرین یا مسکن‌های ضدالتهاب مصرف نکنید.",
-          "اگر خونریزی غیرعادی یا کبودی بی‌دلیل دیدید، همان روز به پزشک مراجعه کنید.",
+          (inr && inr.value >= INR_SOON_FROM)
+            ? "اگر خونریزی (مدفوعِ سیاه، خونریزیِ بینی یا لثه که بند نمی‌آید، ادرارِ خونی، کبودیِ گسترده) یا ضربه به سر دارید، همان لحظه به اورژانس بروید."
+            : "اگر خونریزی غیرعادی یا کبودی بی‌دلیل دیدید، همان روز به پزشک مراجعه کنید.",
         ],
         blocks_others: severe,
         brief_warnings: [
@@ -2103,12 +2131,16 @@ export const RULES_HEMATOLOGY = [
           pattern: "ldh_muscle_not_hemolysis",
           urgency: "routine",
           headline: "چند شاخص بالا هستند، ولی الگو بیشتر به عضله می‌خورد تا خون",
-          must_say:
-            "LDH و برخی آنزیم‌ها بالا هستند، ولی هاپتوگلوبین طبیعی است — " +
-            "این به آسیب یا فعالیت عضلانی اشاره دارد نه شکستن گلبول قرمز. ورزش سنگین اخیر هم می‌تواند علت باشد.",
+          // 🔴 N4 (لایهٔ ۲، گروه ۵): «هاپتوگلوبین طبیعی است» فقط وقتی هاپتوگلوبین روی برگه *هست* و در محدوده. پیش‌تر !haptoLow
+          //    برای هاپتوگلوبینِ غایب هم درست بود و به بیمارِ بی‌هاپتوگلوبین دربارهٔ آزمایشِ نسنجیده «طبیعی» گفته می‌شد.
+          must_say: hapto && !hapto.abnormal
+            ? "LDH و برخی آنزیم‌ها بالا هستند، ولی هاپتوگلوبین طبیعی است — " +
+              "این به آسیب یا فعالیت عضلانی اشاره دارد نه شکستن گلبول قرمز. ورزش سنگین اخیر هم می‌تواند علت باشد."
+            : "LDH، CK و AST بالا هستند و این ترکیب بیشتر به آسیب یا فعالیت عضلانی می‌خورد تا شکستن گلبول قرمز. " +
+              "هاپتوگلوبین روی این برگه نیست و بدون آن نمی‌شود شکستنِ گلبول قرمز را کاملاً کنار گذاشت. ورزش سنگین اخیر هم می‌تواند علت باشد.",
           // ⚠️ specs/006 (بازبینی B1): این شاخه مالکِ بیلی‌روبینِ نوار *نیست* — «نه کبد» می‌گوید؛ یافتهٔ ادرار مستقل می‌ماند.
           action: "نوبت عادی. اگر ورزش سنگین کرده‌اید حتماً به پزشک بگویید.",
-          suggest: ["CK", "تکرار آزمایش پس از استراحت"],
+          suggest: hapto ? ["CK", "تکرار آزمایش پس از استراحت"] : ["CK", "هاپتوگلوبین", "تکرار آزمایش پس از استراحت"],
           warnings: [],
         };
       }
