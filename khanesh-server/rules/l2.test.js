@@ -495,3 +495,38 @@ test("M364: hCG — زنِ > ۵۵ سال: < ۱۴ routine بی‌ادعای با�
   assert.ok(!ids(run([row("Pregnancy test", "Negative")], old)).includes("hcg_result"));
   assert.match(finding(run([row("Beta HCG", "50", "mIU/mL")], { age: 6, sex: "F" }), "hcg_result").action, /غدد یا انکولوژیِ کودکان/);
 });
+
+// ═══ لایهٔ ۴ (P79) — صدای متن برای کودک، و پیشنهادِ آزمایشِ کم‌خونیِ نورموسیتیکِ کودک ═══
+// 🔴 پیش از اصلاح (مرورگر، ۲۰۲۶-۱۰-۰۴): پسرِ ۳ ساله Hb 10.5 / MCV 75 ⇒ خلاصه «این کودک» ولی تفسیر «خون شما … هموگلوبین شما»؛
+//    و پیشنهادِ «کراتینین» و «CRP» (الگوریتمِ بزرگسال).
+const childText = (r) => r.p.findings.flatMap((f) => [f.headline, f.must_say, f.action, ...(f.warnings ?? [])]).join(" ");
+const hasYou = (s) => /(^|[\s(«])شما(?=[\s،.؛:)»]|$)/.test(s);
+
+test("M365: کودکِ ۳ ساله — در متنِ موتور «شما» نمی‌ماند و «کودک» جای آن می‌آید؛ پیشنهاد فقط رتیکولوسیت و فریتین", () => {
+  const r = run([row("Hemoglobin", 10.5, "g/dL"), row("MCV", 75)], { age: 3, sex: "M" });
+  const f = r.p.findings.find((x) => x.rule_id === "normocytic_anemia");
+  assert.ok(f, `normocytic_anemia فعال نشد: ${ids(r)}`);
+  assert.equal(hasYou(childText(r)), false, `«شما» مانده: ${childText(r).slice(0, 200)}`);
+  assert.match(f.must_say, /هموگلوبین کودک 10\.5/);
+  assert.deepEqual(f.suggest, ["رتیکولوسیت", "فریتین"]);
+});
+
+test("M365b: کنترل — بزرگسال همان متن و همان چهار پیشنهاد را می‌گیرد؛ ۱۲ ساله هنوز «شما»", () => {
+  const a = run([row("Hemoglobin", 10, "g/dL"), row("MCV", 88)], { age: 40, sex: "F" });
+  const fa = a.p.findings.find((x) => x.rule_id === "normocytic_anemia");
+  assert.ok(fa, ids(a));
+  assert.equal(hasYou(fa.must_say), true);
+  assert.deepEqual(fa.suggest, ["رتیکولوسیت", "فریتین", "کراتینین", "CRP"]);
+  const t = run([row("Hemoglobin", 10.5, "g/dL"), row("MCV", 88)], { age: 12, sex: "M" });
+  const ft = t.p.findings.find((x) => x.rule_id === "normocytic_anemia");
+  assert.ok(ft, ids(t));
+  assert.equal(hasYou(ft.must_say), true, "۱۲ ساله باید همان صدای بزرگسال را بگیرد");
+});
+
+test("M365c: کلماتِ دارای «شما» در ریشه («شمارش») دست نمی‌خورند؛ نوزاد صدای خودش را دارد", async () => {
+  const { childVoice } = await import("./neonatal.js");
+  assert.equal(childVoice("شمارش خون شما طبیعی است و نتیجهٔ شماست"), "شمارش خون کودک طبیعی است و نتیجهٔ کودک است");
+  const n = run([row("Hemoglobin", 10, "g/dL")], { age: 10 / 365, sex: "M" });
+  assert.doesNotMatch(childText(n), /(هموگلوبین|خون|نتیجه) کودک/, "نوزاد نباید صدای کودک بگیرد");
+  assert.match(childText(n), /نوزاد/);
+});

@@ -7568,8 +7568,9 @@ test("M158: فولاتِ بالاتر از محدوده در ماکروسیتی�
   const p = uuuRun([["Hb", "9", null, "g/dL"], ["MCV", "110", null, "fL"], ["Folate", "25", null, "ng/mL"], ["Vitamin B12", "500", null, "pg/mL"]], { age: 10, sex: "F" });
   const m = findPat(p, "macrocytic_anemia");
   assert.ok(m, fired(p).join(","));
-  assert.doesNotMatch(m.must_say, /فولاتِ شما روی همین برگه طبیعی است/);
-  assert.match(m.must_say, /فولاتِ شما روی همین برگه بالاتر از محدودهٔ طبیعی است/);
+  assert.doesNotMatch(m.must_say, /فولاتِ (شما|کودک) روی همین برگه طبیعی است/);
+  // لایهٔ ۴ (P79): کودکِ < ۱۲ سال صدای «کودک» می‌گیرد (applyChildVoice) — عمداً عوض شد؛ معنا همان است.
+  assert.match(m.must_say, /فولاتِ کودک روی همین برگه بالاتر از محدودهٔ طبیعی است/);
 });
 
 test("M159: فولاتِ بی‌واحد که واحدش از محدودهٔ مرجع تعیین شد — واحد کنارِ عددِ بیمار «چاپ‌شده» نوشته نمی‌شود (بازبینیِ کد ۴، N5)", () => {
@@ -9397,7 +9398,7 @@ test("M184h: متنِ WHOِ فریتین در کودک عددِ آستانهٔ �
   const boy = findPat(uuuRun(tests("40"), { age: 10, sex: "M" }), "iron_deficiency_masked_by_inflammation");
   assert.ok(boy);
   assert.doesNotMatch(boy.must_say, /آستانهٔ معمولِ 30/);
-  assert.match(boy.must_say, /محدودهٔ مرجع برای سنِ شما/);
+  assert.match(boy.must_say, /محدودهٔ مرجع برای سنِ کودک/);   // P79: صدای کودک (عمداً عوض شد)
   const tod = findPat(uuuRun(tests("20"), { age: 3, sex: "M" }), "iron_deficiency_masked_by_inflammation");
   assert.ok(tod);
   assert.match(tod.must_say, /فریتین زیر 30/);

@@ -40,7 +40,7 @@ export default function LocalPreview({
   rows, vals, prevVals, sex, months, pregnant = false, compareMode, criticalCount,
   expanded, setExpanded, onExport, onImport, ioError, onClose,
 }) {
-  const insights = comboInsights((k) => vals[k], sex, months);
+  const insights = comboInsights((k) => vals[k], sex, months, { pregnant });
 
   return (
     <section className="card" aria-labelledby="preview-h">
@@ -103,7 +103,7 @@ export default function LocalPreview({
           //    توضیحِ «بالا می‌تواند واکنشی باشد» می‌گرفت. برای بیماری که
           //    خطرِ خونریزی دارد، دقیقاً متنِ اشتباه.
           //    جهت باید از مقایسهٔ خودِ مقدار با محدوده بیاید، نه از نامِ حالت.
-          const dir = row.v > r.high ? "high" : row.v < r.low ? "low" : null;
+          const dir = row.status === "na" ? null : row.v > r.high ? "high" : row.v < r.low ? "low" : null;
           const note = dir === "high" ? (m.high || m.about)
             : dir === "low" ? (m.low || m.about) : m.about;
           const isOpen = !!expanded[row.k];
@@ -121,12 +121,14 @@ export default function LocalPreview({
                   <Num>{row.v}</Num> {m.unit && <span className="unit">{m.unit}</span>}
                 </span>
                 <span className="row-range">
-                  محدودهٔ مرجع: <Num>{r.low}–{r.high}</Num>
+                  {row.status === "na"
+                    ? "محدودهٔ مرجعِ کودک در این پیش‌نمایش نیست؛ تفسیر را با دکمهٔ «تفسیر آزمایش» بگیرید."
+                    : <>محدودهٔ مرجع: <Num>{r.low}–{r.high}</Num></>}
                 </span>
                 {compareMode && <DeltaChip prev={prevVals[row.k]} curr={vals[row.k]} />}
               </div>
 
-              <RangeBand low={r.low} high={r.high} value={row.v} stateCls={S.cls} />
+              {row.status !== "na" && <RangeBand low={r.low} high={r.high} value={row.v} stateCls={S.cls} />}
 
               <div className="note-row">
                 <p className="row-note">{note}</p>

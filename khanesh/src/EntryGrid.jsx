@@ -1,6 +1,6 @@
 import { normalizeDigits, toNumber, toFaDigits } from "./digits.js";
 import { useState, useEffect } from "react";
-import { REF, ALL, CATS, statusOf, LOCAL_STATES, SECTIONS, sectionOfCat, URINE_FIELDS, URINE_OPTIONS } from "./labRefs.js";
+import { REF, ALL, CATS, statusOf, isPediatricMonths, LOCAL_STATES, SECTIONS, sectionOfCat, URINE_FIELDS, URINE_OPTIONS } from "./labRefs.js";
 
 // ============================================================
 // شبکهٔ ورودِ دستی — ۴۶ آزمایش + ادرار، در بخش‌های تاشو (specs/011، FR-013) یا قابل جست‌وجو.
@@ -80,7 +80,9 @@ export default function EntryGrid({
         </div>
 
         <span className="ref-hint" id={`ref-${k}`}>
-          محدودهٔ مرجع: <span className="num">{r.low}–{r.high}</span>
+          {isPediatricMonths(months)
+            ? "محدودهٔ مرجعِ کودک در پیش‌نمایش نیست؛ تفسیر با موتور."
+            : <>محدودهٔ مرجع: <span className="num">{r.low}–{r.high}</span></>}
         </span>
 
         {S && (

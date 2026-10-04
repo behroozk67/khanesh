@@ -22,7 +22,7 @@ import { AI_KEYS, autoAbState } from "./serology.js";
 import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
 import { rankOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
-import { applyNeonatalFloor, applyNeonatalVoice, isNeonate } from "./neonatal.js";
+import { applyNeonatalFloor, applyNeonatalVoice, applyChildVoice, isNeonate } from "./neonatal.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
@@ -589,6 +589,7 @@ export function runPatterns(engineOut) {
   // ═══ کفِ فوریتِ نوزادی (P57 پرسش ۵) ═══ — پیش از انتخاب، تا blocks_others و ترتیب با فوریتِ نهایی کار کنند.
   applyNeonatalFloor(findings, engineOut);
   applyNeonatalVoice(findings, engineOut);
+  applyChildVoice(findings, engineOut);
 
   // ═══ انتخاب یافته‌ها ═══
   // 🔴 باگ قبلی: .find() فقط اولین blocks_others را برمی‌داشت و

@@ -82,6 +82,23 @@ export function neonatalVoice(text) {
     .replace(/شماست/g, "نوزاد است");
   return s;
 }
+// لایهٔ ۴ (P79): شیرخوار/کودکِ کوچک (۲۸ روز تا زیرِ ۱۲ سال) — متنِ موتور «خون شما» می‌گفت ولی خلاصهٔ مدل «این کودک»؛
+// خواننده والد است. فقط «شما» ⇒ «کودک»؛ نه حذفِ بند، نه بازنویسیِ دستور (متنِ بالینیِ تازه نیست). مرزِ ۱۲ سال انتخابِ واژه است، نه بالینی.
+export const CHILD_VOICE_MAX_AGE = 12;
+export function childVoice(text) {
+  if (typeof text !== "string" || !text) return text;
+  return text
+    .replace(/(^|[\s(«])شما(?=[\s،.؛:)»]|$)/g, "$1کودک")
+    .replace(/شماست/g, "کودک است");
+}
+export function applyChildVoice(findings, engineOut) {
+  const age = engineOut?.age;
+  if (engineOut?._probe || age == null || isNeonate(age) || !(age < CHILD_VOICE_MAX_AGE)) return;
+  for (const f of findings) {
+    for (const k of ["headline", "must_say", "action", "brief"]) if (typeof f[k] === "string") f[k] = childVoice(f[k]);
+    for (const k of ["warnings", "brief_warnings"]) if (Array.isArray(f[k])) f[k] = f[k].map(childVoice);
+  }
+}
 export function applyNeonatalVoice(findings, engineOut) {
   if (engineOut?._probe || !isNeonate(engineOut?.age)) return;
   const arr = (a) => {

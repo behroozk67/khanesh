@@ -340,7 +340,13 @@ export const LOCAL_STATES = {
   below: { label: "پایین‌تر از محدوده", icon: "▼", cls: "st-out" },
   above: { label: "بالاتر از محدوده", icon: "▲", cls: "st-out" },
   crit:  { label: "بحرانی", icon: "⚠", cls: "st-emergency" },
+  // لایهٔ ۴ (P79): زیرِ ۱۶ سال این جدول محدودهٔ مرجعِ کودک ندارد (فقط بزرگسال). «سنجیده نشد» ≠ «طبیعی» (N4/N3).
+  na:    { label: "برای این سن در پیش‌نمایش سنجیده نمی‌شود", icon: "◌", cls: "st-missing" },
 };
+
+// زیرِ ۱۶ سال (همان مرزِ refs_ped.js در بک‌اند) محدوده‌های REF بزرگسال‌اند و برای کودک غلط‌اند.
+export const PED_MONTHS = 192;
+export const isPediatricMonths = (months) => months != null && months < PED_MONTHS;
 
 export function statusOf(key, v, sex, months, ctx = {}) {
   const m = REF[key];
@@ -352,6 +358,8 @@ export function statusOf(key, v, sex, months, ctx = {}) {
   if (m.crit) {
     if (v < m.crit[0] || v > m.crit[1]) return "crit";
   }
+  // کودک: بحرانیِ بالا (مرزهای ثابت) نگه داشته شد تا هشدارِ K=۷ گم نشود، ولی بالا/پایین با محدودهٔ بزرگسال نمی‌شود.
+  if (isPediatricMonths(months)) return "na";
   // تست‌هایی که crit یا critFn ندارند، هرگز بحرانی نمی‌شوند (فقط بالا/پایین)
   if (v < r.low) return "below";
   if (v > r.high) return "above";
@@ -397,37 +405,44 @@ export const DELTA_LABEL = {
  *    «نکتهٔ اولیهٔ پیش از تحلیل» زنده مانده. هرگز کنارِ نتیجهٔ موتور نمایش
  *    داده نمی‌شود و هرگز با آن ادغام نمی‌شود.
  */
-export function comboInsights(getVal, sex, months) {
+export function comboInsights(getVal, sex, months, ctx = {}) {
   const out = [];
+  // کودک: بی‌محدودهٔ کودک هیچ الگویی نمی‌گوییم (آستانه‌های MCV/فریتین/FBS بزرگسال‌اند).
+  if (isPediatricMonths(months)) return out;
   const num = (k) => {
     const v = toNumber(getVal(k));
     return isNaN(v) ? null : v;
   };
   // «پایین بودن» هموگلوبین سن/جنس‌محور است (مرد ~۱۳.۵، نوزاد بسیار بالاتر).
   // قبلاً hb < 12 هاردکد بود و روی مرد و نوزاد کاذب فعال می‌شد؛ حالا از خودِ REF می‌آید.
-  const belowRange = (k, v) => v !== null && v < REF[k].range(sex, months).low;
+  // لایهٔ ۴ (P79): هر «بالا/پایین» اینجا از همان محدوده‌ای می‌آید که ردیفِ کنارش با آن رنگ می‌شود (با بارداری).
+  //   پیش‌تر آستانه‌ها هاردکد بودند (FBS ≥ 100 درحالی‌که ردیفِ FBS 105 «در محدوده» بود؛ فریتین < 30 درحالی‌که بازهٔ زن از 15 است؛
+  //   Hb بدونِ بارداری) و نکته با ردیفِ خودش مخالفت می‌کرد — همان ناسازگاریِ N20 در پیش‌نمایش.
+  const rng = (k) => REF[k].range(sex, months, ctx);
+  const belowRange = (k, v) => v !== null && v < rng(k).low;
+  const aboveRange = (k, v) => v !== null && v > rng(k).high;
   const fbs = num("fbs"), tg = num("tg"), hdl = num("hdl"), chol = num("chol");
   const hb = num("hb"), ferritin = num("ferritin"), mcv = num("mcv");
   const tsh = num("tsh"), t4 = num("t4");
   const hbLow = belowRange("hb", hb);
 
   // مقاومت به انسولین / سندروم متابولیک
-  if (fbs !== null && fbs >= 100 && tg !== null && tg >= 150) {
+  if (aboveRange("fbs", fbs) && aboveRange("tg", tg)) {
     out.push("قند ناشتای بالا همراه با تری‌گلیسیرید بالا می‌تواند نشانه‌ای از مقاومت به انسولین یا سندروم متابولیک باشد. بررسی توسط پزشک توصیه می‌شود.");
   }
   // چربی نامطلوب
-  if (hdl !== null && chol !== null && chol >= 200 && hdl < 40) {
+  if (belowRange("hdl", hdl) && aboveRange("chol", chol)) {
     out.push("کلسترول تام بالا همراه با HDL پایین، الگوی نامطلوب چربی است و با خطر قلبی-عروقی مرتبط است.");
   }
   // کم‌خونی فقر آهن
-  if (hbLow && ferritin !== null && ferritin < 30) {
+  if (hbLow && belowRange("ferritin", ferritin)) {
     out.push("هموگلوبین پایین همراه با فریتین پایین، الگوی شایع کم‌خونی فقر آهن است.");
   }
-  if (hbLow && mcv !== null && mcv < 80) {
+  if (hbLow && belowRange("mcv", mcv)) {
     out.push("هموگلوبین پایین همراه با MCV پایین (کم‌خونی میکروسیتیک) اغلب به کمبود آهن مربوط است.");
   }
   // کم‌کاری تیروئید
-  if (tsh !== null && tsh > 4.5 && t4 !== null && t4 < 5) {
+  if (aboveRange("tsh", tsh) && belowRange("t4", t4)) {
     out.push("TSH بالا همراه با T4 پایین می‌تواند نشانه‌ای از کم‌کاری تیروئید باشد.");
   }
   return out;
