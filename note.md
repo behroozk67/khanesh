@@ -1,5 +1,8 @@
 # RESUME HERE — خلاصهٔ وضعیت — ۲۰۲۶-۱۰-۰۳
 
+## ۲۰۲۶-۱۰-۰۴ (لایهٔ ۳): مسیرِ قدیمِ «مدل داورِ شدت» بسته شد (P78) — کامیت‌نشده
+`npm test` ⇒ `tests 989 · pass 988 · fail 0 · todo 1`. با `ALLOW_LEGACY_PATH=true` تست‌های T49/T50 قرمز می‌شوند (قرمز-اول). تصمیمِ من (تأیید نشده): پیش‌فرضِ بسته؛ برگهٔ نشناخته/فقط-متن ⇒ «تفسیر نشد» بی‌مدل. فایل‌ها: `server.js` (`LEGACY_ALLOWED`، گیت پیش از گراف)، `rules/prompt.js` (`buildUninterpretedResult`)، `api-contract.test.js` (T49–T51)، `.claude/rules/{architecture,environment}.md`. **باز:** `USE_ENGINE=false` هنوز مسیرِ قدیم را باز می‌کند (انتخابِ صریح)؛ متنِ خامِ OCR در آن مسیر هنوز در پرامپت می‌نشیند؛ مسیرِ گراف بی‌موتور (`USE_GRAPH=true`) دست نخورد؛ لایه‌های ۴ (فرانت) و ۵ (امنیت) اجرا نشده.
+
 ## ۲۰۲۶-۱۰-۰۴ (دوم): پاسخِ بازبین به ۱۵ پرسش پیاده شد (MEDICAL_RULES «P77-پاسخ»؛ M354–M364) — کامیت‌نشده
 **بازاندازه‌گیری‌شده:** `npm test` ⇒ `tests 986 · pass 985 · fail 0 · todo 1` (درختِ کار؛ ۲۱۷ قاعده؛ کارِ هم‌زمانِ خودایمنی داخلش است). تغییرِ عمدی: `M50b`، یک هش در `M180b`. پاسخ‌ها را کاربر از یک دستیارِ دیگر چسباند؛ منبع‌ها را باز نکردم و پله‌های زیرِ اورژانس (Mg، اوره ۱۵۰، فسفر، INR، آدرنال) تصمیمِ طراحی‌اند. فایل‌های تازه برای `git add`: `rules/{patterns_nephrology,patterns_mineral_bone,patterns_infectious,patterns_endocrine_pituitary,refs,names,units,adapter}.js` علاوه بر فهرستِ پایین.
 
@@ -12,7 +15,7 @@
 - **کامیت:** فایل‌به‌فایل؛ این جلسه علاوه بر فهرستِ P75 این‌ها را زد: `rules/{patterns,patterns_biochem,patterns_cardiac,patterns_coverage_gaps,patterns_endocrine_rheum,patterns_hematology,patterns_malignancy,patterns_reproductive,patterns_utils}.js`، `rules/{engine,l2}.test.js`، `MEDICAL_RULES.md`، `note.md`. ⚠️ `patterns.js`، `names.js`، `serology.js`، `server.js`، `units.js` و `patterns_autoimmune.js`/`autoimmune.test.js` کارِ جلسهٔ هم‌زمان هم دارند — پیش از `git add` با `git diff` جدا کنید.
 
 ## ۲۰۲۶-۱۰-۰۴ (جدیدترین‌تر): P77 — سندِ مرجعِ کاربر در موتور پیاده شد (مراحل ۱–۴ کامل) — **کامیت‌نشده**
-`node --test` ⇒ `tests 975 · pass 970 · fail 4 · todo 1`؛ ۴ قرمز (`M38` در `patterns_endocrine_pituitary.js`، `M50b`، `M180b`، `M257`) از جلسهٔ هم‌زمانِ دیگرند، نه این کار. قاعده‌ها ۲۰۶ ⇒ ۲۱۷ (+۱۱: ۵ از P76 و ۶ از P77). فایل‌ها: `serology.js` (کلیدهای تازه، `AI_NOREF`، `anaPatternsOf`)، `patterns_autoimmune.js` (بازنویسی)، `autoimmune.test.js` (A01/A04/A10 عمداً عوض)، `autoimmune2.test.js` (تازه، B00–B16)، `names.js`، `patterns.js` (`SUGGEST_TESTS`)، `server.js` (`QUAL_WORDS`)، `MEDICAL_RULES.md` P77. جزئیات، حدهای ثابتِ تازه و پرسش‌های بازبین: P77. **منابعِ اصلی باز نشده‌اند؛ `sources` خالی.**
+`node --test` ⇒ `tests 989 · pass 988 · fail 0 · todo 1` (دور ۲: ردیفِ بی‌محدوده/مرزی هم یافته می‌گیرد؛ قرمزهای جلسهٔ هم‌زمان در این اجرا سبز بودند). قاعده‌ها ۲۰۶ ⇒ ۲۱۷ (+۱۱: ۵ از P76 و ۶ از P77). فایل‌ها: `serology.js` (کلیدهای تازه، `AI_NOREF`، `anaPatternsOf`)، `patterns_autoimmune.js` (بازنویسی)، `autoimmune.test.js` (A01/A04/A10 عمداً عوض)، `autoimmune2.test.js` (تازه، B00–B16)، `names.js`، `patterns.js` (`SUGGEST_TESTS`)، `server.js` (`QUAL_WORDS`)، `MEDICAL_RULES.md` P77. جزئیات، حدهای ثابتِ تازه و پرسش‌های بازبین: P77. **منابعِ اصلی باز نشده‌اند؛ `sources` خالی.**
 - **تله (دوباره N15):** `node -e`/heredoc با رشتهٔ regex در template literal **بک‌اسلش را می‌خورد** (`\s`→`s`، `\b`→backspace U+0008) — این بار در `serology.js` و `server.js`؛ با `grep -nP '[\x00-\x08]'` گرفته شد. regex را فقط با ابزارِ Edit/Write بنویس.
 - **باز:** AFP بی‌واحد unmapped (M105)؛ خودایمنیِ عددیِ بی‌محدوده unmapped (P76/C1)؛ فوریتِ FIT/کلسی‌تونین/PSA منتظر بازبین.
 

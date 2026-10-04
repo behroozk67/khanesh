@@ -65,10 +65,13 @@ test("A04: تیترِ بی‌واژهٔ ANA — ≥ ۱:۸۰ مثبت و < ۱:۸�
   assert.equal(lo.length, 1);
   assert.match(txt(lo[0]), /کمتر از ۱:۸۰ منفی/);
   assert.doesNotMatch(txt(lo[0]), /ANA شما مثبت/);
-  // تیترِ بی‌واژه برای آزمایشِ دیگر (مثلاً VDRL-خانواده یا dsDNA) هنوز unmapped است
+  // تیترِ بی‌واژه برای آزمایشِ دیگر (dsDNA/Crithidia): مرزِ ثابتی نداریم ⇒ یافتهٔ بی‌حکم (نه unmapped، نه مثبت/منفی)
   const r = run([{ name: "Anti-dsDNA", value: "1:40" }]);
-  assert.equal(byId(r, "ana_family_result").length, 0);
-  assert.ok(r.e.unmapped.includes("Anti-dsDNA"));
+  const t = byId(r, "ana_family_result");
+  assert.equal(t.length, 1);
+  assert.equal(r.e.unmapped.length, 0);
+  assert.match(txt(t[0]), /1:40/);
+  assert.doesNotMatch(txt(t[0]), /منفی است|\(مثبت\)/);
 });
 
 test("A05: ANA مثبت + anti-dsDNA ۸۵ (مرزِ چاپیِ <30) ⇒ یک یافته، this_week، dsDNA «بالاتر از مرز»", () => {
@@ -89,17 +92,25 @@ test("A06: anti-dsDNA داخلِ مرزِ چاپی ⇒ routine؛ ANA غایب �
   assert.match(txt(x[0]), /ANA.*روی این برگه نیست/s);
 });
 
-test("A07: dsDNA عددی بی‌مرزِ چاپی ⇒ unmapped، بی‌یافته (C1)", () => {
+test("A07: dsDNA عددیِ بی‌مرزِ چاپی ⇒ یافته (P77 دور ۲)، بی‌ادعای بالا/پایین/منفی، نه unmapped (C1)", () => {
   const r = run([{ name: "Anti-dsDNA", value: "85", unit: "IU/mL" }]);
-  assert.equal(byId(r, "ana_family_result").length, 0);
-  assert.ok(r.e.unmapped.includes("Anti-dsDNA"));
+  const x = byId(r, "ana_family_result");
+  assert.equal(x.length, 1);
+  assert.equal(r.e.unmapped.length, 0);
+  assert.equal(x[0].urgency, "routine");
+  assert.match(txt(x[0]), /محدودهٔ مرجع روی همان ردیف چاپ نشده/);
+  assert.doesNotMatch(txt(x[0]), /منفی است|بالاتر از مرز|داخلِ محدوده/);
+  assert.match(x[0].headline, /^نتیجهٔ/);
 });
 
 test("A08: N6 — «+/-»، «Equivocal» مثبت نیستند؛ «Weak positive»، «Undetected»، «Non-reactive» درست خوانده می‌شوند", () => {
   for (const v of ["+/-", "Equivocal", "Borderline"]) {
     const r = run([{ name: "ANA", value: v }]);
-    assert.equal(byId(r, "ana_family_result").length, 0, `«${v}» نباید یافته بسازد`);
-    assert.ok(r.e.unmapped.includes("ANA"), `«${v}» باید نام برده شود`);
+    const x = byId(r, "ana_family_result");
+    assert.equal(x.length, 1, `«${v}» باید یافتهٔ بی‌حکم بسازد`);
+    assert.match(txt(x[0]), /مرزی یا نامشخص/);
+    assert.doesNotMatch(txt(x[0]), /ANA شما مثبت|منفی است|\(مثبت\)|\(منفی\)/, `«${v}» نه مثبت نه منفی`);
+    assert.equal(r.e.unmapped.length, 0);
   }
   assert.equal(byId(run([{ name: "ANA", value: "Weak positive" }]), "ana_family_result")[0]?.urgency, "routine");
   assert.match(txt(byId(run([{ name: "ANA", value: "Weak positive" }]), "ana_family_result")[0]), /مثبت/);
@@ -233,8 +244,11 @@ test("A19: Anti-CCP منفی (واژه) ⇒ «رد نمی‌کند»؛ RF غای
   assert.match(txt(x[0]), /رد نمی‌کند/);
   assert.match(txt(x[0]), /RF روی این برگه نیست/);
   const r = run([{ name: "Anti-CCP", value: "250", unit: "U/mL" }]);
-  assert.equal(byId(r, "anti_ccp_result").length, 0);
-  assert.ok(r.e.unmapped.includes("Anti-CCP"));
+  const nr = byId(r, "anti_ccp_result");
+  assert.equal(nr.length, 1);
+  assert.equal(r.e.unmapped.length, 0);
+  assert.match(txt(nr[0]), /محدودهٔ مرجع روی همان ردیف چاپ نشده/);
+  assert.doesNotMatch(txt(nr[0]), /منفی یا داخل|مثبتِ قوی|مثبتِ ضعیف/);
 });
 
 test("A20: RF بالا بدونِ Anti-CCP هنوز «درخواست Anti-CCP» می‌دهد (پیشنهادِ درست نباید حذف شود)", () => {
@@ -263,10 +277,14 @@ test("A22: C3/C4 داخلِ بازه یا بالا ⇒ routine بی‌حکمِ �
   assert.equal(hi.urgency, "routine");
   assert.match(txt(hi), /بالاتر از محدودهٔ چاپ‌شده/);
   const none = run([{ name: "C3", value: "0.6", unit: "g/L" }]);
-  assert.equal(byId(none, "complement_result").length, 0);
-  assert.ok(none.e.unmapped.includes("C3"));
+  const nx = byId(none, "complement_result");
+  assert.equal(nx.length, 1);
+  assert.equal(nx[0].urgency, "routine");
+  assert.equal(none.e.unmapped.length, 0);
+  assert.doesNotMatch(txt(nx[0]), /پایین‌تر از محدوده|بالاتر از محدوده|داخلِ محدوده/);
   const cens = run([{ name: "C4", value: "<5", unit: "mg/dL", reference: "10-40" }]);
-  assert.equal(byId(cens, "complement_result").length, 0);
+  assert.equal(byId(cens, "complement_result").length, 1);
+  assert.doesNotMatch(txt(byId(cens, "complement_result")[0]), /پایین‌تر از محدودهٔ چاپ‌شده است/);
 });
 
 test("A23: dsDNA مثبت بی‌C3/C4 ⇒ «C3 و C4» پیشنهاد می‌شود؛ با C3 روی برگه نه", () => {

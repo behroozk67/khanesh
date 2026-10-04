@@ -32,6 +32,9 @@ const ACTION = {
 
 const isPos = (a) => a.state === "pos" || a.state === "above";
 const isNeg = (a) => a.state === "neg" || a.state === "within";
+// نتیجه‌ای که نه مثبت است نه منفی: محدودهٔ چاپی نیست (noref) یا مرزی/نامشخص (equiv). متن‌ها نباید «منفی» بگویند.
+const isUnsure = (a) => a.state === "noref" || a.state === "equiv";
+const UNSURE_NOTE = "برای بعضی از این ردیف‌ها محدودهٔ مرجع روی برگه چاپ نشده یا نتیجه مرزی است، پس مثبت یا منفی بودنشان را نمی‌توان گفت؛ معنای این آزمایش‌ها به علائم و نظرِ پزشک بستگی دارد و بهتر است برگه را به او نشان دهید و در صورت لزوم آزمایش را تکرار کنید.";
 const present = (a) => a.state !== "absent";
 const label = (a, id) => a.name ?? faName(id);
 const stateOf = (e, ids) => Object.fromEntries(ids.map((id) => [id, autoAbState(e, id)]));
@@ -45,6 +48,7 @@ function lineOf(a, id) {
   const nm = label(a, id);
   if (a.assay) {
     const num = `${a.shown}${a.unit ? ` ${a.unit}` : ""}`;
+    if (a.state === "equiv") return `${nm} روی برگهٔ شما «${a.raw}» (مرزی یا نامشخص) است؛ نه مثبت شمرده می‌شود نه منفی.`;
     if (a.state === "noref") return `${nm} روی برگهٔ شما ${num} است؛ محدودهٔ مرجع روی همان ردیف چاپ نشده، پس بالا یا پایین بودنش را نمی‌توان گفت.`;
     const where = a.state === "below" ? "پایین‌تر از" : a.state === "within" ? "داخلِ" : "بالاتر از";
     return `${nm} روی برگهٔ شما ${num} است و ${where} ${a.state === "within" ? "محدودهٔ" : "مرزِ"} چاپ‌شدهٔ همان ردیف است.`;
@@ -122,6 +126,9 @@ function anaBuild(e, { pregnant }) {
       "معنای آن به علائم و به آزمایش‌های اختصاصی‌ترِ بعدی بستگی دارد.");
     if (!present(st.ANTI_DSDNA)) parts.push("آزمایشِ anti-dsDNA روی این برگه نیست.");
     if (!present(st.ANTI_RO) && !present(st.ANTI_LA)) parts.push("آنتی‌بادی‌های Ro و La (پنل ENA) هم روی این برگه نیست.");
+  } else if (ANA_IDS.some((id) => isUnsure(st[id]))) {
+    parts.push(`${UNSURE_NOTE} ANA و آنتی‌بادی‌های اختصاصی‌ترش (anti-dsDNA، Sm، RNP، Ro، La) برای بررسیِ بیماری‌های خودایمنی‌اند. اگر درد و تورمِ مفصل، بثورات پوستی، حساسیت به نور یا خشکیِ چشم و دهان دارید، آن را با پزشک مطرح کنید.`);
+    if (!present(st.ANA)) parts.push("ANA روی این برگه نیست.");
   } else {
     parts.push(
       "این فقط دربارهٔ همین آزمایش‌هاست و دربارهٔ سایر آزمایش‌ها یا علائمِ شما حکمی نمی‌دهد. " +
@@ -141,7 +148,8 @@ function anaBuild(e, { pregnant }) {
     urgency, action: ACTION[urgency],
     headline: specificPos
       ? "آنتی‌بادی‌های اختصاصیِ هسته‌ای (anti-dsDNA / Sm / RNP / Ro / La) در آزمایش شما مثبت یا بالاتر از مرز است"
-      : anaPos ? "آزمایش ANA شما مثبت است" : "آزمایش‌های ANA / آنتی‌بادی‌های هسته‌ای شما منفی است",
+      : anaPos ? "آزمایش ANA شما مثبت است"
+        : ANA_IDS.some((id) => isUnsure(st[id])) ? "نتیجهٔ آزمایش‌های ANA / آنتی‌بادی‌های هسته‌ای شما" : "آزمایش‌های ANA / آنتی‌بادی‌های هسته‌ای شما منفی است",
     must_say: parts.join(" "),
     suggest,
     warnings: anaPos || specificPos ? [CAUTION_DRUG] : [],
@@ -173,6 +181,8 @@ function ancaBuild(e) {
       !cr ? "کراتینین (و آزمایش ادرار) روی این برگه نیست؛ برای تفسیرِ این نتیجه پزشک معمولاً هر دو را می‌خواهد."
         : cr.abnormal ? "کراتینینِ روی همین برگه هم بیرون از محدودهٔ مرجع است؛ این را حتماً به پزشک بگویید."
           : "کراتینینِ روی همین برگه داخلِ محدودهٔ مرجع است.");
+  } else if (ANCA_IDS.some((id) => isUnsure(st[id]))) {
+    parts.push(UNSURE_NOTE + " اگر علائمِ مداومی مثل خون در ادرار، سرفهٔ خونی، التهابِ سینوس یا بی‌حسیِ اندام دارید، با پزشک مطرح کنید.");
   } else {
     parts.push(
       "این فقط دربارهٔ همین آزمایش‌هاست و منفی‌بودنِ آن‌ها همهٔ بیماری‌های التهابِ رگ را رد نمی‌کند؛ اگر شکِ بالینیِ قوی باشد پزشک ممکن است آزمایشِ دومی (روشِ دیگر) بخواهد. " +
@@ -190,7 +200,7 @@ function ancaBuild(e) {
   return {
     pattern: "anca_result",
     urgency, action: ACTION[urgency],
-    headline: pos ? "آزمایش ANCA (یا MPO / PR3) شما مثبت یا بالاتر از مرز است" : "آزمایش ANCA شما منفی است",
+    headline: pos ? "آزمایش ANCA (یا MPO / PR3) شما مثبت یا بالاتر از مرز است" : ANCA_IDS.some((id) => isUnsure(st[id])) ? "نتیجهٔ آزمایش ANCA (یا MPO / PR3) شما" : "آزمایش ANCA شما منفی است",
     must_say: parts.join(" "),
     suggest,
     warnings: pos ? ["اگر خون در ادرار، سرفهٔ خونی یا تنگی نفسِ ناگهانی پیدا کردید، همان روز به اورژانس مراجعه کنید."] : [],
@@ -263,10 +273,11 @@ function ccpBuild(e) {
   }
   return {
     pattern: "anti_ccp_result", urgency: "routine", action: ACTION.routine,
-    headline: "آزمایش Anti-CCP شما منفی یا داخلِ محدودهٔ چاپ‌شده است",
-    must_say:
-      `${line} این فقط دربارهٔ همین آزمایش است و روماتیسم مفصلی را رد نمی‌کند؛ بخشی از بیماران Anti-CCP منفی دارند. ${rfLine(e)} ` +
-      "اگر تورم یا خشکیِ صبحگاهیِ مفاصل دارید، تصمیم با پزشک است.",
+    headline: isUnsure(a) ? "نتیجهٔ آزمایش Anti-CCP شما" : "آزمایش Anti-CCP شما منفی یا داخلِ محدودهٔ چاپ‌شده است",
+    must_say: isUnsure(a)
+      ? `${line} ${UNSURE_NOTE} Anti-CCP برای روماتیسم مفصلی اختصاصی‌تر از RF است. ${rfLine(e)} اگر تورم یا خشکیِ صبحگاهیِ مفاصل دارید، آن را به پزشک بگویید.`
+      : `${line} این فقط دربارهٔ همین آزمایش است و روماتیسم مفصلی را رد نمی‌کند؛ بخشی از بیماران Anti-CCP منفی دارند. ${rfLine(e)} ` +
+        "اگر تورم یا خشکیِ صبحگاهیِ مفاصل دارید، تصمیم با پزشک است.",
     suggest: [], warnings: [], ...ex,
   };
 }
@@ -279,6 +290,7 @@ function complementBuild(e) {
   const low = items.some(([, a]) => a.state === "below");
   const bothLow = c3.state === "below" && c4.state === "below";
   const lines = items.map(([id, a]) => {
+    if (isUnsure(a)) return lineOf(a, id);   // بی‌محدودهٔ چاپی / مرزی: «داخل/بالا/پایین» نگو
     const num = `${a.shown}${a.unit ? ` ${a.unit}` : ""}`;
     const where = a.state === "below" ? "پایین‌تر از" : a.state === "above" ? "بالاتر از" : "داخلِ";
     return `${faName(id)} روی برگهٔ شما ${num} است و ${where} محدودهٔ چاپ‌شدهٔ همان ردیف است.`;
@@ -290,6 +302,8 @@ function complementBuild(e) {
       "ولی علت‌های دیگری هم دارد (مثل بیماری شدید کبدی، سوءتغذیه، یا کمبودِ ارثی). این نتیجه به‌تنهایی تشخیص نیست و باید کنارِ علائم، آزمایش ادرار، کراتینین و آنتی‌بادی‌هایی مثل anti-dsDNA تفسیر شود. " +
       `در معیارهای طبقه‌بندیِ لوپوس (EULAR/ACR 2019) پایین‌بودنِ C3 یا C4 ۳ امتیاز و پایین‌بودنِ هر دو ۴ امتیاز دارد${bothLow ? " (اینجا هر دو پایین‌اند)" : ""}؛ افتِ پایدار و روندِ سریالِ آن‌ها با فعالیتِ بیماری، به‌ویژه درگیریِ کلیه، هماهنگ است.`);
     if (autoAbState(e, "ANTI_DSDNA").state === "absent") parts.push("anti-dsDNA روی این برگه نیست.");
+  } else if (items.some(([, a]) => isUnsure(a))) {
+    parts.push(UNSURE_NOTE + " کمپلمان (C3 و C4) بخشی از دستگاه ایمنی است؛ پایین بودنش در بعضی بیماری‌های خودایمنی دیده می‌شود و بالا بودنش معمولاً بازتابِ التهاب است، ولی بدونِ محدودهٔ مرجعِ چاپی نمی‌توان گفت این عدد کدام است.");
   } else {
     parts.push("بالا بودنِ کمپلمان معمولاً بازتابِ التهاب یا عفونت است (جزو واکنش‌گرهای فازِ حاد)، و داخلِ محدوده بودنش فقط دربارهٔ همین عدد است.");
   }
@@ -318,13 +332,15 @@ function sscBuild(e) {
   if (isPos(st.ANTI_CENTROMERE)) parts.push("آنتی‌بادی سانترومر بیشتر با فرمِ محدودِ اسکلرودرمی همراه گزارش شده است.");
   if (pos) {
     for (const [id, nm] of [["SCL70", "Scl-70"], ["ANTI_CENTROMERE", "anti-centromere"]]) if (!present(st[id])) parts.push(`${nm} روی این برگه نیست.`);
+  } else if (SSC_IDS.some((id) => isUnsure(st[id]))) {
+    parts.push(UNSURE_NOTE + " اگر ضخیم‌شدنِ پوست انگشتان، سردی و تغییر رنگِ انگشتان (رینود) یا زخم انگشت دارید، با پزشک مطرح کنید.");
   } else {
     parts.push("این فقط دربارهٔ همین آزمایش‌هاست؛ اگر ضخیم‌شدنِ پوست انگشتان، سردی و تغییر رنگِ انگشتان (رینود) یا زخم انگشت دارید، با پزشک مطرح کنید.");
   }
   const ex = explainsOf(e, st);
   return {
     pattern: "ssc_antibody_result", urgency, action: ACTION[urgency],
-    headline: pos ? "آنتی‌بادی مرتبط با اسکلرودرمی (Scl-70 / سانترومر) در آزمایش شما مثبت است" : "آنتی‌بادی‌های مرتبط با اسکلرودرمی (Scl-70 / سانترومر) منفی است",
+    headline: pos ? "آنتی‌بادی مرتبط با اسکلرودرمی (Scl-70 / سانترومر) در آزمایش شما مثبت است" : SSC_IDS.some((id) => isUnsure(st[id])) ? "نتیجهٔ آنتی‌بادی‌های مرتبط با اسکلرودرمی (Scl-70 / سانترومر)" : "آنتی‌بادی‌های مرتبط با اسکلرودرمی (Scl-70 / سانترومر) منفی است",
     must_say: parts.join(" "),
     suggest: pos ? ["بررسی توسط متخصص روماتولوژی"] : [], warnings: pos ? [CAUTION_DRUG] : [],
     ...(ex.length ? { explains: ex } : {}),
@@ -350,8 +366,10 @@ function jo1Build(e) {
   }
   return {
     pattern: "myositis_antibody_result", urgency: "routine", action: ACTION.routine,
-    headline: "آزمایش Anti-Jo-1 شما منفی یا داخلِ محدودهٔ چاپ‌شده است",
-    must_say: `${line} این فقط دربارهٔ همین آزمایش است و میوزیت را رد نمی‌کند؛ آنتی‌بادی‌های دیگری هم هستند که در این آزمایش دیده نمی‌شوند. اگر ضعفِ عضله یا تنگیِ نفسِ تازه دارید، با پزشک مطرح کنید.`,
+    headline: isUnsure(a) ? "نتیجهٔ آزمایش Anti-Jo-1 شما" : "آزمایش Anti-Jo-1 شما منفی یا داخلِ محدودهٔ چاپ‌شده است",
+    must_say: isUnsure(a)
+      ? `${line} ${UNSURE_NOTE} Jo-1 نشانگرِ «سندرم آنتی‌سنتتاز» (میوزیت، درگیریِ ریه، آرتریت) است. اگر ضعفِ عضله یا تنگیِ نفسِ تازه دارید، با پزشک مطرح کنید.`
+      : `${line} این فقط دربارهٔ همین آزمایش است و میوزیت را رد نمی‌کند؛ آنتی‌بادی‌های دیگری هم هستند که در این آزمایش دیده نمی‌شوند. اگر ضعفِ عضله یا تنگیِ نفسِ تازه دارید، با پزشک مطرح کنید.`,
     suggest: [], warnings: [], ...ex,
   };
 }
@@ -375,13 +393,15 @@ function aplBuild(e) {
     for (const [id, nm] of [["LUPUS_AC", "لوپوس‌آنتی‌کوآگولان"]]) if (!present(st[id])) parts.push(`${nm} روی این برگه نیست.`);
     if (!APL_IDS.some((id) => /^ACL/.test(id) && present(st[id]))) parts.push("کاردیولیپین روی این برگه نیست.");
     if (!APL_IDS.some((id) => /^B2GPI/.test(id) && present(st[id]))) parts.push("بتا-۲ گلیکوپروتئین I روی این برگه نیست.");
+  } else if (APL_IDS.some((id) => isUnsure(st[id]))) {
+    parts.push(UNSURE_NOTE + " آنتی‌فسفولیپید (لوپوس‌آنتی‌کوآگولان، کاردیولیپین، بتا-۲ گلیکوپروتئین I) با خطرِ لخته و عوارضِ بارداری مرتبط است و مثبت‌بودنش باید ۱۲ هفته بعد تأیید شود.");
   } else {
     parts.push("این فقط دربارهٔ همین آزمایش‌هاست؛ سندرم آنتی‌فسفولیپید با سه آزمایش (لوپوس‌آنتی‌کوآگولان، کاردیولیپین، بتا-۲ گلیکوپروتئین I) بررسی می‌شود و منفی‌بودنِ یکی از آن‌ها بقیه را رد نمی‌کند.");
   }
   const ex = explainsOf(e, st);
   return {
     pattern: "antiphospholipid_result", urgency, action: ACTION[urgency],
-    headline: pos ? "آنتی‌بادی آنتی‌فسفولیپید در آزمایش شما مثبت یا بالاتر از مرز است" : "آزمایش‌های آنتی‌فسفولیپید شما منفی یا داخلِ محدودهٔ چاپ‌شده است",
+    headline: pos ? "آنتی‌بادی آنتی‌فسفولیپید در آزمایش شما مثبت یا بالاتر از مرز است" : APL_IDS.some((id) => isUnsure(st[id])) ? "نتیجهٔ آزمایش‌های آنتی‌فسفولیپید شما" : "آزمایش‌های آنتی‌فسفولیپید شما منفی یا داخلِ محدودهٔ چاپ‌شده است",
     must_say: parts.join(" "),
     suggest: pos ? ["بررسی توسط متخصص روماتولوژی"] : [],
     warnings: pos ? ["بدونِ نظرِ پزشک داروی ضدانعقاد یا آسپرین را شروع یا قطع نکنید."] : [],

@@ -232,7 +232,9 @@ const AI_RE = {
 };
 export const AI_KEYS = Object.keys(AI_RE);
 // کلیدهایی که بی‌محدودهٔ چاپی هم یافته می‌سازند (state="noref") — به درخواست کاربر «هیچ‌کدام تفسیر نشده نرود»؛ بدون ادعای بالا/پایین.
-export const AI_NOREF = new Set(["CEA", "AFP", "CA125", "CA199", "CA153", "B2M", "CALCITONIN", "CGA", "PSA_TOTAL", "PSA_FREE", "PSA_RATIO", "CALPROTECTIN", "FIT"]);
+// ⚠️ P77 (دور دوم، درخواستِ کاربر «اگر محدوده روی برگه نبود هم تفسیرنشده نرود»): همهٔ کلیدهای عددی، نه فقط تومورمارکرها.
+//    HLA-B27 فقط واژه دارد. AFP بی‌واحد هنوز unmapped است (M105، دو معنا).
+export const AI_NOREF = new Set(AI_KEYS.filter((k) => k !== "HLA_B27"));
 const AI_QUAL_ONLY = new Set(["HLA_B27"]);   // ژن/آنتی‌ژن: فقط حاضر/غایب، عددِ مقایسه‌پذیر ندارد
 const AI_RANGE_ONLY = new Set(["C3", "C4"]);  // غلظت: کلمه معنا ندارد (⇒ unmapped)؛ عدد فقط در برابرِ بازهٔ چاپ‌شده: below|within|above
 export const autoKeyOf = (key) => { const k = k0(key); return AI_KEYS.find((id) => AI_RE[id].test(k)) ?? null; };
@@ -269,6 +271,7 @@ export function readAutoValue(raw, id = null) {
     if (v.state === "pos" || v.state === "neg") return { state: v.state, titre, patterns };
     if (patterns.length && titre != null) return { state: titre >= 80 ? "pos" : "neg", titre, patterns };
     if (v.state === "num") return { state: "num", n: v.n, cmp: v.cmp };
+    if (v.state === "equiv") return { state: "equiv" };
     return { state: "unknown" };
   }
   if (/^\d+\s*[:/]\s*\d+$/.test(s)) return { state: "titre", titre: Number(s.split(/[:/]/)[1]) };
@@ -278,6 +281,7 @@ export function readAutoValue(raw, id = null) {
     return { state: v.state, titre: m ? Number(m[1]) : null };
   }
   if (v.state === "num") return { state: "num", n: v.n, cmp: v.cmp };
+  if (v.state === "equiv") return { state: "equiv" };
   return { state: "unknown" };
 }
 
@@ -330,9 +334,20 @@ export function routeSerology(key, t, sexHint = null) {
   const aiKey = autoKeyOf(k);
   if (aiKey) {
     // AFP دو معنا دارد (تومورمارکر / غربالگری بارداری با MoM — M105). فقط با واحدِ غلظت تومورمارکر خوانده می‌شود؛ بی‌واحد یا MoM ⇒ unmapped.
-    if (aiKey === "AFP" && !/(ng|µg|ug|iu|u|kiu)\s*\/\s*(ml|l)/i.test(`${t.unit ?? ""} ${t.value ?? ""}`)) return { to: "unmapped" };
+    //    محدودهٔ عددیِ چاپ‌شده روی همان ردیف (بی‌MoM) هم کافی است: غربالگریِ بارداری با MoM و بازهٔ MoM چاپ می‌شود.
+    if (aiKey === "AFP") {
+      const all = `${t.unit ?? ""} ${t.value ?? ""} ${t.reference ?? ""}`;
+      const hasConc = /(ng|µg|ug|iu|u|kiu)\s*\/\s*(ml|l)/i.test(all);
+      const hasRange = /\d/.test(String(t.reference ?? ""));
+      if (/mom|multiples?\s*of/i.test(all) || !(hasConc || hasRange)) return { to: "unmapped" };
+    }
     const v = readAutoValue(t.value, aiKey);
     if ((v.state === "pos" || v.state === "neg") && !AI_RANGE_ONLY.has(aiKey)) return { to: "qual" };
+    // تیترِ بی‌واژه (غیر از ANA) و نتیجهٔ مرزی («+/-»، Equivocal، Trace): نه مثبت نه منفی — یافتهٔ «بی‌حکم» (state=titre|equiv)، نه unmapped.
+    if ((v.state === "titre" || v.state === "equiv") && AI_NOREF.has(aiKey)) {
+      const raw = String(t.value).trim();
+      return { to: "assay", key: aiKey, value: null, cmp: null, shown: raw, unit: null, state: v.state === "titre" ? "noref" : "equiv", raw, reference: String(t.reference) };
+    }
     if (v.state !== "num" || AI_QUAL_ONLY.has(aiKey)) return { to: "unmapped" };
     return assayRoute(aiKey, t, sexHint, v) ?? { to: "unmapped" };
   }

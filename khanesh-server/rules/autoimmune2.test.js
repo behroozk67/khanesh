@@ -194,8 +194,12 @@ test("B14: N6 — FIT «Undetected» منفی، «Weakly positive» مثبت، �
   assert.equal(byId(run([{ name: "FIT", value: "Undetected" }]), "gi_stool_result")[0].urgency, "routine");
   assert.equal(byId(run([{ name: "FIT", value: "Weakly positive" }]), "gi_stool_result")[0].urgency, "this_week");
   const r = run([{ name: "FIT", value: "Trace" }]);
-  assert.equal(byId(r, "gi_stool_result").length, 0);
-  assert.ok(r.e.unmapped.includes("FIT"));
+  const tr = byId(r, "gi_stool_result");
+  assert.equal(tr.length, 1);
+  assert.equal(tr[0].urgency, "routine");
+  assert.match(txt(tr[0]), /مرزی یا نامشخص/);
+  assert.doesNotMatch(txt(tr[0]), /\(مثبت\)|\(منفی\)|کولونوسکوپی/);
+  assert.equal(r.e.unmapped.length, 0);
 });
 
 test("B15: هم‌نامی — «La» تنها، «Sm» تنها، «CT»، «Ca»، «FIT» در نام‌های دیگر؛ کلسیم دست‌نخورده", () => {
@@ -235,4 +239,20 @@ test("B16: جاروبِ P77 — هر ردیف یافته می‌گیرد، بی�
   for (const k of ["ANTI_SM", "ANTI_RNP", "SCL70", "ANTI_CENTROMERE", "JO1", "ACL_IGG", "ACL_IGM", "ACL", "B2GPI_IGG", "B2GPI_IGM", "B2GPI", "LUPUS_AC", "CEA", "AFP", "CA125", "CA199", "CA153", "B2M", "CALCITONIN", "CGA", "PSA_TOTAL", "PSA_FREE", "PSA_RATIO", "CALPROTECTIN", "FIT"]) {
     assert.ok(FA_NAMES[k], `FA_NAMES.${k}`);
   }
+});
+
+test("B17: AFP با محدودهٔ چاپی (بی‌واحد) یافته می‌گیرد؛ MoM یا بی‌واحدِ بی‌محدوده unmapped می‌ماند (M105)", () => {
+  const hi = run([{ name: "AFP", value: "45", reference: "< 10" }], { age: 50, sex: "M" });
+  const x = byId(hi, "tumor_markers_result");
+  assert.equal(x.length, 1);
+  assert.equal(x[0].urgency, "this_week");
+  assert.match(txt(x[0]), /بالاتر از مرزِ چاپ‌شدهٔ همان ردیف/);
+  assert.equal(hi.e.unmapped.length, 0);
+  const ok = byId(run([{ name: "Alpha-Fetoprotein", value: "3.1", reference: "0-8.5" }], { age: 50, sex: "M" }), "tumor_markers_result")[0];
+  assert.equal(ok.urgency, "routine");
+  const mom = run([{ name: "AFP", value: "1.2", unit: "MoM", reference: "0.5-2.5" }], { age: 28, sex: "F", pregnant: true });
+  assert.equal(byId(mom, "tumor_markers_result").length, 0);
+  assert.ok(mom.e.unmapped.includes("AFP"));
+  const bare = run([{ name: "AFP", value: "45" }], { age: 50, sex: "M" });
+  assert.equal(byId(bare, "tumor_markers_result").length, 0);
 });
