@@ -1168,7 +1168,8 @@ const analyzeHandler = async (req, res) => {
       if (routedByQual) {
         const unread = unreadQualRows(engineOut, patternOut);
         if (unread.length) {
-          ocrWarnings.push(`این ردیف‌های ادرار چیزی نشان می‌دهند ولی در تفسیرِ بالا جداگانه توضیح داده نشده‌اند؛ آن‌ها را به پزشک نشان دهید: ${unread.join("، ")}`);
+          // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N25/N28): qual فقط ادرار نیست — «Wright (160.0)» «ردیفِ ادرار» نامیده می‌شد.
+          ocrWarnings.push(`این ردیف‌ها چیزی نشان می‌دهند ولی در تفسیرِ بالا جداگانه توضیح داده نشده‌اند؛ آن‌ها را به پزشک نشان دهید: ${unread.join("، ")}`);
         }
       }
 

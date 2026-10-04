@@ -1,5 +1,6 @@
 import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence , epithelialState , squamousSentence } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { bunToUrea } from "./refs.js";
 import { canBePregnant } from "./patterns_utils.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -869,10 +870,18 @@ export const RULES_NEPHROLOGY_NEW = [
       return !RULES_NEPHROLOGY_NEW.find((r) => r.id === "urea_bun_emergency").match(e);
     },
     build: (e) => {
-      const u = e.graded.find((g) => (g.test === "UREA" || g.test === "UREA_N") && g.abnormal && g.dir === "high");
+      // 🔴 بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵: (۱) پلهٔ this_week فقط روی UREA بود، پس «BUN 80» (≈ اورهٔ ۱۷۱) «نوبتِ عادی» می‌گرفت و
+      //    «Urea 180» «این هفته»؛ (۲) با هر دو روی برگه، BUN برنده می‌شد و اورهٔ ۱۸۰ از متن می‌افتاد. حالا فوریت روی معادلِ اوره
+      //    (bunToUrea در refs.js، همان ضریبِ ۲٫۱۴ِ موتور) و هر دو ردیفِ بالا نام برده می‌شوند. آستانهٔ تازه‌ای نیست (همان UREA_WEEK_MGDL).
+      const highs = e.graded.filter((g) => (g.test === "UREA" || g.test === "UREA_N") && g.abnormal && g.dir === "high");
+      const ureaEq = (g) => (g.test === "UREA_N" ? bunToUrea(g.value) : g.value);
+      const u = highs.reduce((a, b) => (ureaEq(b) > ureaEq(a) ? b : a));
+      const other = highs.find((g) => g !== u);
+      const weekStep = ureaEq(u) >= UREA_WEEK_MGDL;
       const cr = e.graded.find((g) => g.test === "CREAT");
       const ratio = e.indices.bun_cr, egfr = e.indices.egfr;
       const name = u.test === "UREA_N" ? "BUN" : "اوره";
+      const otherFa = other ? ` ${other.test === "UREA_N" ? "BUN" : "اوره"} هم ${other.value} (حد طبیعی ${other.range}) و بالاست.` : "";
       const crFa = cr ? (cr.abnormal ? null : `کراتینین ${cr.value} طبیعی است`) : null;
       const ratioFa = cr == null
         ? "کراتینین روی این برگه نیست، پس از روی این برگه نمی‌شود گفت کلیه‌ها سالم‌اند یا نه؛ کراتینین باید اضافه شود."
@@ -894,21 +903,24 @@ export const RULES_NEPHROLOGY_NEW = [
         ...(giFlag ? { sources: ["BUNCR_UGIB_META"] } : {}),
         // P77-۴ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴): مرزِ اورژانس ۲۰۰ می‌ماند (panic، APSA) ولی زیرِ آن همه routine نباشد؛ پلهٔ this_week از ۱۵۰ mg/dL.
         //    ⚠️ ۱۵۰ بی‌منبع است — تصمیمِ طراحیِ بازبین، نه عددِ منتشرشده. فقط برای UREA (mg/dL)، نه UREA_N.
-        urgency: giFlag ? "soon" : (u.test === "UREA" && u.value >= UREA_WEEK_MGDL ? "this_week" : "routine"),
+        urgency: giFlag ? "soon" : (weekStep ? "this_week" : "routine"),
         always_show: true,
         brief:
           `${name} شما ${u.value} (حد طبیعی ${u.range}) بالاتر از حد است` +
           (crFa ? ` ولی ${crFa}` : "") + ". " +
+          (otherFa ? otherFa.trim() + " " : "") +
           (ratio != null && ratio > 20 ? `نسبت اوره به کراتینین ${ratio} است و به‌تنهایی علتِ اوره را مشخص نمی‌کند. ` : "") +
           "این را در همان مراجعه با پزشک مطرح کنید.",
         headline: `${name} خون شما بالاتر از حد طبیعی است`,
         must_say:
           `${name} شما ${u.value} است و از حد طبیعی (${u.range}) بالاتر است` + (crFa ? `، ولی ${crFa}. ` : ". ") +
+          (otherFa ? otherFa.trim() + " " : "") +
           (giFlag ? giSentence : ratioFa) + egfrFa +
-          " اورهٔ بالا با کراتینینِ طبیعی به‌تنهایی به معنای بیماریِ کلیه نیست؛ پزشک آن را کنار بقیهٔ برگه و علائم می‌سنجد.",
+          // N4: این جمله فقط وقتی کراتینین سنجیده و طبیعی است — بی‌کراتینین، ratioFa همین را درست می‌گوید.
+          (crFa ? " اورهٔ بالا با کراتینینِ طبیعی به‌تنهایی به معنای بیماریِ کلیه نیست؛ پزشک آن را کنار بقیهٔ برگه و علائم می‌سنجد." : ""),
         action: giFlag
           ? "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید و بگویید چه داروهایی مصرف می‌کنید."
-          : (u.test === "UREA" && u.value >= UREA_WEEK_MGDL)
+          : weekStep
             ? "این هفته با پزشک مراجعه کنید و بگویید چه داروهایی مصرف می‌کنید."
             : "نتیجه را در نوبتِ عادی با پزشک مطرح کنید و بگویید چه داروهایی مصرف می‌کنید.",
         suggest: ["تکرار اوره و کراتینین"],

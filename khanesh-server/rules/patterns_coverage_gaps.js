@@ -9,6 +9,7 @@
 import { serologyReactive, urinePositive, urineCellCount, castAxis, qualState, qualVerdict } from "./patterns_utils.js";
 import { utiFires, bacteriuriaFires, bacteriaSignificant } from "./patterns_nephrology.js";
 import { RULES_BIOCHEM } from "./patterns_biochem.js";
+import { netUrgency, ALBUMIN_LOW_WARNING } from "./patterns_p73_gaps.js";
 
 const normK = (s) => String(s).toLowerCase().replace(/[\s.\-_()/%#:]/g, "");
 const g = (e, k) => e.graded?.find((x) => x.test === k);
@@ -186,14 +187,19 @@ function tpBuild(e) {
           ? `آلبومینِ همین برگه پایین است (${alb.value}) و پروتئینِ تام بالا؛ یعنی افزایش از بخشِ گلوبولین‌هاست (نه آلبومین). علت را پزشک با آزمایش‌های تکمیلی مثل الکتروفورزِ پروتئین روشن می‌کند. `
           : "آلبومین روی این برگه نیست؛ برای فهمیدنِ علتِ افزایش لازم است. ";
   }
+  // 🔴 بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N29): این یافته مالکِ آلبومینِ پایین است (P73_OWNERS.albumin)، پس albumin_low_alone کنار
+  //    می‌رود — «ALB 1.05» تنها «این هفته» بود و با پروتئینِ تام «نوبتِ عادی» می‌شد، و هشدارِ تورم هم گم می‌شد (N20).
+  //    فوریت و هشدار از همان قاعده به ارث می‌رسند (netUrgency، یک تعریف)؛ عددِ تازه‌ای نیست.
+  const albLow = albState === "low";
+  const urgency = albLow ? netUrgency(e, alb) : "routine";
   return {
     pattern: "total_protein_result",
-    urgency: "routine",
+    urgency,
     headline: hi ? "پروتئینِ تامِ شما بالاتر از حد طبیعی است" : "پروتئینِ تامِ شما پایین‌تر از حد طبیعی است",
     must_say: `پروتئین تام ${tp.value} g/dL است (بازهٔ مرجع ${tp.range}). ` + tail + "این عدد به‌تنهایی تشخیص نیست.",
-    action: ACTION.routine,
+    action: ACTION[urgency] ?? ACTION.routine,
     suggest: hi && albState === "normal" ? ["الکتروفورز پروتئین سرم"] : [],
-    warnings: [],
+    warnings: albLow ? [ALBUMIN_LOW_WARNING] : [],
   };
 }
 

@@ -14,11 +14,12 @@ import { evaluate } from "./grade.js";
 import { getPedRef } from "./refs_ped.js";
 import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcrossSystems, BRANCH_FACTORS,
          parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv, normUnit,
-         HEMOSTASIS_KEYS, hemostasisUnit } from "./units.js";
+         HEMOSTASIS_KEYS, hemostasisUnit, SURVIVAL_LIMITS } from "./units.js";
 // فقط برای سنجیدنِ «هر خوانشِ ممکن»ِ عددِ بی‌واحد با خودِ موتور (specs/003، B3). patterns.js هیچ‌چیز از
 // adapter.js نمی‌خواند، پس چرخهٔ import نیست.
 import { runPatterns } from "./patterns.js";
 import { conditionIds } from "./conditions.js";
+import { faName } from "./names.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
 import { routeSerology } from "./serology.js";
 import { isPrenatalSheet, prenatalClaim, prenatalItem, parseRiskDenominator, parseRiskCategory, parseGaDays } from "./prenatal.js";
@@ -89,6 +90,8 @@ const NAME_MAP = {
 
   // Diff — درصد
   neut: "NEUT_PCT", neu: "NEUT_PCT", neutrophil: "NEUT_PCT", neutrophils: "NEUT_PCT",
+  // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N2): «ANC» و «Absolute Neutrophil Count» unmapped بودند. ANCA (آنتی‌بادی) دست نمی‌خورد — R9.
+  anc: "NEUT_ABS", absoluteneutrophilcount: "NEUT_ABS", absoluteneutrophils: "NEUT_ABS", neutrophilsabsolute: "NEUT_ABS",
   lymph: "LYMPH_PCT", lym: "LYMPH_PCT", lymphocyte: "LYMPH_PCT", lymphocytes: "LYMPH_PCT",
   mono: "MONO_PCT", mon: "MONO_PCT", monocyte: "MONO_PCT", monocytes: "MONO_PCT",
   eos: "EOS_PCT", eosinophil: "EOS_PCT", eosinophils: "EOS_PCT",
@@ -674,7 +677,8 @@ export function parseTitre(raw) {
   const m = s.match(/\b1\s*[:/]\s*(\d+)/);
   if (m) return Number(m[1]);
   // عددِ تنها (برگه گاهی فقط «160» می‌نویسد)
-  const n = s.match(/^\s*(\d+)\s*$/);
+  // «160.0» (بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵): اعشارِ صفر همان تیتر است؛ پیش‌تر به qual می‌رفت و هیچ قاعده‌ای آن را نمی‌خواند.
+  const n = s.match(/^\s*(\d+)(?:[.٫]0+)?\s*$/);
   if (n) return Number(n[1]);
   if (/pos|مثبت/i.test(s)) return null;   // مثبتِ بدون تیتر — تیتر نداریم
   return null;
@@ -947,10 +951,41 @@ export function inferAge(ocr) {
 /**
  * OCR → مقادیر آماده برای موتور
  */
+/** واحدِ شمارشِ خام (/µL، /mm³، cells، cumm) بدونِ هیچ نشانهٔ 10³/10⁶. */
+function rawCountUnit(unit) {
+  const u = String(unit || "").toLowerCase().replace(/\s+/g, "");
+  // «x1000/mm³» و «Mill/mm³» (برگهٔ واقعی job 40b8a901) ضریب دارند، پس خام نیستند.
+  return /(\/ul|\/µl|\/μl|\/mm3|\/mm³|cells|cumm|\/cmm)/.test(u) &&
+    // 🔴 بازبینیِ کد (P84، H1): «x10E3/uL» (املای رایجِ دستگاه) ضریب است، نه خام — بی‌این، پلاکتِ ۱۵ unmapped می‌شد.
+    !/(10\^?\d|10\*\d|10e\d|10[³⁶⁹]|1000|k\/|m\/|mill|thou|lac|lakh)/.test(u);
+}
+
+/**
+ * مرزِ «ممکن» برای کلیدهایی که SURVIVAL_LIMITS ندارند ولی ردیفِ جابه‌جا/اعشارِ افتاده رویشان اورژانسِ کاذب می‌سازد
+ * (بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵). فقط «این عدد را نمی‌شود خواند» است، نه حکمِ بالینی؛ عمداً گشاد (N3: مرزِ تنگ
+ * اورژانسِ واقعی را می‌خورد). ثبت: MEDICAL_RULES.md P84 — منتظرِ بازبین. HCT از HGB × ۳ مشتق است، نه عددِ تازه.
+ */
+// ⚠️ فهرستِ بسته، نه همهٔ SURVIVAL_LIMITS: آن جدول برای «کدام خوانشِ واحدِ نانوشته ممکن است» ساخته شد و برای چند کلید
+//    (مثلاً FOLATE ۴۰) از مقدارِ واقعیِ مکمل‌خور تنگ‌تر است (M149) — اینجا فقط کلیدهایی‌اند که عددِ ناممکنشان اورژانسِ کاذب می‌ساخت.
+const EXTRA_POSSIBLE = { K: [0.5, 20], NA: [80, 300], CL: [40, 200] };
+const POSSIBLE_GATED = new Set(["K", "NA", "CL", "HCT", "HGB", "MG", "PHOS", "CA", "CREAT", "URIC", "ALB"]);
+function possibleValue(key, v) {
+  // درصدِ بالای ۱۰۰ تعریفاً ناممکن است (نه عددِ بالینی): «HbA2 1,125» ⇒ ۱۱۲۵٪ ⇒ «hba2_elevated» می‌شد.
+  if (getUnit(key) === "%" && v > 100) return false;
+  if (!POSSIBLE_GATED.has(key)) return true;
+  // 🔴 بازبینیِ کد (P84، H3؛ N23): فقط سقف. کفِ SURVIVAL_LIMITS برای «کدام خوانشِ واحد ممکن است» ساخته شد و داخلِ بازهٔ
+  //    بحرانیِ واقعی است — «فسفر 0.4»، «Hb 1.8»، «Mg 0.45» (واحدِ چاپ‌شده) اورژانس/this_week بودند و unmapped شدند.
+  //    تنها کف، HCT است: همان کفِ مشتقِ crisisArm (HGB × ۳، M182b) تا «HCT 2» از «HCT 8»ِ اورژانسی «نوبتِ عادی» نگیرد.
+  const lim = key === "HCT" ? [SURVIVAL_LIMITS.HGB[0] * 3, SURVIVAL_LIMITS.HGB[1] * 3]
+    : (SURVIVAL_LIMITS[key] ?? EXTRA_POSSIBLE[key]);
+  return !lim || (v <= lim[1] && (key !== "HCT" || v >= lim[0]));
+}
+
 export function ocrToEngineInput(ocr) {
   const tests = {};
   const qual = {};
   const unmapped = [];
+  const rowNames = {};       // کلیدِ موتور ← نامِ چاپ‌شدهٔ اولین ردیف (برای unmappedِ عددِ ناممکن)
   // کلیدهای QUAL_NO_READER که روی برگه بودند — در runEngine به noRef می‌روند (specs/004).
   const noReader = [];
   const noReaderValues = {};   // متنِ خامِ همان کلیدها («Positive»، «منفی»، «25») — P49-ج
@@ -1033,6 +1068,21 @@ export function ocrToEngineInput(ocr) {
   for (let t of ocr?.tests || []) {
     if (!t?.name) continue;
     let key = norm(t.name);
+    // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N3): واحدِ چسبیده به عدد در خانهٔ نتیجه («21 mg/dL»، ستونِ واحد خالی) دور ریخته می‌شد و
+    //   ردیف «واحدِ نامعلوم» می‌گرفت — قندِ ۲۱ از اورژانس به soon، تروپونینِ ۲٫۴ از اورژانس به this_week. فقط وقتی دنباله *همان*
+    //   واحدی است که این کلید می‌شناسد (recognizedUnit یا واحدِ خودِ موتور) جدا می‌شود؛ هر متنِ دیگری دست نمی‌خورد (حدس نمی‌زنیم).
+    //   پیش از همهٔ شاخه‌ها، چون تروپونین/CRP شاخهٔ ویژهٔ خود را پیش از نگاشتِ عمومی دارند.
+    if (!String(t.unit ?? "").trim()) {
+      const trop = /troponin|ctn[it]|hs.?ctn|^tn[it]$|cardiactroponin/.test(key);   // همان regexِ شاخهٔ تروپونینِ پایین
+      let k0 = trop ? "TROPONIN_I" : mapKey(key);
+      if (k0?.endsWith("_PCT") && String(t.name).includes("#")) k0 = k0.replace("_PCT", "_ABS");
+      const sm = k0 && String(t.value ?? "").match(/^\s*([<>≤≥]?\s*[\d۰-۹٠-٩][\d۰-۹٠-٩.,٫]*)\s*([^\d\s۰-۹٠-٩].*?)\s*$/);
+      if (sm && (recognizedUnit(k0, sm[2]) || (getUnit(k0) && normUnit(sm[2]) === normUnit(getUnit(k0))) ||
+                 (trop && /^(ng|µg|ug|μg|pg)\/(l|ml)$/i.test(sm[2].replace(/\s+/g, ""))) ||
+                 (k0.endsWith("_ABS") && /(10\^?3|10\*3|10³)\/(µl|ul|μl)|\/(µl|ul|μl)|cells/i.test(sm[2])))) {
+        t = { ...t, value: sm[1], unit: sm[2] };
+      }
+    }
     // ═══ specs/013 (گذرِ ۲): ردیفِ غربالگریِ بارداری — پیش از هر لایهٔ دیگر و پیش از شاخهٔ «MoM ⇒ unmapped» ═══
     //   🔴 اندازه‌گیری‌شده: «AFP 35 IU/mL» و «Total hCG 29000» در کوآدِ زنِ باردار تومورمارکر و تستِ بارداری خوانده
     //   می‌شدند. ردیفِ ادعاشده هرگز به NAME_MAP، ungraded.AFP یا ungraded.HCG نمی‌رسد.
@@ -1409,6 +1459,7 @@ export function ocrToEngineInput(ocr) {
       unmapped.push(t.name);
       continue;
     }
+    rowNames[engineKey] ??= t.name;
     if (QUAL_NO_READER.has(engineKey)) {
       if (!noReader.includes(engineKey)) noReader.push(engineKey);
       if (noReaderValues[engineKey] == null) noReaderValues[engineKey] = String(t.value ?? "");
@@ -1526,9 +1577,16 @@ export function ocrToEngineInput(ocr) {
 
     // ⚠️ شمارش مطلق: برگه معمولاً 10^3/uL می‌دهد (مثل NEU# = 3.66)
     //    موتور /µL می‌خواهد. اگر عدد کوچک بود، ضرب در 1000.
-    if (engineKey.endsWith("_ABS") && v < 100) {
-      tests[engineKey] = Math.round(v * 1000);
-      continue;
+    // 🔴 بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N3/N12): واحدِ خامِ چاپ‌شده («/µL»، «cells/µL») نادیده گرفته می‌شد —
+    //    «NEUT# 90 /µL» (آگرانولوسیتوز) ۹۰۰۰۰ و «کمی بالا، نوبتِ عادی» می‌شد. با واحدِ خام: عددِ صحیحِ ≥ ۱۰ همان شمارش است؛
+    //    عددِ اعشاری با واحدِ خام ناممکن است (سلول کسری نیست) ⇒ OCR ۱۰³ را انداخته ⇒ همان ×۱۰۰۰ِ قبلی؛ صحیحِ < ۱۰ مبهم ⇒ unmapped.
+    //    🔴 بازبینیِ کد (P84، H2): صحیحِ < ۱۰ با واحدِ خام پیش‌تر unmapped می‌شد؛ شمارشِ خامِ زیرِ ۱۰ عملاً گزارش نمی‌شود، پس همان ×۱۰۰۰ِ HEAD.
+    if (engineKey.endsWith("_ABS")) {
+      const rawU = rawCountUnit(t.unit);
+      if (v < 100 && !(rawU && Number.isInteger(v) && v >= 10)) {
+        tests[engineKey] = Math.round(v * 1000);
+        continue;
+      }
     }
 
     // ⚠️ 🔴 باگ واقعی: WBC/PLT/RBC روی برگه گاهی خامِ شمارش‌اند (WBC 7000،
@@ -1544,14 +1602,20 @@ export function ocrToEngineInput(ocr) {
     //      • PLT: ترومبوسیتوزِ شدید تا ≈ ۲۰۰۰ K/µL → آستانهٔ ۳۰۰۰
     //      • RBC: پلی‌سیتمی تا ≈ ۱۰ M/µL → آستانهٔ ۱۰۰
     if (engineKey === "WBC" || engineKey === "PLT" || engineKey === "RBC") {
-      const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
       // واحدِ صریحِ خام: /µL یا /mm³ بدون هیچ نشانهٔ 10^3
-      const rawUnit = /(\/ul|\/µl|\/μl|\/mm3|\/mm³|cells)/.test(u) && !/(10\^?3|10\*3|k\/|10\^?6|10\*6|m\/)/.test(u);
+      const rawUnit = rawCountUnit(t.unit);
       const RAW_MIN = { WBC: 1000, PLT: 3000, RBC: 100 }[engineKey];
       const DIVISOR = engineKey === "RBC" ? 1e6 : 1000;
-      if (v >= RAW_MIN || (rawUnit && v >= RAW_MIN)) {
+      // 🔴 بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵: `rawUnit && v >= RAW_MIN` زیرمجموعهٔ `v >= RAW_MIN` بود، پس واحدِ خام هیچ اثری
+      //    نداشت — «WBC 800 /µL» (لکوپنیِ شدید) ۸۰۰ K/µL و «بسیار بالا، اورژانس» می‌شد (جهتِ وارونه). با واحدِ خام و عددِ صحیح،
+      //    عدد شمارش است تا کفِ RAW_FLOOR (کمتر از آن برای WBC/PLT گزارش نمی‌شود ⇒ مبهم ⇒ unmapped)؛ اعشاری = OCR ۱۰³ را انداخته.
+      // 🔴 بازبینیِ کد (P84، H2): زیرِ کف پیش‌تر unmapped می‌شد و «Platelet 15 /µL» اورژانسِ ترومبوسیتوپنی را بی‌صدا از دست می‌داد.
+      //    شمارشِ خامِ زیرِ کف (پلاکت < ۱۰۰۰، WBC < ۱۰۰ در میکرولیتر) گزارش نمی‌شود ⇒ OCR ۱۰³ را انداخته ⇒ همان خوانشِ K ِ HEAD.
+      const RAW_FLOOR = { WBC: 100, PLT: 1000 }[engineKey];
+      const rawCount = rawUnit && RAW_FLOOR != null && Number.isInteger(v) && v >= RAW_FLOOR;
+      if (v >= RAW_MIN || rawCount) {
         const scaled = v / DIVISOR;
-        tests[engineKey] = engineKey === "RBC" ? +scaled.toFixed(2) : +scaled.toFixed(1);
+        tests[engineKey] = engineKey === "RBC" ? +scaled.toFixed(2) : (scaled < 1 ? +scaled.toFixed(2) : +scaled.toFixed(1));
         continue;
       }
       tests[engineKey] = v;
@@ -1595,6 +1659,18 @@ export function ocrToEngineInput(ocr) {
     }
 
     tests[engineKey] = v;
+  }
+
+  // ═══ عددِ ناممکن سنجیده نمی‌شود (بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵، N3) ═══
+  // 🔴 «K 55» (اعشارِ افتاده)، «K 2,625» (کامای سه‌رقمی ⇒ ۲۶۲۵) و «Na 1400» اورژانسِ هیپرکالمی/هیپرناترمی می‌گرفتند — در «K 2,625»
+  //    جهت هم وارونه بود (پتاسیمِ پایین). «HCT 2» از «HCT 8»ِ اورژانسی «نوبتِ عادی» می‌گرفت. عددی که با هیچ بدنِ زنده‌ای جور
+  //    نیست خوانده نشده است، نه غیرطبیعی: به unmapped («تفسیر نشدند … با پزشک») می‌رود، نه به درجه‌بندی.
+  for (const k of Object.keys(tests)) {
+    if (typeof tests[k] === "number" && !possibleValue(k, tests[k])) {
+      // ردیف‌هایی که پیش از نگاشتِ عمومی خوانده می‌شوند (الکتروفورز، …) در rowNames نیستند ⇒ نامِ چاپ‌شده از خودِ برگه.
+      unmapped.push(rowNames[k] ?? (ocr?.tests || []).find((t) => t?.name && mapKey(norm(t.name)) === k)?.name ?? faName(k));
+      delete tests[k];
+    }
   }
 
   // ═══ یک آزمایش، یک مالک ═══

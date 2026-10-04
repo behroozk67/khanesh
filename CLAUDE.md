@@ -2133,6 +2133,24 @@ not by a test.
 - **Rule:** before writing a regex over a qualitative value, grep the file for the closed-set reader and call it. A second list *will* drift, and the drift always lands on the negation words. When you widen the closed set, add the positive controls in the same test — the fix is only half-right if `Reactive (S/CO 12.4)` stopped firing.
 - **Same audit, same shape as N20:** `kidney` handed its timeline to `glomerulonephritis_pattern` even when `kidney` itself was the emergency (Cr 4.4 + blood + protein ⇒ `this_week`, `has_critical=false`), and `muscle_origin_not_liver` stayed `routine` at CK 5000 — the more complete the sheet, the lower the urgency. A hand-off must be gated on *the owner's own severity predicate* (`kidneySevere`, defined once), not just on "the owner would fire". Guards `M330`–`M335`. `diabetes_a1c_diagnostic` was deleted: a strict duplicate of `glycemia` with a rival timeline (P43/P45 shape).
 
+### N31 — A guard that is a subset of the condition it guards does nothing, and only a metamorphic sweep sees it
+2026-10-05, P84. Found by running the engine ~120k times on paired inputs, not by reading rules. Guards R1–R10 in `rules/review1005.test.js`.
+
+- **Tried (since the adapter was written):** `if (v >= RAW_MIN || (rawUnit && v >= RAW_MIN))`. It reads like a printed «/µL» unit is respected, but
+  the second clause is a subset of the first. **Broke:** `WBC 800 /µL` (severe leukopenia) became «بسیار بالا، اورژانس», and `NEUT# 90 /µL`
+  became 90,000 «کمی بالا». The direction was reversed (N3 + N12).
+- **Same sweep, recurrences of existing entries:**
+  - N29: adding a test lowered urgency. `TSH`/`Anti-TPO` + FT3; `TP` + ALB 1.05; `CK` + AST; `Urea` + BUN.
+  - N4: «ALT طبیعی مانده» with no ALT on the sheet.
+  - N12: `TSH 0.15 + T3 24` read «پرکارتر».
+  - N3: `K 55`, `K 2,625`, `Na 1400` became emergencies.
+- **Rule:** before trusting a guard clause, check it isn't already implied by the condition beside it. For engine changes, check the two
+  relations that reading misses:
+  1. Moving a value further out of range never lowers urgency.
+  2. Adding a test never lowers the urgency of the findings that were already there.
+
+  Both are cheap to sweep.
+
 Detailed instructions are split across `.claude/rules/`:
 
 - [architecture.md](.claude/rules/architecture.md) — core architecture decision (engine vs. LLM), the 9-step `/api/analyze` request flow, the legacy non-engine path. Describes the **classic path**, which is still the default and the only one with safety nets; the graph path is documented in this file instead.

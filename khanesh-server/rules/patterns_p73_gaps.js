@@ -34,7 +34,7 @@ const ACT = {
 // فوریتی که تورِ «unmatched_abnormal» تا امروز به همین آزمایش می‌داد: critical ⇒ emergency، marked/G≥3 ⇒ this_week، بقیه routine.
 // عمداً کپیِ همان منطق (patterns.js، تور ایمنی): قاعدهٔ تازه نباید فوریتِ امروزِ یک عدد را پایین بیاورد (M129: بیلی‌روبین ۱۴ ⇒ اورژانس).
 // استثنا (همان تور): بیلی‌روبینِ نوزادِ < ۲۸ روز با بازهٔ بزرگسال سنجیده می‌شود، پس «بحرانی» شمرده نمی‌شود.
-function netUrgency(e, x, neoBili = false) {
+export function netUrgency(e, x, neoBili = false) {
   if (x?.level === "critical" && !neoBili) return "emergency";
   if (!neoBili && (x?.level === "marked" || x?.level === "critical" || levelGrade(x) >= 3)) return "this_week";
   return "routine";
@@ -198,6 +198,8 @@ const ckElevatedAlone = {
 };
 
 // ── ۴) آلبومین↓ تنها — Soeters, JPEN 2019: نشانه است نه بیماری؛ درمان = رفعِ علت (التهاب، کبد، دفعِ پروتئین، سوءتغذیه) ──
+// مشترک با total_protein_abnormal (مالکِ آلبومینِ پایین وقتی پروتئینِ تام هم غیرطبیعی است) — یک رشته، دو خواننده (N20).
+export const ALBUMIN_LOW_WARNING = "اگر تورمِ پا یا صورت، افزایشِ وزنِ ناگهانی، بزرگ‌شدنِ شکم یا تنگیِ نفس دارید، زودتر مراجعه کنید.";
 const albuminLowAlone = {
   id: "albumin_low_alone",
   match: (e) => lo(g(e, "ALB")) && !anyFires(e, P73_OWNERS.albumin),
@@ -215,7 +217,7 @@ const albuminLowAlone = {
         "آلبومین به‌تنهایی نمی‌گوید کدام‌یک؛ پزشک معمولاً پروتئینِ ادرار، آنزیم‌های کبد، CRP و وضعیتِ تغذیه را کنارش می‌بیند. درمانِ اصلی رفعِ علت است، نه تزریقِ آلبومین.",
       action: ACT[urgency],
       suggest: ["CRP", "AST"],
-      warnings: ["اگر تورمِ پا یا صورت، افزایشِ وزنِ ناگهانی، بزرگ‌شدنِ شکم یا تنگیِ نفس دارید، زودتر مراجعه کنید."],
+      warnings: [ALBUMIN_LOW_WARNING],
     };
   },
 };

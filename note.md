@@ -1,5 +1,8 @@
 # RESUME HERE — خلاصهٔ وضعیت — ۲۰۲۶-۱۰-۰۳
 
+## ۲۰۲۶-۱۰-۰۵ (P84: بازبینیِ متامورفیک — ۱۰ رفع، کامیت‌نشده)
+`npm test` ⇒ `tests 1055 · pass 1054 · fail 0 · todo 1` (درختِ کار). گاردها R1–R10 در `rules/review1005.test.js` (فایلِ تازه، untracked)؛ هر ۱۰ روی HEAD `9a43d1a` قرمز (git archive + junction). فایل‌ها: `rules/{adapter,patterns_infectious,patterns_endocrine_rheum,patterns_coverage_gaps,patterns_p73_gaps,patterns_nephrology,patterns_biochem}.js`، `server.js` (یک جمله)، `rules/serology.test.js` (S08 عمداً بازپایه)، `MEDICAL_RULES.md` P84، `CLAUDE.md` N31. **حدهای تازهٔ بی‌منبع (منتظرِ بازبین):** K/Na/Cl ممکن، کفِ واحدِ خامِ WBC ۱۰۰ / PLT ۱۰۰۰. **باز:** Widal (منبعِ آستانه)، کامای سه‌رقمی؛ `urea_bun_emergency` ×۲ در برابرِ ×۲٫۱۴.
+
 ## ۲۰۲۶-۱۰-۰۴ (P83: RDW↑ و TIBC↑/↓ قاعده گرفتند — کامیت‌نشده؛ P82 در `6cfce31` کامیت شد)
 `npm test` ⇒ `tests 1043 · pass 1042 · fail 0 · todo 1`. قاعده‌های `rdw_high`، `tibc_high`، `tibc_low` در `patterns_p73_gaps.js`؛ گاردهای `M377`، `M378` در `review1004.test.js` (روی کدِ قبلی قرمز دیده شد). بی‌آستانهٔ تازه؛ متنِ علت‌ها بی‌منبعِ بازشده (MEDICAL_RULES.md P83). بیلی‌روبین مستقیم↑/غیرمستقیم↑ هم قاعده گرفتند (M380؛ `tests 1045 · pass 1044 · fail 0`). **باز:** ۳۴ ترکیبِ دیگرِ جاروبِ جفت‌ها (MCHC، RDW↓، اورات↓، LDH↓، NH3↓، کلر، GGT↑، …) و جاروبِ سه‌تایی؛ ادعای «طبیعی» برای PDW/P-LCR/PT کنترلِ تنها رفع شد (M379؛ `tests 1044 · pass 1043 · fail 0`).
 
