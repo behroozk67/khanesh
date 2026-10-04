@@ -1126,13 +1126,17 @@ const analyzeHandler = async (req, res) => {
       //    می‌افتاد، جایی که مدل خودش شدت را قضاوت می‌کند — همان تکرارِ N18. کانالِ hemostasis مالک دارد (patterns_hemostasis.js).
       // PT Control تنها زمینه است، نه نتیجه (بازبینیِ کد): برگهٔ فقط-PT-Control «همه‌چیز طبیعی است» نگیرد.
       const hasHemostasis = Object.keys(engineCandidate.hemostasis ?? {}).some((k) => k !== "PT_CONTROL");
+      // specs/013 (N18، مسیریابی): برگهٔ فقط-غربالگریِ بارداری (دابل/کوآد مارکر) هیچ تستِ نمره‌داری ندارد — مالکش
+      //   patterns_prenatal.js است، نه «تفسیر نشد». گارد T53.
+      const hasPrenatal = Object.keys(engineCandidate.prenatal?.markers ?? {}).length > 0 ||
+        Object.keys(engineCandidate.prenatal?.risk ?? {}).length > 0;
       // specs/011 (N18، مسیریابی): برگهٔ فقط-ادرار (عکس یا دستی) هیچ تستِ نمره‌داری ندارد و به مسیرِ قدیم می‌افتاد —
       //   مدل خودش «خون در ادرار» را قضاوت می‌کرد. فقط وقتی در مسیرِ موتور می‌ماند که قاعده‌ای واقعاً یافته‌ای ساخت؛
       //   ردیفِ کیفیِ بی‌خواننده همان رفتارِ قبلی را دارد (نه «همه‌چیز طبیعی است»). گارد T37.
       const ownedQual = Object.keys(engineCandidate.qual ?? {}).length > 0 &&
         runPatterns(engineCandidate).findings.length > 0;
       routedByQual = ownedQual && engineCandidate.graded.length === 0;
-      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis && !ownedQual) {
+      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis && !hasPrenatal && !ownedQual) {
         console.warn(
           "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
           `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
@@ -1271,6 +1275,8 @@ const analyzeHandler = async (req, res) => {
       smear: undefined,
       // specs/010 (N13): آیتم‌های هموستاز هم متنِ خامِ ردیف (raw، reference) را دارند — به گراف نمی‌روند.
       hemostasis: undefined,
+      // specs/013 (N13): ردیف‌های غربالگریِ بارداری (raw، نامِ چاپ‌شده) — به گراف نمی‌روند.
+      prenatal: undefined,
       // specs/011 (FR-019): همان فیلترِ prompt.js — بیماریِ غیرفعال به هیچ عاملِ LLM نمی‌رسد.
       conditions: activeConditionIds(engineOut.conditions),
     } : null;

@@ -1129,3 +1129,17 @@ test("T51: برگهٔ شناخته‌شده همچنان به مسیرِ موت�
   assert.ok(r.body._engine, "مسیرِ موتور گرفته نشد");
   assert.equal(r.body.has_critical, true);
 });
+
+// ─────────── specs/013 (P81): غربالگریِ سرمِ مادر ───────────
+test("T53: برگهٔ فقط-دابل‌مارکر (MoM) مسیرِ موتور و یافتهٔ prenatal می‌گیرد — نه «تفسیر نشد»، نه کلیدِ خام (N18، N8)", async () => {
+  // 🔴 پیش از specs/013 هر سه ردیف unmapped بودند ⇒ buildUninterpretedResult («تفسیر نشد»)، بی‌هیچ یافته.
+  const t = (name, value, unit = "") => ({ name, value, unit });
+  const r = await analyze({ patient: { age: 30, sex: "F", pregnant: true },
+    tests: [t("Free β-hCG", "1.8", "MoM"), t("PAPP-A", "0.3", "MoM"), t("NT", "3.2", "mm")] });
+  assert.equal(r.status, 200);
+  assert.ok(r.body?._engine, "مسیرِ موتور گرفته نشد");
+  assert.ok(r.body._engine.patterns.includes("prenatal_t21_pattern_fts"), JSON.stringify(r.body._engine.patterns));
+  assert.equal(r.body.has_critical, false);
+  assert.doesNotMatch(JSON.stringify(r.body), /\b(FBHCG|PAPPA|AFP_MAT|HCG_TOT|INHA)\b/, "کلیدِ خام به پاسخ رسید");
+  assert.equal(r.body._engine.prenatal, undefined, "کانالِ prenatal (متنِ خام) به پاسخ رسید");
+});

@@ -252,7 +252,10 @@ test("B17: AFP با محدودهٔ چاپی (بی‌واحد) یافته می‌
   assert.equal(ok.urgency, "routine");
   const mom = run([{ name: "AFP", value: "1.2", unit: "MoM", reference: "0.5-2.5" }], { age: 28, sex: "F", pregnant: true });
   assert.equal(byId(mom, "tumor_markers_result").length, 0);
-  assert.ok(mom.e.unmapped.includes("AFP"));
+  // ⚠️ re-baseline عمدی (specs/013): پیش‌تر `unmapped.includes("AFP")` — افتِ خاموشِ غربالگری (N28). حالا AFPِ MoM
+  //    AFPِ سرمِ مادر است (کانالِ prenatal)، و هنوز هرگز تومورمارکر نیست (خطِ بالا).
+  assert.ok(mom.e.prenatal.markers.AFP_MAT, "AFPِ MoM به کانالِ غربالگری نرفت");
+  assert.ok(!mom.e.unmapped.includes("AFP"));
   const bare = run([{ name: "AFP", value: "45" }], { age: 50, sex: "M" });
   assert.equal(byId(bare, "tumor_markers_result").length, 0);
 });

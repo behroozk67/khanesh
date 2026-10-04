@@ -21,6 +21,7 @@ import { runPatterns } from "./patterns.js";
 import { conditionIds } from "./conditions.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
 import { routeSerology } from "./serology.js";
+import { isPrenatalSheet, prenatalClaim, prenatalItem, parseRiskDenominator, parseRiskCategory, parseGaDays } from "./prenatal.js";
 import { isCastKey, castRoute, isSgKey, sgValue, SG_KEY, isCrystalKey, crystalRoute, epithelialKind, epithelialRoute,
   urineBiliValueState, urobilValueState, smearRow, mergeSmear } from "./patterns_utils.js";
 
@@ -972,6 +973,9 @@ export function ocrToEngineInput(ocr) {
   // specs/010: فاکتور ۸/۹، vWF، مهارکننده، PTِ کنترل — بی‌نمره، کانالِ جدا (نه tests، نه qual). خواننده: patterns_hemostasis.js
   //   و isthScore. ⚠️ متنِ چاپ‌شده دارد؛ به مدل و به گراف نمی‌رود (N13).
   const hemostasis = {};
+  // specs/013: غربالگریِ سرمِ مادر (دابل/کوآد مارکر) — بی‌نمره، کانالِ جدا (N25). خواننده: patterns_prenatal.js.
+  //   به مدل و گراف نمی‌رود (N13).
+  const prenatal = { markers: {}, risk: {}, dating: {} };
   // ردیف‌هایی که واحدشان نه چاپ شده، نه از محدودهٔ مرجع/اندازه تعیین شد (specs/003، P48):
   //   کلید → عددِ خام. سنجیده نمی‌شوند؛ مالک: unit_unknown_values.
   const unitUnknown = {};
@@ -1023,9 +1027,43 @@ export function ocrToEngineInput(ocr) {
       (norm(t.name) === "a2" && /%/.test(String(t.unit || ""))))) electroPages.add(t._page ?? 0);
   }
 
+  // specs/013 (گذرِ ۱): برگه شاهدِ غربالگری دارد؟ (نامِ قوی، واحدِ MoM، ردیفِ خطر) — پرچمِ بارداریِ پروفایل شاهد نیست (پرسش ۳).
+  const prenatalSheet = isPrenatalSheet(ocr?.tests || [], norm);
+
   for (let t of ocr?.tests || []) {
     if (!t?.name) continue;
     let key = norm(t.name);
+    // ═══ specs/013 (گذرِ ۲): ردیفِ غربالگریِ بارداری — پیش از هر لایهٔ دیگر و پیش از شاخهٔ «MoM ⇒ unmapped» ═══
+    //   🔴 اندازه‌گیری‌شده: «AFP 35 IU/mL» و «Total hCG 29000» در کوآدِ زنِ باردار تومورمارکر و تستِ بارداری خوانده
+    //   می‌شدند. ردیفِ ادعاشده هرگز به NAME_MAP، ungraded.AFP یا ungraded.HCG نمی‌رسد.
+    {
+      const pc = prenatalClaim(t, prenatalSheet, norm);
+      if (pc?.kind === "marker") {
+        const it = prenatalItem(pc.key, t, toNum, pc.claimed_by, pc);
+        const prev = prenatal.markers[pc.key];
+        if (!prev) prenatal.markers[pc.key] = it;
+        // 🔴 بازبینیِ کد C3: «Free β-hCG 92 ng/mL» کنارِ «Free β-hCG MoM 2.1» — ردیفِ MoM همان است که معنا دارد و نباید دور ریخته شود.
+        else if (it.mom != null && prev.mom == null) prenatal.markers[pc.key] = it;
+        else if (prev.mom != null && it.mom == null) { /* غلظت کنارِ MoMِ همان نشانگر: زائد، چیزی گم نمی‌شود */ }
+        else if (prev.raw !== it.raw) unmapped.push(t.name);   // دو مقدارِ ناهم‌خوان — اولی می‌ماند (قاعدهٔ هموستاز)
+        continue;
+      }
+      if (pc?.kind === "risk") {
+        const raw = String(t.value ?? "").trim();
+        // 🔴 بازبینیِ کد C1: خطرِ زمینه‌ایِ سن («Background/Age risk») خطرِ بیمار نیست — به «تفسیر نشدند»، نه به جای خطرِ تعدیل‌شده.
+        if (pc.role === "background") { unmapped.push(t.name); continue; }
+        if (!prenatal.risk[pc.trisomy]) {
+          prenatal.risk[pc.trisomy] = { name: t.name, raw, denominator: parseRiskDenominator(raw), category: parseRiskCategory(raw) };
+        } else unmapped.push(t.name);
+        continue;
+      }
+      if (pc?.kind === "dating") {
+        const raw = String(t.value ?? "").trim();
+        if (pc.which === "basis") prenatal.dating.basis_raw = raw;
+        else prenatal.dating[pc.which] = { raw, days: parseGaDays(raw, toNum) };
+        continue;
+      }
+    }
     // job c138671c (D1): ردیفِ چاپ‌شده با مقدارِ ناخوانا — server.js فقط هشدارِ OCR می‌سازد و موتور هیچ‌وقت نمی‌فهمید
     //   «نوتروفیل غایب است» یعنی «خوانده نشد»، نه «روی برگه نیست». norm «#» و «%» را می‌اندازد، پس NEUT# هم NEUT_PCT است.
     //   فقط ثبت می‌شود؛ مسیرِ ردیف عوض نمی‌شود.
@@ -1636,6 +1674,7 @@ export function ocrToEngineInput(ocr) {
     semenQual,
     smear: mergeSmear(smearItems),
     hemostasis,
+    prenatal,
     serologyRef,
     serologyAssay,
     unitUnknown,
@@ -1665,7 +1704,7 @@ function inferPregnant(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, hemostasis, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, hemostasis, prenatal, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
   // specs/011 (P66): شناسه یا برچسبِ قدیمیِ فارسی → شناسهٔ کاتالوگ. regexِ سرطان همان قبلی است (در conditions.js).
@@ -2051,6 +2090,8 @@ export function runEngine(ocr) {
     smear,
     // specs/010: فاکتور ۸/۹، vWF، مهارکننده، PTِ کنترل — خواننده: patterns_hemostasis.js و isthScore. به مدل و گراف نمی‌رود (N13).
     hemostasis,
+    // specs/013: دابل/کوآد مارکر — خواننده: patterns_prenatal.js. به مدل و گراف نمی‌رود (N13).
+    prenatal,
     // specs/012: مرزِ چاپ‌شدهٔ ردیف‌های سرولوژی (کلید = نامِ خامِ ردیف در qual). به مدل نمی‌رود (N13).
     serologyRef,
     ungraded,

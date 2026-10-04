@@ -229,6 +229,8 @@ khanesh-project/
 │   │   │                        #   HCO3↓، PCT 0.5–<2، NH3↑، Hb↓ بی‌MCV) — مالک‌های صریح (`P73_OWNERS`)، نه «کلید را خواند»؛ `bindP73Owners(RULES)`
 │   │   ├── patterns_serology.js # specs/012 (P68): VDRL/RPR، سرخجه IgG، کومبس غیرمستقیم، هلیکوباکتر — بی‌هیچ آستانهٔ ثابت (C1):
 │   │   │                        #   فقط مرز/واژهٔ چاپ‌شده؛ Anti-Tg/TRAb در قاعدهٔ thyroid (patterns_endocrine_rheum.js)
+│   │   ├── patterns_prenatal.js # specs/013 (P81): دابل/کوآد مارکر از کانالِ جدای e.prenatal — ۱۴ قاعده، فقط آستانه‌های ✅؛ خطرِ چاپ‌شدهٔ آزمایشگاه مقدم
+│   │   ├── prenatal.js          # specs/013: هویتِ ردیف (ادعای دوگذری: نامِ قوی یا MoM ⇒ AFP/hCGِ ضعیف هم) — مشترکِ adapter و قاعده‌ها
 │   │   ├── serology.js          # specs/012: مسیریابی + خوانشِ مجموعهٔ بسته — مشترکِ adapter و قاعده‌ها (یک قاعده برای «مثبت»)
 │   │   ├── patterns_utils.js    # levelGrade, rankOf, qualState (closed-set reader, N6) — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
@@ -321,7 +323,8 @@ matters more: a hard load of `/app` is the *main* entry point for a returning us
 
 ### Where a pattern lives
 
-`patterns.js` no longer holds the rules. It imports **twenty** `patterns_<system>.js` files (the twentieth, `patterns_p73_gaps.js`, P73; the eighteenth, `patterns_leukocyte.js`, from specs/009; the nineteenth, `patterns_hemostasis.js`, from specs/010)
+`patterns.js` no longer holds the rules. It imports **twenty-one** `patterns_<system>.js` files (measured 2026-10-04; the newest is
+`patterns_prenatal.js`, specs/013, +14 rules ⇒ **231 rules** on the working tree that day — re-measure, don't quote) (the twentieth, `patterns_p73_gaps.js`, P73; the eighteenth, `patterns_leukocyte.js`, from specs/009; the nineteenth, `patterns_hemostasis.js`, from specs/010)
 (one of them — `_endocrine_pituitary` — deliberately empty until `P46` is approved; counted
 2026-09-22) and
 concatenates their `RULES_*` exports into the exported `RULES` array — **206 rules, measured 2026-10-03 after P73 (+10: `hct_rbc_high`, `bilirubin_total_alone`, `ck_elevated_alone`, `albumin_low_alone`, `iron_markers_high`, `total_t4_abnormal`, `bicarbonate_low_moderate`, `pct_intermediate`, `ammonia_mild_high`, `anemia_hb_alone`; previously 196, measured
@@ -2046,6 +2049,15 @@ not by a test.
   «هموگلوبین (12.5): محدودهٔ طبیعیِ این **هورمون** …». It is now `hgb_sex_unknown`. **Before reusing a `reason`, grep every
   reader of `ungraded` for it.** Guard `M190b`. `resolveAlias`'s plural and trailing-`e` rules make every short name one character away from
     another analyte. Guards `M186`–`M186c`.
+- ⚠️ **Recurred 2026-10-04 on prenatal screening (specs/013, P81), measured before any code: a pregnancy screen read as a cancer panel.**
+  A quad screen printed in concentrations (`AFP 35 IU/mL · Estriol 4.1 · Total hCG 29000 · Inhibin-A 179`) for a pregnant woman fired
+  `tumor_markers_result` («پایشِ گروه‌های پرخطرِ کبد … غربالگریِ سرطان») and `hcg_result` («تستِ بارداری مثبت است»). `AFP` and `hCG`
+  are the same words on a tumour panel, a pregnancy test and a quad screen; only the *companions* on the sheet tell them apart. Fixed with a
+  two-pass claim in `rules/prenatal.js`: strong names (Free β-hCG, PAPP-A, uE3, Inhibin A, NT) or a MoM unit mark the sheet, and only then
+  are the weak names claimed into the separate `e.prenatal` channel. The profile's pregnancy flag is deliberately *not* evidence. Guards
+  `PN01` (red on `4121a8b`), `PN02` (byte-identical freeze for tumour-marker and pregnancy-test sheets). Two existing tests (`M105`, `B17`)
+  asserted that MoM rows stay `unmapped` — a freeze on the gap (N28); re-baselined on purpose. **Rule:** when a word means different
+  analytes on different report kinds, decide identity from the sheet's other rows, never from the row or from the profile.
 
 ### N26 — A floor that turns every abnormal number in a newborn into an emergency
 2026-10-01, `neonatal.js` (job `5fdd233a`). Fixed by user decision; recorded because the *pair* of defects is the reusable part.

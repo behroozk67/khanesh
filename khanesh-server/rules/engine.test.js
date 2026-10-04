@@ -6392,7 +6392,9 @@ test("M105: املاهای تازه به کلیدِ درست می‌رسند —
     const e = runEngine({ patient, tests: [semRow([name, value, unit])] });
     const g = e.graded.find(() => true)?.test;
     // مرحلهٔ ب: کلیدِ شناخته‌شدهٔ بی‌قضاوت در ungraded است (LH/FSHِ بی‌روزِ زن، hCG، …).
-    return g ?? e.noRef[0] ?? Object.keys(e.ungraded ?? {})[0] ??
+    // specs/013: ردیفِ غربالگریِ بارداری به کانالِ جدای prenatal می‌رود — «PRENATAL:<کلید>».
+    const pk = Object.keys(e.prenatal?.markers ?? {})[0];
+    return g ?? e.noRef[0] ?? Object.keys(e.ungraded ?? {})[0] ?? (pk ? `PRENATAL:${pk}` : null) ??
       (e.unmapped.length ? "UNMAPPED" : Object.keys(e.qual)[0] ? "QUAL" : "NONE");
   };
   const want = {
@@ -6407,8 +6409,10 @@ test("M105: املاهای تازه به کلیدِ درست می‌رسند —
   for (const [name, key] of Object.entries(want)) assert.equal(keyOf(name), key, `«${name}» → ${keyOf(name)}، باید ${key}`);
   // برخوردها — هر کدام یک شکستِ واقعیِ ممکن است (N2)
   assert.notEqual(keyOf("17-OH Progesterone"), "PROG", "17-OHP به پروژسترون نگاشت شد");
-  assert.equal(keyOf("Free Beta HCG"), "UNMAPPED", "βِ آزادِ غربالگری hCGِ سرم خوانده شد");
-  assert.equal(keyOf("Beta HCG", "1.8", "MoM"), "UNMAPPED", "مقدارِ MoM به‌عنوانِ غلظت خوانده شد");
+  // ⚠️ re-baseline عمدی (specs/013، ۲۰۲۶-۱۰-۰۴): پیش‌تر «UNMAPPED» — یعنی افتِ خاموشِ غربالگری (N28). مقصودِ
+  //    این گارد، که هیچ‌کدام به HCGِ تستِ بارداری نرسد، دست‌نخورده است؛ حالا به کانالِ prenatal می‌روند.
+  assert.equal(keyOf("Free Beta HCG"), "PRENATAL:FBHCG", "βِ آزادِ غربالگری hCGِ سرم خوانده شد");
+  assert.equal(keyOf("Beta HCG", "1.8", "MoM"), "PRENATAL:HCG_TOT", "مقدارِ MoM به‌عنوانِ غلظت خوانده شد");
   assert.equal(keyOf("Free Testosterone"), "UNMAPPED", "تستوسترونِ آزاد تستوسترونِ تام خوانده شد");
   assert.equal(keyOf("AFP"), "UNMAPPED", "AFP (دو معنا) نگاشت شد");
   assert.equal(keyOf("Count", "40"), "UNMAPPED", "«Count» بیرون از صفحهٔ منی شمارشِ اسپرم شد");

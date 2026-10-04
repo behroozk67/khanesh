@@ -18,6 +18,7 @@ import { RULES_HEMOSTASIS } from "./patterns_hemostasis.js";
 import { RULES_COVERAGE_GAPS } from "./patterns_coverage_gaps.js";
 import { RULES_SEROLOGY } from "./patterns_serology.js";
 import { RULES_AUTOIMMUNE } from "./patterns_autoimmune.js";
+import { RULES_PRENATAL } from "./patterns_prenatal.js";
 import { AI_KEYS, autoAbState } from "./serology.js";
 import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
 import { rankOf } from "./patterns_utils.js";
@@ -55,7 +56,9 @@ export const RULES = [
   ...RULES_COVERAGE_GAPS,
   ...RULES_SEROLOGY,
   ...RULES_AUTOIMMUNE,
-  ...RULES_P73_GAPS
+  ...RULES_P73_GAPS,
+  // specs/013: دابل/کوآد مارکر — از کانالِ جدای e.prenatal، بی‌نمره.
+  ...RULES_PRENATAL
 ];
 bindP73Owners(RULES);
 
