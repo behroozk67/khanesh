@@ -225,10 +225,19 @@ test("PN40: «Risk Trisomy 21 1:80» بی‌نشانگر — FMF پرخطر ⇒ 
 test("PN41: T18 با دستهٔ «High risk» ⇒ soon؛ بی‌دسته در سه‌ماههٔ اول ⇒ فقط نقل (مرزِ ⚠️)", () => {
   const hi = run([["Risk Trisomy 18", "1:60 (High risk)", ""]]);
   assert.equal(find(hi, "prenatal_risk_t18_t13_high")?.urgency, "soon", `${hi.ids}`);
-  const un = run([["Trisomy 18 risk", "1:60", ""], ["PAPP-A", "1.0", "MoM"], ["Free β-hCG", "1.0", "MoM"]]);
-  assert.ok(un.ids.includes("prenatal_risk_unrated"), `${un.ids}`);
-  assert.ok(!un.ids.includes("prenatal_risk_t18_t13_high"));
-  assert.match(un.text, /خودِ آزمایشگاه تعیین می‌کند/);
+  // «۴: A+» (تصمیمِ کاربر): بی‌دسته در سه‌ماههٔ اول فقط مخرجِ ≤ ۱۰۰ پرخطر است؛ ۱:۱۰۱ تا ۱:۱۵۰ فقط نقل (مرزِ ⚠️).
+  const dm = [["PAPP-A", "1.0", "MoM"], ["Free β-hCG", "1.0", "MoM"]];
+  for (const [v, hi2] of [["1:60", true], ["1:100", true], ["1:101", false], ["1:120", false], ["1:150", false], ["1:1000", false]]) {
+    const r = run([["Trisomy 18 risk", v, ""], ...dm]);
+    assert.equal(r.ids.includes("prenatal_risk_t18_t13_high"), hi2, `${v}: ${r.ids}`);
+    if (!hi2) {
+      assert.ok(r.ids.includes("prenatal_risk_unrated"), `${v}: ${r.ids}`);
+      assert.match(r.text, /خودِ آزمایشگاه تعیین می‌کند/);
+    }
+  }
+  assert.equal(find(run([["Trisomy 13 risk", "1:80", ""], ...dm]), "prenatal_risk_t18_t13_high")?.urgency, "soon");
+  // کوآد T18 بی‌دسته همچنان ۱:۱۰۰ (✅ سند) — بدونِ تغییر
+  assert.ok(run([["Trisomy 18 risk", "1:90", ""], ["AFP", "1.0", "MoM"], ["uE3", "1.0", "MoM"]]).ids.includes("prenatal_risk_t18_t13_high"));
 });
 
 test("PN42: دستهٔ آزمایشگاه بر بازهٔ موتور مقدم است — «1:200 (Low risk)»", () => {
@@ -280,6 +289,7 @@ test("PN50: جارو — هر یافته «غربالگری نه تشخیص» د
     [["Risk Trisomy 21", "1:80", ""], ["GA", "12+2", ""]],
     [["Risk Trisomy 18", "1:60 (High risk)", ""]],
     [["Trisomy 18 risk", "1:60", ""], ["PAPP-A", "1.0", "MoM"]],
+    [["Trisomy 18 risk", "1:120", ""], ["PAPP-A", "1.0", "MoM"], ["Free β-hCG", "1.0", "MoM"]],
     [["Risk Trisomy 21", "1:400", ""], ["PAPP-A", "1.0", "MoM"], ["Free β-hCG", "1.0", "MoM"]],
     [["Risk Trisomy 21", "1:3500", ""], ["PAPP-A", "1.0", "MoM"], ["Free β-hCG", "1.0", "MoM"], ["NT", "1.5", "mm"]],
   ];
@@ -434,5 +444,11 @@ test("PN78 (P2): متنِ خامِ OCR هرگز به must_say (که به مدل 
     const all = JSON.stringify(r.p.findings);
     assert.ok(!/Ignore|instructions|everything is normal/i.test(all), "متنِ تزریق‌شده به یافته رسید");
   }
-  assert.ok(b.ids.includes("prenatal_risk_t21_high"), "عددِ خطر هنوز خوانده می‌شود");
+  // متنِ دسته‌ایِ ناشناخته ⇒ بازهٔ موتور به‌کار نمی‌رود (نقل بدون قضاوت)؛ عددِ خطر همچنان خوانده و نقل می‌شود.
+  assert.ok(b.ids.includes("prenatal_risk_unrated"), `${b.ids}`);
+  assert.match(b.text, /«1:40»/);
+  // پرچمِ تک‌حرفی/نمادی مانع نمی‌شود
+  for (const v of ["1:40 H", "1:40 *", "1:40 (H)"]) {
+    assert.ok(run([["Risk Trisomy 21", v, ""], ["Free β-hCG", "1.0", "MoM"]]).ids.includes("prenatal_risk_t21_high"), v);
+  }
 });
