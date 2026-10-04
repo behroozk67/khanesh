@@ -135,6 +135,7 @@ Before you start a clinical change, read [Lab Notebook](#lab-notebook--things-no
   | `rules/geriatric.test.js` | `GERIATRIC_REFS` (age ≥ 75) overrides in `refs.js` |
   | `api-contract.test.js` | end-to-end `/api/analyze` response shape and safety nets (`T10` was the long-standing failure; fixed in `2f964df`) |
   | `avalaiClient.test.js` | the HTTP boundary — 429, timeout, truncation, malformed JSON — with an injected `fetch`, no network |
+  | `rules/metamorphic.test.js` | relations every rule must keep, new ones included (P84, N31). It names no rule: (1) worse value ⇒ urgency never lower; (2) added test ⇒ urgency never lower; (3) number format and (4) `NAME_MAP` spelling ⇒ same output; (5) row order/duplicates ⇒ same output; (6) abnormal value never silent. ~10s, the slowest file. Exceptions live only in `ALLOWED_DROPS`, each with a clinical reason and a pinned example that goes red when it stops being needed |
   ✅ **The `fetch failed` / `EACCES` noise above the summary is gone.** It came from `test-api.js`, a manual network script that `node --test` picked up because its name matches the runner's default `test-*.js` glob. Deleted in `1d8b224`. If you add a manual probe script to `khanesh-server/`, **do not name it `test-*.js` or `*.test.js`** — the runner will execute it on every commit via the pre-commit hook.
 - **No frontend tests** and no frontend test runner — `khanesh/package.json` has no `test` script.
 - **No npm workspace** — two fully independent `package.json`s
@@ -2149,7 +2150,9 @@ not by a test.
   1. Moving a value further out of range never lowers urgency.
   2. Adding a test never lowers the urgency of the findings that were already there.
 
-  Both are cheap to sweep.
+  Both are cheap to sweep, and both now run on every commit in `rules/metamorphic.test.js`. On the tree before P84
+  (`9a43d1a`) that file fails MM1–MM3. If it goes red after your change, find which rule broke the relation. Do not
+  add an exception to `ALLOWED_DROPS` without a written clinical reason.
 
 Detailed instructions are split across `.claude/rules/`:
 

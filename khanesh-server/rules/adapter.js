@@ -45,7 +45,7 @@ function norm(s) {
 
 // ---------- نگاشت نام برگه → کلید موتور ----------
 // کلیدها نرمال‌شده‌اند (بدون نقطه، فاصله، خط تیره)
-const NAME_MAP = {
+export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم‌ارزیِ املاها)
   // CBC
   wbc: "WBC", whitebloodcell: "WBC", wb: "WBC",
   rbc: "RBC", redbloodcell: "RBC",

@@ -1,5 +1,8 @@
 # RESUME HERE — خلاصهٔ وضعیت — ۲۰۲۶-۱۰-۰۳
 
+## ۲۰۲۶-۱۰-۰۵ (روشِ متامورفیک دائمی شد)
+`rules/metamorphic.test.js` (MM0–MM5) در `npm test`: یکنواختی، افزایشی، قالبِ عدد، املا، ترتیب/تکرار، بی‌صدا نبودن. `npm test` ⇒ `tests 1061 · pass 1060 · fail 0 · todo 1`، ~۱۷ ثانیه (پیش‌تر ~۱۰). روی `9a43d1a` (پیش از P84) MM1–MM3 قرمزند. `NAME_MAP` از `adapter.js` export شد (فقط برای این تست). استثناها: `ALLOWED_DROPS` (HCT+Hb، HCT+MCV، کاپا+لامبدا، آلبومین+کلسیم) هر کدام با نمونهٔ ثابت.
+
 ## ۲۰۲۶-۱۰-۰۵ (P84: بازبینیِ متامورفیک — ۱۰ رفع، کامیت‌نشده)
 `npm test` ⇒ `tests 1055 · pass 1054 · fail 0 · todo 1` (درختِ کار). گاردها R1–R10 در `rules/review1005.test.js` (فایلِ تازه، untracked)؛ هر ۱۰ روی HEAD `9a43d1a` قرمز (git archive + junction). فایل‌ها: `rules/{adapter,patterns_infectious,patterns_endocrine_rheum,patterns_coverage_gaps,patterns_p73_gaps,patterns_nephrology,patterns_biochem}.js`، `server.js` (یک جمله)، `rules/serology.test.js` (S08 عمداً بازپایه)، `MEDICAL_RULES.md` P84، `CLAUDE.md` N31. **کامیت شد: `2c68225`.** حدهای K/Na/Cl، کفِ شمارشِ خام، متنِ 2ME و «Widal بی‌قاعده» با تصمیمِ کاربر (۲۰۲۶-۱۰-۰۵) تأیید شدند (P84) — نه بازبینِ بالینیِ مستقل. **باز:** Widal (منبعِ آستانه)، کامای سه‌رقمی؛ `urea_bun_emergency` ×۲ در برابرِ ×۲٫۱۴.
 
