@@ -124,3 +124,74 @@ test("M376: Hb شیرخوارِ سالمِ ۴ ماهه (۱۰٫۵، افتِ فی
   assert.equal(hb(10.5)?.abnormal, false, JSON.stringify(hb(10.5)));
   assert.equal(hb(8.5)?.abnormal, true, "گاردِ مخالف: کم‌خونیِ واقعی گم نشود");
 });
+
+// ── P83 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۴): RDW بالا و TIBC بالا/پایین قاعدهٔ خودشان را گرفتند ──
+test("M377: RDW-CV/RDW-SD بالا تنها یافتهٔ خودش را می‌گیرد، نه «توضیح آماده نداریم»؛ با کم‌خونی مالکِ همان قاعده است", () => {
+  // 🔴 پیش از اصلاح: فقط unmatched_abnormal.
+  const a = go(45, [row("RDW-CV", 18, "%")]);
+  assert.deepEqual(ids(a), ["rdw_high"], ids(a).join());
+  assert.equal(urg(a, "rdw_high"), "routine");
+  assert.match(find(a, "rdw_high").must_say, /RDW-CV 18/);
+  const b = go(45, [row("RDW-CV", 18, "%"), row("RDW-SD", 70, "fL")]);
+  assert.match(find(b, "rdw_high").must_say, /RDW-CV 18.*RDW-SD 70/);
+  // گاردِ مخالف: با کم‌خونی، rdw_high دوباره حرف نمی‌زند (N20)
+  const c = go(45, [row("RDW-CV", 19, "%"), row("Hb", 9.5, "g/dL"), row("MCV", 68, "fL")]);
+  assert.ok(!ids(c).includes("rdw_high"), ids(c).join());
+  assert.ok(!ids(c).includes("unmatched_abnormal") && !c.findings.some((f) => (f.uncovered ?? []).includes("RDW_CV")), "RDW گم شد");
+  // RDW طبیعی یا پایین چیزی نمی‌سازد
+  assert.ok(!ids(go(45, [row("RDW-CV", 13, "%")])).includes("rdw_high"));
+});
+
+test("M378: TIBC بالا و پایین قاعدهٔ خودشان را می‌گیرند، سه‌حالته دربارهٔ آهن/فریتین/TSAT؛ در الگوی فقر آهن مالک همان است", () => {
+  const hi = go(45, [row("TIBC", 520, "ug/dL")]);
+  assert.deepEqual(ids(hi), ["tibc_high"], ids(hi).join());
+  assert.match(find(hi, "tibc_high").must_say, /TIBC شما 520/);
+  assert.match(find(hi, "tibc_high").must_say, /آهن سرم روی این برگه نیست/, "arm غایب");
+  const lo = go(45, [row("TIBC", 180, "ug/dL"), row("Iron", 90, "ug/dL")]);
+  assert.deepEqual(ids(lo), ["tibc_low"], ids(lo).join());
+  const t = find(lo, "tibc_low").must_say;
+  assert.doesNotMatch(t, /شایع‌ترین نشانهٔ کمبود آهن/, "جهتِ معکوس");
+  assert.match(t, /آهن سرم 90 و در محدودهٔ طبیعی است/, "arm طبیعی");
+  // بارداری: جملهٔ مخصوص فقط برای باردار
+  const preg = runPatterns(runEngine({ patient: { age: 30, sex: "F", pregnant: true }, tests: [row("TIBC", 520, "ug/dL")] }));
+  assert.match(find(preg, "tibc_high").must_say, /شما باردار هستید/);
+  assert.doesNotMatch(find(hi, "tibc_high").must_say, /شما باردار هستید/);
+  // الگوی فقر آهن مالک است؛ TIBC بی‌توضیح نمی‌ماند و rule دوم هم نمی‌آید
+  const ida = go(45, [row("TIBC", 520, "ug/dL"), row("Ferritin", 6, "ng/mL"), row("Iron", 30, "ug/dL"), row("Hb", 9.5, "g/dL"), row("MCV", 68, "fL")]);
+  assert.ok(!ids(ida).includes("tibc_high"), ids(ida).join());
+  assert.ok(!ids(ida).includes("unmatched_abnormal") && !ida.findings.some((f) => (f.uncovered ?? []).includes("TIBC")), "TIBC گم شد");
+});
+
+test("M379: PDW/P-LCR/PTِ کنترلِ تنها «هیچ‌کدام از مقادیر خارج از محدوده نیست» نمی‌گیرند (N4)؛ CBCِ عادی بی‌آن‌ها دست‌نخورده", async () => {
+  // 🔴 پیش از اصلاح: خلاصهٔ «نتایج آزمایش شما در محدوده طبیعی است» برای PDW 25 با بازهٔ چاپیِ 10–20.
+  const { buildNormalResult } = await import("./prompt.js");
+  const res = (rows) => { const e = runEngine({ patient: { age: 40, sex: "M" }, tests: rows }); return { e, r: buildNormalResult(e) }; };
+  for (const rows of [[{ name: "PDW", value: "25", reference: "10-20" }], [{ name: "P-LCR", value: "60", reference: "15-35" }], [{ name: "PT control", value: "50" }]]) {
+    const { e, r } = res(rows);
+    assert.equal(runPatterns(e).findings.length, 0, JSON.stringify(rows));
+    assert.doesNotMatch(r.summary + r.interpretation, /نتایج آزمایش شما در محدوده طبیعی است|^هیچ‌کدام از مقادیر خارج از محدوده مرجع نیست/, JSON.stringify(rows));
+    assert.match(r.interpretation, /سنجیده نمی‌شوند/);
+  }
+  const ok = res([row("Hb", 14, "g/dL")]).r;
+  assert.equal(ok.summary, "نتایج آزمایش شما در محدوده طبیعی است.", "گاردِ مخالف: برگهٔ عادی دست نخورد");
+});
+
+test("M380: بیلی‌روبین مستقیم↑ و غیرمستقیم↑ تنها قاعدهٔ خودشان را می‌گیرند؛ با الگوی بیلی‌روبینِ تام مالکِ همان است (N20)", () => {
+  // 🔴 پیش از اصلاح: فقط unmatched_abnormal.
+  const d = go(45, [row("Bilirubin Direct", 1.2, "mg/dL")]);
+  assert.deepEqual(ids(d), ["bilirubin_direct_high"], ids(d).join());
+  assert.match(find(d, "bilirubin_direct_high").must_say, /بیلی‌روبین مستقیم شما 1.2/);
+  assert.match(find(d, "bilirubin_direct_high").must_say, /ALP روی این برگه نیست/, "arm غایب");
+  const i = go(45, [row("Bilirubin Indirect", 2.5, "mg/dL"), row("Hb", 14, "g/dL"), row("ALT", 20, "U/L"), row("AST", 20, "U/L")]);
+  assert.deepEqual(ids(i), ["bilirubin_indirect_high"], ids(i).join());
+  assert.match(find(i, "bilirubin_indirect_high").must_say, /ژیلبر/);
+  const noHb = go(45, [row("Bilirubin Indirect", 2.5, "mg/dL")]);
+  assert.doesNotMatch(find(noHb, "bilirubin_indirect_high").must_say, /طبیعی بودنِ هموگلوبین/, "بی‌Hb «طبیعی» نمی‌گوید (N4)");
+  // با بیلی‌روبین تام + اجزا، الگوی موجود مالک است و یافتهٔ دوم نمی‌آید
+  const t = go(45, [row("Bilirubin Total", 3, "mg/dL"), row("Bilirubin Direct", 1.8, "mg/dL"), row("Bilirubin Indirect", 1.2, "mg/dL")]);
+  assert.ok(!ids(t).includes("bilirubin_direct_high") && !ids(t).includes("bilirubin_indirect_high"), ids(t).join());
+  assert.ok(!ids(t).includes("unmatched_abnormal") && !t.findings.some((f) => (f.uncovered ?? []).some((k) => /BILI/.test(k))), "بیلی‌روبین گم شد");
+  // دو یافته برای دو جزءِ بالا هم‌زمان نیستند وقتی تام نیست؟ هر کدام یک یافته (دو عددِ متفاوت)
+  const both = go(45, [row("Bilirubin Direct", 1.2, "mg/dL"), row("Bilirubin Indirect", 2.5, "mg/dL")]);
+  assert.ok(!ids(both).includes("unmatched_abnormal"), ids(both).join());
+});

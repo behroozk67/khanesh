@@ -12,6 +12,7 @@
 // ============================================================
 import { levelGrade, anemiaSeverityFa, infantAnemiaNoGrade } from "./patterns_utils.js";
 import { isNeonate } from "./neonatal.js";
+import { faName } from "./names.js";
 
 const g = (e, k) => e.graded?.find((x) => x.test === k);
 const hi = (x) => !!(x?.abnormal && x.dir === "high");
@@ -21,7 +22,7 @@ const lo = (x) => !!(x?.abnormal && x.dir === "low");
 // کلیدِ آزمایش‌ها که به comp() می‌روند: ثابتِ سطحِ ماژول، نه literal داخلِ build — M38 هر literalِ داخلِ build را «متنِ کاربر» می‌شمارد.
 const K = {
   MCV: "MCV", HGB: "HGB", BILI_D: "BILI_D", CREAT: "CREAT", FERRITIN: "FERRITIN", TSAT: "TSAT", CRP: "CRP_Q",
-  TSH: "TSH", FT4: "FT4", WBC: "WBC", ALT: "ALT", AST: "AST", ALP: "ALP",
+  IRON: "IRON", GGT: "GGT", BILI_T: "BILI_T", TSH: "TSH", FT4: "FT4", WBC: "WBC", ALT: "ALT", AST: "AST", ALP: "ALP",
 };
 
 const ACT = {
@@ -386,7 +387,133 @@ const anemiaHbAlone = {
   },
 };
 
+// ── ۱۲) RDW-CV/RDW-SD بالا (بی‌کم‌خونی/الگوی گلبول قرمزِ دیگر) — تصمیمِ کاربر ۲۰۲۶-۱۰-۰۴ (P83) ──
+// ⚠️ هیچ آستانهٔ تازه‌ای نیست: «بالا» یعنی بالای بازهٔ مرجعِ موتور. متنِ علت‌ها دانشِ عمومیِ درسنامه‌ای است و منبعِ بازشده ندارد
+//    (`sources` خالی؛ MEDICAL_RULES.md P83). وقتی هر قاعدهٔ کم‌خونی/گلبول قرمز فعال باشد، همان مالک است (M313).
+const rdwHigh = {
+  id: "rdw_high",
+  match: (e) =>
+    (hi(g(e, "RDW_CV")) || hi(g(e, "RDW_SD"))) &&
+    !anyFires(e, [...P73_OWNERS.anemia, ...P73_OWNERS.erythro]),
+  build: (e) => {
+    const xs = [g(e, "RDW_CV"), g(e, "RDW_SD")].filter(hi);
+    const urgency = "routine";
+    const list = xs.map((x) => `${faName(x.test)} ${x.value} (حد طبیعی ${x.range})`).join(" و ");
+    return {
+      pattern: "rdw_high",
+      urgency,
+      no_neonatal_floor: true,   // تصمیمِ P57 (M221f): RDW تنها کفِ نوزادی نمی‌گیرد
+      headline: "پهنای توزیعِ گلبول قرمز (RDW) شما بالاتر از حد طبیعی است",
+      must_say:
+        `${list} بالاتر از حد طبیعی است. RDW نشان می‌دهد اندازهٔ گلبول‌های قرمز چقدر با هم فرق دارد؛ عدد بالا یعنی گلبول‌ها یک‌اندازه نیستند. ` +
+        "این شاخص به‌تنهایی بیماری را نشان نمی‌دهد. شایع‌ترین علت‌ها کمبود آهن (گاهی پیش از آنکه هموگلوبین پایین بیاید)، کمبود ویتامین B12 یا فولات، و کمبودِ هم‌زمانِ چند ماده است؛ " +
+        "تزریق خونِ اخیر و بعضی بیماری‌های کبد و مغز استخوان هم می‌توانند آن را بالا ببرند. " +
+        [comp(e, K.HGB, "هموگلوبین"), comp(e, K.MCV, "حجم گلبول قرمز (MCV)"), comp(e, K.FERRITIN, "فریتین")].join(" "),
+      action: ACT[urgency],
+      suggest: ["فریتین", "ویتامین B12", "رتیکولوسیت"],
+      warnings: [],
+    };
+  },
+};
+
+// ── ۱۳) TIBC بالا / پایین — تصمیمِ کاربر ۲۰۲۶-۱۰-۰۴ (P83). مالک: الگوی فقر آهن و کم‌خونیِ بیماری مزمن (هر دو TIBC را می‌خوانند) ──
+const tibcText = (e, isHigh) => {
+  const t = g(e, "TIBC");
+  const head = `TIBC شما ${t.value} است (حد طبیعی ${t.range}). TIBC نشان می‌دهد خون چقدر ظرفیتِ حملِ آهن دارد (به میزانِ پروتئینِ ترانسفرین بستگی دارد). `;
+  const body = isHigh
+    ? "عدد بالا شایع‌ترین نشانهٔ کمبود آهن است، چون بدن برای جذبِ آهنِ بیشتر ترانسفرین می‌سازد. در بارداری و با مصرفِ قرص‌های ضدبارداری یا استروژن هم بالا می‌رود" +
+      (e.pregnant ? "؛ شما باردار هستید و این به‌تنهایی می‌تواند عدد را توضیح دهد. " : ". ")
+    : "عدد پایین معمولاً با التهاب یا بیماریِ مزمن، کم‌پروتئینی و سوءتغذیه، بعضی بیماری‌های کبد و کلیه، یا زیادیِ آهنِ بدن دیده می‌شود. ";
+  return head + body + "برای معنی‌دادن به این عدد باید کنارِ آهن، فریتین و اشباع ترانسفرین (TSAT) خوانده شود. " +
+    [comp(e, K.IRON, "آهن سرم"), comp(e, K.FERRITIN, "فریتین"), comp(e, K.TSAT, "اشباع ترانسفرین (TSAT)"), comp(e, K.HGB, "هموگلوبین")].join(" ");
+};
+const tibcHigh = {
+  id: "tibc_high",
+  match: (e) => hi(g(e, "TIBC")) && !anyFires(e, P73_OWNERS.iron),
+  build: (e) => {
+    const urgency = netUrgency(e, g(e, "TIBC"));
+    return {
+      pattern: "tibc_high",
+      urgency,
+      headline: "TIBC شما بالاتر از حد طبیعی است",
+      must_say: tibcText(e, true),
+      action: ACT[urgency],
+      suggest: ["فریتین", "آهن سرم"],
+      warnings: [],
+    };
+  },
+};
+const tibcLow = {
+  id: "tibc_low",
+  match: (e) => lo(g(e, "TIBC")) && !anyFires(e, P73_OWNERS.iron),
+  build: (e) => {
+    const urgency = netUrgency(e, g(e, "TIBC"));
+    return {
+      pattern: "tibc_low",
+      urgency,
+      headline: "TIBC شما پایین‌تر از حد طبیعی است",
+      must_say: tibcText(e, false),
+      action: ACT[urgency],
+      suggest: ["فریتین", "آهن سرم"],
+      warnings: [],
+    };
+  },
+};
+
+// ── ۱۴) بیلی‌روبین مستقیم↑ / غیرمستقیم↑ (تنها، یعنی الگوی بیلی‌روبین تام+اجزا فعال نیست) — تصمیمِ کاربر ۲۰۲۶-۱۰-۰۴ (P83) ──
+// ⚠️ بی‌آستانهٔ تازه: «بالا» = بیرونِ بازهٔ مرجعِ موتور. متنِ علت‌ها دانشِ عمومیِ درسنامه‌ای است، بی‌منبعِ بازشده (`sources` خالی).
+// مالک‌ها: خودِ الگوی بیلی‌روبین (تام بالا + اجزا)، اورژانس، همولیز/سیروز و `bilirubin_total_alone` — N20: یک عدد، یک یافته.
+const biliOwners = [...P73_OWNERS.bilirubin, "bilirubin_total_alone", "bilirubin_direct_high", "bilirubin_indirect_high"];
+const BILI_WARN = "اگر زردیِ چشم یا پوست، ادرارِ تیره همراه با مدفوعِ کم‌رنگ، تب یا دردِ شکم دارید، منتظرِ نوبت نمانید و همان روز مراجعه کنید.";
+const biliDirectHigh = {
+  id: "bilirubin_direct_high",
+  match: (e) => hi(g(e, "BILI_D")) && !anyFires(e, biliOwners.filter((i) => i !== "bilirubin_direct_high" && i !== "bilirubin_indirect_high")),
+  build: (e) => {
+    const d = g(e, "BILI_D");
+    const urgency = netUrgency(e, d, isNeonate(e.age));
+    return {
+      pattern: "bilirubin_direct_high",
+      urgency,
+      blocks_others: urgency === "emergency",
+      headline: "بیلی‌روبینِ مستقیمِ شما بالاتر از حد طبیعی است",
+      must_say:
+        `بیلی‌روبین مستقیم شما ${d.value} است (حد طبیعی ${d.range}). بیلی‌روبین مستقیم همان بخشی است که کبد پردازش کرده و باید با صفرا دفع شود؛ بالا رفتنش معمولاً به مشکل در کبد یا مسیرِ خروجِ صفرا (مثل سنگ یا انسداد مجاری صفراوی) مربوط است. ` +
+        "برای پیدا کردنِ علت، پزشک معمولاً آن را کنارِ ALP، GGT و آنزیم‌های کبد (ALT و AST) می‌خواند. " +
+        [comp(e, K.BILI_T, "بیلی‌روبین تام"), comp(e, K.ALP, "ALP"), comp(e, K.GGT, "GGT"), comp(e, K.ALT, "ALT"), comp(e, K.AST, "AST")].join(" "),
+      action: ACT[urgency],
+      suggest: ["ALP", "GGT", "AST"],
+      warnings: [BILI_WARN],
+    };
+  },
+};
+const biliIndirectHigh = {
+  id: "bilirubin_indirect_high",
+  match: (e) =>
+    hi(g(e, "BILI_I")) &&
+    !anyFires(e, [...biliOwners.filter((i) => i !== "bilirubin_direct_high" && i !== "bilirubin_indirect_high"), "hemolysis_likely"]),
+  build: (e) => {
+    const b = g(e, "BILI_I");
+    const urgency = netUrgency(e, b, isNeonate(e.age));
+    const hb = g(e, "HGB"), alt = g(e, "ALT"), ast = g(e, "AST");
+    const quiet = [hb, alt, ast].every((x) => x && !x.abnormal);
+    return {
+      pattern: "bilirubin_indirect_high",
+      urgency,
+      blocks_others: urgency === "emergency",
+      headline: "بیلی‌روبینِ غیرمستقیمِ شما بالاتر از حد طبیعی است",
+      must_say:
+        `بیلی‌روبین غیرمستقیم شما ${b.value} است (حد طبیعی ${b.range}). این بخش هنوز در کبد پردازش نشده و از تجزیهٔ گلبول‌های قرمز می‌آید؛ بالا رفتنش معمولاً یا به خاطرِ تخریبِ سریعِ گلبول‌های قرمز (همولیز) است، یا به خاطرِ کندیِ پردازش در کبد، مثل سندرم ژیلبر که شایع و بی‌خطر است (روزه‌داریِ طولانی یا بیماریِ حاد هم آن را بالا می‌برد). ` +
+        [comp(e, K.HGB, "هموگلوبین"), comp(e, K.ALT, "ALT"), comp(e, K.AST, "AST")].join(" ") + " " +
+        (quiet ? "طبیعی بودنِ هموگلوبین و آنزیم‌های کبد، افزایشِ جدا را بیشتر به ژیلبر یا علتِ بی‌خطر نزدیک می‌کند، ولی اثباتش نمی‌کند." : ""),
+      action: ACT[urgency],
+      suggest: ["رتیکولوسیت", "هاپتوگلوبین", "LDH"],
+      warnings: [BILI_WARN],
+    };
+  },
+};
+
 export const RULES_P73_GAPS = [
   hctRbcHigh, bilirubinTotalAlone, ckElevatedAlone, albuminLowAlone, ironMarkersHigh,
   totalT4Abnormal, bicarbonateLow, pctIntermediate, ammoniaMildHigh, anemiaHbAlone,
+  rdwHigh, tibcHigh, tibcLow, biliDirectHigh, biliIndirectHigh,
 ];
