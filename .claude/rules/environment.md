@@ -12,7 +12,10 @@ MAX_IMAGES=5
 IMAGE_CONCURRENCY=1          # ⚠️ raise only if your AvalAI account tolerates it — 2+ causes 429s
 OCR_RETRIES=3
 OCR_MAX_TOKENS=8000          # ⚠️ tuned from a real truncation incident — check GET /health before raising
-USE_ENGINE=true              # "false" disables the rules engine, falls back to the old AI-only path
+# USE_ENGINE was removed (P78): the engine is always on; "false" is ignored with a boot warning.
+ALLOW_LEGACY_PATH=false      # P78: default OFF. "true" lets unrecognised/text-only input reach the model-judged legacy
+                             #    path (model decides severity + has_critical). The graph never runs without an engine result, even then.
+                             #    GET /health reports legacyPath: "on"|"off".
 USE_GRAPH=false              # ⚠️ default OFF. "true" routes analysis through the 12-node LangGraph
                              #    in labmat-agents/, whose patient text bypasses every safety net in
                              #    server.js. Local experimentation only — see CLAUDE.md, N13.

@@ -33,4 +33,6 @@ This exists because `gpt-4o-mini` misunderstood lab patterns (e.g. suggested an 
 
 ## Legacy Non-Engine Path
 
-`USE_ENGINE=false`, or any text-only request without an image, sends everything straight to the LLM using the older, more permissive `SYSTEM_PROMPT`, which asks the model to do its own severity judgment. Prefer the engine path for new clinical logic.
+⚠️ **Closed by default since layer 3 (P78, guards `T49`–`T51`).** A sheet the engine recognises nothing of, and text-only input, now return `buildUninterpretedResult()` — no model call, no verdict, `has_critical: false`, «تفسیر نشد» (not «طبیعی»). The path below only runs with `ALLOW_LEGACY_PATH=true` (`USE_ENGINE` no longer exists); the graph path refuses to run without an engine result.
+
+With `ALLOW_LEGACY_PATH=true`, any text-only request without an image sends everything straight to the LLM using the older, more permissive `SYSTEM_PROMPT`, which asks the model to do its own severity judgment. Prefer the engine path for new clinical logic.

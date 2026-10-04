@@ -1094,3 +1094,38 @@ test("T48: دو صفحه — CBC و منی (با Sperm concentration و Spermogr
     assert.ok(e.graded.some((g) => g.test === "SPERM_CONC"), "غلظتِ اسپرم درجه‌بندی نشد");
   }
 });
+
+// ─────────── لایهٔ ۳ (P78): مسیرِ قدیم — مدل داورِ شدت نیست ───────────
+// 🔴 پیش از P78 هر برگه‌ای که موتور هیچ‌چیزش را نمی‌شناخت (یا ورودیِ فقط-متن) به مدل می‌رفت و has_critical و لحنِ شدت از خودِ مدل می‌آمد.
+const MODEL_JUDGES = modelSays({ text: "وضعیتِ بحرانی است، فوراً به اورژانس بروید.", hasCritical: true });
+
+test("T49: ورودیِ ساختاری که موتور هیچ‌کدامش را نمی‌شناسد — مدل صدا زده نمی‌شود و حکمِ شدت از مدل نمی‌آید", async () => {
+  const r = await analyze({ patient: { age: 40, sex: "M" }, tests: [{ name: "Zzqx Marker", value: 5 }, { name: "Qwvb", value: 9 }] }, MODEL_JUDGES);
+  assert.equal(r.status, 200);
+  assert.equal(r.llmCalls, 0, "مدل برای برگهٔ نشناخته صدا زده شد");
+  assert.equal(r.body.has_critical, false);
+  assert.doesNotMatch(allText(r.body), /بحرانی|اورژانس بروید/, "حکمِ مدل به بیمار رسید");
+  assert.match(r.body.summary, /تفسیر نشد/);
+  assert.doesNotMatch(r.body.summary, /طبیعی است\./, "«تفسیر نشد» نباید «طبیعی» خوانده شود (N4)");
+});
+
+test("T50: ورودیِ فقط-متن (بی‌عکس و بی‌tests) — مدل صدا زده نمی‌شود", async () => {
+  llmPayload = MODEL_JUDGES; llmRawContent = null; llmCalls = 0;
+  const res = await realFetch(`${baseUrl}/api/analyze`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ patientInfo: "سن: 40", testResults: "K 7.1\nHb 6" }),
+  });
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(llmCalls, 0);
+  assert.equal(body.has_critical, false);
+  assert.doesNotMatch(allText(body), /بحرانی|اورژانس بروید/);
+  assert.match(body.summary, /تفسیر نشد/);
+});
+
+test("T51: برگهٔ شناخته‌شده همچنان به مسیرِ موتور می‌رود (گاردِ مخالف — بستنِ مسیرِ قدیم نباید موتور را خاموش کند)", async () => {
+  const r = await analyze(PANEL_CRITICAL);
+  assert.equal(r.status, 200);
+  assert.ok(r.body._engine, "مسیرِ موتور گرفته نشد");
+  assert.equal(r.body.has_critical, true);
+});

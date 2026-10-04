@@ -540,6 +540,23 @@ export function unexplainedNoRef(noRef, findings) {
 /**
  * اگر موتور هیچ الگویی پیدا نکرد — همه‌چیز طبیعی
  */
+// لایهٔ ۳ (P78): برگه‌ای که موتور هیچ‌چیزش را نمی‌شناسد دیگر به مدلی نمی‌رسد که خودش شدت را قضاوت کند.
+// این نتیجه هیچ حکمی نمی‌دهد: نه «طبیعی»، نه «بالا/پایین»، نه «بحرانی». فقط می‌گوید تفسیر نشد.
+export function buildUninterpretedResult(unmapped = []) {
+  const names = [...new Set(unmapped)].filter(Boolean);
+  return {
+    summary: "این برگه تفسیر نشد. این به معنای «طبیعی» بودن نتایج نیست.",
+    interpretation:
+      "موتورِ تفسیرِ ما هیچ‌کدام از مقادیرِ این برگه را نشناخت، پس دربارهٔ «بالا» یا «پایین» بودنشان نظری نمی‌دهیم." +
+      (names.length ? ` مقادیرِ نشناخته: ${names.join("، ")}.` : "") +
+      " اعدادِ خوانده‌شده در فهرستِ بالا هست؛ تفسیرشان با پزشک است.",
+    general_recommendations: ["این برگه را به پزشک نشان دهید تا مقادیر را بررسی کند."],
+    warnings: [],
+    has_critical: false,
+    disclaimer: "این تفسیر صرفاً جهت افزایش آگاهی است و جایگزین توصیه پزشک نیست.",
+  };
+}
+
 export function buildNormalResult(engineOut) {
   const r = buildNormalResultAdult(engineOut);
   return isNeonate(engineOut?.age) ? neonatalResultVoice(r) : r;
