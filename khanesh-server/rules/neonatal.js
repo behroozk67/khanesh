@@ -85,11 +85,20 @@ export function neonatalVoice(text) {
 // لایهٔ ۴ (P79): شیرخوار/کودکِ کوچک (۲۸ روز تا زیرِ ۱۲ سال) — متنِ موتور «خون شما» می‌گفت ولی خلاصهٔ مدل «این کودک»؛
 // خواننده والد است. فقط «شما» ⇒ «کودک»؛ نه حذفِ بند، نه بازنویسیِ دستور (متنِ بالینیِ تازه نیست). مرزِ ۱۲ سال انتخابِ واژه است، نه بالینی.
 export const CHILD_VOICE_MAX_AGE = 12;
+// بازبینیِ ۲۰۲۶-۱۰-۰۴: بندی که دربارهٔ بارداری/قاعدگی/الکل/سیگار/رانندگی است به کودکِ زیرِ ۱۲ سال نمی‌خورد؛ «شما»یش دست نمی‌خورد
+//   (خطاب به والد می‌ماند) تا «اگر کودک باردار است» ساخته نشود. حذفِ بند نیست (تصمیمِ P79). و «کودکِ شما» ⇒ «کودک»، نه «کودکِ کودک».
+const CHILD_KEEP_YOU = /باردار|قاعدگی|شیردهی|الکل|سیگار|رانندگی/;
 export function childVoice(text) {
   if (typeof text !== "string" || !text) return text;
-  return text
-    .replace(/(^|[\s(«])شما(?=[\s،.؛:)»]|$)/g, "$1کودک")
-    .replace(/شماست/g, "کودک است");
+  const parts = text.split(/([.؛؟!\n])/);
+  for (let i = 0; i < parts.length; i += 2) {
+    if (!parts[i] || CHILD_KEEP_YOU.test(parts[i])) continue;
+    parts[i] = parts[i]
+      .replace(/(کودک|فرزند)ِ?\s+شما(?=[\s،.؛:)»]|$)/g, "کودک")
+      .replace(/(^|[\s(«])شما(?=[\s،.؛:)»]|$)/g, "$1کودک")
+      .replace(/شماست/g, "کودک است");
+  }
+  return parts.join("");
 }
 export function applyChildVoice(findings, engineOut) {
   const age = engineOut?.age;

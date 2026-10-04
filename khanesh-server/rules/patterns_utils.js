@@ -1324,3 +1324,16 @@ export function canBePregnant(e) {
   if (typeof a === "number" && (a < 12 || a > 55)) return false;
   return true;
 }
+
+// شدتِ کم‌خونی به‌سبکِ WHO — یک تابع برای patterns_hematology.js و patterns_p73_gaps.js (بازبینیِ ۲۰۲۶-۱۰-۰۴؛ پیش‌تر دو کپیِ ناهم‌خوان:
+//   whoSeverity زیرِ ۱۵ سال null می‌داد و anemiaSeverityFa ۵ تا ۱۴ سال را با آستانهٔ بزرگسال می‌سنجید).
+// خفیف تا ۱۱، متوسط ۸ تا ۱۱، شدید زیرِ ۸. بارداری و ۶ تا ۵۹ ماه: شدید < ۷، متوسط ۷–۹٫۹، خفیف ۱۰–۱۰٫۹ (P53 پرسش ۲، P77-۹).
+// زیرِ ۶ ماه جدولِ WHO نداریم ⇒ null؛ فراخواننده «کم‌خونیِ شدید» نمی‌نویسد، ولی هرگز «نوبتِ عادی» هم نمی‌دهد (infantAnemiaNoGrade).
+export function anemiaSeverityFa(e, hb) {
+  if (e.age != null && e.age < 0.5) return null;
+  if (e.age != null && e.age < 5) return hb < 7 ? "شدید" : hb < 10 ? "متوسط" : "خفیف";
+  if (e.pregnant) return hb < 7 ? "شدید" : hb < 10 ? "متوسط" : "خفیف";
+  return hb < 8 ? "شدید" : hb < 11 ? "متوسط" : "خفیف";
+}
+// کم‌خونیِ شیرخوارِ زیرِ ۶ ماه (۲۸ روز تا ۶ ماه؛ زیرِ ۲۸ روز کفِ نوزادی دارد): درجه ندارد، پس نباید «routine» بماند.
+export const infantAnemiaNoGrade = (e) => e.age != null && e.age < 0.5;

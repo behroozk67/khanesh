@@ -10,7 +10,7 @@
 //    مالک‌ها صریحاً فهرست شده‌اند، نه با «قاعده این کلید را خواند» (N18: خواندن ≠ گفتن) — `M313` وجودشان را می‌سنجد.
 // ⚠️ هر جمله‌ای که از آزمایشِ دیگر حرف می‌زند سه‌حالته است (بالا/پایین/طبیعی/غایب) — `comp()` (N4، M156).
 // ============================================================
-import { levelGrade } from "./patterns_utils.js";
+import { levelGrade, anemiaSeverityFa, infantAnemiaNoGrade } from "./patterns_utils.js";
 import { isNeonate } from "./neonatal.js";
 
 const g = (e, k) => e.graded?.find((x) => x.test === k);
@@ -355,18 +355,18 @@ const ammoniaMildHigh = {
 };
 
 // ── ۱۱) Hb↓ تنها (بی‌شاخصِ MCV؛ مسیرِ ورودِ دستی) — WHO: آستانهٔ کم‌خونی و شدت (بزرگسالِ غیرباردار) ──
+// بازبینیِ ۲۰۲۶-۱۰-۰۴: همان تابعِ مشترکِ patterns_utils.js؛ سنِ نامعلوم هنوز درجه نمی‌دهد (N4: درجه از سنِ حدسی نمی‌آید).
 function whoSeverity(e, hb) {
-  if (e.pregnant === true || e.age == null || e.age < 15) return null;
-  if (hb < 8) return "شدید";
-  if (hb < 11) return "متوسط";
-  return "خفیف";
+  return e.age == null ? null : anemiaSeverityFa(e, hb);
 }
 const anemiaHbAlone = {
   id: "anemia_hb_alone",
   match: (e) => lo(g(e, "HGB")) && !anyFires(e, P73_OWNERS.anemia),
   build: (e) => {
     const hb = g(e, "HGB");
-    const urgency = netUrgency(e, hb);
+    // شیرخوارِ زیرِ ۶ ماه درجه ندارد ⇒ دست‌کم this_week (بازبینیِ ۲۰۲۶-۱۰-۰۴)؛ اورژانسِ عددِ بحرانی دست‌نخورده.
+    let urgency = netUrgency(e, hb);
+    if (urgency === "routine" && infantAnemiaNoGrade(e)) urgency = "this_week";
     const sev = whoSeverity(e, hb.value);
     return {
       pattern: "anemia_hb_alone",
@@ -376,7 +376,7 @@ const anemiaHbAlone = {
       headline: "هموگلوبینِ شما پایین‌تر از حد طبیعی است (کم‌خونی)",
       must_say:
         `هموگلوبین شما ${hb.value} است (حد طبیعی ${hb.range})؛ یعنی کم‌خونی. ` +
-        (sev ? `بر پایهٔ طبقه‌بندیِ سازمان جهانی بهداشت برای بزرگسالِ غیرباردار، این کم‌خونیِ ${sev} است. ` : "") +
+        (sev ? `بر پایهٔ طبقه‌بندیِ سازمان جهانی بهداشت برای سن${e.pregnant ? " و بارداریِ" : "ِ"} شما، این کم‌خونیِ ${sev} است. ` : "") +
         "هموگلوبین به‌تنهایی علت را نمی‌گوید. برای پیدا کردنِ علت معمولاً حجمِ گلبول قرمز (MCV) و بقیهٔ شاخص‌های CBC، فریتین (ذخیرهٔ آهن)، رتیکولوسیت، و در صورتِ لزوم B12 و فولات خواسته می‌شود؛ چون درمانِ هر نوع فرق دارد و بدونِ دانستنِ علت نباید خودسرانه قرصِ آهن شروع کرد. " +
         comp(e, K.MCV, "حجم گلبول قرمز (MCV)") + " " + comp(e, K.FERRITIN, "فریتین"),
       action: ACT[urgency],

@@ -262,6 +262,16 @@ function requireAllowedOrigin(req, res, next) {
 const TRUST_PROXY = process.env.TRUST_PROXY;
 if (TRUST_PROXY) app.set("trust proxy", /^\d+$/.test(TRUST_PROXY) ? Number(TRUST_PROXY) : TRUST_PROXY);
 
+// لایهٔ ۵ (P80): هدرهای ایمنیِ حداقلی بی‌وابستگیِ تازه. پاسخِ /api تفسیرِ کاملِ برگهٔ یک بیمار است — نباید در کشِ
+// مرورگر/پروکسیِ مشترک بماند (no-store)؛ و نسخهٔ فریم‌ورک را لو نمی‌دهیم.
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("X-Frame-Options", "DENY");
+  if (req.path.startsWith("/api/")) res.setHeader("Cache-Control", "no-store");
+  next();
+});
 app.use(express.json({ limit: "60mb" }));   // ← Nginx روی 50M است؛ Express نباید تنگ‌تر باشد
 app.use("/api/auth", authRouter);
 app.use("/api/profile", profileRouter);   // specs/011 — 409 «local_only» وقتی احراز هویت خاموش است
@@ -832,10 +842,16 @@ function ocrToExtractedTests(ocr) {
 // ============================================================
 // [۱۳] ساخت پیام کاربر برای مرحله تحلیل
 // ============================================================
+// متنِ خام (OCR/ورودیِ کاربر) نباید بتواند تگِ داده را ببندد و پس از آن «دستور» بنویسد (notes.md: متنِ OCR در اختیارِ مهاجم است).
+// هر تگِ باز/بستهٔ همین دو نام در ورودی خنثی می‌شود؛ متنِ بالینی هرگز این رشته را ندارد.
+export function fenceData(s) {
+  return String(s ?? "").replace(/<\s*\/?\s*(patient_info|test_results)\s*>/gi, "[$1]");
+}
+
 function buildAnalysisMessage(patientInfo, testResults, medlineContext, fromImage) {
   let text =
-    `<patient_info>\n${patientInfo || "ارائه نشده"}\n</patient_info>\n\n` +
-    `<test_results>\n${testResults}\n</test_results>`;
+    `<patient_info>\n${fenceData(patientInfo) || "ارائه نشده"}\n</patient_info>\n\n` +
+    `<test_results>\n${fenceData(testResults)}\n</test_results>`;
 
   if (fromImage) {
     text +=
@@ -1246,7 +1262,7 @@ const analyzeHandler = async (req, res) => {
     // گراف هم بی‌موتور اجرا نمی‌شود، حتی با ALLOW_LEGACY_PATH (N13: متنِ خام + بی‌موتور).
     if (!engineCandidate && (!LEGACY_ALLOWED || USE_GRAPH)) {
       console.warn("⚠️ موتور برگه را نشناخت و مسیرِ قدیم بسته است — نتیجهٔ «تفسیر نشد» بی‌فراخوانیِ مدل");
-      const out = buildUninterpretedResult(unmappedAtFallback);
+      const out = buildUninterpretedResult(unmappedAtFallback, { listShown: extractedTests.length > 0 });
       if (extractedTests.length) out.extracted_tests = extractedTests;
       if (ocrWarnings.length) out.ocr_warnings = ocrWarnings;
       if (pageInfo) out.pages = pageInfo;
@@ -1283,7 +1299,7 @@ const analyzeHandler = async (req, res) => {
 
     // Pass the combined text AND the engine deterministic outputs to the graph
     const initialState = { 
-      rawData: `<patient_info>\n${patientText}\n</patient_info>\n<test_results>\n${finalText}\n</test_results>`,
+      rawData: `<patient_info>\n${fenceData(patientText)}\n</patient_info>\n<test_results>\n${fenceData(finalText)}\n</test_results>`,
       engineOutput: safeEngineOut,
       patternOutput: patternOut
     };

@@ -502,13 +502,13 @@ test("M364: hCG — زنِ > ۵۵ سال: < ۱۴ routine بی‌ادعای با�
 const childText = (r) => r.p.findings.flatMap((f) => [f.headline, f.must_say, f.action, ...(f.warnings ?? [])]).join(" ");
 const hasYou = (s) => /(^|[\s(«])شما(?=[\s،.؛:)»]|$)/.test(s);
 
-test("M365: کودکِ ۳ ساله — در متنِ موتور «شما» نمی‌ماند و «کودک» جای آن می‌آید؛ پیشنهاد فقط رتیکولوسیت و فریتین", () => {
+test("M365: کودکِ ۳ ساله — در متنِ موتور «شما» نمی‌ماند و «کودک» جای آن می‌آید؛ پیشنهاد رتیکولوسیت، فریتین، کراتینین و CRP (P82: تصمیمِ بازبین، برگشتِ P79)", () => {
   const r = run([row("Hemoglobin", 10.5, "g/dL"), row("MCV", 75)], { age: 3, sex: "M" });
   const f = r.p.findings.find((x) => x.rule_id === "normocytic_anemia");
   assert.ok(f, `normocytic_anemia فعال نشد: ${ids(r)}`);
   assert.equal(hasYou(childText(r)), false, `«شما» مانده: ${childText(r).slice(0, 200)}`);
   assert.match(f.must_say, /هموگلوبین کودک 10\.5/);
-  assert.deepEqual(f.suggest, ["رتیکولوسیت", "فریتین"]);
+  assert.deepEqual(f.suggest, ["رتیکولوسیت", "فریتین", "کراتینین", "CRP"]);
 });
 
 test("M365b: کنترل — بزرگسال همان متن و همان چهار پیشنهاد را می‌گیرد؛ ۱۲ ساله هنوز «شما»", () => {

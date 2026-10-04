@@ -1,4 +1,5 @@
 import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
+import { anemiaSeverityFa, infantAnemiaNoGrade, levelGrade } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -8,6 +9,10 @@ import { factorOwnsAptt } from "./patterns_hemostasis.js";
 
 // P58 (N20): وقتی یکی از دو سطحِ «لکوسیتوز + سیتوپنیِ شدید» فعال است، WBC صاحب دارد و leukocytosis کنار می‌رود — دو یافته
 //   دربارهٔ یک عدد نمی‌سازیم. «آیا آن قاعده فعال می‌شود»، نه تکرارِ آستانه‌ها (M91e).
+// N4 (بازبینیِ ۲۰۲۶-۱۰-۰۴): «روی این برگه نیست» فقط وقتی ردیف واقعاً چاپ نشده. ردیفِ چاپ‌شدهٔ بی‌بازه در e.ungraded/noRef است،
+//   نه در e.graded — همان سه‌حالتهٔ comp() در patterns_p73_gaps.js و missingFa در patterns_endocrine_rheum.js.
+const printedUngraded = (e, k) => !!(e.ungraded?.[k] || e.noRef?.includes(k));
+
 const LEUK_CYTO_IDS = new Set(["leukocytosis_with_cytopenia", "reactive_leukocytosis_with_cytopenia"]);
 const leukCytopeniaOwns = (e) => RULES_MALIGNANCY.some((r) => LEUK_CYTO_IDS.has(r.id) && r.match(e));
 import { isNeonate, inNeonatalRedCellPeriod, ageFa, NEONATAL_DANGER_WARNING, NEONATAL_SAMEDAY_ACTION, neutMissingText, neonatalContextText,
@@ -182,14 +187,7 @@ function neutLowClause(e) {
 
 // شدتِ کم‌خونی به‌سبکِ WHO: خفیف تا ۱۱، متوسط ۸ تا ۱۱، شدید زیرِ ۸. P53 پرسش ۲ (بارداری): WHO برای بارداری
 // خفیف ۱۰–۱۰.۹، متوسط ۷–۹.۹، شدید زیرِ ۷ — وگرنه بارداری با Hb 10.8 «کم‌خونیِ متوسط» می‌خواند.
-function anemiaSeverityFa(e, hb) {
-  // P77-۹ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ WHO، جدولِ Hb): ۶ تا ۵۹ ماه شدید < ۷، متوسط ۷–۹٫۹، خفیف ۱۰–۱۰٫۹؛ ۵ تا ۱۴ سال همان ۸/۱۱ِ بزرگسال.
-  //    زیرِ ۶ ماه جدولِ WHO نداریم ⇒ بی‌درجه (null؛ فراخواننده «کم‌خونیِ شدید» نمی‌نویسد).
-  if (e.age != null && e.age < 0.5) return null;
-  if (e.age != null && e.age < 5) return hb < 7 ? "شدید" : hb < 10 ? "متوسط" : "خفیف";
-  if (e.pregnant) return hb < 7 ? "شدید" : hb < 10 ? "متوسط" : "خفیف";
-  return hb < 8 ? "شدید" : hb < 11 ? "متوسط" : "خفیف";
-}
+// (anemiaSeverityFa به patterns_utils.js رفت — بازبینیِ ۲۰۲۶-۱۰-۰۴: یک تابع برای دو مصرف‌کننده، نه دو کپیِ ناهم‌خوان.)
 
 // ─── specs/004: فولات و B12 — سه‌حالته، مشترکِ macrocytic_anemia و folate_deficiency ───
 // شرطِ کم‌خونیِ ماکروسیتیک یک جا نوشته می‌شود؛ folate_deficiency با همین تابع کنار می‌رود (N20).
@@ -651,7 +649,9 @@ export const RULES_HEMATOLOGY = [
           // 🔴 N4 (لایهٔ ۲): «کلِ گلبول‌های سفید طبیعی است» فقط با WBCِ نمره‌دارِ در محدوده؛ WBCِ غایب ادعای دروغ بود.
           (e.graded.some((g) => g.test === "WBC" && !g.abnormal)
             ? "تعدادِ کلِ گلبول‌های سفیدِ شما طبیعی است. "
-            : "تعدادِ کلِ گلبول‌های سفید (WBC) روی این برگه نیست و برای تفسیرِ کاملِ این کاهش لازم است. ") +
+            : printedUngraded(e, "WBC")
+              ? "تعدادِ کلِ گلبول‌های سفید (WBC) روی برگه هست ولی اینجا ارزیابی نشد؛ برای تفسیرِ کاملِ این کاهش لازم است. "
+              : "تعدادِ کلِ گلبول‌های سفید (WBC) روی این برگه نیست و برای تفسیرِ کاملِ این کاهش لازم است. ") +
           (urgency === "routine"
             ? "کاهش در این حد خطرِ عفونت را چندان بالا نمی‌برد. "
             : "") +
@@ -1533,7 +1533,8 @@ export const RULES_HEMATOLOGY = [
         pattern: thal ? "microcytic_thal_likely" : "microcytic_ida_likely",
         // N20 (لایهٔ ۲): شاخهٔ تالاسمی همیشه routine بود، در حالی‌که متنِ همین یافته Hb 7.5 را «کم‌خونیِ شدید» می‌خواند و هشدارِ تنگی نفس
         //   می‌داد — «نوبت عادی» کنارِ «شدید». کم‌خونیِ شدید (sev، همان WHO بالا) فوریتِ شاخهٔ آهن را می‌گیرد؛ action از همین urgency می‌آید.
-        urgency: thal && sev !== "شدید" ? "routine" : "this_week",
+        // 🔴 بازبینیِ ۲۰۲۶-۱۰-۰۴ (تأییدِ بازبین): «routine» فقط وقتی درجه معلوم است و شدید نیست؛ شیرخوارِ زیرِ ۶ ماه (بی‌درجه) هرگز routine نمی‌ماند.
+        urgency: thal && sev && sev !== "شدید" ? "routine" : "this_week",
         // زیرِ یک اورژانسِ دیگر (pancytopenia، severe_neutropenia، ...) کاملاً
         // پنهان نشود — آن‌ها دربارهٔ اندازهٔ گلبول و علت‌یابیِ آهن هیچ نمی‌گویند،
         // پس بدونِ این، عددِ Hb/MCV و درخواستِ فریتین از گزارش ناپدید می‌شد.
@@ -1619,9 +1620,9 @@ export const RULES_HEMATOLOGY = [
           ? `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range})${sev ? ` — کم‌خونیِ ${sev}` : ""}. `
           : "";
       let extra = "";
-      // لایهٔ ۴ (P79): «کراتینین» و «CRP» ردیفِ الگوریتمِ بزرگسال‌اند؛ برای کودک فقط دو آزمایشی که خودِ متنِ بالا نام می‌برد
-      //   (رتیکولوسیت، فریتین) می‌ماند — کارِ بیشتر را پزشکِ کودک تعیین می‌کند. بازبین ببیند (P79).
-      let suggest = isPediatricRCPCH(e.age) ? ["رتیکولوسیت", "فریتین"] : ["رتیکولوسیت", "فریتین", "کراتینین", "CRP"];
+      // لایهٔ ۴ (P79) حذفِ کراتینین/CRP برای کودک را گذاشته بود؛ بازبینیِ ۲۰۲۶-۱۰-۰۴ (تأییدِ بازبین، P82) برگرداند:
+      //   بیماریِ کلیه و التهابِ مزمن علتِ ثانویهٔ شناخته‌شدهٔ کم‌خونیِ نورموسیتیکِ کودک‌اند. (منبع نامِ این دو آزمایش را نمی‌آورد؛ پایه علتِ ثانویه است.)
+      let suggest = ["رتیکولوسیت", "فریتین", "کراتینین", "CRP"];
       if (reticHigh) {
         extra = " شمارش رتیکولوسیت بالاست — یعنی مغز استخوان در حال جبران است؛ این بیشتر به خونریزی یا تجزیهٔ گلبول‌ها (همولیز) می‌خورد.";
         suggest = ["هاپتوگلوبین", "LDH", "بیلی‌روبین مستقیم و غیرمستقیم", "بررسی منبع خونریزی"];
@@ -1891,12 +1892,27 @@ export const RULES_HEMATOLOGY = [
       // PT>25، فیبرینوژن<100، یا INR>3 → فوری
       // P77-۷ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ ACP): INR ≥ ۱۰ ⇒ اورژانس، ۴٫۵ تا < ۱۰ ⇒ soon (INR ۳ دیگر اورژانس نیست). PT > 25 و فیبرینوژن < 100 بی‌تغییر.
       //    «با هر نشانهٔ خونریزی در هر INR اورژانس» را موتور نمی‌بیند (علامت ندارد) ⇒ در warnings گفته می‌شود.
-      const severe = (pt && pt.value > 25) || (fib && fib.value < 100) ||
-                     (inr && inr.value >= INR_EMERGENCY_FROM);
-      const soonInr = !severe && !!(inr && inr.value >= INR_SOON_FROM);
+      // 🔴 بازبینیِ ۲۰۲۶-۱۰-۰۴ (تأییدِ بازبین، P82؛ راهنمای کبدِ پروژه/AASLD: آسیبِ حادِ کبد + INRِ بالا ⇒ «همان روز یا اورژانس»):
+      //   INR ≥ ۳ (یا PT > ۲۵) با AST/ALT در درجهٔ شدیدِ موتور (CTCAE ≥ ۳) ⇒ اورژانس، چه وارفارین باشد چه نباشد.
+      //   INR ≥ ۳ با پلاکت یا فیبرینوژنِ پایین (علتِ غیر وارفارینی: DIC، کمبودِ K) ⇒ دست‌کم soon.
+      //   PT > ۲۵ به‌تنهایی دیگر اورژانس نیست (برای بیمارِ وارفارینی افراطی بود و با INR ناهم‌خوان) ⇒ soon، مگر INR طبیعی باشد (P59: ptIsolatedMild).
+      //   ⚠️ «فیبرینوژن < ۱۰۰» منبعِ بازشده ندارد (بازبین نتوانست تأیید کند) — بی‌منبع باقی است، MEDICAL_RULES.md P82.
+      const isoPt = ptIsolatedMild(e);
+      const lvl = (k) => levelGrade(e.graded.find((g) => g.test === k));
+      const liverSevere = lvl("AST") >= 3 || lvl("ALT") >= 3;
+      const lowOf = (k) => { const g = e.graded.find((x) => x.test === k); return !!(g?.abnormal && g.dir === "low"); };
+      const inrRaised = !!(inr && inr.value >= 3) || (!isoPt && !!(pt && pt.value > 25));
+      // ترتیبِ جمله‌ها عمداً حفظ شده: مقدارِ falsyِ آخر (undefined/false) همان است که پیش‌تر بود، پس blocks_others در JSON بی‌تغییر می‌ماند.
+      // تصمیمِ کاربر ۲۰۲۶-۱۰-۰۴ (P82): فیبرینوژن < ۱۰۰ دیگر اورژانس نیست، soon است — ۱۰۰ آستانهٔ کرایو برای بیمارِ در حال خونریزی است، نه اورژانسِ سرپایی.
+      const fibVeryLow = !!(fib && fib.value < 100);
+      const severe = (inrRaised && liverSevere) || (inr && inr.value >= INR_EMERGENCY_FROM);
+      const soonInr = !severe && (
+        fibVeryLow ||
+        !!(inr && inr.value >= INR_SOON_FROM) ||
+        (!isoPt && !!(pt && pt.value > 25)) ||
+        (inrRaised && (lowOf("PLT") || lowOf("FIB"))));
       // job 40b8a901 (F5): PTِ خام کمی بالا با INR و APTTِ طبیعی «زمان لخته شدن طولانی» نیست — INR همان PT است که
       //   بین معرف‌ها قابل‌مقایسه شده. متن سه‌حالته است و عددِ سه شاخص را می‌گوید؛ فوریت دست‌نخورده (P59، تصمیمِ بازبین).
-      const isoPt = ptIsolatedMild(e);
       const brief = coagulationBrief(e);
       return {
         pattern: "coagulation_abnormal",
@@ -1910,17 +1926,19 @@ export const RULES_HEMATOLOGY = [
           ? coagulationIsolatedPtText(e)
           : "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
             "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند.",
+        // 🔴 N20 (بازبینیِ ۲۰۲۶-۱۰-۰۴): urgency «emergency» + blocks_others بود و تنها دستور «همین امروز با پزشک تماس بگیرید» —
+        //    ضعیف‌تر از soonِ همین قاعده («ظرف ۲۴ تا ۴۸ ساعت مراجعه») نبود ولی تماسِ تلفنی زیرِ بنرِ قرمز. حالا اورژانس.
         action: severe
-          ? "همین امروز با پزشک تماس بگیرید."
+          ? "بدون تأخیر به اورژانس مراجعه کنید و بگویید چه داروهایی (به‌ویژه رقیق‌کنندهٔ خون مثل وارفارین) مصرف می‌کنید."
           : soonInr
-            ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و بگویید چه داروهایی (به‌ویژه وارفارین) مصرف می‌کنید. وارفارین را خودسرانه قطع یا تغییر ندهید."
+            ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و بگویید چه داروهایی (به‌ویژه وارفارین) مصرف می‌کنید. اگر وارفارین مصرف می‌کنید، آن را خودسرانه قطع یا تغییر ندهید."
           : isoPt
             ? "در نوبتِ عادی با پزشک مطرح کنید و بخواهید PT و INR تکرار شود. حتماً بگویید چه داروهایی مصرف می‌کنید."
             : "این هفته با پزشک وقت بگیرید. حتماً بگویید چه داروهایی مصرف می‌کنید.",
         suggest: ["تکرار آزمایش انعقاد"],
         warnings: [
           "تا مشخص شدن علت، آسپرین یا مسکن‌های ضدالتهاب مصرف نکنید.",
-          (inr && inr.value >= INR_SOON_FROM)
+          (severe || soonInr || (inr && inr.value >= INR_SOON_FROM))
             ? "اگر خونریزی (مدفوعِ سیاه، خونریزیِ بینی یا لثه که بند نمی‌آید، ادرارِ خونی، کبودیِ گسترده) یا ضربه به سر دارید، همان لحظه به اورژانس بروید."
             : "اگر خونریزی غیرعادی یا کبودی بی‌دلیل دیدید، همان روز به پزشک مراجعه کنید.",
         ],
@@ -2139,10 +2157,13 @@ export const RULES_HEMATOLOGY = [
             ? "LDH و برخی آنزیم‌ها بالا هستند، ولی هاپتوگلوبین طبیعی است — " +
               "این به آسیب یا فعالیت عضلانی اشاره دارد نه شکستن گلبول قرمز. ورزش سنگین اخیر هم می‌تواند علت باشد."
             : "LDH، CK و AST بالا هستند و این ترکیب بیشتر به آسیب یا فعالیت عضلانی می‌خورد تا شکستن گلبول قرمز. " +
-              "هاپتوگلوبین روی این برگه نیست و بدون آن نمی‌شود شکستنِ گلبول قرمز را کاملاً کنار گذاشت. ورزش سنگین اخیر هم می‌تواند علت باشد.",
+              (printedUngraded(e, "HAPTO")
+                ? "هاپتوگلوبین روی برگه هست ولی بازهٔ مرجعِ قابل‌اتکا ندارد و اینجا ارزیابی نشد؛ بدونِ آن نمی‌شود شکستنِ گلبول قرمز را کاملاً کنار گذاشت — عددش را با پزشک بررسی کنید. "
+                : "هاپتوگلوبین روی این برگه نیست و بدون آن نمی‌شود شکستنِ گلبول قرمز را کاملاً کنار گذاشت. ") +
+              "ورزش سنگین اخیر هم می‌تواند علت باشد.",
           // ⚠️ specs/006 (بازبینی B1): این شاخه مالکِ بیلی‌روبینِ نوار *نیست* — «نه کبد» می‌گوید؛ یافتهٔ ادرار مستقل می‌ماند.
           action: "نوبت عادی. اگر ورزش سنگین کرده‌اید حتماً به پزشک بگویید.",
-          suggest: hapto ? ["CK", "تکرار آزمایش پس از استراحت"] : ["CK", "هاپتوگلوبین", "تکرار آزمایش پس از استراحت"],
+          suggest: hapto || printedUngraded(e, "HAPTO") ? ["CK", "تکرار آزمایش پس از استراحت"] : ["CK", "هاپتوگلوبین", "تکرار آزمایش پس از استراحت"],
           warnings: [],
         };
       }
