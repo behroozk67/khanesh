@@ -174,3 +174,58 @@ test("R10: واحدِ چسبیده به عدد در خانهٔ نتیجه هما
   assert.ok(!h.p.findings.some((x) => x.rule_id === "hba2_elevated"));
   assert.ok(h.e.unmapped.includes("HbA2"));
 });
+
+// ---------- قدمِ ۴ (۲۰۲۶-۱۰-۰۵): کودک/شیرخوار، ادرار، سرولوژی — هر کدام روی 1e878eb قرمز ----------
+test("R11: TSHِ داخلِ بازهٔ سنیِ شیرخوار «کم‌کاری» نیست و متنِ تیروئید دربارهٔ TSHِ چاپ‌شده «اندازه‌گیری نشده» نمی‌گوید (N3/N4)", () => {
+  // 🔴 طبقه‌بندِ TSH مرزِ ثابتِ ۴٫۵ داشت: شیرخوارِ ۴ ماهه TSH 6.75 (بازه ۰٫۶–۸٫۱) ⇒ abnormal بی‌جهت ⇒ «، و TSH روی این برگه اندازه‌گیری نشده است».
+  const inf = { sex: "F", age: 0.35 };
+  const a = run([row("TSH", "6.75", "mIU/L")], inf);
+  assert.equal(g(a.e, "TSH").abnormal, false);
+  assert.doesNotMatch(text(a.p), /TSH روی این برگه اندازه‌گیری نشده/);
+  assert.equal(g(run([row("TSH", "9", "mIU/L")], inf).e, "TSH").dir, "high");
+  // بزرگسال بی‌تغییر، جز مرزِ دقیقِ ۰٫۵ که حالا مثلِ refs.js طبیعی است
+  assert.equal(g(run([row("TSH", "4.6", "mIU/L")]).e, "TSH").dir, "high");
+  assert.equal(g(run([row("TSH", "0.5", "mIU/L")]).e, "TSH").abnormal, false);
+});
+
+test("R12: عددی که قاعدهٔ دیگری فقط برای زمینه نام می‌برد، فوریتِ خودش را از دست نمی‌دهد (N29 ساختاری)؛ دیالیز (P72) استثناست", () => {
+  // 🔴 کودکِ ۱۰ ساله: «Hb 19.89» تنها this_week؛ کنارِ «TIBC 585» ⇒ routine (Hb در متنِ tibc_high نام برده می‌شد).
+  const kid = { sex: "F", age: 10 };
+  assert.equal(run([row("HGB", "19.89", "g/dL"), row("TIBC", "585", "µg/dL")], kid).p.overall_urgency, "this_week");
+  assert.equal(run([row("HGB", "19.89", "g/dL"), row("HbF", "8", "%")], kid).p.overall_urgency, "this_week");
+  // گاردِ مخالف: بیمارِ دیالیزی (P72، M310) — کراتینینِ بحرانی همچنان اورژانس نمی‌شود
+  const dia = runPatterns(runEngine({ patient: { sex: "M", age: 60, conditions: ["dialysis"] }, tests: [row("Creatinine", "9", "mg/dL"), row("K", "5.2", "mEq/L")] }));
+  assert.notEqual(dia.overall_urgency, "emergency");
+});
+
+test("R13: ادرار — «Many» بدترین مقدار است، نه بی‌صدا؛ «+/-» مرزی است نه مثبت؛ «Detected» مثبت است (N19/N30)", () => {
+  const F35 = { sex: "F", age: 35 };
+  // 🔴 «Urine RBC: Many» ⇒ هیچ یافته (۳۰–۴۰ ⇒ this_week)؛ «Urine WBC: Many» ⇒ هیچ.
+  assert.equal(run([row("Urine RBC", "Many", "/hpf")], F35).p.overall_urgency, "this_week");
+  const w = run([row("Urine WBC", "Many", "/hpf")], F35).p;
+  const pf = w.findings.find((f) => f.rule_id === "urine_pyuria_alone");
+  assert.ok(pf, w.findings.map((f) => f.rule_id).join());
+  assert.match(pf.must_say, /«Many»/);
+  assert.doesNotMatch(pf.must_say, /null|undefined/);
+  // 🔴 «Ketones: +/-» ⇒ ketonuria_pattern؛ «Nitrite: Detected» ⇒ هیچ.
+  assert.ok(!run([row("Ketones", "+/-")], F35).p.findings.some((f) => f.rule_id === "ketonuria_pattern"));
+  assert.ok(run([row("Nitrite", "Detected")], F35).p.findings.length > 0);
+});
+
+test("R14: کشتِ خون — «POS»/«+» مثبت، «NEG»/«Not detected» منفی؛ «نامعلوم» فوریت و جملهٔ اقدامِ یکسان دارد (N30/N20)", () => {
+  const u = (v) => run([row("Blood Culture", v)]).p.findings.find((f) => f.rule_id === "blood_culture_result");
+  for (const v of ["POS", "+"]) assert.equal(u(v).urgency, "soon", v);
+  for (const v of ["NEG", "Not detected", "Nil"]) assert.equal(u(v).urgency, "routine", v);
+  const unk = u("See report");
+  assert.equal(unk.urgency, "this_week");
+  assert.match(unk.action, /این هفته/);
+});
+
+test("R15: سرخجه IgG — «+» و «-» همان مثبت و منفی‌اند، نه «تفسیر نشدند»", () => {
+  for (const [v, st] of [["+", /در خون شما دیده می‌شود/], ["-", /کافی نیست/]]) {
+    const p = run([row("Rubella IgG", v)]).p;
+    const f = p.findings.find((x) => x.rule_id === "rubella_igg_status");
+    assert.ok(f, `${v}: ${p.findings.map((x) => x.rule_id)}`);
+    assert.match(f.must_say + f.headline, st);
+  }
+});

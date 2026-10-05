@@ -174,8 +174,12 @@ export const CLASSIFIERS = {
     kind: 'classifier',
     label: 'تیروئید',
     bands: [
-      { max: 0.5, tag: 'hyperthyroid', fa: 'پرکاری',  patient: 'غده تیروئید شما پرکارتر از حد معمول است' },
-      { max: 4.5, tag: 'normal',       fa: 'طبیعی',   patient: null },  // حد بالا از ۵ به ۴.۵
+      // 🔴 بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N3/N12): مرزهای ثابتِ ۰٫۵/۴٫۵ بازهٔ سنیِ RCPCH را نادیده می‌گرفتند — TSH 6.75ِ
+      //    شیرخوارِ ۴ ماهه (بازه ۰٫۶–۸٫۱، طبیعی) «کم‌کاری» و abnormal بی‌جهت می‌شد و متنِ تیروئید با «، و TSH روی این برگه
+      //    اندازه‌گیری نشده است» شروع می‌شد. حالا مرزها همان بازهٔ getRef است (بزرگسال ۰٫۵–۴٫۵ ⇒ بی‌تغییر، جز TSH = ۰٫۵ دقیقاً
+      //    که مثلِ refs.js طبیعی است، نه پرکاری).
+      { max: 'lln', tag: 'hyperthyroid', fa: 'پرکاری',  patient: 'غده تیروئید شما پرکارتر از حد معمول است' },
+      { max: 'uln', tag: 'normal',     fa: 'طبیعی',   patient: null },  // حد بالا از ۵ به ۴.۵ (refs.js)
       { max: Infinity, tag: 'hypothyroid', fa: 'کم‌کاری', patient: 'غده تیروئید شما کندتر از حد معمول کار می‌کند' },
     ],
     note: 'آشکار یا تحت‌بالینی بودن را FT4 مشخص می‌کند، نه شدت TSH',
@@ -268,10 +272,12 @@ export function classify(testKey, value, lln, uln) {
     if (limit == null || isNaN(limit)) {
         if (b.max === 'lln') {
             if (testKey === 'MCV') limit = 80;
+            else if (testKey === 'TSH') limit = 0.5;
             else if (testKey === 'MCH') limit = 27;
         }
         if (b.max === 'uln') {
             if (testKey === 'MCV') limit = 100;
+            else if (testKey === 'TSH') limit = 4.5;
             else if (testKey === 'MCH') limit = 34;
         }
     }

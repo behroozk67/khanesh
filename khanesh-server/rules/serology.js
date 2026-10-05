@@ -123,8 +123,9 @@ export function rubellaCut(reference) {
  */
 export function rubellaRead(raw, reference) {
   const s = faDigits(raw).toLowerCase().replace(/‌/g, "").replace(/\s+/g, " ").trim();
-  if (/^(immune|ایمن|positive|pos|reactive|مثبت|واکنش ?گر|detected)$/.test(s)) return { state: "immune", cut: null, n: null };
-  if (/^(non[- ]?immune|nonimmune|not immune|غیر ?ایمن|negative|neg|non[- ]?reactive|nonreactive|منفی|not detected)$/.test(s)) return { state: "nonimmune", cut: null, n: null };
+  // P84: «+» و «-» تنها (و undetected/nil) همان مثبت/منفی‌اند — پیش‌تر «Rubella IgG: +» به «تفسیر نشدند» می‌رفت (فهرستِ بسته، کلِ مقدار).
+  if (/^(immune|ایمن|positive|pos|reactive|مثبت|واکنش ?گر|detected|\+)$/.test(s)) return { state: "immune", cut: null, n: null };
+  if (/^(non[- ]?immune|nonimmune|not immune|غیر ?ایمن|negative|neg|non[- ]?reactive|nonreactive|منفی|not detected|undetected|nil|-)$/.test(s)) return { state: "nonimmune", cut: null, n: null };
   const q = qualState(s);
   if (q.state !== "num") return { state: "unknown", cut: null, n: null };
   const c = rubellaCut(reference);

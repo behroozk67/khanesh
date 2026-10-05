@@ -6,7 +6,10 @@ import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
 // P72: بیمارِ دیالیزیِ اعلام‌شده (specs/011 — شناسهٔ `dialysis`؛ فقط وقتی بیمار خودش گفته).
-const onDialysis = (e) => Array.isArray(e.conditions) && e.conditions.includes("dialysis");
+// export برای کفِ فوریتِ patterns.js (P84): همان پیش‌شرط، یک تعریف.
+export const onDialysis = (e) => Array.isArray(e.conditions) && e.conditions.includes("dialysis");
+// کلیدهایی که P72 برای بیمارِ دیالیزی اورژانسشان را عمداً خاموش کرده (creatinine_emergency، urea_bun_emergency، kidney).
+export const DIALYSIS_SILENCED_KEYS = new Set(["CREAT", "UREA", "UREA_N"]);
 
 // ═══ نوار در برابرِ میکروسکوپ (specs/005، data-model §4) ═══
 // حدهای بالای طبیعی در میدانِ پربزرگ‌نمایی — Henry فصل ۲۹. ⚠️ در انتظارِ بازبین: P50.
@@ -24,8 +27,9 @@ const RBC_RE = /rbc|گلبول\s*قرمز/i;
 function utiFires(e) {
   const le = urinePositive(e, LE_RE);
   const nit = urinePositive(e, NIT_RE);
-  const wbc = urineCellCount(e, WBC_RE);
-  const wbcHigh = wbc != null && wbc > 5;
+  // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N19، P84): «Many/فراوان» بدترین مقدار است و عدد ندارد — urineCellCount آن را null می‌داد و
+  //   قاعده خاموش می‌شد. همان آستانه، با urineCellState (عدد را هم همان‌طور می‌خواند).
+  const wbcHigh = urineCellState(e, WBC_RE, 5) === "high";
   // حداقل دو نشانه برای احتیاط
   return [le, nit, wbcHigh].filter(Boolean).length >= 2;
 }
@@ -40,8 +44,7 @@ function bacteriuriaFires(e) {
   if (!bacteriaSignificant(e)) return false;
   // 🔴 ۲۰۲۶-۱۰-۰۳ (P67): «بدونِ التهاب» یعنی بدونِ التهاب. با گلبولِ سفیدِ بالای ۵ التهاب هست — باکتری + پیوری را
   //    «احتمالاً آلودگیِ نمونه» خواندن نزدیک‌ترین تصویر به عفونت را کم‌خوانی می‌کرد؛ آن را urine_pyuria_alone می‌گیرد.
-  const wbc = urineCellCount(e, WBC_RE);
-  if (wbc != null && wbc > URINE_WBC_UPPER_HPF) return false;
+  if (urineCellState(e, WBC_RE, URINE_WBC_UPPER_HPF) === "high") return false;   // «Many» هم (P84)
   // نشانه‌های عفونت — اگر باشند، UTI فعال است و این الگو نباید بیاید
   return !utiFires(e);
 }
@@ -307,8 +310,8 @@ export const RULES_NEPHROLOGY = [
     id: "hematuria_pattern",
     match: (e) => {
       const blood = urinePositive(e, /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i);
-      const rbc = urineCellCount(e, /rbc|گلبول\s*قرمز/i);
-      const rbcHigh = rbc != null && rbc > 3;
+      // P84 (N19): «RBC: Many» ⇒ همان «بالا»؛ پیش‌تر null و هیچ یافته‌ای (۳۰–۴۰ this_week بود، «Many» هیچ).
+      const rbcHigh = urineCellState(e, /rbc|گلبول\s*قرمز/i, 3) === "high";
       if (!(blood || rbcHigh)) return false;
       // اگر تصویر خاص‌تر (گلومرولونفریت) هست، واگذار کن
       if (isGlomerulonephritis(e)) return false;
@@ -477,7 +480,7 @@ export const RULES_NEPHROLOGY = [
       const ck = e.graded.find((g) => g.test === "CK");
       const ckVeryHigh = ck?.abnormal && ck.dir === "high" && ck.value > 1000;
       const bloodUrine = urinePositive(e, /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i);
-      const rbcHigh = urineCellCount(e, /rbc|گلبول\s*قرمز/i);
+      const rbcHigh = urineCellState(e, /rbc|گلبول\s*قرمز/i, 0) === "high";   // هر گلبول، یا «Many» (P84)
       const proteinuria = urineGrade(e, /protein|پروتئین/i) >= 1;
       // رابدومیولیز: CK خیلی بالا + خون ادرار
       if (ckVeryHigh && bloodUrine) return false;

@@ -6,7 +6,7 @@
 //    منتظرِ بازبینِ انسانی‌اند. هیچ‌کدام emergency نیست؛ سخت‌ترین سطح «soon» (همین امروز) برای کشتِ خونِ مثبت و BHB ≥ ۳ است.
 // ⚠️ متنِ همهٔ قاعده‌ها حکم نمی‌دهد؛ «مطرح می‌کند». و برای هر ردیف سه‌حالت: بالا / پایین-یا-منفی / نامفهوم.
 // ============================================================
-import { serologyReactive, urinePositive, urineCellCount, castAxis, qualState, qualVerdict } from "./patterns_utils.js";
+import { serologyReactive, urinePositive, urineCellCount, urineCellState, castAxis, qualState, qualVerdict } from "./patterns_utils.js";
 import { utiFires, bacteriuriaFires, bacteriaSignificant } from "./patterns_nephrology.js";
 import { RULES_BIOCHEM } from "./patterns_biochem.js";
 import { netUrgency, ALBUMIN_LOW_WARNING } from "./patterns_p73_gaps.js";
@@ -351,6 +351,10 @@ function cultureState(raw, kind = "urine") {
   //   پیش‌تر فقط «عدم رشد/رشد نکرد» منفی بود و بقیه چون شامل «رشد/growth/cfu» بودند مثبت خوانده می‌شدند.
   if (/(no|without|nil)\s+(significant\s+|bacterial\s+|organism\s+)?(growth|organisms?)|no ?growth|negative|sterile|not isolated|no bacteria|عدم ?رشد|بدون ?رشد|رشد ?(نکرد|نداشت|نشد|ندارد)|رشدی|منفی|steril|^-$|(رشد|باکتری|میکروب|growth).{0,25}(مشاهده|دیده|یافت) ?نشد/i.test(s)) return "neg";
   if (kind === "urine" && /<\s*(10[,.]?000|10\s*\^\s*[34]|1[0o]\s*[⁴³])/i.test(s)) return "neg";
+  // P84 (N30، فهرستِ بسته): «NEG»، «Not detected»، «Nil»، «Non-reactive» منفی‌اند؛ «POS»، «+» و «Detected» مثبت — هر دو فقط به‌عنوانِ
+  //   *کلِ* مقدار. پیش‌تر هر دو «نامعلوم» می‌شدند (و نامعلوم حالا this_week است، پس منفیِ نانوشته فوریتِ کاذب می‌گرفت).
+  if (/^(neg\.?|nil|none|not\s*detected|undetected|non.?reactive)$/i.test(s.trim())) return "neg";
+  if (/^(pos\.?|\+{1,4}|detected|reactive)$/i.test(s.trim())) return "pos";
   if (/positive|مثبت|growth|cfu|coli|klebsiella|proteus|pseudomonas|enterobacter|enterococc|staph|strep|candida|acinetobacter|citrobacter|morganella|serratia|salmonella|رشد|اشرشیا|کلبسیلا|پروتئوس|استافیلوکوک|استرپتوکوک|انتروکوک|کاندیدا/i.test(s)) return "pos";
   return "unknown";
 }
@@ -377,7 +381,8 @@ function urineCultureBuild(e) {
 function bloodCultureBuild(e) {
   const r = qualRows(e, /^bloodculture/)[0];
   const st = cultureState(r.raw, "blood");
-  const urgency = st === "pos" ? "soon" : "routine";
+  // N20 (P84): «نامعلوم» پیش‌تر urgency=routine با action=«این هفته» بود — دو نسخه از یک تصمیم. حالا یکی‌اند.
+  const urgency = st === "pos" ? "soon" : st === "unknown" ? "this_week" : "routine";
   const body = {
     pos: `کشتِ خون «${r.raw}» گزارش شده است؛ یعنی میکروب در خون رشد کرده. این نتیجه را آزمایشگاه معمولاً فوری به پزشک اطلاع می‌دهد. گاهی (به‌ویژه وقتی فقط یک شیشه مثبت است) آلودگیِ پوست هنگامِ نمونه‌گیری است، ولی تا پزشک بررسی نکرده نباید آن را بی‌اهمیت گرفت.`,
     neg: "در کشتِ خون رشدِ میکروب گزارش نشده است. (اگر نتیجهٔ مقدماتی است، کشتِ خون معمولاً تا ۵ روز پیگیری می‌شود و گزارشِ نهایی را آزمایشگاه می‌دهد؛ اگر تب یا لرز ادامه دارد، به پزشک بگویید.)",
@@ -445,8 +450,7 @@ const PREGNANCY_URINE_SENTENCE =
   "چون باردار هستید، باکتریِ ادرار حتی بدونِ علامت مهم است (خطرِ عفونتِ کلیه و زایمانِ زودرس) و نوارِ ادرار برای رد کردنش در بارداری کافی نیست؛ کشتِ ادرار لازم است.";
 const pyuriaAlone = (e) => {
   if (utiFires(e)) return false;
-  const w = urineCellCount(e, WBC_RE);
-  if (w == null || !(w > 5)) return false;
+  if (urineCellState(e, WBC_RE, 5) !== "high") return false;   // «Many» هم (P84، N19)
   if (urinePositive(e, LE_RE) || urinePositive(e, NIT_RE)) return false;
   return !castAxis(e).types.includes("wbc");
 };
@@ -542,6 +546,9 @@ export const RULES_COVERAGE_GAPS = [
     match: pyuriaAlone,
     build: (e) => {
       const w = urineCellCount(e, WBC_RE);
+      // «Many» عدد ندارد (P84): مقدارِ چاپ‌شده نقل می‌شود، نه عددِ ساختگی (N6).
+      const wRaw = Object.entries(e.qual || {}).find(([k]) => WBC_RE.test(k) && !/cast|esterase|استراز/i.test(k))?.[1];
+      const wFa = w != null ? `${w} در هر میدانِ میکروسکوپ است (حدِ معمول تا ۵)` : `«${wRaw}» گزارش شده است (حدِ معمول تا ۵ در هر میدانِ میکروسکوپ)`;
       const preg = e.pregnant === true;
       const bact = bacteriaSignificant(e);
       const week = preg || bact;   // باکتری + پیوری = دو نشانه در عمل، هم‌سطحِ uti_likely (this_week)
@@ -550,7 +557,7 @@ export const RULES_COVERAGE_GAPS = [
         urgency: week ? "this_week" : "routine",
         headline: "در ادرارِ شما گلبولِ سفید بالاتر از حدِ معمول است",
         must_say:
-          `گلبولِ سفیدِ ادرار ${w} در هر میدانِ میکروسکوپ است (حدِ معمول تا ۵). گلبولِ سفیدِ ادرار علت‌های متعددی دارد: عفونتِ ادراری (حتی وقتی نوار هنوز منفی است)، سنگ، التهابِ مجاری و گاهی آلودگیِ نمونه. ` +
+          `گلبولِ سفیدِ ادرار ${wFa}. گلبولِ سفیدِ ادرار علت‌های متعددی دارد: عفونتِ ادراری (حتی وقتی نوار هنوز منفی است)، سنگ، التهابِ مجاری و گاهی آلودگیِ نمونه. ` +
           "چون نیتریت و لکوسیت‌استرازِ مثبت کنارش نیست، به‌تنهایی نمی‌شود عفونت را قطعی دانست." +
           (bact ? " باکتریِ قابل‌توجه هم در همین ادرار گزارش شده؛ همراهِ گلبولِ سفیدِ بالا، این‌ها کنارِ هم به عفونتِ ادراری نزدیک‌ترند تا به آلودگیِ نمونه، و کشتِ ادرار آن را روشن می‌کند." : "") +
           (preg ? " " + PREGNANCY_URINE_SENTENCE : ""),

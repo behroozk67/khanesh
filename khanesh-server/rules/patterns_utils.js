@@ -508,8 +508,11 @@ function urinePositive(e, nameRe, { traceCounts = false } = {}) {
     const s = String(v).trim().toLowerCase();
     // منفی صریح
     if (/^(neg|negative|منفی|nil|none|no|clear|-)$/i.test(s)) return false;
-    // trace: بسته به تنظیم
-    if (/trace|کم|رگه/i.test(s)) return traceCounts;
+    // trace: بسته به تنظیم. «+/-» و «±» مرزی‌اند (همان trace)، نه مثبت — پیش‌تر `\+` زیرِ «مثبت صریح» آن را مثبت می‌خواند (N30، P84).
+    if (/trace|کم|رگه/i.test(s) || /^(\+\s*\/\s*-|±)$/.test(s)) return traceCounts;
+    // «Detected»/«Reactive»/«Present» به‌عنوانِ *کلِ* مقدار مثبت است (فهرستِ بسته؛ «Not detected» به این‌جا نمی‌رسد چون کلِ رشته نیست).
+    if (/^(detected|reactive|present)$/i.test(s)) return true;
+    if (/not\s*detected|undetected|non.?reactive|absent|not\s*seen/i.test(s)) return false;
     // مثبت صریح یا +1..+4 یا ≥1
     if (/pos|positive|مثبت|\+/i.test(s)) return true;
     // مقادیر نیمه‌کمی توصیفی: many/moderate/زیاد/متوسط/numerous
@@ -552,6 +555,8 @@ function urineGrade(e, nameRe) {
     const s = String(v).trim().toLowerCase();
     if (/^(neg|negative|منفی|nil|none|no|clear|-)$/i.test(s)) return 0;
     if (/trace|رگه|کم‌رنگ/i.test(s)) return 0.5;
+    // «+/-»، «±» مرزی‌اند = trace — پیش‌تر «+» در آن شمرده می‌شد و «Ketones: +/-» یافتهٔ کتونوری می‌گرفت (N30، P84 MM7).
+    if (/^(\+\s*\/\s*-|-\s*\/\s*\+|±)$/.test(s)) return 0.5;
     // تعداد علامت + (مثل +2 یا ++)
     const plusCount = (s.match(/\+/g) || []).length;
     if (plusCount > 0) {
@@ -568,6 +573,7 @@ function urineGrade(e, nameRe) {
     if (/moderate|متوسط/i.test(s)) return 2;
     if (/few|کم|اندک|low|small|کوچک/i.test(s)) return 1;
     if (/pos|positive|مثبت/i.test(s)) return 2;  // «مثبت» بدون درجه → متوسط فرض
+    if (/^(detected|reactive|present)$/i.test(s)) return 2;  // همان «مثبت» (کلِ مقدار؛ P84، N30)
   }
   return null;
 }
@@ -728,8 +734,7 @@ function isNephrotic(e) {
 // آیا تصویر گلومرولونفریت هست؟ (هماچوری + پروتئینوری + درگیری کلیه)
 function isGlomerulonephritis(e) {
   const bloodUrine = urinePositive(e, /urine\s*blood|ur\s*blood|خون\s*ادرار|hematuria/i);
-  const rbc = urineCellCount(e, /rbc|گلبول\s*قرمز/i);
-  const hematuria = bloodUrine || (rbc != null && rbc > 3);
+  const hematuria = bloodUrine || urineCellState(e, /rbc|گلبول\s*قرمز/i, 3) === "high";   // «Many» هم (P84)
   const proteinuria = (urineGrade(e, /protein|پروتئین/i) || 0) >= 1;
   if (!(hematuria && proteinuria)) return false;
   const cr = e.graded.find((g) => g.test === "CREAT");
@@ -972,7 +977,7 @@ const UBILI_KEY_RE = /bilirubin|بیلی\s*روبین/i;
  * 🔴 نسخهٔ اول «+» و «کم» را زیررشته می‌گرفت و هر عددِ بزرگ‌تر از صفر را مثبت: «<0.5»، «کمتر از 0.5» و «+/-» ⇒ «مثبت، این هفته»،
  *    و «Bilirubin 0.8 mg/dL»ِ سرم روی صفحهٔ مخلوط ⇒ همان (B4). عددِ تنها روی نوارِ بیلی‌روبین مبهم است ⇒ نامعلوم.
  */
-const UBILI_POS_RE = /^(trace|رگه|\+{1,4}|[1-4]\s*\+|\+\s*[1-4]|pos(itive)?|مثبت|present|seen|small|moderate|large|many|کم|متوسط|زیاد|دارد)$/i;
+const UBILI_POS_RE = /^(trace|رگه|\+{1,4}|[1-4]\s*\+|\+\s*[1-4]|pos(itive)?|مثبت|present|seen|detected|reactive|small|moderate|large|many|کم|متوسط|زیاد|دارد)$/i;   // detected/reactive: P84
 function urineBiliValueState(v) {
   const s = String(v ?? "").trim().replace(/[.,;:،؛]+$/, "").trim();
   if (!s || EQUIVOCAL_RE.test(s)) return "unknown";

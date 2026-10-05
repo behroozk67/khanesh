@@ -1,5 +1,5 @@
 import { RULES_INFECTIOUS } from "./patterns_infectious.js";
-import { RULES_NEPHROLOGY, RULES_NEPHROLOGY_NEW } from "./patterns_nephrology.js";
+import { RULES_NEPHROLOGY, RULES_NEPHROLOGY_NEW, onDialysis, DIALYSIS_SILENCED_KEYS } from "./patterns_nephrology.js";
 import { RULES_HEMATOLOGY } from "./patterns_hematology.js";
 import { RULES_BIOCHEM, RULES_BIOCHEM_NEW } from "./patterns_biochem.js";
 import { levelGrade } from "./patterns_utils.js";
@@ -586,6 +586,33 @@ export function runPatterns(engineOut) {
         suggest: [],
         warnings: [],
       });
+    }
+
+    // ═══ کفِ فوریتِ عددِ پوشش‌داده (بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵، N29 ساختاری) ═══
+    // 🔴 عددی که تنها به تورِ بالا می‌رسید فوریتِ خودش را می‌گرفت (بحرانی ⇒ emergency، شدید ⇒ this_week)، ولی وقتی قاعده‌ای
+    //    دیگر آن را فقط *برای زمینه* نام می‌برد یا می‌خواند، پوشش‌داده حساب می‌شد و فوریتِ همان قاعده (اغلب routine) جایش
+    //    می‌نشست: Hbِ ۱۹٫۹ِ کودکِ ۱۰ ساله تنها «این هفته» بود و کنارِ TIBC/HbF/بیلی‌روبینِ غیرمستقیم «نوبتِ عادی» — یعنی هرچه
+    //    برگه کامل‌تر، بیمار کمتر شنید. اصلاحِ تک‌قاعده‌ای (P73، P84) همیشه یکی را جا می‌انداخت؛ این کف برای *هر* قاعده است:
+    //    فوری‌ترین یافتهٔ نمایشیِ مالکِ آن عدد دست‌کم همان فوریتِ تور را می‌گیرد، و جملهٔ اقدامش هم با آن عوض می‌شود (N20).
+    //    فقط بالا می‌برد، هرگز پایین نمی‌آورد؛ یافتهٔ پنهان/brief مالک نیست (آن‌جا blocker فوریتِ بالاتر را دارد).
+    const netNeed = (a) => a.level === "critical" ? "emergency"
+      : (a.level === "marked" || levelGrade(a) >= 3) ? "this_week" : null;
+    const orphanSet = new Set(orphans.map((a) => a.test));
+    const shownOwners = findings.filter((f) => !hidden.has(f) && !briefed.has(f) && f.rule_id !== "unexplained_abnormal");
+    const textOf = (f) => [f.headline, f.must_say].join(" ");
+    for (const a of engineOut.abnormal) {
+      const need = netNeed(a);
+      if (!need || orphanSet.has(a.test)) continue;
+      // P72 (تصمیمِ کاربر): کراتینین/اورهٔ بالای بیمارِ دیالیزیِ اعلام‌شده عمداً اورژانس نیست — کف آن تصمیم را نقض نمی‌کند (M310).
+      if (onDialysis(engineOut) && DIALYSIS_SILENCED_KEYS.has(a.test)) continue;
+      const owners = shownOwners.filter((f) => [...(RULE_READS.get(f.rule_id) ?? [])].includes(a.test) || textNamesTest(textOf(f), a.test));
+      if (!owners.length || owners.some((f) => rank(f.urgency) <= rank(need))) continue;
+      const top = owners.reduce((x, y) => (rank(y.urgency) < rank(x.urgency) ? y : x));
+      top.urgency = need;
+      top.action = need === "emergency"
+        ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
+        : "این هفته با پزشک وقت بگیرید و این برگه را همراه ببرید.";
+      (top.urgency_floor_from ??= []).push(a.test);
     }
   }
 
