@@ -1217,3 +1217,12 @@ test("T57: specs/014 — mergePages: «Urine Protein 2+» (صفحهٔ آزمای
   }
 });
 
+
+test("T58: specs/014 مرحلهٔ ب — برگهٔ فقط-قندِ CSF زیر ۴۰ در مسیرِ موتور می‌ماند: emergency، has_critical، بی‌فراخوانیِ «تفسیر نشد» (N18 مسیریابی)", async () => {
+  const r = await analyze({ patient: { age: 40, sex: "F" }, tests: [{ name: "CSF Glucose", value: "30", unit: "mg/dL" }] });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.has_critical, true);
+  assert.doesNotMatch(r.body.interpretation, /نشناخت|تفسیر نشد/);
+  assert.ok((r.body.general_recommendations ?? []).join(" ").includes("پزشکِ معالج یا پرستارِ بخش"), JSON.stringify(r.body.general_recommendations));
+  assert.ok(!(r.body.ocr_warnings ?? []).some((w) => /قند مایع/.test(w)), JSON.stringify(r.body.ocr_warnings));
+});

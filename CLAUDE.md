@@ -231,7 +231,8 @@ khanesh-project/
 │   │   ├── patterns_serology.js # specs/012 (P68): VDRL/RPR، سرخجه IgG، کومبس غیرمستقیم، هلیکوباکتر — بی‌هیچ آستانهٔ ثابت (C1):
 │   │   │                        #   فقط مرز/واژهٔ چاپ‌شده؛ Anti-Tg/TRAb در قاعدهٔ thyroid (patterns_endocrine_rheum.js)
 │   │   ├── patterns_prenatal.js # specs/013 (P81): دابل/کوآد مارکر از کانالِ جدای e.prenatal — ۱۴ قاعده، فقط آستانه‌های ✅؛ خطرِ چاپ‌شدهٔ آزمایشگاه مقدم
-│   │   ├── specimen.js          # specs/014 (P87، مرحلهٔ الف): هویتِ ادرارِ ۲۴ساعته/مایعِ بدن، پیش از NAME_MAP ⇒ e.specimen؛ بی‌خواننده (U14)
+│   │   ├── specimen.js          # specs/014 (P87، مرحلهٔ الف): هویتِ ادرارِ ۲۴ساعته/مایعِ بدن، پیش از NAME_MAP ⇒ e.specimen؛ تنها خواننده patterns_specimen.js (U14)
+│   │   ├── patterns_specimen.js # specs/014 مرحلهٔ ب (P87 بند ۱۴): ۵ قاعده: csf_glucose_low (emergency)، pleural_glucose_low (soon)، ascites_runyon_pattern (soon)، pregnancy_proteinuria_24h (soon/emergency، فقط با بارداریِ اعلام‌شده)، urine_calcium_24h_high (this_week)؛ واحدِ مبهم نمره نمی‌گیرد؛ پروتئین/اوره/اسید اوریکِ ۲۴ساعته و CSFِ شیرخوار بی‌قاعده
 │   │   ├── prenatal.js          # specs/013: هویتِ ردیف (ادعای دوگذری: نامِ قوی یا MoM ⇒ AFP/hCGِ ضعیف هم) — مشترکِ adapter و قاعده‌ها
 │   │   ├── serology.js          # specs/012: مسیریابی + خوانشِ مجموعهٔ بسته — مشترکِ adapter و قاعده‌ها (یک قاعده برای «مثبت»)
 │   │   ├── patterns_utils.js    # levelGrade, rankOf, qualState (closed-set reader, N6) — shared by every patterns_* file

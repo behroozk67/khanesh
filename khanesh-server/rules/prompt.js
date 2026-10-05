@@ -561,11 +561,15 @@ function specimenFaNames(specimen) {
 function fluidTypeLabel(fluid) {
   if (!fluid?.type) return "نوعِ مایع روی برگه نیامده";
   if (fluid.type === "unknown") return `نوع: کدِ «${fluid.code}»، نامعلوم`;
+  if (fluid.type === "other" && fluid.text) return `نوع: «${fluid.text}»، ناشناخته`;
   return `نوع: ${FLUID_TYPE_FA[fluid.type]}`;
 }
-export function specimenLine(specimen) {
-  const u24 = specimen?.u24 ?? [];
-  const fluid = (specimen?.fluid ?? []).filter((r) => r.id !== "FL_TYPE");
+// مرحلهٔ ب: ردیفی که یافته‌ای تفسیرش کرده («FL_GLU:csf» در explains) در خطِ «بی‌حکم» تکرار نمی‌شود.
+export function specimenLine(specimen, findings = []) {
+  const explained = new Set((findings ?? []).flatMap((f) => f.explains ?? []));
+  const open = (r) => !explained.has(`${r.id}:${r.fluid?.type ?? ""}`);
+  const u24 = (specimen?.u24 ?? []).filter(open);
+  const fluid = (specimen?.fluid ?? []).filter((r) => r.id !== "FL_TYPE").filter(open);
   const bare = specimen?.bareServingFluidNames ?? [];
   const groups = [];
   if (u24.length) groups.push(`ادرار ۲۴ساعته: ${u24.map(specimenItem).join("؛ ")}`);

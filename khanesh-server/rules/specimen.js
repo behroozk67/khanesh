@@ -25,6 +25,7 @@ export const SPECIMEN_FA = Object.freeze({
   U24_UREA: "اورهٔ ادرار ۲۴ساعته",
   U24_CA: "کلسیم ادرار ۲۴ساعته",
   U24_URIC: "اسید اوریک ادرار ۲۴ساعته",
+  U24_ALB: "آلبومین ادرار ۲۴ساعته (میکروآلبومین)",
   FL_GLU: "قند مایع",
   FL_PROT: "پروتئین مایع",
   FL_LDH: "LDH مایع",
@@ -47,6 +48,9 @@ const U24_ANALYTE = Object.freeze({
   ca: "U24_CA", calcium: "U24_CA", کلسیم: "U24_CA",
   ua: "U24_URIC", uric: "U24_URIC", uricacid: "U24_URIC", urate: "U24_URIC", اسیداوریک: "U24_URIC", اوریکاسید: "U24_URIC",
   vol: "U24_VOL", volume: "U24_VOL", totalvolume: "U24_VOL", حجم: "U24_VOL",
+  // بازبینیِ کد (LOW): «Microalbumin 24h» unmapped بود. فقط شناختن؛ نه ACR (نقاطِ برشِ KDIGO برای نسبت‌اند، adapter.js NAME_MAP) و نه ALBِ سرم.
+  alb: "U24_ALB", albumin: "U24_ALB", microalbumin: "U24_ALB", malb: "U24_ALB", آلبومین: "U24_ALB", میکروآلبومین: "U24_ALB",
+  proteintotal: "U24_PROT",
 });
 // نام‌های برهنه که فقط با شاهدِ ۲۴ساعت ادعا می‌شوند (R1-ب). «Volume» تنها عمداً نیست: صفحهٔ منی هم «Volume» دارد (N25).
 const U24_BARE = Object.freeze({
@@ -65,7 +69,7 @@ export function bareUrineShape(name, value, norm) {
 
 function u24ByName(n) {
   if (!n.match(H24)) return null;
-  const rem = n.replace(H24, "").replace(URINE_TOK, "").replace(/(excretion|collection|دفع|ساعته)/g, "");
+  const rem = n.replace(H24, "").replace(URINE_TOK, "").replace(/(excretion|collection|دفع|ساعته)/g, "").replace(/[,،:;]/g, "");
   // «ucr24h»/«uprot24h»: پیشوندِ u فقط وقتی برداشته می‌شود که خودِ باقی‌مانده آنالیت نباشد («uricacid» ≠ «ricacid»).
   return U24_ANALYTE[rem] ?? (rem.startsWith("u") ? U24_ANALYTE[rem.slice(1)] : undefined) ?? null;
 }
@@ -75,7 +79,7 @@ function u24ByName(n) {
 const FLUID_TOK = /(cerebrospinalfluid|cerebrospinal|bodyfluid|pleuralfluid|asciticfluid|peritonealfluid|synovialfluid|pericardialfluid|jointfluid|pleural|pleura|ascitic|ascites|peritoneal|synovial|pericardial|joint|csf|fluid|مایعمغزینخاعی|مغزینخاعی|مایع|پلور|آسیت|صفاق|مفصل|پریکارد)/g;
 const FL_ANALYTE = Object.freeze({
   glu: "FL_GLU", glucose: "FL_GLU", sugar: "FL_GLU", bs: "FL_GLU", قند: "FL_GLU", گلوکز: "FL_GLU",
-  prot: "FL_PROT", protein: "FL_PROT", totalprotein: "FL_PROT", tp: "FL_PROT", پروتئین: "FL_PROT",
+  prot: "FL_PROT", protein: "FL_PROT", totalprotein: "FL_PROT", proteintotal: "FL_PROT", tp: "FL_PROT", پروتئین: "FL_PROT",
   ldh: "FL_LDH", lactatedehydrogenase: "FL_LDH", لاکتاتدهیدروژناز: "FL_LDH",
   type: "FL_TYPE", نوع: "FL_TYPE", typeof: "FL_TYPE",
 });
@@ -98,12 +102,14 @@ export function fluidTypeOf(name, value) {
   const fromValue = typeFromText(value);
   if (fromValue) return { type: fromValue };
   if (/^[\s\d۰-۹٠-٩]+$/.test(String(value))) return { type: "unknown", code: String(value).trim() };
-  return { type: "other" };
+  // بازبینیِ کد (LOW): «Fluid Type: Serum» برچسبِ «مایع دیگر» می‌گرفت — ادعایی که برگه نکرده. متنِ چاپ‌شده همان‌طور برمی‌گردد.
+  return { type: "other", text: String(value).trim().slice(0, 40) };
 }
 
 function fluidByName(n) {
   if (!n.match(FLUID_TOK)) return null;
-  const rem = n.replace(FLUID_TOK, "");
+  // norm() ویرگول را نگه می‌دارد: «Glucose, CSF» ⇒ «glucose,csf» (بازبینیِ کد، LOW).
+  const rem = n.replace(FLUID_TOK, "").replace(/[,،:;]/g, "");
   return FL_ANALYTE[rem] ?? null;
 }
 

@@ -1155,8 +1155,12 @@ const analyzeHandler = async (req, res) => {
       //   ردیفِ کیفیِ بی‌خواننده همان رفتارِ قبلی را دارد (نه «همه‌چیز طبیعی است»). گارد T37.
       const ownedQual = Object.keys(engineCandidate.qual ?? {}).length > 0 &&
         runPatterns(engineCandidate).findings.length > 0;
+      // specs/014 مرحلهٔ ب (N18، مسیریابی): برگهٔ فقط-مایع (قندِ CSF/پلور) هیچ تستِ نمره‌داری ندارد؛ مالکش patterns_specimen.js است.
+      //   فقط وقتی قاعده‌ای واقعاً یافته ساخت در مسیرِ موتور می‌ماند، وگرنه همان «شناخته شد، تفسیر نشد» (U12 سبز).
+      const ownedSpecimen = ((engineCandidate.specimen?.fluid?.length ?? 0) + (engineCandidate.specimen?.u24?.length ?? 0)) > 0 &&
+        runPatterns(engineCandidate).findings.length > 0;
       routedByQual = ownedQual && engineCandidate.graded.length === 0;
-      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis && !hasPrenatal && !ownedQual) {
+      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis && !hasPrenatal && !ownedQual && !ownedSpecimen) {
         console.warn(
           "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
           `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
@@ -1216,7 +1220,7 @@ const analyzeHandler = async (req, res) => {
         );
       }
       // specs/014 (P87، مرحلهٔ الف): ادرارِ ۲۴ساعته/مایعِ بدن — شناخته، بی‌حکم. هیچ یافته‌ای نمی‌سازد، پس فوریت دست نمی‌خورد.
-      const specLine = specimenLine(engineOut.specimen);
+      const specLine = specimenLine(engineOut.specimen, patternOut.findings);
       if (specLine) ocrWarnings.push(specLine);
       // P49: مقداری که یافته‌ای تفسیرش کرده (ویلسون، آنتی‌بادی کنارِ B12ِ پایین) در این خط نمی‌آید.
       const noRefShown = unexplainedNoRef(engineOut.noRef, patternOut.findings);

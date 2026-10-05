@@ -165,11 +165,12 @@ test("U13 — «Fluid Type» کنارِ Glucose/LDHِ برهنه: دوباره�
   assert.match(l, /ردیف‌های «Glucose»، «LDH» بی‌نامِ نمونه چاپ شده‌اند و موتور آن‌ها را مقدارِ خون فرض کرده است./);
 });
 
-test("U14 — هیچ patterns_*.js کانالِ specimen را نمی‌خواند (خواننده فقط پس از تأییدِ P87)", () => {
+test("U14 — فقط patterns_specimen.js کانالِ specimen را می‌خواند (مرحلهٔ ب، دامنهٔ بند ۱۴)", () => {
   const dir = dirname(fileURLToPath(import.meta.url));
   const hits = readdirSync(dir).filter((f) => /^patterns.*\.js$/.test(f))
     .filter((f) => /specimen/i.test(readFileSync(join(dir, f), "utf8")));
-  assert.deepEqual(hits, []);
+  // مرحلهٔ ب (P87 بند ۱۴): تنها خواننده patterns_specimen.js است (قندِ CSF/پلور)؛ هر فایلِ دیگر هنوز ممنوع است.
+  assert.deepEqual(hits.sort(), ["patterns.js", "patterns_specimen.js"]);   // patterns.js = فقط importِ aggregator
 });
 
 // ── بازبینیِ کد (۲۰۲۶-۱۰-۰۵): سه نقص در نسخهٔ اولِ specs/014 — U15، U16، U18 اینجا و T57 در api-contract (mergePages سرور را بالا می‌آورد؛ این فایل نباید server.js را import کند) (اندازه‌گیری‌شده با برگرداندنِ موقتِ تغییر) ──
@@ -198,4 +199,191 @@ test("U18 — احتیاطِ R6 هیچ دستورِ فوری را لغو نمی�
   const l = await lineOf(e);
   assert.match(l, /تا آن موقع هر توصیهٔ فوری در همین گزارش معتبر است/);
   assert.doesNotMatch(l, /نادیده/);
+});
+
+test("U19 — املاهای جاافتادهٔ بازبینی («Glucose, CSF»، «Pleural Fluid Protein (Total)»، «Microalbumin 24h») شناخته می‌شوند؛ «Fluid Type: Serum» «مایع دیگر» نیست (LOW)", async () => {
+  const cases = [
+    ["Glucose, CSF", "FL_GLU", "csf"], ["Protein, CSF", "FL_PROT", "csf"], ["LDH, Pleural", "FL_LDH", "pleural"],
+    ["Pleural Fluid Protein (Total)", "FL_PROT", "pleural"],
+    ["Microalbumin 24h", "U24_ALB", null], ["Urine Albumin/24h", "U24_ALB", null], ["24h Urine Microalbumin", "U24_ALB", null],
+  ];
+  for (const [n, id, type] of cases) {
+    const { e, p } = run([row(n, "250")]);
+    const all = [...sp(e).u24, ...sp(e).fluid];
+    assert.deepEqual(ids(all), [id], n);
+    if (type) assert.equal(all[0].fluid?.type, type, n);
+    assert.deepEqual(e.unmapped, [], n);
+    assert.deepEqual(serumKeys(e), [], `${n}: هیچ کلیدِ سرمی (ALB/ACR/GLU/LDH) ساخته نشود`);
+    assert.equal(p.findings.length, 0, n);
+  }
+  const { e } = run([row("Fluid Type", "Serum"), row("Fluid LDH", "300")]);
+  const line = await lineOf(e);
+  assert.ok(line.includes("«Serum»"), line);
+  assert.ok(!line.includes("مایع دیگر"), line);
+  const { e: e2 } = run([row("Microalbumin 24h", "250", "mg/24h")]);
+  assert.ok((await lineOf(e2)).includes("آلبومین ادرار ۲۴ساعته (میکروآلبومین) 250 mg/24h"));
+});
+
+// ── مرحلهٔ ب (P87 بند ۱۴، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۵): قندِ CSF (emergency) و پلور (soon) ──
+const csf = (v, u = "mg/dL", extra = [], age = 40) => run([row("CSF Glucose", v, u), ...extra], { sex: "F", age });
+const fired = (p) => p.findings.map((f) => `${f.rule_id}:${f.urgency}`);
+
+test("V01 — قندِ CSF زیرِ ۴۰ mg/dL ⇒ emergency با دستورِ «اطلاع به پزشکِ معالج»، نه جملهٔ اورژانسِ سرپایی (FL-C1، N20)", () => {
+  const { p, e } = csf("30");
+  assert.ok(fired(p).includes("csf_glucose_low:emergency"), fired(p).join());
+  const f = p.findings.find((x) => x.rule_id === "csf_glucose_low");
+  assert.match(f.action, /پزشکِ معالج یا پرستارِ بخش اطلاع دهید/);
+  assert.ok(f.must_say.includes("30 mg/dL"), f.must_say);
+  assert.match(f.must_say, /قندِ خون روی همین برگه نیست/);          // N4: بی‌قندِ خون ⇒ نسبت حساب نشد
+  assert.doesNotMatch(f.must_say, /نسبتِ? [^.]*طبیعی/);
+  assert.equal(p.has_critical ?? e.has_critical ?? true, true);
+});
+
+test("V02 — N3: قندِ ۳٫۵ mmol/L طبیعی است و emergency نمی‌شود؛ ۱٫۵ mmol/L همان ۲۷ mg/dL است و می‌شود", () => {
+  assert.deepEqual(fired(csf("3.5", "mmol/L").p).filter((x) => /csf_/.test(x)), []);
+  assert.ok(fired(csf("1.5", "mmol/L").p).includes("csf_glucose_low:emergency"));
+});
+
+test("V03 — بی‌واحد: ۱٫۵ پایین در هر دو خوانش ⇒ emergency؛ ۳۰ مبهم و ۴۵ بالا ⇒ نمره نمی‌گیرند (P48)", () => {
+  assert.ok(fired(csf("1.5", "").p).includes("csf_glucose_low:emergency"));
+  for (const v of ["30", "45", "3.5"]) assert.deepEqual(fired(csf(v, "").p).filter((x) => /csf_/.test(x)), [], v);
+});
+
+test("V04 — نسبتِ CSF/سرم < ۰٫۴ با قندِ خونِ همین برگه ⇒ emergency حتی وقتی خودِ عدد ≥ ۴۰ است؛ نسبتِ ≥ ۰٫۴ بی‌«طبیعی»", () => {
+  const bad = csf("45", "mg/dL", [row("FBS", "160", "mg/dL")]).p;
+  const f = bad.findings.find((x) => x.rule_id === "csf_glucose_low");
+  assert.ok(f, fired(bad).join());
+  assert.match(f.headline, /نسبتِ قندِ/);
+  assert.ok(f.must_say.includes("0.28 است که کمتر از ۰٫۴ است"), f.must_say);
+  const ok = csf("35", "mg/dL", [row("FBS", "60", "mg/dL")]).p.findings.find((x) => x.rule_id === "csf_glucose_low");
+  assert.match(ok.must_say, /می‌تواند از پایین‌بودنِ قندِ خون باشد/);
+  assert.doesNotMatch(ok.must_say, /طبیعی/);
+});
+
+test("V05 — قندِ پلور < ۴۰ ⇒ soon با فهرستِ علت‌ها؛ آسیت و کدِ عددیِ نوعِ مایع نمره نمی‌گیرند (F0)", () => {
+  const f = run([row("Pleural Glucose", "30", "mg/dL")]).p.findings.find((x) => x.rule_id === "pleural_glucose_low");
+  assert.equal(f.urgency, "soon");
+  assert.match(f.must_say, /سل/); assert.match(f.must_say, /روماتوئید/); assert.match(f.must_say, /تشخیص نیست/);
+  for (const rows of [[row("Ascitic Glucose", "30", "mg/dL")], [row("Fluid Type", "4"), row("Fluid Glucose", "20", "mg/dL")]])
+    assert.deepEqual(fired(run(rows).p).filter((x) => /_glucose_low/.test(x)), []);
+});
+
+test("V06 — شیرخوار (< ۱ سال) آستانهٔ بزرگسال نمی‌گیرد؛ سن نامعلوم می‌گیرد", () => {
+  assert.deepEqual(fired(csf("30", "mg/dL", [], 0.5).p).filter((x) => /csf_/.test(x)), []);
+});
+
+test("V07 — ردیفی که تفسیر شد از خطِ «بی‌حکم» بیرون می‌رود، ردیفِ دیگر می‌ماند (N8)", async () => {
+  const { e, p } = run([row("CSF Glucose", "30", "mg/dL"), row("CSF Protein", "80", "mg/dL")]);
+  const { specimenLine } = await import("./prompt.js");
+  const l = specimenLine(e.specimen, p.findings);
+  assert.ok(!/قند مایع/.test(l) && /پروتئین مایع 80/.test(l), l);
+  assert.match(specimenLine(e.specimen), /قند مایع 30/);   // بی‌یافته همان رفتارِ مرحلهٔ الف
+});
+
+test("V08 — فوریت از موتور: قندِ CSF کمتر از ۴۰ با سایر یافته‌ها، دستورِ نهایی هنوز اورژانسیِ همان یافته است (M307-class)", async () => {
+  const { actionStrength } = await import("./prompt.js");
+  const f = csf("30").p.findings.find((x) => x.rule_id === "csf_glucose_low");
+  assert.ok(actionStrength(f.action) >= 3, f.action);
+});
+
+// ── مرحلهٔ ب، دورِ دوم (P87 بند ۱۴): پروتئینِ ۲۴ساعتهٔ بارداری، کلسیمِ ۲۴ساعته، آسیت ──
+const PREG = { sex: "F", age: 30, pregnant: true };
+const prot = (v, u = "mg/24h", extra = [], patient = PREG) => run([row("Urine Prot/24h", v, u), ...extra], patient);
+const only = (p, id) => p.findings.find((f) => f.rule_id === id);
+
+test("W01 — پروتئینِ ۲۴ساعتهٔ بارداری ≥ ۳۰۰ mg با واحدِ چاپ‌شده ⇒ soon؛ «پره‌اکلامپسی دارید» هرگز", () => {
+  const f = only(prot("350").p, "pregnancy_proteinuria_24h");
+  assert.equal(f.urgency, "soon");
+  assert.ok(f.must_say.includes("تشخیصِ پره‌اکلامپسی نیست"), f.must_say);
+  assert.doesNotMatch(f.must_say, /پره‌اکلامپسی دارید/);
+  assert.equal(only(prot("3.5", "g/24h").p, "pregnancy_proteinuria_24h")?.urgency, "soon");   // g ⇒ ×۱۰۰۰
+});
+
+test("W02 — کنترل‌ها: ۲۹۹، بی‌واحد، غیرباردار، نوار (۳+) ⇒ بی‌قاعده؛ ردیف در خطِ «بی‌حکم» می‌ماند", async () => {
+  for (const [v, u, pt] of [["299", "mg/24h", PREG], ["350", "", PREG], ["350", "mg/24h", { sex: "F", age: 30 }]])
+    assert.equal(only(prot(v, u, [], pt).p, "pregnancy_proteinuria_24h"), undefined, `${v} ${u}`);
+  const r = prot("350", "", []);
+  assert.match(await lineOf(r.e), /پروتئین ادرار ۲۴ساعته 350/);
+});
+
+test("W03 — نشانهٔ شدید (پلاکت < ۱۰۰، کراتینین > ۱٫۱، ALT ≥ ۲×حدِ بالای همین آزمایشگاه) ⇒ emergency با دستورِ فوری؛ بی‌نشانه soon", async () => {
+  const { actionStrength } = await import("./prompt.js");
+  for (const extra of [[row("PLT", "90", "K/uL")], [row("Creatinine", "1.3", "mg/dL")], [row("ALT", "80", "U/L")]]) {
+    const f = only(prot("400", "mg/24h", extra).p, "pregnancy_proteinuria_24h");
+    assert.equal(f.urgency, "emergency", JSON.stringify(extra));
+    assert.ok(actionStrength(f.action) >= 4, f.action);
+    assert.match(f.must_say, /ارزیابیِ فوری/);
+  }
+  assert.equal(only(prot("400", "mg/24h", [row("ALT", "50", "U/L")]).p, "pregnancy_proteinuria_24h").urgency, "soon");   // ۵۰ < ۲×۳۳
+  assert.equal(only(prot("200", "mg/24h", [row("PLT", "90", "K/uL")]).p, "pregnancy_proteinuria_24h"), undefined);   // نشانهٔ شدید بی‌پروتئینوری مالِ این قاعده نیست
+});
+
+test("W04 — کلسیمِ ۲۴ساعته: مرد ≥ ۲۵۰، زن ≥ ۲۰۰، mmol ⇒ ×۴۰٫۰۸؛ زیرِ ۱۸ سال و بی‌واحد و جنسِ نامعلوم ⇒ هیچ", () => {
+  const ca = (v, u, pt) => only(run([row("Urine Ca/24h", v, u)], pt).p, "urine_calcium_24h_high");
+  assert.equal(ca("260", "mg/24h", { sex: "M", age: 40 }).urgency, "this_week");
+  assert.equal(ca("240", "mg/24h", { sex: "M", age: 40 }), undefined);
+  assert.ok(ca("210", "mg/24h", { sex: "F", age: 40 }));
+  assert.ok(ca("6", "mmol/24h", { sex: "F", age: 40 }));         // ۶×۴۰٫۰۸ = ۲۴۰
+  assert.equal(ca("260", "mg/24h", { sex: "M", age: 12 }), undefined);
+  assert.equal(ca("260", "", { sex: "M", age: 40 }), undefined);
+  assert.equal(ca("260", "mg/24h", { age: 40 }), undefined);
+});
+
+test("W05 — کلسیمِ ادرار: جملهٔ کلسیمِ خون سه‌حالته (بالا / بالا نیست / روی برگه نیست)", () => {
+  const t = (extra) => only(run([row("Urine Ca/24h", "300", "mg/24h"), ...extra], { sex: "M", age: 40 }).p, "urine_calcium_24h_high").must_say;
+  assert.match(t([]), /کلسیمِ خون روی این برگه نیست/);
+  assert.match(t([row("Calcium", "11.2", "mg/dL")]), /کلسیمِ خونِ شما هم بالاست/);
+  assert.match(t([row("Calcium", "9.5", "mg/dL")]), /کلسیمِ خونِ شما بالا نیست/);
+});
+
+const asc = (rows) => run(rows, { sex: "M", age: 55 });
+test("W06 — آسیت: دو معیار از سه ⇒ soon «سازگار با»، بی‌«پریتونیتِ ثانویه دارید»؛ یک معیار ⇒ هیچ", () => {
+  const two = asc([row("Ascitic Protein", "2.5", "g/dL"), row("Ascitic Glucose", "40", "mg/dL"), row("LDH", "200", "U/L")]).p;
+  const f = only(two, "ascites_runyon_pattern");
+  assert.equal(f.urgency, "soon");
+  assert.ok(f.must_say.includes("PMN"), f.must_say);
+  assert.doesNotMatch(f.must_say, /پریتونیتِ ثانویه دارید/);
+  assert.match(f.must_say, /قندِ مایع کمتر از ۵۰ میلی‌گرم در دسی‌لیتر: برقرار است/);
+  assert.match(f.must_say, /LDHِ مایع بالاتر از حدِ بالای سرمِ همین برگه: برقرار نیست|LDHِ مایع بالاتر از حدِ بالای سرمِ همین برگه: روی برگه نیست/);
+  const one = asc([row("Ascitic Protein", "2.5", "g/dL"), row("Ascitic Glucose", "90", "mg/dL")]).p;
+  assert.equal(only(one, "ascites_runyon_pattern"), undefined);
+});
+
+test("W07 — آسیت: پروتئینِ بی‌واحد قابلِ سنجش نیست (g/dL یا g/L)، پس با یک معیارِ دیگر فعال نمی‌شود؛ LDHِ مایع بدونِ LDHِ سرم هم سنجیده نمی‌شود", () => {
+  assert.equal(only(asc([row("Ascitic Protein", "2.5"), row("Ascitic Glucose", "40", "mg/dL")]).p, "ascites_runyon_pattern"), undefined);
+  assert.equal(only(asc([row("Ascitic LDH", "900", "U/L"), row("Ascitic Glucose", "40", "mg/dL")]).p, "ascites_runyon_pattern"), undefined);
+});
+
+test("W08 — ردیفِ تفسیرشده از خطِ «بی‌حکم» بیرون می‌رود (پروتئینِ بارداری)", async () => {
+  const { e, p } = prot("350");
+  const { specimenLine } = await import("./prompt.js");
+  assert.equal(specimenLine(e.specimen, p.findings), null);
+});
+
+test("W09 — قندِ پلور دو ردیفه: < ۴۰ ⇒ soon، ۴۰ تا < ۶۰ ⇒ this_week با علتِ گسترده، ≥ ۶۰ ⇒ هیچ (تصمیمِ کاربر)", () => {
+  const pl = (v, u, extra = []) => only(run([row("Pleural Glucose", v, u), ...extra]).p, "pleural_glucose_low");
+  assert.equal(pl("30", "mg/dL").urgency, "soon");
+  assert.equal(pl("2.0", "mmol/L").urgency, "soon");            // ≈ ۳۶ mg/dL
+  const mid = pl("55", "mg/dL");
+  assert.equal(mid.urgency, "this_week");
+  assert.match(mid.must_say, /کمتر از ۶۰/); assert.match(mid.must_say, /تشخیص نیست/); assert.match(mid.must_say, /pH مایع/);
+  assert.match(mid.action, /این هفته/);
+  assert.equal(pl("3.0", "mmol/L").urgency, "this_week");       // ≈ ۵۴ mg/dL
+  assert.equal(pl("60", "mg/dL"), undefined);
+  assert.equal(pl("3.5", "mmol/L"), undefined);                 // ≈ ۶۳ mg/dL
+});
+
+test("W10 — قندِ پلور بی‌واحد: فقط وقتی در هر دو خوانش پایین است نمره می‌گیرد؛ کفِ آن کمینهٔ خوانش‌هاست (P48)", () => {
+  const pl = (v) => only(run([row("Pleural Glucose", v, "")]).p, "pleural_glucose_low");
+  assert.equal(pl("2")?.urgency, "soon");        // پایین‌تر از ۴۰ در هر دو خوانش
+  assert.equal(pl("3")?.urgency, "this_week");   // mmol ⇒ ۵۴ (this_week)، mg/dL ⇒ soon ⇒ کمینه
+  for (const v of ["5", "30", "45", "59"]) assert.equal(pl(v), undefined, v);   // مبهم
+  assert.equal(pl("80"), undefined);
+});
+
+test("W11 — نسبتِ قند سه‌حالته در متنِ پلور: نسبتِ بد / نسبتِ ≥ ۰٫۵ با هشدارِ دیابت / قندِ خون نیست (N4)", () => {
+  const t = (extra) => only(run([row("Pleural Glucose", "50", "mg/dL"), ...extra]).p, "pleural_glucose_low").must_say;
+  assert.ok(t([row("FBS", "150", "mg/dL")]).includes("0.33 است که کمتر از ۰٫۵ است"));
+  assert.match(t([row("FBS", "90", "mg/dL")]), /کمتر از ۰٫۵ نیست؛ در بیمارِ دیابتی/);
+  assert.match(t([]), /قندِ خون روی همین برگه نیست/);
 });
