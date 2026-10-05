@@ -240,3 +240,20 @@ test("R16: اورژانسِ اوره/BUN روی معادلِ اوره (×۲٫۱�
   const f = run([row("Urea", "150", "mg/dL"), row("BUN", "96", "mg/dL")]).p.findings.find((x) => x.rule_id === "urea_bun_emergency");
   assert.ok(f && /96/.test(f.must_say) && !/150/.test(f.must_say), f?.must_say);
 });
+
+test("R17: کامای مبهمِ «1,200» — اگر هزارگان برای آن آزمایش ناممکن است، «تفسیر نشدند» نه اورژانس (P86، N3)", () => {
+  // 🔴 روی 6cf797c: بیلی‌روبین/اوره/BUN/FT4/FT3/INR/HCO3/لاکتات/PT/aPTT/TT «1,200» ⇒ ۱۲۰۰ و اورژانس یا this_week.
+  for (const [n, v, u] of [["Total Bilirubin", "1,200", "mg/dL"], ["Urea", "1,200", "mg/dL"], ["BUN", "1,500", "mg/dL"],
+    ["FT4", "1,200", "ng/dL"], ["FT3", "2,800", "pg/mL"], ["INR", "1,200"], ["HCO3", "2,400", "mEq/L"], ["Lactate", "1,800", "mmol/L"],
+    ["PT", "1,250", "sec"], ["PTT", "3,500", "sec"]]) {
+    const { e, p } = run([row(n, v, u)]);
+    assert.equal(e.graded.length, 0, `${n} ${v}: ${JSON.stringify(e.graded.map((x) => [x.test, x.value]))}`);
+    assert.ok(e.unmapped.includes(n), `${n} ${v}: unmapped=${JSON.stringify(e.unmapped)}`);
+    assert.notEqual(p.overall_urgency, "emergency", `${n} ${v}`);
+  }
+  // گاردِ مخالف: هزارگانِ ممکن و اعشارِ کاما همان رفتارِ قبلی
+  assert.equal(g(run([row("AST", "1,200", "U/L")]).e, "AST")?.value, 1200);
+  assert.equal(g(run([row("PLT", "250,000")]).e, "PLT")?.value, 250);
+  assert.equal(g(run([row("Total Bilirubin", "1,2", "mg/dL")]).e, "BILI_T")?.value, 1.2);
+  assert.equal(g(run([row("Triglyceride", "1,200", "mg/dL")]).e, "TG")?.value, 1200);
+});

@@ -853,7 +853,8 @@ export function isPlaceholderValue(v) {
 //    حالا همان قاعدهٔ parseReference در units.js: کاما فقط وقتی هزارگان است که پیش از گروه‌های دقیقاً
 //    سه‌رقمی بیاید و عدد با صفر شروع نشود («250,000»، «1,250,000»)؛ با نقطه در عدد، کاما هزارگان است
 //    («1,234.5»)؛ یک کامای دیگر ممیز است («5,5»، «0,500»)؛ هر شکلِ دیگر («5,5,5») مبهم ⇒ null، نه حدس.
-//    ⚠️ ابهامِ باقی‌مانده: «1,200» همیشه ۱۲۰۰ خوانده می‌شود، حتی اگر منظور ۱٫۲۰۰ بوده باشد.
+//    ⚠️ ابهامِ باقی‌مانده: «1,200» همیشه ۱۲۰۰ خوانده می‌شود، حتی اگر منظور ۱٫۲۰۰ بوده باشد. P86: وقتی ۱۲۰۰ برای آن کلید
+//    ناممکن است، ردیف «تفسیر نشدند» می‌شود (ambiguousThousands، پایین)؛ وقتی ممکن است (AST، TG، قند) همان ۱۲۰۰ می‌ماند.
 const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
 function commaToDot(s) {
@@ -862,6 +863,15 @@ function commaToDot(s) {
   if (run.includes(".") || /^[1-9]\d{0,2}(,\d{3})+$/.test(run)) return s.replace(/,/g, "");
   if (/^\d+,\d+$/.test(run)) return s.replace(",", ".");
   return null;
+}
+// P86: «1,200» (یک گروهِ سه‌رقمی، بی‌نقطه) دو خوانش دارد: ۱۲۰۰ یا ۱٫۲. commaToDot هزارگان می‌گیرد؛ این فقط می‌گوید ابهام بوده
+//    تا اگر خوانشِ هزارگان برای آن کلید ناممکن است (سقفِ SURVIVAL_LIMITS)، ردیف «تفسیر نشدند» شود — نه حدسِ اعشار (N3).
+// سقفِ «خواندنی» فقط برای کامای مبهم، برای کلیدهایی که در SURVIVAL_LIMITS نیستند و ۱۰۰۰+ با هیچ بدنی جور نیست. عمداً بسیار گشاد
+//    (INR ۱۰۰، ثانیه‌های انعقاد ۵۰۰) و روی هیچ عددِ بی‌کاما اثر ندارد. MEDICAL_RULES P86 — منتظرِ بازبین.
+const AMBIG_CEILING = { INR: 100, HCO3: 100, LACTATE: 100, PT: 500, APTT: 500, TT: 500 };
+export function ambiguousThousands(v) {
+  const s = String(v ?? "").replace(/[۰-۹]/g, (d) => FA_DIGITS.indexOf(d)).replace(/[٠-٩]/g, (d) => AR_DIGITS.indexOf(d)).replace(/٬/g, ",");
+  return /^[1-9]\d{0,2},\d{3}$/.test(s.match(/[\d.,]*\d/)?.[0] ?? "");
 }
 // مقدارِ سانسورشده («<6»، «>1000») — N5/N6 (لایهٔ ۲). toNum علامتِ < را دور می‌ریخت: «CRP <6 mg/L» (حدِ بالای ۵) ⇒ «CRP شما 6 است … بالاست»
 //    و «CRP <6» بی‌واحد ⇒ «واحد نامعلوم، خارج از محدوده». «<x» فقط می‌گوید مقدار زیرِ x است: وقتی x از حدِ بالای مرجع بیشتر باشد (یا از
@@ -986,6 +996,7 @@ export function ocrToEngineInput(ocr) {
   const qual = {};
   const unmapped = [];
   const rowNames = {};       // کلیدِ موتور ← نامِ چاپ‌شدهٔ اولین ردیف (برای unmappedِ عددِ ناممکن)
+  const ambigComma = new Set();   // P86: کلیدهایی که مقدارشان «1,200»ِ مبهم بود
   // کلیدهای QUAL_NO_READER که روی برگه بودند — در runEngine به noRef می‌روند (specs/004).
   const noReader = [];
   const noReaderValues = {};   // متنِ خامِ همان کلیدها («Positive»، «منفی»، «25») — P49-ج
@@ -1460,6 +1471,7 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
     rowNames[engineKey] ??= t.name;
+    if (ambiguousThousands(t.value)) ambigComma.add(engineKey);
     if (QUAL_NO_READER.has(engineKey)) {
       if (!noReader.includes(engineKey)) noReader.push(engineKey);
       if (noReaderValues[engineKey] == null) noReaderValues[engineKey] = String(t.value ?? "");
@@ -1666,7 +1678,11 @@ export function ocrToEngineInput(ocr) {
   //    جهت هم وارونه بود (پتاسیمِ پایین). «HCT 2» از «HCT 8»ِ اورژانسی «نوبتِ عادی» می‌گرفت. عددی که با هیچ بدنِ زنده‌ای جور
   //    نیست خوانده نشده است، نه غیرطبیعی: به unmapped («تفسیر نشدند … با پزشک») می‌رود، نه به درجه‌بندی.
   for (const k of Object.keys(tests)) {
-    if (typeof tests[k] === "number" && !possibleValue(k, tests[k])) {
+    // P86: «Bilirubin 1,200»، «Urea 1,200»، «FT4 1,200» ⇒ ۱۲۰۰ و اورژانس، در حالی که هزارگان برای این کلیدها ناممکن است.
+    //    فقط برای کامای مبهم، سقفِ SURVIVAL_LIMITS برای *همهٔ* کلیدهای آن جدول اعمال می‌شود (نه فقط POSSIBLE_GATED).
+    const ceil = SURVIVAL_LIMITS[k]?.[1] ?? AMBIG_CEILING[k];
+    const ambigImpossible = ambigComma.has(k) && ceil != null && tests[k] > ceil;
+    if (typeof tests[k] === "number" && (ambigImpossible || !possibleValue(k, tests[k]))) {
       // ردیف‌هایی که پیش از نگاشتِ عمومی خوانده می‌شوند (الکتروفورز، …) در rowNames نیستند ⇒ نامِ چاپ‌شده از خودِ برگه.
       unmapped.push(rowNames[k] ?? (ocr?.tests || []).find((t) => t?.name && mapKey(norm(t.name)) === k)?.name ?? faName(k));
       delete tests[k];
