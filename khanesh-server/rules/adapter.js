@@ -120,6 +120,10 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   ca: "CA", calcium: "CA", کلسیم: "CA",
   mg: "MG", magnesium: "MG",
   phos: "PHOS", phosphorus: "PHOS", p: "PHOS",
+  // ۲۰۲۶-۱۰-۰۵، خروجیِ LIS یک بیمارستان (۹۰ درخواست): «Serum Ca/Mg/p» نگاشت نمی‌شد، در حالی که «Serum Na/K/Iron» می‌شد —
+  //   کلسیم/منیزیم/فسفرِ ۱۴ درخواست بی‌صدا گم شد (N2). گارد L1.
+  serumca: "CA", serumcalcium: "CA", serummg: "MG", serummagnesium: "MG",
+  serump: "PHOS", serumphos: "PHOS", serumphosphorus: "PHOS",
   // ── هورمون پاراتیروئید ──
   // ⚠️ فقط PTHِ *سرم*. «PTH-rP» (پپتیدِ مرتبط، نشانگرِ هایپرکلسمیِ بدخیمی)
   //    عمداً نگاشت نمی‌شود: بازهٔ مرجعش pmol/L است و کاملاً متفاوت، و در جدولِ
@@ -144,6 +148,9 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   alkp: "ALP", alp: "ALP", alkalinephosphatase: "ALP",
   ggt: "GGT", gammagt: "GGT",
   ckmb: "CK_MB", cpkmb: "CK_MB", ckmbfraction: "CK_MB", ckmbmass: "CK_MB",
+  // همان LIS: «CK-MB II» و «CK MB 1» (شمارهٔ کیت/نوبت، نه آزمایشِ دیگر) — گارد L1. «ckmb2» عمداً نیست: «CK-MB2» نامِ
+  //   ایزوفرمِ MB2 هم هست (نسبتِ MB2/MB1، مقدارش ~۱ U/L) و خواندنش به‌عنوانِ CK-MBِ کل یعنی اطمینانِ کاذب.
+  ckmbii: "CK_MB", ckmb1: "CK_MB",
   cpk: "CK", ck: "CK", creatinekinase: "CK",
   amylase: "AMYLASE", lipase: "LIPASE",
   uricacid: "URIC", uric: "URIC",
@@ -561,6 +568,15 @@ function unitGatedKey(key, unit) {
 const PCT_PLATELETCRIT_UNIT = /^%$/;
 function pctKey(unit) {
   return PCT_PLATELETCRIT_UNIT.test(normUnit(unit)) ? "PLT_CRIT" : "PCT_SEPSIS";
+}
+
+// «PT INR» (ردیفِ جدا از «PT») روی برگه‌های LIS یعنی INR — ۴۰ درخواستِ یک بیمارستان، INRِ ۱٫۴ تا ۱٫۸ بی‌تفسیر (N2، گارد L2).
+//   ولی «PT/INR» گاهی ردیفِ *ثانیهٔ* PT است و INR کنارش. ثانیه (≥ ۸) خوانده‌شده به‌عنوانِ INR یعنی INR ≥ ۱۰ ⇒ اورژانسِ کاذب
+//   (INR_EMERGENCY_FROM). پس فقط عددِ زیرِ ۸ INR است؛ بقیه unmapped («تفسیر نشدند») می‌ماند — نه حدس.
+function ptInrKey(key, value) {
+  if (key !== "ptinr") return undefined;
+  const v = toNum(value);
+  return v != null && v > 0 && v < 8 ? "INR" : undefined;
 }
 
 // ═══ specs/004 (FR-007، N25): کیفی — هرگز به عدد تبدیل نمی‌شوند (N6) و هرگز به qual نمی‌روند ═══
@@ -1466,6 +1482,7 @@ export function ocrToEngineInput(ocr) {
     }
     if (!engineKey) engineKey = unitGatedKey(key, t.unit);
     if (!engineKey && key === "pct") engineKey = pctKey(t.unit);
+    if (!engineKey) engineKey = ptInrKey(key, t.value);
     if (!engineKey) {
       unmapped.push(t.name);
       continue;
@@ -1943,7 +1960,13 @@ export function runEngine(ocr) {
       // با هر واحدِ ممکن غیرطبیعی ⇒ دست‌کم «این هفته» (طراحیِ R7؛ M123d) — بیمار نمی‌داند کدام خوانش درست است.
       // ⚠️ فقط وقتی *بیش از یک* خوانش ممکن است: با یک خوانشِ ممکن واحد عملاً معلوم است و بالا بردنِ فوریت
       //    یعنی نبودِ واحد عدد را خطرناک‌تر از بودنش نشان دهد (Hbِ ۱۲.۵، بازبینیِ کد).
-      if (entry.level === "all" && possible.length > 1) entry.urgency = maxUrg(entry.urgency, "this_week");
+      // 🔴 P88 (۲۰۲۶-۱۰-۰۵، LIS بیمارستان): کفِ «این هفته» جهت را نمی‌دید. اورهٔ ۱۱ = پایین با mg/dL و بالا با mmol/L ⇒ «این هفته»
+      //   برای اورهٔ پایینِ پس از زایمان (۱۴ ردیف). جملهٔ «با هر کدام … خارج» درست است و می‌ماند؛ فقط *کف* شرط دارد: دست‌کم دو خوانشِ
+      //   باورپذیر (مرزِ DECIDE، همان مرزِ hedge؛ یادداشتِ NB1) و همه در یک جهت. وقتی جهت‌ها مخالف‌اند و هر دو مهم‌اند (قندِ ۱۵، کلسیمِ ۵)
+      //   فوریت از کمینهٔ خودِ خوانش‌ها می‌آید (soon / emergency)، نه از این کف. گارد L7.
+      const plausibleAbn = possible.filter((r) => r.verdict === "abnormal" && possibleConv(key, r.conv, true));
+      const oneDir = new Set(plausibleAbn.map((r) => r.dir)).size === 1;
+      if (entry.level === "all" && possible.length > 1 && plausibleAbn.length > 1 && oneDir) entry.urgency = maxUrg(entry.urgency, "this_week");
       if ((neonatalBili || key === "TROPONIN_I") && anyAbnormal) entry.urgency = maxUrg(entry.urgency, "this_week");
       if (neonatalBili) {
         // 🔴 نوزاد (B1، B6، بازبینیِ کد ۲): بازهٔ موتور نوزادی نیست، و محدودهٔ چاپ‌شده کنارِ نمونهٔ نوزاد گاهی

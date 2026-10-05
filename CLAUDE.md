@@ -688,6 +688,12 @@ second one; a recurring entry is the strongest signal in the file.
   the *low* direction had rules. Neut 75 % (in the sheet's own range) × WBC 15.3 = 11475 went to «توضیحِ آماده نداریم». Fixed with a clause in
   `leukocytosis` + `neutrophilia` for a non-high WBC. **A test with `dir` both ways needs a rule per direction** — check `high` for every key that has a `low` rule.
   Guards `M275`–`M275c`.
+- **Recurred on a hospital LIS export (2026-10-05, 90 requests, uncommitted).** `Serum Ca/Mg/p` were unmapped while `Serum Na/K/Iron`
+  mapped (14 requests lost Ca/Mg/P); `CK-MB II`/`CK MB 1` were unmapped; `PT INR` was refused by the `resolveAlias` split guard in 40
+  requests (INR 1.4–1.8 uninterpreted). `PT INR` is now INR **only below 8** (`ptInrKey`): «PT/INR 13.5» can be PT seconds, and reading
+  it as INR 13.5 is a false emergency (`INR_EMERGENCY_FROM`). Guards `L1`, `L2` in `rules/lis1005.test.js`. 24-h urine and body-fluid
+  rows belong to specs/014 (P87, Stage A: recognised, no verdict). A KDIGO/ACOG protein rule drafted alongside this fix was withdrawn
+  because it skipped that spec's collection-completeness gate. **Before adding a reader, check `specs/` for a feature that already owns the rows.**
 - **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
   anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
   *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When
@@ -744,6 +750,10 @@ second one; a recurring entry is the strongest signal in the file.
   settle is **not graded** and goes to `unit_unknown_values`. That finding is never an emergency,
   never says «بالا/پایین», and is `this_week` only if the number is out of range under both units.
   Guards `M121`–`M125`, `T20`.
+  ⚠️ **"Out of range under both units" ignored direction (2026-10-05, hospital LIS export, P88).** Urea 11 is *low* as mg/dL
+  and *high* as mmol/L, so it met "both out" and got the `this_week` floor, on 14 rows, mostly post-partum women whose urea was
+  normal for them. The sentence is true and stays. Only the floor is conditional now: two plausible readings (`DECIDE_LIMITS`),
+  both in the same direction. Glucose 15 and calcium 5 still escalate, through the minimum of their own readings. Guard `L7`.
   **The generalizing lesson is about defaults, not units:** "we only convert when told" is only safe if
   "not told" leads to *not grading*. A default that silently picks one interpretation is a guess
   without the word "guess" in it. It also hid in the test suite: 342 fixture rows had no unit and
@@ -870,6 +880,15 @@ second one; a recurring entry is the strongest signal in the file.
   («تحت‌بالینی») است» and the same report asked for FT4. FT4 high alone read «اما TSH طبیعی است … اغلب خطای آزمایشگاهی» (`routine`). FT3 high
   alone got the *hypothyroid* paragraph (N12 too). Fixed with `missingFa()`, which also separates "printed but not graded". Guards `M304`, `M305`;
   `S08` re-baselined on purpose. **The sweep that found it asks one question of every sentence: does it call a test «طبیعی» that isn't graded?**
+- ⚠️ **Recurred 2026-10-05, the other half of that question: "not on your sheet" about a test that *is* printed but ungraded** (hospital LIS
+  export, no unit column ⇒ bilirubin/Mg go to `ungraded` as `unit_unknown`). `isolated_ldh_elevation` said «هیچ‌کدام از این سه روی برگهٔ شما
+  نیست» and re-requested bilirubin in 7 requests (N8 too); `potassium_critical` said «منیزیم روی این برگه اندازه‌گیری نشده است» beside a
+  printed Mg 1.91. Fixed in those two (+ `hypoparathyroidism`) by checking `e.ungraded[k]`. Guards `L4`, `L6`. About 120 "not measured"
+  sentences in `patterns_*.js` decide presence from `e.graded` alone, so instead of reading them one by one, sweep `L8` prints every
+  two-unit key without a unit next to an abnormal test and fails on any "not on the sheet" sentence or re-request about it. On HEAD
+  it found four more rules (`isolated_thrombocytopenia`, `pth_isolated_abnormal` ×2, `ckmb_high`) and the `alreadyMeasured` sets in
+  `patterns.js`/`prompt.js`, which only counted `graded`. Fixed with one helper, `ungradedFa()` in `patterns_utils.js`. **"Absent" must mean
+  absent from `graded` *and* `ungraded`**; when you write a new absence sentence, call `ungradedFa` first. P88.
 
 ### N5 — Printing a derived number as if it were on the patient's sheet
 `9c93319`
@@ -1457,6 +1476,9 @@ structural, not specific to that rule.
     The only B12 text left was «پایین نیست (1500)», which is true, and it drops the flag.
     **Rule:** if your rule reads a key for context, every branch that key can land in needs a
     sentence, including "above range" when your rule only cares about "low". Guard `M156`.
+    ⚠️ Recurred 2026-10-05 in `coagulation_abnormal` (hospital LIS export): it reads `APTT` for the *high* arm only, so a short
+    aPTT beside a high PT (22 next to PT 14) was "covered" and appeared nowhere, under the text «طولانی‌تر از حد معمول». Fixed with
+    `apttShortClause()` in `must_say` and `brief`. Guard `L3`.
   - **The "all normal" path had the same `=== 0` shape at a different grain.** A sheet whose only
     values had no reference range (`Zinc 40`, `Prolactin 40`) produced no finding and no abnormal
     value. So on the engine path `buildNormalResult` told the patient «نتایج آزمایش شما در محدوده

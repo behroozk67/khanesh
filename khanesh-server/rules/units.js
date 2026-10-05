@@ -650,9 +650,10 @@ export function readingsAcrossSystems(key, value, sex, age) {
   const lim = SURVIVAL_LIMITS[key];
   return p.systems.map((s) => {
     const conv = value * s.factor;
-    const verdict = band && ((band[0] != null && conv < band[0]) || (band[1] != null && conv > band[1]))
-      ? 'abnormal' : 'normal';
+    // ۲۰۲۶-۱۰-۰۵ (P88): جهت هم برگردانده می‌شود — «پایین با یک واحد، بالا با دیگری» دو حکمِ متفاوت است، نه «غیرطبیعی با هر دو».
+    const dir = !band ? null : band[0] != null && conv < band[0] ? 'low' : band[1] != null && conv > band[1] ? 'high' : null;
+    const verdict = dir ? 'abnormal' : 'normal';
     const impossible = !!lim && (conv < lim[0] || conv > lim[1]);
-    return { id: s.id, unit: s.unit, conv, verdict, impossible };
+    return { id: s.id, unit: s.unit, conv, verdict, dir, impossible };
   });
 }

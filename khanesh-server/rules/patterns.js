@@ -75,6 +75,9 @@ export const SUGGEST_TESTS = {
   // P73 (N8): suggestِ anemia_hb_alone؛ وقتی MCV روی برگه هست آن قاعده اصلاً فعال نمی‌شود، پس این ردیف فقط برای کامل‌بودنِ جدول است.
   "شاخص‌های گلبول قرمز (MCV، MCH)": ["MCV"],
   "آهن سرم": ["IRON"],
+  // P88 (N8): ckmb_high و myoglobin_result تروپونین را پیشنهاد می‌دادند حتی وقتی روی برگه بود — ردیف نبود، پس alreadyMeasured «false».
+  "تروپونین — دقیق‌ترین آزمایش برای عضله‌ی قلب": ["TROPONIN_I"],
+  "تروپونین": ["TROPONIN_I"],
   "TIBC": ["TIBC"],
   "پنل کامل آهن": ["FERRITIN", "IRON", "TIBC"],
   // specs/008 (N8): الکتروفورزِ روی برگه = HbA2 چاپ شده؛ sTfR را شاخهٔ التهابِ iron_deficiency پیشنهاد می‌دهد.
@@ -425,7 +428,9 @@ export function runPatterns(engineOut) {
   //    اینجا فیلتر می‌شود — نه در ساخت توصیه‌ها — چون suggest از طریق پرامپت
   //    به LLM هم می‌رود و مدل صادقانه بازگویش می‌کند. سرِ منبع باید پاک باشد.
   // P76: آزمایش‌های خودایمنیِ روی برگه (کیفی در qual یا عددیِ بی‌نمره در ungraded) هم «اندازه‌گیری‌شده»‌اند.
+  // P88: ردیفِ چاپ‌شده ولی بی‌نمره (واحدِ نامعلوم و …) هم «اندازه‌گیری‌شده» است — دوباره درخواست نمی‌شود (N8، گارد L8).
   const measured = new Set([...(engineOut?.graded ?? []).map((g) => g.test), ...Object.keys(engineOut?.hemostasis ?? {}),
+    ...Object.keys(engineOut?.ungraded ?? {}),
     ...AI_KEYS.filter((id) => autoAbState(engineOut ?? {}, id).state !== "absent")]);
   for (const f of findings) {
     if (f.suggest?.length) {

@@ -384,7 +384,7 @@ const normalizeRec = (s) => String(s).replace(/[.؛،\s]+/g, " ").trim();
 export function buildEngineRecommendations(patterns, engineOut) {
   // لایهٔ دوم: runPatterns پیشنهادهای تکراری را از قبل حذف کرده،
   // ولی این مسیر ممکن است با findings دست‌ساز هم صدا زده شود.
-  const measured = new Set((engineOut?.graded ?? []).map((g) => g.test));
+  const measured = new Set([...(engineOut?.graded ?? []).map((g) => g.test), ...Object.keys(engineOut?.ungraded ?? {})]);   // P88
   // پیشنهادهای همهٔ یافته‌ها یک‌جا جمع می‌شوند تا «پنل کامل آهن» بتواند
   // «آهن سرم»ِ یافتهٔ دیگر را هم پوشش بدهد (زیرمجموعه‌ها بین یافته‌ها رخ می‌دهند).
   const allSuggest = dropSubsumedTests([
@@ -464,7 +464,7 @@ function nameTokens(name) {
  * یعنی هر دو)، نه یکی از آن‌ها را.
  */
 export function missingSuggestions(modelRecs, patterns, engineOut) {
-  const measured = new Set((engineOut?.graded ?? []).map((g) => g.test));
+  const measured = new Set([...(engineOut?.graded ?? []).map((g) => g.test), ...Object.keys(engineOut?.ungraded ?? {})]);   // P88
   const allSuggest = dropSubsumedTests([
     ...new Set((patterns?.findings ?? []).flatMap((f) => f.suggest ?? [])
       .filter((t) => !alreadyMeasured(t, measured))),

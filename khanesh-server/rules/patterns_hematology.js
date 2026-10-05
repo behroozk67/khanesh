@@ -1,5 +1,5 @@
 import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
-import { anemiaSeverityFa, infantAnemiaNoGrade, levelGrade } from "./patterns_utils.js";
+import { anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -138,12 +138,21 @@ function coagulationBrief(e) {
   const g = (k) => e.graded.find((x) => x.test === k);
   if (ptIsolatedMild(e)) {
     const pt = g("PT"), inr = g("INR");
-    return `زمان پروترومبین (PT) ${pt.value} (حد طبیعی ${pt.range}) کمی بالاتر است ولی INR ${inr.value} در محدوده است؛ تکرارِ PT و INR را در همان مراجعه با پزشک مطرح کنید.`;
+    return `زمان پروترومبین (PT) ${pt.value} (حد طبیعی ${pt.range}) کمی بالاتر است ولی INR ${inr.value} در محدوده است؛${apttShortClause(e)} تکرارِ PT و INR را در همان مراجعه با پزشک مطرح کنید.`;
   }
   const items = [["PT", "PT (زمان پروترومبین)", "high"], ["INR", "INR", "high"], ["APTT", "APTT", "high"], ["FIB", "فیبرینوژن", "low"]]
     .map(([k, fa, dir]) => { const x = g(k); return x?.abnormal && x.dir === dir ? `${fa} ${x.value} (حد طبیعی ${x.range})` : null; })
     .filter(Boolean);
-  return `شاخص‌های لخته شدنِ خون هم غیرطبیعی است: ${items.join("، ")}. این را در همان مراجعه با پزشک مطرح کنید و بگویید چه داروهایی مصرف می‌کنید.`;
+  return `شاخص‌های لخته شدنِ خون هم غیرطبیعی است: ${items.join("، ")}.${apttShortClause(e)} این را در همان مراجعه با پزشک مطرح کنید و بگویید چه داروهایی مصرف می‌کنید.`;
+}
+// ۲۰۲۶-۱۰-۰۵ (LIS بیمارستان، درخواستِ ۷۸: PT 14↑ + aPTT 22↓): coagulation_abnormal کلیدِ APTT را می‌خواند، پس تورِ
+//   unexplained_abnormal آن را در *هر دو جهت* پوشش‌داده می‌شمرد (M156) — و متن فقط «طولانی‌تر» می‌گفت. aPTTِ کوتاه هیچ‌جا نمی‌آمد.
+//   جملهٔ جهتِ پایین بی‌ادعای بالینی است: فقط عدد، بازه، و اینکه جزوِ «طولانی‌شدن» نیست. گارد L3.
+function apttShortClause(e) {
+  const a = e.graded.find((x) => x.test === "APTT");
+  return a?.abnormal && a.dir === "low"
+    ? ` APTT شما ${a.value} (حد طبیعی ${a.range}) کوتاه‌تر از حد طبیعی است؛ این عدد جزوِ «طولانی‌شدنِ زمان لخته شدن» نیست و جداگانه با پزشک مرور شود.`
+    : "";
 }
 // job 40b8a901 (F1): لنفوسیتِ مطلقِ پایین زیرِ پان‌سیتوپنی. درجهٔ «شدید» از جدولِ CTCAE می‌آید (< ۵۰۰ = G3) و دست نمی‌خورد؛
 //   ولی خواننده نباید آن را «لنفوپنیِ ایزولهٔ شدید» بخواند: WBC کمی پایین است و این کاهش همان افتِ سلول‌های سفید است.
@@ -1922,10 +1931,10 @@ export const RULES_HEMATOLOGY = [
         always_show: true,
         brief,
         headline: "شاخص‌های لخته شدن خون شما غیرطبیعی هستند",
-        must_say: isoPt
+        must_say: (isoPt
           ? coagulationIsolatedPtText(e)
           : "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
-            "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند.",
+            "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند.") + apttShortClause(e),
         // 🔴 N20 (بازبینیِ ۲۰۲۶-۱۰-۰۴): urgency «emergency» + blocks_others بود و تنها دستور «همین امروز با پزشک تماس بگیرید» —
         //    ضعیف‌تر از soonِ همین قاعده («ظرف ۲۴ تا ۴۸ ساعت مراجعه») نبود ولی تماسِ تلفنی زیرِ بنرِ قرمز. حالا اورژانس.
         action: severe
@@ -2278,7 +2287,14 @@ export const RULES_HEMATOLOGY = [
         );
       }
 
-      if (bili === "absent") need.push("بیلی‌روبین مستقیم و غیرمستقیم");
+      // ۲۰۲۶-۱۰-۰۵ (LIS بیمارستان، ۷ درخواست): بیلی‌روبینِ چاپ‌شده با واحدِ نامعلوم (ungraded) یا فقط تام/فقط مستقیم «absent»
+      //   خوانده می‌شد ⇒ «هیچ‌کدام از این سه روی برگهٔ شما نیست» و درخواستِ دوبارهٔ همان آزمایش (N4 + N8). «چاپ‌شده ولی
+      //   غیرمستقیمش به دست نمی‌آید» حالتِ چهارم است. گارد L4.
+      const biliPrinted = ["BILI_I", "BILI_T", "BILI_D"]
+        .some((k) => e.graded.some((x) => x.test === k) || e.ungraded?.[k]);
+      if (bili === "absent" && biliPrinted) {
+        done.push("بیلی‌روبین روی برگهٔ شما هست، ولی بیلی‌روبینِ غیرمستقیم از آن به دست نمی‌آید (یا واحدش روی برگه مشخص نیست یا یکی از دو جزءِ تام و مستقیم چاپ نشده)، پس دربارهٔ همولیز از آن نتیجه‌گیری نمی‌کنیم");
+      } else if (bili === "absent") need.push("بیلی‌روبین مستقیم و غیرمستقیم");
       else {
         named.add("BILI_I"); named.add("BILI_T"); named.add("BILI_D");
         // ⚠️ N5: عددِ مشتق‌شده روی برگهٔ بیمار چاپ نشده. نه نقلش می‌کنیم و نه
@@ -2344,6 +2360,9 @@ export const RULES_HEMATOLOGY = [
       } else if (hgb === "normal") {
         named.add("HGB");
         anemiaLine = "هموگلوبینِ شما طبیعی است، که از احتمالِ همولیزِ فعال و پرحجم می‌کاهد — ولی آن را رد نمی‌کند.";
+      } else if (ungradedFa(e, "HGB", "هموگلوبین")) {
+        // P88: چاپ‌شده ولی بی‌نمره (واحد/جنسِ نامعلوم) ≠ «روی برگه نیست» (N4، گارد L8).
+        anemiaLine = `${ungradedFa(e, "HGB", "هموگلوبین")}؛ پس نمی‌شود گفت این عدد کم‌خونی ساخته یا نه.`;
       } else {
         anemiaLine = "هموگلوبین روی برگهٔ شما نیست؛ بدونِ آن نمی‌شود گفت این عدد کم‌خونی ساخته یا نه.";
       }

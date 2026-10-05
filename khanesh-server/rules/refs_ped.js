@@ -175,7 +175,14 @@ export const PED_REFS = {
   // ---- انعقاد (صفحه ۱ و ۲) ----
   APTT: [                                   // ثانیه — ترم
     { maxAge: M(3),   range: [28.0, 55.0] },
-    { maxAge: 12,     range: [28.0, 45.0] },
+    { maxAge: 1,      range: [28.0, 45.0] },
+    // P88 (۲۰۲۶-۱۰-۰۵، تصمیمِ کاربر): ردیفِ «ترم» تا ۱۲ سال کرانِ پایینِ ۲۸ را به کودکِ ۲ تا ۱۲ ساله می‌داد و aPTTِ طبیعیِ ۲۶–۲۷
+    //   (۴ کودکِ LIS بیمارستان) «پایین» خوانده می‌شد. aPTT «حدودِ ۶ تا ۱۲ ماهگی به مقدارِ بزرگسال می‌رسد» (Andrew 1988/1992، به نقلِ
+    //   practical-haemostasis.com، Paediatric Reference Ranges؛ و WFH Laboratory Manual، Developmental Hemostasis). پس بعد از ۱ سال
+    //   کرانِ پایین همان کرانِ بزرگسالِ refs.js (۲۴) است. کرانِ بالای ۴۵ دست نخورده: aPTTِ کودک در بعضی مطالعه‌ها بلندتر از بزرگسال
+    //   است (Thromb Res 1997، «Longer aPTT values in healthy children than in adults»)، و پایین آوردنش «طولانی» کاذب می‌ساخت.
+    //   aPTT به معرف بستگی دارد (ISTH SSC) — این بازه جایگزینِ محدودهٔ چاپ‌شدهٔ خودِ آزمایشگاه نیست. MEDICAL_RULES.md P88.
+    { maxAge: 12,     range: [24.0, 45.0] },
   ],
   PT: [                                     // ثانیه — ترم
     { maxAge: M(3),   range: [8.5, 14.1] },
