@@ -231,6 +231,7 @@ khanesh-project/
 │   │   ├── patterns_serology.js # specs/012 (P68): VDRL/RPR، سرخجه IgG، کومبس غیرمستقیم، هلیکوباکتر — بی‌هیچ آستانهٔ ثابت (C1):
 │   │   │                        #   فقط مرز/واژهٔ چاپ‌شده؛ Anti-Tg/TRAb در قاعدهٔ thyroid (patterns_endocrine_rheum.js)
 │   │   ├── patterns_prenatal.js # specs/013 (P81): دابل/کوآد مارکر از کانالِ جدای e.prenatal — ۱۴ قاعده، فقط آستانه‌های ✅؛ خطرِ چاپ‌شدهٔ آزمایشگاه مقدم
+│   │   ├── specimen.js          # specs/014 (P87، مرحلهٔ الف): هویتِ ادرارِ ۲۴ساعته/مایعِ بدن، پیش از NAME_MAP ⇒ e.specimen؛ بی‌خواننده (U14)
 │   │   ├── prenatal.js          # specs/013: هویتِ ردیف (ادعای دوگذری: نامِ قوی یا MoM ⇒ AFP/hCGِ ضعیف هم) — مشترکِ adapter و قاعده‌ها
 │   │   ├── serology.js          # specs/012: مسیریابی + خوانشِ مجموعهٔ بسته — مشترکِ adapter و قاعده‌ها (یک قاعده برای «مثبت»)
 │   │   ├── patterns_utils.js    # levelGrade, rankOf, qualState (closed-set reader, N6) — shared by every patterns_* file
@@ -240,6 +241,7 @@ khanesh-project/
 │   │   ├── coverage.js          # sentence-level check that the LLM kept every must_say
 │   │   ├── engine.test.js       # the clinical regression suite
 │   │   ├── geriatric.test.js    # GERIATRIC_REFS coverage
+│   │   ├── specimen.test.js     # specs/014: U01–U14 (شناختن، فریزِ بایت‌به‌بایت، متنِ دقیقِ خط)
 │   │   ├── serology.test.js     # specs/012: S01–S22 (جدا از engine.test.js تا با جلسهٔ هم‌زمان تداخل نکند)
 │   │   ├── (split*.cjs / extract-ids.cjs / patch-frontend*.js archived to tools/archive/, 2026-09-29)
 │   │   ├── (CLINICAL_REVIEW.md, REF_DIFF.md moved to docs/reviews/, 2026-09-29)
@@ -694,6 +696,9 @@ second one; a recurring entry is the strongest signal in the file.
   it as INR 13.5 is a false emergency (`INR_EMERGENCY_FROM`). Guards `L1`, `L2` in `rules/lis1005.test.js`. 24-h urine and body-fluid
   rows belong to specs/014 (P87, Stage A: recognised, no verdict). A KDIGO/ACOG protein rule drafted alongside this fix was withdrawn
   because it skipped that spec's collection-completeness gate. **Before adding a reader, check `specs/` for a feature that already owns the rows.**
+  specs/014 Stage A landed the same day: `rules/specimen.js` claims these rows *before* `NAME_MAP` into `e.specimen` (no reader; guard `U14`)
+  and names them on the «تفسیر نشدند» line. ⚠️ Known limit: a bare `Glucose`/`LDH` printed beside `Fluid Type` is still read as serum —
+  only a caution sentence (`U13`, P87 open question 11).
 - **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
   anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
   *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When

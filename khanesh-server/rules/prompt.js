@@ -15,6 +15,7 @@ import { normalizeFa } from "./coverage.js";
 import { TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
 import { levelGrade } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { SPECIMEN_FA, FLUID_TYPE_FA } from "./specimen.js";
 import { activeConditionIds, conditionFa } from "./conditions.js";
 
 const activeFa = (input) => activeConditionIds(input).map(conditionFa);
@@ -549,12 +550,57 @@ export function unexplainedNoRef(noRef, findings) {
 export const UNINTERPRETED_SYMPTOM_WARNING =
   "اگر علائمِ حاد دارید (تنگیِ نفس، دردِ قفسهٔ سینه، تب و لرز با بی‌حالی، گیجی یا بی‌حالیِ شدید، خونریزی)، منتظرِ تفسیر نمانید و همان روز به پزشک یا اورژانس مراجعه کنید.";
 
-export function buildUninterpretedResult(unmapped = [], { listShown = false } = {}) {
+// ═══ specs/014 (P87، مرحلهٔ الف): متنِ ردیف‌های ادرارِ ۲۴ساعته/مایعِ بدن — شناخته، تفسیرنشده ═══
+// بی‌حکم: نه «بالا/پایین»، نه «طبیعی»، نه زمان‌بندی (گارد U11). نامِ فارسی، هرگز شناسهٔ خام (N8). هیچ عددِ مشتق (نسبت، کلیرانس) — N5.
+const SPECIMEN_PREFIX = "این مقادیر شناخته شدند، ولی موتور هنوز تفسیرشان نمی‌کند (قواعدشان در انتظارِ بازبینیِ پزشک است)";
+const specimenItem = (r) => `${SPECIMEN_FA[r.id]} ${r.raw || "(بی‌مقدار)"}${r.unit ? ` ${r.unit}` : ""}`;
+function specimenFaNames(specimen) {
+  const rows = [...(specimen?.u24 ?? []), ...(specimen?.fluid ?? [])].filter((r) => r.id !== "FL_TYPE");
+  return [...new Set(rows.map((r) => SPECIMEN_FA[r.id]))];
+}
+function fluidTypeLabel(fluid) {
+  if (!fluid?.type) return "نوعِ مایع روی برگه نیامده";
+  if (fluid.type === "unknown") return `نوع: کدِ «${fluid.code}»، نامعلوم`;
+  return `نوع: ${FLUID_TYPE_FA[fluid.type]}`;
+}
+export function specimenLine(specimen) {
+  const u24 = specimen?.u24 ?? [];
+  const fluid = (specimen?.fluid ?? []).filter((r) => r.id !== "FL_TYPE");
+  const bare = specimen?.bareServingFluidNames ?? [];
+  const groups = [];
+  if (u24.length) groups.push(`ادرار ۲۴ساعته: ${u24.map(specimenItem).join("؛ ")}`);
+  // یک گروه برای هر نوعِ مایع؛ هرگز ادغامِ دو مایع (edge case).
+  const byType = new Map();
+  for (const r of fluid) {
+    const k = JSON.stringify(r.fluid ?? null);
+    if (!byType.has(k)) byType.set(k, []);
+    byType.get(k).push(r);
+  }
+  for (const [k, rows] of byType) groups.push(`مایع بدن (${fluidTypeLabel(JSON.parse(k))}): ${rows.map(specimenItem).join("؛ ")}`);
+  // بازبینیِ کد (LOW): برگهٔ فقط-«Fluid Type» هم «شناخته شد» است — وگرنه خط null و نتیجه می‌گفت «هیچ‌کدام را نشناخت».
+  if (!fluid.length) {
+    for (const t of (specimen?.fluid ?? []).filter((r) => r.id === "FL_TYPE")) groups.push(`مایع بدن (${fluidTypeLabel(t.fluid)})`);
+  }
+  // 🔴 بازبینیِ کد (HIGH #2، N20): نسخهٔ اول می‌گفت «تفسیرِ مربوط به آن‌ها را نادیده بگیرید» — کنارِ «Glucose 30» یعنی
+  //   دعوت به نادیده گرفتنِ اورژانسِ هیپوگلیسمی. این جمله فقط *اطلاع* می‌دهد و هیچ دستورِ دیگرِ گزارش را لغو نمی‌کند.
+  const caution = bare.length
+    ? `ردیف‌های ${bare.map((n) => `«${n}»`).join("، ")} بی‌نامِ نمونه چاپ شده‌اند و موتور آن‌ها را مقدارِ خون فرض کرده است. ` +
+      "اگر روی برگهٔ شما این ردیف‌ها مالِ مایع‌اند، این را به پزشک بگویید؛ تا آن موقع هر توصیهٔ فوری در همین گزارش معتبر است."
+    : "";
+  if (!groups.length) return caution || null;
+  return `${SPECIMEN_PREFIX} — ${groups.join(". ")}. دربارهٔ این مقادیر حکمی نمی‌دهیم؛ حتماً با پزشک بررسی کنید.` +
+    (caution ? ` ${caution}` : "");
+}
+
+export function buildUninterpretedResult(unmapped = [], { listShown = false, recognized = null } = {}) {
   const names = [...new Set(unmapped)].filter(Boolean);
   return {
     summary: "این برگه تفسیر نشد. این به معنای «طبیعی» بودن نتایج نیست.",
     interpretation:
-      "موتورِ تفسیرِ ما هیچ‌کدام از مقادیرِ این برگه را نشناخت، پس دربارهٔ «بالا» یا «پایین» بودنشان نظری نمی‌دهیم." +
+      // specs/014: ردیفِ ادرارِ ۲۴ساعته/مایع *شناخته* شد — «هیچ‌کدام را نشناخت» دربارهٔ آن دروغ است (T54).
+      (recognized
+        ? "این مقادیر شناخته شدند (ادرار ۲۴ساعته یا مایع بدن)، ولی موتور هنوز قاعدهٔ تأییدشده‌ای برای تفسیرشان ندارد، پس دربارهٔ آن‌ها حکمی نمی‌دهیم."
+        : "موتورِ تفسیرِ ما هیچ‌کدام از مقادیرِ این برگه را نشناخت، پس دربارهٔ «بالا» یا «پایین» بودنشان نظری نمی‌دهیم.") +
       (names.length ? ` مقادیرِ نشناخته: ${names.join("، ")}.` : "") +
       (listShown
         ? " اعدادِ خوانده‌شده در فهرستِ بالا هست؛ تفسیرشان با پزشک است."
@@ -589,7 +635,9 @@ function buildNormalResultAdult(engineOut) {
   // ⚠️ specs/004 (FR-009، N2): مقدارِ بی‌بازه (noRef) قضاوت نشده، و قضاوت‌نشده «طبیعی» نیست.
   //    پیش از این، برگهٔ «روی ۴۰» یا «پرولاکتین ۴۰» می‌خواند «نتایج آزمایش شما در محدوده طبیعی است».
   const unjudged = [...new Set(engineOut.noRef ?? [])].map(faName);
-  if (unjudged.length) {
+  // specs/014 (P87، مرحلهٔ الف): ردیفِ ادرارِ ۲۴ساعته/مایعِ بدن شناخته شد ولی سنجیده نشد ⇒ «همه طبیعی» آن را نمی‌پوشاند (اصلِ II، T56).
+  const specimenNames = specimenFaNames(engineOut.specimen);
+  if (unjudged.length || specimenNames.length) {
     const judged = engineOut.graded.length > 0;
     return {
       summary: judged
@@ -597,8 +645,15 @@ function buildNormalResultAdult(engineOut) {
         : "مقادیرِ این برگه خوانده شدند، ولی موتور هیچ‌کدام را تفسیر نکرد.",
       interpretation:
         (judged ? "هیچ‌کدام از مقادیری که موتور می‌سنجد خارج از محدودهٔ مرجع نیست. " : "") +
-        `برای این مقادیر محدودهٔ مرجعِ تأییدشده نداریم: ${unjudged.join("، ")}. ` +
-        "درباره‌شان «بالا» یا «پایین» نمی‌گوییم؛ تفسیرشان با پزشک است." +
+        (unjudged.length
+          ? `برای این مقادیر محدودهٔ مرجعِ تأییدشده نداریم: ${unjudged.join("، ")}. ` +
+            "درباره‌شان «بالا» یا «پایین» نمی‌گوییم؛ تفسیرشان با پزشک است."
+          : "") +
+        (specimenNames.length
+          ? (unjudged.length ? " " : "") +
+            `این مقادیرِ ادرار ۲۴ساعته یا مایع بدن شناخته شدند ولی موتور هنوز تفسیرشان نمی‌کند: ${specimenNames.join("، ")}. ` +
+            "دربارهٔ آن‌ها حکمی نمی‌دهیم؛ تفسیرشان با پزشک است."
+          : "") +
         (borderline.length
           ? ` چند مورد نزدیک حد محدوده هستند: ${borderline.map((b) => faName(b.test)).join("، ")}. این به‌خودی‌خود معنایی ندارد، ولی اگر نتیجه قبلی دارید مقایسه کنید.`
           : ""),

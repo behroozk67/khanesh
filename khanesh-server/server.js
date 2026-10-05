@@ -30,11 +30,12 @@ import "dotenv/config";
 // ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
 import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue, inferAge, inferSex } from "./rules/adapter.js";
+import { bareUrineShape } from "./rules/specimen.js";
 import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
-import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine } from "./rules/prompt.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
@@ -695,7 +696,9 @@ export function mergePages(pageResults) {
       const shape = !amb ? ""
         : /%/.test(String(t.unit || "")) || /%\s*$/.test(v) ? ":pct"
         : /\d/.test(v) && !/[a-zA-Zء-ی]/.test(v) ? ":num" : ":txt";
-      const key = semenPrefix + (electroPage && amb ? "electro:" : "") + normName(t.name) + shape;
+      // specs/014 (بازبینیِ کد MEDIUM #3، N25): «Urine Protein 2+» (صفحهٔ آزمایشِ ادرار) و «Urine Protein 3500 mg/24h» (صفحهٔ
+      //   ۲۴ساعته) یک کلید می‌شدند و یکی دور ریخته می‌شد. شکلِ مقدار (درجهٔ نوار / عدد) در کلید ⇒ هر دو می‌مانند.
+      const key = semenPrefix + (electroPage && amb ? "electro:" : "") + normName(t.name) + shape + bareUrineShape(t.name, v, normName);
 
       if (seen.has(key)) {
         const prev = tests[seen.get(key)];
@@ -1096,6 +1099,7 @@ const analyzeHandler = async (req, res) => {
     // کاربر به‌جای تفسیر، دست خالی نماند.
     let engineCandidate = null;
     let unmappedAtFallback = [];
+    let recognizedAtFallback = null;   // specs/014: خطِ «شناخته شد»ِ برگهٔ فقط-ادرارِ ۲۴ساعته/مایع (پیش از null شدنِ engineCandidate)
     let routedByQual = false;   // specs/011: برگه فقط به‌خاطرِ ردیف‌های کیفیِ صاحب‌دار در مسیرِ موتور ماند
     if (lastMergedOcr) {
       engineCandidate = runEngine(lastMergedOcr);
@@ -1158,6 +1162,7 @@ const analyzeHandler = async (req, res) => {
           `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
         );
         unmappedAtFallback = engineCandidate.unmapped;
+        recognizedAtFallback = specimenLine(engineCandidate.specimen);
         engineCandidate = null;
       }
     }
@@ -1210,6 +1215,9 @@ const analyzeHandler = async (req, res) => {
             : `حتماً این مقادیر را با پزشک بررسی کنید.`)
         );
       }
+      // specs/014 (P87، مرحلهٔ الف): ادرارِ ۲۴ساعته/مایعِ بدن — شناخته، بی‌حکم. هیچ یافته‌ای نمی‌سازد، پس فوریت دست نمی‌خورد.
+      const specLine = specimenLine(engineOut.specimen);
+      if (specLine) ocrWarnings.push(specLine);
       // P49: مقداری که یافته‌ای تفسیرش کرده (ویلسون، آنتی‌بادی کنارِ B12ِ پایین) در این خط نمی‌آید.
       const noRefShown = unexplainedNoRef(engineOut.noRef, patternOut.findings);
       if (noRefShown.length) {
@@ -1261,9 +1269,12 @@ const analyzeHandler = async (req, res) => {
 
     // ═══ لایهٔ ۳ (P78): بدونِ موتور، مدل داور نیست ═══
     // گراف هم بی‌موتور اجرا نمی‌شود، حتی با ALLOW_LEGACY_PATH (N13: متنِ خام + بی‌موتور).
-    if (!engineCandidate && (!LEGACY_ALLOWED || USE_GRAPH)) {
+    // specs/014 (FR-008): برگه‌ای که ردیفِ ادرارِ ۲۴ساعته/مایعِ شناخته‌شده دارد حتی با ALLOW_LEGACY_PATH به مدلِ داور نمی‌رسد —
+    //   مرحلهٔ الف یعنی «بی‌حکم»، و مسیرِ قدیم متنِ خام را به مدل می‌دهد تا خودش حکم کند.
+    if (!engineCandidate && (!LEGACY_ALLOWED || USE_GRAPH || recognizedAtFallback)) {
       console.warn("⚠️ موتور برگه را نشناخت و مسیرِ قدیم بسته است — نتیجهٔ «تفسیر نشد» بی‌فراخوانیِ مدل");
-      const out = buildUninterpretedResult(unmappedAtFallback, { listShown: extractedTests.length > 0 });
+      const out = buildUninterpretedResult(unmappedAtFallback, { listShown: extractedTests.length > 0, recognized: recognizedAtFallback });
+      if (recognizedAtFallback) ocrWarnings.push(recognizedAtFallback);
       if (extractedTests.length) out.extracted_tests = extractedTests;
       if (ocrWarnings.length) out.ocr_warnings = ocrWarnings;
       if (pageInfo) out.pages = pageInfo;
@@ -1294,6 +1305,8 @@ const analyzeHandler = async (req, res) => {
       hemostasis: undefined,
       // specs/013 (N13): ردیف‌های غربالگریِ بارداری (raw، نامِ چاپ‌شده) — به گراف نمی‌روند.
       prenatal: undefined,
+      // specs/014 (N13): ردیف‌های ادرارِ ۲۴ساعته/مایع (raw، نامِ چاپ‌شده) — بی‌حکم‌اند و به گراف نمی‌روند.
+      specimen: undefined,
       // specs/011 (FR-019): همان فیلترِ prompt.js — بیماریِ غیرفعال به هیچ عاملِ LLM نمی‌رسد.
       conditions: activeConditionIds(engineOut.conditions),
     } : null;

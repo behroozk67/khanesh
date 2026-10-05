@@ -23,6 +23,7 @@ import { faName } from "./names.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
 import { routeSerology } from "./serology.js";
 import { isPrenatalSheet, prenatalClaim, prenatalItem, parseRiskDenominator, parseRiskCategory, parseGaDays } from "./prenatal.js";
+import { specimenSheetEvidence, specimenClaim, BARE_FLUID_LOOKALIKES } from "./specimen.js";
 import { isCastKey, castRoute, isSgKey, sgValue, SG_KEY, isCrystalKey, crystalRoute, epithelialKind, epithelialRoute,
   urineBiliValueState, urobilValueState, smearRow, mergeSmear } from "./patterns_utils.js";
 
@@ -1038,6 +1039,9 @@ export function ocrToEngineInput(ocr) {
   // specs/013: غربالگریِ سرمِ مادر (دابل/کوآد مارکر) — بی‌نمره، کانالِ جدا (N25). خواننده: patterns_prenatal.js.
   //   به مدل و گراف نمی‌رود (N13).
   const prenatal = { markers: {}, risk: {}, dating: {} };
+  // specs/014 (P87، مرحلهٔ الف): ادرارِ ۲۴ساعته و مایعاتِ بدن — فقط شناخته می‌شوند. هیچ قاعده‌ای نمی‌خواندش (گارد U14)؛
+  //   مصرف‌کننده فقط specimenLine() است. به مدل و گراف نمی‌رود (N13).
+  const specimen = { u24: [], fluid: [], bareServingFluidNames: [] };
   // ردیف‌هایی که واحدشان نه چاپ شده، نه از محدودهٔ مرجع/اندازه تعیین شد (specs/003، P48):
   //   کلید → عددِ خام. سنجیده نمی‌شوند؛ مالک: unit_unknown_values.
   const unitUnknown = {};
@@ -1091,6 +1095,8 @@ export function ocrToEngineInput(ocr) {
 
   // specs/013 (گذرِ ۱): برگه شاهدِ غربالگری دارد؟ (نامِ قوی، واحدِ MoM، ردیفِ خطر) — پرچمِ بارداریِ پروفایل شاهد نیست (پرسش ۳).
   const prenatalSheet = isPrenatalSheet(ocr?.tests || [], norm);
+  // specs/014 (R1): شاهدِ ۲۴ساعت و ردیفِ «Fluid Type» در سطحِ برگه.
+  const specimenEv = specimenSheetEvidence(ocr?.tests || [], norm, mapKey);
 
   for (let t of ocr?.tests || []) {
     if (!t?.name) continue;
@@ -1108,6 +1114,22 @@ export function ocrToEngineInput(ocr) {
                  (trop && /^(ng|µg|ug|μg|pg)\/(l|ml)$/i.test(sm[2].replace(/\s+/g, ""))) ||
                  (k0.endsWith("_ABS") && /(10\^?3|10\*3|10³)\/(µl|ul|μl)|\/(µl|ul|μl)|cells/i.test(sm[2])))) {
         t = { ...t, value: sm[1], unit: sm[2] };
+      }
+    }
+    // ═══ specs/014 (R2، N25): ادرارِ ۲۴ساعته / مایعِ بدن — پیش از prenatal و پیش از NAME_MAP/resolveAlias ═══
+    //   «Fluid LDH» هرگز به کلیدِ LDHِ سرم نمی‌رسد؛ «Urine Protein»ِ کنارِ حجمِ ۲۴ساعته به نوارِ ادرار (qual) نمی‌رسد.
+    //   ردیفی که mapKey امروز می‌شناسد ادعا نمی‌شود (R3: «24h urine calcium» همان U_CA می‌ماند).
+    {
+      const sc = specimenClaim(t, specimenEv, norm, mapKey);
+      if (sc) {
+        const item = { id: sc.id, name: t.name, raw: String(t.value ?? "").trim(), unit: String(t.unit ?? "").trim() || null, claimed_by: sc.claimed_by };
+        if (sc.fluid !== undefined) item.fluid = sc.fluid;
+        const list = sc.id.startsWith("FL_") ? specimen.fluid : specimen.u24;
+        const prev = list.find((x) => x.id === item.id && (x.fluid?.type ?? null) === (item.fluid?.type ?? null));
+        // R7: دو مقدارِ ناهم‌خوان برای یک هویت ⇒ اولی می‌ماند، دومی «تفسیر نشدند» (قاعدهٔ هموستاز).
+        if (!prev) list.push(item);
+        else if (prev.raw !== item.raw) unmapped.push(t.name);
+        continue;
       }
     }
     // ═══ specs/013 (گذرِ ۲): ردیفِ غربالگریِ بارداری — پیش از هر لایهٔ دیگر و پیش از شاخهٔ «MoM ⇒ unmapped» ═══
@@ -1777,6 +1799,18 @@ export function ocrToEngineInput(ocr) {
     }
   }
 
+  // specs/014 (R6): «Fluid Type» کنارِ Glucose/LDHِ برهنه — نمی‌دانیم مالِ مایع‌اند یا سرم (درخواستِ ۲۸ هر دو را دارد).
+  //   دوباره‌نسبت داده نمی‌شوند (FR-004)؛ فقط نامشان برای جملهٔ احتیاط. «Protein»ِ برهنه mapKey ندارد و در unmapped هست.
+  if (specimenEv.fluidTypeRow) {
+    for (const t of ocr?.tests || []) {
+      const n = t?.name ? norm(t.name) : "";
+      const twin = BARE_FLUID_LOOKALIKES[n];
+      if (twin && mapKey(n) && !specimen.fluid.some((r) => r.id === twin) && !specimen.bareServingFluidNames.includes(t.name)) {
+        specimen.bareServingFluidNames.push(t.name);
+      }
+    }
+  }
+
   return {
     tests,
     qual,
@@ -1784,6 +1818,7 @@ export function ocrToEngineInput(ocr) {
     smear: mergeSmear(smearItems),
     hemostasis,
     prenatal,
+    specimen,
     serologyRef,
     serologyAssay,
     unitUnknown,
@@ -1813,7 +1848,7 @@ function inferPregnant(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, hemostasis, prenatal, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
   // specs/011 (P66): شناسه یا برچسبِ قدیمیِ فارسی → شناسهٔ کاتالوگ. regexِ سرطان همان قبلی است (در conditions.js).
@@ -2207,6 +2242,8 @@ export function runEngine(ocr) {
     hemostasis,
     // specs/013: دابل/کوآد مارکر — خواننده: patterns_prenatal.js. به مدل و گراف نمی‌رود (N13).
     prenatal,
+    // specs/014 (P87، مرحلهٔ الف): ادرارِ ۲۴ساعته و مایعِ بدن — بی‌خواننده؛ فقط specimenLine (prompt.js). به مدل و گراف نمی‌رود (N13).
+    specimen,
     // specs/012: مرزِ چاپ‌شدهٔ ردیف‌های سرولوژی (کلید = نامِ خامِ ردیف در qual). به مدل نمی‌رود (N13).
     serologyRef,
     ungraded,

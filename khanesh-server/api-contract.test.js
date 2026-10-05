@@ -1164,3 +1164,56 @@ test("T53: fenceData — «</test_results>» یا «<patient_info>» در متن
   assert.doesNotMatch(s, /<\s*\/?\s*(test_results|patient_info)\s*>/i);
   assert.equal(fenceData("Hb 12.5 g/dL <13"), "Hb 12.5 g/dL <13");
 });
+
+// ─────────── specs/014 (P87، مرحلهٔ الف): ادرارِ ۲۴ساعته و مایعاتِ بدن «شناخته» می‌شوند، تفسیر نه ───────────
+// 🔴 روی درختِ پیش از specs/014 هر سه قرمز: همهٔ ردیف‌ها unmapped ⇒ «هیچ‌کدام … را نشناخت» و بی‌خطِ «شناخته شدند».
+const SPECIMEN_PREFIX = "این مقادیر شناخته شدند، ولی موتور هنوز تفسیرشان نمی‌کند";
+test("T54: برگهٔ فقط-ادرارِ ۲۴ساعته — «شناخته شد»، نه «نشناخت»؛ بی‌حکمِ «طبیعی است»، بی‌فراخوانیِ مدل (N18، SC-004)", async () => {
+  const t = (name, value) => ({ name, value, unit: "" });
+  const r = await analyze({ patient: { age: 25, sex: "F" },
+    tests: [t("Urine Volume/24h", "1700"), t("Urine Prot/24h", "153"), t("Urine Cr/24h", "700")] });
+  assert.equal(r.status, 200);
+  assert.equal(llmCalls, 0, "مدل صدا زده شد");
+  assert.equal(r.body.has_critical, false);
+  assert.match(r.body.interpretation, /این مقادیر شناخته شدند \(ادرار ۲۴ساعته یا مایع بدن\)/);
+  assert.doesNotMatch(r.body.interpretation, /نشناخت/);
+  assert.ok((r.body.ocr_warnings ?? []).some((w) => w.startsWith(SPECIMEN_PREFIX) && /پروتئین ادرار ۲۴ساعته 153/.test(w)),
+    JSON.stringify(r.body.ocr_warnings));
+  assert.doesNotMatch(JSON.stringify(r.body), /طبیعی است|U24_|FL_/);
+});
+
+test("T55: درخواستِ ۲۸ — مسیرِ موتور، خطِ «شناخته شد» کنارِ هشدارهای دیگر، has_critical همانِ برگهٔ بی‌مایع", async () => {
+  const t = (name, value) => ({ name, value, unit: "" });
+  const serum = [t("Total Protein", "6.6"), t("LDH", "367")];
+  const base = await analyze({ patient: { age: 46, sex: "F" }, tests: serum });
+  const r = await analyze({ patient: { age: 46, sex: "F" },
+    tests: [t("Fluid Type", "4"), t("Fluid Glucose", "122"), t("Fluid Protein", "5.5"), t("Fluid LDH", "306"), ...serum] });
+  assert.equal(r.status, 200);
+  assert.ok(r.body._engine, "مسیرِ موتور گرفته نشد");
+  assert.equal(r.body.has_critical, base.body.has_critical);
+  assert.deepEqual(r.body._engine.patterns, base.body._engine.patterns);
+  assert.ok((r.body.ocr_warnings ?? []).some((w) => w.startsWith(SPECIMEN_PREFIX) && /نوع: کدِ «4»، نامعلوم/.test(w)),
+    JSON.stringify(r.body.ocr_warnings));
+  assert.equal(r.body._engine.specimen, undefined, "کانالِ specimen به پاسخ رسید");
+});
+
+test("T56: پنلِ طبیعی + پروتئینِ ۲۴ساعته — «چند مقدار تفسیر نشدند»، نه «همه طبیعی» (اصلِ II)", async () => {
+  const r = await analyze({ ...PANEL_NORMAL, tests: [...PANEL_NORMAL.tests, { name: "Urine Prot/24h", value: "153", unit: "" }] });
+  assert.equal(r.status, 200);
+  assert.equal(llmCalls, 0);
+  assert.equal(r.body.summary, "مقادیری که موتور می‌سنجد در محدودهٔ طبیعی‌اند، ولی چند مقدارِ این برگه تفسیر نشدند.");
+  assert.match(r.body.interpretation, /پروتئین ادرار ۲۴ساعته/);
+});
+
+const specRow = (name, value, unit = "") => ({ name, value, unit });
+test("T57: specs/014 — mergePages: «Urine Protein 2+» (صفحهٔ آزمایشِ ادرار) و «Urine Protein 3500 mg/24h» به هر ترتیب هر دو می‌مانند (MEDIUM #3، N25)", async () => {
+  const { mergePages } = await import("./server.js");
+  const ua = { ok: true, page: 1, ocr: { tests: [specRow("Urine Protein", "2+")], patient: {} } };
+  const u24 = { ok: true, page: 2, ocr: { tests: [specRow("Urine Protein", "3500", "mg/24h"), specRow("24h Urine Volume", "1800", "mL")], patient: {} } };
+  for (const order of [[ua, u24], [u24, ua]]) {
+    const m = mergePages(order);
+    const vals = m.tests.filter((t) => t.name === "Urine Protein").map((t) => String(t.value)).sort();
+    assert.deepEqual(vals, ["2+", "3500"], JSON.stringify(m.tests));
+  }
+});
+
