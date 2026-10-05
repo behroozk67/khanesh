@@ -445,7 +445,7 @@ export function getRef(testKey, sex, age, { pregnant = false } = {}) {
   if (testKey === 'BILI_I' && age != null && age * 365 < 14 && !getPedRef(testKey, age)) return null;
   if (testKey === 'HGB' && pregnant && sex === 'F') return hgbRef(sex, age, { pregnant });
   if (isPediatricRCPCH(age)) {
-    const ped = getPedRef(testKey, age);
+    const ped = getPedRef(testKey, age, sex);
     if (ped) return ped;
     // RCPCH: "If there is no age-specific paediatric range, use the adult range."
   }

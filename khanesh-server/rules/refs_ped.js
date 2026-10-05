@@ -49,6 +49,8 @@ export const P57_SOURCE = 'User-approved 2026-09-28 (P57, pasted reference)';
 // CALIPER، Am J Clin Pathol 2020، Beckman Coulter DxH 900، سالمِ ۰ تا <۲۱ سال، متنِ باز: https://pmc.ncbi.nlm.nih.gov/articles/PMC7403759/ (جدولِ ۱، ۲۰۲۶-۰۹-۲۹)
 export const NATHAN_OSKI_SOURCE = 'Nathan & Oski (table supplied by user, approved 2026-09-30; book not opened)';
 export const CALIPER_SOURCE = 'CALIPER 2020 (Am J Clin Pathol, DxH 900), PMC7403759';
+// Ghasemi A, et al. Arch Iran Med 2015;18(11):753–9 (TLGS)، جدولِ ۲، متنِ باز: https://journalaim.com/PDF/67_Nov2015_005.pdf (این جلسه باز کرد، ۲۰۲۶-۱۰-۰۵)
+export const GHASEMI_JAFFE_SOURCE = 'Ghasemi 2015 (Arch Iran Med, TLGS, conventional Jaffe), Table 2';
 
 export const PED_REFS = {
 
@@ -200,11 +202,20 @@ export const PED_REFS = {
     { maxAge: 1,      range: r(0.8, 5.5, CONV.UREA_N) },   // 0–12 ماه
     { maxAge: 16,     range: r(2.5, 6.5, CONV.UREA_N) },   // 1–16 سال
   ],
+  // P88 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۵: آزمایشگاه‌های هدف کراتینین را با Jaffe می‌سنجند). Jaffe به‌خاطرِ کروموژن‌های
+  //   غیرکراتینینی در کودک بالاتر از آنزیمی می‌دهد؛ بازهٔ آنزیمیِ قبلی (۵–۱۱ سال: ۰٫۳۳–۰٫۶۰) کراتینینِ سالمِ ۰٫۷ را «بالا» می‌زد.
+  //   ۳ تا <۱۶ سال: GHASEMI_JAFFE_SOURCE، جدولِ ۲ (Jaffeِ متداول، کیتِ پارس‌آزمون، ۱۵۰۲ کودکِ سالمِ تهرانی، CLSI ناپارامتری).
+  //   گروه‌های مقاله «۳–۶، ۶–۹ …» است ⇒ maxAge = مرز منهای یک روز تا کودکِ «۶ ساله» در گروهِ ۶–۹ بیفتد.
+  //   ⚠️ زیرِ ۳ سال منبعِ Jaffe باز نشد (CALIPER Colantonio 2012 پشتِ دیوارِ پرداخت است) ⇒ دو ردیفِ اول همان RCPCH ماند،
+  //   که برای Jaffe احتمالاً سقفِ پایینی دارد (شیرخوارِ سالم با Jaffe ۰٫۵ «بالا» می‌شود). باز در P88.
   CREAT: [                                  // µmol/L → mg/dL
-    { maxAge: M(1),   range: r(21, 75, CONV.CREAT) },   // نوزاد
-    { maxAge: 4,      range: r(13, 39, CONV.CREAT) },   // 1 ماه – 4 سال
-    { maxAge: 11,     range: r(29, 53, CONV.CREAT) },   // 5–11 سال
-    { maxAge: 16,     range: r(40, 90, CONV.CREAT) },   // 12+
+    { maxAge: M(1),     range: r(21, 75, CONV.CREAT) },   // نوزاد — RCPCH
+    { maxAge: 3 - D(1), range: r(13, 39, CONV.CREAT) },   // 1 ماه – <3 سال — RCPCH (آنزیمی‌گون؛ بالا)
+    { maxAge: 6 - D(1), range: [0.5, 0.8], source: GHASEMI_JAFFE_SOURCE },
+    { maxAge: 9 - D(1), range: [0.6, 0.9], source: GHASEMI_JAFFE_SOURCE },
+    { maxAge: 12 - D(1), M: [0.6, 1.0], F: [0.6, 0.9], range: [0.6, 1.0], source: GHASEMI_JAFFE_SOURCE },
+    { maxAge: 15 - D(1), M: [0.7, 1.1], F: [0.6, 1.0], range: [0.6, 1.1], source: GHASEMI_JAFFE_SOURCE },
+    { maxAge: 16,        M: [0.8, 1.2], F: [0.7, 1.1], range: [0.7, 1.2], source: GHASEMI_JAFFE_SOURCE },   // گروهِ ۱۵–۱۸
   ],
   CA: [                                     // mmol/L → mg/dL
     { maxAge: M(1),   range: r(2.0, 2.7, CONV.CA) },    // <4 هفته
@@ -396,11 +407,12 @@ export function isPediatricRCPCH(age) {
  * محدوده اطفال را برای یک تست و سن برگردان.
  * اگر ردیف اطفال نبود، null → کدِ فراخوان باید به محدوده بالغ برگردد.
  */
-export function getPedRef(testKey, ageYears) {
+export function getPedRef(testKey, ageYears, sex) {
   const rows = PED_REFS[testKey];
   if (!rows || ageYears == null) return null;
   for (const row of rows) {
-    if (ageYears <= row.maxAge) return row.range;
+    // ردیفِ جنس‌محور (فعلاً فقط CREAT، P88): جنسِ نامعلوم ⇒ `range` که اجتماعِ دو بازه است، تا هشدارِ کاذب ندهد.
+    if (ageYears <= row.maxAge) return (sex === 'M' && row.M) || (sex === 'F' && row.F) || row.range;
   }
   return null;   // سن از آخرین ردیف بیشتر است → بالغ
 }

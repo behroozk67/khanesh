@@ -1,6 +1,6 @@
 // ============================================================
 // lis1005.test.js — ۹۰ درخواستِ خروجیِ LIS یک بیمارستان (اکسل، بی‌ستونِ واحد)، ۲۰۲۶-۱۰-۰۵. فایلِ جدا تا با engine.test.js تداخل نکند.
-// فقط سن/جنس/عدد — هیچ شناسهٔ بیمار در این فایل نیست. 🔴 L1–L9 هر نه روی HEAD (8e0d769) قرمزند (stash اندازه‌گیری شد).
+// فقط سن/جنس/عدد — هیچ شناسهٔ بیمار در این فایل نیست. 🔴 L1–L9 هر نه روی HEAD (8e0d769) قرمزند (stash اندازه‌گیری شد). L10 روی 77ef435 قرمز است.
 // ============================================================
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -143,3 +143,24 @@ test("L9 — aPTTِ ۲۶ در کودکِ ۲ تا ۱۲ ساله پایین نیس
   assert.equal(run([row("PTT", "46")], { sex: "M", age: 5 }).e.graded.find((x) => x.test === "APTT")?.dir, "high");
 });
 
+
+test("L10 — کراتینینِ کودکِ ۳ تا ۱۶ ساله با بازهٔ Jaffe (Ghasemi 2015) سنجیده می‌شود، جنس‌محور از ۹ سالگی (P88)", async () => {
+  const { getRefSource } = await import("./refs.js");
+  const cr = (v, patient) => run([row("Creatinine", v, "mg/dL")], patient).e.graded.find((x) => x.test === "CREAT");
+  // کراتینینِ سالمِ Jaffe که بازهٔ آنزیمیِ قبلی «بالا» می‌زد.
+  for (const [v, age, sex] of [["0.7", 4, "F"], ["0.7", 8, "F"], ["0.6", 5, "M"], ["0.8", 11, "M"], ["0.79", 9, "M"]]) {
+    const g = cr(v, { sex, age });
+    assert.ok(g && !g.abnormal, `${sex} ${age} سال، کراتینین ${v} ⇒ ${g?.range} ${g?.dir}`);
+  }
+  // مرزِ گروه: کودکِ «۶ ساله» در گروهِ ۶–۹ (۰٫۶–۰٫۹) است، نه ۳–۶.
+  assert.equal(cr("0.85", { sex: "F", age: 6 })?.abnormal, false);
+  // جنس: ۱۳ سالهٔ پسر با ۱٫۰۵ طبیعی، دختر بالا؛ جنسِ نامعلوم ⇒ اجتماعِ دو بازه ⇒ هشدارِ کاذب نمی‌دهد.
+  assert.equal(cr("1.05", { sex: "M", age: 13 })?.abnormal, false);
+  assert.equal(cr("1.05", { sex: "F", age: 13 })?.dir, "high");
+  assert.equal(cr("1.05", { age: 13 })?.abnormal, false);
+  // کرانِ بالا هنوز کار می‌کند: ۱٫۵ در ۸ ساله بالاست.
+  assert.equal(cr("1.5", { sex: "M", age: 8 })?.dir, "high");
+  // برچسبِ منبع راست می‌گوید (N8/G6): ردیفِ Jaffe ادعای RCPCH نمی‌کند.
+  assert.match(getRefSource("CREAT", 8), /Ghasemi/);
+  assert.match(getRefSource("CREAT", 1), /RCPCH/);
+});
