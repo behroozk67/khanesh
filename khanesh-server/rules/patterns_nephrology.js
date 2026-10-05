@@ -835,15 +835,18 @@ export const RULES_NEPHROLOGY_NEW = [
   },
   {
     id: "urea_bun_emergency",
+    // P85: آستانه روی «معادلِ اوره» (bunToUrea، ضریبِ ۲٫۱۴ِ موتور). قبلاً BUN ≥ ۱۰۰ (= اورهٔ ۲۱۴) بود، پس BUN ۹۵ (= اورهٔ ۲۰۳)
+    //   «این هفته» می‌گرفت و همان خون با ردیفِ «Urea 203» اورژانس — نامِ ردیف فوریت را عوض می‌کرد (MM4). کف، نه سقف (N3).
     match: (e) => {
       const urea = val(e).UREA;
       const bun = val(e).UREA_N;
-      return ((urea != null && urea >= 200) || (bun != null && bun >= 100)) && !onDialysis(e);   // P72
+      return ((urea != null && urea >= 200) || (bun != null && bunToUrea(bun) >= 200)) && !onDialysis(e);   // P72
     },
     build: (e) => {
       const urea = val(e).UREA;
       const bun = val(e).UREA_N;
-      const num = urea || bun;
+      // عددی را نقل کن که اورژانس را ساخت (نه اولی که روی برگه هست).
+      const num = urea != null && urea >= 200 ? urea : bun;
       return {
         pattern: "urea_bun_emergency",
         urgency: "emergency",

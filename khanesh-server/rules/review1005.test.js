@@ -229,3 +229,14 @@ test("R15: سرخجه IgG — «+» و «-» همان مثبت و منفی‌ا�
     assert.match(f.must_say + f.headline, st);
   }
 });
+
+test("R16: اورژانسِ اوره/BUN روی معادلِ اوره (×۲٫۱۴) — نامِ ردیف فوریت را عوض نمی‌کند (P85، MM4)", () => {
+  // 🔴 روی 15f1fd4: «BUN 95» (= اورهٔ ۲۰۳) «این هفته» و «Urea 203» اورژانس.
+  const urg = (t) => run(t).p.overall_urgency;
+  assert.equal(urg([row("BUN", "95", "mg/dL")]), "emergency");
+  assert.equal(urg([row("Urea", "203", "mg/dL")]), "emergency");
+  assert.equal(urg([row("BUN", "93", "mg/dL")]), urg([row("Urea", "199", "mg/dL")]));
+  // عددِ نقل‌شده همانی است که اورژانس را ساخت
+  const f = run([row("Urea", "150", "mg/dL"), row("BUN", "96", "mg/dL")]).p.findings.find((x) => x.rule_id === "urea_bun_emergency");
+  assert.ok(f && /96/.test(f.must_say) && !/150/.test(f.must_say), f?.must_say);
+});
