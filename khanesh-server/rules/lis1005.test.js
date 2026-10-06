@@ -588,9 +588,10 @@ test("GD2 — بارداری: یک عدد به معیار ⇒ this_week؛ «بع
   assert.match(gdm([row("Glucose", "95", "mg/dL")]).headline, /ممکن است/);
   // P93-ب (عمداً تغییر کرد): انجمنِ غددِ ایران — ناشتای ابتدای بارداری از ۱۰۰؛ «FBS 95» بی‌نشانِ OGTT ⇒ شرطی، همان this_week.
   const fbs95 = gdm([row("FBS", "95", "mg/dL")]);
-  assert.match(fbs95.headline, /ممکن است/); assert.equal(fbs95.urgency, "this_week");
-  assert.match(fbs95.must_say, /اگر آزمایشِ ناشتای ابتدای بارداری است، معیارِ آن ۱۰۰ است/);
-  assert.match(gdm([row("FBS", "105", "mg/dL")]).headline, /در محدودهٔ دیابتِ بارداری است/);
+  // P93-ج (عمداً تغییر کرد): پروتکلِ کشوری + انجمنِ غدد هر دو گفته می‌شوند؛ ۱۰۵ دیگر «قطعی» نیست (GD9).
+  assert.match(fbs95.headline, /بالاتر از حدِ طبیعی/); assert.equal(fbs95.urgency, "this_week");
+  assert.match(fbs95.must_say, /طبقِ راهنمای انجمنِ غددِ ایران به معیارِ ۱۰۰ برای دیابتِ بارداری نرسیده است/);
+  assert.match(gdm([row("FBS", "105", "mg/dL")]).headline, /بالاتر از حدِ طبیعی/);
   assert.match(gdm([row("GTT fasting", "95", "mg/dL"), row("GTT 2h", "120", "mg/dL")]).headline, /در محدودهٔ دیابتِ بارداری است/);
   assert.equal(gdm([row("FBS", "90", "mg/dL")]), undefined);
   const neg = gdm([row("GTT fasting", "80", "mg/dL"), row("GTT 1h", "150", "mg/dL"), row("GTT 2h", "120", "mg/dL")]);
@@ -695,7 +696,8 @@ test("GD7 — N3: «GTT 1h 10.5 mmol/L» (= ۱۸۹) به معیار رسیده؛
   const mm = gdm([row("GTT 1h", "10.5", "mmol/L")]);
   assert.match(mm.must_say, /10\.5 mmol\/L \(برابرِ 189 mg\/dL\) است؛ به معیارِ ۱۸۰ رسیده است/); assert.equal(mm.urgency, "this_week");
   const ul = gdm([row("GTT fasting", "85", "mg/dL"), row("GTT 1h", "10.5")]);
-  assert.equal(ul.urgency, "this_week"); assert.match(ul.must_say, /واحدش چاپ نشده، پس با معیار سنجیده نشد/);
+  // P93-ج (عمداً تغییر کرد، تصمیمِ کاربر): this_week فقط اگر هر خوانشِ ممکن به معیار برسد (GD10).
+  assert.equal(ul.urgency, "routine"); assert.match(ul.must_say, /اگر mmol\/L باشد \(برابرِ 189 mg\/dL\) به معیارِ ۱۸۰ رسیده است/);
   assert.doesNotMatch(ul.headline, /نیست$/);
 });
 test("GD8 — P93-ج: یک عددِ آزمونِ ۱۰۰ گرمی ⇒ «تأیید نشده، پیگیری لازم»، بی‌«قابلِ مدیریت»؛ فوریت this_week؛ ۷۵ گرمیِ شرطی دست نخورد", () => {
@@ -708,4 +710,35 @@ test("GD8 — P93-ج: یک عددِ آزمونِ ۱۰۰ گرمی ⇒ «تأیی�
   assert.match(two.must_say, /قابلِ مدیریت/, "دو عدد (قطعی) جمله را نگه می‌دارد");
   const pp = gdm([row("2hpp", "160", "mg/dL")]);
   assert.match(pp.headline, /ممکن است/); assert.match(pp.must_say, /قابلِ مدیریت/);
+});
+test("GD9 — P93-ج: ناشتای ۹۳–۱۲۵ِ بی‌نشانِ OGTT ⇒ پروتکلِ کشوری («پره‌دیابتیک»، تکرار در ۲ هفته) و انجمنِ غدد هر دو؛ قطعی نه؛ this_week", () => {
+  for (const [v, ies] of [["95", /به معیارِ ۱۰۰ برای دیابتِ بارداری نرسیده است/], ["105", /طبقِ راهنمای انجمنِ غددِ ایران در محدودهٔ دیابتِ بارداری است/], ["125", /در محدودهٔ دیابتِ بارداری است/]]) {
+    const g = gdm([row("FBS", v, "mg/dL")]);
+    assert.equal(g.urgency, "this_week", v);
+    assert.equal(g.headline, "قندِ ناشتای شما در بارداری بالاتر از حدِ طبیعی است و پیگیری لازم است", v);
+    assert.match(g.must_say, /طبقِ پروتکلِ کشوریِ وزارتِ بهداشت در محدودهٔ «پره‌دیابتیک» است و دو هفته بعد/, v);
+    assert.match(g.must_say, ies, v);
+    assert.doesNotMatch(g.must_say, /قابلِ مدیریت/, v);
+    assert.ok(g.sources.includes("IR_MOH_GDM"), v);
+    assert.deepEqual(g.suggest, ["تکرار قند ناشتا"], v);
+  }
+  const g92 = gdm([row("FBS", "92", "mg/dL")]);
+  assert.match(g92.must_say, /هنوز در محدودهٔ طبیعی است/);
+  assert.match(gdm([row("FBS", "126", "mg/dL")]).headline, /نه فقط دیابتِ بارداری/, "دیابتِ آشکار دست نخورد");
+  // ناشتای آزمونِ ۷۵ گرمی همان قطعی (IADPSG)
+  assert.match(gdm([row("GTT fasting", "95", "mg/dL"), row("GTT 2h", "120", "mg/dL")]).headline, /در محدودهٔ دیابتِ بارداری است/);
+});
+test("GD10 — P93-ج: عددِ بی‌واحدِ آزمونِ قندِ بارداری ⇒ this_week فقط اگر هر خوانشِ ممکن (SURVIVAL_LIMITS) به معیار برسد؛ وگرنه routine + تأییدِ واحد", () => {
+  const one = (rows) => gdm(rows);
+  const mixed = one([row("GCT", "9")]);   // 9 mg/dL یا 162 mg/dL
+  assert.equal(mixed.urgency, "routine"); assert.match(mixed.action, /واحدِ عدد را از آزمایشگاه بپرسید/);
+  assert.match(mixed.must_say, /اگر mg\/dL باشد به معیارِ ۱۴۰ نرسیده است، و اگر mmol\/L باشد \(برابرِ 162 mg\/dL\) به معیارِ ۱۴۰ رسیده است/);
+  const high = one([row("GTT fasting", "85", "mg/dL"), row("GTT 1h", "190")]);   // 190 mmol/L ناممکن ⇒ فقط mg/dL
+  assert.equal(high.urgency, "this_week"); assert.match(high.must_say, /با هر واحدِ ممکن به معیارِ ۱۸۰ رسیده است/);
+  const low = one([row("GCT", "6")]);   // 6 یا 108 — هر دو زیرِ ۱۴۰
+  assert.equal(low.urgency, "routine"); assert.match(low.must_say, /با هر واحدِ ممکن به معیارِ ۱۴۰ نرسیده است/);
+  assert.doesNotMatch(low.must_say, /نمی‌توان گفت این آزمون منفی است/);
+  // ۱۰۰ گرمی با ۳ساعتهٔ بی‌واحد (۸ یا ۱۴۴) ⇒ همان قاعده
+  const g100 = one([row("GTT fasting", "80", "mg/dL"), row("GTT 1h", "150", "mg/dL"), row("GTT 2h", "130", "mg/dL"), row("GTT 3h", "8")]);
+  assert.equal(g100.urgency, "routine");
 });

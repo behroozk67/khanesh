@@ -5,6 +5,7 @@ import { repeatDeltaFa } from "./biovar.js";
 import { ADULT_REFS } from "./refs.js";
 import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 import { isNeonate } from "./neonatal.js";
+import { SURVIVAL_LIMITS } from "./units.js";
 import { canBePregnant, qualVerdict, ungradedFa, ckChildSoon, CK_CHILD_SENTENCE, CK_CHILD_SOON_ACTION } from "./patterns_utils.js";
 
 /**
@@ -1007,8 +1008,9 @@ export const RULES_BIOCHEM = [
         if (f != null) line.push(!s.fastNamed
           ? `عددِ قندِ شما ${f} است، ولی روی برگه نیامده که «قند ناشتا» بوده${f >= GDM.F ? "؛ اگر ناشتا گرفته شده، به معیارِ ۹۲ رسیده است" : ""}.`
           : f >= 126 || s.isOgttSheet ? `قند ناشتای شما ${f} است؛ ${met(f, GDM.F)}.`
-          : f >= GDM_FAST_EARLY ? `قند ناشتای شما ${f} است؛ هم به معیارِ ۱۰۰ برای آزمایشِ ابتدای بارداری رسیده است و هم به معیارِ ۹۲ برای ناشتای آزمونِ ۷۵ گرمی.`
-          : f >= GDM.F ? `قند ناشتای شما ${f} است. اگر ناشتای آزمونِ ۷۵ گرمیِ تحملِ قند است، به معیارِ ۹۲ رسیده است؛ اگر آزمایشِ ناشتای ابتدای بارداری است، معیارِ آن ۱۰۰ است و این عدد به آن نرسیده است.`
+          // P93-ج: ناشتای ابتدای بارداری — پروتکلِ کشوری (≤ ۹۲ طبیعی، ۹۳–۱۲۵ «پره‌دیابتیک» + تکرار در ۲ هفته) و انجمنِ غدد (≥ ۱۰۰) هر دو گفته می‌شوند.
+          : f >= MOH_EARLY_PRE ? `قند ناشتای شما ${f} است. اگر این آزمایشِ ناشتای ابتدای بارداری است، طبقِ پروتکلِ کشوریِ وزارتِ بهداشت در محدودهٔ «پره‌دیابتیک» است و دو هفته بعد قندِ ناشتا و قندِ دو ساعت بعد از غذا تکرار می‌شود؛ طبقِ راهنمای انجمنِ غددِ ایران ${f >= GDM_FAST_EARLY ? "در محدودهٔ دیابتِ بارداری است" : "به معیارِ ۱۰۰ برای دیابتِ بارداری نرسیده است"}. اگر ناشتای آزمونِ ۷۵ گرمیِ تحملِ قند است، به معیارِ ۹۲ برای دیابتِ بارداری رسیده است.`
+          : f >= GDM.F ? `قند ناشتای شما ${f} است. اگر ناشتای آزمونِ ۷۵ گرمیِ تحملِ قند است، به معیارِ ۹۲ رسیده است؛ اگر آزمایشِ ناشتای ابتدای بارداری است، طبقِ پروتکلِ کشوریِ وزارتِ بهداشت و راهنمای انجمنِ غددِ ایران هنوز در محدودهٔ طبیعی است.`
           : `قند ناشتای شما ${f} است؛ ${met(f, GDM.F)}.`);
         if (h1 != null) line.push(`قند یک‌ساعتهٔ آزمون ${shown("GLU_1H")} است؛ ${met(h1, GDM.H1)}.`);
         if (h2 != null) line.push(s.h2Ogtt
@@ -1018,14 +1020,25 @@ export const RULES_BIOCHEM = [
       if (a1c != null && a1c >= 6.5) line.push(`HbA1c شما ${a1c} است.`);
       else if (a1c != null && a1c >= 5.7) line.push(`HbA1c شما ${a1c} است؛ در بارداری HbA1c برای تشخیصِ دیابتِ بارداری به کار نمی‌رود.`);
       const UNJ = { GLU_1H: "قند یک‌ساعتهٔ آزمون تحمل قند", GLU_3H: "قند سه‌ساعتهٔ آزمون تحمل قند", GLU_GCT: "قند آزمون چالش ۵۰ گرمی" };
-      for (const k of s.unjudged) line.push(`${UNJ[k]} (${e.ungraded[k].value}) روی برگه هست ولی واحدش چاپ نشده، پس با معیار سنجیده نشد.`);
+      for (const k of s.unjudged) {
+        const { cut, reads } = s.unjReads[k];
+        const head0 = `${UNJ[k]} (${e.ungraded[k].value}) روی برگه هست ولی واحدش چاپ نشده`;
+        const ok = reads.map((r) => r.mgdl >= cut);
+        if (!reads.length) line.push(`${head0}، پس با معیار سنجیده نشد.`);
+        else if (ok.every(Boolean) || !ok.some(Boolean)) line.push(`${head0}؛ با هر واحدِ ممکن به معیارِ ${toFa(cut)} ${ok[0] ? "رسیده" : "نرسیده"} است.`);
+        else line.push(`${head0}: ` + reads.map((r) => `اگر ${r.unit} باشد${r.unit === "mmol/L" ? ` (برابرِ ${r.mgdl} mg/dL)` : ""} ${met(r.mgdl, cut)}`).join("، و ") + ".");
+      }
       if (rnd != null && rnd >= 200) line.push(`قند خونِ تصادفیِ شما ${rnd} است؛ قندِ تصادفیِ ۲۰۰ یا بیشتر همراهِ علامت‌های قندِ بالا (تشنگی، پرادراری) در بارداری در محدودهٔ دیابتِ آشکار است.`);
       const owner = glucoseOwnerFires(e);
-      const routine = s.kind === "negative" || s.kind === "other_test" || s.kind === "not_diagnostic";
+      const unitCheck = s.kind === "partial" && !s.partialHigh;   // P93-ج: هیچ عددِ بی‌واحدی با *هر* خوانشِ ممکن به معیار نرسید
+      const routine = s.kind === "negative" || s.kind === "other_test" || s.kind === "not_diagnostic" || unitCheck;
       const urgency = routine ? "routine" : "this_week";
       // P93-ج (۲۰۲۶-۱۰-۰۶، بازبینیِ بیرونی بندِ ۲): در آزمونِ ۱۰۰ گرمی یک عدد = «تأییدنشده، پیگیری لازم»، نه «ممکن است دیابت»؛ فوریت همان.
       const cond100 = s.kind === "conditional" && s.test === "100";
-      const head = cond100 ? "دیابتِ بارداری با این آزمون تأیید نشده، ولی پیگیری لازم است" : {
+      // P93-ج: ناشتای ۹۳–۱۲۵ِ بی‌نشانِ OGTT — هر دو منبع غیرطبیعی می‌دانند، برچسب‌شان فرق دارد.
+      const early = s.kind === "conditional" && s.fastEarly && f >= MOH_EARLY_PRE;
+      const head = cond100 ? "دیابتِ بارداری با این آزمون تأیید نشده، ولی پیگیری لازم است"
+        : early ? "قندِ ناشتای شما در بارداری بالاتر از حدِ طبیعی است و پیگیری لازم است" : {
         overt: "قندِ شما در بارداری در محدودهٔ دیابت است، نه فقط دیابتِ بارداری",
         definite: "قندِ شما در محدودهٔ دیابتِ بارداری است",
         conditional: "قندِ شما ممکن است در محدودهٔ دیابتِ بارداری باشد",
@@ -1040,7 +1053,6 @@ export const RULES_BIOCHEM = [
         overt: "قندِ ناشتای ۱۲۶ یا بیشتر، یا HbA1c ۶٫۵٪ یا بیشتر، در بارداری در محدودهٔ دیابتِ آشکار است، نه فقط دیابتِ بارداری.",
         definite: {
           "75": `در آزمونِ ۷۵ گرمیِ تحملِ قند، رسیدنِ حتی یکی از این سه عدد ${T75} به معیار برای دیابتِ بارداری کافی است.`,
-          fast: "قندِ ناشتای ۱۰۰ تا ۱۲۵ در آزمایشِ ابتدای بارداری، و ۹۲ یا بیشتر در ناشتای آزمونِ ۷۵ گرمی، در محدودهٔ دیابتِ بارداری است.",
           "100": `در آزمونِ ۱۰۰ گرمی، رسیدنِ دو عدد یا بیشتر از این چهار عدد ${T100} به معیار برای دیابتِ بارداری کافی است.`,
           gct: "در آزمونِ چالشِ ۵۰ گرمی، قندِ ۲۰۰ یا بیشتر برای دیابتِ بارداری کافی است.",
         }[s.test],
@@ -1050,6 +1062,7 @@ export const RULES_BIOCHEM = [
               : s.cc === 1 ? "در برگهٔ شما یک عدد رسیده است و برخی راهنماها با یک عدد هم دیابتِ بارداری را مطرح می‌کنند. "
               : "در برگهٔ شما فقط عددِ قندی که ناشتا بودنش روی برگه نیامده به ۹۵ رسیده است. ") +
             "تصمیم با ماما یا پزشکتان است."
+          : early ? "ماما یا پزشکتان روشن می‌کند که این عدد از کدام آزمون است و آزمایشِ تکرار را زمان‌بندی می‌کند."
           : "ماما یا پزشکتان روشن می‌کند که این عدد از کدام آزمون است.",
         gct_positive: "این آزمون غربالگری است و به‌تنهایی دیابتِ بارداری را تشخیص نمی‌دهد؛ قدمِ بعد آزمونِ ۱۰۰ گرمیِ تحملِ قند (سه‌ساعته، ناشتا) است.",
         negative: {
@@ -1059,7 +1072,8 @@ export const RULES_BIOCHEM = [
         }[s.test],
         other_test: "برگهٔ شما قندِ سه‌ساعته هم دارد، یعنی احتمالاً آزمونِ ۱۰۰ گرمی بوده که معیارِ دیگری دارد؛ موتور دربارهٔ آن حکم نمی‌دهد و ماما یا پزشکتان آن را می‌خواند.",
         not_diagnostic: "غربالگریِ دیابتِ بارداری با آزمونِ تحملِ قند در هفتهٔ ۲۴ تا ۲۸ انجام می‌شود؛ اگر هنوز انجام نشده، ماما یا پزشکتان زمانش را می‌گوید.",
-        partial: "تا عددِ بی‌واحد با واحدش خوانده نشود، نمی‌توان گفت این آزمون منفی است؛ ماما یا پزشکتان آن را با برگهٔ آزمایشگاه می‌خواند.",
+        partial: unitCheck && s.partialNone ? "واحدِ این عدد را با آزمایشگاه تأیید کنید."
+          : unitCheck ? "واحدِ این عدد را با آزمایشگاه تأیید کنید؛ تا آن وقت نمی‌توان گفت این آزمون منفی است، و ماما یا پزشکتان آن را با برگهٔ آزمایشگاه می‌خواند." : "تا عددِ بی‌واحد با واحدش خوانده نشود، نمی‌توان گفت این آزمون منفی است؛ ماما یا پزشکتان آن را با برگهٔ آزمایشگاه می‌خواند.",
       }[s.kind];
       // «روی برگه نیست» فقط برای ردیفی که نه سنجیده شد نه چاپ شد (N4: ungraded = چاپ‌شده).
       const absent = (v, k) => v == null && !e.ungraded?.[k];
@@ -1075,16 +1089,18 @@ export const RULES_BIOCHEM = [
         headline: head,
         must_say: line.join(" ") + " " + tail +
           (missing.length ? ` عددِ ${missing.join(" و ")} روی این برگه نیست.` : "") +
-          (s.kind === "definite" || (s.kind === "conditional" && !cond100) ? " دیابتِ بارداری با کنترلِ قند قابلِ مدیریت است و پیگیری‌اش برای شما و جنین مهم است." : ""),
+          (s.kind === "definite" || (s.kind === "conditional" && !cond100 && !early) ? " دیابتِ بارداری با کنترلِ قند قابلِ مدیریت است و پیگیری‌اش برای شما و جنین مهم است." : ""),
         action: owner
           ? "زمانِ مراجعه را یافتهٔ «قندِ بسیار بالا» تعیین می‌کند؛ این برگه را همراه ببرید."
+          : unitCheck
+            ? "واحدِ عدد را از آزمایشگاه بپرسید و نتیجه را در مراقبتِ بعدیِ بارداری همراه ببرید."
           : routine
             ? "این نتیجه را در مراقبتِ بعدیِ بارداری همراه ببرید."
             : "این هفته این نتیجه را به ماما یا پزشکِ زنانِ خود نشان دهید.",
-        suggest: s.kind === "gct_positive" ? ["تست تحمل قند ۱۰۰ گرمی"] : [],
+        suggest: s.kind === "gct_positive" ? ["تست تحمل قند ۱۰۰ گرمی"] : early ? ["تکرار قند ناشتا"] : [],
         warnings: [],
         explains: ["GLU_1H", "GLU_3H", "GLU_GCT"].filter((k) => e.ungraded?.[k]),
-        sources: ["IADPSG_2010", "IES_GDM_2021"],
+        sources: s.fastEarly ? ["IADPSG_2010", "IES_GDM_2021", "IR_MOH_GDM"] : ["IADPSG_2010", "IES_GDM_2021"],
       };
     },
   },
@@ -2104,6 +2120,8 @@ const GDM = Object.freeze({ F: 92, H1: 180, H2: 153 });
 //   جهتِ امن)؛ توصیهٔ ۱۹ + جدولِ ۵: ۱۰۰ گرمی Carpenter-Coustan ۹۵/۱۸۰/۱۵۵/۱۴۰، دست‌کم دو عدد (ACOG یک عدد را هم می‌پذیرد ⇒ شرطی)؛
 //   توصیهٔ ۱۱: HbA1c برای تشخیصِ دیابتِ بارداری نه؛ توصیهٔ ۲۱: ۷۵ گرمی همان IADPSG.
 const GDM_FAST_EARLY = 100;
+// P93-ج: پروتکلِ کشوری (IR_MOH_GDM) — ناشتای ویزیتِ اول ≤ ۹۲ طبیعی، ۹۳–۱۲۵ «پره‌دیابتیک».
+const MOH_EARLY_PRE = 93;
 const CC = Object.freeze({ F: 95, H1: 180, H2: 155, H3: 140 });
 const GCT = Object.freeze({ POS: 140, DM: 200 });
 function gdmState(e) {
@@ -2119,7 +2137,19 @@ function gdmState(e) {
   const ogtt = (n) => /gtt|tolerance|تحمل/.test(String(n ?? "").toLowerCase());
   const h2Ogtt = h2 != null && ogtt(names.GLU_2H);
   const isOgttSheet = h1 != null || h2Ogtt || ogtt(names.GLU_F) || e.ungraded?.GLU_1H != null;
-  const base = { f, h1, h2, h3, gct, a1c, rnd, fastNamed, h2Ogtt, isOgttSheet, unjudged };
+  // P93-ج (تصمیمِ کاربر): عددِ بی‌واحد ⇒ this_week فقط اگر *هر* خوانشِ ممکن (mg/dL و mmol/L×۱۸، کفِ SURVIVAL_LIMITS) به معیار برسد؛
+  //   وگرنه routine + «واحد را با آزمایشگاه تأیید کنید» (همان قاعدهٔ «هر دو خوانش» در unit_unknown_values، N3).
+  const UNJ_CUT = { GLU_1H: GDM.H1, GLU_3H: CC.H3, GLU_GCT: GCT.POS };
+  const [lo, hi] = SURVIVAL_LIMITS.GLU_2H;
+  const unjReads = Object.fromEntries(unjudged.map((k) => {
+    const v = Number(e.ungraded[k].value);
+    const reads = [{ unit: "mg/dL", mgdl: v }, { unit: "mmol/L", mgdl: Math.round(v * 18.0182) }]
+      .filter((r) => Number.isFinite(r.mgdl) && r.mgdl >= lo && r.mgdl <= hi);
+    return [k, { cut: UNJ_CUT[k], reads, allMet: reads.length > 0 && reads.every((r) => r.mgdl >= UNJ_CUT[k]) }];
+  }));
+  const partialHigh = unjudged.some((k) => unjReads[k].allMet);
+  const partialNone = unjudged.length > 0 && unjudged.every((k) => unjReads[k].reads.length > 0 && unjReads[k].reads.every((r) => r.mgdl < UNJ_CUT[k]));
+  const base = { f, h1, h2, h3, gct, a1c, rnd, fastNamed, h2Ogtt, isOgttSheet, unjudged, unjReads, partialHigh, partialNone };
   const overt = (fastNamed && f >= 126) || (a1c != null && a1c >= 6.5);
   if (overt) return { ...base, kind: "overt", test: "75" };
 
@@ -2135,8 +2165,10 @@ function gdmState(e) {
   if (e.ogtt100g) return { ...base, kind: "other_test", test: "100" };
 
   // ── آزمونِ ۷۵ گرمی / ناشتای ابتدای بارداری ──
-  const fastDefinite = fastNamed && f >= GDM.F && (isOgttSheet || f >= GDM_FAST_EARLY);
-  const fastEarly = fastNamed && !isOgttSheet && f >= GDM.F && f < GDM_FAST_EARLY;
+  // P93-ج (تصمیمِ کاربر «هر دو، شرطی»): ناشتای بی‌نشانِ OGTT تا ۱۲۵ قطعی نیست — پروتکلِ کشوری ۹۳–۱۲۵ را «پره‌دیابتیک» می‌داند،
+  //   انجمنِ غدد ≥ ۱۰۰ را دیابتِ بارداری؛ متن هر دو را می‌گوید. فوریت همان this_week.
+  const fastDefinite = fastNamed && f >= GDM.F && isOgttSheet;
+  const fastEarly = fastNamed && !isOgttSheet && f >= GDM.F;
   const defBy75 = (h1 != null && h1 >= GDM.H1) || (h2Ogtt && h2 >= GDM.H2) || (fastDefinite && isOgttSheet);
   const definite = defBy75 || fastDefinite;
   const conditional = fastEarly || (f != null && !fastNamed && f >= GDM.F) || (h2 != null && !h2Ogtt && h2 >= GDM.H2);
@@ -2145,11 +2177,11 @@ function gdmState(e) {
   // ── چالشِ ۵۰ گرمی ──
   if (gct != null) {
     const kind = gct >= GCT.DM ? "definite" : definite ? "definite" : gct >= GCT.POS ? "gct_positive" : conditional ? "conditional" : unjudged.length ? "partial" : "negative";
-    const test = gct >= GCT.DM ? "gct" : definite ? (defBy75 ? "75" : "fast") : gct >= GCT.POS ? "gct" : conditional ? "75" : "gct";
-    return { ...base, kind, test };
+    const test = gct >= GCT.DM ? "gct" : definite ? "75" : gct >= GCT.POS ? "gct" : conditional ? "75" : "gct";
+    return { ...base, kind, test, fastEarly };
   }
-  if (definite) return { ...base, kind: "definite", test: defBy75 ? "75" : "fast" };
-  if (conditional) return { ...base, kind: "conditional", test: "75" };
+  if (definite) return { ...base, kind: "definite", test: "75" };   // P93-ج: ناشتای بی‌نشانِ OGTT دیگر «قطعی» نیست
+  if (conditional) return { ...base, kind: "conditional", test: "75", fastEarly };
   // عددِ بی‌واحدِ آزمون (مثلاً «GTT 1h 10.5» = ۱۸۹ اگر mmol/L) ⇒ «منفی» نمی‌گوییم (N4)؛ همان فوریتِ شرطی.
   if (unjudged.length) return { ...base, kind: "partial", test: "75" };
   if (isOgttSheet && judged75) return { ...base, kind: "negative", test: "75" };
