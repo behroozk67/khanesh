@@ -975,6 +975,47 @@ export const RULES_BIOCHEM = [
   },
 
   {
+    // 🔴 N1 (۲۰۲۶-۱۰-۰۶، اندازه‌گیری‌شده): قندِ تصادفیِ بالای محدوده ولی < ۲۰۰ مالکی نداشت ⇒ «RBS 150» فقط
+    //    unmatched_abnormal («توضیحِ آماده نداریم») می‌گرفت. glycemia عمداً آن را نمی‌خواند: قندِ تصادفی معیارِ پیش‌دیابت ندارد.
+    //    این قاعده هیچ عددِ تازه‌ای نمی‌سازد: «بالا» از refs.js، ۲۰۰ همان معیارِ ADA در glycemia. فوریت همان routineِ تورِ ایمنی (N29).
+    //    عددِ ۲۰۰ و بالاتر مالِ glycemia است — دو یافته دربارهٔ یک عدد نه (N20). گارد RG2.
+    id: "random_glucose_above_range",
+    match: (e) => {
+      const r = e.graded.find((g) => g.test === "GLU_RANDOM");
+      return Boolean(r?.abnormal && r.dir === "high" && r.value < 200);
+    },
+    build: (e) => {
+      const r = e.graded.find((g) => g.test === "GLU_RANDOM");
+      const t = val(e);
+      const f = e.graded.find((g) => g.test === "GLU_F"), a1c = e.graded.find((g) => g.test === "HBA1C");
+      // سه‌حالته برای هر کدام (N4/N21): سنجیده / چاپ‌شده ولی سنجیده‌نشده / روی برگه نیست.
+      const ctx = (g, fa, k, own) => g ? `${own} روی همین برگه ${g.value} است.`
+        : (ungradedFa(e, k, fa) ? `${ungradedFa(e, k, fa)}.` : null);
+      const known = [ctx(f, "قندِ ناشتا", "GLU_F", "قندِ ناشتای شما"), ctx(a1c, "HbA1c", "HBA1C", "HbA1c شما")].filter(Boolean);
+      const missing = [!f && !ungradedFa(e, "GLU_F", "x") ? "قندِ ناشتا" : null, !a1c && !ungradedFa(e, "HBA1C", "x") ? "HbA1c" : null].filter(Boolean);
+      const otherDm = (t.GLU_F != null && t.GLU_F >= 126) || (t.GLU_2H != null && t.GLU_2H >= 200) || (t.HBA1C != null && t.HBA1C >= 6.5);
+      return {
+        pattern: "random_glucose_above_range",
+        urgency: "routine",
+        key_number: r.value,
+        headline: "قندِ خونِ تصادفیِ شما کمی بالاتر از حد معمول است",
+        must_say:
+          `قندِ خونِ تصادفیِ شما ${r.value}${r.range ? ` (حد طبیعی ${r.range})` : ""} است و کمی بالاتر از حد معمول. ` +
+          "قندِ تصادفی به این بستگی دارد که آخرین غذا را کی خورده‌اید، و عددِ کمتر از ۲۰۰ به‌تنهایی نه دیابت را نشان می‌دهد نه پیش‌دیابت را؛ " +
+          "با قندِ تصادفی فقط ۲۰۰ و بالاتر در محدودهٔ دیابت حساب می‌شود. " +
+          (known.length ? known.join(" ") + " " : "") +
+          (missing.length ? `${missing.join(" و ")} روی این برگه نیست؛ همین ${missing.length === 2 ? "دو آزمایش روشن می‌کنند" : "آزمایش روشن می‌کند"} که این عدد معنایی دارد یا نه.` : ""),
+        action: otherDm
+          ? "این عدد را در همان مراجعه‌ای که برای قندِ بالا دارید با پزشک مطرح کنید."
+          : "این نتیجه را در مراجعهٔ بعدی با پزشک در میان بگذارید.",
+        suggest: ["قند ناشتا", "HbA1c"],
+        warnings: [],
+        sources: ["ADA_SOC"],
+      };
+    },
+  },
+
+  {
     id: "glycemia",
     match: (e) => {
       const t = val(e);

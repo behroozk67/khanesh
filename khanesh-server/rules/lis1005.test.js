@@ -435,3 +435,34 @@ test("L17d — [38] مدفوعِ سیاه + کم‌خونیِ میکروسیتی
   assert.ok(!find(ok.p, "melena_microcytic_anemia"));
   assert.ok(ok.e.noRef.includes("STOOL_COLOR"), "بی‌یافته، رنگِ مدفوع باید در خطِ «تفسیر نشدند» بماند");
 });
+
+// ── ۲۰۲۶-۱۰-۰۶ (N2، اندازه‌گیری‌شده): «Random Glucose» و «RBS» unmapped بودند ⇒ برگهٔ تک‌ردیفی بی‌یافته ──
+test("RG1 — قندِ تصادفی با هر املایی GLU_RANDOM است و یافته می‌گیرد؛ «Random Urine Glucose» سرم نمی‌شود", () => {
+  for (const n of ["Random Glucose", "RBS", "R.B.S", "Random Blood Glucose", "Glucose (Random)", "Glucose, Random", "Random Plasma Glucose", "قند خون تصادفی"]) {
+    const { e } = run([row(n, "300", "mg/dL")], { sex: "M", age: 50 });
+    assert.deepEqual(e.graded.map((g) => g.test), ["GLU_RANDOM"], n);
+    assert.deepEqual(e.unmapped, [], n);
+  }
+  assert.equal(run([row("Random Glucose", "45", "mg/dL")]).p.overall_urgency, "emergency");
+  assert.ok(run([row("RBS", "300", "mg/dL")]).p.findings.some((f) => f.pattern === "diabetes_range"));
+  const urine = run([row("Random Urine Glucose", "300", "mg/dL")]).e;
+  assert.ok(!urine.graded.some((g) => g.test.startsWith("GLU")), "قندِ ادرار به قندِ خون رفت");
+});
+
+// ── ۲۰۲۶-۱۰-۰۶ (N1): قندِ تصادفیِ بالای محدوده ولی < ۲۰۰ مالک نداشت ⇒ unmatched_abnormal ──
+test("RG2 — RBS 141–199 ⇒ random_glucose_above_range (routine)، بی‌«دیابت دارید»؛ ۲۰۰ مالِ glycemia؛ قندِ ناشتا/HbA1c سه‌حالته", () => {
+  const ids = (rows) => run(rows, { sex: "M", age: 50 }).p.findings.map((f) => f.pattern);
+  const only = (rows) => run(rows, { sex: "M", age: 50 }).p.findings.find((f) => f.pattern === "random_glucose_above_range");
+  for (const v of ["141", "150", "199"]) {
+    assert.deepEqual(ids([row("RBS", v, "mg/dL")]), ["random_glucose_above_range"], v);
+    assert.equal(only([row("RBS", v, "mg/dL")]).urgency, "routine");
+  }
+  assert.deepEqual(ids([row("RBS", "200", "mg/dL")]), ["diabetes_range"]);   // یک یافته برای یک عدد (N20)
+  assert.deepEqual(ids([row("RBS", "140", "mg/dL")]), []);
+  const t = only([row("RBS", "150", "mg/dL")]).must_say;
+  assert.match(t, /نه دیابت را نشان می‌دهد نه پیش‌دیابت را/);
+  assert.match(t, /قندِ ناشتا و HbA1c روی این برگه نیست/);
+  assert.match(only([row("RBS", "150", "mg/dL"), row("FBS", "110", "mg/dL")]).must_say, /قندِ ناشتای شما روی همین برگه 110 است/);
+  const printed = only([row("RBS", "150", "mg/dL"), row("FBS", "95", "")]).must_say;   // N4: چاپ‌شده ولی بی‌واحد ≠ «روی برگه نیست»
+  assert.doesNotMatch(printed, /قندِ ناشتا و HbA1c روی این برگه نیست|قندِ ناشتا روی این برگه نیست/);
+});

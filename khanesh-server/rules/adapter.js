@@ -103,6 +103,11 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
 
   // بیوشیمی
   bloodsugar: "GLU_RANDOM", bs: "GLU_RANDOM", randombloodsugar: "GLU_RANDOM",
+  // 🔴 N2 (۲۰۲۶-۱۰-۰۶، اندازه‌گیری‌شده): «Random Glucose 300» و «RBS» unmapped بودند ⇒ برگهٔ تک‌ردیفی هیچ یافته‌ای نمی‌گرفت.
+  //   فقط املاهایی که «تصادفی/random» دارند؛ «Random Urine Glucose» عمداً نه (ادرار ≠ سرم، N25). گارد RG1.
+  randomglucose: "GLU_RANDOM", rbs: "GLU_RANDOM", randombloodglucose: "GLU_RANDOM", glucoserandom: "GLU_RANDOM",
+  "glucose,random": "GLU_RANDOM", bloodglucoserandom: "GLU_RANDOM", randomsugar: "GLU_RANDOM", randombs: "GLU_RANDOM",
+  randomplasmaglucose: "GLU_RANDOM", قندتصادفی: "GLU_RANDOM", قندخونتصادفی: "GLU_RANDOM",
   fbs: "GLU_F", fastingbloodsugar: "GLU_F", fastingbloodglucose: "GLU_F",
   fastingplasmaglucose: "GLU_F", glucosefasting: "GLU_F", قندخونناشتا: "GLU_F",
   // گلوکز/قند بدون قید → ناشتا فرض می‌شود (شایع‌ترین حالت در برگه‌های روتین)

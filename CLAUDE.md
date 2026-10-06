@@ -701,6 +701,10 @@ second one; a recurring entry is the strongest signal in the file.
   and names them on the «تفسیر نشدند» line. ⚠️ Known limit: a bare `Glucose`/`LDH` printed beside `Fluid Type` is still read as serum —
   a caution sentence (`U13`) and, since 2026-10-06 (P87 decision 11, user), a conditional sentence + the fluid action on every finding about
   that number. Urgency is never lowered, because a real hypoglycaemia must not be lost (`U21`).
+- **Recurred 2026-10-06 on random glucose (uncommitted).** «Random Glucose», «RBS», «Glucose (Random)» and «قند خون تصادفی» were `unmapped`. Only
+  «Random Blood Sugar» mapped, so a sheet with «Random Glucose 45» had no finding at all. Twelve spellings now go to `GLU_RANDOM`. «Random Urine Glucose»
+  stays unmapped on purpose. Guard `RG1`. The N1 half was closed the same day: `GLU_RANDOM` 141–199 had no rule of its own («توضیح آماده نداریم»). It now gets
+  `random_glucose_above_range` (`routine`, the net’s own urgency). The rule adds no new number: «high» comes from `refs.js`, and 200 belongs to `glycemia`. Guard `RG2`.
 - **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
   anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
   *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When
