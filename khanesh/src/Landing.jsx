@@ -5,6 +5,7 @@ import { BRAND_FA } from "./Logo.jsx";
 import { LabMateLogo } from "./LabMateLogo.jsx";
 import { FAQ_ITEMS } from "./landingFaqData.jsx";
 import { FaqModal } from "./LandingFaq.jsx";
+import HowArt from "./howArt.jsx";
 import "./site.css";
 
 // ============================================================
@@ -48,7 +49,6 @@ export default function Landing() {
       <FeaturedGuides />
       <ReviewBasis />
       <Resources />
-      <Updates />
       <Footer />
     </div>
   );
@@ -62,8 +62,8 @@ export default function Landing() {
 // فقط کامپوننت بماند (هشدارِ fast-refresh در oxlint).
 const NAV_LINKS = [
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
-  { to: "/tests", label: "منابع" },
-  { to: "/landing", label: "استانداردها" },
+  { href: "/landing#resources", label: "منابع" },
+  { href: "/landing#basis", label: "استانداردها" },
 ];
 
 // سرصفحه: نشان در ابتدای ردیف، بعد لینک‌ها، بعد جست‌وجو، و دکمه در انتها.
@@ -185,9 +185,9 @@ export function Nav() {
         </Link>
 
         <div className="site-links">
-          {NAV_LINKS.map((l) => (
-            <Link key={l.label} to={l.to}>{l.label}</Link>
-          ))}
+          {NAV_LINKS.map((l) =>
+            l.to ? <Link key={l.label} to={l.to}>{l.label}</Link> : <a key={l.label} href={l.href}>{l.label}</a>
+          )}
         </div>
 
         {search("site-nav-q")}
@@ -208,9 +208,11 @@ export function Nav() {
       {open && (
         <div className="site-menu">
           {search("site-menu-q")}
-          {NAV_LINKS.map((l) => (
-            <Link key={l.label} to={l.to} onClick={() => setOpen(false)}>{l.label}</Link>
-          ))}
+          {NAV_LINKS.map((l) =>
+            l.to
+              ? <Link key={l.label} to={l.to} onClick={() => setOpen(false)}>{l.label}</Link>
+              : <a key={l.label} href={l.href} onClick={() => setOpen(false)}>{l.label}</a>
+          )}
           <Link to="/app" className="btn btn--primary btn--pill" onClick={() => setOpen(false)}>
             تحلیل نتایج من
           </Link>
@@ -275,7 +277,7 @@ function DotsIcon({ open }) {
 //   sheetMain  → پیوندهای منوی نُه‌نقطه (پیش‌فرض: همان پیوندهای داخلِ کپسول)
 //   withSearch → خانهٔ جستجو داخلِ کپسول و داخلِ منو (زیرِ ۹۸۰ فقط داخلِ منو)
 //   page       → روی صفحهٔ محتوایی؛ چند قاعدهٔ بُعدیِ فقط-آن-صفحه را روشن می‌کند
-export function PillNav({ links = NAV_LINKS, sheetMain = links, withSearch = false, page = false }) {
+export function PillNav({ links = NAV_LINKS, sheetMain = links, withSearch = false, page = false, onDark = false }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { q, setQ, submit } = useTestSearch();
@@ -334,7 +336,7 @@ export function PillNav({ links = NAV_LINKS, sheetMain = links, withSearch = fal
           {withSearch && <SearchForm id="pill-q" q={q} setQ={setQ} onSubmit={onSearch} />}
         </div>
         <Link to="/landing" className="lh-pill-brand" aria-label={BRAND}>
-          {scrolled ? <span className="lh-pill-name">{BRAND}</span> : <LabMateLogo height={83} variant="dark" />}
+          {scrolled ? <span className="lh-pill-name">{BRAND}</span> : <LabMateLogo height={83} variant={onDark ? "light" : "dark"} />}
         </Link>
         <Link to="/app" className="lh-pill-cta">
           <span>تحلیل نتایج من</span>
@@ -388,8 +390,8 @@ function Hero() {
   return (
     <header className="lh" dir="ltr">
       <img className="lh-bg" src="/lab/labmate_hero_mockup.webp" alt={HERO_ALT}
-           width="2752" height="1929" fetchpriority="high" decoding="async" />
-      <PillNav links={HERO_LINKS} sheetMain={MENU_MAIN} />
+           width="2752" height="1929" fetchPriority="high" decoding="async" />
+      <PillNav links={HERO_LINKS} sheetMain={MENU_MAIN} onDark />
 
       <div className="lh-body">
         <div className="lh-copy" dir="rtl">
@@ -421,54 +423,28 @@ function Hero() {
   );
 }
 
-// چهار گامِ کار: عکس + کارتِ شیشه‌ایِ شناور + عنوان و توضیح زیرِ عکس.
-// ⚠️ کارت‌های شناور نمونهٔ توضیحی‌اند، نه نتیجهٔ واقعی؛ زیرِ شبکه هم همین نوشته شده.
-// عکس‌ها تزئینی‌اند (alt خالی): معنا را عنوان و کارتِ شیشه‌ای می‌رساند.
+// چهار گامِ کار: تصویرِ تزئینی (howArt.jsx) + عنوان و توضیح زیرِ آن.
 function HowItWorks() {
   const steps = [
     {
-      img: "/lab/res-1.webp",
+      art: "tubes",
       t: "عکس یا ورودِ عددها",
       d: "از برگه عکس بگیرید (تا پنج عکس) یا مقدارها را خودتان تایپ کنید.",
-      glass: (
-        <>
-          <div className="hw-glass-t"><span>برگهٔ آزمایش بارگذاری شد</span><b aria-hidden="true">✓</b></div>
-          <div className="hw-glass-s">۳ صفحه · عددها خوانده شد</div>
-        </>
-      ),
     },
     {
-      img: "/lab/lab_modern_tech.webp",
+      art: "testtube",
       t: "سنجش با منابعِ معتبر",
       d: "هر عدد با محدودهٔ مرجعِ متناسب با سن و جنسِ شما سنجیده می‌شود و نامِ راهنما کنارِ یافته می‌آید.",
-      glass: (
-        <>
-          <div className="hw-glass-t"><span>هموگلوبین ۱۱٫۲</span><em className="hw-chip hw-chip--warn">پایین‌تر از محدوده</em></div>
-          <div className="hw-glass-s">محدودهٔ مرجع ۱۲ تا ۱۶ · منبع: Henry's</div>
-        </>
-      ),
     },
     {
-      img: "/lab/labmate_hero_mockup.webp", pos: "38% center",
+      art: "steth",
       t: "شرحی روشن",
       d: "عددها کنارِ هم دیده می‌شوند: هموگلوبینِ پایین در کنارِ MCV و فریتینِ پایین معنایی دیگر دارد.",
-      glass: (
-        <>
-          <div className="hw-glass-t"><span>الگوی کمبودِ آهن مطرح است</span></div>
-          <div className="hw-glass-s">هموگلوبین، MCV و فریتین هر سه پایین‌اند</div>
-        </>
-      ),
     },
     {
-      img: "/lab/couple.webp",
+      art: "app",
       t: "گامِ بعدی",
       d: "می‌گوییم چه آزمایشی تکرار شود و چه چیزهایی را به پزشک بگویید؛ مقدارِ نگران‌کننده اول از همه می‌آید.",
-      glass: (
-        <>
-          <div className="hw-glass-t"><span>برای گفت‌وگو با پزشک</span><em className="hw-chip hw-chip--ok">آماده</em></div>
-          <div className="hw-glass-s">آزمایش فریتین · سابقهٔ خونریزی و رژیم غذایی</div>
-        </>
-      ),
     },
   ];
   return (
@@ -479,13 +455,10 @@ function HowItWorks() {
       </div>
 
       <div className="hw-grid">
-        {steps.map((s, i) => (
+        {steps.map((s) => (
           <article className="hw-card" key={s.t}>
             <div className="hw-media">
-              <img src={s.img} alt="" loading="lazy" decoding="async" width="1024" height="1024"
-                   style={s.pos ? { objectPosition: s.pos } : undefined} />
-              <span className="hw-badge" aria-hidden="true">{["۱", "۲", "۳", "۴"][i]}</span>
-              <div className="hw-glass">{s.glass}</div>
+              <HowArt kind={s.art} />
             </div>
             <h3>{s.t}</h3>
             <p>{s.d}</p>
@@ -493,7 +466,6 @@ function HowItWorks() {
         ))}
       </div>
 
-      <p className="hw-note">کارت‌های روی عکس‌ها نمونه‌اند و برای توضیحِ روند آمده‌اند؛ نتیجهٔ آزمایشِ واقعی نیستند.</p>
       <div className="hw-cta">
         <Link to="/app" className="btn btn--primary btn--pill btn--lg">تحلیل نتایج من</Link>
       </div>
@@ -509,21 +481,21 @@ function FeaturedGuides() {
   //    «همهٔ راهنماها»، کنارِ تیتر است.
   const cards = [
     {
-      tone: "deep", kicker: "تیروئید", kicker2: "آزمایش",
+      tone: "deep",
       img: "/lab/thyroid_card.webp",
       t: "آزمایش عملکرد تیروئید",
       d: "TSH و T4 نشان می‌دهند تیروئید کم‌کار است یا پرکار. این راهنما شرح می‌دهد هر شاخص چه چیزی را می‌سنجد و چرا پزشک معمولاً نخست TSH را درخواست می‌کند.",
       to: "/tests/thyroid",
     },
     {
-      tone: "soft", kicker: "شمارش", kicker2: "کامل خون",
+      tone: "soft",
       img: "/lab/cbc_card.webp",
       t: "شمارش کامل خون (CBC)",
       d: "شمارش کامل خون سه رده را می‌سنجد: گلبول قرمز (حمل اکسیژن)، گلبول سفید (دفاع در برابر عفونت) و پلاکت (انعقاد). شاخص‌هایی چون MCV و MCH نوعِ کم‌خونی را از یکدیگر بازمی‌شناسانند.",
       to: "/tests/wellness",
     },
     {
-      tone: "warm", kicker: "قند", kicker2: "و دیابت",
+      tone: "warm",
       img: "/lab/diabetes_card.webp",
       t: "قند خون و HbA1c",
       d: "قند ناشتا وضعیتِ همان لحظه را نشان می‌دهد و HbA1c میانگینِ سه ماهِ اخیر را. آستانه‌ها از راهنمای ADA برگرفته شده است.",
@@ -536,13 +508,11 @@ function FeaturedGuides() {
         <h2 className="site-h2">راهنمای آزمایش‌های پرکاربرد</h2>
         <Link to="/tests" className="btn btn--secondary btn--pill">همهٔ راهنماها</Link>
       </div>
-      <div className="site-tiles">
+      <div className="site-tiles site-tiles--lead">
         {cards.map((c, idx) => (
-          <Link to={c.to} className="site-tile" key={c.t} style={{ textDecoration: 'none', color: 'inherit', display: 'block', '--index': idx }}>
-            <span className={`site-tile-art site-tile-art--${c.tone}`} aria-hidden="true" style={c.img ? { padding: 0, position: 'relative', overflow: 'hidden' } : {}}>
-              {c.img && (
-                <img src={c.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, right: 0 }} />
-              )}
+          <Link to={c.to} className={idx ? "site-tile site-tile--compact" : "site-tile"} key={c.t} style={{ "--index": idx }}>
+            <span className={`site-tile-art site-tile-art--${c.tone}${c.img ? " site-tile-art--img" : ""}`} aria-hidden="true">
+              {c.img && <img src={c.img} alt="" />}
             </span>
             <h3>{c.t}</h3>
             <p>{c.d}</p>
@@ -558,15 +528,15 @@ function ReviewBasis() {
   //    و ساختنِ پزشکِ خیالی روی محصولِ سلامت جعلِ مدرک است. چیدمان همان
   //    ماند، محتوا شد آنچه واقعاً پشتِ اعداد ایستاده.
   const sources = [
-    { k: "H", n: "Henry's Clinical Diagnosis", r: "محدوده‌های مرجع بزرگسالان" },
-    { k: "R", n: "RCPCH ۲۰۱۶", r: "محدوده‌های مرجع کودکان زیر ۱۶ سال" },
-    { k: "C", n: "CTCAE v5", r: "درجه‌بندی شدت (G1 تا G4)" },
-    { k: "K", n: "KDIGO", r: "آستانه‌های کلیه و آلبومینوری" },
-    { k: "A", n: "ADA", r: "آستانه‌های قند و HbA1c" },
-    { k: "E", n: "ESC", r: "آستانه‌های چربی خون" },
-    { k: "W", n: "WHO", r: "تعریف کم‌خونی و شاخص‌های جهانی" },
-    { k: "L", n: "CLSI", r: "کیفیت نمونه و نکته‌های پیش از آزمایش" },
-    { k: "I", n: "IFCC / EFLM", r: "واحدهای SI و تغییر معنادار نتیجه" },
+    { n: "Henry's Clinical Diagnosis", r: "محدوده‌های مرجع بزرگسالان" },
+    { n: "RCPCH ۲۰۱۶", r: "محدوده‌های مرجع کودکان زیر ۱۶ سال" },
+    { n: "CTCAE v5", r: "درجه‌بندی شدت (G1 تا G4)" },
+    { n: "KDIGO", r: "آستانه‌های کلیه و آلبومینوری" },
+    { n: "ADA", r: "آستانه‌های قند و HbA1c" },
+    { n: "ESC", r: "آستانه‌های چربی خون" },
+    { n: "WHO", r: "تعریف کم‌خونی و شاخص‌های جهانی" },
+    { n: "CLSI", r: "کیفیت نمونه و نکته‌های پیش از آزمایش" },
+    { n: "IFCC / EFLM", r: "واحدهای SI و تغییر معنادار نتیجه" },
   ];
   return (
     <section className="site-basis" id="basis">
@@ -579,7 +549,6 @@ function ReviewBasis() {
         <div className="site-basis-grid">
           {sources.map((s) => (
             <div className="site-source" key={s.n}>
-              <span className="site-source-mark" aria-hidden="true">{s.k}</span>
               <span className="site-source-txt">
                 <b>{s.n}</b>
                 <i>{s.r}</i>
@@ -595,7 +564,7 @@ function ReviewBasis() {
 
 function Resources() {
   return (
-    <section className="site-wrap site-sec">
+    <section className="site-wrap site-sec" id="resources">
       <h2 className="site-h2">منابع</h2>
       <div className="site-res-grid">
         <article className="site-res">
@@ -635,31 +604,19 @@ function Resources() {
           <Link className="site-more" to="/units-guide">بیشتر بدانید ←</Link>
         </article>
       </div>
-    </section>
-  );
-}
 
-function Updates() {
-  // ⚠️ الگو «Latest News» دارد. خبرِ ساختگی جعل است، پس این بخش
-  //    تغییرِ واقعیِ موتور را با تاریخِ واقعی نشان می‌دهد.
-  return (
-    <section className="site-wrap site-sec">
-      <h2 className="site-h2">آخرین به‌روزرسانی‌ها</h2>
-      <article className="site-news">
-        <div>
-          <span className="site-news-date">۵ مرداد ۱۴۰۵</span>
-          <h3>اکنون منبعِ هر یافته نیز ذکر می‌شود</h3>
-          <p>
-            از این نسخه، هر آستانه‌ای که برگرفته از راهنمایی منتشرشده باشد، منبعِ آن در کنارِ
-            همان یافته می‌آید. تبدیلِ واحدهای SI، نکاتِ کیفیتِ نمونه (CLSI) و «کمترین تغییرِ
-            معنادار» (EFLM) نیز به نتیجه افزوده شد.
-          </p>
+      {/* ⚠️ الگو «Latest News» دارد. خبرِ ساختگی جعل است، پس این سطر
+          تغییرِ واقعیِ موتور را با تاریخِ واقعی نشان می‌دهد. */}
+      <aside className="site-news-line" aria-label="آخرین به‌روزرسانی">
+        <span className="site-news-date">آخرین به‌روزرسانی · ۵ مرداد ۱۴۰۵</span>
+        <h3>اکنون منبعِ هر یافته نیز ذکر می‌شود</h3>
+        <p>
+          از این نسخه، هر آستانه‌ای که برگرفته از راهنمایی منتشرشده باشد، منبعِ آن در کنارِ
+          همان یافته می‌آید. تبدیلِ واحدهای SI، نکاتِ کیفیتِ نمونه (CLSI) و «کمترین تغییرِ
+          معنادار» (EFLM) نیز به نتیجه افزوده شد.{" "}
           <Link className="site-more" to="/app">بیشتر بدانید ←</Link>
-        </div>
-        <div className="site-figure">
-          <img src="/lab/news.webp" alt="کاروسل نمونهٔ یک دستگاه آنالایزر، پر از لوله‌های درپوش‌دار" loading="lazy" decoding="async" width="1024" height="1024" />
-        </div>
-      </article>
+        </p>
+      </aside>
     </section>
   );
 }

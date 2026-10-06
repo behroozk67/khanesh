@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import OnbShell from "./OnbShell.jsx";
+import Icon from "./icons.jsx";
 import { normalizeDigits, toFaDigits } from "../digits.js";
 
 // ============================================================
@@ -72,13 +73,8 @@ function OtpBoxes({ value, onChange, invalid, describedBy }) {
   );
 }
 
-const ShieldIc = () => (
-  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" /><path d="M9 12l2 2 4-4" />
-  </svg>
-);
 const Trust = () => (
-  <p className="auth-trust"><ShieldIc /><span>کد فقط برای ورود است و رمزی ذخیره نمی‌شود.</span></p>
+  <p className="auth-trust"><Icon name="shield" size={18} /><span>کد فقط برای ورود است و رمزی ذخیره نمی‌شود.</span></p>
 );
 
 export default function SignIn({ onSignedIn }) {
@@ -158,8 +154,8 @@ export default function SignIn({ onSignedIn }) {
   return (
     <OnbShell variant="auth" title="سلام، خوش آمدید" lede="برای دیدنِ تفسیرِ آزمایش، با موبایل یا ایمیل وارد شوید. رمز لازم نیست؛ یک کدِ یک‌بارمصرف می‌فرستیم.">
       <div className="onb-seg" role="group" aria-label="روشِ ورود">
-        <button type="button" aria-pressed={kind === "phone"} onClick={() => switchKind("phone")}>موبایل</button>
-        <button type="button" aria-pressed={kind === "email"} onClick={() => switchKind("email")}>ایمیل</button>
+        <button type="button" aria-pressed={kind === "phone"} onClick={() => switchKind("phone")}><Icon name="phone" size={18} /> موبایل</button>
+        <button type="button" aria-pressed={kind === "email"} onClick={() => switchKind("email")}><Icon name="mail" size={18} /> ایمیل</button>
       </div>
       <form className="onb-card" onSubmit={requestCode} noValidate>
         <div className="onb-field">

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams, Navigate, useSearchParams } from "react-router-dom";
 import OnbShell from "./OnbShell.jsx";
+import Icon from "./icons.jsx";
 import { normalizeDigits, toFaDigits } from "../digits.js";
 import { CONDITIONS, NONE_ID } from "../conditions.js";
 import {
@@ -119,8 +120,8 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
         <div className="onb-field">
           <span className="onb-label" id="sex-l">جنسیت</span>
           <div className="ik-caps" role="group" aria-labelledby="sex-l">
-            <button type="button" className="ik-cap" aria-pressed={sex === "female"} onClick={() => setSex("female")}>زن</button>
-            <button type="button" className="ik-cap" aria-pressed={sex === "male"} onClick={() => setSex("male")}>مرد</button>
+            <button type="button" className="ik-cap" aria-pressed={sex === "female"} onClick={() => setSex("female")}><Icon name="venus" size={18} /> زن</button>
+            <button type="button" className="ik-cap" aria-pressed={sex === "male"} onClick={() => setSex("male")}><Icon name="mars" size={18} /> مرد</button>
           </div>
         </div>
 
@@ -150,7 +151,7 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
 
         {canPregnant && (
           <div className="ik-chips" role="group" aria-label="بارداری">
-            <button type="button" className="ik-chip" aria-pressed={pregnant} onClick={() => setPregnant((p) => !p)}>الان باردار هستم</button>
+            <button type="button" className="ik-chip" aria-pressed={pregnant} onClick={() => setPregnant((p) => !p)}><Icon name="check" size={14} /> الان باردار هستم</button>
           </div>
         )}
 
@@ -167,9 +168,9 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
           <span className="onb-label" id="cond-l">بیماریِ زمینه‌ای (هر کدام که پزشک تشخیص داده)</span>
           <div className="ik-chips" role="group" aria-labelledby="cond-l">
             {CONDITIONS.map((c) => (
-              <button key={c.id} type="button" className="ik-chip" aria-pressed={sel.has(c.id)} onClick={() => toggle(c.id)}>{c.fa}</button>
+              <button key={c.id} type="button" className="ik-chip" aria-pressed={sel.has(c.id)} onClick={() => toggle(c.id)}><Icon name="check" size={14} /> {c.fa}</button>
             ))}
-            <button type="button" className="ik-chip ik-chip--none" aria-pressed={sel.has(NONE_ID)} onClick={() => toggle(NONE_ID)}>هیچ‌کدام</button>
+            <button type="button" className="ik-chip ik-chip--none" aria-pressed={sel.has(NONE_ID)} onClick={() => toggle(NONE_ID)}><Icon name="check" size={14} /> هیچ‌کدام</button>
           </div>
           <p className="onb-note">بعضی از این‌ها تفسیر را دقیق‌تر می‌کنند؛ نتیجه می‌گوید کدام‌ها لحاظ شد.</p>
         </div>

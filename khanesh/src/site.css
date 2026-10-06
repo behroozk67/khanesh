@@ -145,7 +145,7 @@
   width: 100%; max-width: var(--read);
   padding: var(--s4) var(--s5);
   font: inherit; font-size: var(--t-md);
-  color: var(--ink); background: var(--bg, #fff);
+  color: var(--ink); background: var(--bg, var(--card));
   border: 1px solid var(--line); border-radius: var(--r-pill);
 }
 .site-search-input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -297,8 +297,6 @@
       یک خطِ ضخیمِ رنگی روی آن فقط سر و صداست. */
 .site-intro {
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--glass-border);
   border-radius: var(--r-lg); padding: var(--s10) var(--s11);
   display: grid; gap: var(--s7); box-shadow: var(--sh-md), var(--glass-shadow);
@@ -338,8 +336,6 @@
 .site-panel, .site-block {
   padding: var(--s8); border-radius: var(--r-xl);
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--glass-border);
   box-shadow: var(--sh-xs), var(--glass-shadow);
   transition: transform var(--dur-lg) var(--ease-out-quart), box-shadow var(--dur) var(--ease);
@@ -403,8 +399,6 @@
 
 .site-tile {
   background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--glass-border);
   box-shadow: var(--sh-xs), var(--glass-shadow);
   border-radius: var(--r-xl); padding: var(--s7);
@@ -429,6 +423,9 @@
   padding: var(--s10); font-size: var(--t-d3);
   font-weight: var(--w-bold); line-height: var(--lh-tight);
 }
+a.site-tile { display: block; text-decoration: none; color: inherit; }
+.site-tile-art--img { padding: 0; position: relative; overflow: hidden; }
+.site-tile-art--img img { position: absolute; top: 0; right: 0; width: 100%; height: 100%; object-fit: cover; }
 .site-tile-art b { display: block; font-weight: var(--w-bold); }
 /* خطِ دومِ کیکر. تفاوتش با خطِ اول از اندازه و وزن می‌آید، نه از شفافیت:
    سفیدِ ۸۰٪ روی --brand حدود ۴.۳:۱ می‌شد و در ۱۶ پیکسلِ نیم‌ضخیم «متنِ
@@ -447,6 +444,19 @@
   color: var(--ink-2); margin-bottom: var(--s9);
 }
 .site-tile .btn { width: 100%; margin-top: auto; }
+
+/* راهنمای اول بزرگ است و دو راهنمای دیگر کنارش فشرده می‌آیند — نه سه کاشیِ هم‌اندازه. */
+@media (min-width: 980px) {
+  .site-tiles--lead { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: var(--s9) var(--s11); }
+  .site-tiles--lead .site-tile:first-child { grid-row: span 2; }
+  a.site-tile--compact {
+    display: grid; grid-template-columns: 36% minmax(0, 1fr);
+    column-gap: var(--s7); align-items: start; padding: var(--s6);
+  }
+  .site-tile--compact .site-tile-art { grid-row: span 2; aspect-ratio: 1 / 1; }
+  .site-tile--compact h3 { margin: 0 0 var(--s3); font-size: var(--t-xl); }
+  .site-tile--compact p { margin: 0; }
+}
 
 /* ---------- منابع و خبر ---------- */
 
@@ -476,24 +486,23 @@
   font-size: var(--t-2xs); font-weight: var(--w-bold); margin-bottom: var(--s6);
 }
 
-.site-news { display: grid; grid-template-columns: 1.2fr 1fr; gap: var(--s12); align-items: center; }
+/* سطرِ خبر زیرِ منابع: بی‌عکس، با یک خطِ جداکننده، تا بخشِ جدایی با گریدِ هم‌اندازه نباشد. */
+.site-news-line {
+  margin-top: var(--s12); padding-top: var(--s9);
+  border-top: 1px solid var(--line); max-width: var(--read);
+}
 .site-news-date { font-size: var(--t-xs); color: var(--ink-3); }
-.site-news h3 {
-  font-size: var(--t-d3); font-weight: var(--w-bold); color: var(--ink);
-  margin: var(--s4) 0 var(--s7); line-height: var(--lh-tight);
+.site-news-line h3 {
+  font-size: var(--t-xl); font-weight: var(--w-bold); color: var(--ink);
+  margin: var(--s3) 0 var(--s4); line-height: var(--lh-tight);
 }
-.site-news p {
-  font-size: var(--t-md); line-height: var(--lh-prose);
-  color: var(--ink-2); margin-bottom: var(--s7);
-}
-.site-news .site-figure { aspect-ratio: 3 / 2; }
+.site-news-line p { font-size: var(--t-sm); line-height: var(--lh-prose); color: var(--ink-2); }
 
 /* ---------- «اعداد بر چه مبنایی» ---------- */
 
 .site-basis { background: var(--ink); color: var(--on-ink); }
 .site-basis .site-h2 { color: var(--on-ink); }
 .site-basis .site-lede { color: var(--on-ink-2); }
-.site-basis .site-source-mark { background: var(--on-ink); color: var(--ink); }
 .site-basis .site-source-txt i { color: var(--on-ink-2); }
 .site-basis .btn--secondary { background: transparent; color: var(--on-ink); border-color: var(--on-ink); }
 .site-basis .btn--secondary:hover:not(:disabled) { background: var(--on-ink); color: var(--ink); }
@@ -501,12 +510,10 @@
   display: grid; grid-template-columns: 1fr 1fr;
   gap: var(--s5) var(--s12); margin-bottom: var(--s11);
 }
-.site-source { display: flex; align-items: center; gap: var(--s7); padding: var(--s4) 0; }
-.site-source-mark {
-  flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%;   /* بُعد: نشانِ حرف */
-  background: var(--brand-soft); color: var(--brand-ink);
-  display: flex; align-items: center; justify-content: center;
-  font-family: system-ui, sans-serif; font-size: var(--t-lg); font-weight: var(--w-bold);
+/* فهرستِ تایپوگرافیک: نامِ منبع و دامنه‌اش با یک خطِ نازک جدا می‌شوند؛ نشانِ حرفیِ دایره‌ای حذف شد. */
+.site-source {
+  padding: var(--s6) 0;
+  border-top: 1px solid color-mix(in srgb, var(--on-ink) 18%, transparent);
 }
 .site-source-txt { display: flex; flex-direction: column; line-height: var(--lh-tight); }
 .site-source-txt b { font-size: var(--t-md); font-weight: var(--w-bold); }
@@ -1054,8 +1061,8 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
   /* لایهٔ دوم: پایینِ قاب در رنگِ صفحه محو می‌شود، چون عکسِ بزرگ‌شده از لبهٔ پایین بیرون می‌زند. */
   background:
-    linear-gradient(to top, var(--page) 0, rgba(250, 247, 240, 0) 140px),
-    linear-gradient(90deg, rgba(250, 247, 240, .78) 0%, rgba(250, 247, 240, .35) 30%, rgba(250, 247, 240, 0) 48%);
+    linear-gradient(to top, var(--page) 0, transparent 140px),
+    linear-gradient(90deg, color-mix(in srgb, var(--page) 78%, transparent) 0%, color-mix(in srgb, var(--page) 35%, transparent) 30%, transparent 48%);
 }
 
 /* نوارِ کپسولیِ شناور */
@@ -1086,7 +1093,7 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
    direction: rtl تا متن سمتِ راست و پیکانِ «جلو» سمتِ چپ بنشیند. */
 .lh-pill .lh-pill-cta {
   justify-self: start; margin-left: var(--s11); display: inline-flex; align-items: center; gap: var(--s5);
-  direction: rtl; background: #fff; color: var(--ink);
+  direction: rtl; background: var(--card); color: var(--ink);
   font-size: var(--t-lg); font-weight: var(--w-bold); line-height: 1;
   padding: var(--s3) var(--s9) var(--s3) var(--s3); border-radius: 999px; white-space: nowrap;
   transition: background var(--dur) var(--ease);
@@ -1164,7 +1171,6 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
   align-self: center; width: min(26vw, 340px); min-width: 250px;
   padding: var(--s8) var(--s9); border-radius: 24px; text-align: right;
   background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur-lg)); -webkit-backdrop-filter: blur(var(--glass-blur-lg));
   border: 1px solid var(--glass-border); box-shadow: var(--sh-md), var(--glass-shadow);
 }
 .lh-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
@@ -1208,27 +1214,34 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 .hw-head .site-h2 { margin: 0; }
 .hw-head p { margin-top: var(--s5); font-size: var(--t-xl); color: var(--ink-2); }
 
-.hw-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s9); }
-@media (max-width: 1024px) { .hw-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .hw-grid { grid-template-columns: 1fr; } }
+/* چهار گام به‌صورتِ ردیفِ عمودی: تصویر در یک ستون، عنوان و توضیح در ستونِ دیگر، با خطِ نازک بینِ گام‌ها. */
+.hw-grid { display: grid; grid-template-columns: 1fr; max-width: 52rem; margin-inline: auto; }
 
-.hw-card { display: flex; flex-direction: column; }
+.hw-card {
+  display: grid; grid-template-columns: 9rem minmax(0, 1fr);
+  column-gap: var(--s10); align-items: center;
+  padding-block: var(--s9); border-top: 1px solid var(--line);
+}
+.hw-card:first-child { border-top: 0; }
+.hw-card .hw-media { grid-row: span 2; }
+.hw-card h3, .hw-card p { grid-column: 2; }
+.hw-card h3 { align-self: end; }
+.hw-card p { margin-top: var(--s3); align-self: start; }
+@media (max-width: 640px) { .hw-card { grid-template-columns: 5.5rem minmax(0, 1fr); column-gap: var(--s7); } }
 .hw-media {
   position: relative; aspect-ratio: 1 / 1; overflow: hidden; border-radius: 20px;
-  background: var(--brand-soft); box-shadow: var(--sh-md); margin-bottom: var(--s8);
+  background: var(--brand-soft); box-shadow: var(--sh-md);
 }
 .hw-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .hw-badge {
   position: absolute; inset-block-start: var(--s7); inset-inline-start: var(--s7);
   width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center;
   background: rgba(0, 0, 0, .42); color: #fff; font-size: var(--t-sm); font-weight: var(--w-bold);
-  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
 }
 .hw-glass {
   position: absolute; inset-inline: var(--s7); inset-block-end: var(--s8);
   padding: var(--s6) var(--s7); border-radius: 14px; color: #fff;
   background: rgba(24, 24, 27, .74); border: 1px solid rgba(255, 255, 255, .14);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, .25);
 }
 .hw-glass-t { display: flex; align-items: center; justify-content: space-between; gap: var(--s5); font-size: var(--t-sm); font-weight: var(--w-bold); }
@@ -1263,8 +1276,8 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 .lh-nav--top .lh-pill-links a { color: var(--ink); }
 .lh-nav--top .lh-pill-links a:hover { background: rgba(22, 32, 44, .07); }
 .lh-nav--top .lh-pill-brand svg { height: 83px; }   /* بُعد: لوگو، ۳۰٪ بزرگ‌تر از ۶۴ */
-.lh-nav--top .lh-pill .lh-pill-cta { background: #111; color: #fff; }
-.lh-nav--top .lh-pill-cta-ic { background: #fff; color: #111; }
+.lh-nav--top .lh-pill .lh-pill-cta { background: var(--ink); color: var(--card); }
+.lh-nav--top .lh-pill-cta-ic { background: var(--card); color: var(--ink); }
 .lh-nav--top .lh-pill .lh-pill-cta:hover { background: #2a2a2a; }
 /* دکمهٔ منو کادرِ نوار نیست؛ روی سرِ تیرهٔ عکس بدونِ زمینه دیده نمی‌شد. */
 .lh-nav--top .lh-grid { background: rgba(255, 255, 255, .86); color: var(--ink); }
@@ -1538,3 +1551,68 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 .fq-table td:last-child { color: var(--brand-ink); font-weight: var(--w-semibold); }
 .fq-table tbody tr:last-child th, .fq-table tbody tr:last-child td { border-bottom: 0; }
 .fq-table-wrap + .fq-note { margin-top: 24px; }
+
+/* ============================================================
+   هیروی سینمایی (الهام از superpower.com، صفحهٔ اول):
+   زمینهٔ تقریباً سیاه، عکس با رنگ‌بندیِ کهربایی/قرمز و نورِ لبه، تیترِ درشتِ سفید،
+   زیرتیترِ خاکستری که از راست روشن می‌شود، دکمهٔ نارنجی. فقط رنگ/نور/تایپ — متن و ساختار دست نخورده.
+   ============================================================ */
+.lh { background: #050505; color: #fff; }
+.lh-bg {
+  filter: grayscale(1) sepia(.8) saturate(3.6) hue-rotate(-32deg) brightness(.34) contrast(1.3);
+}
+.lh::after {
+  background:
+    radial-gradient(42% 60% at 68% 30%, rgba(255, 70, 20, .28), transparent 70%),
+    radial-gradient(60% 80% at 75% 50%, transparent 35%, rgba(5, 5, 5, .55) 100%),
+    linear-gradient(to top, #050505 0, rgba(5, 5, 5, 0) 220px),
+    linear-gradient(90deg, rgba(5, 5, 5, .96) 0%, rgba(5, 5, 5, .85) 34%, rgba(5, 5, 5, .45) 50%, rgba(5, 5, 5, 0) 66%);
+}
+/* دانهٔ فیلم */
+.lh::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .09; mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+.lh-copy { width: min(40vw, 560px); }
+.lh-copy h1 {
+  color: #fff; font-size: clamp(2rem, 1.1rem + 2.9vw, 4rem); line-height: 1.12; letter-spacing: -.01em;
+  animation: lh-rise .9s cubic-bezier(.2, .7, .2, 1) both;
+}
+.lh-sub {
+  font-size: var(--t-lg); color: transparent;
+  background: linear-gradient(to left, #fff 0 34%, rgba(255, 255, 255, .34) 64% 100%) 0 0 / 300% 100% no-repeat;
+  -webkit-background-clip: text; background-clip: text;
+  animation: lh-reveal 2.4s .35s cubic-bezier(.3, .6, .2, 1) both;
+}
+@keyframes lh-rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes lh-reveal { from { background-position: 0 0; } to { background-position: 100% 0; } }
+
+.lh-acc { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .14); }
+.lh-acc:hover { background: rgba(255, 255, 255, .1); }
+.lh-fine { color: rgba(255, 255, 255, .62); }
+.lh-fine a { color: #fff; }
+
+/* نوارِ بالا روی زمینهٔ تیره */
+.lh > .lh-nav--top .lh-pill { color: #fff; }
+.lh > .lh-nav--top .lh-pill-links a { color: rgba(255, 255, 255, .86); }
+.lh > .lh-nav--top .lh-pill-links a:hover { background: rgba(255, 255, 255, .1); }
+.lh > .lh-nav--top .lh-grid { background: rgba(255, 255, 255, .1); color: #fff; }
+.lh > .lh-nav--top .lh-pill a:focus-visible, .lh > .lh-nav--top .lh-grid:focus-visible { outline-color: #fff; }
+/* دکمهٔ اصلی: نارنجیِ مرجع (متنِ سفیدِ درشت و پررنگ — ۳:۱ برای متنِ بزرگ) */
+.lh > .lh-nav .lh-pill .lh-pill-cta { background: #f2501a; color: #fff; }
+.lh > .lh-nav .lh-pill-cta-ic { background: #fff; color: #f2501a; }
+.lh > .lh-nav .lh-pill .lh-pill-cta:hover { background: #d9420f; }
+
+@media (max-width: 979px) {
+  .lh-bg { -webkit-mask-image: linear-gradient(to top, transparent 0, #000 35%); mask-image: linear-gradient(to top, transparent 0, #000 35%); }
+  .lh-copy { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lh-copy h1, .lh-sub { animation: none; }
+  .lh-sub { color: #fff; background: none; }
+}
+
+/* هر چهار تصویر مربع بریده شده‌اند (howArt.jsx)، پس قاب هم مربع است و چیزی بریده نمی‌شود. */
+.hw-media:has(.hw-art) { aspect-ratio: 1 / 1; box-shadow: none; }
+.hw-art, .hw-art img { width: 100%; height: 100%; display: block; object-fit: cover; }
