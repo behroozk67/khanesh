@@ -364,7 +364,7 @@ function ContextLine({ ctx, asText }) {
   const parts = [
     ctx.sex && asText(ctx.sex),
     ctx.age_text && asText(ctx.age_text),
-    ctx.pregnant && "باردار",
+    ctx.pregnant && (ctx.gest_weeks != null ? `باردار، هفتهٔ ${asText(String(ctx.gest_weeks)).replace(/d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d])}` : "باردار"),
     ...(Array.isArray(ctx.conditions_applied) ? ctx.conditions_applied.map((c) => asText(c?.fa)) : []),
   ].filter(Boolean);
   if (!parts.length) return null;

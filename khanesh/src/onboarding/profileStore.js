@@ -18,7 +18,7 @@ const TOKEN_KEY = "auth_token";
 
 const EMPTY = Object.freeze({
   firstName: "", lastName: "", sex: "", ageValue: null, ageUnit: "year",
-  pregnant: false, conditions: [], conditionsAnswered: false,
+  pregnant: false, gestWeeks: null, gestRecordedAt: null, conditions: [], conditionsAnswered: false,
 });
 
 let cache = null;          // پروفایلِ جاری در حافظه
@@ -132,6 +132,17 @@ export function ageInYears(p) {
 
 export const pregnancyEligible = (p) => p?.sex === "female" && (ageInYears(p) ?? 0) >= 10;
 
+// سنِ بارداری (هفته، ۱ تا ۴۲ — همان بازهٔ سرور). هفتهٔ ثبت‌شده با گذشتِ زمان جلو می‌رود؛ بیشینه ۴۲.
+export const GEST_RANGE = [1, 42];
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+export function currentGestWeeks(p, now = Date.now()) {
+  if (!pregnancyEligible(p) || !p.pregnant) return null;
+  const w = Number(p.gestWeeks);
+  if (!Number.isInteger(w) || w < GEST_RANGE[0] || w > GEST_RANGE[1]) return null;
+  const passed = p.gestRecordedAt ? Math.max(0, Math.floor((now - p.gestRecordedAt) / WEEK_MS)) : 0;
+  return Math.min(GEST_RANGE[1], w + passed);
+}
+
 /** همان شکلی که موتور از patient می‌خواند (Tafsir.jsx سابق). بدونِ نام، هرگز. */
 export function patientFromProfile(p) {
   if (!p) return {};
@@ -139,6 +150,7 @@ export function patientFromProfile(p) {
     age: p.ageValue != null && p.ageValue !== "" ? `${p.ageValue} ${AGE_UNIT_FA[p.ageUnit] ?? "سال"}` : null,
     sex: p.sex === "female" ? "زن" : p.sex === "male" ? "مرد" : null,
     pregnant: pregnancyEligible(p) && p.pregnant ? true : undefined,
+    gestWeeks: currentGestWeeks(p) ?? undefined,
     conditions: p.conditions?.length ? p.conditions : undefined,
   };
 }
@@ -151,7 +163,7 @@ export function profileSummary(p) {
   if (p.ageValue != null && p.ageValue !== "") {
     parts.push(p.ageUnit === "year" ? `${toFaDigits(p.ageValue)} ساله` : `${toFaDigits(p.ageValue)} ${AGE_UNIT_FA[p.ageUnit]}`);
   }
-  if (pregnancyEligible(p) && p.pregnant) parts.push("باردار");
+  if (pregnancyEligible(p) && p.pregnant) { const gw = currentGestWeeks(p); parts.push(gw != null ? `باردار، هفتهٔ ${toFaDigits(gw)}` : "باردار"); }
   for (const id of p.conditions ?? []) parts.push(conditionFa(id));
   return parts.join("، ");
 }

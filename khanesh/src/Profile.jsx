@@ -4,7 +4,7 @@ import { LabMateLogo } from "./LabMateLogo.jsx";
 import { toFaDigits } from "./digits.js";
 import { conditionFa } from "./conditions.js";
 import { clearJob, clearResult } from "./analyzeJob.js";
-import { loadProfile, clearProfile, AGE_UNIT_FA, pregnancyEligible } from "./onboarding/profileStore.js";
+import { loadProfile, clearProfile, AGE_UNIT_FA, pregnancyEligible, currentGestWeeks } from "./onboarding/profileStore.js";
 import "./onboarding/onboarding.css";
 
 // ============================================================
@@ -83,7 +83,7 @@ export default function Profile() {
 
   const p = profile;
   const age = p?.ageValue != null ? `${toFaDigits(p.ageValue)} ${AGE_UNIT_FA[p.ageUnit] ?? 'سال'}` : '';
-  const sex = p?.sex === 'female' ? `زن${pregnancyEligible(p) && p.pregnant ? '، باردار' : ''}` : p?.sex === 'male' ? 'مرد' : '';
+  const sex = p?.sex === 'female' ? `زن${pregnancyEligible(p) && p.pregnant ? (currentGestWeeks(p) != null ? `، باردار، هفتهٔ ${toFaDigits(currentGestWeeks(p))}` : '، باردار') : ''}` : p?.sex === 'male' ? 'مرد' : '';
   const conds = p?.conditionsAnswered ? (p.conditions?.length ? p.conditions.map(conditionFa).join('، ') : 'هیچ‌کدام') : '';
 
   return (

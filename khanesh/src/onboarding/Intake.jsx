@@ -4,7 +4,7 @@ import OnbShell from "./OnbShell.jsx";
 import { normalizeDigits, toFaDigits } from "../digits.js";
 import { CONDITIONS, NONE_ID } from "../conditions.js";
 import {
-  loadProfile, saveProfile, AGE_RANGE, AGE_UNIT_FA, ageInYears, pregnancyEligible, ageIsStale,
+  loadProfile, saveProfile, AGE_RANGE, AGE_UNIT_FA, ageInYears, pregnancyEligible, ageIsStale, currentGestWeeks, GEST_RANGE,
 } from "./profileStore.js";
 
 // ============================================================
@@ -51,6 +51,7 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
   const [value, setValue] = useState(profile.ageValue != null ? String(profile.ageValue) : "");
   const [unit, setUnit] = useState(profile.ageUnit || "year");
   const [pregnant, setPregnant] = useState(!!profile.pregnant);
+  const [gest, setGest] = useState(profile.gestWeeks != null ? String(currentGestWeeks(profile) ?? profile.gestWeeks) : "");
   const [sel, setSel] = useState(() => new Set(profile.conditionsAnswered && !profile.conditions?.length ? [NONE_ID] : profile.conditions ?? []));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -77,12 +78,16 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
     if (!Number.isInteger(n) || n < lo || n > hi) {
       return setErr(`سن را به‌صورتِ عددی بین ${toFaDigits(lo)} و ${toFaDigits(hi)} ${AGE_UNIT_FA[unit]} وارد کنید.`);
     }
+    const g = gest.trim() === "" ? null : Number(normalizeDigits(gest.trim()));
+    if (canPregnant && pregnant && g != null && !(Number.isInteger(g) && g >= GEST_RANGE[0] && g <= GEST_RANGE[1])) {
+      return setErr(`هفتهٔ بارداری را عددی بین ${toFaDigits(GEST_RANGE[0])} و ${toFaDigits(GEST_RANGE[1])} وارد کنید، یا خالی بگذارید.`);
+    }
     if (sel.size === 0) return setErr("بیماریِ زمینه‌ای را انتخاب کنید، یا «هیچ‌کدام».");
     setBusy(true); setErr("");
     try {
       await onSave({
         firstName: first.trim().slice(0, 50), lastName: last.trim().slice(0, 50), sex,
-        ageValue: n, ageUnit: unit, pregnant: canPregnant && pregnant, conditions: [...sel],
+        ageValue: n, ageUnit: unit, pregnant: canPregnant && pregnant, gestWeeks: canPregnant && pregnant ? g : null, gestRecordedAt: canPregnant && pregnant && g != null ? Date.now() : null, conditions: [...sel],
       });
     } catch (e2) {
       setErr(e2.message || "ذخیره انجام نشد. دوباره تلاش کنید.");
@@ -146,6 +151,15 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
         {canPregnant && (
           <div className="ik-chips" role="group" aria-label="بارداری">
             <button type="button" className="ik-chip" aria-pressed={pregnant} onClick={() => setPregnant((p) => !p)}>الان باردار هستم</button>
+          </div>
+        )}
+
+        {canPregnant && pregnant && (
+          <div className="onb-field">
+            <label className="onb-label" htmlFor="gest-w">هفتهٔ بارداری (اختیاری)</label>
+            <input id="gest-w" className="onb-input" inputMode="numeric" autoComplete="off" value={gest}
+              onChange={(e) => setGest(e.target.value)} placeholder="مثلاً ۱۲" aria-describedby="gest-h" />
+            <p className="onb-note" id="gest-h">اگر هفته را نمی‌دانید خالی بگذارید؛ تفسیر بدونِ آن هم انجام می‌شود.</p>
           </div>
         )}
 
