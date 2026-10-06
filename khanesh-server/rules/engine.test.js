@@ -6377,7 +6377,7 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
     // ⚠️ C3 عمداً عوض شد (M187): microcytic_anemia حالا RBCِ بالا و RDWِ بالا را نام می‌برد و خطِ «بی‌توضیح» حذف شد؛ یافته‌ها/فوریت/اقدام همان.
     // ⚠️ عمداً عوض شد — P53 پرسش ۱۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): در microcytic_ida_likely فقط دو چیز — بازهٔ MCV از ردیفِ نمره‌دار («۸۰ تا ۱۰۰» → «80–96») و، وقتی فریتین روی برگه است، جملهٔ فریتینِ همان برگه به‌جای «فریتین باید اندازه‌گیری شود». سنجیده شد (freezediff، 953f513 در برابرِ درختِ کاری): یافته‌ها، فوریت و اقدام یکسان‌اند.
     C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "c28284a71e61800a"],
-    C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8", "g/dL"]], "67b4849bbc53c3d2"], // P91 (عمدی): متنِ maha_ttp_suspicion بی‌نشانگرِ همولیز بی‌نامِ TTP/HUS؛ با متنِ قدیمِ maha همان d1fd65864640b7f3. // ⚠️ M191: پان‌سیتوپنی سه عدد + آزمایش‌های علت‌یابی (freezediff).
+    C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8", "g/dL"]], "9ce14dc1f63eb7b4"], // P95 (عمدی، proof95): maha بی‌نشانگرِ همولیز فعال نمی‌شود؛ severe_thrombocytopenia همان Hb/لام/LDH، «فوراً به اورژانس» و هشدارِ «منتظرِ نوبت نمانید» را گرفت؛ فوریت همان. // P91 (عمدی): متنِ maha_ttp_suspicion بی‌نشانگرِ همولیز بی‌نامِ TTP/HUS؛ با متنِ قدیمِ maha همان d1fd65864640b7f3. // ⚠️ M191: پان‌سیتوپنی سه عدد + آزمایش‌های علت‌یابی (freezediff).
     // ⚠️ C5 عمداً عوض شد — P53 پرسش ۵ (M197، آستانهٔ غربالگریِ WHO): پیش‌تر RBCِ ۶.۴ به unmatched_abnormal
     //    می‌رفت («فقط اقدامِ روتین»)؛ حالا Hb=17.5 داخلِ بازهٔ موتور ولی بالای آستانهٔ WHOِ مرد (۱۶.۵) است، پس
     //    erythrocytosis_who_screen فعال می‌شود و RBC را در متن نام می‌برد. سنجیده شد: تنها فرق همین یافتهٔ تازه است.
@@ -8850,7 +8850,8 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   // اندیس‌های ۲، ۳، ۶، ۷، ۹، ۱۰.
   // ⚠️ اندیس ۹ عمداً عوض شد (M275، ۲۰۲۶-۱۰-۰۱): leukocytosis نوتروفیلِ مطلقِ بالا را می‌گوید و unexplained_abnormal رفت — freezediff: فقط همین.
   // ⚠️ 3، 5، 10 عمداً عوض شد (M192، ۲۰۲۶-۰۹-۲۴): کم‌خونی RBC/HCT/MCHِ هم‌جهت را نام می‌برد و unexplained_abnormal رفت — freezediff: فقط همین. // ⚠️ اندیسِ ۱۱ عمداً عوض شد (۲۰۲۶-۱۰-۰۴، P77-۸): هماتوکریتِ کودکِ ۸ ساله بی‌بازهٔ سنی دیگر سنجیده نمی‌شود (noRef)؛ هش با دو ردیفِ بی‌یافتهٔ اول یکی است.
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","a9607b22be77c6ff","3bf61851eec439b1","c979a7f9f4e6d5f6","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
+  // ⚠️ اندیسِ ۵ (MCHC 37) عمداً عوض شد — P95: spherocytosis_likely جملهٔ «اسفروسیت به‌تنهایی تشخیصِ نوعی کم‌خونی نیست؛ DAT» و پیشنهادِ DAT/رتیکولوسیت/LDH گرفت (proof95، فوریت همان).
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","533579b1749fa223","3bf61851eec439b1","c979a7f9f4e6d5f6","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
   // ⚠️ اندیسِ ۸ (PLT 90، Hb/WBCِ طبیعی) عمداً عوض شد — بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، N20): thrombocytopenia کنارِ isolated_thrombocytopenia
   //   کنار رفت؛ isolated عدد/بازه (به‌جای «به زیر ۱۰۰ هزار») و «تکرار CBC» گرفت. فوریت همان this_week (proof4.mjs، کپیِ pre4).
   assert.deepEqual(P.map(snap), EXPECTED);
@@ -10661,8 +10662,10 @@ test("M220c: MCH فقط وقتی مشتق شمرده می‌شود که MCV و M
 
 test("M220d: بزرگسال — همان برگه: متنِ بزرگسالِ viral_lymphocytosis و leukopenia دست نخورده؛ نوتروفیلِ غایب گفته می‌شود بی‌«نوزاد»", () => {
   const { ids, text } = m220Run("40 سال");
-  for (const id of ["viral_lymphocytosis", "low_rbc_hct_without_anemia", "neutrophil_count_missing"]) assert.ok(ids.includes(id), `${id}: ${ids}`);
-  assert.match(text, /پس از بهبود عفونت/);
+  // P95 (عمداً تغییر کرد): لنفوسیتِ بالای ۵۰۰۰ در بزرگسال مالکش cll_suspicion_nccn است (گیتِ ۵۰ سال رفت)، نه viral_lymphocytosis؛
+  //   متنِ بزرگسال همان علت‌های واکنشی (ویروسی…) و «تکرار» را می‌گوید. ادعای این آزمون — بی‌«نوزاد» — دست نخورده.
+  for (const id of ["cll_suspicion_nccn", "low_rbc_hct_without_anemia", "neutrophil_count_missing"]) assert.ok(ids.includes(id), `${id}: ${ids}`);
+  assert.match(text, /عفونت‌های ویروسیِ حاد/);
   assert.doesNotMatch(text, /نوزاد/);
   // WBC 7.4 بزرگسال طبیعی است ⇒ leukopenia نه
   assert.ok(!ids.includes("leukopenia"));
@@ -10810,7 +10813,11 @@ test("M230: job fff90f58 — «لکوسیتوز + سیتوپنیِ شدید» ص
   // تریاژِ اورژانسی دست نخورده
   assert.equal(p.overall_urgency, "emergency");
   assert.equal(p.has_critical, true);
-  for (const id of ["severe_thrombocytopenia", "maha_ttp_suspicion"]) assert.ok(ids.includes(id), `${id} افتاد: ${ids}`);
+  // P95 (عمداً تغییر کرد): بی‌نشانگرِ همولیز maha_ttp_suspicion فعال نمی‌شود (ISTH: شک به TTP بر پایهٔ MAHA)؛ Hbِ پایین و لام/LDH
+  //   حالا در severe_thrombocytopenia است، با همان دستورِ «فوراً به اورژانس».
+  assert.ok(ids.includes("severe_thrombocytopenia"), ids);
+  assert.ok(!ids.includes("maha_ttp_suspicion"), ids);
+  assert.match(p.findings.find((x) => x.rule_id === "severe_thrombocytopenia").must_say, /هموگلوبین هم پایین است/);
   const f = fffFind(p, "leukocytosis_with_cytopenia");
   assert.ok(f, `یافتهٔ لکوسیتوز + سیتوپنی نیامد: ${ids}`);
   assert.equal(f.urgency, "emergency");
@@ -11844,9 +11851,9 @@ const M010_FREEZE = {
   // ⚠️ dic_emerg عمداً بازپایه شد (P73): Hbِ ۱۳ (پایین برای مرد ۶۰ ساله، بی‌MCV) پیش‌تر unexplained_abnormal/routine بود، حالا anemia_hb_alone/routine؛
   //   dic_pattern و coagulation_abnormal و فوریتِ کلی (emergency) دست‌نخورده.
   dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "207480882283b17f"],
-  plt40_dd6: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 40, "10^3/uL"), m010T("D-dimer", 6.0, "µg/mL"), m010T("PT", 12, "sec"), m010T("Fibrinogen", 300, "mg/dL")], "23f9236f61afb400"],
-  plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "0c9e940c3e6edecb"],
-  plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "1891b9878d37f409"],
+  plt40_dd6: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 40, "10^3/uL"), m010T("D-dimer", 6.0, "µg/mL"), m010T("PT", 12, "sec"), m010T("Fibrinogen", 300, "mg/dL")], "372f21f3a9239c89"], // P95 (عمدی، proof95): فقط احتیاطِ EDTA «لام قابل‌اعتمادترین راه … سیترات یا هپارین»؛ فوریت همان
+  plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "0b3777138bf58435"], // P95 (عمدی، proof95): severe_thrombocytopenia Hbِ پایین و لام/LDH را می‌گوید ⇒ نجاتِ تکمیلیِ anemia_hb_alone (فقط جملهٔ اول) لازم نیست؛ فوریت همان
+  plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "ce53c5c6951f5b7a"], // P95 (عمدی، proofM257: فوریت همان؛ EDTA/Hb-در-severe_thrombocytopenia/maha بی‌نشانگر)
   dd_only: ["M", 70, [...M010_BASE, m010T("D-dimer", 700, "ng/mL")], "3063cfd783be8dcc"],
   aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "b35c9851d8754cbd"],
   pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "0ee02a62f8a75c4f"],
@@ -11858,8 +11865,8 @@ const M010_FREEZE = {
   factor_vii: ["M", 40, [...M010_BASE, m010T("Factor VII", 40, "%")], "f1317c856c6d3301"],
   bare_inhibitor: ["M", 25, [...M010_BASE, m010T("Inhibitor", "Positive")], "f1317c856c6d3301"],
   // P91 (عمدی): فقط متن/پیشنهادِ maha_ttp_suspicion بی‌نشانگرِ همولیز؛ با patterns_malignancy.js ِ HEAD همان a191747c38d3b902.
-  maha: ["F", 40, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 8, "g/dL"), m010T("PLT", 30, "10^3/uL")], "7ba7e24b48eebd59"],
-  plt_80: ["M", 40, [...M010_BASE, m010T("PLT", 80, "10^3/uL")], "6e3e20993d98958a"], // ⚠️ بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، عمدی): thrombocytopenia کنارِ isolated_thrombocytopenia رفت؛ isolated عدد/بازه + احتیاطِ EDTA + هشدارِ کبودی؛ فوریت همان
+  maha: ["F", 40, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 8, "g/dL"), m010T("PLT", 30, "10^3/uL")], "6eebb50ecbe6d9ee"], // P95 (عمدی، proofM257: فوریت همان؛ EDTA/Hb-در-severe_thrombocytopenia/maha بی‌نشانگر)
+  plt_80: ["M", 40, [...M010_BASE, m010T("PLT", 80, "10^3/uL")], "ed832caa1e1f3af0"], // P95 (عمدی، proofM257: فوریت همان؛ EDTA/Hb-در-severe_thrombocytopenia/maha بی‌نشانگر) // ⚠️ بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، عمدی): thrombocytopenia کنارِ isolated_thrombocytopenia رفت؛ isolated عدد/بازه + احتیاطِ EDTA + هشدارِ کبودی؛ فوریت همان
 };
 
 test("M256: پلاکتِ ≥ ۱۰۰۰ ⇒ thrombocytosis «این هفته» بی «در بیشتر موارد واکنشی»؛ ۹۹۹ و ۵۰۰ بایت‌به‌بایت همان پیشین (FR-017)", () => {

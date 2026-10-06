@@ -1830,6 +1830,11 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   and quoted no number. Now `thrombocytopenia` stands down by calling the live rule. The owner gained the number, the bruising warning and «تکرار CBC».
   **The EDTA caveat was attached by rule id (`preanalytical.js` `attachTo`)**, so the hand-off would have silently dropped it from the one sheet it
   was written for. G4 caught that. When a rule stands down, grep its id outside `patterns_*.js` too. Guard `L26`.
+- ⚠️ **Recurred 2026-10-06 when a branch was *removed* (`P95`).** Making `maha_ttp_suspicion` require a haemolysis marker (ISTH) left no
+  urgency lower, because `severe_thrombocytopenia` was already an emergency. But the deleted branch had been the source of the sheet's **final
+  instruction** («بدون اتلاف وقت فوراً به اورژانس») and of «نباید منتظر نوبت مطب بمانید». On the real pancytopenia sheet, the last word
+  weakened to «همین امروز به پزشک یا اورژانس». `M188` caught it; the 236-request urgency diff showed nothing. **When you remove or narrow
+  an emergency rule, diff the final action and the recommendation list on its panels, not only `overall_urgency`.**
 - ⚠️ **2026-10-06 (P91), a guideline-shaped proposal measured before it was built.** A sourced summary proposed TTP ⇒ emergency on
   "PLT < 150 + low Hb + any haemolysis marker". On the 236-request LIS export that fires twice. One is a 30-year-old post-partum woman,
   PLT 133, Hb 8.5, raised LDH, which is common after delivery: `this_week` would have become a TTP emergency. Only the text change shipped

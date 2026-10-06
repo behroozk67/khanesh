@@ -10,7 +10,7 @@
 //    مالک‌ها صریحاً فهرست شده‌اند، نه با «قاعده این کلید را خواند» (N18: خواندن ≠ گفتن) — `M313` وجودشان را می‌سنجد.
 // ⚠️ هر جمله‌ای که از آزمایشِ دیگر حرف می‌زند سه‌حالته است (بالا/پایین/طبیعی/غایب) — `comp()` (N4، M156).
 // ============================================================
-import { levelGrade, anemiaSeverityFa, infantAnemiaNoGrade, ckChildSoon, CK_CHILD_SENTENCE, CK_CHILD_SOON_ACTION } from "./patterns_utils.js";
+import { levelGrade, anemiaSeverityFa, infantAnemiaNoGrade, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION } from "./patterns_utils.js";
 import { isNeonate } from "./neonatal.js";
 import { faName } from "./names.js";
 
@@ -173,9 +173,9 @@ const ckElevatedAlone = {
     const big = mult != null && mult >= 5;
     // کفِ فوریت = همان نگاشتِ تورِ بی‌توضیح (CK ۳۰۰۰ «critical» ⇒ emergency بود)؛ ۵×ULN فقط بالا می‌برد، پایین نمی‌آورد (N29).
     const netU = netUrgency(e, ck, isNeonate(e.age));
-    // P91 (تصمیمِ کاربر، [22]): کودکِ < ۱۶ با CK ≥ ۵×سقف ⇒ کفِ soon — فقط بالا می‌برد (N29).
-    const ckChild = ckChildSoon(e, ck);
-    const urgency = netU === "emergency" ? "emergency" : ckChild ? "soon" : big || netU === "this_week" ? "this_week" : "routine";
+    // P95 (تصمیمِ کاربر، [22]): کودکِ < ۱۶ با CK ≥ ۱۰۰۰ یا ≥ ۵×سقف ⇒ کفِ this_week (نه soon) — فقط بالا می‌برد (N29).
+    const ckChild = ckChildFlag(e, ck);
+    const urgency = netU === "emergency" ? "emergency" : ckChild || big || netU === "this_week" ? "this_week" : "routine";
     return {
       pattern: "ck_elevated_alone",
       urgency,
@@ -192,9 +192,9 @@ const ckElevatedAlone = {
           : "شایع‌ترین علت‌ها ورزشِ سنگین یا ناآشنا، ضربه، تزریقِ عضلانی، تشنج، گرمازدگی و داروهایی مثل استاتین‌ها هستند؛ " +
             (big ? "" : "اغلب با استراحتِ چند روزه و تکرارِ آزمایش پایین می‌آید. ")) +
         comp(e, K.CREAT, "کراتینین (برای سنجشِ اثر بر کلیه)"),
-      action: urgency === "soon" ? CK_CHILD_SOON_ACTION : ACT[urgency],
+      action: ckChild && urgency === "this_week" ? CK_CHILD_ACTION : ACT[urgency],
       suggest: ["تکرار CK", "کراتینین", ...(ckChild ? ["آزمایش کامل ادرار", "پتاسیم"] : [])],
-      // کودک: همین هشدار در CK_CHILD_SOON_ACTION هست — تکرار نشود.
+      // کودک: همین هشدار در CK_CHILD_ACTION هست — تکرار نشود.
       warnings: big && !ckChild
         ? ["اگر ادرارِ تیره (رنگِ چای یا کولا)، دردِ شدیدِ عضلانی، ضعفِ شدید یا کم‌شدنِ ادرار دارید، منتظرِ نوبت نمانید و همان روز به اورژانس بروید."]
         : [],

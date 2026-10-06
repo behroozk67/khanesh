@@ -345,13 +345,15 @@ test("L16 — [66] WBCِ بالا «روی برگه نیست» خوانده نم
   assert.doesNotMatch(mn.must_say, /روی این برگه نیست/);
   assert.match(mn.must_say, /23\.9/);
   assert.doesNotMatch(mn.must_say + mn.action, /موقتی|چند هفته|نوبتِ عادی/);
-  const vl = find(p, "viral_lymphocytosis");
+  // P95 (عمداً تغییر کرد): گیتِ ۵۰ سال رفت — لنفوسیتِ ≥ ۵۰۰۰ در هر بزرگسال مالکش cll_suspicion_nccn است (> ۱۰٬۰۰۰ ⇒ this_week).
+  const vl = find(p, "cll_suspicion_nccn");
   assert.match(vl.must_say, /20793/);
   assert.doesNotMatch(vl.must_say, /موقتی است/);
   assert.equal(vl.urgency, "this_week");
-  // کنترل: لنفوسیتِ ۶۰۰۰ (درجهٔ ۲) همان متنِ قبلی را دارد.
-  const v2 = find(run([row("WBC", "9.5"), row("Neut", "30"), row("Lymph", "63"), row("Mixed", "7")], { sex: "M", age: 38 }).p, "viral_lymphocytosis");
-  assert.match(v2.must_say, /معمولاً موقتی است/);
+  assert.ok(!find(p, "viral_lymphocytosis"), "دو یافته برای یک لنفوسیت (N20)");
+  // کنترل: لنفوسیتِ ۶۰۰۰ در ۳۸ ساله ⇒ routine با «تکرار پس از ۶–۸ هفته»، بی‌«موقتی است» (P95؛ پیش‌تر viral_lymphocytosis، همان فوریت).
+  const v2 = find(run([row("WBC", "9.5"), row("Neut", "30"), row("Lymph", "63"), row("Mixed", "7")], { sex: "M", age: 38 }).p, "cll_suspicion_nccn");
+  assert.match(v2.action, /۶ تا ۸ هفته/);
   assert.equal(v2.urgency, "routine");
 });
 
@@ -381,31 +383,44 @@ test("L16c — liver_pattern عددِ آنزیم‌ها را می‌گوید ([3
 });
 
 // ═══ P91 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶): پاسخِ منابع به پرسش‌های P90 ═══
-test("L17 — [199] TTP/HUS فقط با نشانهٔ همولیز نام برده می‌شود؛ بی‌آن لام و LDH ِ فوری؛ فوریت همان اورژانس", () => {
+// P95 (۲۰۲۶-۱۰-۰۶، عمداً تغییر کرد — منابعِ کاربر، ISTH 2020/PLASMIC): L17، L17b و L17c تصمیم‌های P91 را قفل می‌کردند؛ این‌ها حکمِ تازه‌اند.
+//   روی کدِ پیش از P95 قرمزند (بازپایهٔ عمدی، نه سبزِ بی‌معنا).
+test("L17 / L28 — [199] maha_ttp_suspicion فقط با نشانهٔ همولیز؛ بی‌آن severe_thrombocytopenia همان اورژانس با Hb و لام/LDH", () => {
   const base = [row("Hb", "8.6", "g/dL"), row("Platelet", "42"), row("WBC", "4.8")];
-  const none = find(run(base, { sex: "F", age: 57 }).p, "maha_ttp_suspicion");
-  assert.equal(none.urgency, "emergency");
-  assert.doesNotMatch(none.must_say, /TTP|HUS/);
-  assert.match(none.must_say, /لامِ خون/);
-  const ldhHi = find(run([...base, row("LDH", "900", "U/L")], { sex: "F", age: 57 }).p, "maha_ttp_suspicion");
-  assert.match(ldhHi.must_say, /TTP/);
-  assert.match(ldhHi.must_say, /LDH 900/);
-  const ldhOk = find(run([...base, row("LDH", "180", "U/L")], { sex: "F", age: 57 }).p, "maha_ttp_suspicion");
-  assert.doesNotMatch(ldhOk.must_say, /TTP|HUS/);
-  assert.match(ldhOk.must_say, /LDH 180 \(طبیعی\)/);   // نشانگرِ سنجیده‌شده در هر جهت نام برده می‌شود (N21)
+  const none = run(base, { sex: "F", age: 57 }).p;
+  assert.ok(!find(none, "maha_ttp_suspicion"), "بی‌نشانگرِ MAHA، شکِ TTP منبع ندارد");
+  const st = find(none, "severe_thrombocytopenia");
+  assert.equal(st.urgency, "emergency");
+  assert.match(st.must_say, /هموگلوبین هم پایین است \(8\.6/);
+  assert.match(st.must_say, /لامِ خون/); assert.match(st.must_say, /LDH باید فوراً/);
+  assert.equal(st.action, "بدون اتلاف وقت فوراً به اورژانس مراجعه کنید.", "دستورِ نهایی ضعیف‌تر نشود (M188)");
+  const ldhHiP = run([...base, row("LDH", "900", "U/L")], { sex: "F", age: 57 }).p;
+  const ldhHi = find(ldhHiP, "maha_ttp_suspicion");
+  assert.match(ldhHi.must_say, /TTP/); assert.match(ldhHi.must_say, /LDH 900/);
+  assert.doesNotMatch(find(ldhHiP, "severe_thrombocytopenia").must_say, /معلوم نیست|LDH باید/, "تناقض با یافتهٔ TTP / درخواستِ LDHِ سنجیده");
+  const ldhOk = run([...base, row("LDH", "180", "U/L")], { sex: "F", age: 57 }).p;
+  assert.ok(!find(ldhOk, "maha_ttp_suspicion"));
+  const st2 = find(ldhOk, "severe_thrombocytopenia").must_say;
+  assert.match(st2, /LDH 180 \(طبیعی\)/);   // نشانگرِ سنجیده‌شده در هر جهت نام برده می‌شود (N21)
+  assert.doesNotMatch(st2, /و LDH باید/, "LDHِ روی برگه دوباره خواسته شد (N8)");
 });
 
-test("L17b — CK ِ کودک ≥ ۵×سقف ⇒ کفِ soon؛ بزرگسال و کودکِ زیرِ ۵× دست نمی‌خورند", () => {
+test("L17b / L27 — CK ِ کودک ≥ ۱۰۰۰ یا ≥ ۵×سقف ⇒ کفِ this_week (نه soon) + تکرار پس از ۳–۷ روز استراحت؛ بزرگسال دست نمی‌خورد", () => {
   const solo = find(run([row("CPK", "2000")], { sex: "M", age: 8 }).p, "ck_elevated_alone");
-  assert.equal(solo.urgency, "soon");
-  assert.match(solo.action, /۲۴ تا ۴۸ ساعت/);
+  assert.equal(solo.urgency, "this_week");
+  assert.match(solo.action, /۳ تا ۷ روز بدونِ ورزشِ سنگین/);
+  assert.match(solo.action, /همان روز به اورژانس/);
   assert.match(solo.must_say, /نباید فقط به ورزش نسبت داد/);
   const mus = find(run([row("CPK", "2000"), row("AST", "90"), row("ALT", "20")], { sex: "M", age: 8 }).p, "liver_pattern");
   assert.match(mus.headline, /عضله/);
-  assert.equal(mus.urgency, "soon");
-  // کنترل‌ها
-  assert.notEqual(find(run([row("CPK", "2000")], { sex: "M", age: 30 }).p, "ck_elevated_alone")?.urgency, "soon");
-  assert.notEqual(find(run([row("CPK", "1424"), row("AST", "73"), row("ALT", "24")], { sex: "M", age: 6 }).p, "liver_pattern").urgency, "soon");
+  assert.equal(mus.urgency, "this_week");
+  // [22]: CK ۱۴۲۴ (۴٫۷۵×) در کودکِ ۶ ساله ⇒ this_week (پیش‌تر routine)
+  const k22 = find(run([row("CPK", "1424"), row("AST", "73"), row("ALT", "24")], { sex: "M", age: 6 }).p, "liver_pattern");
+  assert.equal(k22.urgency, "this_week"); assert.match(k22.action, /۳ تا ۷ روز/);
+  // کنترل: بزرگسال متنِ کودک نمی‌گیرد؛ هیچ‌جا soon نیست
+  const adult = find(run([row("CPK", "2000")], { sex: "M", age: 30 }).p, "ck_elevated_alone");
+  assert.doesNotMatch(adult.action, /۳ تا ۷ روز/);
+  assert.notEqual(solo.urgency, "soon");
 });
 
 test("L17c — لنفوسیتوز + Hb < ۱۱ یا پلاکت < ۱۰۰ (Rai) در هر بزرگسال ⇒ soon؛ کنارش «موقتی» گفته نمی‌شود (N20)", () => {
@@ -418,10 +433,29 @@ test("L17c — لنفوسیتوز + Hb < ۱۱ یا پلاکت < ۱۰۰ (Rai) د�
   const old = run([row("WBC", "12"), row("Lymph", "70"), row("Neut", "25"), row("Mixed", "5"), row("Hb", "14", "g/dL"), row("Platelet", "250")], { sex: "M", age: 60 });
   assert.equal(find(old.p, "cll_suspicion_nccn")?.urgency, "this_week");
   assert.ok(!find(old.p, "viral_lymphocytosis"));
-  // کنترل: جوان بی‌سیتوپنی ⇒ CLL نه.
+  // P95 / L30 (عمداً تغییر کرد): گیتِ ۵۰ سال معیارِ NCCN نیست — جوانِ بی‌سیتوپنی با لنفوسیتِ ۸۴۰۰ ⇒ cll_suspicion_nccn routine
+  //   («تکرار پس از ۶–۸ هفته، اگر ماند فلوسیتومتری»)؛ همان فوریتِ قبلیِ viral_lymphocytosis. > ۱۰٬۰۰۰ ⇒ this_week.
   const young = run([row("WBC", "12"), row("Lymph", "70"), row("Neut", "25"), row("Mixed", "5"), row("Hb", "14", "g/dL"), row("Platelet", "250")], { sex: "M", age: 30 });
-  assert.ok(!find(young.p, "cll_suspicion_nccn"));
-  assert.ok(find(young.p, "viral_lymphocytosis"));
+  const y = find(young.p, "cll_suspicion_nccn");
+  assert.equal(y?.urgency, "routine"); assert.match(y.action, /فلوسیتومتری/); assert.match(y.must_say, /سیاه‌سرفه/);
+  assert.ok(!find(young.p, "viral_lymphocytosis"));
+  const y2 = run([row("WBC", "16"), row("Lymph", "70"), row("Neut", "25"), row("Mixed", "5"), row("Hb", "14", "g/dL"), row("Platelet", "250")], { sex: "M", age: 30 });
+  assert.equal(find(y2.p, "cll_suspicion_nccn")?.urgency, "this_week");
+  // کودک دست نمی‌خورد (NCCN مالِ بزرگسال است)
+  const kid = run([row("WBC", "12"), row("Lymph", "70"), row("Neut", "25"), row("Mixed", "5"), row("Hb", "13", "g/dL"), row("Platelet", "250")], { sex: "M", age: 10 });
+  assert.ok(!find(kid.p, "cll_suspicion_nccn"));
+});
+
+test("L29 / L31 — اسفروسیت به برچسبِ AIHA نمی‌رسد، DAT خواسته می‌شود؛ ملنا: Hbِ اول ممکن است کم‌برآورد باشد؛ EDTA: هپارین هم", () => {
+  const sph = find(run([row("Hb", "10.5", "g/dL"), row("MCV", "88"), row("MCH", "30"), row("MCHC", "37"), row("RDW-CV", "16.5")], { sex: "F", age: 30 }).p, "spherocytosis_likely");
+  assert.match(sph.must_say, /کومبسِ مستقیم \(DAT\)/);
+  assert.doesNotMatch(sph.must_say, /خودایمن/);
+  assert.ok(sph.suggest.some((s) => /DAT/.test(s)));
+  const mel = find(run([row("Stool Color", "Black"), row("Hb", "10", "g/dL"), row("MCV", "65")], { sex: "M", age: 40 }).p, "melena_microcytic_anemia");
+  assert.match(mel.must_say, /کمتر از واقع/);
+  assert.equal(mel.urgency, "soon");
+  const plt = find(run([row("PLT", "80"), row("Hb", "13", "g/dL"), row("WBC", "6")]).p, "isolated_thrombocytopenia");
+  assert.ok(plt.warnings.some((w) => /سیترات یا هپارین/.test(w)));
 });
 
 test("L17d — [38] مدفوعِ سیاه + کم‌خونیِ میکروسیتیک ⇒ soon و explains؛ «Dark brown» یا Hbِ طبیعی ⇒ نه", () => {

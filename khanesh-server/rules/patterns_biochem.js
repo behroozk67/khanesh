@@ -6,7 +6,7 @@ import { ADULT_REFS } from "./refs.js";
 import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 import { isNeonate } from "./neonatal.js";
 import { SURVIVAL_LIMITS } from "./units.js";
-import { canBePregnant, qualVerdict, ungradedFa, ckChildSoon, CK_CHILD_SENTENCE, CK_CHILD_SOON_ACTION } from "./patterns_utils.js";
+import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION } from "./patterns_utils.js";
 
 /**
  * پیش‌شرطِ الگوی زنجیره‌ایِ منیزیم: منیزیمِ پایین به‌همراه پتاسیم یا کلسیمِ پایین.
@@ -1499,9 +1499,9 @@ export const RULES_BIOCHEM = [
         const ckG = levelGrade(ck);
         // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N29): بی‌ALT، «از عضله است» ثابت نشده — پس فوریتِ ASTِ تنها (this_week) کفِ این یافته است؛
         //   پیش‌تر «AST 160 + CK 680» routine می‌شد در حالی که AST 160 تنها this_week بود.
-        // P91 (تصمیمِ کاربر، [22]): کودکِ < ۱۶ با CK ≥ ۵×سقف ⇒ کفِ soon (فقط بالا می‌برد؛ اورژانس همان می‌ماند).
-        const ckChild = ckChildSoon(e, ck);
-        const muscleUrgency = ckG >= 4 ? "emergency" : ckChild ? "soon" : ckG >= 3 || !alt ? "this_week" : "routine";
+        // P95 (تصمیمِ کاربر، [22]): کودکِ < ۱۶ با CK ≥ ۱۰۰۰ یا ≥ ۵×سقف ⇒ کفِ this_week (نه soon؛ فقط بالا می‌برد؛ اورژانس همان می‌ماند).
+        const ckChild = ckChildFlag(e, ck);
+        const muscleUrgency = ckG >= 4 ? "emergency" : ckChild || ckG >= 3 || !alt ? "this_week" : "routine";
         return {
           pattern: "muscle_origin_not_liver",
           urgency: muscleUrgency,
@@ -1523,8 +1523,8 @@ export const RULES_BIOCHEM = [
                 : `CK شما ${ck.value} (حد طبیعی ${ck.range}) است. ورزش سنگین چند روز اخیر هم می‌تواند این را بسازد.`),
           action: muscleUrgency === "emergency"
             ? "همین امروز به اورژانس مراجعه کنید و این برگه را همراه ببرید."
-            : muscleUrgency === "soon"
-              ? CK_CHILD_SOON_ACTION
+            : ckChild && muscleUrgency === "this_week"
+              ? CK_CHILD_ACTION
             : muscleUrgency === "this_week"
               ? "این هفته با پزشک مطرح کنید. اگر ادرارِ تیره (رنگِ چای یا کولا)، دردِ شدیدِ عضلانی یا کم‌شدنِ ادرار دارید، همان روز به اورژانس بروید."
               : "نوبت عادی. اگر ورزش سنگین کرده‌اید حتماً بگویید.",

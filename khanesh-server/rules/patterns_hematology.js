@@ -4,7 +4,7 @@ import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { getPedRef, isPediatricRCPCH } from "./refs_ped.js";
-import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
+import { RULES_MALIGNANCY, mahaMarkers } from "./patterns_malignancy.js";
 import { factorOwnsAptt } from "./patterns_hemostasis.js";
 
 // P58 (N20): وقتی یکی از دو سطحِ «لکوسیتوز + سیتوپنیِ شدید» فعال است، WBC صاحب دارد و leukocytosis کنار می‌رود — دو یافته
@@ -16,6 +16,27 @@ const printedUngraded = (e, k) => !!(e.ungraded?.[k] || e.noRef?.includes(k));
 const STOOL_BLACK_RE = /^(black|blackish|tarry|tar[\s-]*like|melena|melaena|سیاه|سیاه‌رنگ|سیاه رنگ|قیری|قیرمانند|قیری‌شکل)$/i;
 
 const LEUK_CYTO_IDS = new Set(["leukocytosis_with_cytopenia", "reactive_leukocytosis_with_cytopenia"]);
+// P95 (تصمیمِ کاربر، [199]؛ ISTH 2020: شک به TTP بر پایهٔ MAHA + ترومبوسیتوپنی): maha_ttp_suspicion حالا فقط با نشانگرِ همولیز فعال
+//   می‌شود. بی‌آن، پلاکتِ < ۵۰ مالکِ خودش (همین قاعده، اورژانس) را دارد؛ این جمله Hbِ پایین و درخواستِ لام/LDH را از شاخهٔ بی‌نشانگرِ
+//   قدیمِ maha نگه می‌دارد (همان متنِ P91). ⚠️ «پلاکت < ۵۰ + Hb < ۱۰» منبع ندارد — طراحیِ خودمان است، نه ISTH. بیرون از منبعِ قاعده
+//   (سطحِ ماژول) تا RULE_READS Hb را در جهتِ بالا «پوشش‌داده» نخواند (M156). گارد L28.
+function severePltAnemiaClause(e) {
+  const hb = e.graded.find((g) => g.test === "HGB");
+  if (!hb?.abnormal || hb.dir !== "low") return "";
+  const hbFa = `هموگلوبین هم پایین است (${hb.value}، حد طبیعی ${hb.range}).`;
+  // نشانگرِ همولیز هست ⇒ maha_ttp_suspicion همین ترکیب را توضیح می‌دهد؛ «کدام‌یک معلوم نیست» کنارش تناقض است (N20).
+  if (RULES_MALIGNANCY.find((r) => r.id === "maha_ttp_suspicion")?.match(e)) return `${hbFa} توضیحِ این ترکیب در یافتهٔ جداگانه آمده است.`;
+  const { other } = mahaMarkers(e);
+  // نشانگرِ سنجیده نقل می‌شود (N21) و دوباره درخواست نمی‌شود (N8).
+  const ldhMeasured = e.graded.some((g) => g.test === "LDH");
+  return `${hbFa} این ترکیب علت‌های مختلفی دارد — از خونریزی و مشکلِ مغزِ استخوان تا تخریبِ گلبول‌ها درونِ رگ‌ها — و کدام‌یک، از همین برگه معلوم نیست` +
+    (other.length ? `؛ روی همین برگه ${other.join("، ")} است` : "") + "؛ " +
+    `لامِ خون (برای دیدنِ قطعاتِ گلبول قرمز، و این‌که پلاکت‌ها فقط در لوله به هم نچسبیده باشند)${ldhMeasured ? "" : " و LDH"} باید فوراً انجام شود.`;
+}
+function severePltAnemiaStrong(e) {
+  const hb = e.graded.find((g) => g.test === "HGB");
+  return !!hb?.abnormal && hb.dir === "low" && hb.value < 10;
+}
 const isolatedThrombocytopeniaFires = (e) => !!RULES_MALIGNANCY.find((r) => r.id === "isolated_thrombocytopenia")?.match(e);
 const leukCytopeniaOwns = (e) => RULES_MALIGNANCY.some((r) => LEUK_CYTO_IDS.has(r.id) && r.match(e));
 import { isNeonate, inNeonatalRedCellPeriod, ageFa, NEONATAL_DANGER_WARNING, NEONATAL_SAMEDAY_ACTION, neutMissingText, neonatalContextText,
@@ -788,17 +809,22 @@ export const RULES_HEMATOLOGY = [
     },
     build: (e) => {
       const p = e.graded.find((g) => g.test === "PLT");
+      const hbLow = severePltAnemiaClause(e);
       return {
         pattern: "severe_thrombocytopenia",
         urgency: "emergency",
         headline: "پلاکت خون شما بسیار کم است",
         must_say:
-          `پلاکت ${p.value} است. پلاکت سلولی است که جلوی خونریزی را می‌گیرد.`,
-        action: "همین امروز به پزشک یا اورژانس مراجعه کنید.",
-        suggest: [],
+          `پلاکت ${p.value} است. پلاکت سلولی است که جلوی خونریزی را می‌گیرد.` + (hbLow ? ` ${hbLow}` : ""),
+        // P95 (N20، گارد M188): Hb < ۱۰ کنارِ پلاکتِ < ۵۰ همان شرطِ عددیِ قدیمِ maha بود و دستورِ نهاییِ برگه «فوراً به اورژانس» از آن می‌آمد؛
+        //   با رفتنِ شاخهٔ بی‌نشانگرِ maha دستورِ نهاییِ پان‌سیتوپنیِ واقعی ضعیف‌تر می‌شد. همان دستور اینجا می‌ماند.
+        action: severePltAnemiaStrong(e) ? "بدون اتلاف وقت فوراً به اورژانس مراجعه کنید." : "همین امروز به پزشک یا اورژانس مراجعه کنید.",
+        suggest: hbLow ? ["لام خون محیطی (شیستوسیت)", "LDH", "هاپتوگلوبین", "رتیکولوسیت", "بیلی‌روبین مستقیم و غیرمستقیم"] : [],
         warnings: [
           "آسپرین یا مسکن‌های ضدالتهاب مصرف نکنید.",
           "اگر خونریزی، کبودی بی‌دلیل یا نقطه‌های قرمز روی پوست دیدید، فوراً به اورژانس بروید.",
+          // P95 (M188، N7): همان هشدارِ شاخهٔ بی‌نشانگرِ قدیمِ maha — «نباید منتظر نوبت مطب بمانید» از برگهٔ پان‌سیتوپنی نیفتد.
+          ...(severePltAnemiaStrong(e) ? ["این وضعیت یک اورژانس واقعی است و نباید منتظر نوبت مطب بمانید."] : []),
         ],
         blocks_others: true,
       };
@@ -1828,12 +1854,15 @@ export const RULES_HEMATOLOGY = [
         pattern: "spherocytosis_likely",
         urgency: "this_week",
         headline: "غلظت هموگلوبین داخل گلبول‌های قرمز بالاتر از حد طبیعی است",
-        must_say: `غلظت هموگلوبین در گلبول‌های قرمز (MCHC) بالاتر از حد طبیعی است، با مقدار ${mchc.value}. وقتی با RDW بالا، کم‌خونی خفیف و گلبول‌های قرمز طبیعی یا کوچک همراه باشد، به‌شدت نشان‌دهندهٔ نیاز به بررسی شکل‌های غیرطبیعی گلبول قرمز (مانند اسفروسیتوز) است. لام خون محیطی به‌شدت توصیه می‌شود.`,
+        must_say: `غلظت هموگلوبین در گلبول‌های قرمز (MCHC) بالاتر از حد طبیعی است، با مقدار ${mchc.value}. وقتی با RDW بالا، کم‌خونی خفیف و گلبول‌های قرمز طبیعی یا کوچک همراه باشد، به‌شدت نشان‌دهندهٔ نیاز به بررسی شکل‌های غیرطبیعی گلبول قرمز (مانند اسفروسیتوز) است. لام خون محیطی به‌شدت توصیه می‌شود.` +
+          // P95 (منابعِ کاربر: AIHA در The Hospitalist، اسفروسیتوزِ ارثی در MSD): اسفروسیت نشانهٔ همولیز است ولی اختصاصی نیست (ارثی، خودایمن،
+          //   سوختگی، سپسیس، ویلسون) — هرگز مستقیم برچسبِ «کم‌خونیِ همولیتیکِ خودایمن» نمی‌گیرد؛ کومبسِ مستقیم (DAT) جدایش می‌کند. گارد L29.
+          " اگر لام اسفروسیت نشان دهد، این به‌تنهایی تشخیصِ نوعِ خاصی از کم‌خونی نیست: هم ارثی و هم ایمنی می‌تواند باشد، و آزمایشِ کومبسِ مستقیم (DAT) همراهِ نشانگرهای همولیز (رتیکولوسیت، LDH، بیلی‌روبینِ غیرمستقیم) این دو را از هم جدا می‌کند.",
         action: actionUnlessAnemiaCrisis(
           e,
           "در همین هفته‌های پیشِ رو با پزشک وقت بگیرید تا لام خون محیطی بررسی شود.",
         ),
-        suggest: ["لام خون محیطی", "بیلی‌روبین", "تکرار CBC"],
+        suggest: ["لام خون محیطی", "تست کومبس مستقیم (DAT)", "رتیکولوسیت", "LDH", "بیلی‌روبین", "تکرار CBC"],
         warnings: [],
       };
     },
@@ -1864,7 +1893,10 @@ export const RULES_HEMATOLOGY = [
         must_say:
           `روی برگه رنگِ مدفوع «${String(e.ungraded.STOOL_COLOR.value).trim()}» ثبت شده و هم‌زمان هموگلوبین ${hgb.value} (حد طبیعی ${hgb.range}) و MCV ${mcv.value} است، یعنی کم‌خونی با گلبول‌های قرمزِ کوچک. ` +
           "مدفوعِ سیاه و قیری‌شکل می‌تواند نشانهٔ خونریزی در بخشِ بالاییِ دستگاهِ گوارش باشد، و کم‌خونی با گلبول‌های کوچک همان چیزی است که از دست رفتنِ خون به‌مرور می‌سازد. " +
-          "قرصِ آهن و داروهای حاویِ بیسموت هم مدفوع را سیاه می‌کنند؛ اگر چنین دارویی مصرف می‌کنید، حتماً به پزشک بگویید.",
+          "قرصِ آهن و داروهای حاویِ بیسموت هم مدفوع را سیاه می‌کنند؛ اگر چنین دارویی مصرف می‌کنید، حتماً به پزشک بگویید. " +
+          // P95 (منابعِ کاربر: ACG 2021 UGIB): Hbِ ۷ آستانهٔ تزریقِ خون است، نه تریاژ؛ فوریتِ اورژانس از علامت می‌آید (هشدارِ شرطی) و Hbِ < ۷
+          //   از severe_anemia_crisis. ACG: هموگلوبینِ اولیه ممکن است خونریزیِ حاد را کم برآورد کند ⇒ همین جمله. گارد L31.
+          "در خونریزیِ تازه، هموگلوبینِ اول ممکن است مقدارِ خونِ ازدست‌رفته را کمتر از واقع نشان دهد؛ پس عددی که خیلی پایین نیست دلیلِ آسودگی نیست.",
         action: actionUnlessAnemiaCrisis(e,
           "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید تا دستگاهِ گوارش بررسی شود."),
         suggest: ["مشاوره با متخصص گوارش", "فریتین", "آزمایش خون مخفی در مدفوع"],

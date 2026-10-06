@@ -80,19 +80,22 @@ export function applyQualGloss(findings) {
   }
 }
 
-// ═══ P91 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶، [22]): CKِ کودک ═══
+// ═══ P91 → P95 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶، [22]): CKِ کودک ═══
 // برای رابدومیولیزِ کودک گایدلاینِ اجماعی نیست؛ بیشترِ نویسندگان CK ≥ ۱۰۰۰ یا ≥ ۵×ULN را ملاک می‌گیرند (Arkansas Children's،
-//   Cone Health peds pathway). کودکِ زیرِ ۱۶ با CK ≥ ۵×سقفِ بازهٔ خودش ⇒ کفِ فوریت «soon» با تکرارِ CK، ادرار، کراتینین و پتاسیم؛
-//   «ورزش» فقط سرنخ است، نه توضیحِ قطعی. فقط بالا می‌برد، هرگز پایین نمی‌آورد. اورژانسِ مبتنی بر علامت ورودی ندارد ⇒ جملهٔ شرطی.
-export const CK_CHILD_SOON_MULT = 5;
-export function ckChildSoon(e, ck) {
+//   Cone Health peds pathway). P95 (منابعِ کاربر): «به‌زودی» (soon) از شواهد نمی‌آمد — CKِ بی‌علامت پس از ورزش بالا می‌رود و
+//   باید پس از ۳ تا ۷ روز بی‌ورزش تکرار شود (CCJM 2016؛ در کودک معمولاً ظرفِ ۴۸–۷۲ ساعت برمی‌گردد). پس کف = «این هفته» + تکرار پس
+//   از استراحت + جملهٔ شرطیِ اورژانس (درد شدید، ادرار تیره، ضعف). CK ≥ ۳۰۰۰ ⇒ اورژانس **رد شد** (منبعش ترومای کودک با AKI است).
+//   فقط بالا می‌برد، هرگز پایین نمی‌آورد (N29). گارد L27.
+export const CK_CHILD_MULT = 5;
+export const CK_CHILD_ABS = 1000;
+export function ckChildFlag(e, ck) {
   if (e?.age == null || e.age >= 16 || !ck?.abnormal || ck.dir !== "high") return false;
   const n = String(ck.range ?? "").split(/[–-]/).map(Number).filter(Number.isFinite);
   const ul = n.length >= 2 ? n[n.length - 1] : null;
-  return ul > 0 && ck.value >= CK_CHILD_SOON_MULT * ul;
+  return ck.value >= CK_CHILD_ABS || (ul > 0 && ck.value >= CK_CHILD_MULT * ul);
 }
 export const CK_CHILD_SENTENCE = "ورزشِ سنگین، عفونتِ ویروسی یا ضربه می‌توانند CK را بالا ببرند، ولی این عدد را نباید فقط به ورزش نسبت داد؛ تکرارِ آزمایش لازم است.";
-export const CK_CHILD_SOON_ACTION = "در ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید تا CK همراهِ آزمایش ادرار، کراتینین و پتاسیم تکرار شود. " +
+export const CK_CHILD_ACTION = "این هفته با پزشک مراجعه کنید تا CK پس از ۳ تا ۷ روز بدونِ ورزشِ سنگین، همراهِ آزمایش ادرار، کراتینین و پتاسیم تکرار شود. " +
   "اگر ادرارِ تیره (رنگِ چای یا کولا)، دردِ شدیدِ عضلانی، ضعف یا کم‌شدنِ ادرار دارد، همان روز به اورژانس بروید.";
 
 export function levelGrade(g) {
