@@ -35,7 +35,8 @@ import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
-import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, valueConflictLines } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines } from "./rules/prompt.js";
+import { glossQualText } from "./rules/patterns_utils.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
@@ -91,7 +92,8 @@ export function engineContext(engineOut, patternOut) {
 }
 
 // ردیفِ کیفیِ ادرار که «چیزی دیده شد» می‌گوید. منفی/صفر/طبیعی نه؛ pH و وزنِ مخصوصِ عددی هم نه (اندازه‌اند، نه یافته).
-const QUAL_NEGATIVE = /^\s*(neg|negative|nil|none|absent|not\s*(seen|detected)|normal|trace\s*neg|منفی|ندارد|دیده\s*نشد|طبیعی|-|0|0\s*-\s*[0-2])\s*$/i;
+// بندِ ۵ (LIS ۲۰۲۶-۱۰-۰۶): «Urine Culture (No growth)» «چیزی نشان می‌دهد» نامیده می‌شد — کشتِ بی‌رشد منفی است.
+const QUAL_NEGATIVE = /^\s*(neg|negative|nil|none|absent|not\s*(seen|detected)|normal|trace\s*neg|no\s*growth|بدون\s*رشد|رشد\s*نکرد|منفی|ندارد|دیده\s*نشد|طبیعی|-|0|0\s*-\s*[0-2])\s*$/i;
 // نامِ ردیف → واژهٔ فارسی‌ای که یافتهٔ مربوط به آن در متنش می‌آورد. ردیفی که در متنِ هیچ یافته‌ای نیامده «توضیح داده نشد» است.
 const QUAL_WORDS = [
   // specs/012 (P68): ردیف‌های سرولوژی هم در qual‌اند؛ بی‌این جفت‌ها، برگهٔ فقط-VDRL «ردیفِ ادرارِ توضیح‌داده‌نشده» گزارش می‌شد (T45).
@@ -115,17 +117,48 @@ const QUAL_WORDS = [
 // باگِ ۵ (LIS ۲۰۲۶-۱۰-۰۶، N18): روی برگهٔ ترکیبی (تستِ نمره‌دار هم دارد) نوارِ ادرار حالا به qual می‌رود؛ اگر هیچ قاعده‌ای
 //   نخواندش («Protein: Trace»، «Yeast: Few»، «Bacteria: Few») بی‌صدا گم می‌شد — پیش‌تر دستِ‌کم در «تفسیر نشدند» بود. فقط همین
 //   ردیف‌ها؛ CRP/تروپونین/hCG جفتِ QUAL_WORDS ندارند و «توضیح داده نشد» نامیده می‌شدند در حالی که یافتهٔ خودشان را دارند.
-const COMBINED_URINE_ROW = /^urine (blood|protein|glucose|bilirubin|ketone|yeast|mycel|pseudo)|leukocyte\s*esterase|^nitrit|^bacteri/i;
+const COMBINED_URINE_ROW = /^urine (blood|protein|glucose|bilirubin|ketone|yeast|mycel|pseudo|color|appearance)|leukocyte\s*esterase|^nitrit|^bacteri/i;
+// بند ۵ (LIS ۲۰۲۶-۱۰-۰۶، تصمیمِ «الف»): رنگ/ظاهرِ ادرار (adapter ⇒ qual «Urine Color/Appearance»). مقدارِ معمول بی‌صداست؛ بقیه
+//   (کدر، نیمه‌کدر، قرمز، قهوه‌ای…) با نامِ فارسی و معنای واژه نام برده می‌شود، بی‌تفسیر. «Dark-Yellow» و «Semi Clear» عمداً معمول‌اند
+//   (ادرارِ غلیظ/کمی کدر بی‌شاهدِ دیگر یافته نیست) — بازبین می‌تواند جابه‌جا کند.
+const URINE_LOOK_FA = { "Urine Color": "رنگِ ادرار", "Urine Appearance": "ظاهرِ ادرار" };
+const URINE_LOOK_NORMAL = /^((pale|light|dark)[\s-]*)?yellow$|^straw$|^colou?rless$|^(semi[\s-]*)?clear$|^(زرد|زرد\s*روشن|زرد\s*پررنگ|کم‌?رنگ|بی‌?رنگ|شفاف|نیمه\s*شفاف)$/i;
+// ردیفِ شمارشِ میکروسکوپیِ ادرار با عدد یا بازه («1-2»): قاعده‌های ادرار آن را می‌خوانند؛ اگر یافته‌ای نساختند، موتور آن را غیرعادی ندید.
+const URINE_COUNT_ROW = /wbc|rbc|pus|leuk|epithel/i;
+const URINE_COUNT_VALUE = /^\d+(\.\d+)?(\s*-\s*\d+(\.\d+)?)?$/;
+function qualRowIsQuiet(name, v) {
+  if (!v || QUAL_NEGATIVE.test(v)) return true;
+  if (/\bph\b|gravity|\bsg\b/i.test(name) && /^[\d.]+$/.test(v)) return true;
+  // بندِ ۵: pHِ ادرارِ واژه‌ای («Acid»، «Neutral»، «Alkaline») هم اندازه است، نه یافته — «Urine pH (Acid)» ۱۲ بار نام برده می‌شد.
+  if (/\bph\b/i.test(name) && /^(acid(ic)?|neutral|alkaline|اسیدی|خنثی|قلیایی)$/i.test(v)) return true;
+  if (URINE_LOOK_FA[name] && URINE_LOOK_NORMAL.test(v)) return true;
+  return false;
+}
 export function unreadQualRows(engineOut, patternOut, { onlyUrineDipstick = false } = {}) {
   const text = (patternOut?.findings ?? []).map((f) => `${f.headline ?? ""} ${f.must_say ?? ""}`).join(" ");
   return Object.entries(engineOut.qual ?? {}).filter(([name, value]) => {
     if (onlyUrineDipstick && !COMBINED_URINE_ROW.test(name)) return false;
-    const v = String(value ?? "").trim();
-    if (!v || QUAL_NEGATIVE.test(v)) return false;
-    if (/\bph\b|gravity|\bsg\b/i.test(name) && /^[\d.]+$/.test(v)) return false;
+    if (qualRowIsQuiet(name, String(value ?? "").trim())) return false;
     const pair = QUAL_WORDS.find(([re]) => re.test(name));
     return !(pair && pair[1].test(text));
-  }).map(([name, value]) => `${name} (${value})`);
+  }).map(([name, value]) => (URINE_LOOK_FA[name]
+    ? glossQualText(`${URINE_LOOK_FA[name]} «${String(value).trim()}»`)
+    : `${name} (${value})`));
+}
+
+/**
+ * بند ۵ (LIS ۲۰۲۶-۱۰-۰۶، تصمیمِ «الف»): برگه‌ای که موتور همهٔ ردیف‌هایش را خواند و هیچ‌کدام چیزی نشان نداد (ادرارِ کاملاً منفی، تروپونین/CRPِ
+ * منفیِ تنها). پیش از این «این برگه تفسیر نشد … هیچ‌کدام را نشناخت» می‌گرفت — دربارهٔ ۱۸ ردیفِ خوانده‌شده دروغ (۱۲ درخواست از ۲۳۶).
+ * فقط وقتی: هیچ یافته‌ای، هیچ ردیفِ نشناخته‌ای، و هر ردیفِ کیفی منفی/اندازه/ظاهرِ معمول یا شمارشِ ادرارِ خوانده‌شده است. سوگیری به سمتِ
+ * «تفسیر نشد»: هر ردیفِ دیگری («Bacteria: Few») برگه را در همان مسیرِ قبلی نگه می‌دارد. گارد T57.
+ */
+export function qualAllReadNegative(engineOut, patternOut) {
+  if ((patternOut?.findings ?? []).length || (engineOut?.unmapped ?? []).length) return false;
+  const rows = Object.entries(engineOut?.qual ?? {});
+  return rows.length > 0 && rows.every(([name, value]) => {
+    const v = String(value ?? "").trim();
+    return qualRowIsQuiet(name, v) || (URINE_COUNT_ROW.test(name) && /urine|ادرار/i.test(name) && URINE_COUNT_VALUE.test(v));
+  });
 }
 
 /**
@@ -1165,7 +1198,9 @@ const analyzeHandler = async (req, res) => {
       const ownedSpecimen = ((engineCandidate.specimen?.fluid?.length ?? 0) + (engineCandidate.specimen?.u24?.length ?? 0)) > 0 &&
         runPatterns(engineCandidate).findings.length > 0;
       routedByQual = ownedQual && engineCandidate.graded.length === 0;
-      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis && !hasPrenatal && !ownedQual && !ownedSpecimen) {
+      // بند ۵: همهٔ ردیف‌ها خوانده شد و منفی بود ⇒ مسیرِ موتور با نتیجهٔ «همه منفی»، نه «تفسیر نشد» (T57).
+      const allReadNegative = engineCandidate.graded.length === 0 && qualAllReadNegative(engineCandidate, runPatterns(engineCandidate));
+      if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis && !hasPrenatal && !ownedQual && !ownedSpecimen && !allReadNegative) {
         console.warn(
           "⚠️ موتور هیچ تستی را نگاشت نکرد — برگشت به مسیر قدیم. " +
           `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
@@ -1229,6 +1264,9 @@ const analyzeHandler = async (req, res) => {
       ocrWarnings.push(...valueConflictLines(engineOut.valueConflicts));
       const specLine = specimenLine(engineOut.specimen, patternOut.findings);
       if (specLine) ocrWarnings.push(specLine);
+      // بند ۵: ردیفِ Mixedِ افتراقیِ CBC — شناخته، بی‌حکم؛ یک جملهٔ توضیح به‌جای «تفسیرشان نمی‌کند».
+      const mxLine = mixedLine(engineOut);
+      if (mxLine) ocrWarnings.push(mxLine);
       // P49: مقداری که یافته‌ای تفسیرش کرده (ویلسون، آنتی‌بادی کنارِ B12ِ پایین) در این خط نمی‌آید.
       const noRefShown = unexplainedNoRef(engineOut.noRef, patternOut.findings);
       if (noRefShown.length) {
@@ -1250,7 +1288,10 @@ const analyzeHandler = async (req, res) => {
       //    باگ واقعی: WBC=258 هیچ قاعده‌ای نداشت → «نتایج شما طبیعی است».
       if (patternOut.findings.length === 0 && engineOut.abnormal.length === 0) {
         // همه‌چیز واقعاً طبیعی — نیازی به AI نیست، رایگان
-        const out = buildNormalResult(engineOut);
+        // بند ۵: برگهٔ بی‌تستِ نمره‌دار که همهٔ ردیف‌های کیفی‌اش منفی خوانده شد (ادرارِ منفی، تروپونینِ منفی) ⇒ نتیجهٔ «همه منفی».
+        const out = engineOut.graded.length === 0 && !(engineOut.noRef?.length) && qualAllReadNegative(engineOut, patternOut)
+          ? buildAllNegativeResult(engineOut)
+          : buildNormalResult(engineOut);
         out.extracted_tests = extractedTests;
         if (ocrWarnings.length) out.ocr_warnings = ocrWarnings;
         if (pageInfo) out.pages = pageInfo;

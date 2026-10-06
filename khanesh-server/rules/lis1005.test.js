@@ -436,6 +436,19 @@ test("L17d — [38] مدفوعِ سیاه + کم‌خونیِ میکروسیتی
   assert.ok(ok.e.noRef.includes("STOOL_COLOR"), "بی‌یافته، رنگِ مدفوع باید در خطِ «تفسیر نشدند» بماند");
 });
 
+// ═══ بندِ ۵ (بازبینیِ ۲۳۶ درخواست، غیربالینی): واژهٔ انگلیسیِ نقل‌شده در متنِ بیمار معنای فارسی می‌گیرد ═══
+test("L18 — «Negative/Many/Weakly Positive» ِ نقل‌شده کنارش معنای فارسی می‌آید؛ تکرار نمی‌شود؛ فهرستِ بسته", async () => {
+  const { glossQualText } = await import("./patterns_utils.js");
+  const hcg = find(run([row("Beta HCG", "Negative")], { sex: "F", age: 30 }).p, "hcg_result");
+  assert.match(hcg.must_say, /«Negative» \(منفی\)/);
+  const crp = find(run([row("CRP", "Weakly Positive")], { sex: "M", age: 8 }).p, "crp_elevated");
+  assert.match(crp.must_say, /«Weakly Positive» \(مثبتِ ضعیف\)/);
+  // معنای همان‌جا گفته‌شده تکرار نمی‌شود؛ مقدارِ بیرون از فهرست («Positive (S/CO 12.4)») و عدد دست نمی‌خورند.
+  assert.equal(glossQualText("روی برگهٔ شما «Positive» است (مثبت)."), "روی برگهٔ شما «Positive» است (مثبت).");
+  assert.equal(glossQualText("«Positive (S/CO 12.4)» و «250»"), "«Positive (S/CO 12.4)» و «250»");
+  assert.equal(glossQualText("«many»"), "«many» (زیاد)");
+});
+
 // ── ۲۰۲۶-۱۰-۰۶ (N2، اندازه‌گیری‌شده): «Random Glucose» و «RBS» unmapped بودند ⇒ برگهٔ تک‌ردیفی بی‌یافته ──
 test("RG1 — قندِ تصادفی با هر املایی GLU_RANDOM است و یافته می‌گیرد؛ «Random Urine Glucose» سرم نمی‌شود", () => {
   for (const n of ["Random Glucose", "RBS", "R.B.S", "Random Blood Glucose", "Glucose (Random)", "Glucose, Random", "Random Plasma Glucose", "قند خون تصادفی"]) {
@@ -491,4 +504,60 @@ test("VC1 — «Potassium 7.0» + «K 4.2» ⇒ ۷ سنجیده می‌شود (�
     assert.deepEqual(e.valueConflicts ?? [], [], JSON.stringify(rows));
     assert.deepEqual(e.unmapped, [], JSON.stringify(rows));
   }
+});
+
+// ── بند ۵ (۲۰۲۶-۱۰-۰۶، تصمیم‌های کاربر روی ۲۳۶ درخواست؛ بی‌هیچ تغییرِ فوریت) ──
+test("L19 — CK-MB: «CH MB II»/«CPK-MB(CHEMICAL)» شناخته؛ بی‌واحد بی‌حکم (unit_unknown)، U/L سنجیده، واحدِ جرمی بی‌بازه (N3)", () => {
+  for (const n of ["CH MB II", "CPK-MB(CHEMICAL)", "CK MB 1", "CK-MB"]) {
+    const { e, p } = run([row(n, "13"), row("Troponin", "Negative")], { sex: "M", age: 49 });
+    assert.deepEqual(e.unmapped, [], n);
+    assert.ok(!e.graded.some((g) => g.test === "CK_MB"), `${n}: بی‌واحد نمره گرفت`);
+    assert.equal(e.ungraded.CK_MB?.reason, "unit_unknown", n);
+    const f = find(p, "unit_unknown_values");
+    assert.match(f.must_say, /CK-MB \(13\): واحد روی برگه خوانده نشد و این آزمایش با دو واحدِ رایج/, n);
+    assert.equal(f.urgency, "routine", n);
+  }
+  const ul = run([row("CK-MB", "45", "U/L")], { sex: "M", age: 58 });
+  assert.ok(ul.e.graded.some((g) => g.test === "CK_MB" && g.abnormal), "U/L باید همان سنجشِ قبلی بماند");
+  const mass = run([row("CK-MB", "13", "ng/mL")], { sex: "M", age: 58 }).e;
+  assert.ok(!mass.graded.some((g) => g.test === "CK_MB") && mass.noRef.includes("CK_MB"), "جرمی با بازهٔ U/L سنجیده شد");
+});
+
+test("L20 — کودکِ زیرِ ۱۲: «اگر تب دارید/کردید» ⇒ «اگر کودک تب دارد/کرد»؛ شرطِ غیرعلامتی دست نمی‌خورد", async () => {
+  const { childVoice } = await import("./neonatal.js");
+  const f = find(run([row("WBC", "1.9")], { sex: "F", age: 9 }).p, "leukopenia");
+  assert.match(f.action, /اگر کودک تب دارد، فوراً به اورژانس بروید/);
+  assert.ok(!/تب دارید|تب کردید/.test(JSON.stringify([f.action, f.warnings])), JSON.stringify([f.action, f.warnings]));
+  assert.equal(childVoice("اگر تب یا درد پهلو دارید، زودتر مراجعه کنید."), "اگر کودک تب یا درد پهلو دارد، زودتر مراجعه کنید.");
+  assert.equal(childVoice("اگر تکرار شد یا علامت دارید، بگویید."), "اگر تکرار شد یا علامت دارید، بگویید.");
+  // بزرگسال دست نمی‌خورد
+  const adult = find(run([row("WBC", "1.9")], { sex: "F", age: 40 }).p, "leukopenia");
+  assert.match(adult.action, /اگر تب دارید/);
+});
+
+test("L21 — یک جملهٔ «تکرارِ CBC»، دقیق‌ترینش؛ بقیهٔ همان action می‌ماند", async () => {
+  const { tidyRecommendations } = await import("./prompt.js");
+  assert.deepEqual(tidyRecommendations([
+    "درخواست تکرار CBC از پزشک", "تکرارِ CBC چند هفته بعد روندِ آن را نشان می‌دهد.", "تکرارِ CBC روندِ آن را نشان می‌دهد.",
+  ]), ["تکرارِ CBC چند هفته بعد روندِ آن را نشان می‌دهد."]);
+  assert.deepEqual(tidyRecommendations([
+    "از پزشک یا آزمایشگاه بخواهید شمارش خون (CBC) روی نمونهٔ تازه تکرار شود.", "درخواست تکرار CBC از پزشک",
+  ]), ["از پزشک یا آزمایشگاه بخواهید شمارش خون (CBC) روی نمونهٔ تازه تکرار شود."]);
+  assert.deepEqual(tidyRecommendations(["فهرستِ داروها را همراه ببرید. تکرارِ CBC روندِ آن را نشان می‌دهد.", "درخواست تکرار CBC از پزشک"]),
+    ["فهرستِ داروها را همراه ببرید. تکرارِ CBC روندِ آن را نشان می‌دهد."]);
+  assert.deepEqual(tidyRecommendations(["درخواست تکرار CBC از پزشک"]), ["درخواست تکرار CBC از پزشک"]);
+});
+
+test("L22 — Mixedِ کنارِ CBC شناخته و بی‌حکم؛ رنگ/ظاهرِ ادرار در qual، معمولی بی‌صدا", async () => {
+  const { mixedLine } = await import("./prompt.js");
+  const cbc = run([row("WBC", "6.1"), row("Neut", "60"), row("Lymph", "30"), row("Mixed", "10")]);
+  assert.deepEqual(cbc.e.unmapped, []);
+  assert.equal(cbc.e.ungraded.MIXED?.reason, "diff_mixed");
+  assert.match(mixedLine(cbc.e), /^ردیفِ «Mixed» \(10\) در شمارشِ افتراقیِ گلبول‌های سفید، جمعِ مونوسیت، ائوزینوفیل و بازوفیل است/);
+  assert.deepEqual(run([row("Mixed", "10")]).e.unmapped, ["Mixed"], "بی‌CBC همان «تفسیر نشدند»");
+  const urine = [row("Color", "Yellow"), row("Appearance", "Turbid"), row("Nitrite", "Negative"), row("Leuko estr", "negative"), row("Sp.Gravity", "1.020"), row("Hb", "13", "g/dL")];
+  const u = run(urine);
+  assert.ok(!u.e.unmapped.some((n) => /color|appearance/i.test(n)), JSON.stringify(u.e.unmapped));
+  assert.equal(u.e.qual["Urine Appearance"], "Turbid");
+  // نام بردنِ «Turbid» در ocr_warnings: L22b در api-contract.test.js (وارد کردنِ server.js اینجا اجرا را باز نگه می‌دارد).
 });

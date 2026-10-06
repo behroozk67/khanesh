@@ -157,6 +157,9 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   // همان LIS: «CK-MB II» و «CK MB 1» (شمارهٔ کیت/نوبت، نه آزمایشِ دیگر) — گارد L1. «ckmb2» عمداً نیست: «CK-MB2» نامِ
   //   ایزوفرمِ MB2 هم هست (نسبتِ MB2/MB1، مقدارش ~۱ U/L) و خواندنش به‌عنوانِ CK-MBِ کل یعنی اطمینانِ کاذب.
   ckmbii: "CK_MB", ckmb1: "CK_MB",
+  // بند ۵ (LIS ۲۰۲۶-۱۰-۰۶، تصمیمِ «ب»): «CH MB II» (۵ درخواست) و «CPK-MB(CHEMICAL)» همان CK-MB‌اند و unmapped بودند.
+  //   بی‌واحدِ چاپ‌شده سنجیده نمی‌شوند (شاخهٔ CK_MB پایین‌تر)، چون فعالیت (U/L) و جرم (ng/mL) دو سنجه‌اند. گارد L19.
+  chmbii: "CK_MB", cpkmbchemical: "CK_MB", ckmbchemical: "CK_MB",
   cpk: "CK", ck: "CK", creatinekinase: "CK",
   amylase: "AMYLASE", lipase: "LIPASE",
   uricacid: "URIC", uric: "URIC",
@@ -1200,6 +1203,8 @@ export function ocrToEngineInput(ocr) {
   const noReader = [];
   const noReaderValues = {};   // متنِ خامِ همان کلیدها («Positive»، «منفی»، «25») — P49-ج
   const printedUnits = {};     // واحدِ چاپ‌شدهٔ UNIT_KEPT — P49-الف
+  let ckmbUnitless = null;     // بند ۵: CK-MBِ بی‌واحد ⇒ ungraded (unit_unknown) در runEngine
+  let diffMixed = null;        // بند ۵: ردیفِ Mixed/MXDِ افتراقیِ CBC ⇒ ungraded (diff_mixed) در runEngine
   // تبدیل‌های واحدِ انجام‌شده — برای شفافیت به بیمار و برای اشکال‌زدایی.
   // «۴۸ mmol/mol → ۶.۵٪» باید جایی دیده شود، وگرنه عددِ روی برگه با عددِ
   // تفسیر نمی‌خواند و بیمار حق دارد فکر کند اشتباه شده.
@@ -1570,8 +1575,20 @@ export function ocrToEngineInput(ocr) {
       else unmapped.push(t.name);
       continue;
     }
+    // بند ۵ (تصمیمِ «الف»): Mixed/MXDِ عددی ⇒ runEngine تصمیم می‌گیرد (کنارِ CBC ⇒ ungraded.MIXED، وگرنه unmapped).
+    if (DIFF_MIXED_RE.test(key) && toNum(t.value) != null && !/[<>≤≥]/.test(String(t.value))) {
+      diffMixed ??= { name: t.name, value: toNum(t.value), unit: String(t.unit ?? "").trim() || null };
+      continue;
+    }
     if (dipstickPages.has(t._page ?? 0) || onUrinePage) {
       const raw = String(t.value ?? "").trim();
+      // بند ۵ (تصمیمِ «الف»): رنگ/ظاهرِ ادرار روی صفحهٔ ادرار — شناخته، بی‌خواننده. در qual با نامِ قانونی، تا شبکهٔ unreadQualRows
+      //   مقدارِ غیرعادی (کدر، قرمز…) را با نامِ فارسی بیاورد و Yellow/Clear بی‌صدا بماند (۸۴ درخواست «تفسیرشان نمی‌کند» می‌گرفتند).
+      //   روی صفحهٔ غیرادراری «Color»ِ برهنه همان unmapped می‌ماند (N25: رنگِ مدفوع/منی).
+      if (/^(urine)?(colou?r|appearance|turbidity|clarity)$|^(رنگ|ظاهر|کدورت)(ادرار)?$/.test(key) && raw) {
+        qual[/colou?r|رنگ/.test(key) ? "Urine Color" : "Urine Appearance"] = raw;
+        continue;
+      }
       const dn = onUrinePage ? null : DIPSTICK_AMBIG_NAME[key];   // صفحهٔ ادرارِ خالص: لایهٔ ۳ (پایین) همین را می‌کند
       if (dn && (key === "bilirubin" ? urineBiliValueState(raw) !== "unknown" : DIPSTICK_VALUE_RE.test(raw))) {
         qual[dn] = raw;
@@ -1786,6 +1803,20 @@ export function ocrToEngineInput(ocr) {
         (engineKey === "TRANSFERRIN" && v <= 10) || (engineKey === "ATIII" && v <= 3))) {
       unmapped.push(t.name);
       continue;
+    }
+    // ═══ بند ۵ (LIS ۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر «ب»، N3): CK-MB دو سنجهٔ جداست — فعالیت (U/L، حدِ بالا ~۲۵، همان بازهٔ refs.js)
+    //   و جرم (ng/mL، حدِ بالا ~۵). ضریبِ تبدیل ندارند، پس UNIT_PROFILE هم نمی‌گیرند. پیش از این هر عددِ بی‌واحد با بازهٔ U/L
+    //   سنجیده می‌شد: «CK-MB 13» از کیتِ جرمی (بالا) «طبیعی» خوانده می‌شد. حالا: U/L ⇒ همان سنجش؛ واحدِ جرمی ⇒ بی‌بازه (noRef)؛
+    //   بی‌واحد ⇒ unit_unknown_values (عدد نقل، بی‌حکم). گارد L19.
+    if (engineKey === "CK_MB") {
+      const cu = String(t.unit ?? "").trim().toLowerCase().replace(/\s+/g, "");
+      if (!/^(i?u\/l|i?u\/lit(er|re)?)$/.test(cu)) {
+        if (cu) {
+          if (!noReader.includes("CK_MB")) noReader.push("CK_MB");
+          noReaderValues.CK_MB ??= String(t.value ?? "").trim();
+        } else ckmbUnitless ??= { value: v, reference: t.reference ?? null };
+        continue;
+      }
     }
 
     // ═══ واحدِ نانوشته (specs/003) — پیش از هر تبدیلی، تا شاخه‌های پایین واحدِ قطعی ببینند ═══
@@ -2080,6 +2111,8 @@ export function ocrToEngineInput(ocr) {
     unmapped,
     noReader,
     noReaderValues,
+    ckmbUnitless,
+    diffMixed,
     printedUnits,
     unitConversions,
     diffFailed,
@@ -2102,7 +2135,7 @@ function inferPregnant(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, valueConflicts } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, valueConflicts } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
   // specs/011 (P66): شناسه یا برچسبِ قدیمیِ فارسی → شناسهٔ کاتالوگ. regexِ سرطان همان قبلی است (در conditions.js).
@@ -2284,6 +2317,23 @@ export function runEngine(ocr) {
       }
     }
     ungraded[key] = entry;
+  }
+  // بند ۵ (تصمیمِ «ب»): CK-MBِ بی‌واحد — همان قاعدهٔ unit_unknown_values، با «دو واحدِ رایج» و بی‌هیچ خوانشِ تبدیلی (دو سنجه، نه دو واحدِ
+  //   یک سنجه). فوریت عادی؛ محدودهٔ چاپ‌شدهٔ همان ردیف، اگر بود، فقط جملهٔ «در/بیرون از محدودهٔ آزمایشگاه» را می‌سازد و فوریت را بالا نمی‌برد.
+  if (ckmbUnitless && tests.CK_MB == null) {
+    const printed = parseReference(ckmbUnitless.reference, sex);
+    const entry = { value: ckmbUnitless.value, reason: "unit_unknown", units: 2, urgency: "routine" };
+    if (printed) Object.assign(entry, { basis: "printed_range", printed: { lo: printed.lo, hi: printed.hi },
+      position: printedVerdict(ckmbUnitless.reference, ckmbUnitless.value, sex) });
+    else Object.assign(entry, { basis: "readings", level: "none" });
+    ungraded.CK_MB = entry;
+  }
+  // بند ۵ (تصمیمِ «الف»): Mixed/MXD = مونوسیت + ائوزینوفیل + بازوفیل در دستگاهِ سه‌بخشی. شناخته، بی‌بازه، بی‌حکم — کنارِ CBC
+  //   (پیش از این در ۱۲۸ از ۲۳۶ درخواست «تفسیرشان نمی‌کند» می‌گرفت). بی‌CBC روی برگه همان unmapped می‌ماند. جمعِ درصدها (باگِ ۱) دست نمی‌خورد.
+  if (diffMixed) {
+    const cbc = tests.WBC != null || Object.keys(tests).some((k) => /^(NEUT|LYMPH|MONO|EOS|BASO)_(PCT|ABS)$/.test(k));
+    if (cbc) ungraded.MIXED = { value: diffMixed.value, unit: diffMixed.unit, reason: "diff_mixed" };
+    else unmapped.push(diffMixed.name);
   }
 
   for (const [key, value] of Object.entries(tests)) {

@@ -824,6 +824,10 @@ second one; a recurring entry is the strongest signal in the file.
   unmapped rows (dipstick Blood/Leuko estr, bug 5). The summary now says some rows were not interpreted whenever `unmapped` is
   non-empty. **Rule:** before a magnitude guess, look for a derived index on the same sheet that encodes the unit. And when a fix
   routes more sheets onto the "all normal" path, re-read that path for what it fails to mention.
+- ⚠️ **Recurred 2026-10-06 on CK-MB (item 5 of the 236-request LIS review, `P92`, user decision, uncommitted).** Activity (U/L, ULN ~25)
+  and mass (ng/mL, ULN ~5) are two measurands with no conversion factor. A unitless CK-MB was graded against the U/L band, so a mass-kit 13
+  read normal. CK-MB is now graded only with a printed U/L; unitless goes to `unit_unknown_values`, and a mass unit goes to noRef. Two old
+  tests passed only because of the guess and now carry an explicit `U/L`. Guard `L19`.
 - ⚠️ **Recurred 2026-09-20, through the decimal comma** (found by the specs/003 review, and present in
   `HEAD` since the adapter was written). `toNum` stripped every comma as a thousands separator, so a
   sheet that writes the decimal as a comma turned **K 5,5** into 55 (a hyperkalaemia emergency),
@@ -1037,6 +1041,12 @@ second one; a recurring entry is the strongest signal in the file.
 - **Recurred a sixth time, 2026-10-03 (P72):** «درخواست آزمایش سونوگرافی شکم / معاینهٔ ته‌چشم / بررسی توسط متخصص غدد از پزشک», and a whole
   sentence in `suggest` → «درخواست آزمایش اگر داروی دیابت مصرف می‌کنید حتماً بگویید از پزشک». `phraseSuggestion` now has `NON_LAB`; the
   sentence moved to `warnings`. Guard `M306`. **`suggest` holds names of things to order, never sentences.**
+
+- **Same class, from the sheet's side (2026-10-06, item 5 of the LIS review).** About 56 sites quote the printed value on purpose (N5:
+  «روی برگه «X»»). For words like «Negative», «Many» and «Weakly Positive» that left English the patient cannot read inside a Persian
+  sentence (hCG 9 times on the 236 requests). Fixed once, after findings are built, not per site: `applyQualGloss` in `patterns_utils.js`
+  appends the meaning («Negative» (منفی)) only when the *whole* quoted value is in a closed list, and only if the same meaning is not
+  already said right after. Guards `L18`, `L18b`; `PN02` `hcg_qual` re-baselined on purpose.
 
 ### N9 — Editing a prompt to fix clinical wrongness
 Standing rule; the whole architecture is the fix.

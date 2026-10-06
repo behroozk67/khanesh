@@ -1803,7 +1803,7 @@ test("پوشش/قلبی: تروپونینِ مثبت (کیفی و عددی) او
 });
 
 test("پوشش/قلبی: CK-MB بالا this_week است و تروپونین را پیشنهاد می‌دهد", () => {
-  const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "CK-MB", value: 45 }] }));
+  const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" }, tests: [{ name: "CK-MB", value: 45, unit: "U/L" }] }));
   const f = p.findings.find((x) => x.rule_id === "ckmb_high");
   assert.ok(f, "CK-MB بالا باید قاعده داشته باشد، نه unmatched_abnormal");
   assert.equal(f.urgency, "this_week");
@@ -1812,14 +1812,14 @@ test("پوشش/قلبی: CK-MB بالا this_week است و تروپونین ر�
 
   // با CKِ کل بالا، منشأ عضلانی را هم ذکر می‌کند
   const withCk = runPatterns(runEngine({ patient: { age: 58, sex: "M" },
-    tests: [{ name: "CK-MB", value: 45 }, { name: "CK", value: 900 }] }))
+    tests: [{ name: "CK-MB", value: 45, unit: "U/L" }, { name: "CK", value: 900 }] }))
     .findings.find((x) => x.rule_id === "ckmb_high");
   assert.ok(/CK کل شما هم بالاست/.test(withCk.must_say), "باید به منشأ عضلانی اشاره کند");
 });
 
 test("پوشش/قلبی: با تروپونینِ مثبت، CK-MB زیرِ اورژانس می‌رود", () => {
   const p = runPatterns(runEngine({ patient: { age: 58, sex: "M" },
-    tests: [{ name: "Troponin I", value: "Positive" }, { name: "CK-MB", value: 45 }] }));
+    tests: [{ name: "Troponin I", value: "Positive" }, { name: "CK-MB", value: 45, unit: "U/L" }] }));
   // specs/009 (R6، M200) — عمداً تغییر کرد: یافتهٔ CK-MB زیرِ اورژانس پنهان می‌ماند ولی CK_MB را «پوشش‌داده» می‌کرد،
   //   پس عددِ ۴۵ هیچ‌جا دیده نمی‌شد. دورِ بعد (M241، ۲۰۲۶-۰۹-۲۹) عمداً دوباره تغییر کرد: حالا همان یافته به شکلِ
   //   «یافتهٔ تکمیلی» برمی‌گردد (جملهٔ اولِ خودِ قاعده + عدد) و خطِ «توضیح داده نشدند» دیگر نیست؛ فوریت و ترتیبِ اورژانس همان است.
@@ -6361,7 +6361,7 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
   //    سنجیده شد، نه فرض (cmp104، b9068df در برابرِ درختِ کاری): یافته‌ها و نمره‌های هر شش پنلِ ادرار یکسان‌اند و qual
   //    فقط همین یک کلید را اضافه دارد. (۱.۰۳۰ِ U4 درونِ بازهٔ مرجع است و — پس از بازبینیِ #۶ — یافته نمی‌سازد.)
   const P = {
-    U1: [{ age: 30, sex: "F" }, [["Color", "Yellow"], ["Appearance", "Clear"], ["Specific Gravity", "1.020"], ["pH", "6"], ["WBC", "15-20", "/hpf"], ["RBC", "8-10", "/hpf"]], "b0107ea1f6ce3285"],
+    U1: [{ age: 30, sex: "F" }, [["Color", "Yellow"], ["Appearance", "Clear"], ["Specific Gravity", "1.020"], ["pH", "6"], ["WBC", "15-20", "/hpf"], ["RBC", "8-10", "/hpf"]], "9eca1da29a677a67"], // ⚠️ بند ۵ (۲۰۲۶-۱۰-۰۶، عمدی): Color/Appearance از unmapped به qual («Urine Color/Appearance»)؛ با حذفِ همین دو کلید از qual همان b0107ea1f6ce3285 برمی‌گردد — یافته/فوریت/نمره یکسان
     U2: [{ age: 30, sex: "F" }, [["Specific Gravity", "1.015"], ["Nitrite", "Positive"], ["Leukocyte Esterase", "Positive"], ["WBC", "20-25"]], "7c70c5473cb2f281"],
     U3: [{ age: 50, sex: "M" }, [["Urine Protein", "3+"], ["Urine Glucose", "2+"], ["Ketone", "2+"]], "84811a0618256be2"],
     U4: [{ age: 30, sex: "M" }, [["pH", "5"], ["Specific Gravity", "1.030"], ["Bacteria", "Many"]], "af1dba53d8bbe636"], // ⚠️ ۲۰۲۶-۱۰-۰۱: «اگر باردار هستید» از برگهٔ مرد حذف شد (M276b)؛ اثبات: با canBePregnant≡true همین هشِ قبلی برمی‌گشت

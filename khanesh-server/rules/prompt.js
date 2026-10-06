@@ -281,7 +281,25 @@ function mergeByLeadSentence(list) {
 /** فهرستِ نهایی: حذفِ دقیق، حذفِ هم‌پوشان، ادغامِ هم‌سرآغاز، و حفظِ ترتیب. */
 export function tidyRecommendations(list) {
   const exact = [...new Set((list ?? []).map((r) => String(r).trim()).filter(Boolean))];
-  return mergeByLeadSentence(dropSubsumedText(exact));
+  return oneCbcRepeat(mergeByLeadSentence(dropSubsumedText(exact)));
+}
+
+// ═══ بند ۵ (LIS ۲۰۲۶-۱۰-۰۶، تصمیمِ «الف»): یک جملهٔ «تکرارِ CBC»، دقیق‌ترینش ═══
+// [222] سه خط پشتِ هم داشت («درخواست تکرار CBC از پزشک»، «تکرارِ CBC چند هفته بعد…»، «تکرارِ CBC روندِ آن…») و [3] دو زمان‌بندیِ
+//   متضاد («روی نمونهٔ تازه» کنارِ درخواستِ عمومی — N20). در سطحِ *جمله*، نه مورد: جملهٔ CBC از دلِ یک action حذف می‌شود و بقیهٔ
+//   همان action می‌ماند. ترتیب: نمونهٔ تازه (خطای فنی، زودتر) > فاصلهٔ زمانیِ صریح > هر جملهٔ دیگر > درخواستِ عمومیِ suggest. گارد L21.
+const CBC_REPEAT = /تکرارِ?\s*(آزمایشِ?\s*)?CBC|CBC[^.؛]{0,50}تکرار/;
+const cbcRank = (s) => /نمونهٔ?\s*تازه/.test(s) ? 0 : /هفته|روز|ماه/.test(s) ? 1 : /^درخواست\s+تکرار\s+CBC\s+از\s+پزشک$/.test(s) ? 3 : 2;
+function oneCbcRepeat(list) {
+  const split = list.map((r) => actionSentences(r));
+  const hits = [];
+  split.forEach((ss, i) => ss.forEach((s, j) => { if (CBC_REPEAT.test(s)) hits.push({ i, j, r: cbcRank(s) }); }));
+  if (hits.length < 2) return list;
+  const keep = hits.reduce((a, b) => (b.r < a.r ? b : a));
+  const drop = new Set(hits.filter((h) => h !== keep).map((h) => `${h.i}:${h.j}`));
+  // موردی که جمله‌ای از آن حذف نشد بایت‌به‌بایت همان می‌ماند.
+  return list.map((r, i) => (split[i].some((_, j) => drop.has(`${i}:${j}`))
+    ? split[i].filter((_, j) => !drop.has(`${i}:${j}`)).join(" ") : r)).filter(Boolean);
 }
 
 // ---------- یک دستورِ مراجعهٔ نهایی ----------
@@ -538,6 +556,37 @@ export function unexplainedNoRef(noRef, findings) {
   return [...new Set(noRef ?? [])].filter((k) => !explained.has(k));
 }
 
+// ═══ بند ۵ (LIS ۲۰۲۶-۱۰-۰۶، تصمیمِ «الف»): Mixed — شناخته، بی‌حکم ═══
+// ۱۲۸ از ۲۳۶ درخواست «Mixed» را در «تفسیرشان نمی‌کند … حتماً با پزشک» می‌دیدند. یک جملهٔ توضیح، بی‌«بالا/پایین»، بی‌دستور. عددِ برگه (N5).
+export function mixedLine(engineOut) {
+  const m = engineOut?.ungraded?.MIXED;
+  if (!m || m.reason !== "diff_mixed") return null;
+  return `ردیفِ «Mixed» (${m.value}${m.unit ? ` ${m.unit}` : ""}) در شمارشِ افتراقیِ گلبول‌های سفید، جمعِ مونوسیت، ائوزینوفیل و بازوفیل است ` +
+    "که این دستگاه جدا نشمرده؛ موتور دربارهٔ آن جداگانه حکمی نمی‌دهد.";
+}
+
+// ═══ بند ۵ (تصمیمِ «الف»): همهٔ ردیف‌های خوانده‌شده منفی ═══
+// شرطش qualAllReadNegative در server.js است. «طبیعی» نمی‌گوید (منفی بودنِ همین ردیف‌ها، نه سلامت)، و تروپونینِ منفیِ تنها جملهٔ تکرار را دارد
+// (متنِ تأییدشدهٔ کاربر ۲۰۲۶-۱۰-۰۶). گارد T57.
+export const TROPONIN_SINGLE_NEGATIVE =
+  "یک تروپونینِ منفی به‌تنهایی کافی نیست؛ اگر دردِ قفسهٔ سینه دارید یا علامت تازه شروع شده، تکرار لازم است.";
+export function buildAllNegativeResult(engineOut) {
+  const rows = Object.keys(engineOut?.qual ?? {});
+  const troponin = rows.some((k) => /troponin|ctn[it]|تروپونین/i.test(k));
+  return {
+    summary: "همهٔ ردیف‌های خوانده‌شدهٔ این برگه منفی‌اند یا یافتهٔ غیرعادی نشان نمی‌دهند.",
+    interpretation: rows.length === 1
+      ? "تنها ردیفِ خوانده‌شدهٔ این برگه یافتهٔ غیرعادی نشان نمی‌دهد."
+      : `موتور ${rows.length} ردیفِ این برگه را خواند و در هیچ‌کدام یافتهٔ غیرعادی ندید.`,
+    general_recommendations: troponin
+      ? [TROPONIN_SINGLE_NEGATIVE, "نتایج را در پرونده خود نگه دارید."]
+      : ["نتایج را در پرونده خود نگه دارید."],
+    warnings: [],
+    has_critical: false,
+    disclaimer: "این تفسیر صرفاً جهت افزایش آگاهی است و جایگزین توصیه پزشک نیست.",
+  };
+}
+
 /**
  * اگر موتور هیچ الگویی پیدا نکرد — همه‌چیز طبیعی
  */
@@ -684,7 +733,7 @@ function buildNormalResultAdult(engineOut) {
   //   «هیچ‌کدام از مقادیر خارج از محدوده نیست» برود؛ آن جمله دربارهٔ آزمایشی است که سنجیده نشده (N4). فهرستِ «تفسیرنشده» (noRef) نیست،
   //   چون شاخص‌های پلاکتی در هر CBCِ طبیعی چاپ می‌شوند (تصمیمِ P57/M222: به‌تنهایی هشدار نمی‌سازند) ⇒ فقط ادعا را محدود می‌کنیم.
   const notMeasured = [
-    ...Object.entries(engineOut.ungraded ?? {}).filter(([, u]) => u?.reason === "platelet_index").map(([k]) => k),
+    ...Object.entries(engineOut.ungraded ?? {}).filter(([, u]) => u?.reason === "platelet_index" || u?.reason === "diff_mixed").map(([k]) => k),
     ...(engineOut.hemostasis?.PT_CONTROL != null ? ["PT_CONTROL"] : []),
   ].map(faName);
   // 🔴 بازبینیِ LIS ۲۰۲۶-۱۰-۰۵ (پیامدِ باگِ ۳، N4): ردیفی که موتور نشناخت (unmapped — مثلاً «Blood 2+»، «Leuko estr Positive» ِ نوارِ ادرارِ

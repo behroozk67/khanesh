@@ -35,6 +35,7 @@ export const FA_NAMES = {
   // ردیفِ «HbS/HbC/HbE»ِ بی‌شاهد: می‌تواند هموگلوبینِ غیرطبیعی باشد یا نشانگرِ هپاتیتِ B — هیچ‌کدام ادعا نمی‌شود.
   HB_NAME_AMBIGUOUS: "ردیفی با نامِ دوپهلو (HbS/HbC/HbE — هموگلوبینِ غیرطبیعی یا نشانگرِ هپاتیت B)",
   STOOL_COLOR: "رنگِ مدفوع",   // P91: شناخته، بی‌بازه؛ خواننده: melena_microcytic_anemia (patterns_hematology.js)
+  MIXED: "Mixed (مونوسیت + ائوزینوفیل + بازوفیل)",   // بند ۵: افتراقیِ سه‌بخشی؛ شناخته، بی‌حکم (ungraded diff_mixed)
   B12: "ویتامین B12", FOLATE: "فولات", VIT_D: "ویتامین D",
   // specs/004: شناخته‌شده، بی‌بازه (noRef) تا تأییدِ P49
   ZINC: "روی (زینک)", COPPER: "مسِ سرم", CERULOPLASMIN: "سرولوپلاسمین", SELENIUM: "سلنیوم",

@@ -44,7 +44,8 @@ test("PN02: برگه‌های بی‌شاهد (تومورمارکر، تستِ �
   const cases = {
     afp_tm: [M, [["AFP", "35", "ng/mL"]], "5d956bdcf7988316"],
     hcg_preg: [PREG_F, [["Beta HCG", "25000", "mIU/mL"]], "901c09b289e3e7e7"],
-    hcg_qual: [PREG_F, [["Pregnancy test", "Positive", ""]], "1507f1846f19801f"],
+    // بازپایهٔ عمدی (بندِ ۵، ۲۰۲۶-۱۰-۰۶): فقط معنای فارسیِ «Positive» (مثبت) اضافه شد؛ بی‌آن همان 1507f1846f19801f.
+    hcg_qual: [PREG_F, [["Pregnancy test", "Positive", ""]], "cc50f794fac12d22"],
     afp_cea: [M, [["AFP", "12", "IU/mL"], ["CEA", "3", "ng/mL"]], "f92f9c8e7ecff06e"],
   };
   for (const [k, [pt, rows, h]] of Object.entries(cases)) {

@@ -1031,6 +1031,52 @@ test("L15c: برگهٔ ترکیبیِ CBC + ادرار — ردیفِ ادرار
   assert.doesNotMatch(w, /Mycelium|CRP/, w);
 });
 
+// بندِ ۵ (LIS ۲۰۲۶-۱۰-۰۶): کشتِ بی‌رشد و pHِ واژه‌ای «چیزی نشان می‌دهند» نامیده می‌شدند (۴ و ۱۲ بار)؛ نیتریتِ مثبت هنوز نام برده می‌شود.
+test("L18b: برگهٔ فقط-ادرار — «Urine Culture: No growth» و «pH: Acid» در ocr_warnings نیستند", async () => {
+  const r = await analyze({
+    patient: { age: 40, sex: "F" },
+    tests: [["Urine Culture", "No growth"], ["pH", "Acid"], ["Specific Gravity", "1.040"], ["Nitrite", "Positive"]]
+      .map(([name, value]) => ({ name, value, kind: "urine" })),
+  });
+  assert.equal(r.status, 200);
+  const w = (r.body.ocr_warnings ?? []).join(" ");
+  assert.doesNotMatch(w, /No growth|Acid/, w);
+});
+
+// بند ۵ (۲۰۲۶-۱۰-۰۶، تصمیمِ «الف»): برگه‌ای که همهٔ ردیف‌هایش خوانده شد و منفی بود «تفسیر نشد … هیچ‌کدام را نشناخت» می‌گرفت (۱۲ از ۲۳۶).
+test("T57: ادرارِ کاملاً منفی و تروپونینِ منفیِ تنها ⇒ «همه منفی»، نه «تفسیر نشد»؛ ردیفِ ناشناخته همان مسیرِ قبلی", async () => {
+  const urine = await analyze({
+    patient: { age: 30, sex: "F" },
+    tests: [["Color", "Yellow"], ["Appearance", "Clear"], ["PH", "Acid"], ["Protein", "negative"], ["Blood", "negative"], ["Glucose", "negative"],
+      ["Nitrite", "Negative"], ["Ketone", "negative"], ["Leuko estr", "negative"], ["Sp.Gravity", "1.020"], ["WBC", "1-2"], ["RBC", "1-2"]]
+      .map(([name, value]) => ({ name, value, kind: "urine" })),
+  });
+  assert.equal(urine.status, 200);
+  assert.equal(urine.body.summary, "همهٔ ردیف‌های خوانده‌شدهٔ این برگه منفی‌اند یا یافتهٔ غیرعادی نشان نمی‌دهند.");
+  assert.doesNotMatch(JSON.stringify(urine.body), /تفسیر نشد|نشناخت|نتایج آزمایش شما در محدوده طبیعی است/);
+  assert.equal(urine.body.has_critical, false);
+  // تروپونینِ کیفی فقط از عکس می‌آید (فرمِ دستی فقط عدد و ادرار نگه می‌دارد، T37).
+  const trop = await analyzePhoto({ sex: "مرد", age: "55" }, { sex: "مرد", age: "55 سال" }, [{ name: "Troponin", value: "Negative", unit: "" }]);
+  assert.equal(trop.status, 200);
+  assert.ok(trop.body.general_recommendations.includes(
+    "یک تروپونینِ منفی به‌تنهایی کافی نیست؛ اگر دردِ قفسهٔ سینه دارید یا علامت تازه شروع شده، تکرار لازم است."), JSON.stringify(trop.body.general_recommendations));
+  // ردیفی که موتور نمی‌شناسد ⇒ همان «تفسیر نشد» (سوگیری به سمتِ بی‌حکم).
+  const bg = await analyzePhoto({ sex: "زن", age: "30" }, { sex: "زن", age: "30 سال" }, [{ name: "Blood Group", value: "A", unit: "" }, { name: "Troponin", value: "Negative", unit: "" }]);
+  assert.match(bg.body.summary, /تفسیر نشد/);
+});
+
+test("L22b: ظاهرِ ادرارِ کدر با نامِ فارسی نام برده می‌شود؛ Yellow/Clear و Mixed در «تفسیرشان نمی‌کند» نیستند", async () => {
+  // برگهٔ ترکیبیِ LIS از عکس می‌آید (فرمِ دستی رنگ/ظاهر را فقط با kind: "urine" نگه می‌دارد).
+  const r = await analyzePhoto({ sex: "زن", age: "40" }, { sex: "زن", age: "40 سال" },
+    [["Color", "Yellow"], ["Appearance", "Turbid"], ["Nitrite", "Negative"], ["Leuko estr", "negative"], ["Sp.Gravity", "1.020"],
+      ["Hb", "13", "g/dL"], ["WBC", "6.1"], ["Neut", "60"], ["Lymph", "30"], ["Mixed", "10"]].map(([name, value, unit = ""]) => ({ name, value, unit })));
+  assert.equal(r.status, 200);
+  const w = (r.body.ocr_warnings ?? []).join(" ");
+  assert.match(w, /ظاهرِ ادرار «Turbid» \(کدر\)/, w);
+  assert.match(w, /ردیفِ «Mixed» \(10\)/, w);
+  assert.doesNotMatch(w, /Yellow|تفسیرشان نمی‌کند/, w);
+});
+
 test("T43: dm2 فقط وقتی «لحاظ‌شده» است که شاخه‌اش واقعاً یافته ساخت — برگهٔ فقط-CBC آن را در context نمی‌آورد (FR-016)", async () => {
   const cbc = await analyze({ patient: { age: "45 سال", sex: "زن", conditions: ["dm2"] }, tests: [{ name: "Hemoglobin", value: "10.5", unit: "g/dL" }] });
   assert.equal(cbc.status, 200);

@@ -45,6 +45,41 @@ export function microMcvCut(e) {
 export const MCHC_PLAUSIBLE_GDL = [22, 42];
 export const MCH_PLAUSIBLE_PG = [12, 45];
 
+// ═══ بندِ ۵ (بازبینیِ LIS ۲۰۲۶-۱۰-۰۶، غیربالینی): مقدارِ انگلیسیِ نقل‌شده در متنِ بیمار معنای فارسی می‌گیرد ═══
+// قاعده‌ها مقدارِ چاپیِ برگه را عمداً نقل می‌کنند (N5: «روی برگه «Negative» …»)، ولی بیمارِ فارسی‌زبان «Negative»، «Many»،
+//   «Weakly Positive» را نمی‌خواند (hCG ۹ بار، CRP، گلبولِ سفیدِ ادرار). به‌جای ویرایشِ ~۵۶ جای نقل در patterns_*.js، یک گذر
+//   پس از ساختِ یافته‌ها: فقط وقتی *کلِ* محتوای «…» یکی از واژه‌های فهرستِ بسته است (N6)، معنا کنارش می‌آید —
+//   «Negative» (منفی). اگر همان معنا در چند نویسهٔ بعد آمده («… «Positive» است (مثبت)») چیزی اضافه نمی‌شود. حکمی عوض نمی‌شود.
+const QUAL_GLOSS = [
+  [/^(neg|negative)$/i, "منفی"], [/^(pos|positive)$/i, "مثبت"], [/^(weak(ly)?\s*positive|weak\s*pos)$/i, "مثبتِ ضعیف"],
+  [/^reactive$/i, "واکنش‌گر"], [/^non[\s-]*reactive$/i, "غیرواکنش‌گر"], [/^(not\s*detected|undetected)$/i, "شناسایی نشد"],
+  [/^detected$/i, "شناسایی شد"], [/^(borderline|equivocal|indeterminate)$/i, "مرزی"], [/^many$/i, "زیاد"],
+  [/^(numerous|plenty|loaded)$/i, "فراوان"], [/^few$/i, "کم"], [/^moderate$/i, "متوسط"], [/^rare$/i, "نادر"],
+  [/^occasional$/i, "گاه‌به‌گاه"], [/^trace$/i, "رگه (مقدارِ بسیار کم)"], [/^(nil|none)$/i, "هیچ"], [/^not\s*seen$/i, "دیده نشد"],
+  [/^no\s*growth$/i, "بدونِ رشد"], [/^normal$/i, "طبیعی"], [/^abnormal$/i, "غیرطبیعی"], [/^black$/i, "سیاه"],
+  // بند ۵: رنگ/ظاهرِ ادرار (unreadQualRows در server.js)
+  [/^turbid$|^cloudy$/i, "کدر"], [/^semi[\s-]*turbid$/i, "نیمه‌کدر"], [/^hazy$/i, "کمی کدر"], [/^red$/i, "قرمز"],
+  [/^brown$/i, "قهوه‌ای"], [/^amber$/i, "کهربایی"], [/^orange$/i, "نارنجی"], [/^pink$/i, "صورتی"], [/^bloody$/i, "خونی"],
+  [/^green$/i, "سبز"], [/^milky$/i, "شیری"], [/^dark[\s-]*brown$/i, "قهوه‌ایِ تیره"], [/^dark[\s-]*red$/i, "قرمزِ تیره"],
+];
+export function glossQualText(s) {
+  if (typeof s !== "string" || !s.includes("«")) return s;
+  return s.replace(/«([^«»]{1,40})»/g, (whole, inner, off, str) => {
+    const v = inner.trim().replace(/[.,;:،؛]+$/, "");
+    const hit = QUAL_GLOSS.find(([re]) => re.test(v));
+    if (!hit) return whole;
+    const after = str.slice(off + whole.length, off + whole.length + 30);
+    if (after.includes(hit[1]) || /^\s*\(/.test(after)) return whole;
+    return `${whole} (${hit[1]})`;
+  });
+}
+export function applyQualGloss(findings) {
+  for (const f of findings) {
+    for (const k of ["headline", "must_say", "action", "brief"]) if (typeof f[k] === "string") f[k] = glossQualText(f[k]);
+    for (const k of ["warnings", "brief_warnings"]) if (Array.isArray(f[k])) f[k] = f[k].map(glossQualText);
+  }
+}
+
 // ═══ P91 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶، [22]): CKِ کودک ═══
 // برای رابدومیولیزِ کودک گایدلاینِ اجماعی نیست؛ بیشترِ نویسندگان CK ≥ ۱۰۰۰ یا ≥ ۵×ULN را ملاک می‌گیرند (Arkansas Children's،
 //   Cone Health peds pathway). کودکِ زیرِ ۱۶ با CK ≥ ۵×سقفِ بازهٔ خودش ⇒ کفِ فوریت «soon» با تکرارِ CK، ادرار، کراتینین و پتاسیم؛
