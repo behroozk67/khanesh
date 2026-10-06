@@ -975,6 +975,66 @@ export const RULES_BIOCHEM = [
   },
 
   {
+    // ═══ P93 (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر): دیابتِ بارداری — IADPSG 2010، Table 1 (متنِ اصلی باز شد) ═══
+    // 🔴 پیش از این: زنِ باردار با قندِ دوساعتهٔ ۱۶۰ «پیش‌دیابت … تغییرِ رژیم» و routine می‌گرفت؛ قاعدهٔ بارداری نبود.
+    //   فقط با بارداریِ *اعلام‌شده*. ناشتای ≥ ۹۲ فقط با نامِ صریحِ «ناشتا» قطعی است، «Glucose»ِ برهنه شرطی؛
+    //   ۲ساعتهٔ ≥ ۱۵۳ فقط با نامِ OGTT قطعی است، «بعد از غذا»/بی‌قید شرطی (تصمیمِ کاربر). ردیفِ ۳ساعته (۱۰۰ گرمی) ⇒ کنار.
+    //   در بارداری این قاعده مالکِ قند است: glycemia کنار می‌رود (پیش‌دیابت/تکرار در بارداری معنا ندارد، N20). گارد GD1–GD3.
+    id: "gestational_diabetes_range",
+    match: (e) => gdmState(e) != null,
+    build: (e) => {
+      const s = gdmState(e);
+      // کلیدها در سورسِ قاعده خوانده می‌شوند تا RULE_READS آن‌ها را پوشش‌داده بشمارد (N18)؛ متن هم نامِ faNameشان را می‌برد.
+      const read = (k) => e.graded.find((x) => x.test === k)?.value ?? null;
+      const f = read("GLU_F"), h2 = read("GLU_2H"), h1 = e.ungraded?.GLU_1H?.value ?? null;
+      const line = [];
+      if (s.kind === "other_test") line.push([f != null && `قند ناشتای شما ${f}`, h1 != null && `قند یک‌ساعته ${h1}`, h2 != null && `قند دو ساعتهٔ شما ${h2}`].filter(Boolean).join("، ") + " است.");
+      else if (f) line.push(s.fastNamed
+        ? `قند ناشتای شما ${f} است؛ ${f >= GDM.F ? "به معیارِ ۹۲ رسیده است" : "به معیارِ ۹۲ نرسیده است"}.`
+        : `عددِ قندِ شما ${f} است، ولی روی برگه نیامده که «قند ناشتا» بوده${f >= GDM.F ? "؛ اگر ناشتا گرفته شده، به معیارِ ۹۲ رسیده است" : ""}.`);
+      if (s.kind !== "other_test" && h1 != null) line.push(`قند یک‌ساعتهٔ آزمون ${h1} است؛ ${h1 >= GDM.H1 ? "به معیارِ ۱۸۰ رسیده است" : "به معیارِ ۱۸۰ نرسیده است"}.`);
+      if (s.kind !== "other_test" && h2 != null) line.push(s.h2Ogtt
+        ? `قند دو ساعتهٔ آزمون ${h2} است؛ ${h2 >= GDM.H2 ? "به معیارِ ۱۵۳ رسیده است" : "به معیارِ ۱۵۳ نرسیده است"}.`
+        : `قند دو ساعتهٔ شما ${h2} است${h2 >= GDM.H2 ? "؛ اگر از آزمونِ ۷۵ گرمیِ تحملِ قند است، به معیارِ ۱۵۳ رسیده است، ولی اگر دو ساعت بعد از غذا گرفته شده، این معیار به آن نمی‌خورد" : ""}.`);
+      const owner = glucoseOwnerFires(e);
+      const urgency = s.kind === "negative" || s.kind === "other_test" ? "routine" : "this_week";
+      const head = {
+        overt: "قندِ شما در بارداری در محدودهٔ دیابت است، نه فقط دیابتِ بارداری",
+        definite: "قندِ شما در محدودهٔ دیابتِ بارداری است",
+        conditional: "قندِ شما ممکن است در محدودهٔ دیابتِ بارداری باشد",
+        negative: "قندِ شما در این آزمون در محدودهٔ دیابتِ بارداری نیست",
+        other_test: "آزمونِ تحملِ قندِ شما با معیارِ دیگری خوانده می‌شود",
+      }[s.kind];
+      const tail = {
+        overt: "قندِ ناشتای ۱۲۶ یا بیشتر، یا HbA1c ۶٫۵٪ یا بیشتر، در بارداری در محدودهٔ دیابتِ آشکار است، نه فقط دیابتِ بارداری.",
+        definite: "در آزمونِ ۷۵ گرمیِ تحملِ قند، رسیدنِ حتی یکی از این سه عدد (ناشتا ۹۲، یک‌ساعته ۱۸۰، دوساعته ۱۵۳) به معیار برای دیابتِ بارداری کافی است.",
+        conditional: "ماما یا پزشکتان روشن می‌کند که این عدد از کدام آزمون است.",
+        negative: "در آزمونِ ۷۵ گرمی، هیچ‌کدام از عددهای اندازه‌گیری‌شده به معیارِ دیابتِ بارداری (ناشتا ۹۲، یک‌ساعته ۱۸۰، دوساعته ۱۵۳) نرسیده است.",
+        other_test: "برگهٔ شما قندِ سه‌ساعته هم دارد، یعنی احتمالاً آزمونِ ۱۰۰ گرمی بوده که معیارِ دیگری دارد؛ موتور دربارهٔ آن حکم نمی‌دهد و ماما یا پزشکتان آن را می‌خواند.",
+      }[s.kind];
+      const missing = [!f && "ناشتا", h1 == null && "یک‌ساعته", h2 == null && "دوساعته"].filter(Boolean);
+      return {
+        pattern: "gestational_diabetes_range",
+        urgency,
+        key_number: s.kind === "negative" ? undefined : (h2 ?? h1 ?? f),
+        headline: head,
+        must_say: line.join(" ") + " " + tail +
+          (s.kind === "negative" && missing.length ? ` عددِ ${missing.join(" و ")} روی این برگه نیست.` : "") +
+          (s.kind === "definite" || s.kind === "conditional" ? " دیابتِ بارداری با کنترلِ قند قابلِ مدیریت است و پیگیری‌اش برای شما و جنین مهم است." : ""),
+        action: owner
+          ? "زمانِ مراجعه را یافتهٔ «قندِ بسیار بالا» تعیین می‌کند؛ این برگه را همراه ببرید."
+          : s.kind === "negative" || s.kind === "other_test"
+            ? "این نتیجه را در مراقبتِ بعدیِ بارداری همراه ببرید."
+            : "این هفته این نتیجه را به ماما یا پزشکِ زنانِ خود نشان دهید.",
+        suggest: [],
+        warnings: [],
+        explains: h1 != null ? ["GLU_1H"] : [],
+        sources: ["IADPSG_2010"],
+      };
+    },
+  },
+
+  {
     // 🔴 N1 (۲۰۲۶-۱۰-۰۶، اندازه‌گیری‌شده): قندِ تصادفیِ بالای محدوده ولی < ۲۰۰ مالکی نداشت ⇒ «RBS 150» فقط
     //    unmatched_abnormal («توضیحِ آماده نداریم») می‌گرفت. glycemia عمداً آن را نمی‌خواند: قندِ تصادفی معیارِ پیش‌دیابت ندارد.
     //    این قاعده هیچ عددِ تازه‌ای نمی‌سازد: «بالا» از refs.js، ۲۰۰ همان معیارِ ADA در glycemia. فوریت همان routineِ تورِ ایمنی (N29).
@@ -1018,6 +1078,7 @@ export const RULES_BIOCHEM = [
   {
     id: "glycemia",
     match: (e) => {
+      if (gdmState(e) != null) return false;   // P93: در بارداری مالکِ قند gestational_diabetes_range است (N20)
       const t = val(e);
       return (t.GLU_F != null && t.GLU_F >= 100) ||
              (t.HBA1C != null && t.HBA1C >= 5.7) ||
@@ -1980,6 +2041,27 @@ function severeGlucoseOwns(e) {
   return !!g && g.value >= 250 && !dkaOwns(e) && !hhsOwns(e);
 }
 /** یکی از سه مالکِ قندِ بسیار بالا/کتواسیدوز فعال است ⇒ زمان‌بندیِ مراجعه با اوست، نه با یافتهٔ دیابت. */
+// ═══ P93: وضعیتِ دیابتِ بارداری (IADPSG 2010، Table 1؛ دیابتِ آشکار: ناشتا ≥ ۱۲۶ یا HbA1c ≥ ۶٫۵) ═══
+const GDM = Object.freeze({ F: 92, H1: 180, H2: 153 });
+function gdmState(e) {
+  if (e?.pregnant !== true) return null;
+  const g = (k) => e.graded?.find((x) => x.test === k)?.value ?? null;
+  const names = e.glucoseNames ?? {};
+  const f = g("GLU_F"), h2 = g("GLU_2H"), a1c = g("HBA1C");
+  const h1 = e.ungraded?.GLU_1H?.value ?? null;
+  const fastNamed = f != null && /fast|fbs|fpg|gtt|ناشتا|0h/.test(String(names.GLU_F ?? "").toLowerCase().replace(/\s+/g, ""));
+  const ogtt = (n) => /gtt|tolerance|تحمل/.test(String(n ?? "").toLowerCase());
+  const h2Ogtt = h2 != null && ogtt(names.GLU_2H);
+  const isOgttSheet = h1 != null || h2Ogtt || ogtt(names.GLU_F);
+  const overt = (f != null && fastNamed && f >= 126) || (a1c != null && a1c >= 6.5);
+  const definite = (fastNamed && f >= GDM.F) || (h1 != null && h1 >= GDM.H1) || (h2Ogtt && h2 >= GDM.H2);
+  const conditional = (f != null && !fastNamed && f >= GDM.F) || (h2 != null && !h2Ogtt && h2 >= GDM.H2);
+  // آزمونِ ۱۰۰ گرمی (ردیفِ ۳ساعته): معیارِ IADPSG نمی‌خورد — حکم نمی‌دهیم، ولی «پیش‌دیابت»ِ glycemia هم نمی‌آید.
+  if (e.ogtt100g) return { kind: "other_test", f, h1, h2, fastNamed, h2Ogtt };
+  const kind = overt ? "overt" : definite ? "definite" : conditional ? "conditional" : isOgttSheet ? "negative" : null;
+  return kind ? { kind, f, h1, h2, fastNamed, h2Ogtt } : null;
+}
+
 function glucoseOwnerFires(e) { return dkaOwns(e) || hhsOwns(e) || severeGlucoseOwns(e); }
 
 export const RULES_BIOCHEM_NEW = [

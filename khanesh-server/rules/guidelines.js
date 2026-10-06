@@ -224,6 +224,18 @@ export const GUIDELINES = {
     scope: 'طبقه‌بندی CGA، مراحل G1–G5 و A1–A3، شرطِ دوامِ ۳ ماه؛ اسیدوزِ متابولیک در CKD: بی‌کربنات ≤ 22 mmol/L، شروعِ قلیا فقط < 18',
   },
 
+  // P93 (۲۰۲۶-۱۰-۰۶): متنِ اصلی باز شد (PMC2827530، Table 1): ناشتا ۹۲، ۱ساعته ۱۸۰، ۲ساعته ۱۵۳ mg/dL؛ «حتی یکی کافی است».
+  //   ADA 2025 (بخشِ ۲) همین عددها را دارد ولی متنش در این جلسه باز نشد (۴۰۳) ⇒ ارجاع فقط به IADPSG.
+  IADPSG_2010: {
+    org: 'IADPSG',
+    fa: 'گروهِ بین‌المللیِ انجمن‌های دیابت و بارداری',
+    title: 'International Association of Diabetes and Pregnancy Study Groups recommendations on the diagnosis and classification of hyperglycemia in pregnancy (Diabetes Care 2010;33:676–682)',
+    year: 2010,
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC2827530/',
+    access: 'open',
+    scope: 'معیارِ دیابتِ بارداری در آزمونِ ۷۵ گرمی و دیابتِ آشکار در بارداری',
+  },
+
   ADA_SOC: {
     org: 'ADA',
     fa: 'انجمن دیابت آمریکا',

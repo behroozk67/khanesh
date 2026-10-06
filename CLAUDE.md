@@ -705,6 +705,11 @@ second one; a recurring entry is the strongest signal in the file.
   «Random Blood Sugar» mapped, so a sheet with «Random Glucose 45» had no finding at all. Twelve spellings now go to `GLU_RANDOM`. «Random Urine Glucose»
   stays unmapped on purpose. Guard `RG1`. The N1 half was closed the same day: `GLU_RANDOM` 141–199 had no rule of its own («توضیح آماده نداریم»). It now gets
   `random_glucose_above_range` (`routine`, the net’s own urgency). The rule adds no new number: «high» comes from `refs.js`, and 200 belongs to `glycemia`. Guard `RG2`.
+- **Recurred 2026-10-06 on OGTT names, and the mapping alone would have shipped a wrong diagnosis (P93).** «GTT 2h», «OGTT 2 hr» and
+  «PPBS» were `unmapped`. The obvious fix (map them to `GLU_2H`) would have sent the most common OGTT in Iran, the pregnancy screen, into
+  «پیش‌دیابت … تغییرِ رژیم» at `routine`. That was already the output for a pregnant «2hpp 160», since the engine had no gestational rule.
+  Added `gestational_diabetes_range` (IADPSG 2010, read from the source) and the `GLU_1H` key. Guards `GD1`–`GD3`.
+  **Before mapping a name, ask which population prints it most, and run the new mapping on that population.**
 - **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
   anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
   *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When

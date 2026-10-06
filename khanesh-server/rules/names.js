@@ -25,6 +25,7 @@ export const FA_NAMES = {
   AST: "AST (آنزیم کبدی)", ALT: "ALT (آنزیم کبدی)", ALP: "آلکالن فسفاتاز",
   GGT: "GGT", CK: "CK (کراتین کیناز)", CK_MB: "CK-MB", AMYLASE: "آمیلاز", LIPASE: "لیپاز",
   LDH: "LDH", GLU_F: "قند ناشتا", GLU_2H: "قند دو ساعته", GLU_RANDOM: "قند خون",
+  GLU_1H: "قند یک‌ساعتهٔ آزمون تحمل قند",   // P93
   HBA1C: "HbA1c", URIC: "اسید اوریک", ALB: "آلبومین", TP: "پروتئین تام",
   BILI_T: "بیلی‌روبین تام", BILI_D: "بیلی‌روبین مستقیم", BILI_I: "بیلی‌روبین غیرمستقیم",
   FERRITIN: "فریتین", IRON: "آهن", TIBC: "TIBC", TSAT: "اشباع ترانسفرین",

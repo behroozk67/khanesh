@@ -116,6 +116,22 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   bs2h: "GLU_2H", glu2h: "GLU_2H", glucose2h: "GLU_2H", "2hourpp": "GLU_2H",
   postprandial: "GLU_2H", postprandialbloodsugar: "GLU_2H",
   "2hourpostprandial": "GLU_2H", قندخوندوساعته: "GLU_2H", قنددوساعته: "GLU_2H",
+  // 🔴 N2 (۲۰۲۶-۱۰-۰۶، اندازه‌گیری‌شده): «GTT 2h»، «OGTT 2 hr»، «2-hour glucose»، «PPBS»، «قند خون ۲ ساعته» unmapped بودند.
+  //   OGTT (۷۵ گرمی) و «بعد از غذا» یک کلیدند؛ قاعدهٔ دیابتِ بارداری نامِ چاپ‌شده را می‌خواند (glucoseNames) و فقط برای OGTT حکم می‌دهد.
+  //   «GCT» (چالشِ ۵۰ گرمی) و ردیف‌های ۳ساعته (آزمونِ ۱۰۰ گرمی) عمداً نه: معیارشان دیگر است. گارد GD1.
+  gtt2h: "GLU_2H", gtt2hr: "GLU_2H", gtt2hour: "GLU_2H", ogtt2h: "GLU_2H", ogtt2hr: "GLU_2H", ogtt2hour: "GLU_2H",
+  "2hgtt": "GLU_2H", "2hrgtt": "GLU_2H", "2hogtt": "GLU_2H", "2hrogtt": "GLU_2H", "2hourogtt": "GLU_2H",
+  "2hourglucose": "GLU_2H", "2hrglucose": "GLU_2H", glucose2hr: "GLU_2H", glucose2hour: "GLU_2H",
+  glucose2hrpp: "GLU_2H", glucose2hpp: "GLU_2H", "2hrpp": "GLU_2H", bloodsugar2hpp: "GLU_2H",
+  postprandialglucose: "GLU_2H", glucosepostprandial: "GLU_2H", ppbs: "GLU_2H",
+  "قندخون۲ساعته": "GLU_2H", "قندخون2ساعته": "GLU_2H", "قند۲ساعتبعدازغذا": "GLU_2H", "قند2ساعتبعدازغذا": "GLU_2H",
+  // قندِ یک‌ساعتهٔ OGTT — بیرونِ بارداری معیاری ندارد ⇒ noRef (نام برده می‌شود، بی‌حکم)؛ در بارداری قاعدهٔ gestational_diabetes_range.
+  gtt1h: "GLU_1H", gtt1hr: "GLU_1H", gtt1hour: "GLU_1H", ogtt1h: "GLU_1H", ogtt1hr: "GLU_1H", ogtt1hour: "GLU_1H",
+  "1hgtt": "GLU_1H", "1hrgtt": "GLU_1H", "1hogtt": "GLU_1H", "1hrogtt": "GLU_1H",
+  glucose1h: "GLU_1H", glucose1hr: "GLU_1H", glucose1hour: "GLU_1H", "1hourglucose": "GLU_1H", "1hrglucose": "GLU_1H",
+  قندیکساعته: "GLU_1H", قندخونیکساعته: "GLU_1H",
+  // ناشتای OGTT همان قندِ ناشتاست (و «ناشتا» نام برده شده).
+  gttfasting: "GLU_F", ogttfasting: "GLU_F", fastinggtt: "GLU_F", gtt0h: "GLU_F", ogtt0h: "GLU_F", glucose0h: "GLU_F",
   hemoglobina1c: "HBA1C", hba1c: "HBA1C", a1c: "HBA1C",
   urea: "UREA", اوره: "UREA", bun: "UREA_N", bloodureanitrogen: "UREA_N", ureanitrogen: "UREA_N",
   creatinine: "CREAT", cr: "CREAT", کراتینین: "CREAT",
@@ -1994,6 +2010,13 @@ export function ocrToEngineInput(ocr) {
     }
   }
 
+  // P93 (دیابتِ بارداری، ۲۰۲۶-۱۰-۰۶): نامِ چاپ‌شدهٔ ردیفِ قندی که سنجیده شد — «ناشتا»ی صریح؟ OGTT یا «بعد از غذا»؟
+  //   معیارِ IADPSG فقط برای ناشتای صریح و آزمونِ ۷۵ گرمی است (تصمیمِ کاربر). ردیفِ ۳ساعته ⇒ آزمونِ ۱۰۰ گرمی، معیارِ دیگر.
+  const glucoseNames = {};
+  for (const k of ["GLU_F", "GLU_2H", "GLU_1H"]) {
+    if (typeof testsObj[k] === "number") glucoseNames[k] = valueConflicts.find((c) => c.key === k)?.kept.name ?? writer[k]?.name ?? null;
+  }
+  const ogtt100g = (ocr?.tests || []).some((t) => t?.name && /(gtt|ogtt|glucose|قند)/.test(norm(t.name)) && /(3h|3hr|3hour|۳ساعت|3ساعت|سهساعت)/.test(norm(t.name)));
   // ═══ عددِ ناممکن سنجیده نمی‌شود (بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵، N3) ═══
   // 🔴 «K 55» (اعشارِ افتاده)، «K 2,625» (کامای سه‌رقمی ⇒ ۲۶۲۵) و «Na 1400» اورژانسِ هیپرکالمی/هیپرناترمی می‌گرفتند — در «K 2,625»
   //    جهت هم وارونه بود (پتاسیمِ پایین). «HCT 2» از «HCT 8»ِ اورژانسی «نوبتِ عادی» می‌گرفت. عددی که با هیچ بدنِ زنده‌ای جور
@@ -2099,6 +2122,8 @@ export function ocrToEngineInput(ocr) {
     tests: testsObj,
     valueConflicts,
     qual,
+    glucoseNames,
+    ogtt100g,
     semenQual,
     smear: mergeSmear(smearItems),
     hemostasis,
@@ -2135,7 +2160,7 @@ function inferPregnant(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, valueConflicts } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
   // specs/011 (P66): شناسه یا برچسبِ قدیمیِ فارسی → شناسهٔ کاتالوگ. regexِ سرطان همان قبلی است (در conditions.js).
@@ -2404,6 +2429,8 @@ export function runEngine(ocr) {
       continue;
     }
     const ref = (NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF });
+    // P93: قندِ یک‌ساعتهٔ OGTT بیرونِ بارداری معیار ندارد ⇒ noRef، ولی مقدار برای gestational_diabetes_range نگه داشته می‌شود.
+    if (key === "GLU_1H") { noRef.push(key); ungraded.GLU_1H = { value, reason: "no_range" }; continue; }
     if (!ref) {
       noRef.push(key);
       if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range", ...(UNIT_KEPT.has(key) ? { unit: printedUnits[key] ?? null } : {}) };
@@ -2556,6 +2583,8 @@ export function runEngine(ocr) {
     // دو عددِ متفاوت برای یک آزمایش (۲۰۲۶-۱۰-۰۶): server.js هشدار می‌سازد. فقط وقتی هست، تا فریزها دست نخورند.
     ...(valueConflicts.length ? { valueConflicts } : {}),
     unitConversions,
+    // P93: فقط در بارداریِ اعلام‌شده (تا فریزهای غیرباردار دست نخورند).
+    ...(pregnantF ? { glucoseNames, ogtt100g } : {}),
     noRef,
     diffFailed,
     abnormal: graded.filter((g) => g.abnormal),
