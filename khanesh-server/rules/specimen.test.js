@@ -85,11 +85,13 @@ test("U06 — کنترل: «Urine Protein +1» بی‌شاهد همان ردیف
   assert.equal(sp(e).u24.length, 0);
 });
 
-test("U07 — «Urine Ca/24h 320» شناخته می‌شود ولی سنجیده نمی‌شود؛ U_CA ساخته نمی‌شود (R3)", () => {
+// ⚠️ بازتنظیمِ عمدی (P87 تصمیمِ ۸، ۲۰۲۶-۱۰-۰۶): پیش‌تر «Urine Ca/24h» هویتِ جدای U24_CA داشت (R3). حالا همان U_CA است.
+//    بی‌واحد ⇒ مثلِ «24h urine calcium»ِ بی‌واحد: unit_unknown، بی‌حکمِ «بالا» (P48).
+test("U07 — «Urine Ca/24h 320»ِ بی‌واحد همان U_CA است و مثلِ املای قدیمی سنجیده نمی‌شود (unit_unknown)", () => {
   const { e, p } = run([row("Urine Ca/24h", "320")], { sex: "M", age: 40 });
-  assert.deepEqual(ids(sp(e).u24), ["U24_CA"]);
-  assert.ok(!serumKeys(e).includes("U_CA"));
-  assert.equal(p.findings.length, 0);
+  assert.deepEqual(ids(sp(e).u24), []);
+  assert.equal(e.ungraded?.U_CA?.reason, "unit_unknown");
+  assert.ok(!p.findings.some((f) => f.rule_id === "urine_calcium_abnormal"));
 });
 
 test("U08 — دو مقدارِ ناهم‌خوان برای یک هویت: اولی می‌ماند، دومی «تفسیر نشدند»", () => {
@@ -124,8 +126,10 @@ const FREEZE = {
 };
 
 test("U09 — فریزِ محورِ معدنی: «24h urine calcium» همچنان U_CA است و خروجی بایت‌به‌بایت همان (FR-014، سبزِ پیشین)", () => {
-  assert.equal(fp({ sex: "F", age: 60 }, [row("24h urine calcium", "320", "mg/24h"), row("Ca", "11.2", "mg/dL"), row("PTH", "90", "pg/mL")]), "be0e71dfa982ff58");
-  assert.equal(fp({ sex: "F", age: 40 }, [row("24h urine calcium", "50", "mg/24h"), row("Ca", "10.9", "mg/dL"), row("PTH", "70", "pg/mL")]), "375f5043d967356d");
+  // ⚠️ بازتنظیمِ عمدی (P87 تصمیمِ ۸): بازهٔ زنِ بزرگسال ۱۰۰–۳۰۰ ⇒ ۱۰۰–۲۰۰ (Mayo). اثبات: با برگرداندنِ «100–200»/«[100,200]»/برچسبِ منبع
+  //    به مقدارِ قبلی در خروجیِ تازه، همان be0e71dfa982ff58 به دست آمد — هیچ تفاوتِ دیگری نیست.
+  assert.equal(fp({ sex: "F", age: 60 }, [row("24h urine calcium", "320", "mg/24h"), row("Ca", "11.2", "mg/dL"), row("PTH", "90", "pg/mL")]), "a8c2962e9fdc2bf7");
+  assert.equal(fp({ sex: "F", age: 40 }, [row("24h urine calcium", "50", "mg/24h"), row("Ca", "10.9", "mg/dL"), row("PTH", "70", "pg/mL")]), "e729c854fcb559f6");   // همان اثباتِ بالا: برگرداندنِ بازه ⇒ 375f5043d967356d
   assert.equal(sp(run([row("24h urine calcium", "320", "mg/24h")]).e).u24.length, 0);
 });
 
@@ -322,22 +326,51 @@ test("W03 — نشانهٔ شدید (پلاکت < ۱۰۰، کراتینین > ۱
   assert.equal(only(prot("200", "mg/24h", [row("PLT", "90", "K/uL")]).p, "pregnancy_proteinuria_24h"), undefined);   // نشانهٔ شدید بی‌پروتئینوری مالِ این قاعده نیست
 });
 
-test("W04 — کلسیمِ ۲۴ساعته: مرد ≥ ۲۵۰، زن ≥ ۲۰۰، mmol ⇒ ×۴۰٫۰۸؛ زیرِ ۱۸ سال و بی‌واحد و جنسِ نامعلوم ⇒ هیچ", () => {
-  const ca = (v, u, pt) => only(run([row("Urine Ca/24h", v, u)], pt).p, "urine_calcium_24h_high");
+// ⚠️ W04/W05 بازنویسیِ عمدی (P87 تصمیمِ ۸): قاعدهٔ urine_calcium_24h_high حذف شد؛ همان حکم را urine_calcium_abnormal می‌دهد.
+const caFinding = (rows, pt) => only(run(rows, pt).p, "urine_calcium_abnormal");
+test("W04 — کلسیمِ ۲۴ساعته: مرد ≥ ۲۵۰، زن ≥ ۲۰۰ ⇒ این هفته؛ mmol تبدیل؛ زیرِ ۱۸ سال و جنسِ نامعلوم ⇒ همان ۱۰۰–۳۰۰؛ بی‌واحد ⇒ هیچ", () => {
+  const ca = (v, u, pt) => caFinding([row("Urine Ca/24h", v, u)], pt);
   assert.equal(ca("260", "mg/24h", { sex: "M", age: 40 }).urgency, "this_week");
+  assert.equal(ca("260", "mg/24h", { sex: "M", age: 40 }).action, "این هفته با پزشک مطرح کنید.");
   assert.equal(ca("240", "mg/24h", { sex: "M", age: 40 }), undefined);
   assert.ok(ca("210", "mg/24h", { sex: "F", age: 40 }));
-  assert.ok(ca("6", "mmol/24h", { sex: "F", age: 40 }));         // ۶×۴۰٫۰۸ = ۲۴۰
+  assert.ok(ca("6", "mmol/24h", { sex: "F", age: 40 }));         // ۶×۴۰ ≈ ۲۴۰
   assert.equal(ca("260", "mg/24h", { sex: "M", age: 12 }), undefined);
+  assert.equal(ca("320", "mg/24h", { sex: "M", age: 12 }).urgency, "routine");
+  assert.doesNotMatch(ca("320", "mg/24h", { sex: "M", age: 12 }).must_say, /مایو/);
   assert.equal(ca("260", "", { sex: "M", age: 40 }), undefined);
   assert.equal(ca("260", "mg/24h", { age: 40 }), undefined);
 });
 
-test("W05 — کلسیمِ ادرار: جملهٔ کلسیمِ خون سه‌حالته (بالا / بالا نیست / روی برگه نیست)", () => {
-  const t = (extra) => only(run([row("Urine Ca/24h", "300", "mg/24h"), ...extra], { sex: "M", age: 40 }).p, "urine_calcium_24h_high").must_say;
-  assert.match(t([]), /کلسیمِ خون روی این برگه نیست/);
-  assert.match(t([row("Calcium", "11.2", "mg/dL")]), /کلسیمِ خونِ شما هم بالاست/);
-  assert.match(t([row("Calcium", "9.5", "mg/dL")]), /کلسیمِ خونِ شما بالا نیست/);
+test("W05 — کلسیمِ ادرار: جملهٔ کلسیمِ خون و PTH سه‌حالته (بالا / طبیعی / روی برگه نیست)", () => {
+  const t = (extra) => caFinding([row("Urine Ca/24h", "300", "mg/24h"), ...extra], { sex: "M", age: 40 }).must_say;
+  assert.match(t([]), /کلسیم خون روی این برگه اندازه‌گیری نشده است/);
+  assert.match(t([]), /PTH\) روی این برگه نیست/);
+  assert.match(t([row("Calcium", "11.2", "mg/dL")]), /کلسیم خون شما 11\.2.*خارج از محدوده/);
+  assert.match(t([row("Calcium", "9.5", "mg/dL")]), /کلسیم خون شما 9\.5.*طبیعی/);
+  // N4: پیش‌تر کنارِ PTHِ چاپ‌شده هم «PTH روی این برگه نیست» می‌گفت.
+  const withPth = t([row("Calcium", "9.5", "mg/dL"), row("PTH", "80", "pg/mL")]);
+  assert.match(withPth, /PTH\) شما 80/);
+  assert.doesNotMatch(withPth, /PTH\) روی این برگه نیست/);
+});
+
+test("U20 — P87 تصمیمِ ۸: دو املای کلسیمِ ۲۴ساعته یک هویت‌اند — همان یافته‌ها، همان فوریت، همان متن؛ FHH با املای آزمایشگاه", () => {
+  const out = (name, v, extra, pt) => {
+    const { p } = run([row(name, v, "mg/24h"), ...extra], pt);
+    return JSON.stringify(p.findings.map((f) => [f.rule_id, f.urgency, f.must_say, f.action]));
+  };
+  const panels = [
+    ["250", [], { sex: "F", age: 40 }], ["280", [], { sex: "M", age: 40 }], ["320", [], { sex: "M", age: 40 }],
+    ["80", [], { sex: "F", age: 40 }], ["320", [], { sex: "M", age: 12 }],
+    ["320", [row("Ca", "11.2", "mg/dL"), row("PTH", "90", "pg/mL")], { sex: "F", age: 60 }],
+    ["50", [row("Ca", "11.2", "mg/dL"), row("PTH", "90", "pg/mL")], { sex: "F", age: 60 }],
+  ];
+  for (const [v, extra, pt] of panels) assert.equal(out("Urine Ca/24h", v, extra, pt), out("24h urine calcium", v, extra, pt), v + JSON.stringify(pt));
+  // 🔴 پیش از تغییر: «Urine Ca/24h 50» + کلسیم و PTHِ بالا ⇒ primary_hyperparathyroidism + «کلسیم ادرار روی این برگه نیست».
+  const fhh = run([row("Urine Ca/24h", "50", "mg/24h"), row("Ca", "11.2", "mg/dL"), row("PTH", "90", "pg/mL")], { sex: "F", age: 60 }).p;
+  assert.ok(fhh.findings.some((f) => f.rule_id === "fhh_pattern"), fhh.findings.map((f) => f.rule_id).join(","));
+  assert.ok(!fhh.findings.some((f) => /کلسیم ادرار ۲۴ ساعته روی این برگه نیست/.test(f.must_say)));
+  assert.ok(!run([row("Urine Ca/24h", "300", "mg/24h")], { sex: "M", age: 40 }).p.findings.some((f) => f.rule_id === "urine_calcium_24h_high"));
 });
 
 const asc = (rows) => run(rows, { sex: "M", age: 55 });
@@ -390,4 +423,46 @@ test("W11 — نسبتِ قند سه‌حالته در متنِ پلور: نسب
   assert.ok(t([row("FBS", "150", "mg/dL")]).includes("0.33 است که کمتر از ۰٫۵ است"));
   assert.match(t([row("FBS", "90", "mg/dL")]), /کمتر از ۰٫۵ نیست؛ در بیمارِ دیابتی/);
   assert.match(t([]), /قندِ خون روی همین برگه نیست/);
+});
+
+// ── P87 تصمیمِ ۱۱ (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر): قند/LDH/پروتئینِ بی‌نامِ نمونه کنارِ «Fluid Type» — فوریت بماند، متن شرطی ──
+test("U21 — «Glucose 30» کنارِ «Fluid Type 4»: اورژانس می‌ماند، متن شرطی، اقدامِ مخصوصِ مایع؛ بی‌Fluid Type و درخواستِ ۲۸ دست‌نخورده", () => {
+  const FT = row("Fluid Type", "4");
+  const go = (rows) => run(rows, { sex: "F", age: 46 }).p;
+  const hypo = go([FT, row("Glucose", "30", "mg/dL")]);
+  assert.equal(hypo.overall_urgency, "emergency");
+  assert.equal(hypo.has_critical, true);
+  const f = hypo.findings.find((x) => x.urgency === "emergency");
+  assert.match(f.must_say, /ممکن است مقدارِ خون باشد یا مقدارِ همان مایع/);
+  assert.match(f.must_say, /فوریت را پایین نیاورده‌ایم/);
+  assert.match(f.action, /^همین حالا این نتیجه را به پزشکِ معالج یا پرستارِ بخش اطلاع دهید/);
+  assert.match(f.action, /چیزی شیرین بخورید/);              // بقیهٔ اقدام نمی‌افتد
+  assert.doesNotMatch(f.action, /همین امروز به اورژانس/);   // جملهٔ رقیب (N20) نمی‌ماند
+  const hhs = go([FT, row("Glucose", "650", "mg/dL")]).findings.find((x) => x.urgency === "emergency");
+  assert.match(hhs.must_say, /بی‌نامِ نمونه/);
+  const ldh = go([FT, row("LDH", "2500", "U/L")]).findings.find((x) => x.pattern === "ldh_high_nonspecific");
+  assert.equal(ldh.urgency, "routine");
+  assert.match(ldh.must_say, /اگر مالِ مایع است، این را به پزشک بگویید/);
+  // کنترلِ منفی: بی‌«Fluid Type» متن و اقدام همان قبلی‌اند؛ درخواستِ ۲۸ (همان آنالیت با نامِ مایع روی برگه) جمله نمی‌گیرد.
+  const plain = go([row("Glucose", "30", "mg/dL")]).findings.find((x) => x.urgency === "emergency");
+  assert.doesNotMatch(plain.must_say, /بی‌نامِ نمونه/);
+  assert.match(plain.action, /^همین امروز به اورژانس/);
+  assert.doesNotMatch(JSON.stringify(go(REQ28).findings), /بی‌نامِ نمونه/);
+});
+
+// ── P87 تصمیمِ ۴ (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر): «همزمان» = همین برگه + جملهٔ زمان؛ «نسبت حساب نشد» هرگز «قندِ خون نیست» نمی‌گوید وقتی هست ──
+test("V09 — نسبتِ قندِ مایع/خون: جملهٔ زمان کنارِ هر نسبت (CSF و پلور)؛ دو قندِ خون یا قندِ بی‌واحد ⇒ «حساب نشد» بی‌ادعای غیاب (N4)", () => {
+  const f = (rows, id) => run(rows, { sex: "M", age: 50 }).p.findings.find((x) => x.rule_id === id);
+  const TIME = /زمانِ نمونه‌گیریِ این دو روی برگه نیامده/;
+  assert.match(f([row("CSF Glucose", "45", "mg/dL"), row("FBS", "160", "mg/dL")], "csf_glucose_low").must_say, TIME);
+  assert.match(f([row("Pleural Glucose", "30", "mg/dL"), row("FBS", "140", "mg/dL")], "pleural_glucose_low").must_say, TIME);
+  for (const [fl, id] of [["CSF Glucose", "csf_glucose_low"], ["Pleural Glucose", "pleural_glucose_low"]]) {
+    const two = f([row(fl, "30", "mg/dL"), row("FBS", "140", "mg/dL"), row("BS", "100", "mg/dL")], id).must_say;
+    assert.match(two, /دو قندِ خون چاپ شده است \(140 و 100\)/);
+    assert.doesNotMatch(two, /قندِ خون روی همین برگه نیست/);
+  }
+  const unitless = f([row("CSF Glucose", "30", "mg/dL"), row("FBS", "140", "")], "csf_glucose_low");
+  assert.equal(unitless.urgency, "emergency");
+  assert.doesNotMatch(unitless.must_say, /قندِ خون روی همین برگه نیست/);
+  assert.match(f([row("CSF Glucose", "30", "mg/dL")], "csf_glucose_low").must_say, /قندِ خون روی همین برگه نیست/);   // غیابِ واقعی
 });

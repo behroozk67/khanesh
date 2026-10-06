@@ -232,7 +232,7 @@ khanesh-project/
 │   │   │                        #   فقط مرز/واژهٔ چاپ‌شده؛ Anti-Tg/TRAb در قاعدهٔ thyroid (patterns_endocrine_rheum.js)
 │   │   ├── patterns_prenatal.js # specs/013 (P81): دابل/کوآد مارکر از کانالِ جدای e.prenatal — ۱۴ قاعده، فقط آستانه‌های ✅؛ خطرِ چاپ‌شدهٔ آزمایشگاه مقدم
 │   │   ├── specimen.js          # specs/014 (P87، مرحلهٔ الف): هویتِ ادرارِ ۲۴ساعته/مایعِ بدن، پیش از NAME_MAP ⇒ e.specimen؛ تنها خواننده patterns_specimen.js (U14)
-│   │   ├── patterns_specimen.js # specs/014 مرحلهٔ ب (P87 بند ۱۴): ۵ قاعده: csf_glucose_low (emergency)، pleural_glucose_low (soon)، ascites_runyon_pattern (soon)، pregnancy_proteinuria_24h (soon/emergency، فقط با بارداریِ اعلام‌شده)، urine_calcium_24h_high (this_week)؛ واحدِ مبهم نمره نمی‌گیرد؛ پروتئین/اوره/اسید اوریکِ ۲۴ساعته و CSFِ شیرخوار بی‌قاعده
+│   │   ├── patterns_specimen.js # specs/014 مرحلهٔ ب (P87 بند ۱۴): ۴ قاعده: csf_glucose_low (emergency)، pleural_glucose_low (soon)، ascites_runyon_pattern (soon)، pregnancy_proteinuria_24h (soon/emergency، فقط با بارداریِ اعلام‌شده) (کلسیمِ ۲۴ساعته از ۲۰۲۶-۱۰-۰۶ همان U_CA است ⇒ urine_calcium_abnormal، P87 تصمیمِ ۸)؛ واحدِ مبهم نمره نمی‌گیرد؛ پروتئین/اوره/اسید اوریکِ ۲۴ساعته و CSFِ شیرخوار بی‌قاعده
 │   │   ├── prenatal.js          # specs/013: هویتِ ردیف (ادعای دوگذری: نامِ قوی یا MoM ⇒ AFP/hCGِ ضعیف هم) — مشترکِ adapter و قاعده‌ها
 │   │   ├── serology.js          # specs/012: مسیریابی + خوانشِ مجموعهٔ بسته — مشترکِ adapter و قاعده‌ها (یک قاعده برای «مثبت»)
 │   │   ├── patterns_utils.js    # levelGrade, rankOf, qualState (closed-set reader, N6) — shared by every patterns_* file
@@ -699,7 +699,8 @@ second one; a recurring entry is the strongest signal in the file.
   because it skipped that spec's collection-completeness gate. **Before adding a reader, check `specs/` for a feature that already owns the rows.**
   specs/014 Stage A landed the same day: `rules/specimen.js` claims these rows *before* `NAME_MAP` into `e.specimen` (no reader; guard `U14`)
   and names them on the «تفسیر نشدند» line. ⚠️ Known limit: a bare `Glucose`/`LDH` printed beside `Fluid Type` is still read as serum —
-  only a caution sentence (`U13`, P87 open question 11).
+  a caution sentence (`U13`) and, since 2026-10-06 (P87 decision 11, user), a conditional sentence + the fluid action on every finding about
+  that number. Urgency is never lowered, because a real hypoglycaemia must not be lost (`U21`).
 - **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
   anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
   *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When
@@ -912,6 +913,13 @@ second one; a recurring entry is the strongest signal in the file.
   branch on a graded test has four states: normal, high, low, absent.** Write the arm for each direction the rule's `match` lets through.
   The same batch: `liver_pattern` said «این اعداد نشان می‌دهند…» without one number (N5), `viral_lymphocytosis` said «معمولاً موقتی است» at
   CTCAE grade 3, and impossible MCHC/MCH (12/10, Hb typed as RBC) had no reader. Guards `L16`–`L16c`.
+
+- ⚠️ **Recurred 2026-10-06 through two identities for one analyte (P87 decision 8, uncommitted).** specs/014 parked «Urine Ca/24h» in the
+  `specimen` channel while «24h urine calcium» stayed `U_CA`. The mineral axis reads only `U_CA`, so with the lab’s spelling, Urine Ca 50 + Ca 11.2 +
+  PTH 90 read «پرکاری اولیهٔ پاراتیروئید» and «کلسیم ادرار ۲۴ ساعته روی این برگه نیست» instead of `fhh_pattern`. The wrong direction here is unnecessary surgery.
+  The same number also got two thresholds and two urgencies, depending on the spelling. Fixed by sending every 24-h calcium spelling to `U_CA`. Guard `U20`.
+  **Rule:** a "temporary" second identity for an analyte that an existing rule already reads is a silent absence for that rule. Before parking a row
+  in a side channel, grep every reader of the key it would otherwise have become.
 
 ### N5 — Printing a derived number as if it were on the patient's sheet
 `9c93319`

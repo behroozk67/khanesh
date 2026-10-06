@@ -46,7 +46,7 @@ export function glucoseState(item, thr = LOW_MGDL) {
 const fluidRows = (e, id, type) => (e.specimen?.fluid ?? []).filter((r) => r.id === id && r.fluid?.type === type);
 const infant = (e) => typeof e.age === "number" && e.age < 1;
 
-const ACTION_EMERGENCY = "همین حالا این نتیجه را به پزشکِ معالج یا پرستارِ بخش اطلاع دهید. اگر بستری نیستید، فوراً به اورژانس مراجعه کنید.";
+export const ACTION_EMERGENCY = "همین حالا این نتیجه را به پزشکِ معالج یا پرستارِ بخش اطلاع دهید. اگر بستری نیستید، فوراً به اورژانس مراجعه کنید.";
 const ACTION_SOON = "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، این نتیجه را به پزشکِ معالج نشان دهید.";
 
 const shown = (r) => `${String(r.raw).trim()}${r.unit && !/[a-z]/i.test(String(r.raw)) ? ` ${r.unit}` : ""}`;
@@ -55,6 +55,19 @@ const shown = (r) => `${String(r.raw).trim()}${r.unit && !/[a-z]/i.test(String(r
 function serumGlucose(e) {
   const g = (e.graded ?? []).filter((x) => x.test === "GLU_F" || x.test === "GLU_RANDOM");
   return g.length === 1 ? g[0] : null;
+}
+
+// P87 تصمیمِ ۴ (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر): «همزمان» یعنی همین برگه، تا وقتی LIS زمانِ نمونه‌گیری را بدهد؛ جملهٔ زمان کنارِ هر نسبت.
+const TIMING = "زمانِ نمونه‌گیریِ این دو روی برگه نیامده؛ اگر فاصلهٔ زیادی داشته‌اند، نسبت قابل‌اتکا نیست. ";
+// 🔴 N4، اندازه‌گیری‌شده: با FBS + BS روی برگه (دو قندِ خون ⇒ serumGlucose null) متن می‌گفت «قندِ خون روی همین برگه نیست».
+//   «نسبت حساب نشد» چهار علت دارد و هر کدام جملهٔ خودش را می‌گیرد؛ «روی برگه نیست» فقط برای غیابِ واقعی.
+function noRatioSentence(e, fluidFa) {
+  const g = (e.graded ?? []).filter((x) => x.test === "GLU_F" || x.test === "GLU_RANDOM");
+  const tail = `پس نسبتِ ${fluidFa} به قندِ خون حساب نشد`;
+  if (g.length > 1) return `روی این برگه ${g.length === 2 ? "دو" : g.length} قندِ خون چاپ شده است (${g.map((x) => x.value).join(" و ")}) و معلوم نیست کدام همزمان با مایع گرفته شده، ${tail}. `;
+  if (g.length === 1) return `قندِ خونِ همین برگه ${g[0].value} است، ولی واحدِ قندِ مایع روشن نیست، ${tail}. `;
+  if (e.ungraded?.GLU_F || e.ungraded?.GLU_RANDOM) return `قندِ خون روی برگه چاپ شده ولی واحدش روشن نیست، ${tail}. `;
+  return null;
 }
 
 function cLow(e) {
@@ -87,8 +100,8 @@ const csfLow = {
   build: (e) => {
     const { row, st, ratio, ratioLow, sg } = cLow(e);
     const ratioSentence = ratio != null
-      ? `نسبتِ قندِ CSF به قندِ خونِ همین برگه (${sg.value}) ${ratio.toFixed(2)} است${ratioLow ? " که کمتر از ۰٫۴ است" : " و کمتر از ۰٫۴ نیست؛ یعنی بخشی از پایین‌بودنِ قندِ CSF می‌تواند از پایین‌بودنِ قندِ خون باشد"}. زمانِ نمونه‌گیریِ این دو روی برگه نیامده؛ اگر فاصلهٔ زیادی داشته‌اند، نسبت قابل‌اتکا نیست. `
-      : "قندِ خون روی همین برگه نیست، پس نسبتِ قندِ CSF به قندِ خون حساب نشد و نمی‌شود گفت قندِ پایین از خودِ مایع است یا از پایین‌بودنِ قندِ خون. ";
+      ? `نسبتِ قندِ CSF به قندِ خونِ همین برگه (${sg.value}) ${ratio.toFixed(2)} است${ratioLow ? " که کمتر از ۰٫۴ است" : " و کمتر از ۰٫۴ نیست؛ یعنی بخشی از پایین‌بودنِ قندِ CSF می‌تواند از پایین‌بودنِ قندِ خون باشد"}. ${TIMING}`
+      : noRatioSentence(e, "قندِ CSF") ?? "قندِ خون روی همین برگه نیست، پس نسبتِ قندِ CSF به قندِ خون حساب نشد و نمی‌شود گفت قندِ پایین از خودِ مایع است یا از پایین‌بودنِ قندِ خون. ";
     return {
       pattern: "csf_glucose_low",
       urgency: "emergency",
@@ -112,8 +125,8 @@ const pleuralLow = {
   build: (e) => {
     const { row, tier40, ratio, sg } = pLow(e);
     const ratioSentence = ratio != null
-      ? `نسبتِ قندِ مایع به قندِ خونِ همین برگه (${sg.value}) ${ratio.toFixed(2)} است${ratio < 0.5 ? " که کمتر از ۰٫۵ است" : " و کمتر از ۰٫۵ نیست؛ در بیمارِ دیابتی یا با قندِ خونِ بالا، قندِ مایع ممکن است مطلق پایین نباشد ولی نسبت پایین باشد"}. `
-      : "قندِ خون روی همین برگه نیست، پس نسبتِ قندِ مایع به قندِ خون حساب نشد. ";
+      ? `نسبتِ قندِ مایع به قندِ خونِ همین برگه (${sg.value}) ${ratio.toFixed(2)} است${ratio < 0.5 ? " که کمتر از ۰٫۵ است" : " و کمتر از ۰٫۵ نیست؛ در بیمارِ دیابتی یا با قندِ خونِ بالا، قندِ مایع ممکن است مطلق پایین نباشد ولی نسبت پایین باشد"}. ${TIMING}`
+      : noRatioSentence(e, "قندِ مایع") ?? "قندِ خون روی همین برگه نیست، پس نسبتِ قندِ مایع به قندِ خون حساب نشد. ";
     return {
       pattern: "pleural_glucose_low",
       urgency: tier40 ? "soon" : "this_week",
@@ -187,37 +200,8 @@ const pregProteinuria = {
   },
 };
 
-// ── U24-CA: کلسیمِ ۲۴ساعتهٔ بزرگسال — مرجعِ Mayo: مرد < ۲۵۰، زن < ۲۰۰ mg/24h (همان عددها آستانهٔ خطرِ سنگ‌اند؛ کودک بی‌قاعده)
-const CA_ULN = { M: 250, F: 200 };
-function calciumHigh(e) {
-  if (typeof e.age !== "number" || e.age < 18 || !CA_ULN[e.sex]) return null;
-  const row = (e.specimen?.u24 ?? []).find((r) => r.id === "U24_CA");
-  const mg = row && qty(row, [...conv24("mg", 1), ...conv24("mmol", 40.08)]);
-  return mg != null && mg >= CA_ULN[e.sex] ? { row, mg, uln: CA_ULN[e.sex] } : null;
-}
-const urineCalciumHigh = {
-  id: "urine_calcium_24h_high",
-  match: (e) => calciumHigh(e) != null,
-  build: (e) => {
-    const { row, uln } = calciumHigh(e);
-    const ca = gv(e, "CA");
-    const serum = !ca ? "کلسیمِ خون روی این برگه نیست، پس نمی‌شود گفت علتش در پاراتیروئید یا کلیه است. "
-      : ca.dir === "high" ? "کلسیمِ خونِ شما هم بالاست؛ این ترکیب را پزشک برای بررسیِ پاراتیروئید می‌خواند. "
-      : "کلسیمِ خونِ شما بالا نیست. ";
-    return {
-      pattern: "urine_calcium_24h_high",
-      urgency: "this_week",
-      key_number: row.raw,
-      explains: ["U24_CA:"],
-      headline: "کلسیمِ ادرار ۲۴ساعتهٔ شما بالاست",
-      must_say:
-        `کلسیمِ ادرار ۲۴ساعته روی برگهٔ شما ${shown(row)} است. برای بزرگسالِ ${e.sex === "M" ? "مرد" : "زن"}، ${uln} میلی‌گرم در ۲۴ ساعت یا بیشتر هم از حدِ مرجعِ آزمایشگاه (مایو) بالاتر است و هم با افزایشِ خطرِ سنگِ کلیه همراه است. ` +
-        serum + "این عدد تشخیص نیست؛ رژیمِ نمک و پروتئین و مصرفِ مکمل‌ها روی آن اثر دارد.",
-      action: "این هفته با پزشک مطرح کنید.",
-      suggest: [], warnings: [],
-    };
-  },
-};
+// ── U24-CA: حذف شد (P87 تصمیمِ ۸، ۲۰۲۶-۱۰-۰۶). «Urine Ca/24h» حالا همان U_CA است (adapter.js) و حدِ Mayo در refs.js uCaRef؛
+//    یافته را urine_calcium_abnormal در patterns_mineral_bone.js می‌سازد — یک هویت، یک آستانه، یک فوریت. گارد U20.
 
 // ── FL-A2: آسیت — Runyon: دو معیار از سه (پروتئین > ۱ g/dL، قند < ۵۰ mg/dL، LDH > حدِ بالای سرم)
 // بدونِ PMN فقط «سازگار با»؛ هر معیار سه‌حالته: برقرار / برقرار نیست / سنجیده نشد (N4).
@@ -263,4 +247,4 @@ const ascitesRunyon = {
   },
 };
 
-export const RULES_SPECIMEN = [csfLow, pleuralLow, pregProteinuria, urineCalciumHigh, ascitesRunyon];
+export const RULES_SPECIMEN = [csfLow, pleuralLow, pregProteinuria, ascitesRunyon];

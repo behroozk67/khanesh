@@ -17,7 +17,7 @@ import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
 import { RULES_HEMOSTASIS } from "./patterns_hemostasis.js";
 import { RULES_COVERAGE_GAPS } from "./patterns_coverage_gaps.js";
 import { RULES_SEROLOGY } from "./patterns_serology.js";
-import { RULES_SPECIMEN } from "./patterns_specimen.js";
+import { RULES_SPECIMEN, ACTION_EMERGENCY as FLUID_ACTION_EMERGENCY } from "./patterns_specimen.js";
 import { RULES_AUTOIMMUNE } from "./patterns_autoimmune.js";
 import { RULES_PRENATAL } from "./patterns_prenatal.js";
 import { AI_KEYS, autoAbState } from "./serology.js";
@@ -395,6 +395,34 @@ function compactText(f, named = []) {
   return `${body.replace(/[.؟!]+$/, "")} — مقدار روی برگه: ${list}.`;
 }
 
+// ═══ P87 تصمیمِ ۱۱ (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر): قند/LDH/پروتئینِ بی‌نامِ نمونه کنارِ ردیفِ «Fluid Type» ═══
+//   عدد همچنان مقدارِ خون خوانده می‌شود و فوریت پایین نمی‌آید (کفِ ایمنی، N3: هیپوگلیسمیِ واقعی نباید گم شود)؛
+//   فقط متنِ یافته شرطی می‌شود، و اقدامِ اورژانسی جملهٔ مخصوصِ مایع را می‌گیرد (مایع را در بیمارستان می‌کشند — تصمیمِ ۶).
+//   انتخابِ یافته: کلید را خوانده یا نامِ آنالیت را در متن آورده — اضافه‌گیری بی‌ضرر است (جملهٔ شرطی درست است)، کم‌گیری نه.
+const BARE_FLUID_TEXT = { FL_GLU: /قند|گلوکز/, FL_LDH: /LDH|لاکتات/, FL_PROT: /پروتئین/ };
+function applyBareFluidVoice(findings, engineOut) {
+  const bare = (engineOut?.specimen?.bareServingFluidKeys ?? []).filter((b) => b.key && engineOut.graded?.some((g) => g.test === b.key));
+  if (!bare.length) return;
+  for (const f of findings) {
+    const text = [f.headline, f.must_say, f.brief].join(" ");
+    const hits = bare.filter((b) => RULE_READS.get(f.rule_id)?.has(b.key) || BARE_FLUID_TEXT[b.twin]?.test(text));
+    if (!hits.length) continue;
+    const names = hits.map((b) => `«${b.name}»`).join(" و ");
+    const urgent = f.urgency === "emergency" || f.urgency === "soon";
+    const note = `ردیفِ ${names} روی برگهٔ شما بی‌نامِ نمونه و کنارِ ردیفِ نوعِ مایع (Fluid Type) چاپ شده است؛ ` +
+      "ممکن است مقدارِ خون باشد یا مقدارِ همان مایع. ما آن را مقدارِ خون خوانده‌ایم" +
+      (urgent ? "، و چون نمی‌دانیم کدام است، فوریت را پایین نیاورده‌ایم. " : "؛ اگر مالِ مایع است، این را به پزشک بگویید. ");
+    f.must_say = note + (f.must_say ?? "");
+    if (f.brief) f.brief = note + f.brief;
+    if (f.urgency === "emergency" && f.action) {
+      // جملهٔ اولِ اقدام (زمان/مکان) جای خود را به جملهٔ مایع می‌دهد؛ بقیه (مثلِ «چیزی شیرین بخورید») می‌ماند.
+      const rest = String(f.action).split(/(?<=[.!؟])\s+/).slice(1).join(" ");
+      f.action = FLUID_ACTION_EMERGENCY + (rest ? " " + rest : "");
+    }
+    f.bare_fluid_names = hits.map((b) => b.name);
+  }
+}
+
 export function runPatterns(engineOut) {
   const findings = [];
   // یافته‌های کم‌فوریتی که زیرِ blocker پنهان می‌شدند ولی عددی را توضیح می‌دهند که هیچ متنِ نمایشی نمی‌گوید —
@@ -627,6 +655,7 @@ export function runPatterns(engineOut) {
   applyNeonatalFloor(findings, engineOut);
   applyNeonatalVoice(findings, engineOut);
   applyChildVoice(findings, engineOut);
+  applyBareFluidVoice(findings, engineOut);
 
   // ═══ انتخاب یافته‌ها ═══
   // 🔴 باگ قبلی: .find() فقط اولین blocks_others را برمی‌داشت و

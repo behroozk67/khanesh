@@ -365,6 +365,17 @@ export function ckdEpiEgfr(scr, age, sex) {
 // P53 پرسش ۱۱ بندِ ۳: جنسِ نامعلوم دیگر ردیفِ زن را نمی‌گیرد — adapter.js (hgbSexUnknown) دو ردیف را کنارِ هم می‌سنجد.
 export const HGB_PREGNANCY_LOW = 11.0;
 const HGB_HIGH = { M: 17.5, F: 16 };
+// P87 تصمیمِ ۸ (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر): حدِ بالای کلسیمِ ادرارِ ۲۴ساعتهٔ بزرگسال از Mayo — مرد < ۲۵۰، زن < ۲۰۰ mg/24h؛
+//   همان عدد آستانهٔ خطرِ سنگ است. کف ۱۰۰ (بازهٔ کیت/هنری) می‌ماند چون FHH از همان جهت ساخته می‌شود.
+//   زیرِ ۱۸ سال (Mayo تعریف نکرده) و جنسِ نامعلوم ⇒ همان ۱۰۰–۳۰۰ قبلی؛ حدِ زنانه برای جنسِ نامعلوم مردها را بیش‌تشخیص می‌داد.
+//   ⚠️ N23: این بازه تنها خوانندهٔ «بالا»ی U_CA را جابه‌جا می‌کند (urine_calcium_abnormal، uCaClause)؛ FHH فقط «پایین» را می‌خواند.
+export const U_CA_MAYO_FROM_AGE = 18;
+export const U_CA_MAYO_SOURCE = 'Mayo upper limit, adult sex-specific (P87 decision 8); lower 100 Henry';
+export function uCaRef(sex, age) {
+  if (age != null && age >= U_CA_MAYO_FROM_AGE && (sex === 'M' || sex === 'F')) return sex === 'M' ? [100, 250] : [100, 200];
+  return ADULT_REFS.U_CA.both;
+}
+
 export function hgbRef(sex, age, { pregnant = false } = {}) {
   if (pregnant && sex === 'F') return [HGB_PREGNANCY_LOW, HGB_HIGH.F];
   const m = sex === 'M';
@@ -458,6 +469,7 @@ export function getRef(testKey, sex, age, { pregnant = false } = {}) {
   }
   if (testKey === 'ESR')   return esrRef(sex, age);
   if (testKey === 'CREAT') return creatRef(age, sex);
+  if (testKey === 'U_CA')  return uCaRef(sex, age);
   const r = ADULT_REFS[testKey];
   if (!r) return null;
   if (r.both) return r.both;
@@ -489,6 +501,7 @@ export function getRefSource(testKey, age) {
   if (SPECS008_KEYS.has(testKey) && !(testKey === 'HGB' && age != null && age < 16)) return SPECS008_SOURCE;
   // specs/009: حدِ پایینِ ۲۰۰ از هنری نیست — تا تأییدِ P56 برچسبِ «در انتظارِ بازبینی» می‌گیرد، نه ادعای منبع.
   if (testKey === 'MONO_ABS') return SPECS009_SOURCE;
+  if (testKey === 'U_CA' && age != null && age >= U_CA_MAYO_FROM_AGE) return U_CA_MAYO_SOURCE;
   return 'Henry A5';
 }
 

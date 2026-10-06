@@ -1200,7 +1200,7 @@ export function ocrToEngineInput(ocr) {
   const prenatal = { markers: {}, risk: {}, dating: {} };
   // specs/014 (P87، مرحلهٔ الف): ادرارِ ۲۴ساعته و مایعاتِ بدن — فقط شناخته می‌شوند. هیچ قاعده‌ای نمی‌خواندش (گارد U14)؛
   //   مصرف‌کننده فقط specimenLine() است. به مدل و گراف نمی‌رود (N13).
-  const specimen = { u24: [], fluid: [], bareServingFluidNames: [] };
+  const specimen = { u24: [], fluid: [], bareServingFluidNames: [], bareServingFluidKeys: [] };
   // ردیف‌هایی که واحدشان نه چاپ شده، نه از محدودهٔ مرجع/اندازه تعیین شد (specs/003، P48):
   //   کلید → عددِ خام. سنجیده نمی‌شوند؛ مالک: unit_unknown_values.
   const unitUnknown = {};
@@ -1292,7 +1292,11 @@ export function ocrToEngineInput(ocr) {
     //   ردیفی که mapKey امروز می‌شناسد ادعا نمی‌شود (R3: «24h urine calcium» همان U_CA می‌ماند).
     {
       const sc = specimenClaim(t, specimenEv, norm, mapKey);
-      if (sc) {
+      // P87 تصمیمِ ۸ (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر): کلسیمِ ۲۴ساعته یک هویت دارد. «Urine Ca/24h» و هر املای ۲۴ساعتهٔ دیگرِ کلسیم
+      //   همان U_CA است، با همان بازه و همان محورِ معدنی. 🔴 اندازه‌گیری‌شده پیش از این: «Urine Ca/24h 50» کنارِ کلسیمِ بالا + PTHِ بالا
+      //   به‌جای fhh_pattern «پرکاریِ اولیه» + «کلسیم ادرار روی این برگه نیست» می‌گرفت (N4، جهتِ خطا: جراحیِ بی‌فایده). گارد U20.
+      if (sc?.id === "U24_CA") key = "urinecalcium24h";
+      else if (sc) {
         const item = { id: sc.id, name: t.name, raw: String(t.value ?? "").trim(), unit: String(t.unit ?? "").trim() || null, claimed_by: sc.claimed_by };
         if (sc.fluid !== undefined) item.fluid = sc.fluid;
         const list = sc.id.startsWith("FL_") ? specimen.fluid : specimen.u24;
@@ -2005,6 +2009,8 @@ export function ocrToEngineInput(ocr) {
       const twin = BARE_FLUID_LOOKALIKES[n];
       if (twin && mapKey(n) && !specimen.fluid.some((r) => r.id === twin) && !specimen.bareServingFluidNames.includes(t.name)) {
         specimen.bareServingFluidNames.push(t.name);
+        // P87 تصمیمِ ۱۱: کلیدِ موتور هم، تا patterns.js جملهٔ شرطی را به یافته‌های همان عدد بچسباند.
+        specimen.bareServingFluidKeys.push({ name: t.name, key: mapKey(n), twin });
       }
     }
   }
