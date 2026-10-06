@@ -1023,7 +1023,9 @@ export const RULES_BIOCHEM = [
       const owner = glucoseOwnerFires(e);
       const routine = s.kind === "negative" || s.kind === "other_test" || s.kind === "not_diagnostic";
       const urgency = routine ? "routine" : "this_week";
-      const head = {
+      // P93-ج (۲۰۲۶-۱۰-۰۶، بازبینیِ بیرونی بندِ ۲): در آزمونِ ۱۰۰ گرمی یک عدد = «تأییدنشده، پیگیری لازم»، نه «ممکن است دیابت»؛ فوریت همان.
+      const cond100 = s.kind === "conditional" && s.test === "100";
+      const head = cond100 ? "دیابتِ بارداری با این آزمون تأیید نشده، ولی پیگیری لازم است" : {
         overt: "قندِ شما در بارداری در محدودهٔ دیابت است، نه فقط دیابتِ بارداری",
         definite: "قندِ شما در محدودهٔ دیابتِ بارداری است",
         conditional: "قندِ شما ممکن است در محدودهٔ دیابتِ بارداری باشد",
@@ -1073,7 +1075,7 @@ export const RULES_BIOCHEM = [
         headline: head,
         must_say: line.join(" ") + " " + tail +
           (missing.length ? ` عددِ ${missing.join(" و ")} روی این برگه نیست.` : "") +
-          (s.kind === "definite" || s.kind === "conditional" ? " دیابتِ بارداری با کنترلِ قند قابلِ مدیریت است و پیگیری‌اش برای شما و جنین مهم است." : ""),
+          (s.kind === "definite" || (s.kind === "conditional" && !cond100) ? " دیابتِ بارداری با کنترلِ قند قابلِ مدیریت است و پیگیری‌اش برای شما و جنین مهم است." : ""),
         action: owner
           ? "زمانِ مراجعه را یافتهٔ «قندِ بسیار بالا» تعیین می‌کند؛ این برگه را همراه ببرید."
           : routine

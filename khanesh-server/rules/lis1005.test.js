@@ -672,7 +672,8 @@ test("GD5 — آزمونِ ۱۰۰ گرمی (Carpenter-Coustan ۹۵/۱۸۰/۱۵۵
   assert.match(two.must_say, /قند سه‌ساعتهٔ آزمون 130 است؛ به معیارِ ۱۴۰ نرسیده است/);
   assert.deepEqual(two.explains, ["GLU_1H", "GLU_3H"]);
   const one = gdm(r("90", "190", "150", "130"));
-  assert.match(one.headline, /ممکن است/); assert.equal(one.urgency, "this_week"); assert.match(one.must_say, /دست‌کم دو عدد/);
+  // P93-ج (عمداً تغییر کرد): یک عدد ⇒ «تأیید نشده، پیگیری لازم»، نه «ممکن است»؛ فوریت همان (GD8).
+  assert.match(one.headline, /تأیید نشده/); assert.equal(one.urgency, "this_week"); assert.match(one.must_say, /دست‌کم دو عدد/);
   const zero = gdm(r("80", "150", "130", "110"));
   assert.equal(zero.urgency, "routine"); assert.match(zero.headline, /نیست/);
   const ids = run(r("90", "190", "160", "130"), preg).p.findings.map((f) => f.pattern);
@@ -696,4 +697,15 @@ test("GD7 — N3: «GTT 1h 10.5 mmol/L» (= ۱۸۹) به معیار رسیده؛
   const ul = gdm([row("GTT fasting", "85", "mg/dL"), row("GTT 1h", "10.5")]);
   assert.equal(ul.urgency, "this_week"); assert.match(ul.must_say, /واحدش چاپ نشده، پس با معیار سنجیده نشد/);
   assert.doesNotMatch(ul.headline, /نیست$/);
+});
+test("GD8 — P93-ج: یک عددِ آزمونِ ۱۰۰ گرمی ⇒ «تأیید نشده، پیگیری لازم»، بی‌«قابلِ مدیریت»؛ فوریت this_week؛ ۷۵ گرمیِ شرطی دست نخورد", () => {
+  const r = (a, b, c, d) => [row("GTT fasting", a, "mg/dL"), row("GTT 1h", b, "mg/dL"), row("GTT 2h", c, "mg/dL"), row("GTT 3h", d, "mg/dL")];
+  const one = gdm(r("90", "190", "150", "130"));
+  assert.equal(one.headline, "دیابتِ بارداری با این آزمون تأیید نشده، ولی پیگیری لازم است");
+  assert.doesNotMatch(one.must_say, /قابلِ مدیریت/);
+  assert.equal(one.urgency, "this_week");
+  const two = gdm(r("90", "190", "160", "130"));
+  assert.match(two.must_say, /قابلِ مدیریت/, "دو عدد (قطعی) جمله را نگه می‌دارد");
+  const pp = gdm([row("2hpp", "160", "mg/dL")]);
+  assert.match(pp.headline, /ممکن است/); assert.match(pp.must_say, /قابلِ مدیریت/);
 });
