@@ -1996,7 +1996,12 @@ test("G1b: بدونِ واحدِ صریحِ SI هیچ تبدیلی انجام ن
   assert.equal(e.unitConversions.length, 0);
   // ⚠️ specs/003: *بی‌واحد و بی‌محدوده* دیگر «متعارف» فرض نمی‌شود — نه تبدیل، نه نمره؛ «نامعلوم».
   //    (پیش از این همین عدد بی‌صدا mg/dL سنجیده می‌شد؛ کراتینینِ ۸۰ µmol/L اورژانس می‌گرفت — M122.)
-  const u = runEngine({ tests: [{ name: "Creatinine", value: "1.1" }] });
+  // P96 (۲۰۲۶-۱۰-۰۶، تصمیمِ بازبین): کراتینین/کلسیم گامِ «اندازه» دارند — «۱٫۱» فقط mg/dL می‌تواند باشد (۱٫۱ µmol/L ناممکن) و با basis «magnitude»
+  //   سنجیده می‌شود؛ هنوز «حدس» نیست چون فقط یک سیستم عدد را ممکن می‌داند. عددِ مبهم («۱۹»: ۱۹ mg/dL یا ۱۹ µmol/L) هنوز نامعلوم است.
+  const m = runEngine({ tests: [{ name: "Creatinine", value: "1.1" }] });
+  assert.equal(m.graded.find((g) => g.test === "CREAT")?.value, 1.1);
+  assert.equal(m.unitConversions.find((c) => c.test === "CREAT")?.basis, "magnitude");
+  const u = runEngine({ tests: [{ name: "Creatinine", value: "19" }] });
   assert.equal(u.unitConversions.length, 0);
   assert.equal(u.graded.find((g) => g.test === "CREAT"), undefined);
   assert.equal(u.ungraded.CREAT?.reason, "unit_unknown");
@@ -6917,14 +6922,24 @@ test("M121: decideUnit — واحدِ چاپ‌شده، محدودهٔ چاپ‌
   assert.equal(d("CREAT", 80, "۵۳-۱۱۵").system?.id, "si", "ارقامِ فارسی");
   assert.equal(d("CHOL", 180, "< 200").system?.id, "conv", "محدودهٔ یک‌طرفه");
   assert.equal(d("CHOL", 8, "<5.2").system?.id, "si");
-  // شاهد نیست ⇒ نامعلوم (مرحلهٔ الف: plausible برای همه null است)
-  assert.equal(d("CREAT", 80, "see note").system, null);
+  // شاهد نیست ⇒ نامعلوم (P96: «۸۰» دیگر مبهم نیست، پس نمونه «۱۹» است که هر دو خوانش را ممکن می‌داند)
+  assert.equal(d("CREAT", 19, "see note").system, null);
   // دو محدوده روی یک خط: پیش‌تر «شاهد نیست» بود (FR-009)؛ حالا محدودهٔ همان جنس خوانده می‌شود (M126).
   assert.equal(d("CREAT", 1.0, "M: 0.7-1.3 F: 0.6-1.1").system?.id, "conv", "دو محدوده روی یک خط");
   // ۸۰ کنارِ محدودهٔ mg/dL ناسازگار است (۸۰ mg/dL ناممکن) ⇒ تعیین نمی‌شود (M135)
   assert.equal(d("CREAT", 80, "M: 0.7-1.3 F: 0.6-1.1").system, null);
-  assert.equal(d("CREAT", 80, null).system, null);
-  for (const [k, p] of Object.entries(U.UNIT_PROFILE)) assert.equal(p.plausible, null, `${k}: مرزِ اندازه پیش از تأییدِ P48`);
+  // P96: گامِ «اندازه» فقط برای CA و CREAT روشن است (تصمیمِ بازبین)؛ بیلی‌روبین فقط نوزاد (در decideUnit با سن). بقیه هنوز خاموش.
+  assert.deepEqual([d("CREAT", 80, null).system?.id, d("CREAT", 80, null).basis], ["si", "magnitude"], "۸۰ فقط µmol/L است");
+  assert.deepEqual([d("CREAT", 0.9, null).system?.id, d("CREAT", 0.9, null).basis], ["conv", "magnitude"]);
+  assert.equal(d("CREAT", 19, null).system, null, "۱۹ هر دو خوانش را ممکن می‌داند ⇒ تعیین‌نشده");
+  assert.equal(d("CA", 11, null).system?.id, "conv"); assert.equal(d("CA", 2.4, null).system?.id, "si");
+  assert.equal(d("CA", 3.8, null).system, null, "۳٫۸: mmol/L ⇒ ۱۵٫۲ و mg/dL ⇒ ۳٫۸، جهتِ وارونه ⇒ تعیین نمی‌کنیم");
+  assert.equal(U.decideUnit("BILI_T", 18, null, "M", 0.005).system?.id, "conv", "نوزاد ۱۸ ⇒ mg/dL");
+  assert.equal(U.decideUnit("BILI_T", 18, null, "M", 40).system, null, "بزرگسال ۱۸ ⇒ هنوز نامعلوم");
+  for (const [k, p] of Object.entries(U.UNIT_PROFILE)) {
+    if (k === "CA" || k === "CREAT") assert.ok(Array.isArray(p.plausible), `${k}: گامِ اندازه باید روشن باشد`);
+    else assert.equal(p.plausible, null, `${k}: مرزِ اندازه فقط برای CA/CREAT تأیید شده`);
+  }
 });
 
 test("M121b: هر کلیدِ دو‌سیستمی ردیفِ واحد با LOINC دارد و ضریب را تکرار نمی‌کند (SC-003)", async () => {
@@ -6954,7 +6969,15 @@ test("M121c: محدودهٔ چاپ‌شده فقط وقتی شاهد است که
 
 test("M122: چهار عددِ طبیعیِ SIِ بی‌واحد دیگر اورژانس نمی‌سازند (SC-001)", () => {
   // 🔴 روی edec069: kidney_impairment+creatinine_emergency، hypocalcemia، bilirubin_emergency، troponin_positive
-  for (const [name, v] of [["Creatinine", "80"], ["Calcium", "2.4"], ["Total Bilirubin", "17"], ["Troponin I", "8"]]) {
+  // P96: کراتینینِ ۸۰ و کلسیمِ ۲٫۴ حالا با گامِ «اندازه» سنجیده می‌شوند (فقط یک واحد عدد را ممکن می‌داند) — هنوز اورژانسِ کاذب نیستند،
+  //   و تغییر عمدی است: «واحد نامعلوم» برایشان نمی‌آید، basis «magnitude» به بیمار گفته می‌شود.
+  for (const [name, v, key] of [["Creatinine", "80", "CREAT"], ["Calcium", "2.4", "CA"]]) {
+    const e = uu([[name, v]]); const p = runPatterns(e);
+    assert.deepEqual(p.findings.filter((f) => f.urgency === "emergency"), [], `${name} ${v}`);
+    assert.equal(e.graded.find((g) => g.test === key)?.abnormal, false, `${name} ${v} طبیعی است`);
+    assert.equal(e.unitConversions.find((c) => c.test === key)?.basis, "magnitude");
+  }
+  for (const [name, v] of [["Total Bilirubin", "17"], ["Troponin I", "8"]]) {
     const p = uuRun([[name, v]]);
     const em = p.findings.filter((f) => f.urgency === "emergency").map((f) => f.pattern);
     assert.deepEqual(em, [], `${name} ${v} بی‌واحد → اورژانس: ${em}`);
@@ -6963,7 +6986,8 @@ test("M122: چهار عددِ طبیعیِ SIِ بی‌واحد دیگر اور�
     assert.doesNotMatch(uuText(f), /بالا|پایین/, "بی‌واحد، جهت گفته نمی‌شود");
   }
   // هر چهار در یک برگه → یک یافته، چهار نامِ فارسی، و هیچ کلیدِ خام (N8)
-  const f = uuFind(uuRun([["Creatinine", "80"], ["Calcium", "2.4"], ["Total Bilirubin", "17"], ["Troponin I", "8"]]), "unit_unknown_values");
+  // (کراتینین/کلسیم با عددِ هنوز-مبهم: ۱۹ و ۳٫۸ هر دو خوانش را ممکن می‌دانند)
+  const f = uuFind(uuRun([["Creatinine", "19"], ["Calcium", "3.8"], ["Total Bilirubin", "17"], ["Troponin I", "8"]]), "unit_unknown_values");
   for (const k of ["CREAT", "CA", "BILI_T", "TROPONIN_I"]) {
     assert.ok(f.must_say.includes(faName(k)), `${k} در متن نیست`);
     assert.ok(!new RegExp(`\\b${k}\\b`).test(f.must_say), `کلیدِ خام ${k}`);
@@ -6994,7 +7018,7 @@ test("M122c: تروپونینِ بی‌واحد اورژانس نمی‌گیرد
   const hs = runPatterns(runEngine({ patient: { age: 40, sex: "M" }, tests: [{ name: "hs-cTnI", value: "8", unit: "ng/L" }] }));
   assert.equal(hs.findings.length, 0, `تروپونینِ طبیعیِ ng/L یافته ساخت: ${hs.findings.map((x) => x.pattern)}`);
   // و بدونِ تروپونین هشدار نمی‌آید
-  assert.deepEqual(uuFind(uuRun([["Creatinine", "80"]]), "unit_unknown_values").warnings, []);
+  assert.deepEqual(uuFind(uuRun([["Creatinine", "19"]]), "unit_unknown_values").warnings, []);
 });
 
 test("M123: قندِ ۱۵ِ بی‌واحد دیگر «قند پایین» نیست — «این هفته»، چون با هر دو واحد غیرطبیعی است", () => {
@@ -7032,10 +7056,9 @@ test("M123c: کلسترولِ ۸ِ بی‌واحد گم نمی‌شود — نا
 test("M123d: فوریتِ «نامعلوم» — هر دو طبیعی/یکی/هر دو غیرطبیعی ⇒ routine/routine/this_week؛ همه‌خطرناک ⇒ emergency", () => {
   const cases = [
     // [نام، عدد، انتظار]  — هر دو تفسیر با بازهٔ موتور سنجیده می‌شوند
-    ["Creatinine", "1.0", "routine"],   // ۱.۰ mg/dL طبیعی؛ ۱.۰ µmol/L (۰.۰۱ mg/dL) پایین ⇒ یکی
-    ["Creatinine", "80", "routine"],    // ۸۰ mg/dL بالا؛ ۸۰ µmol/L طبیعی ⇒ یکی
-    ["Calcium", "2.4", "routine"],
-    ["Calcium", "5.0", "emergency"],    // ۵ mg/dL پایینِ بحرانی؛ ۵ mmol/L (۲۰ mg/dL) بالای بحرانی ⇒ هر دو خطرناک
+    // P96: «Creatinine 1.0/80»، «Calcium 2.4/5.0» حالا با گامِ «اندازه» تعیین واحد می‌شوند (M127b/M122) و از این جدول بیرون رفتند؛ نمونهٔ هنوز-مبهم:
+    ["Creatinine", "19", "routine"],    // ۱۹ mg/dL بالا؛ ۱۹ µmol/L (۰.۲۱ mg/dL) پایین — جهتِ مخالف، بی‌کف
+    ["Calcium", "3.8", "emergency"],    // ۳.۸ mg/dL پایینِ بحرانی؛ ۳.۸ mmol/L (۱۵.۲ mg/dL) بالای بحرانی ⇒ هر دو خطرناک
     ["FBS", "5.5", "routine"],
     ["FBS", "15", "soon"],              // عمداً this_week ⇒ soon (P72): ۱۵ mg/dL اورژانس، ۲۷۰ mg/dL soon ⇒ کمینه soon
     ["Total Bilirubin", "17", "routine"],
@@ -7134,8 +7157,9 @@ test("M126c: U_CA و UFC — واحدِ قانونیِ SI دوباره شناخ�
 
 test("M127: عددی که با هر خوانشِ ممکن خطرناک است اورژانس می‌گیرد — بی‌جهت (B3)", () => {
   // 🔴 پیش‌تر سقفِ «این هفته»: کلسیمِ ۱۵، Hbِ ۵.۵، کراتینینِ ۸ و ۹۰۰، قندِ ۶۰۰، تروپونینِ ۲۰۰۰.
-  const cases = [["Calcium", "3.5"], ["Calcium", "15"], ["Hb", "5.5"], ["Creatinine", "8"], ["Creatinine", "900"],
-    ["FBS", "600"], ["Troponin I", "2000"]];
+  // P96: کلسیمِ ۱۵ و کراتینینِ ۸ و ۹۰۰ حالا با گامِ «اندازه» تعیین واحد می‌شوند و اورژانسشان را با یافتهٔ خودِ کلسیم/کلیه می‌گیرند (پایین، M127b)؛
+  //   اینجا فقط اعدادِ هنوز-مبهم می‌مانند (کلسیمِ ۳٫۵: ۳٫۵ mg/dL یا ۳٫۵ mmol/L = ۱۴ mg/dL).
+  const cases = [["Calcium", "3.5"], ["Hb", "5.5"], ["FBS", "600"], ["Troponin I", "2000"]];
   for (const [name, v] of cases) {
     const f = findPat(uuuRun([[name, v]]), "unit_unknown_values");
     assert.equal(f?.urgency, "emergency", `${name} ${v}`);
@@ -7147,6 +7171,15 @@ test("M127: عددی که با هر خوانشِ ممکن خطرناک است ا
   // و اورژانسِ کاذبِ specs/003 برنمی‌گردد: عددی که در یک واحد طبیعی است هرگز «همه‌خطرناک» نیست
   const n = uuuRun([["Creatinine", "80"], ["Calcium", "2.4"], ["Total Bilirubin", "17"]]);
   assert.deepEqual(n.findings.filter((x) => x.urgency === "emergency").map((x) => x.pattern), []);
+});
+
+test("M127b: P96 — کلسیمِ ۱۵ و کراتینینِ ۸ و ۹۰۰ با گامِ «اندازه» تعیین واحد می‌شوند و اورژانس می‌مانند (نه کم‌فوریت‌تر از پیش)", () => {
+  for (const [name, v, key] of [["Calcium", "15", "CA"], ["Creatinine", "8", "CREAT"], ["Creatinine", "900", "CREAT"]]) {
+    const e = uu([[name, v]]); const p = runPatterns(e);
+    assert.equal(p.overall_urgency, "emergency", `${name} ${v}`);
+    assert.equal(e.unitConversions.find((c) => c.test === key)?.basis, "magnitude", `${name} ${v}`);
+    assert.ok(!p.findings.some((f) => f.pattern === "unit_unknown_values"), `${name} ${v}: دیگر نامعلوم نیست`);
+  }
 });
 
 test("M128: «واحد نامعلوم» زیرِ اورژانسِ دیگر پنهان نمی‌شود (B4، کلاسِ N18)", () => {
@@ -7168,11 +7201,13 @@ test("M129: بیلی‌روبین — «0.3-1.2» واحد را تعیین می�
   assert.equal(runPatterns(uuu([["Total Bilirubin", "14", "0.3-1.2"]])).overall_urgency, "this_week");
   assert.equal(uuuRun([["Total Bilirubin", "1.0", "0.3-1.2"]]).findings.length, 0, "بیلی‌روبینِ طبیعی «ممکن است خارج…» گرفت");
   const neo = { age: 0, sex: "M" };
+  // P96 (۲۰۲۶-۱۰-۰۶، تصمیمِ بازبین): بیلی‌روبینِ نوزادِ زیرِ یک ماه گامِ «اندازه» دارد (۱۴ فقط mg/dL است؛ ۱۴ µmol/L = ۰٫۸ mg/dL بعد از تولد ناممکن) و با
+  //   *بازهٔ نوزادی* (CALIPER، P63) سنجیده می‌شود — نه بازهٔ بزرگسال؛ همان حفاظتِ B1 با راهی دیگر. ۱۴ داخلِ بازهٔ نوزادی است ⇒ بی‌یافته؛ ۱۸ اورژانس می‌ماند.
   const n14 = uuu([["Total Bilirubin", "14", "<15"]], neo);
-  assert.ok(!n14.graded.some((g) => g.test === "BILI_T"), `نوزاد با بازهٔ بزرگسال سنجیده شد: ${JSON.stringify(n14.graded)}`);
-  const f14 = findPat(runPatterns(n14), "unit_unknown_values");
-  assert.ok(f14 && ["this_week", "soon", "emergency"].includes(f14.urgency), JSON.stringify(f14?.urgency));
-  assert.equal(findPat(uuuRun([["Total Bilirubin", "18", "up to 12"]], neo), "unit_unknown_values")?.urgency, "emergency");
+  const g14 = n14.graded.find((g) => g.test === "BILI_T");
+  assert.ok(g14 && /CALIPER/.test(g14.refSource) && g14.abnormal === false, `نوزاد باید با بازهٔ نوزادی سنجیده شود: ${JSON.stringify(g14)}`);
+  assert.equal(runPatterns(n14).overall_urgency, "none");
+  assert.equal(runPatterns(uuu([["Total Bilirubin", "18", "up to 12"]], neo)).overall_urgency, "emergency");
 });
 
 test("M130: تروپونینِ بی‌واحد — بالای محدودهٔ چاپ‌شدهٔ خودِ آزمایشگاه اورژانس است (B5، نگهبانِ M83d)", () => {
@@ -7221,7 +7256,14 @@ test("M133: عددِ طبیعی «ممکن است خارج…» نمی‌گیر�
 
 test("M134: نوزاد — جملهٔ یافته و action یک فوریت دارند؛ محدودهٔ بزرگسال کنارِ نوزاد اورژانس نمی‌سازد (B6، N20)", () => {
   const d3 = { age: "3 days", sex: "M" }, neo = { age: 0, sex: "M" };
-  for (const [v, ref, pat] of [["14", "<15", neo], ["5", null, neo], ["150", "<205", neo], ["1.5", "0.3-1.2", d3], ["18", "up to 12", neo]]) {
+  // P96: ۱۴، ۵، ۱۵۰ و ۱۸ برای نوزادِ زیرِ یک ماه حالا با گامِ «اندازه» تعیین واحد می‌شوند و با بازهٔ نوزادی سنجیده می‌شوند (M129)؛ بزرگسال‌نبودنِ بازه حفظ است.
+  //   فقط ۱٫۵ (هر دو خوانش زیرِ ۲ mg/dL ⇒ مبهم) هنوز «واحد نامعلوم» است.
+  for (const [v, ref, pat] of [["14", "<15", neo], ["5", null, neo], ["150", "<205", neo], ["18", "up to 12", neo]]) {
+    const p = uuuRun([["Total Bilirubin", v, ref]], pat);
+    assert.ok(!findPat(p, "unit_unknown_values"), `${v}/${ref}: دیگر نامعلوم نیست`);
+    assert.equal(p.overall_urgency === "emergency", v === "18", `${v}/${ref}: ${fired(p)}`);
+  }
+  for (const [v, ref, pat] of [["1.5", "0.3-1.2", d3]]) {
     const f = findPat(uuuRun([["Total Bilirubin", v, ref]], pat), "unit_unknown_values");
     assert.ok(f, `${v}/${ref}`);
     // P48 (تصمیمِ کاربر، ۲۰۲۶-۰۹-۲۰): جملهٔ نوزاد دیگر دو نسخه ندارد و هیچ
@@ -7239,11 +7281,12 @@ test("M134: نوزاد — جملهٔ یافته و action یک فوریت دا�
   assert.equal(noUnit.neonatal_floor, true, "فوریت باید از کفِ نوزادی بیاید، نه از خوانشِ بدتر");
   assert.doesNotMatch(noUnit.action, /اورژانس/);
   // ۱۵۰ کنارِ «<205» داخلِ محدودهٔ خودِ آزمایشگاه است — «خارج از محدوده» گفته نمی‌شود
-  const f150 = findPat(uuuRun([["Total Bilirubin", "150", "<205"]], neo), "unit_unknown_values");
-  assert.match(f150.must_say, /در محدودهٔ مرجعی است که خودِ آزمایشگاه/);
-  assert.doesNotMatch(f150.must_say, /خارج از محدوده/);
-  // و ۱۸ کنارِ «up to 12» اورژانس می‌ماند (B1)
-  assert.equal(findPat(uuuRun([["Total Bilirubin", "18", "up to 12"]], neo), "unit_unknown_values").urgency, "emergency");
+  // P96: ۱۵۰ برای نوزاد فقط µmol/L می‌تواند باشد (۱۵۰ mg/dL ناممکن) ⇒ ۸٫۸ mg/dL، داخلِ بازهٔ نوزادی، بی‌یافته — «خارج از محدوده» هم گفته نمی‌شود.
+  const p150 = uuuRun([["Total Bilirubin", "150", "<205"]], neo);
+  assert.equal(p150.findings.length, 0, fired(p150).join());
+  assert.equal(p150.overall_urgency, "none");
+  // و ۱۸ کنارِ «up to 12» اورژانس می‌ماند (B1) — حالا با یافتهٔ خودِ بیلی‌روبین
+  assert.equal(uuuRun([["Total Bilirubin", "18", "up to 12"]], neo).overall_urgency, "emergency");
 });
 
 test("M135: محدودهٔ ردیفِ کناری (OCR) عددِ طبیعی را اورژانس نمی‌کند (B7)", () => {
@@ -7278,8 +7321,8 @@ test("M137: مرجعِ دوواحدی شاهد نیست؛ جداکنندهٔ ه�
   // Hbِ ۱۲.۵: خوانشِ g/L (۱.۲۵ g/dL) ناممکن است ⇒ همان فوریتِ «با واحدِ چاپ‌شده»، نه بالاتر
   for (const [name, v, unit] of [["Hb", "12.5", "g/dL"], ["Triglycerides", "180", "mg/dL"], ["Calcium", "10.6", "mg/dL"]]) {
     const withUnit = uuuRun([[name, v, null, unit]], { age: 40, sex: "M" }).overall_urgency;
-    const without = findPat(uuuRun([[name, v]]), "unit_unknown_values")?.urgency;
-    const R = { none: 0, routine: 1, this_week: 2, emergency: 3 };
+    const without = uuuRun([[name, v]]).overall_urgency;   // P96: «Calcium 10.6» حالا تعیین واحد می‌شود و یافتهٔ نامعلوم ندارد؛ فوریتِ کل مقایسه می‌شود
+    const R = { none: 0, routine: 1, this_week: 2, soon: 2.5, emergency: 3 };
     assert.ok(R[without] <= Math.max(R[withUnit], 1), `${name} ${v}: بی‌واحد ${without} > با واحد ${withUnit}`);
   }
 });
@@ -7295,13 +7338,11 @@ test("M137b: CRPِ «mg%» mg/dL است؛ برچسبِ basis مالِ همان �
 test("M138: نوزادِ زیرِ یک ماه، بیلی‌روبینِ بی‌واحد و بی‌محدوده — بدترین خوانش، نه کمینه (B9)", () => {
   // 🔴 سن ۰ با بیلی‌روبینِ ۲۰ و ۲۵، و «2 days» با ۱۶ ⇒ «این هفته»؛ همان عدد با mg/dL ⇒ bilirubin_emergency.
   for (const [v, age] of [["20", 0], ["25", 0], ["16", "2 days"]]) {
+    // P96: ۲۰/۲۵/۱۶ برای نوزادِ زیرِ یک ماه با گامِ «اندازه» mg/dL تعیین می‌شوند (µmol/L معادل ۱٫۲ mg/dL ناممکن است) و همان bilirubin_emergency را
+    //   می‌گیرند که با mg/dL چاپ‌شده می‌گرفتند — «بدترین خوانش» دیگر لازم نیست چون خوانشِ دیگری نمانده.
     const p = uuuRun([["Total Bilirubin", v]], { age, sex: "M" });
-    const f = findPat(p, "unit_unknown_values");
-    assert.equal(f?.urgency, "emergency", `${v} @ ${age}: ${fired(p)}`);
-    // جملهٔ نوزاد هست — پیش‌تر «همین امروز» بود؛ از P48 فقط توضیحِ نمودارِ ساعتی ماند (M163).
-    assert.match(f.must_say, /به ساعت بستگی/);
-    assert.doesNotMatch(f.must_say, /با هر واحدی که خوانده شود/, "فقط یکی از خوانش‌ها خطرناک است");
-    assert.doesNotMatch(f.must_say, /بالا|پایین/);
+    assert.equal(findPat(p, "bilirubin_emergency")?.urgency, "emergency", `${v} @ ${age}: ${fired(p)}`);
+    assert.ok(!findPat(p, "unit_unknown_values"), `${v} @ ${age}`);
   }
   // و بزرگسال همان عدد را هنوز «کمینه» می‌خواند — اورژانسِ کاذبِ specs/003 برنمی‌گردد
   assert.notEqual(findPat(uuuRun([["Total Bilirubin", "20"]]), "unit_unknown_values")?.urgency, "emergency");
@@ -7311,7 +7352,7 @@ test("M139: سنِ نوزاد به ساعت، هفته یا با رقمِ فار
   // 🔴 «48 h» ⇒ ۴۸ سال، «2 weeks» ⇒ ۲ سال، «۳ روزه» ⇒ سنِ نامعلوم؛ بیلی‌روبینِ ۲۰ ⇒ «در نوبتِ عادی».
   for (const age of ["48 h", "48 hours", "48 ساعت", "۴۸ ساعت", "2 weeks", "2 wk", "2 هفته", "3 weeks", "۳ روزه", "۳ روز", "٣ روز"]) {
     const p = uuuRun([["Total Bilirubin", "20"]], { age, sex: "M" });
-    assert.equal(findPat(p, "unit_unknown_values")?.urgency, "emergency", `«${age}»: ${fired(p)}`);
+    assert.equal(p.overall_urgency, "emergency", `«${age}»: ${fired(p)}`);   // P96: با یافتهٔ bilirubin_emergency (گامِ اندازه)
   }
   // مرزِ یک ماه: «5 weeks» دیگر نوزادِ زیرِ یک ماه نیست؛ و سنِ دوبخشی جمع می‌شود، نه «بخشِ کوچک به‌تنهایی» (B12:
   // «1 month 1 week» ⇒ ۱ هفته ⇒ بازه‌های نوزادی برای همهٔ برگه + جملهٔ «پزشکِ نوزاد»).
@@ -7332,7 +7373,8 @@ test("M140: جملهٔ «پزشکِ نوزاد / نمودارِ ساعتی» ف�
     assert.doesNotMatch(f.must_say, /پزشکِ نوزاد|به ساعت بستگی/, `${v} @ ${age}`);
   }
   // زیرِ یک ماه جمله همچنان هست
-  const f = findPat(uuuRun([["Total Bilirubin", "5"]], { age: "3 days", sex: "M" }), "unit_unknown_values");
+  // P96: «۵» برای نوزاد حالا تعیین واحد می‌شود؛ نمونهٔ مبهم (هر دو خوانش زیرِ ۲ mg/dL) هنوز جملهٔ نمودارِ ساعتی را می‌گیرد.
+  const f = findPat(uuuRun([["Total Bilirubin", "1.5"]], { age: "3 days", sex: "M" }), "unit_unknown_values");
   assert.match(f?.must_say ?? "", /به ساعت بستگی/);
 });
 
@@ -7849,13 +7891,13 @@ test("M162c: با Hb بالای ۷، جملهٔ اقدام دقیقاً همان
 test("M163: نوزاد، بیلی‌روبینِ اورژانسی — یک دستور، نه «اورژانس» کنارِ «همین امروز» (P48)", () => {
   // 🔴 روی 607b419: action = «همین حالا به اورژانس مراجعه کنید» و در must_say
   //    «این عدد را همین امروز به پزشکِ نوزاد نشان دهید» — دو زمان‌بندی برای یک عدد.
-  const f = findPat(uuuRun([["Total Bilirubin", "20"]], { age: "3 days", sex: "M" }), "unit_unknown_values");
-  assert.ok(f, "یافتهٔ واحدِ نامعلوم نیامد");
+  // P96: ۲۰ برای نوزاد حالا mg/dL تعیین می‌شود ⇒ یافتهٔ bilirubin_emergency؛ همان قاعدهٔ «یک دستور» برایش پابرجاست.
+  const p = uuuRun([["Total Bilirubin", "20"]], { age: "3 days", sex: "M" });
+  const f = findPat(p, "bilirubin_emergency");
+  assert.ok(f, `یافتهٔ اورژانسِ بیلی‌روبین نیامد: ${fired(p)}`);
   assert.equal(f.urgency, "emergency");
   assert.doesNotMatch(f.must_say, /همین امروز/, f.must_say);
-  // توضیحِ نمودارِ ساعتی می‌ماند — حذفِ جمله نبود، حذفِ دستورِ دوم بود.
-  assert.match(f.must_say, /به ساعت بستگی/);
-  assert.match(f.action, /همین حالا نوزاد را به اورژانس ببرید/); // لحنِ نوزاد (M246f)
+  assert.match(f.action, /نوزاد را به اورژانس ببرید/);
 });
 
 // ═══════════ specs/005 مرحلهٔ الف — سیلندرِ ادرار و ناهمخوانیِ نوار با میکروسکوپ (P50، N25) ═══════════

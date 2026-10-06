@@ -408,6 +408,11 @@ function applyBareFluidVoice(findings, engineOut) {
     const hits = bare.filter((b) => RULE_READS.get(f.rule_id)?.has(b.key) || BARE_FLUID_TEXT[b.twin]?.test(text));
     if (!hits.length) continue;
     const names = hits.map((b) => `«${b.name}»`).join(" و ");
+    // P96: LDHی که فقط به‌خاطرِ شرطِ «≥ ۲×ULN / CBC غیرطبیعی / بیلی‌روبین» از routine بالا رفته، اگر مالِ مایع باشد دلیلی برای بالابردن ندارد (U21).
+    if (f.raisedByP96 && f.urgency === "this_week") {
+      f.urgency = "routine";
+      f.action = "این نتیجه را با پزشک خود در میان بگذارید تا آزمایش‌های بالا درخواست شود.";
+    }
     const urgent = f.urgency === "emergency" || f.urgency === "soon";
     const note = `ردیفِ ${names} روی برگهٔ شما بی‌نامِ نمونه و کنارِ ردیفِ نوعِ مایع (Fluid Type) چاپ شده است؛ ` +
       "ممکن است مقدارِ خون باشد یا مقدارِ همان مایع. ما آن را مقدارِ خون خوانده‌ایم" +

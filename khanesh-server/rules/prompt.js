@@ -561,8 +561,11 @@ export function unexplainedNoRef(noRef, findings) {
 export function mixedLine(engineOut) {
   const m = engineOut?.ungraded?.MIXED;
   if (!m || m.reason !== "diff_mixed") return null;
+  const where = m.position === "above" ? "بالاتر از" : m.position === "below" ? "پایین‌تر از" : m.position === "within" ? "داخلِ" : null;
   return `ردیفِ «Mixed» (${m.value}${m.unit ? ` ${m.unit}` : ""}) در شمارشِ افتراقیِ گلبول‌های سفید، جمعِ مونوسیت، ائوزینوفیل و بازوفیل است ` +
-    "که این دستگاه جدا نشمرده؛ موتور دربارهٔ آن جداگانه حکمی نمی‌دهد.";
+    "که این دستگاه جدا نشمرده؛ موتور دربارهٔ آن جداگانه حکمی نمی‌دهد" +
+    // P96: بازهٔ خودِ دستگاه/آزمایشگاه (بی‌عددِ ثابتِ موتور)؛ فقط موقعیتِ عدد نسبت به همان.
+    (where ? `؛ تنها موقعیتِ عدد نسبت به بازهٔ چاپ‌شدهٔ همان آزمایشگاه (${m.reference}) گفته می‌شود: عدد ${where} آن بازه است.` : ".");
 }
 
 // ═══ بند ۵ (تصمیمِ «الف»): همهٔ ردیف‌های خوانده‌شده منفی ═══

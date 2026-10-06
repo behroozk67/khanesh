@@ -712,11 +712,16 @@ test("T19: برگه‌ای که فقط هورمونِ بی‌قضاوت دارد
 
 test("T20: برگه‌ای که فقط عددِ بی‌واحد دارد مسیرِ موتور را می‌گیرد — نه اورژانس، نه «همه‌چیز طبیعی است»", async () => {
   // 🔴 روی edec069: «Creatinine 80» بی‌واحد → ۸۰ mg/dL → has_critical: true (specs/003، SC-001).
-  const { status, body } = await analyze({ patient: { age: 40, sex: "M" }, tests: [{ name: "Creatinine", value: "80" }] });
+  // P96: «Creatinine 80» حالا با گامِ «اندازه» µmol/L تعیین می‌شود (۸۰ mg/dL ناممکن)، پس طبیعی است؛ اورهٔ بی‌واحد هنوز نامعلوم می‌ماند.
+  const r80 = await analyze({ patient: { age: 40, sex: "M" }, tests: [{ name: "Creatinine", value: "80" }] });
+  assert.equal(r80.status, 200);
+  assert.ok(r80.body?._engine, "مسیرِ موتور گرفته نشد");
+  assert.equal(r80.body.has_critical, false, "کراتینینِ بی‌واحد هنوز بحرانی خوانده می‌شود");
+  const { status, body } = await analyze({ patient: { age: 40, sex: "M" }, tests: [{ name: "Urea", value: "84" }] });
   assert.equal(status, 200);
   assert.ok(body?._engine, "مسیرِ موتور گرفته نشد");
   assert.ok(body._engine.patterns.includes("unit_unknown_values"), `patterns=${body._engine.patterns}`);
-  assert.equal(body.has_critical, false, "کراتینینِ بی‌واحد هنوز بحرانی خوانده می‌شود");
+  assert.equal(body.has_critical, false, "اورهٔ بی‌واحد بحرانی خوانده می‌شود");
 });
 
 test("T21: برگه‌ای که فقط آنالیتِ بی‌بازهٔ فصلِ ویتامین/عناصر دارد مسیرِ موتور را می‌گیرد — نه «طبیعی است»، نه کلیدِ خام (specs/004، FR-009)", async () => {

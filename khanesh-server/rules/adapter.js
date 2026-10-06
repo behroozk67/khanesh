@@ -25,7 +25,7 @@ import { routeSerology } from "./serology.js";
 import { isPrenatalSheet, prenatalClaim, prenatalItem, parseRiskDenominator, parseRiskCategory, parseGaDays } from "./prenatal.js";
 import { specimenSheetEvidence, specimenClaim, BARE_FLUID_LOOKALIKES } from "./specimen.js";
 import { isCastKey, castRoute, isSgKey, sgValue, SG_KEY, isCrystalKey, crystalRoute, epithelialKind, epithelialRoute,
-  urineBiliValueState, urobilValueState, smearRow, mergeSmear, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
+  urineBiliValueState, urobilValueState, smearRow, mergeSmear, rbcMorphRow, mergeRbcMorph, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
 
 // بیشترین مقدار قندِ موجود (ناشتا/تصادفی/دوساعته) — برای تصحیح سدیم
 function maxGlucose(tests) {
@@ -1249,6 +1249,8 @@ export function ocrToEngineInput(ocr) {
   const serologyAssay = {};
   // specs/009: ردیف‌های لامِ خونِ محیطی (بلاست، اوئر، …) — کانالِ جدا، نه qual (N25). ادغام در انتها (mergeSmear).
   const smearItems = [];
+  // P96: شیستوسیت/اسفروسیتِ لام — کانالِ جدا (e.rbcMorph). خواننده: schistocytes_screen / spherocytes_dat / maha_ttp_suspicion.
+  const rbcMorphItems = [];
   // specs/010: فاکتور ۸/۹، vWF، مهارکننده، PTِ کنترل — بی‌نمره، کانالِ جدا (نه tests، نه qual). خواننده: patterns_hemostasis.js
   //   و isthScore. ⚠️ متنِ چاپ‌شده دارد؛ به مدل و به گراف نمی‌رود (N13).
   const hemostasis = {};
@@ -1263,6 +1265,8 @@ export function ocrToEngineInput(ocr) {
   const unitUnknown = {};
   // تعیینِ واحد از شواهد (نه چاپ‌شده): کلید → { basis, raw, from } — برای سطرِ «واحد» به بیمار.
   const unitResolved = {};
+  // P96: بازهٔ چاپ‌شدهٔ ردیفِ کراتینین — برای «شیرخوار بی‌بازهٔ چاپ‌شده ⇒ بی‌پرچم».
+  const printedRefs = {};
   const sexHint = inferSex(ocr), ageHint = inferAge(ocr);
   const hgbFromIndices = hgbSystemFromIndices(ocr?.tests || []);
   // 🔴 واحدِ نانوشته (کلاسِ N3): پیش از این هر عددِ بی‌واحد بی‌صدا «متعارف» فرض می‌شد — کراتینینِ
@@ -1462,6 +1466,8 @@ export function ocrToEngineInput(ocr) {
     //    ردیفِ نام‌دارِ خوانده‌شده از «تفسیر نشدند» بیرون می‌رود؛ مبهم می‌ماند؛ ردیفِ عمومی («Comment: …») آیتم‌هایش خوانده
     //    می‌شود ولی نامش در «تفسیر نشدند» می‌ماند تا بقیهٔ متنِ آزادش گم نشود.
     if (!onUrinePage && !semenPages.has(t._page ?? 0)) {
+      const mr = rbcMorphRow(t.name, t.value, t.unit);
+      if (mr) { rbcMorphItems.push(mr); continue; }
       const sr = smearRow(t.name, t.value, t.unit);
       if (sr) {
         smearItems.push(...sr.items);
@@ -1605,7 +1611,7 @@ export function ocrToEngineInput(ocr) {
     }
     // بند ۵ (تصمیمِ «الف»): Mixed/MXDِ عددی ⇒ runEngine تصمیم می‌گیرد (کنارِ CBC ⇒ ungraded.MIXED، وگرنه unmapped).
     if (DIFF_MIXED_RE.test(key) && toNum(t.value) != null && !/[<>≤≥]/.test(String(t.value))) {
-      diffMixed ??= { name: t.name, value: toNum(t.value), unit: String(t.unit ?? "").trim() || null };
+      diffMixed ??= { name: t.name, value: toNum(t.value), unit: String(t.unit ?? "").trim() || null, reference: t.reference ?? null };
       continue;
     }
     if (dipstickPages.has(t._page ?? 0) || onUrinePage) {
@@ -1996,6 +2002,7 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
+    if ((engineKey === "CREAT" || engineKey === "LDH") && t.reference) printedRefs[engineKey] = String(t.reference);
     tests[engineKey] = v;
   }
 
@@ -2139,6 +2146,7 @@ export function ocrToEngineInput(ocr) {
     qual,
     semenQual,
     smear: mergeSmear(smearItems),
+    rbcMorph: mergeRbcMorph(rbcMorphItems),
     hemostasis,
     prenatal,
     specimen,
@@ -2150,6 +2158,7 @@ export function ocrToEngineInput(ocr) {
     noReader,
     noReaderValues,
     ckmbUnitless,
+    printedRefs,
     diffMixed,
     printedUnits,
     unitConversions,
@@ -2183,7 +2192,7 @@ function inferGestWeeks(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
   const gestWeeksF = pregnantF ? gestWeeks : null;
 
@@ -2381,7 +2390,9 @@ export function runEngine(ocr) {
   //   (پیش از این در ۱۲۸ از ۲۳۶ درخواست «تفسیرشان نمی‌کند» می‌گرفت). بی‌CBC روی برگه همان unmapped می‌ماند. جمعِ درصدها (باگِ ۱) دست نمی‌خورد.
   if (diffMixed) {
     const cbc = tests.WBC != null || Object.keys(tests).some((k) => /^(NEUT|LYMPH|MONO|EOS|BASO)_(PCT|ABS)$/.test(k));
-    if (cbc) ungraded.MIXED = { value: diffMixed.value, unit: diffMixed.unit, reason: "diff_mixed" };
+    // P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶): بازهٔ Mixed را عددِ ثابتِ موتور نمی‌دهد؛ فقط اگر برگه بازهٔ چاپ‌شدهٔ خودِ دستگاه دارد، موقعیتِ عدد نسبت به *همان* گفته می‌شود.
+    if (cbc) ungraded.MIXED = { value: diffMixed.value, unit: diffMixed.unit, reason: "diff_mixed",
+      ...(diffMixed.reference && printedVerdict(diffMixed.reference, diffMixed.value, sex) ? { reference: String(diffMixed.reference), position: printedVerdict(diffMixed.reference, diffMixed.value, sex) } : {}) };
     else unmapped.push(diffMixed.name);
   }
 
@@ -2401,6 +2412,14 @@ export function runEngine(ocr) {
     if (key === "HCT" && age != null && age < 16 && !getPedRef("HCT", age)) {
       noRef.push(key);
       ungraded.HCT = { value, reason: "no_ped_range" };
+      continue;
+    }
+
+    // P96 (تصمیمِ کاربر/بازبین ۲۰۲۶-۱۰-۰۶، [209] — سنِ ۲): کراتینینِ شیرخوار/نوپا (< ۳ سال، همان بازهٔ سنیِ ردیفِ RCPCH در refs_ped.js) فقط وقتی برگه بازهٔ چاپ‌شده دارد حکم می‌گیرد. بازهٔ RCPCH به روشِ سنجشِ
+    //   Jaffe/آنزیمی و به سنِ دقیق حساس است و بدونِ بازهٔ خودِ آزمایشگاه پرچمِ بالینی نمی‌دهیم؛ عدد نام برده می‌شود (noRef) تا بی‌صدا گم نشود (N28).
+    if (key === "CREAT" && age != null && age < 3 && !(printedRefs.CREAT && parseReference(printedRefs.CREAT, sex))) {
+      noRef.push(key);
+      ungraded.CREAT = { value, reason: "infant_no_printed_range" };
       continue;
     }
 
@@ -2603,6 +2622,8 @@ export function runEngine(ocr) {
     semenQual,
     // specs/009: آیتم‌های لامِ خون — خواننده: smearAxis. ⚠️ متنِ چاپ‌شده دارد؛ به مدل و به گراف نمی‌رود (N13).
     smear,
+    // P96: شیستوسیت/اسفروسیت — خواننده‌ها: patterns_malignancy.js. ⚠️ به مدل و گراف نمی‌رود (N13).
+    ...(rbcMorph?.length ? { rbcMorph } : {}),   // فقط وقتی ردیفی هست — بی‌آن خروجیِ همهٔ برگه‌های بی‌شیستوسیت بایت‌به‌بایت همان می‌ماند (فریزها)
     // specs/010: فاکتور ۸/۹، vWF، مهارکننده، PTِ کنترل — خواننده: patterns_hemostasis.js و isthScore. به مدل و گراف نمی‌رود (N13).
     hemostasis,
     // specs/013: دابل/کوآد مارکر — خواننده: patterns_prenatal.js. به مدل و گراف نمی‌رود (N13).
@@ -2620,6 +2641,8 @@ export function runEngine(ocr) {
     ...(pregnantF ? { glucoseNames, ogtt100g } : {}),
     // سنِ بارداری (هفته) — فقط بارداریِ اعلام‌شده با هفتهٔ واردشده؛ نبودنش یعنی «نامعلوم» (تا فریزها دست نخورند).
     ...(gestWeeksF != null ? { gestWeeks: gestWeeksF } : {}),
+    // P96: سقفِ چاپ‌شدهٔ LDH — برای کودک ULN از بازهٔ خودِ برگه گرفته می‌شود (isolated_ldh_elevation).
+    ...(printedRefs.LDH && parseReference(printedRefs.LDH, sex)?.hi > 0 ? { ldhPrintedHi: parseReference(printedRefs.LDH, sex).hi } : {}),
     unitConversions,
     noRef,
     diffFailed,

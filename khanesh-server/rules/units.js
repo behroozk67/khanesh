@@ -391,6 +391,17 @@ for (const [key, r] of Object.entries(SI_CONVERSIONS)) {
     plausible: null,
   };
 }
+// P96 (تصمیمِ کاربر/بازبین، ۲۰۲۶-۱۰-۰۶): گامِ «اندازه» فقط برای کلسیم و کراتینین روشن شد. `plausible` = بازهٔ باورپذیرِ بالینی به واحدِ
+//   متعارف؛ سیستمی انتخاب می‌شود که *تنها* آن سیستم عدد را داخلِ این بازه ببرد (دو سیستم ⇒ تعیین‌نشده). مرزها از SURVIVAL/DECIDE جدا و
+//   عمداً تنگ‌ترند: Ca ۴٫۵–۱۶ mg/dL ⇒ «۱۱» فقط mg/dL (۴۴ mg/dL ناممکن) و «۲٫۴» فقط mmol/L (۲٫۴ mg/dL ناممکن)؛ «۳٫۵–۴» تعیین‌نشده می‌ماند.
+//   CREAT ۰٫۲–۲۰ mg/dL ⇒ «۸۴» فقط µmol/L (۰٫۹۵)، «۰٫۹» فقط mg/dL؛ «۱۷٫۷–۲۰» دو خوانش دارد ⇒ تعیین‌نشده. دیگران خاموش‌اند.
+UNIT_PROFILE.CA.plausible = [4.5, 16];
+// سقفِ جدا برای خوانشِ mmol/L: «۳٫۸» اگر mmol/L باشد ۱۵٫۲ mg/dL (بحرانِ هیپرکلسمی) و اگر mg/dL باشد ۳٫۸ (هیپوکلسمیِ تقریباً کشنده) است؛
+//   هر دو اورژانس ولی جهتشان وارون است ⇒ تعیین نمی‌کنیم. mmol/L فقط تا ۳٫۳۷ (≈ ۱۳٫۵ mg/dL) تعیین می‌شود.
+UNIT_PROFILE.CA.plausibleSi = [4.5, 13.5];
+UNIT_PROFILE.CREAT.plausible = [0.2, 20];
+/** بیلی‌روبینِ تام: گامِ اندازه فقط برای نوزادِ زیرِ یک ماه (mg/dL ≥ ۲ و ≤ ۴۰؛ µmol/L معادلِ زیرِ ۲ mg/dL بعد از تولد غیرمحتمل است). */
+export const NEONATAL_BILI_PLAUSIBLE = [2, 40];
 UNIT_PROFILE.TESTO.systems.push(sys('ng/mL', 'ng/ml', BRANCH_FACTORS.TESTO_NGML_TO_NGDL, (u) => u === 'ng/ml'));
 // شاخه‌های اختصاصی: واحدِ «متعارف» همان است که refs.js می‌خواهد.
 UNIT_PROFILE.TROPONIN_I = { key: 'TROPONIN_I', loinc: LOINC.TROPONIN_I, plausible: null, systems: [
@@ -590,8 +601,11 @@ export function decideUnit(key, value, reference, sex, age) {
   if (!p || value == null || !Number.isFinite(value)) return { system: null, basis: null, detail: null };
   // 🔴 بازبینی B7: «FBS 95» کنارِ «4-5.6»ِ HbA1c (محدودهٔ ردیفِ کناری) mmol/L تعیین می‌شد ⇒ ۱۷۱۲ mg/dL ⇒
   //    hhs_pattern اورژانس. سیستمی که عدد را ناممکن می‌کند هرگز انتخاب نمی‌شود.
-  const inPlausible = (s) => possibleConv(key, value * s.factor, true) && (!p.plausible ||
-    (value * s.factor >= p.plausible[0] && value * s.factor <= p.plausible[1]));
+  const plausible = key === 'BILI_T' ? (age != null && age < 1 / 12 ? NEONATAL_BILI_PLAUSIBLE : null) : p.plausible;
+  const inPlausible = (s) => {
+    const pl = s !== p.systems[0] && p.plausibleSi && plausible ? p.plausibleSi : plausible;
+    return possibleConv(key, value * s.factor, true) && (!pl || (value * s.factor >= pl[0] && value * s.factor <= pl[1]));
+  };
 
   // ۲-الف) واحد داخلِ ستونِ مرجع («0.6-1.2 mg/dL») — خودِ واحدِ چاپ‌شده
   const inRef = unitInReference(key, reference);
@@ -619,7 +633,7 @@ export function decideUnit(key, value, reference, sex, age) {
   }
 
   // ۳) اندازه — فقط با plausibleِ تأییدشده، و فقط وقتی دقیقاً یک سیستم عدد را ممکن بداند
-  if (p.plausible) {
+  if (plausible) {
     const ok = p.systems.filter(inPlausible);
     if (ok.length === 1) return { system: ok[0], basis: 'magnitude', detail: null };
   }

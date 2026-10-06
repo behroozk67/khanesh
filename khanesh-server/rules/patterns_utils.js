@@ -1422,3 +1422,63 @@ export function ungradedFa(e, key, name) {
     ? `${name} روی برگهٔ شما چاپ شده، ولی واحدش مشخص نیست و دربارهٔ آن قضاوت نمی‌کنیم`
     : `${name} روی برگهٔ شما چاپ شده، ولی موتور آن را نسنجیده است`;
 }
+
+/**
+ * P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶، [75]: باند ۷۵٪ با نوتروفیلِ سگمنته ۱۸٪ در دخترِ ۱۰ ساله): وقتی باندِ مطلق از نوتروفیلِ مطلق بیشتر است، سطرها با هم
+ * نمی‌خوانند — الگوی نادر که اغلب خطای ثبت یا جابه‌جاییِ ستونِ «باند» و «نوتروفیل» است. هیچ آستانهٔ عددیِ تازه‌ای نیست: فقط «باند > نوتروفیل»، و باند باید
+ * خودش بالاتر از بازهٔ مرجعش باشد. تا این یافته فعال است bandemia و mild_neutropenia (که هر دو همین دو عدد را بالینی می‌خوانند) کنار می‌روند.
+ */
+export function bandNeutDiscordance(e) {
+  const band = e.graded?.find((x) => x.test === "BAND_ABS");
+  const neut = e.graded?.find((x) => x.test === "NEUT_ABS");
+  return !!(band?.abnormal && band.dir === "high" && neut && band.value > neut.value);
+}
+
+// ═══ P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶، spec ِ ریخت‌شناسیِ RBC): شیستوسیت و اسفروسیتِ لامِ خون — کانالِ جدا `e.rbcMorph` (N25: نه qual، نه NAME_MAP) ═══
+//   پیش‌تر هر دو «تفسیر نشدند» می‌شدند: «Schistocytes 2 %» کنارِ PLT 40 و Hb 8 فقط اورژانسِ عددی را می‌گرفت و خودِ شیستوسیت (نشانهٔ اصلیِ MAHA) خوانده نمی‌شد.
+//   آستانهٔ شیستوسیت: ≥ ۱٪ (ICSH 2012؛ حکمِ بازبین). اسفروسیت عدد ندارد: حضور/کمیتِ واژه‌ای.
+const RBC_MORPH_NAME = [
+  [/^(schistocytes?|schizocytes?|fragmentedr?bcs?|fragmentedredcells?|fragmentedredbloodcells?|fragmentocytes?|helmetcells?|rbcfragments?|شیستوسیت(ها)?|گلبولقرمزقطعهقطعه|قطعاتگلبولقرمز)$/, "schistocytes"],
+  [/^(spherocytes?|microspherocytes?|spherocytosis|اسفروسیت(ها)?|اسفروسیتوز)$/, "spherocytes"],
+];
+const RBC_MORPH_QTY = [   // [regex روی مقدارِ نرمال‌شده, state, qty]
+  [/^(none|nil|absent|negative|neg|notseen|noneseen|notdetected|undetected|منفی|دیدهنشد|مشاهدهنشد|ندارد|نیست|-)$/, "absent", null],
+  [/^(few|rare|occasional|trace|scanty|1\+|\+|\+1|کم|نادر|اندک)$/, "present", "minor"],
+  [/^(moderate|many|numerous|frequent|marked|increased|abundant|significant|2\+|3\+|4\+|\+\+|\+\+\+|\+\+\+\+|\+2|\+3|\+4|متوسط|زیاد|فراوان|متعدد)$/, "present", "significant"],
+  [/^(present|seen|positive|pos|detected|yes|دیدهشد|مشاهدهشد|مثبت|وجوددارد|دارد)$/, "present", "unquantified"],
+];
+const rbcMorphNorm = (s) => String(s ?? "").toLowerCase().replace(/[\s_\-./()]+/g, "").replace(/[\u200c\u200f]/g, "");
+export function rbcMorphRow(name, value, unit) {
+  const kind = (RBC_MORPH_NAME.find(([re]) => re.test(rbcMorphNorm(name))) ?? [])[1];
+  if (!kind) return null;
+  const v = String(value ?? "").trim();
+  const u = String(unit ?? "").trim();
+  const nv = rbcMorphNorm(v);
+  // «<1%»، «کمتر از ۱٪» — زیرِ مرز، کمیتِ نامعلومِ کوچک.
+  if (/^[<≤]\s*\d/.test(v) || /^(کمتراز)/.test(nv)) return { kind, state: "present", qty: "minor", pct: null, raw: v };
+  const num = v.match(/^(\d+(?:[.,٫]\d+)?)\s*%?$/);
+  if (num) {
+    const pct = Number(num[1].replace(/[,٫]/, "."));
+    // عددِ بی‌واحد و بی‌٪ مبهم است (٪ یا در هر ۱۰۰۰ یا در هر هزار RBC): نمی‌خوانیم؛ unmapped می‌ماند و «تفسیر نشدند» نامش را می‌برد (N3).
+    if (!/%/.test(v) && !/^%$/.test(u) && !/٪/.test(u) && !/percent|درصد/i.test(u)) return null;
+    if (kind === "schistocytes") return { kind, state: pct > 0 ? "present" : "absent", qty: pct >= 1 ? "significant" : pct > 0 ? "minor" : null, pct, raw: v };
+    return null;   // اسفروسیتِ عددی: درصدش کالیبره نیست؛ مبهم
+  }
+  const q = RBC_MORPH_QTY.find(([re]) => re.test(nv));
+  if (!q) return null;
+  return { kind, state: q[1], qty: q[2], pct: null, raw: v };
+}
+export function mergeRbcMorph(items) {
+  const rank = { significant: 3, unquantified: 2, minor: 1 };
+  const by = new Map();
+  for (const it of items) {
+    const cur = by.get(it.kind);
+    if (!cur) { by.set(it.kind, { ...it }); continue; }
+    if (it.state === "present" && (cur.state !== "present" || (rank[it.qty] ?? 0) > (rank[cur.qty] ?? 0))) by.set(it.kind, { ...it });
+  }
+  return [...by.values()];
+}
+/** حالتِ یک نوعِ ریخت‌شناسی روی همین برگه: null ⇒ روی برگه نیست. */
+export function rbcMorphOf(e, kind) {
+  return (e?.rbcMorph ?? []).find((i) => i.kind === kind) ?? null;
+}

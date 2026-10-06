@@ -1,4 +1,4 @@
-﻿import { val, smearAxis, smearLeukemicSentence, ungradedFa } from "./patterns_utils.js";
+﻿import { val, smearAxis, smearLeukemicSentence, ungradedFa, rbcMorphOf } from "./patterns_utils.js";
 import { faName } from "./names.js";
 
 // ==========================================
@@ -28,6 +28,13 @@ const MAHA_MARK = [["LDH", "LDH", "high"], ["HAPTO", "هاپتوگلوبین", "
   ["RETIC_ABS", "رتیکولوسیتِ مطلق", "high"], ["BILI_I", "بیلی‌روبین غیرمستقیم", "high"]];
 export function mahaMarkers(e) {
   const support = [], other = [];
+  // P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶): شیستوسیتِ لام نشانگرِ مستقیمِ MAHA است. ≥ ۱٪ (ICSH 2012) یا «زیاد/متوسط» پشتیبان است؛ «کم/<۱٪/گزارش‌شده بی‌کمیت» فقط ذکر می‌شود.
+  const sch = rbcMorphOf(e, "schistocytes");
+  if (sch?.state === "present") {
+    const q = sch.pct != null ? `شیستوسیت ${sch.pct}٪` : `شیستوسیت («${sch.raw}»)`;
+    if (sch.qty === "significant") support.push(`${q} — قطعاتِ گلبولِ قرمز روی لام`);
+    else other.push(`${q} (کمتر از حدِ معنادار یا بی‌کمیت)`);
+  }
   for (const [k, fa, hemolytic] of MAHA_MARK) {
     const g = e.graded.find((x) => x.test === k);
     if (!g) continue;
@@ -47,6 +54,13 @@ function otherLinesUngradedFa(e) {
 function severeCytopeniaArm(e) {
   const leuk = RULES_MALIGNANCY.find((r) => r.id === "acute_leukemia_suspicion");
   return leuk.match({ ...e, graded: e.graded.map((g) => (g.test === "WBC" ? { ...g, value: Infinity } : g)) });
+}
+// P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶، [87]: WBC 22.2 · Hb 7.5↓ · PLT 549↑ · ESR 104 · CRP ++ ⇒ پیش‌تر اورژانسِ «افتِ رده‌های خون»): وقتی پلاکت *بالا* است،
+//   تصویر «نارسایی تولید» نیست — ترومبوسیتوز کنارِ لکوسیتوز اغلب واکنشی است. «سیتوپنی» فقط وقتی معنا دارد که دست‌کم یک ردهٔ واقعاً پایین باشد و رده‌ای
+//   هم‌زمان بالا نباشد؛ این حالت از سطحِ اورژانس به سطحِ ۲ (reactive_leukocytosis_with_cytopenia) می‌رود. شرطِ WBC > ۵۰ (acute_leukemia_suspicion) دست نمی‌خورد.
+function thrombocytoticVariant(e) {
+  const plt = e.graded.find((g) => g.test === "PLT");
+  return !!(plt?.abnormal && plt.dir === "high");
 }
 function wbcCytoSentenceFa(w, hb, plt, ped) {
   const hi = Number(String(w.range).split("–")[1]);
@@ -253,6 +267,7 @@ export const RULES_MALIGNANCY = [
       const w = e.graded.find((g) => g.test === "WBC");
       if (!w?.abnormal || w.dir !== "high" || !(w.value > MARKED_LEUKOCYTOSIS_K)) return false;
       if (RULES_MALIGNANCY.find((r) => r.id === "acute_leukemia_suspicion").match(e)) return false;
+      if (thrombocytoticVariant(e)) return false;   // P96: reactive_leukocytosis_with_cytopenia مالکِ آن است
       return severeCytopeniaArm(e);
     },
     build: (e) => {
@@ -301,7 +316,11 @@ export const RULES_MALIGNANCY = [
     id: "reactive_leukocytosis_with_cytopenia",
     match: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
-      if (!w?.abnormal || w.dir !== "high" || w.value > MARKED_LEUKOCYTOSIS_K) return false;
+      if (!w?.abnormal || w.dir !== "high") return false;
+      if (w.value > MARKED_LEUKOCYTOSIS_K) {
+        // P96: بالای حدِ «بارز» فقط وقتی پلاکتِ بالا اورژانسِ سطحِ ۱ را کنار زده و WBC > ۵۰ (acute_leukemia_suspicion) مالک نیست.
+        if (!thrombocytoticVariant(e) || RULES_MALIGNANCY.find((r) => r.id === "acute_leukemia_suspicion").match(e)) return false;
+      }
       return severeCytopeniaArm(e);
     },
     build: (e) => {
@@ -314,6 +333,10 @@ export const RULES_MALIGNANCY = [
         "این وضعیت اغلب واکنشی به عفونت‌ها، التهاب‌های حاد یا کم‌خونی‌های زمینه‌ای است. جهت مشخص شدن علت دقیق عفونی یا التهابی، بررسی و تطبیق آزمایش با معاینه بالینی توسط پزشک ضروری است.",
         neutSentenceFa(e, ne),
       ];
+      // P96: پلاکتِ بالا (جهت از graded.dir، نه آستانه — N12) در همین یافته گفته می‌شود تا PLT «توضیح‌نشده» نماند و تصویرِ «واکنشی» روشن باشد.
+      if (plt?.abnormal && plt.dir === "high") {
+        s.push(`پلاکت ${plt.value} است و از بازهٔ ${ped ? "این سن" : "طبیعی"} (${plt.range}) بالاتر است؛ بالا بودنِ هم‌زمانِ گلبول سفید و پلاکت اغلب با التهاب یا عفونتِ فعال همراه است و به‌تنهایی نشانهٔ کمبودِ تولیدِ سلول‌های خون نیست، ولی پزشک باید آن را کنارِ معاینه و بقیهٔ عددها معنا کند.`);
+      }
       if (ly) s.push(lymphSentenceFa(ly, ped));
       const text = s.join(" ");
       const fever = `اگر ${ped ? "کودک" : "بیمار"} تب دارد، این را همان ابتدا به پزشک بگویید؛ کشتِ خون و CRP را پزشک بر همین اساس درخواست می‌کند.`;
@@ -483,6 +506,53 @@ export const RULES_MALIGNANCY = [
   // ─────────────────────────────────────────
   // 6. MAHA / TTP
   // ─────────────────────────────────────────
+  // P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶، spec ِ ریخت‌شناسیِ RBC): شیستوسیت ≥ ۱٪ (ICSH 2012) با پلاکت یا هموگلوبینِ پایین ⇒ اورژانس (TMA)، نه فقط پیشنهاد.
+  //   وقتی maha_ttp_suspicion فعال است همان مالک است (شیستوسیت در mahaMarkers می‌آید)؛ این یافته برای حالتی است که آستانهٔ Hb < ۱۰ و PLT < ۵۰ نرسیده.
+  {
+    id: "schistocytes_screen",
+    match: (e) => {
+      if (rbcMorphOf(e, "schistocytes")?.state !== "present") return false;
+      return !RULES_MALIGNANCY.find((r) => r.id === "maha_ttp_suspicion").match(e);
+    },
+    build: (e) => {
+      const sch = rbcMorphOf(e, "schistocytes");
+      const g = (k) => e.graded.find((x) => x.test === k);
+      const plt = g("PLT"), hb = g("HGB");
+      const st = (x) => (!x ? "absent" : x.abnormal ? x.dir : "normal");   // سه‌حالته + جهت از graded.dir (N4، N12)
+      const lows = [st(plt) === "low" ? `پلاکت ${plt.value}` : null, st(hb) === "low" ? `هموگلوبین ${hb.value}` : null].filter(Boolean);
+      const unmeasured = [!plt ? "پلاکت" : null, !hb ? "هموگلوبین" : null].filter(Boolean);
+      const countFa = sch.pct != null ? `حدود ${sch.pct}٪` : `«${sch.raw}»`;
+      const significant = sch.qty === "significant", minor = sch.qty === "minor";
+      const cyto = lows.length > 0;
+      const urgency = significant ? (cyto ? "emergency" : unmeasured.length ? "soon" : "this_week")
+        : minor ? (cyto ? "this_week" : "routine")
+        : (cyto ? "soon" : "routine");
+      const base = `لامِ خونِ شما شیستوسیت (قطعه‌قطعه‌شدنِ گلبول قرمز) ${countFa} گزارش کرده است. `;
+      const mid = significant
+        ? (cyto
+          ? `شیستوسیتِ ۱٪ یا بیشتر (حدِ ICSH) هم‌زمان با ${lows.join(" و ")} (پایین) می‌تواند نشانهٔ آسیبِ مکانیکی به گلبول‌های قرمز در رگ‌های کوچک (از جمله TTP و HUS) باشد؛ این یک وضعیتِ فوریِ خونی است و باید همان روز در بیمارستان بررسی شود.`
+          : unmeasured.length
+            ? `شیستوسیتِ ۱٪ یا بیشتر (حدِ ICSH) معنایش را از پلاکت و هموگلوبین می‌گیرد و ${unmeasured.join(" و ")} روی این برگه نیست؛ برای تصمیم باید CBC کامل انجام شود.`
+            : `شیستوسیتِ ۱٪ یا بیشتر (حدِ ICSH) در حالی که پلاکت ${plt.value} و هموگلوبین ${hb.value} طبیعی‌اند معمولاً نیازمندِ تأیید با شمارشِ دوباره و بررسیِ پزشک است.`)
+        : minor
+          ? `این مقدار کم است (زیر ۱٪ یا «کم») و به‌تنهایی معمولاً معنای بالینیِ مشخصی ندارد${cyto ? `، ولی چون ${lows.join(" و ")} پایین است، پزشک باید آن را کنارِ هم ببیند` : "؛ فقط اگر پلاکت یا هموگلوبین پایین باشد یا شود باید دوباره بررسی شود"}.`
+          : `مقدارِ آن گزارش نشده؛ حدِ معنادار ۱٪ است، پس درصدِ دقیق را از آزمایشگاه بخواهید${cyto ? `، به‌ویژه چون ${lows.join(" و ")} پایین است` : ""}.`;
+      return {
+        pattern: "schistocytes_screen",
+        urgency,
+        always_show: true,
+        headline: urgency === "emergency" ? "شیستوسیت همراه با افتِ پلاکت یا هموگلوبین (اورژانس خونی)" : "شیستوسیت (قطعاتِ گلبول قرمز) روی لامِ خون دیده شده است",
+        must_say: base + mid,
+        brief: base + mid,
+        action: urgency === "emergency" ? "بدون اتلاف وقت فوراً به اورژانس مراجعه کنید."
+          : urgency === "soon" ? "همین امروز نزدِ پزشک بروید و این برگه را همراه ببرید."
+          : urgency === "this_week" ? "این هفته با پزشک مطرح کنید." : "در نوبتِ عادی با پزشک مطرح کنید.",
+        suggest: significant || cyto ? ["LDH", "هاپتوگلوبین", "رتیکولوسیت", "بیلی‌روبین مستقیم و غیرمستقیم", "آزمایش انعقادی", ...(unmeasured.length ? ["تکرار CBC"] : [])] : ["تکرار CBC"],
+        warnings: urgency === "emergency" ? ["این وضعیت یک اورژانس واقعی است و نباید منتظر نوبت مطب بمانید."] : [],
+      };
+    },
+  },
+
   {
     id: "maha_ttp_suspicion",
     match: (e) => {

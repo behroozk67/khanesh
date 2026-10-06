@@ -6,7 +6,7 @@
 //    منتظرِ بازبینِ انسانی‌اند. هیچ‌کدام emergency نیست؛ سخت‌ترین سطح «soon» (همین امروز) برای کشتِ خونِ مثبت و BHB ≥ ۳ است.
 // ⚠️ متنِ همهٔ قاعده‌ها حکم نمی‌دهد؛ «مطرح می‌کند». و برای هر ردیف سه‌حالت: بالا / پایین-یا-منفی / نامفهوم.
 // ============================================================
-import { serologyReactive, urinePositive, urineCellCount, urineCellState, castAxis, qualState, qualVerdict, ungradedFa } from "./patterns_utils.js";
+import { bandNeutDiscordance, serologyReactive, urinePositive, urineCellCount, urineCellState, castAxis, qualState, qualVerdict, ungradedFa } from "./patterns_utils.js";
 import { utiFires, bacteriuriaFires, bacteriaSignificant } from "./patterns_nephrology.js";
 import { RULES_BIOCHEM } from "./patterns_biochem.js";
 import { netUrgency, ALBUMIN_LOW_WARNING } from "./patterns_p73_gaps.js";
@@ -480,9 +480,31 @@ export const RULES_COVERAGE_GAPS = [
       warnings: [],
     }),
   },
+  // P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶، [75]): باند > نوتروفیل ⇒ «مشکوک به خطای ثبت یا جابه‌جاییِ ستون»؛ به بازبینیِ خودِ آزمایشگاه می‌رود، نه به فوریتِ بالینی.
+  //   فوریت routine است و بیمار را به نوبتِ عادی/بازبینیِ لام می‌فرستد؛ هیچ ادعایی دربارهٔ عفونت یا کم‌شدنِ نوتروفیل نمی‌کند (کلیدها را هر دو نام می‌برد: M156).
+  {
+    id: "band_neutrophil_discordance",
+    match: (e) => bandNeutDiscordance(e),
+    build: (e) => {
+      const b = g(e, "BAND_ABS"), n = g(e, "NEUT_ABS");
+      return {
+        pattern: "band_neutrophil_discordance",
+        urgency: "routine",
+        headline: "عددِ باند و نوتروفیل با هم نمی‌خوانند؛ نتیجه باید دوباره بررسی شود",
+        must_say:
+          `باند ${b.value} و نوتروفیل ${n.value} در میکرولیتر است (از درصدِ چاپ‌شده و گلبول سفید حساب شده)؛ یعنی باندها از نوتروفیل‌های رسیده بیشترند. ` +
+          "این الگو کمتر دیده می‌شود و اغلب نشانهٔ خطای ثبت یا جابه‌جاییِ ستونِ «باند» و «نوتروفیل» در برگه است. برای همین این دو عدد را نشانهٔ عفونت یا کم‌شدنِ نوتروفیل نمی‌خوانیم؛ " +
+          "از آزمایشگاه بخواهید ردیف‌ها را با لامِ خونِ محیطی تطبیق دهد.",
+        action: ACTION.routine,
+        suggest: ["لام خون محیطی (شمارش افتراقی دستی)", "تکرار CBC"],
+        warnings: ["اگر تب بالا، لرز یا حالِ بد دارید، منتظرِ نوبت نمانید."],
+      };
+    },
+  },
   {
     id: "bandemia",
-    match: (e) => { const b = g(e, "BAND_ABS"); return !!(b?.abnormal && b.dir === "high"); },
+    // P96: باندِ بیشتر از نوتروفیل = ردیف‌های ناسازگار؛ مالکش band_neutrophil_discordance است (بالینی خوانده نمی‌شود).
+    match: (e) => { const b = g(e, "BAND_ABS"); return !!(b?.abnormal && b.dir === "high") && !bandNeutDiscordance(e); },
     build: (e) => {
       const b = g(e, "BAND_ABS");
       const infant = e.age != null && e.age < 1;

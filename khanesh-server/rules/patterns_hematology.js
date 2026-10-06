@@ -1,7 +1,7 @@
 import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
-import { anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
+import { rbcMorphOf, bandNeutDiscordance, anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
 import { faName } from "./names.js";
-import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
+import { preanalyticalCaveats, attachPreanalytical, hemolysisLdhAstSuspected } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { getPedRef, isPediatricRCPCH } from "./refs_ped.js";
 import { RULES_MALIGNANCY, mahaMarkers } from "./patterns_malignancy.js";
@@ -149,6 +149,22 @@ function ptIsolatedMild(e) {
   return !!(pt?.abnormal && pt.dir === "high" && inr && !inr.abnormal &&
     !(aptt?.abnormal && aptt.dir === "high") && !(fib?.abnormal && fib.dir === "low"));
 }
+// P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶، ۴ درخواستِ LIS با INR ۱٫۱۲–۱٫۲): INRِ *فقط* خفیف‌بالا (≤ ۱٫۲)، با PT و APTT و فیبرینوژنِ بی‌اشکال ⇒ routine + تکرار، نه «این هفته».
+//   سقفِ ۱٫۲ همان باندِ تصمیمِ بازبین است (نه آستانهٔ تازه)؛ INR بالای آن، یا هر شاخصِ دیگرِ غیرطبیعی، به همان مسیرِ قبلی می‌رود.
+export const INR_MILD_TO = 1.2;
+function inrIsolatedMild(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const pt = g("PT"), inr = g("INR"), aptt = g("APTT"), fib = g("FIB");
+  return !!(inr?.abnormal && inr.dir === "high" && inr.value <= INR_MILD_TO && !pt?.abnormal &&
+    !(aptt?.abnormal && aptt.dir === "high") && !(fib?.abnormal && fib.dir === "low"));
+}
+function coagulationMildInrText(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const inr = g("INR"), aptt = g("APTT");
+  return `INR شما ${inr.value} است و از حد طبیعی (${inr.range}) فقط کمی بالاتر است` + (aptt && !aptt.abnormal ? ` و APTT طبیعی است` : "") + ". " +
+    "افزایشِ این‌قدر خفیفِ INR به‌تنهایی نشانهٔ اختلالِ انعقادی نیست؛ برای اطمینان باید تکرار شود. " +
+    "اگر داروی رقیق‌کننده (مثل وارفارین) مصرف می‌کنید یا خونریزی یا کبودیِ بی‌دلیل دارید، به پزشک بگویید.";
+}
 function coagulationIsolatedPtText(e) {
   const g = (k) => e.graded.find((x) => x.test === k);
   const pt = g("PT"), inr = g("INR"), aptt = g("APTT");
@@ -160,6 +176,10 @@ function coagulationIsolatedPtText(e) {
 // نسخهٔ کوتاه زیرِ اورژانسِ دیگر (خواهرِ normocyticBrief؛ N20). فقط شاخص‌های همین یافته را با عددشان می‌گوید.
 function coagulationBrief(e) {
   const g = (k) => e.graded.find((x) => x.test === k);
+  if (inrIsolatedMild(e)) {
+    const inr = g("INR");
+    return `INR ${inr.value} (حد طبیعی ${inr.range}) فقط کمی بالاتر است؛${apttShortClause(e)} تکرارِ PT و INR را در همان مراجعهٔ عادی با پزشک مطرح کنید.`;
+  }
   if (ptIsolatedMild(e)) {
     const pt = g("PT"), inr = g("INR");
     return `زمان پروترومبین (PT) ${pt.value} (حد طبیعی ${pt.range}) کمی بالاتر است ولی INR ${inr.value} در محدوده است؛${apttShortClause(e)} تکرارِ PT و INR را در همان مراجعه با پزشک مطرح کنید.`;
@@ -666,7 +686,7 @@ export const RULES_HEMATOLOGY = [
     id: "mild_neutropenia",
     match: (e) => {
       const n = e.graded.find((g) => g.test === "NEUT_ABS");
-      return !!(n?.abnormal && n.dir === "low" && n.value >= 500) && !wbcLowGraded(e);
+      return !!(n?.abnormal && n.dir === "low" && n.value >= 500) && !wbcLowGraded(e) && !bandNeutDiscordance(e);   // P96: باند > نوتروفیل ⇒ band_neutrophil_discordance
     },
     build: (e) => {
       const n = e.graded.find((g) => g.test === "NEUT_ABS");
@@ -1825,6 +1845,46 @@ export const RULES_HEMATOLOGY = [
     },
   },
 
+  // P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶، spec ِ ریخت‌شناسیِ RBC): «اسفروسیت» روی لامِ خون. به‌تنهایی فقط «کومبس مستقیم (DAT) را در نظر بگیرید» (routine)؛
+  //   وقتی با کم‌خونی، رتیکولوسیتوز یا LDH/بیلی‌روبینِ بالا همراه شد قوی‌تر می‌شود (this_week، DAT لازم). اسفروسیت اختصاصی نیست (P95، L29): برچسبِ بیماری نمی‌خورد.
+  //   وقتی spherocytosis_likely (مبتنی بر MCHC) فعال است، همان مالک است و جملهٔ لام را در خودش می‌آورد.
+  {
+    id: "spherocytes_dat",
+    match: (e) => rbcMorphOf(e, "spherocytes")?.state === "present" && !spherocytosisFires(e),
+    build: (e) => {
+      const g = (k) => e.graded.find((x) => x.test === k);
+      const sph = rbcMorphOf(e, "spherocytes");
+      const state = (x) => (!x ? "absent" : x.abnormal ? x.dir : "normal");
+      const hb = g("HGB"), retic = g("RETIC") ?? g("RETIC_ABS"), ldh = g("LDH");
+      const bili = ["BILI_I", "BILI_T", "BILI_D"].map(g).find((x) => x?.abnormal && x.dir === "high") ?? g("BILI_I") ?? g("BILI_T") ?? g("BILI_D");
+      const hbLow = state(hb) === "low", reticHigh = state(retic) === "high", ldhHigh = state(ldh) === "high", biliHigh = state(bili) === "high";
+      const dirFa = (x, bad) => (state(x) === bad ? (bad === "low" ? "پایین" : "بالا") : state(x) === "normal" ? "طبیعی" : state(x) === "low" ? "پایین" : "بالا");
+      const evid = [
+        hb && `هموگلوبین ${hb.value} (${dirFa(hb, "low")})`,
+        retic && `رتیکولوسیت ${retic.value} (${dirFa(retic, "high")})`,
+        ldh && `LDH ${ldh.value} (${dirFa(ldh, "high")})`,
+        bili && `بیلی‌روبین ${bili.value} (${dirFa(bili, "high")})`,
+      ].filter(Boolean);
+      const strong = hbLow || reticHigh || ldhHigh || biliHigh;
+      const base = `لامِ خونِ شما اسفروسیت (گلبولِ قرمزِ کروی و بی‌رنگ‌پریدگیِ مرکزی) گزارش کرده است (${sph.raw}). `;
+      const text = base + (strong
+        ? `چون هم‌زمان نشانه‌ای از شکسته‌شدنِ گلبول‌های قرمز یا کم‌خونی هم هست (${evid.join("، ")})، این ترکیب می‌تواند به همولیز بخورد؛ آزمایشِ کومبسِ مستقیم (DAT) لازم است تا مشخص شود علت ایمنی است یا نه، چون اسفروسیت به‌تنهایی اختصاصی نیست (هم ارثی و هم ایمنی و گاهی عفونت یا سوختگی می‌تواند باشد).`
+        : `اسفروسیت به‌تنهایی اختصاصی نیست و برای خودش تشخیص نمی‌دهد${evid.length ? ` (روی همین برگه: ${evid.join("، ")})` : ""}؛ پزشک ممکن است آزمایشِ کومبسِ مستقیم (DAT) را در نظر بگیرد تا ببیند علتِ ایمنی در کار هست یا نه.`);
+      const urgency = strong ? "this_week" : "routine";
+      return {
+        pattern: "spherocytes_dat",
+        urgency,
+        headline: strong ? "اسفروسیت روی لامِ خون همراه با نشانهٔ کم‌خونی یا شکسته‌شدنِ گلبول" : "اسفروسیت روی لامِ خون گزارش شده است",
+        must_say: text,
+        always_show: true,
+        brief: text,
+        action: actionUnlessAnemiaCrisis(e, strong ? "این هفته با پزشک مطرح کنید و بخواهید کومبسِ مستقیم (DAT) انجام شود." : "در نوبتِ عادی با پزشک مطرح کنید و بپرسید آیا کومبسِ مستقیم (DAT) لازم است."),
+        suggest: ["تست کومبس مستقیم (DAT)", ...(strong ? ["رتیکولوسیت", "LDH", "بیلی‌روبین"] : []), "تکرار CBC"],
+        warnings: [],
+      };
+    },
+  },
+
   {
     // P5 — تا acc9cc0 هر چهار رشتهٔ کاربرمحورِ این قاعده انگلیسی بود
     // («Increased Intracellular Hemoglobin Concentration»)، یعنی یک قاعدهٔ
@@ -1850,11 +1910,12 @@ export const RULES_HEMATOLOGY = [
     },
     build: (e) => {
       const mchc = e.graded.find((g) => g.test === "MCHC");
+      const sphPrinted = rbcMorphOf(e, "spherocytes");   // P96: لامِ همین برگه اسفروسیت دارد ⇒ همین یافته مالکِ آن است (spherocytes_dat کنار می‌رود)
       return {
         pattern: "spherocytosis_likely",
         urgency: "this_week",
         headline: "غلظت هموگلوبین داخل گلبول‌های قرمز بالاتر از حد طبیعی است",
-        must_say: `غلظت هموگلوبین در گلبول‌های قرمز (MCHC) بالاتر از حد طبیعی است، با مقدار ${mchc.value}. وقتی با RDW بالا، کم‌خونی خفیف و گلبول‌های قرمز طبیعی یا کوچک همراه باشد، به‌شدت نشان‌دهندهٔ نیاز به بررسی شکل‌های غیرطبیعی گلبول قرمز (مانند اسفروسیتوز) است. لام خون محیطی به‌شدت توصیه می‌شود.` +
+        must_say: (sphPrinted?.state === "present" ? `لامِ خونِ همین برگه هم اسفروسیت گزارش کرده است (${sphPrinted.raw}). ` : "") + `غلظت هموگلوبین در گلبول‌های قرمز (MCHC) بالاتر از حد طبیعی است، با مقدار ${mchc.value}. وقتی با RDW بالا، کم‌خونی خفیف و گلبول‌های قرمز طبیعی یا کوچک همراه باشد، به‌شدت نشان‌دهندهٔ نیاز به بررسی شکل‌های غیرطبیعی گلبول قرمز (مانند اسفروسیتوز) است. لام خون محیطی به‌شدت توصیه می‌شود.` +
           // P95 (منابعِ کاربر: AIHA در The Hospitalist، اسفروسیتوزِ ارثی در MSD): اسفروسیت نشانهٔ همولیز است ولی اختصاصی نیست (ارثی، خودایمن،
           //   سوختگی، سپسیس، ویلسون) — هرگز مستقیم برچسبِ «کم‌خونیِ همولیتیکِ خودایمن» نمی‌گیرد؛ کومبسِ مستقیم (DAT) جدایش می‌کند. گارد L29.
           " اگر لام اسفروسیت نشان دهد، این به‌تنهایی تشخیصِ نوعِ خاصی از کم‌خونی نیست: هم ارثی و هم ایمنی می‌تواند باشد، و آزمایشِ کومبسِ مستقیم (DAT) همراهِ نشانگرهای همولیز (رتیکولوسیت، LDH، بیلی‌روبینِ غیرمستقیم) این دو را از هم جدا می‌کند.",
@@ -2029,6 +2090,7 @@ export const RULES_HEMATOLOGY = [
       //   PT > ۲۵ به‌تنهایی دیگر اورژانس نیست (برای بیمارِ وارفارینی افراطی بود و با INR ناهم‌خوان) ⇒ soon، مگر INR طبیعی باشد (P59: ptIsolatedMild).
       //   ⚠️ «فیبرینوژن < ۱۰۰» منبعِ بازشده ندارد (بازبین نتوانست تأیید کند) — بی‌منبع باقی است، MEDICAL_RULES.md P82.
       const isoPt = ptIsolatedMild(e);
+      const inrMild = inrIsolatedMild(e);   // P96
       const lvl = (k) => levelGrade(e.graded.find((g) => g.test === k));
       const liverSevere = lvl("AST") >= 3 || lvl("ALT") >= 3;
       const lowOf = (k) => { const g = e.graded.find((x) => x.test === k); return !!(g?.abnormal && g.dir === "low"); };
@@ -2048,14 +2110,16 @@ export const RULES_HEMATOLOGY = [
       return {
         pattern: "coagulation_abnormal",
         // P59 پرسش ۵ (بازبین): PT ایزوله با INRِ طبیعی «routine» است؛ INR معیارِ قابل‌مقایسه است.
-        urgency: severe ? "emergency" : soonInr ? "soon" : isoPt ? "routine" : "this_week",
+        urgency: severe ? "emergency" : soonInr ? "soon" : isoPt || inrMild ? "routine" : "this_week",
         ...(isoPt ? { sources: ["STATPEARLS_INR"] } : {}),   // فقط متنِ «PTِ خام به معرف بستگی دارد»
         always_show: true,
         brief,
         headline: "شاخص‌های لخته شدن خون شما غیرطبیعی هستند",
         must_say: (isoPt
           ? coagulationIsolatedPtText(e)
-          : "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
+          : inrMild
+            ? coagulationMildInrText(e)
+            : "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
             "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند.") + apttShortClause(e),
         // 🔴 N20 (بازبینیِ ۲۰۲۶-۱۰-۰۴): urgency «emergency» + blocks_others بود و تنها دستور «همین امروز با پزشک تماس بگیرید» —
         //    ضعیف‌تر از soonِ همین قاعده («ظرف ۲۴ تا ۴۸ ساعت مراجعه») نبود ولی تماسِ تلفنی زیرِ بنرِ قرمز. حالا اورژانس.
@@ -2063,7 +2127,7 @@ export const RULES_HEMATOLOGY = [
           ? "بدون تأخیر به اورژانس مراجعه کنید و بگویید چه داروهایی (به‌ویژه رقیق‌کنندهٔ خون مثل وارفارین) مصرف می‌کنید."
           : soonInr
             ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و بگویید چه داروهایی (به‌ویژه وارفارین) مصرف می‌کنید. اگر وارفارین مصرف می‌کنید، آن را خودسرانه قطع یا تغییر ندهید."
-          : isoPt
+          : isoPt || inrMild
             ? "در نوبتِ عادی با پزشک مطرح کنید و بخواهید PT و INR تکرار شود. حتماً بگویید چه داروهایی مصرف می‌کنید."
             : "این هفته با پزشک وقت بگیرید. حتماً بگویید چه داروهایی مصرف می‌کنید.",
         suggest: ["تکرار آزمایش انعقاد"],
@@ -2517,10 +2581,24 @@ export const RULES_HEMATOLOGY = [
           ? " توجه: هاپتوگلوبینِ طبیعی یا بالا همولیز را قطعاً رد نمی‌کند — این پروتئین در عفونت و التهاب بالا می‌رود و می‌تواند افتِ ناشی از همولیز را بپوشاند."
           : "";
 
-      const urgent = hgb === "low";
+      // P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶): LDHِ تنها فقط وقتی routine است که (۱) کمتر از ۲×ULN باشد (کودک: ULN از بازهٔ چاپ‌شدهٔ برگه، وگرنه از بازهٔ موتور)،
+      //   (۲) هموگلوبین و پلاکت هر دو *طبیعی و سنجیده* باشند، (۳) بیلی‌روبین بالا نباشد، و (۴) الگوی «شبهِ همولیزِ نمونه» نباشد. وگرنه this_week.
+      //   پیش‌تر فقط Hbِ پایین this_week می‌کرد؛ LDHِ ۱۰۰۰ تنها هم routine بود.
+      const ldhG = e.graded.find((x) => x.test === "LDH");
+      const engineUln = Number(String(ldhG.range).split("–")[1]);
+      const uln = e.age != null && e.age < 16 && e.ldhPrintedHi > 0 ? e.ldhPrintedHi : engineUln;
+      // Hb/PLTِ *غایب* مانع نیست (نبودِ CBC شاهدِ غیرطبیعی نیست و جملهٔ «روی برگه نیست» همین را می‌گوید)؛ فقط Hb/PLTِ سنجیده‌شده و غیرطبیعی مانع است.
+      const cbcAbnormal = hgb === "low" || hgb === "high" || ["low", "high"].includes(stateOf("PLT"));
+      const biliHigh = bili === "high" || ["BILI_T", "BILI_D", "BILI_I"].some((k) => stateOf(k) === "high");
+      const mildIsolated = Number.isFinite(uln) && ldhG.value < 2 * uln && !cbcAbnormal && !biliHigh && !hemolysisLdhAstSuspected(e);
+      // LDHِ بی‌نامِ کنارِ «Fluid Type» ممکن است مالِ مایع باشد (P87-۱۱؛ U21): بالابردنِ P96 را اینجا نمی‌شناسیم؛ پرچمِ raisedByP96 به patterns.js
+      //   (applyBareFluidVoice) می‌گوید در آن حالت به فوریتِ قبلی برگردد.
+      const urgent = hgb === "low" || !mildIsolated;
+      const raisedByP96 = urgent && hgb !== "low";
 
       return {
         pattern: "ldh_high_nonspecific",
+        ...(raisedByP96 ? { raisedByP96: true } : {}),
         urgency: urgent ? "this_week" : "routine",
         headline: "LDH بالاتر از حد طبیعی است؛ این عدد به‌تنهایی یک بیماری را مشخص نمی‌کند",
         must_say:

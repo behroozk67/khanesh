@@ -108,6 +108,11 @@ const fp = (patient, tests) => {
   return createHash("sha256").update(JSON.stringify({ e: rest, p })).digest("hex").slice(0, 16);
 };
 const FREEZE = {
+  // بازپایهٔ عمدی (P96، ۲۰۲۶-۱۰-۰۶، تصمیمِ بازبین): lis_serum (Ca بی‌واحدِ ۹٫۱ ⇒ فقط mg/dL ⇒ سنجیده، دیگر «واحد نامعلوم» نمی‌گیرد؛ Mg و P هنوز نامعلوم) و neonate
+  //   (بیلی‌روبینِ ۱۲ برای نوزادِ زیرِ یک ماه ⇒ فقط mg/dL ⇒ با بازهٔ نوزادی سنجیده می‌شود). ۹ پنلِ دیگر بایت‌به‌بایت همان‌اند (اثبات: اسکریپتِ مقایسهٔ هش).
+  //   هش‌های قبلی: lis_serum 48f0eca26cde3f82، neonate b2f1145f953500bd.
+  // بازپایهٔ عمدی (P96، بند ۳): lis_ldh (LDH ۸۶۴ ≥ ۲×ULN ⇒ this_week). اثبات: diff کاملِ خروجی روی درختِ پیش از P96 فقط سه مسیر را عوض می‌کند:
+  //   findings[0].urgency (routine ⇒ this_week)، findings[0].action، findings[0].raisedByP96 (پرچمِ تازه)، overall_urgency. هش‌های قبلی lis_ldh: 23dec6ae7a15b4c3.
   // بازپایهٔ عمدی (باگِ ۴، LIS ۲۰۲۶-۱۰-۰۵): در thyroid، lis_ldh، lis_serum، fluid_bare و neonate فقط فیلدِ brief/brief_warnings ِ
   // unit_unknown_values عوض شد (عددِ برگه در نسخهٔ کوتاه)؛ خروجی بدونِ این دو فیلد در هر ۱۱ پنل بایت‌به‌بایت همان است (stash).
   // هش‌های قبلی: 0c3a87d251beba49، b4aca598b9885e65، e5639cb63a569a3d، fbc60061d1a28af4، 3c0fe6147ac78fa5.
@@ -119,10 +124,10 @@ const FREEZE = {
   thyroid: [{ sex: "F", age: 35 }, [row("TSH", "8.2"), row("FT4", "0.9")], "5fa44e1713a9ec1d"],
   urinalysis: [{ sex: "F", age: 28 }, [row("Urine Protein", "+1"), row("Nitrite", "Positive"), row("WBC", "10-12", "/hpf"), row("RBC", "2-3", "/hpf")], "3f28e6213d7b156b"],
   coag: [{ sex: "M", age: 60 }, [row("PT", "19"), row("PTT", "42"), row("PT INR", "1.7")], "ee983094d72415a1"],
-  lis_ldh: [{ sex: "F", age: 32 }, [row("AST", "35"), row("ALT", "26"), row("LDH", "864"), row("T. Bilirubin(Clot)", "0.41"), row("Direct Bili.", "0.1")], "23dec6ae7a15b4c3"],
-  lis_serum: [{ sex: "F", age: 40 }, [row("Serum Ca", "9.1"), row("serum Mg", "2"), row("serum p", "4"), row("Serum Protein", "7")], "48f0eca26cde3f82"],
+  lis_ldh: [{ sex: "F", age: 32 }, [row("AST", "35"), row("ALT", "26"), row("LDH", "864"), row("T. Bilirubin(Clot)", "0.41"), row("Direct Bili.", "0.1")], "cb6e1b255fd08014"],
+  lis_serum: [{ sex: "F", age: 40 }, [row("Serum Ca", "9.1"), row("serum Mg", "2"), row("serum p", "4"), row("Serum Protein", "7")], "4cffffe6d0a72fc1"],
   fluid_bare: [{ sex: "F", age: 46 }, [row("Glucose", "122"), row("LDH", "306"), row("Total Protein", "6.6")], "8531fb546310bbb6"],
-  neonate: [{ sex: "M", age: 0.01 }, [row("Hb", "15"), row("T. Bilirubin(Clot)", "12")], "b2f1145f953500bd"],
+  neonate: [{ sex: "M", age: 0.01 }, [row("Hb", "15"), row("T. Bilirubin(Clot)", "12")], "3f4ef5adc6e6c72b"],
 };
 
 test("U09 — فریزِ محورِ معدنی: «24h urine calcium» همچنان U_CA است و خروجی بایت‌به‌بایت همان (FR-014، سبزِ پیشین)", () => {

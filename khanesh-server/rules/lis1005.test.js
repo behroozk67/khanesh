@@ -227,11 +227,11 @@ test("L12 — WBC/RBCِ عددیِ ادرار روی برگهٔ ترکیبی ج�
 // باگِ ۴ (بازبینیِ ۲۳۶ درخواستِ LIS، ۲۰۲۶-۱۰-۰۵، درخواستِ [64]): زیرِ اورژانسِ پتاسیم، نسخهٔ کوتاهِ `unit_unknown_values` فقط نام‌ها را داشت —
 // «اوره ۱۴۹، کراتینین ۲٫۸» (با هر واحدی خارج از محدوده) هیچ‌جای گزارش نبود (N18/N5).
 test("L13 — زیرِ اورژانسِ دیگر، عددهای واحدنامعلوم و جملهٔ «خارج از محدوده»شان دیده می‌شوند (N18)", () => {
-  const { p } = run([row("K", "7", "mmol/L"), row("urea", "149"), row("Creatinine", "2.8"), row("Hb", "15.4")], { sex: "M", age: 60 });
+  const { p } = run([row("K", "7", "mmol/L"), row("urea", "149"), row("Creatinine", "19"), row("Hb", "15.4")], { sex: "M", age: 60 });   // P96: کراتینینِ ۲٫۸ دیگر مبهم نیست (فقط mg/dL)؛ «۱۹» هنوز هر دو خوانش را ممکن می‌داند
   const uu = p.findings.find((f) => (f.rule_id ?? f.pattern) === "unit_unknown_values");
   assert.ok(p.findings.some((f) => (f.rule_id ?? f.pattern) === "potassium_critical" && f.urgency === "emergency"), "پیش‌شرط: اورژانسِ پتاسیم (وگرنه نسخهٔ کوتاه آزموده نمی‌شود، N15)");
   assert.ok(uu, "unit_unknown_values پنهان شد");
-  for (const n of ["149", "2.8", "15.4"]) assert.ok(uu.must_say.includes(n), `عددِ ${n} در متنِ نمایش‌داده نیست: ${uu.must_say}`);
+  for (const n of ["149", "19", "15.4"]) assert.ok(uu.must_say.includes(n), `عددِ ${n} در متنِ نمایش‌داده نیست: ${uu.must_say}`);
   assert.match(uu.must_say, /اوره \(149\): [^.]*خارج از محدود/);
   // جهت هرگز گفته نمی‌شود (اصلِ فایل).
   assert.doesNotMatch(uu.must_say, /بالا|پایین/);

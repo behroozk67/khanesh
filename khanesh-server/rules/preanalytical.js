@@ -31,6 +31,9 @@ const isHigh = (x) => !!x && x.abnormal && x.dir === 'high';
 const isLow = (x) => !!x && x.abnormal && x.dir === 'low';
 const isNormal = (x) => !!x && !x.abnormal;
 
+/** P96: «LDH+AST بالا با ALTِ طبیعی» — شبهِ همولیزِ نمونه. یک تعریف، دو مصرف‌کننده (همین هشدار و isolated_ldh_elevation)؛ فقط *بالا* بردنِ فوریت، نه پایین‌آوردن. */
+export const hemolysisLdhAstSuspected = (e) => isHigh(g(e, 'LDH')) && isHigh(g(e, 'AST')) && isNormal(g(e, 'ALT'));
+
 /**
  * هر قاعده: شرطِ فعال‌شدن + متنِ هشدار + یافته‌هایی که باید به آن‌ها بچسبد.
  * `attachTo` خالی یعنی هشدارِ عمومی است و در فهرستِ کلی می‌ماند.
@@ -94,8 +97,7 @@ export const PREANALYTICAL_RULES = [
     // LDH و AST هر دو در گلبولِ قرمز غلیظ‌اند و حتی با همولیزِ نامرئی بالا
     // می‌روند؛ ALT بسیار کمتر. پس «LDH+AST بالا با ALTِ طبیعی» می‌تواند
     // همولیزِ داخلِ لوله باشد، نه بیماریِ کبد.
-    match: (e) =>
-      isHigh(g(e, 'LDH')) && isHigh(g(e, 'AST')) && isNormal(g(e, 'ALT')),
+    match: (e) => hemolysisLdhAstSuspected(e),
     text:
       'بالا بودنِ هم‌زمانِ LDH و AST در حالی که ALT طبیعی است، می‌تواند ناشی از ' +
       'همولیزِ خودِ نمونه باشد — این دو ماده در گلبول‌های قرمز غلیظ‌اند و حتی با ' +
