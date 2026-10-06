@@ -1,5 +1,7 @@
 import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, CRP_RE, RF_RE, qualVerdict } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { CTCAE_V5 } from "./ctcae.js";
+import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { isNeonate, ageFa, nextNeonatalBand, NEONATAL_DANGER_WARNING, NEONATAL_SAMEDAY_ACTION } from "./neonatal.js";
@@ -392,9 +394,12 @@ export const RULES_INFECTIOUS = [
       // job c138671c (D3): نوزادی که نوتروفیلش غایب است — لنفوسیت را neutrophil_count_missing سه‌حالته می‌گوید (یک یافته
       //   دربارهٔ یک عدد، N20). شرط همان match آن قاعده است، نه کپیِ آستانه.
       if (isNeonate(e.age) && e.ungraded?.NEUT_ABS?.reason === "diff_incomplete") return false;
+      // P91 (N20): «معمولاً موقتی … تکرار پس از چند هفته» کنارِ «در اسرع وقت به هماتولوژیست» دو زمان‌بندی برای یک عدد بود.
+      //   مالکِ لنفوسیت وقتی cll_suspicion_nccn فعال است همان است — خودِ match ِ آن صدا زده می‌شود، نه کپیِ آستانه (M91e).
+      if (lymphHigh && RULES_MALIGNANCY.find((r) => r.id === "cll_suspicion_nccn")?.match(e)) return false;
       return lymphHigh && !neutHigh;
     },
-    build: (e) => isNeonate(e.age) ? neonatalLymphocytosis(e) : ({
+    build: (e) => isNeonate(e.age) ? neonatalLymphocytosis(e) : lymphG3(e) ? markedLymphocytosis(e) : ({
       pattern: "viral_lymphocytosis",
       urgency: "routine",
       headline: "افزایش لنفوسیت‌ها معمولاً به یک عفونت ویروسی اشاره دارد",
@@ -406,6 +411,29 @@ export const RULES_INFECTIOUS = [
       warnings: [],
     }),
   }];
+
+// باگِ ۶ (LIS ۲۰۲۶-۱۰-۰۶، [66]): لنفوسیتِ ۲۰٬۷۹۳ کنارِ نوتروپنی «معمولاً موقتی است … تکرار پس از چند هفته کافی است» می‌گرفت
+//   (cll_suspicion_nccn زیرِ ۵۰ سال فعال نیست). مرز = CTCAE v5 «Lymphocyte count increased» درجهٔ ۳ (> ۲۰٬۰۰۰/µL، ctcae.js) — عددِ تازه
+//   نیست. در این درجه «ویروسی/موقتی» گفته نمی‌شود و عدد نقل می‌شود؛ نامِ بیماری نمی‌آید. P90 — منتظرِ بازبین.
+function lymphG3(e) {
+  const ly = e.graded.find((g) => g.test === "LYMPH_ABS");
+  return !!ly && CTCAE_V5.LYMPH_HIGH.grade(Number(ly.value)) >= 3;
+}
+function markedLymphocytosis(e) {
+  const ly = e.graded.find((g) => g.test === "LYMPH_ABS");
+  return {
+    pattern: "viral_lymphocytosis",
+    urgency: "this_week",
+    key_number: ly.value,
+    headline: "تعداد لنفوسیت‌های خون شما خیلی بالاست",
+    must_say:
+      `لنفوسیت شما ${ly.value} است (حد طبیعی ${ly.range}). لنفوسیت‌ها نوعی گلبول سفیدند و عفونت‌های ویروسی هم آن‌ها را بالا می‌برند، ` +
+      "ولی افزایش در این حد زیاد است و نباید فقط به حسابِ یک عفونتِ گذرا گذاشته شود؛ با بررسیِ لام خون معلوم می‌شود این سلول‌ها واکنشی‌اند یا نه.",
+    action: "این هفته با پزشک مطرح کنید و این برگه را همراه ببرید.",
+    suggest: ["لام خون محیطی", "تکرار CBC"],
+    warnings: [],
+  };
+}
 
 // نسخهٔ نوزادیِ viral_lymphocytosis (job c138671c، D3). بیرون از قاعده، تا LYMPH_ABS فقط از match در RULE_READS بیاید.
 // ردیفِ لنفوسیتِ ۰–۳ روز با P57 پرسش ۴ یکی شد (۲۰۰۰–۷۵۰۰). اگر ردیفِ بعدی هنوز در دورهٔ نوزادی باشد متن آن را هم می‌گوید.

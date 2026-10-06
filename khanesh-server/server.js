@@ -112,9 +112,14 @@ const QUAL_WORDS = [
  * که هیچ یافتهٔ نمایش‌داده‌شده‌ای نامش را نبرد، نباید بی‌صدا ناپدید شود (نیتریتِ مثبت کنارِ یافتهٔ وزنِ مخصوص).
  * سوگیری عمداً به سمتِ «نام بردن» است.
  */
-export function unreadQualRows(engineOut, patternOut) {
+// باگِ ۵ (LIS ۲۰۲۶-۱۰-۰۶، N18): روی برگهٔ ترکیبی (تستِ نمره‌دار هم دارد) نوارِ ادرار حالا به qual می‌رود؛ اگر هیچ قاعده‌ای
+//   نخواندش («Protein: Trace»، «Yeast: Few»، «Bacteria: Few») بی‌صدا گم می‌شد — پیش‌تر دستِ‌کم در «تفسیر نشدند» بود. فقط همین
+//   ردیف‌ها؛ CRP/تروپونین/hCG جفتِ QUAL_WORDS ندارند و «توضیح داده نشد» نامیده می‌شدند در حالی که یافتهٔ خودشان را دارند.
+const COMBINED_URINE_ROW = /^urine (blood|protein|glucose|bilirubin|ketone|yeast|mycel|pseudo)|leukocyte\s*esterase|^nitrit|^bacteri/i;
+export function unreadQualRows(engineOut, patternOut, { onlyUrineDipstick = false } = {}) {
   const text = (patternOut?.findings ?? []).map((f) => `${f.headline ?? ""} ${f.must_say ?? ""}`).join(" ");
   return Object.entries(engineOut.qual ?? {}).filter(([name, value]) => {
+    if (onlyUrineDipstick && !COMBINED_URINE_ROW.test(name)) return false;
     const v = String(value ?? "").trim();
     if (!v || QUAL_NEGATIVE.test(v)) return false;
     if (/\bph\b|gravity|\bsg\b/i.test(name) && /^[\d.]+$/.test(v)) return false;
@@ -1174,8 +1179,8 @@ const analyzeHandler = async (req, res) => {
     if (engineCandidate) {
       engineOut = engineCandidate;
       patternOut = runPatterns(engineOut);
-      if (routedByQual) {
-        const unread = unreadQualRows(engineOut, patternOut);
+      {
+        const unread = unreadQualRows(engineOut, patternOut, { onlyUrineDipstick: !routedByQual });
         if (unread.length) {
           // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N25/N28): qual فقط ادرار نیست — «Wright (160.0)» «ردیفِ ادرار» نامیده می‌شد.
           ocrWarnings.push(`این ردیف‌ها چیزی نشان می‌دهند ولی در تفسیرِ بالا جداگانه توضیح داده نشده‌اند؛ آن‌ها را به پزشک نشان دهید: ${unread.join("، ")}`);

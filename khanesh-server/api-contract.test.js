@@ -1013,6 +1013,24 @@ test("T42: برگهٔ فقط-ادرار در مسیرِ موتور — نیتر�
   assert.doesNotMatch(w, /Urine Protein/, "ردیفِ منفی نباید نام برده شود");
 });
 
+// باگِ ۵ (LIS ۲۰۲۶-۱۰-۰۶، N18): برگهٔ ترکیبی تستِ نمره‌دار دارد، پس routedByQual نیست و پیش‌تر شبکهٔ unreadQualRows اجرا نمی‌شد —
+//   نوارِ ادراری که حالا به qual می‌رود و هیچ قاعده‌ای نمی‌خواندش («Yeast: Few») بی‌صدا گم می‌شد. فقط ردیف‌های ادرار، نه CRP.
+test("L15c: برگهٔ ترکیبیِ CBC + ادرار — ردیفِ ادرارِ غیرمنفیِ بی‌خواننده در ocr_warnings نام برده می‌شود؛ CRP ِ صاحب‌دار نه", async () => {
+  const r = await analyze({
+    patient: { age: 40, sex: "F" },
+    tests: [
+      { name: "WBC", value: "6.8" }, { name: "Platelet", value: "223" }, { name: "MCV", value: "87" },
+      // مسیرِ دستی مقدارِ غیرعددی را فقط با kind: "urine" نگه می‌دارد (T37). CRP همین‌جا هست تا نشان دهد شبکه فقط ردیفِ ادرار را نام می‌برد.
+      ...[["Sp.Gravity", "1.010"], ["Nitrite", "Negative"], ["Leuko estr", "negative"], ["Yeast pseudo", "Few"], ["Mycelium", "Negative"], ["CRP", "2+"]]
+        .map(([name, value]) => ({ name, value, kind: "urine" })),
+    ],
+  });
+  assert.equal(r.status, 200);
+  const w = (r.body.ocr_warnings ?? []).join(" ");
+  assert.match(w, /Yeast pseudo \(Few\)/, w);
+  assert.doesNotMatch(w, /Mycelium|CRP/, w);
+});
+
 test("T43: dm2 فقط وقتی «لحاظ‌شده» است که شاخه‌اش واقعاً یافته ساخت — برگهٔ فقط-CBC آن را در context نمی‌آورد (FR-016)", async () => {
   const cbc = await analyze({ patient: { age: "45 سال", sex: "زن", conditions: ["dm2"] }, tests: [{ name: "Hemoglobin", value: "10.5", unit: "g/dL" }] });
   assert.equal(cbc.status, 200);

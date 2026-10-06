@@ -88,7 +88,14 @@ export const RULES_UNIT_UNKNOWN = [
       const urgency = top === "none" ? "routine" : top;
       const clauses = rows.map(([k, u]) => `${faName(k)} (${fmt(u.value)}): ${clauseFor(u, urgency)}`);
       const warnings = rows.some(([k]) => k === "TROPONIN_I") ? [TROPONIN_WARNING] : [];
-      const names = rows.map(([k]) => faName(k)).join("، ");
+      // 🔴 بازبینیِ LIS ۲۰۲۶-۱۰-۰۵ (باگِ ۴، N18/N5): نسخهٔ کوتاه فقط نام‌ها را داشت — زیرِ اورژانسِ پتاسیم «اوره ۱۴۹، کراتینین ۲٫۸»
+      //    هیچ‌جای گزارش نبود ([64]). عددِ برگه همراهِ نام می‌آید؛ ردیفی که با هر خوانشِ باورپذیر خارج از محدوده است (یا بیرون از
+      //    محدودهٔ چاپ‌شده، یا ناممکن، یا خودش فوریت دارد) جملهٔ خودش را هم نگه می‌دارد — بی‌جهت، مثلِ متنِ کامل.
+      const names = rows.map(([k, u]) => `${faName(k)} (${fmt(u.value)})`).join("، ");
+      //    ملاک «خارج از محدوده بودن» است، نه فوریت: اورهٔ ۱۴۹ با تنها واحدِ ممکن خارج است ولی فوریتش routine است.
+      const outside = (u) => RANK[u.urgency] >= RANK.this_week || u.level === "all" || u.level === "impossible" ||
+        (u.basis === "printed_range" && u.position !== "within");
+      const severe = rows.filter(([, u]) => outside(u)).map(([k, u]) => `${faName(k)} (${fmt(u.value)}): ${clauseFor(u, urgency)}`);
       return {
         pattern: "unit_unknown_values",
         urgency,
@@ -99,7 +106,8 @@ export const RULES_UNIT_UNKNOWN = [
         suggest: [],
         // زیرِ اورژانسِ دیگری هم دیده شود (B4) — نسخهٔ کوتاه تا پیامِ اورژانس شلوغ نشود.
         always_show: true,
-        brief: `واحدِ ${names} روی برگه خوانده نشد؛ این اعداد را با برگهٔ اصلی به پزشک نشان دهید.`,
+        brief: [`واحدِ ${names} روی برگه خوانده نشد؛ این اعداد را با برگهٔ اصلی به پزشک نشان دهید.`, ...severe].join(" "),
+        brief_warnings: warnings,
         sources: ["AMA_SI_UNITS", "LOINC"],
       };
     },

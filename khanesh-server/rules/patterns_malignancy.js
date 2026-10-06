@@ -8,6 +8,16 @@
 // P58 پرسش ۱ — WBC به ×10³/µL (واحدِ موتور). بالاتر از این و بالاتر از بازهٔ سنی = «لکوسیتوزِ بارز».
 export const MARKED_LEUKOCYTOSIS_K = 20;
 
+// P91: حدِ لنفوسیتِ iwCLL 2018 (≥ ۵×۱۰⁹/L؛ قاعده پیش‌تر هم > ۵۰۰۰ بود) و مرزهای سیتوپنیِ مرحلهٔ III/IV ِ Rai (Hb < ۱۱ g/dL، PLT < ۱۰۰).
+const CLL_LYMPH_ABS = 5000, RAI_HGB_BELOW = 11, RAI_PLT_BELOW = 100;
+function cllCytopeniaFa(e) {
+  const out = [];
+  const hb = e.graded.find((g) => g.test === "HGB"), plt = e.graded.find((g) => g.test === "PLT");
+  if (hb && hb.value < RAI_HGB_BELOW) out.push(`هموگلوبین ${hb.value} (پایین)`);
+  if (plt && plt.value < RAI_PLT_BELOW) out.push(`پلاکت ${plt.value} (پایین)`);
+  return out;
+}
+
 // P88 (N4): هموگلوبین/گلبول سفیدِ چاپ‌شده ولی بی‌نمره — بیرون از متنِ قاعده تا M38 کلیدها را متنِ بیمار نخواند.
 function otherLinesUngradedFa(e) {
   const parts = [ungradedFa(e, "HGB", "هموگلوبین"), ungradedFa(e, "WBC", "گلبول سفید")].filter(Boolean);
@@ -310,12 +320,29 @@ export const RULES_MALIGNANCY = [
   // ─────────────────────────────────────────
   {
     id: "cll_suspicion_nccn",
+    // P91 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶): گیتِ ۵۰ سال برای لنفوسیتوزِ *تنها* می‌ماند (زیرِ ۵۰ لنفوسیتِ ۵۰۰۰ اغلب ویروسی است)، ولی
+    //   لنفوسیت > ۵۰۰۰ (حدِ iwCLL 2018) همراهِ Hb < ۱۱ یا پلاکت < ۱۰۰ (مرزهای مرحلهٔ III/IV ِ Rai) در هر بزرگسال ⇒ soon.
     match: (e) => {
-      if (!e.age || e.age < 50) return false;
       const lymph = e.graded.find((g) => g.test === "LYMPH_ABS");
-      return lymph?.abnormal && lymph.dir === "high" && lymph.value > 5000;
+      if (!(lymph?.abnormal && lymph.dir === "high" && lymph.value > CLL_LYMPH_ABS)) return false;
+      return (e.age != null && e.age >= 50) || (e.age != null && e.age >= 16 && cllCytopeniaFa(e).length > 0);
     },
     build: (e) => {
+      const cyto = cllCytopeniaFa(e);
+      const lymph = e.graded.find((g) => g.test === "LYMPH_ABS");
+      if (cyto.length) {
+        return {
+          pattern: "cll_suspicion_nccn",
+          urgency: "soon",
+          key_number: lymph.value,
+          headline: "افزایشِ لنفوسیت‌ها همراه با کاهشِ ردهٔ دیگری از خون؛ نیازمند بررسیِ تخصصیِ خون",
+          must_say: `لنفوسیت شما ${lymph.value} است (حد طبیعی ${lymph.range}) و هم‌زمان ${cyto.join(" و ")} است. ` +
+            "عفونت‌ها هم لنفوسیت را بالا می‌برند، ولی افزایشِ لنفوسیت کنارِ کاهشِ گلبول قرمز یا پلاکت باید زود بررسی شود تا بیماری‌های خونیِ لنفوسیتی (مانند CLL) رد یا تأیید شوند.",
+          action: "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک متخصص داخلی یا خون (هماتولوژیست) مراجعه کنید و این برگه را همراه ببرید.",
+          suggest: ["گسترش خون محیطی (Peripheral Smear)", "فلوسیتومتری خون محیطی (Flow Cytometry)", "LDH"],
+          warnings: ["اگر تب، خونریزی یا کبودیِ بی‌دلیل دارید، همان روز به اورژانس مراجعه کنید."],
+        };
+      }
       return {
         pattern: "cll_suspicion_nccn",
         urgency: "this_week",
@@ -417,14 +444,42 @@ export const RULES_MALIGNANCY = [
 
       return hgbLow && t.HGB < 10 && pltLow && t.PLT < 50;
     },
+    // P91 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶، [199]؛ ISTH 2020 TTP: ارزیابیِ اولیه = لام برای قطعاتِ گلبول قرمز، LDH، هاپتوگلوبین،
+    //   بیلی‌روبینِ غیرمستقیم): نامِ TTP/HUS فقط وقتی می‌آید که نشانهٔ همولیز روی همین برگه هست. بی‌آن، همان اورژانس (فوریت
+    //   دست نخورد) ولی بی‌نامِ بیماری و با درخواستِ فوریِ لام و LDH. هر نشانگرِ سنجیده در هر جهت جمله دارد (M156، N21).
     build: (e) => {
+      const t = val(e);
+      const MARK = [["LDH", "LDH", "high"], ["HAPTO", "هاپتوگلوبین", "low"], ["RETIC", "رتیکولوسیت", "high"],
+        ["RETIC_ABS", "رتیکولوسیتِ مطلق", "high"], ["BILI_I", "بیلی‌روبین غیرمستقیم", "high"]];
+      const support = [], other = [];
+      for (const [k, fa, hemolytic] of MARK) {
+        const g = e.graded.find((x) => x.test === k);
+        if (!g) continue;
+        if (g.abnormal && g.dir === hemolytic) support.push(`${fa} ${g.value} (${hemolytic === "high" ? "بالا" : "پایین"})`);
+        else other.push(`${fa} ${g.value} (${!g.abnormal ? "طبیعی" : g.dir === "high" ? "بالا" : "پایین"})`);
+      }
+      const nums = `هموگلوبین ${t.HGB} و پلاکت ${t.PLT}`;
+      const otherFa = other.length ? ` روی همین برگه ${other.join("، ")} است.` : "";
+      if (support.length) {
+        return {
+          pattern: "maha_ttp_suspicion",
+          urgency: "emergency",
+          headline: "افت همزمان و شدید پلاکت و هموگلوبین (اورژانس خونی)",
+          must_say: `افت توأم و شدید ${nums}، همراه با نشانهٔ تخریبِ گلبول قرمز روی همین برگه (${support.join("، ")})، زنگ خطری جدی برای سندرم‌های میکروآنژیوپاتیک (مثل TTP یا HUS) است که با تخریب سریع سلول‌ها همراهند.` + otherFa,
+          action: "بدون اتلاف وقت فوراً به اورژانس مراجعه کنید.",
+          suggest: ["گسترش خون محیطی جهت رویت شیستوسیت", "LDH", "آزمایش انعقادی"],
+          warnings: ["این وضعیت یک اورژانس واقعی است و نباید منتظر نوبت مطب بمانید."],
+        };
+      }
       return {
         pattern: "maha_ttp_suspicion",
         urgency: "emergency",
         headline: "افت همزمان و شدید پلاکت و هموگلوبین (اورژانس خونی)",
-        must_say: "افت توأم و شدید هموگلوبین و پلاکت در خون، زنگ خطری جدی برای سندرم‌های میکروآنژیوپاتیک (مثل TTP یا HUS) است که با تخریب سریع سلول‌ها همراهند.",
+        must_say: `${nums} هر دو به‌شدت پایین‌اند. این ترکیب علت‌های مختلفی دارد — از خونریزی و مشکلِ مغزِ استخوان تا تخریبِ گلبول‌ها درونِ رگ‌ها — و کدام‌یک، از همین برگه معلوم نیست.` +
+          otherFa +
+          " برای اینکه معلوم شود گلبول‌ها درونِ رگ تخریب می‌شوند یا نه، لامِ خون (برای دیدنِ قطعاتِ گلبول قرمز) و LDH باید فوراً انجام شود؛ لام همچنین نشان می‌دهد پلاکت‌ها فقط در لوله به هم نچسبیده باشند.",
         action: "بدون اتلاف وقت فوراً به اورژانس مراجعه کنید.",
-        suggest: ["گسترش خون محیطی جهت رویت شیستوسیت", "LDH", "آزمایش انعقادی"],
+        suggest: ["لام خون محیطی (شیستوسیت)", "LDH", "هاپتوگلوبین", "رتیکولوسیت", "بیلی‌روبین مستقیم و غیرمستقیم", "آزمایش انعقادی"],
         warnings: ["این وضعیت یک اورژانس واقعی است و نباید منتظر نوبت مطب بمانید."],
       };
     },

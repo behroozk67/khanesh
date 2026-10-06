@@ -40,6 +40,26 @@ export function microMcvCut(e) {
   return MICRO_MCV_BELOW;
 }
 
+// P89 (تصمیمِ کاربر): بازهٔ «ممکنِ بدنی» برای شاخص‌های گلبول قرمز. بیرون از آن، شاخص شاهد نیست (adapter.js، واحدِ Hb از شاخص‌ها)
+//   و خودش نشانهٔ عددِ پایهٔ غلط است (rbc_indices_impossible). یک تعریف برای هر دو.
+export const MCHC_PLAUSIBLE_GDL = [22, 42];
+export const MCH_PLAUSIBLE_PG = [12, 45];
+
+// ═══ P91 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶، [22]): CKِ کودک ═══
+// برای رابدومیولیزِ کودک گایدلاینِ اجماعی نیست؛ بیشترِ نویسندگان CK ≥ ۱۰۰۰ یا ≥ ۵×ULN را ملاک می‌گیرند (Arkansas Children's،
+//   Cone Health peds pathway). کودکِ زیرِ ۱۶ با CK ≥ ۵×سقفِ بازهٔ خودش ⇒ کفِ فوریت «soon» با تکرارِ CK، ادرار، کراتینین و پتاسیم؛
+//   «ورزش» فقط سرنخ است، نه توضیحِ قطعی. فقط بالا می‌برد، هرگز پایین نمی‌آورد. اورژانسِ مبتنی بر علامت ورودی ندارد ⇒ جملهٔ شرطی.
+export const CK_CHILD_SOON_MULT = 5;
+export function ckChildSoon(e, ck) {
+  if (e?.age == null || e.age >= 16 || !ck?.abnormal || ck.dir !== "high") return false;
+  const n = String(ck.range ?? "").split(/[–-]/).map(Number).filter(Number.isFinite);
+  const ul = n.length >= 2 ? n[n.length - 1] : null;
+  return ul > 0 && ck.value >= CK_CHILD_SOON_MULT * ul;
+}
+export const CK_CHILD_SENTENCE = "ورزشِ سنگین، عفونتِ ویروسی یا ضربه می‌توانند CK را بالا ببرند، ولی این عدد را نباید فقط به ورزش نسبت داد؛ تکرارِ آزمایش لازم است.";
+export const CK_CHILD_SOON_ACTION = "در ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید تا CK همراهِ آزمایش ادرار، کراتینین و پتاسیم تکرار شود. " +
+  "اگر ادرارِ تیره (رنگِ چای یا کولا)، دردِ شدیدِ عضلانی، ضعف یا کم‌شدنِ ادرار دارد، همان روز به اورژانس بروید.";
+
 export function levelGrade(g) {
   if (!g) return 0;
   if (g.ctcaeGrade != null) return g.ctcaeGrade;

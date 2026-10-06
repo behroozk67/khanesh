@@ -1,4 +1,75 @@
-# RESUME HERE — خلاصهٔ وضعیت — ۲۰۲۶-۱۰-۰۳
+# RESUME HERE — خلاصهٔ وضعیت — ۲۰۲۶-۱۰-۰۶
+
+## ۲۰۲۶-۱۰-۰۵/۰۶ — بازبینیِ ۲۳۶ درخواستِ LIS (`engine_StandardExcel.json`) و رفعِ باگ‌ها — **۵ از ۶ رفع شد، هیچ‌کدام کامیت نشده**
+
+**وضعیتِ فعلی (۲۰۲۶-۱۰-۰۶، پس از P91):** `npm test` در `khanesh-server/` ⇒ `tests 1136 · pass 1135 · fail 0 · todo 1` (todo = `M154b` قدیمی).
+
+**P91 (تصمیمِ کاربر روی جمع‌بندیِ منابعِ P90):** [199] TTP/HUS فقط با نشانگرِ همولیز (فوریت دست نخورد)؛ CK ِ کودک ≥ ۵×سقف ⇒ soon (⚠️ [22] خودش ۴٫۷۵× است و عوض نشد — پرسش: «یا CK ≥ ۱۰۰۰»؟)؛ CLL + Hb < ۱۱ یا PLT < ۱۰۰ در هر بزرگسال ⇒ soon و `viral_lymphocytosis` کنارِ CLL کنار می‌رود؛ [38] `melena_microcytic_anemia` (تازه، `STOOL_COLOR` در noRef) ⇒ soon. گاردها `L17`–`L17d` (روی HEAD قرمز). فریزهای `M104d` C4 و `M257` maha عمداً بازپایه. شرطِ گستردهٔ TTP (PLT < ۱۵۰) فقط اندازه گرفته شد: [114] پس از زایمان اورژانسِ کاذب می‌گرفت ⇒ پیاده نشد. فایل‌ها: `rules/{patterns_malignancy,patterns_infectious,patterns_biochem,patterns_p73_gaps,patterns_hematology,patterns_utils,adapter,names}.js`، `rules/{lis1005,engine}.test.js`، `MEDICAL_RULES.md` P91، `CLAUDE.md` N20.
+⚠️ جلسهٔ هم‌زمان در همین روز `adapter.js` را هم ویرایش کرد — پیش از `git add` با `git diff` بخش‌ها را جدا کنید. `npm run lint` در `khanesh/` ⇒ exit 0. هر گاردِ تازه روی کدِ پیش از رفع قرمز دیده شد (stash).
+⚠️ فایلِ ورودی `C:/Users/surface/Desktop/engine_StandardExcel.json` نام و کدِ ملی دارد — **هرگز وارد ریپو نشود**. شماره‌های `[i]` = جایگاهِ درخواست در همان JSON از صفر.
+
+### روشِ بازبینی (برای تکرار)
+هر درخواست جدا به `runEngine` ← `runPatterns` ← `buildNormalResult`/`buildUninterpretedResult`/`buildEngineFallbackResult` (مسیریابیِ `server.js`، بی‌LLM). نام/کدِ ملی حذف؛ نامِ ردیف = بخشِ آخرِ ستونِ LIS. اجراها: A (بی‌واحد، وضعِ واقعی)، B (`/hpf` روی میکروسکوپیِ ادرار)، C (`%` روی افتراقی)، D (C + واحدهای معمول).
+اسکریپت‌ها در scratchpad (موقت، بیرونِ ریپو): `run.mjs` (اجرای A؛ `OUT=./x.json`)، `diffsweep.mjs` (شمارشِ مطلقِ افتراقی در برابرِ ٪×WBC)، `cmp.mjs` (تفاوتِ ID و فوریتِ دو خروجی). نسخهٔ اصلی: `…/0bb0157b-…/scratchpad/`؛ رونوشت + خروجی‌های این دور: `…/76c4f874-…/scratchpad/` (`outA_stash.json` = پایهٔ هم‌درخت پیش از رفع‌ها، `outA_bug3b.json` = آخرین).
+نتیجهٔ کلِ پیش از رفع: ۶ اورژانس، ۱ soon، ۱۰۶ این‌هفته، ۹۵ روتین، ۳ طبیعی، ۲۵ «تفسیر نشد». پس از رفع‌ها: ۷ اورژانس، ۱ soon، ۱۰۶ این‌هفته، ۷۶ روتین، ۲۱ طبیعی/«بخشی تفسیر نشد»، ۲۵ «تفسیر نشد».
+
+### ✅ انجام شد
+| # | باگ | رفع | گارد | اثر روی ۲۳۶ |
+|---|---|---|---|---|
+| ۱ | افتراقیِ بی‌واحدِ < ۲۰ ⇒ مطلق ×۱۰۰۰ (CLL/مونوسیتوزِ کاذب، ۶۸ درخواست) | `unitlessDiffIsPercent` (`adapter.js`): جمعِ ٪ (+Mixed) ۸۵–۱۱۵ یا جمعِ مطلق > WBC×۱٫۱ ⇒ درصد؛ دوقلوی «NEUT%/NEUT» و WBC ≥ ۸۰ مطلق؛ بی‌شاهد ⇒ رفتارِ قبلی | `L11`، `MM8` (۵۲/۱۲۰ قرمز پیش از رفع) | مقدارِ غلط ۱۳۱ → ۰؛ CLL ۸→۰، مونوسیتوز ۳۰→۲، ائوزینوفیلی ۳۰→۱۰؛ هیچ فوریتی بالا نرفت. ثبت: CLAUDE.md N31 |
+| ۲ | WBC/RBCِ عددیِ ادرار جای شمارشِ خون ([129]: اورژانسِ کاذب) | `cellTwinRoutes` (`adapter.js`): دو عددِ متفاوت روی یک صفحه ⇒ امتیازِ همسایه (ادراری − CBC)؛ یکتای بالاتر با همسایهٔ ادراری ⇒ `/hpf`؛ وگرنه هیچ‌کدام سنجیده نمی‌شود | `L12` | فقط [129] عوض شد (اورژانس → این‌هفته)؛ هیچ شمارشِ خونی unmapped نشد. ثبت: N25 |
+| ۴ | زیرِ اورژانس، `unit_unknown_values` عدد را از دست می‌داد ([64]: اوره ۱۴۹، کراتینین ۲٫۸) | `brief` در `patterns_unit_unknown.js`: عددِ برگه کنارِ نام؛ ردیفِ خارج از محدوده/ناممکن/با فوریت جملهٔ کاملش را نگه می‌دارد؛ `brief_warnings` (تروپونین) | `L13`؛ ۵ هشِ `U10` (specimen.test.js) عمداً بازپایه — بی‌فیلدِ brief بایت‌به‌بایت یکی | ID/فوریت بی‌تغییر؛ ۵ درخواستِ زیرِ اورژانس عدد دارند. ثبت: N18 |
+| ۳ (فقط Hb) | Hbِ بی‌واحد در ۱۶۹/۱۶۹ `unit_unknown` ⇒ ۲۴ میکروسیتیکِ بی‌یافته | `hgbSystemFromIndices` (`adapter.js`): واحد از MCHC/Hct یا MCH/RBCِ همان برگه (±۱۵٪، یک سیستم؛ MCHC ۲۲–۴۲، MCH ۱۲–۴۵)، پس از `decideUnit`؛ basis `indices` + جمله در `ResultView.jsx`. همراه: `buildNormalResult` (`prompt.js`) با `unmapped` غیرخالی دیگر «نتایج شما طبیعی است» نمی‌گوید | `L14` | Hb ۰ → ۱۶۸/۱۶۹ ([3] عمداً نه)؛ کم‌خونی‌ها = اجرای D؛ ۲۱ فوریت بالا (روتین → این‌هفته). ثبت: N3، **MEDICAL_RULES.md P89 (تصمیمِ کاربر «سه»، نه بازبینِ مستقل)** |
+
+| ۵ | نوارِ ادرارِ برگهٔ ترکیبی (CBC + ادرار) `unmapped`؛ `Leuko estr` ناشناخته | `detectDipstickPages` + لایهٔ ۲ب (`adapter.js`): ≥ ۲ نشانگرِ قویِ نوار ⇒ نامِ مبهم با مقدارِ فهرستِ بستهٔ نوار ⇒ `Urine Blood/Protein/Glucose/Bilirubin/Ketone`؛ عدد سرم می‌ماند؛ بی‌شاهد unmapped؛ Yeast/Mycelium/Mucus ⇒ qual. همراه: `glycosuria_pattern` سه‌حالته با قندِ خونِ همان برگه (`patterns_nephrology.js`)؛ `unreadQualRows` روی هر برگهٔ مسیرِ موتور، فقط ردیف‌های ادرار (`server.js`) | `L15`، `L15b` (lis1005)، `L15c` (api-contract) — هر سه روی کپیِ بی‌رفع قرمز | پروتئینوری ۲→۲۰، گلوکوزوری ۱→۵، uti ۰→۱؛ ۳ فوریت بالا ([120]، [140]، [205])، هیچ پایین. Blood/Protein/Glucose/Leuko estr/Yeast/Mycelium/Mucus دیگر unmapped نیستند. ثبت: N25 |
+
+| ۶ | [66] «WBC روی برگه نیست» کنارِ WBC 23.9؛ لنفوسیت ۲۰٬۷۹۳ «موقتی»؛ [3] MCHC/MCHِ ناممکن بی‌خواننده؛ [22]/[38] `liver_pattern` بی‌عدد | `mild_neutropenia` شاخهٔ WBCِ بالا (بی‌«موقتی»، بی‌زمانِ رقیب)؛ `viral_lymphocytosis` درجهٔ ۳ CTCAE ⇒ this_week بی‌«موقتی»؛ `rbc_indices_impossible` (تازه، مرزِ P89، routine، بی‌زمان)؛ `liver_pattern` عددِ ALT/AST/ALP و CK | `L16`، `L16b`، `L16c` — روی HEADِ سه فایلِ قاعده قرمز؛ فریزِ `M111` و `U10` عمداً بازپایه (با حذفِ پیشوندِ عددی همان هش) | ۸ درخواست متن عوض شد، هیچ فوریتی جابه‌جا نشد. ثبت: MEDICAL_RULES P90، CLAUDE.md N4 |
+
+**فایل‌های باگِ ۶:** `rules/patterns_hematology.js` (`mild_neutropenia`، `rbc_indices_impossible`، import)، `rules/patterns_infectious.js` (`lymphG3`، `markedLymphocytosis`، import)، `rules/patterns_biochem.js` (`liver_pattern`)، `rules/patterns_utils.js` (`MCHC_PLAUSIBLE_GDL`، `MCH_PLAUSIBLE_PG`)، `rules/adapter.js` (فقط دو ثابت از utils)، `rules/lis1005.test.js` (L16–L16c)، `rules/engine.test.js` (فقط هشِ `pe_components`)، `rules/specimen.test.js` (فقط هشِ `liver`)، `MEDICAL_RULES.md` (P90)، `CLAUDE.md` (N4)، `note.md`.
+**باز از باگِ ۶ (پرسشِ بازبین، P90):** `maha_ttp_suspicion` بی‌شیستوسیت/LDH ([199])؛ فوریتِ CKِ کودک ([22])؛ لامِ RBC بی‌واژگان ([201]، spec لازم)؛ مدفوع/ملنا ([38])؛ `cll_suspicion_nccn` فقط ≥ ۵۰ سال.
+
+**فایل‌های باگِ ۵:** `khanesh-server/rules/adapter.js` (`LE_KEY_RE`…`detectDipstickPages` + لایهٔ ۲ب + سه املای استراز در `URINE_ONLY_MARKERS`)، `rules/patterns_nephrology.js` (`glycosuria_pattern` + import)، `server.js` (`COMBINED_URINE_ROW`، `unreadQualRows`)، `rules/lis1005.test.js` (L15، L15b)، `api-contract.test.js` (L15c)، `CLAUDE.md` (N25)، `note.md`.
+**باز از باگِ ۵:** Color/Appearance هنوز «تفسیر نشدند» (نویز، بند ۵)؛ شبکهٔ `unreadQualRows` روی برگهٔ فقط-ادرار «Urine pH (Acid)» و «Urine Culture (No growth)» را «چیزی نشان می‌دهند» می‌نامد (پیش از این کار هم بود؛ `QUAL_NEGATIVE` «no growth» ندارد)؛ «Glucose 3+»ِ برگه‌ای بی‌نشانگرِ قویِ نوار هنوز بی‌صدا در qual (`Glucose`) می‌رود؛ متنِ گلوکوزوری درجه (۱+ در برابرِ ۳+) را نمی‌گوید.
+
+**فایل‌های این کار (برای کامیت — جلسهٔ دیگری هم‌زمان `patterns.js`، `prompt.js`، `server.js`، `specimen.js`، `specimen.test.js`، `api-contract.test.js`، `MEDICAL_RULES.md` را تغییر می‌دهد؛ فقط این بخش‌ها مالِ این کارند):**
+`khanesh-server/rules/adapter.js` (سه تابع + سه اتصال)، `rules/patterns_unit_unknown.js` (brief)، `rules/prompt.js` (فقط انتهای `buildNormalResultAdult`)، `rules/lis1005.test.js` (L11–L14)، `rules/metamorphic.test.js` (MM8)، `rules/specimen.test.js` (فقط ۵ هشِ FREEZE + کامنت)، `khanesh/src/ResultView.jsx` (`BASIS_TEXT.indices`)، `MEDICAL_RULES.md` (P89)، `CLAUDE.md` (N3، N18، N25، N31)، `note.md`.
+
+### ⏳ باقی مانده (به ترتیب)
+1. ~~باگِ ۵~~ ✅ رفع شد (جدولِ بالا).
+2. ~~باگِ ۶~~ ✅ بخشِ رفع‌شدنی انجام شد (جدولِ بالا)؛ باقی‌مانده‌اش پرسشِ بازبین است (P90). متنِ اصلیِ بند برای سابقه:
+   - [3] Hb = 4.38 (= RBC، خطای ورود) با MCHC 12 / MCH 10؛ `rbc_indices_implausible` فعال نمی‌شود (Hb حالا عمداً سنجیده نمی‌شود، ولی شاخصِ ناممکن هنوز نام برده نمی‌شود).
+   - [66] `viral_lymphocytosis` «موقتی» کنارِ لنفوسیتِ ۲۰٬۷۹۳ (حالا با نوتروپنیِ ۱۵۷۷).
+   - [201]/[199] «Plt Count = 65000» در PBS Others — ۱۹ ردیفِ PBS بی‌خواننده؛ [199] حالا `maha_ttp_suspicion` می‌گیرد.
+   - [38] مدفوعِ سیاه + MCV 55 ⇒ ردیف‌های مدفوع کلاً unmapped؛ `liver_pattern` بی‌عدد.
+   - [22] CK 1424 در کودک هیچ‌جا نام برده نمی‌شود (فقط «ورزش سنگین»).
+3. **بقیهٔ باگِ ۳ (تصمیمِ بالینی، P48):** اوره/کراتینین (۸۴)، قند (۶۱)، بیلی‌روبین (۱۸)، Ca/Mg/P، چربی‌ها بی‌واحد ⇒ `unit_unknown`. رابطهٔ درون‌برگه‌ای ندارند؛ تنها راه `plausible` (گامِ اندازه) است که بازبین باید تأیید کند. وابسته: فوریتِ اورهٔ ۱۴۹ ِ بی‌واحد `routine` است.
+4. **🟠 متوسط (تصمیمِ بالینی):** `thrombocytopenia` + `isolated_thrombocytopenia` هم‌زمان (۵؛ PLT 60/70 «خفیف»، «ایزوله» با RBC/HCT پایین، PLT=100 «به زیر ۱۰۰ هزار»)؛ کراتینینِ شیرخوار (P88 باز)؛ HCT کودک بی‌بازه (۳۷)؛ INR 1.12–1.2 با aPTT طبیعی ⇒ «این هفته» (۴)؛ LDH 490–634 پس از زایمان (۱۲)؛ [17] «R.B.C=4..81» بی‌صدا در qual؛ [57] SG = «1.0» «خیلی رقیق»؛ `crp_pos_esr_normal` «این هفته» بی‌زمان در متنِ اقدام (۵، N20)؛ قندِ تصادفی ۱۴۱–۱۹۹ بی‌قاعده؛ **[87] حالا اورژانس** (`leukocytosis_with_cytopenia`: WBC 22.2، Hb 7.5، PLT 549، ESR 104، CRP++ — پلاکت بالاست نه پایین؛ پرسش برای بازبین)؛ [75] باند ۷۵٪ / نوتروفیل ۱۸٪ (احتمالاً ستونِ جابه‌جای LIS).
+5. **🟡 نویز:** `Mixed`، Color/Appearance، گروه خون/کراس‌مچ، **شمارهٔ کیسهٔ خون به‌عنوان آزمایش**، `CH MB II`/`CPK-MB(CHEMICAL)`، ادرارِ کاملاً منفی یا تروپونین/CRP منفیِ تنها ⇒ «تفسیر نشد»؛ «Negative/Many/Weakly Positive» انگلیسی در متنِ بیمار؛ لحنِ «شما/اگر تب دارید» در کودک (۶۸)؛ «تکرار CBC» تکراری (۱۹).
+6. **محدودیت‌های شناخته‌شدهٔ رفع‌های انجام‌شده:** ردیفِ افتراقیِ تنهای < WBC بی‌شاهدِ جمع (Eos 3 کنارِ WBC 7.8) هنوز مطلق خوانده می‌شود (۱)؛ دو WBCِ متفاوت بی‌شاهدِ ادرار ⇒ هیچ‌کدام سنجیده نمی‌شود (۲، در این داده رخ نداد)؛ پرسش‌های بازبین در P89 (تحملِ ۱۵٪، بازه‌های اعتمادِ MCHC/MCH، Hct).
+7. **کامیت** — فقط با درخواستِ کاربر؛ فایل‌های بالا را جدا stage کنید (بخش‌های جلسهٔ هم‌زمان را نه).
+- نکتهٔ داده: ۶ درخواستِ بخشِ زایمان با بیلی‌روبینِ تام ۸–۱۴ و مستقیم ۰٫۲–۰٫۶ احتمالاً نمونهٔ نوزاد زیرِ پروندهٔ مادرند؛ موتور سنِ بزرگسال می‌گیرد.
+
+### پس از هر رفعِ بعدی
+`npm test` (درختِ کار) + گاردِ قرمز-اول (stash فقط فایلِ خودت) + `OUT=./outA_<n>.json node run.mjs` و `node cmp.mjs <قبلی> <تازه>` (ID و فوریت) + در صورتِ لزوم `node diffsweep.mjs`؛ ثبت در CLAUDE.md Lab Notebook و، برای هر عدد/تصمیمِ بالینی، `MEDICAL_RULES.md`.
+
+## ۲۰۲۶-۱۰-۰۵ (specs/014، مرحلهٔ الف: ادرارِ ۲۴ساعته و مایعاتِ بدن — P87؛ **کامیت شد: `80315b5`**)
+`npm test` روی درختِ کار پیش از کامیت ⇒ `tests 1099 · pass 1098 · fail 0 · todo 1`. پیش از شروع `1079 · 1078 · 0 · 1` بود؛ تفاوت = ۲۱ تستِ تازه منهای `L10` که جلسهٔ هم‌زمان برداشت. فریزِ ۱۴ پنلِ معمولی بایت‌به‌بایت یکی ماند.
+**انجام شد:**
+- spec، clarify (دو پرسش: «فقط مرحلهٔ الف»، «جای نمایش = خطِ تفسیر نشدند»، «بی‌عددِ مشتق»)، plan، research، data-model، contract، quickstart، tasks (۲۳ کار، همه ✅) در `specs/014-urine24h-body-fluids/`.
+- `rules/specimen.js` (تازه): ردیف‌های ادرارِ ۲۴ساعته (حجم، پروتئین، کراتینین، اوره، کلسیم، اسید اوریک) و مایعِ بدن (قند، پروتئین، LDH، نوعِ مایع) *پیش از* NAME_MAP به کانالِ `e.specimen` می‌روند. ردیفی که mapKey می‌شناسد دزدیده نمی‌شود (`24h urine calcium` همان `U_CA`). «Urine Protein»ِ برهنه فقط با مقدارِ عددی و شاهدِ ۲۴ساعتهٔ همان صفحه.
+- `prompt.js`: `specimenLine()` (خطِ «این مقادیر شناخته شدند، ولی موتور هنوز تفسیرشان نمی‌کند …» در `ocr_warnings`)، `buildUninterpretedResult({recognized})`، شاخهٔ specimen در `buildNormalResult` («همه طبیعی» ردیفِ تفسیرنشده را نمی‌پوشاند).
+- `server.js`: خط در هر دو مسیر؛ برگهٔ specimenدار حتی با `ALLOW_LEGACY_PATH` به مدل نمی‌رسد؛ `safeEngineOut.specimen = undefined`؛ کلیدِ `mergePages` شکلِ مقدار را دارد (نوار و ۲۴ساعته هر دو می‌مانند).
+- تست‌ها: `rules/specimen.test.js` (U01–U16، U18)، `api-contract.test.js` (T54–T57). هر گاردِ غیرِفریز روی کدِ قبلی قرمز دیده شد (U16 اول اشتباه سبز بود و سفت شد).
+- بازبینیِ کد: ۲ HIGH + ۱ MEDIUM رفع شد (نوارِ ادرار ۲۴ساعته خوانده می‌شد و پروتئینوری گم می‌شد؛ جملهٔ احتیاط می‌گفت «نادیده بگیرید» کنارِ اورژانس؛ ادغامِ صفحه‌ها). دو LOW هم رفع شد (برگهٔ فقط-Fluid Type، مقدارِ خالی).
+- ثبت: `MEDICAL_RULES.md` P87 (همهٔ آستانه‌ها/فوریت‌های سند با ✅/📘، «در انتظار بازبینی»، ۱۲ تصمیمِ باز). `CLAUDE.md`: ساختارِ فایل + یادداشتِ N2.
+**باقی مانده:**
+- مرحلهٔ ب (تفسیرِ واقعی: U24-C دروازهٔ کاملیِ جمع‌آوری، V، P، K، U، CA، UA؛ FL-P/A/C/S) — فقط پس از تأییدِ بازبینِ بالینی روی P87. FL-C1 (قندِ CSF < ۴۰) نخستین اورژانسِ پیشنهادی است.
+- دادهٔ لازم از Tirita/LIS: جدولِ کدِ «Fluid Type» (۴ = ؟)، واحدِ هر ستون (اوره یا UUN)، وزن/قد، نام و واحدِ ستون‌های کلسیم/اسید اوریکِ ۲۴ساعته، نامِ واقعیِ ستون‌های مایع.
+- محدودیتِ شناخته‌شده: Glucose/LDHِ برهنه کنارِ «Fluid Type» هنوز سرم خوانده می‌شود (فقط جملهٔ احتیاط، `U13`).
+- دو هویت برای کلسیمِ ادرار: `24h urine calcium` سنجیده می‌شود، `Urine Ca/24h` فقط شناخته (موقت، تا فریزِ محورِ معدنی بماند).
+- LOWهای رفع‌نشده: املاهای `Glucose, CSF`، `Pleural Fluid Protein (Total)`، `Microalbumin 24h` (به «تفسیر نشدند» می‌روند)؛ «Fluid Type: Serum» ⇒ «مایع دیگر».
+- مرورگر: تغییر در UI دیده نشد (فرانت دست نخورد؛ خط از راهِ `ocr_warnings` موجود رندر می‌شود).
+- پیامِ هماهنگی به جلسهٔ `khanesh-project-49` به‌خاطرِ تفاوتِ حالتِ مجوز منقضی شد و نرسید؛ آن جلسه خودش کار را به specs/014 سپرد (P88).
 
 ## ۲۰۲۶-۱۰-۰۵ (قدمِ ۴: جاروبِ کودک/ادرار/سرولوژی/چندصفحه — P84 R11–R15)
 `npm test` ⇒ `tests 1067 · pass 1066 · fail 0 · todo 1` (~۲۰ ثانیه). رفع: طبقه‌بندِ TSH با بازهٔ سنی (`interpret.js`)، کفِ فوریتِ عددِ پوشش‌داده (`patterns.js`، ساختاری؛ استثنای دیالیز)، «Many»ِ ادرار، «+/-» مرزی، «Detected»، کشتِ خونِ POS/NEG و N20ِ «نامعلوم»، سرخجه +/-. `mergePages` و سه‌تایی‌ها تمیز. `metamorphic.test.js`: MM1 با ۷ پروفایل و «داخلِ بازه غیرطبیعی نیست»، MM2 بزرگسال+کودک، MM7 ادرار/سرولوژی — روی `1e878eb` سه‌تا قرمز.

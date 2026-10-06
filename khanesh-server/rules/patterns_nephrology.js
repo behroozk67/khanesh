@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence , epithelialState , squamousSentence } from "./patterns_utils.js";
+import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence , epithelialState , squamousSentence, ungradedFa } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { bunToUrea } from "./refs.js";
 import { canBePregnant } from "./patterns_utils.js";
@@ -384,21 +384,31 @@ export const RULES_NEPHROLOGY = [
   {
     id: "glycosuria_pattern",
     match: (e) => urinePositive(e, /urine\s*glucose|u\s*glucose|glucose\s*urine|قند\s*ادرار|گلوکز\s*ادرار|ur\s*glucose/i),
-    build: () => ({
+    // باگِ ۵ (LIS ۲۰۲۶-۱۰-۰۶، N4/N8): قندِ خونِ همان برگه خوانده نمی‌شد ⇒ کنارِ «Blood Sugar 131» ِ چاپ‌شده «آزمایش قند خون بدهید».
+    //   سه‌حالته: سنجیده (عدد و جهتش، بی‌حکمِ تازه) / چاپ‌شدهٔ بی‌نمره (ungradedFa) / غایب (متنِ قبلی، بایت‌به‌بایت).
+    build: (e) => {
+      const gl = (e.graded || []).find((g) => g.test === "GLU_F") ?? (e.graded || []).find((g) => g.test === "GLU_RANDOM");
+      const printed = gl ? null : ungradedFa(e, "GLU_F", faName("GLU_F")) ?? ungradedFa(e, "GLU_RANDOM", faName("GLU_RANDOM"));
+      const tail = gl
+        ? `${faName(gl.test)}ِ همین برگه ${gl.value} است (${!gl.abnormal ? "در محدودهٔ طبیعی" : gl.dir === "high" ? "بالاتر از حد طبیعی" : "پایین‌تر از حد طبیعی"})؛ این دو را پزشک کنارِ هم می‌خواند.`
+        : printed ? `${printed}؛ پزشک آن را کنارِ این نتیجه می‌خواند.`
+        : "باید با آزمایش قند خون بررسی شود.";
+      return {
       pattern: "glycosuria",
       urgency: "this_week",
       headline: "در آزمایش ادرار شما قند دیده شده است",
       must_say:
         "وجود قند در ادرار معمولاً وقتی رخ می‌دهد که قند خون بالا رفته باشد و کلیه بخشی از آن را دفع کند. " +
-        "این می‌تواند سرنخی از دیابت کنترل‌نشده باشد، ولی گاهی علل دیگری هم دارد. باید با آزمایش قند خون بررسی شود.",
-      action: "این هفته با پزشک مطرح کنید و آزمایش قند خون بدهید.",
+        "این می‌تواند سرنخی از دیابت کنترل‌نشده باشد، ولی گاهی علل دیگری هم دارد. " + tail,
+      action: gl || printed ? "این هفته با پزشک مطرح کنید." : "این هفته با پزشک مطرح کنید و آزمایش قند خون بدهید.",
       suggest: [
         "قند خون ناشتا (FBS)",
         "HbA1c — میانگین قند سه ماه اخیر",
         "قند دو ساعته در صورت صلاحدید پزشک",
       ],
       warnings: [],
-    }),
+      };
+    },
   },
 
   // ── کتونوری (کتون در ادرار) ──

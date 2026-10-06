@@ -1,5 +1,5 @@
 import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
-import { anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa } from "./patterns_utils.js";
+import { anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -12,6 +12,8 @@ import { factorOwnsAptt } from "./patterns_hemostasis.js";
 // N4 (بازبینیِ ۲۰۲۶-۱۰-۰۴): «روی این برگه نیست» فقط وقتی ردیف واقعاً چاپ نشده. ردیفِ چاپ‌شدهٔ بی‌بازه در e.ungraded/noRef است،
 //   نه در e.graded — همان سه‌حالتهٔ comp() در patterns_p73_gaps.js و missingFa در patterns_endocrine_rheum.js.
 const printedUngraded = (e, k) => !!(e.ungraded?.[k] || e.noRef?.includes(k));
+// P91: «سیاه» ِ رنگِ مدفوع — فهرستِ بسته روی کلِ مقدار (N6).
+const STOOL_BLACK_RE = /^(black|blackish|tarry|tar[\s-]*like|melena|melaena|سیاه|سیاه‌رنگ|سیاه رنگ|قیری|قیرمانند|قیری‌شکل)$/i;
 
 const LEUK_CYTO_IDS = new Set(["leukocytosis_with_cytopenia", "reactive_leukocytosis_with_cytopenia"]);
 const leukCytopeniaOwns = (e) => RULES_MALIGNANCY.some((r) => LEUK_CYTO_IDS.has(r.id) && r.match(e));
@@ -648,6 +650,7 @@ export const RULES_HEMATOLOGY = [
       const n = e.graded.find((g) => g.test === "NEUT_ABS");
       const deg = n.value < 1000 ? "متوسط" : "خفیف";
       const urgency = n.value < 1500 ? "this_week" : "routine";
+      const wbcHigh = e.graded.some((g) => g.test === "WBC" && g.abnormal && g.dir === "high");
       return {
         pattern: "mild_neutropenia",
         urgency,
@@ -658,18 +661,27 @@ export const RULES_HEMATOLOGY = [
           // 🔴 N4 (لایهٔ ۲): «کلِ گلبول‌های سفید طبیعی است» فقط با WBCِ نمره‌دارِ در محدوده؛ WBCِ غایب ادعای دروغ بود.
           (e.graded.some((g) => g.test === "WBC" && !g.abnormal)
             ? "تعدادِ کلِ گلبول‌های سفیدِ شما طبیعی است. "
+            // باگِ ۶ (LIS ۲۰۲۶-۱۰-۰۶، [66]، N4): WBCِ سنجیده و *بالا* (۲۳٫۹) به شاخهٔ «روی این برگه نیست» می‌افتاد.
+            : wbcHigh
+              ? `تعدادِ کلِ گلبول‌های سفیدِ شما ${e.graded.find((g) => g.test === "WBC").value} است و بالاتر از حد طبیعی؛ یعنی بقیهٔ گلبول‌های سفید زیاد شده‌اند و سهمِ نوتروفیل کم است. `
             : printedUngraded(e, "WBC")
               ? "تعدادِ کلِ گلبول‌های سفید (WBC) روی برگه هست ولی اینجا ارزیابی نشد؛ برای تفسیرِ کاملِ این کاهش لازم است. "
               : "تعدادِ کلِ گلبول‌های سفید (WBC) روی این برگه نیست و برای تفسیرِ کاملِ این کاهش لازم است. ") +
           (urgency === "routine"
             ? "کاهش در این حد خطرِ عفونت را چندان بالا نمی‌برد. "
             : "") +
-          "این کاهش اغلب موقتی است — مثلاً پس از یک عفونت ویروسی یا با برخی داروها — و در بعضی افراد هم به‌طورِ ارثی و بی‌خطر همیشه کمی پایین‌تر از میانگین است. " +
-          "تکرارِ آزمایش پس از چند هفته نشان می‌دهد این کاهش پایدار است یا نه.",
-        action: actionFor(urgency, {
-          week: "این هفته با پزشک وقت بگیرید و این برگه و فهرستِ داروهایتان را همراه ببرید.",
-          routine: "در نوبتِ عادی با پزشک مطرح کنید و فهرستِ داروهایتان را همراه ببرید.",
-        }),
+          // باگِ ۶: کنارِ WBCِ بالا «موقتی/ارثیِ بی‌خطر» و «تکرار پس از چند هفته» جملهٔ نوتروپنیِ تنهاست — اینجا کاهشِ نسبی است و
+          //   مالکِ زمان‌بندی یافتهٔ افزایشِ گلبول‌های سفید است (N20)؛ این یافته زمانِ رقیب نمی‌گذارد.
+          (wbcHigh
+            ? "پزشک این کاهش را کنارِ افزایشِ بقیهٔ گلبول‌های سفید می‌سنجد."
+            : "این کاهش اغلب موقتی است — مثلاً پس از یک عفونت ویروسی یا با برخی داروها — و در بعضی افراد هم به‌طورِ ارثی و بی‌خطر همیشه کمی پایین‌تر از میانگین است. " +
+              "تکرارِ آزمایش پس از چند هفته نشان می‌دهد این کاهش پایدار است یا نه."),
+        action: wbcHigh
+          ? "فهرستِ داروهایتان را همراهِ این برگه به پزشک نشان دهید."
+          : actionFor(urgency, {
+            week: "این هفته با پزشک وقت بگیرید و این برگه و فهرستِ داروهایتان را همراه ببرید.",
+            routine: "در نوبتِ عادی با پزشک مطرح کنید و فهرستِ داروهایتان را همراه ببرید.",
+          }),
         // شمارشِ افتراقی نه: این قاعده فقط وقتی فعال است که نوتروفیلِ مطلق روی برگه هست (N8).
         suggest: ["تکرار CBC"],
         warnings: urgency === "this_week"
@@ -1819,6 +1831,76 @@ export const RULES_HEMATOLOGY = [
     },
   },
 
+  {
+    // P91 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶، [38]): مدفوعِ سیاه + کم‌خونیِ میکروسیتیک. ملنا معمولاً منبعِ گوارشیِ فوقانی دارد و در IDA ارزیابیِ
+    //   گوارشی توصیه می‌شود (AGA)؛ کفِ «soon» + ارجاعِ گوارش. آهن/بیسموت هم مدفوع را سیاه می‌کنند — ورودیِ دارو نداریم ⇒ جملهٔ شرطی.
+    //   بی‌آستانهٔ تازهٔ Hb: زیرِ ۷ مالِ severe_anemia_crisis است (actionUnlessAnemiaCrisis، N20). ناپایداری دیده نمی‌شود ⇒ هشدارِ شرطی.
+    //   مقدارِ «سیاه» فهرستِ بسته روی *کلِ* مقدار است (N6): «Dark brown» سیاه نیست.
+    id: "melena_microcytic_anemia",
+    match: (e) => {
+      const color = e.ungraded?.STOOL_COLOR?.value;
+      if (!STOOL_BLACK_RE.test(String(color ?? "").trim())) return false;
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const mcv = e.graded.find((g) => g.test === "MCV");
+      return !!(hgb?.abnormal && hgb.dir === "low" && mcv && mcv.value < microMcvCut(e));
+    },
+    build: (e) => {
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const mcv = e.graded.find((g) => g.test === "MCV");
+      return {
+        pattern: "melena_microcytic_anemia",
+        urgency: "soon",
+        key_number: hgb.value,
+        explains: ["STOOL_COLOR"],
+        headline: "مدفوعِ سیاه کنارِ کم‌خونی با گلبول‌های قرمزِ کوچک",
+        must_say:
+          `روی برگه رنگِ مدفوع «${String(e.ungraded.STOOL_COLOR.value).trim()}» ثبت شده و هم‌زمان هموگلوبین ${hgb.value} (حد طبیعی ${hgb.range}) و MCV ${mcv.value} است، یعنی کم‌خونی با گلبول‌های قرمزِ کوچک. ` +
+          "مدفوعِ سیاه و قیری‌شکل می‌تواند نشانهٔ خونریزی در بخشِ بالاییِ دستگاهِ گوارش باشد، و کم‌خونی با گلبول‌های کوچک همان چیزی است که از دست رفتنِ خون به‌مرور می‌سازد. " +
+          "قرصِ آهن و داروهای حاویِ بیسموت هم مدفوع را سیاه می‌کنند؛ اگر چنین دارویی مصرف می‌کنید، حتماً به پزشک بگویید.",
+        action: actionUnlessAnemiaCrisis(e,
+          "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید تا دستگاهِ گوارش بررسی شود."),
+        suggest: ["مشاوره با متخصص گوارش", "فریتین", "آزمایش خون مخفی در مدفوع"],
+        warnings: ["اگر سرگیجه، غش، تپشِ قلب، استفراغِ خونی یا مدفوعِ سیاهِ تکرارشونده دارید، منتظر نمانید و همین حالا به اورژانس بروید."],
+      };
+    },
+  },
+  {
+    // باگِ ۶ (LIS ۲۰۲۶-۱۰-۰۶، [3]): «Hb = 4.38» (همان عددِ RBC، خطای ثبت) با MCHC 12 و MCH 10. rbc_indices_implausible فقط MCHCِ
+    //   *بالا* (آگلوتینینِ سرد) را می‌شناسد، پس این دو شاخصِ ناممکن فقط در «توضیح داده نشدند» می‌آمدند. مرزِ «ممکنِ بدنی» همان P89
+    //   است (MCHC_PLAUSIBLE_GDL، MCH_PLAUSIBLE_PG)، نه عددِ تازه. فوریت routine و بی‌زمان‌بندی: عددِ Hb را بی‌اهمیت جلوه نمی‌دهد
+    //   و دستورِ فوریِ یافته‌های دیگر (unit_unknown_values) را عوض نمی‌کند (N20). MCHCِ *بالا* مالِ rbc_indices_implausible است (یک عدد، یک یافته). P90.
+    id: "rbc_indices_impossible",
+    match: (e) => {
+      const mchc = e.graded.find((g) => g.test === "MCHC");
+      const mch = e.graded.find((g) => g.test === "MCH");
+      return (mchc != null && mchc.value < MCHC_PLAUSIBLE_GDL[0]) ||
+        (mch != null && (mch.value < MCH_PLAUSIBLE_PG[0] || mch.value > MCH_PLAUSIBLE_PG[1]));
+    },
+    build: (e) => {
+      const mchc = e.graded.find((g) => g.test === "MCHC");
+      const mch = e.graded.find((g) => g.test === "MCH");
+      const bad = [];
+      if (mchc && mchc.value < MCHC_PLAUSIBLE_GDL[0]) bad.push(`MCHC ${mchc.value}`);
+      if (mch && (mch.value < MCH_PLAUSIBLE_PG[0] || mch.value > MCH_PLAUSIBLE_PG[1])) bad.push(`MCH ${mch.value}`);
+      const hb = e.graded.find((g) => g.test === "HGB")?.value ?? e.ungraded?.HGB?.value;
+      const rbc = e.graded.find((g) => g.test === "RBC")?.value;
+      const hbIsRbc = hb != null && rbc != null && Number(hb) === Number(rbc);
+      return {
+        pattern: "rbc_indices_impossible",
+        no_supplementary: true,
+        urgency: "routine",
+        headline: "بعضی از شاخص‌های گلبول قرمزِ این برگه از نظرِ بدنی ممکن نیستند",
+        must_say:
+          `${bad.join(" و ")} گزارش شده؛ این مقدار در هیچ نمونهٔ خونی ممکن نیست و یعنی یکی از عددهای پایهٔ همین شمارش — ` +
+          "معمولاً هموگلوبین یا هماتوکریت — اشتباه ثبت یا خوانده شده است. " +
+          (hbIsRbc ? `هموگلوبینِ این برگه (${hb}) دقیقاً همان عددِ گلبول قرمز (${rbc}) است، که نشانهٔ رایجِ خطای ثبت است. ` : "") +
+          "این ناهماهنگی دلیلی برای نادیده گرفتنِ عددِ هموگلوبین نیست؛ شمارشِ دوباره روشن می‌کند عددِ درست کدام است.",
+        action: "از پزشک یا آزمایشگاه بخواهید شمارش خون (CBC) روی نمونهٔ تازه تکرار شود.",
+        suggest: ["تکرار CBC"],
+        warnings: [],
+      };
+    },
+  },
   {
     // specs/007 (Q3=B) — شرح و منبعِ ۳۶.۵ بالای indicesImplausible. فقط متن: urgency روتین است و
     // overall_urgency را جابه‌جا نمی‌کند، چون MCHCِ بالای ۳۶.۵ همیشه «غیرطبیعی» است و بی‌این قاعده هم

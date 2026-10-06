@@ -808,6 +808,17 @@ second one; a recurring entry is the strongest signal in the file.
   **Rule:** when a fix is gated on an input (age, sex, unit), test it with that input written the way real sheets
   write it, not with the number your test fixture happens to pass.
 
+- ⚠️ **The P48 "don't guess" rule was right, and on a LIS export it made Hb unreadable on every sheet (2026-10-06, 236-request review,
+  bug 3, `P89`, user decision, uncommitted).** Hb was `unit_unknown` in 169 of 169 requests, so 24 microcytic patients got no anaemia
+  finding. The sheet itself carries the answer: the analyser *derives* MCHC = Hb/Hct×100 and MCH = Hb/RBC×10. `hgbSystemFromIndices`
+  in `adapter.js` picks the one `UNIT_PROFILE.HGB` system that satisfies every identity on the sheet (±15%), and runs only after
+  `decideUnit` fails. An impossible index is not evidence: MCHC outside 22–42 or MCH outside 12–45 is ignored, so the data-entry error
+  «Hb = RBC = 4.38, MCHC 12» stays unknown. Re-run: Hb graded on 168 of 169, and the anaemia findings match the run with explicit units,
+  except for the excluded [3]. Guard `L14`.
+  The fix also exposed an N4 gap: 18 sheets now reached `buildNormalResult`, which said «نتایج آزمایش شما در محدوده طبیعی است» beside
+  unmapped rows (dipstick Blood/Leuko estr, bug 5). The summary now says some rows were not interpreted whenever `unmapped` is
+  non-empty. **Rule:** before a magnitude guess, look for a derived index on the same sheet that encodes the unit. And when a fix
+  routes more sheets onto the "all normal" path, re-read that path for what it fails to mention.
 - ⚠️ **Recurred 2026-09-20, through the decimal comma** (found by the specs/003 review, and present in
   `HEAD` since the adapter was written). `toNum` stripped every comma as a thousands separator, so a
   sheet that writes the decimal as a comma turned **K 5,5** into 55 (a hyperkalaemia emergency),
@@ -895,6 +906,12 @@ second one; a recurring entry is the strongest signal in the file.
   it found four more rules (`isolated_thrombocytopenia`, `pth_isolated_abnormal` ×2, `ckmb_high`) and the `alreadyMeasured` sets in
   `patterns.js`/`prompt.js`, which only counted `graded`. Fixed with one helper, `ungradedFa()` in `patterns_utils.js`. **"Absent" must mean
   absent from `graded` *and* `ungraded`**; when you write a new absence sentence, call `ungradedFa` first. P88.
+
+- ⚠️ **Recurred 2026-10-06 in `mild_neutropenia` (236-request LIS review, bug 6, `P90`, uncommitted).** The WBC clause had three arms:
+  normal / printed-ungraded / "not on this sheet". A graded *high* WBC (23.9, beside lymphocytes 20 793) fell into the last one. **A three-way
+  branch on a graded test has four states: normal, high, low, absent.** Write the arm for each direction the rule's `match` lets through.
+  The same batch: `liver_pattern` said «این اعداد نشان می‌دهند…» without one number (N5), `viral_lymphocytosis` said «معمولاً موقتی است» at
+  CTCAE grade 3, and impossible MCHC/MCH (12/10, Hb typed as RBC) had no reader. Guards `L16`–`L16c`.
 
 ### N5 — Printing a derived number as if it were on the patient's sheet
 `9c93319`
@@ -1513,6 +1530,15 @@ structural, not specific to that rule.
   **Rule:** when a blocker can hide a finding, that finding needs `always_show` + a brief that names its own number — check every
   rule whose analyte can appear beside an emergency, not only the one that exposed it. Red-before was proven by stash
   (`pass 668 · fail 8`). Still open in `MEDICAL_RULES.md` P59: six reviewer questions and the sources for four rules.
+- ⚠️ **Recurred 2026-10-05 in `unit_unknown_values`' own `brief` (236-request LIS review, bug 4, uncommitted).** The rule already had
+  `always_show`, but its brief named the tests and dropped their numbers: «واحدِ اوره، کراتینین، هموگلوبین روی برگه خوانده نشد». So under
+  `potassium_critical` (request [64]), urea 149 and creatinine 2.8 appeared nowhere in the report. Both are out of range under the only
+  plausible unit. Same in [60], [65], [160], [199]. The brief now quotes every printed value. Any row that is out of range under every
+  plausible reading, impossible, outside its printed range, or carrying its own urgency also keeps its full clause, still with no
+  direction. The troponin warning moved to `brief_warnings`. The criterion is "out of range", not urgency, because urea 149 is
+  `routine`. Five `U10` freeze hashes were re-baselined on purpose: their output with `brief`/`brief_warnings` stripped is
+  byte-identical on all 11 panels. Guard `L13`. **`always_show` keeps a finding visible; it says nothing about whether the brief still
+  carries the number. Check the brief on its own.**
 - ⚠️ **The per-rule fix above was the wrong altitude, and the structural one landed 2026-09-29 (P60).** `always_show` + `brief` has to be
   remembered for every rule that can sit under a blocker; the next one nobody remembers fails the same way. `runPatterns` now rescues
   *any* hidden finding whose compact text (first sentence of its own `must_say` + the sheet's value) names a number nothing else
@@ -1767,6 +1793,14 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   `dialysis` is the third active condition and silences only the creatinine/urea/eGFR emergencies (`M310`), TSH ≥ 10 with no FT4 ⇒ this week +
   endocrinologist (`M311`). **A new active condition is a clinical decision (P66); `M280` goes red on a silent one — update it on purpose.**
 
+
+- ⚠️ **2026-10-06 (P91), a guideline-shaped proposal measured before it was built.** A sourced summary proposed TTP ⇒ emergency on
+  "PLT < 150 + low Hb + any haemolysis marker". On the 236-request LIS export that fires twice. One is a 30-year-old post-partum woman,
+  PLT 133, Hb 8.5, raised LDH, which is common after delivery: `this_week` would have become a TTP emergency. Only the text change shipped
+  (TTP/HUS is named only beside a haemolysis marker). The broad trigger waits for schistocytes. The same batch closed a sibling pair:
+  `viral_lymphocytosis` said «معمولاً موقتی» beside `cll_suspicion_nccn`'s «در اسرع وقت» on every lymphocytosis ≥ 50 years. **Rule:** a
+  threshold copied from a guideline is a proposal for *that guideline's population*. Run it on real sheets and read the hits before it can
+  raise anyone to emergency.
 
 ### N21 — Listing the possible causes without saying which ones the same sheet already argues against
 2026-08-10, `isolated_ldh_elevation`. Found by running a real patient's sheet through the engine.
@@ -2078,6 +2112,36 @@ not by a test.
   «هموگلوبین (12.5): محدودهٔ طبیعیِ این **هورمون** …». It is now `hgb_sex_unknown`. **Before reusing a `reason`, grep every
   reader of `ungraded` for it.** Guard `M190b`. `resolveAlias`'s plural and trailing-`e` rules make every short name one character away from
     another analyte. Guards `M186`–`M186c`.
+- ⚠️ **Recurred 2026-10-05 on a combined CBC + urinalysis LIS export (236-request review, bug 2, uncommitted).** The urine microscopy
+  row printed a single number without `/hpf` («WBC 68», request [129]). It mapped to the blood `WBC` key and, because the last write
+  won, it erased the CBC's 7.8. Result: a false `extreme_leukocytosis` emergency and neutrophils of 52 224. The only signal on a flat
+  export is the row's **neighbours**, so `cellTwinRoutes` in `adapter.js` runs only when two *differing plain numbers* map to WBC/RBC on
+  one page:
+  - each row is scored urine-neighbours − CBC-neighbours (± 1 row), ties broken by urine-neighbour count;
+  - the unique top row with ≥ 1 urine neighbour goes to the `/hpf` layer;
+  - otherwise **neither is graded** (both go to «تفسیر نشدند»), never a guess. Range values («1-2») never enter the group: they
+    already went to `qual`.
+
+  Ranking was needed because the boundary row of a section touches the other section, and the first version, «has a urine
+  neighbour», dropped the CBC WBC when urine came first. Re-run: only [129] changed (emergency → this_week), and no blood count went
+  unmapped anywhere. Guard `L12` (red before: `actual 68, expected 7.8`). **Rule:** "last write wins" is a silent identity decision.
+  Whenever two rows can reach one key, decide which is which, or grade neither.
+- ⚠️ **Recurred 2026-10-06 on the same export (bug 5, uncommitted): the dipstick half of a combined sheet was unread.**
+  `detectUrineOnlyPages` stops at any CBC marker, so `Blood 3+`, `Protein 1+` and `Glucose 3+` stayed `unmapped` (19/18/4 requests).
+  `Leuko estr` matched no alias. The rules search `qual` for `Urine Blood`/`Urine Glucose`, so even a rescued bare name would not be read.
+  The fix is identity by *value shape*: `detectDipstickPages` requires ≥ 2 strong strip markers (SG, nitrite, esterase, urobilinogen). On
+  those pages an ambiguous name with a closed-set strip value (`DIPSTICK_VALUE_RE`: neg/trace/1+–4+/positive/small–large) gets the
+  canonical urine name. A number stays serum, and with no strip evidence it is still `unmapped`. Two consequences were found by
+  re-running the 236 requests, not by the suite:
+  - `glycosuria_pattern` never read serum glucose. Beside a printed «Blood Sugar 131» it asked for «آزمایش قند خون». It is now three-way
+    (graded / `ungradedFa` / absent, the absent text byte-identical).
+  - `unreadQualRows` ran only when nothing was graded, which a combined sheet never is. A urine row moved into `qual` with no reader
+    (`Yeast: Few`) would have vanished where it used to be named. The net now runs on every engine-path sheet, restricted to urine rows,
+    because CRP/troponin/hCG have no `QUAL_WORDS` pair and would be called "unexplained" beside their own findings.
+
+  Re-run: proteinuria 2 → 20 and glycosuria 1 → 5 findings, three urgencies up (glycosuria 1+–3+ ⇒ this_week), none down.
+  Guards `L15`, `L15b`, `L15c`, all red on a copy with the change reverted. **Rule:** moving a row from `unmapped` into a channel removes
+  the only place it was named. Check that the channel has a reader on *this* sheet shape, or a net that names it.
 - ⚠️ **Recurred 2026-10-04 on prenatal screening (specs/013, P81), measured before any code: a pregnancy screen read as a cancer panel.**
   A quad screen printed in concentrations (`AFP 35 IU/mL · Estriol 4.1 · Total hCG 29000 · Inhibin-A 179`) for a pregnant woman fired
   `tumor_markers_result` («پایشِ گروه‌های پرخطرِ کبد … غربالگریِ سرطان») and `hcg_result` («تستِ بارداری مثبت است»). `AFP` and `hCG`
@@ -2181,6 +2245,19 @@ not by a test.
   Both are cheap to sweep, and both now run on every commit in `rules/metamorphic.test.js`. On the tree before P84
   (`9a43d1a`) that file fails MM1–MM3. If it goes red after your change, find which rule broke the relation. Do not
   add an exception to `ALLOWED_DROPS` without a written clinical reason.
+- ⚠️ **Recurred 2026-10-05 as a per-row default (236-request LIS review, bug 1, uncommitted).** A differential row with no unit, no `%` and
+  a value under 20 was read as an absolute count ×1000. That default exists for Sysmex («NEUT 4.31»). The LIS export prints percentages
+  without a unit, so a normal CBC (mono 7, eos 2.5, baso 0.5) became monocytosis, eosinophilia and basophilia. «Lymph 15» beside WBC 4.2
+  became 15 000. This hit 131 of 416 values across 68 requests, including 8 false CLL suspicions. The fix decides once per **sheet**,
+  from the sheet's own arithmetic (`unitlessDiffIsPercent` in `adapter.js`), not from magnitude:
+  - unitless rows count as percent when the percentages sum to ≈ 100 (`Mixed` included), or when the absolutes would exceed WBC;
+  - a key with a twin row (`NEUT%` beside `NEUT`) stays absolute, and so does WBC ≥ 80, where absolutes also sum to ≈ 100;
+  - with neither signal, the old default still applies.
+
+  Re-run of all 236: wrong values 131 → 2, and the remaining 2 are bug 2 (urine WBC overwrote blood WBC, [129]). Findings are identical
+  to the run with an explicit `%` added. No urgency went up. Guards `L11` (lis1005.test.js) and `MM8` (sum of absolutes ≤ WBC,
+  52/120 red before). **Rule:** when a unit is missing, look first for a cross-row identity on the same sheet (percentages sum to 100,
+  parts ≤ whole, Hb/Hct ≈ MCHC) before reaching for a per-row default.
 
 Detailed instructions are split across `.claude/rules/`:
 

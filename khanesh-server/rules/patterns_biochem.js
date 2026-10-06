@@ -5,7 +5,7 @@ import { repeatDeltaFa } from "./biovar.js";
 import { ADULT_REFS } from "./refs.js";
 import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 import { isNeonate } from "./neonatal.js";
-import { canBePregnant, qualVerdict, ungradedFa } from "./patterns_utils.js";
+import { canBePregnant, qualVerdict, ungradedFa, ckChildSoon, CK_CHILD_SENTENCE, CK_CHILD_SOON_ACTION } from "./patterns_utils.js";
 
 /**
  * پیش‌شرطِ الگوی زنجیره‌ایِ منیزیم: منیزیمِ پایین به‌همراه پتاسیم یا کلسیمِ پایین.
@@ -1319,7 +1319,9 @@ export const RULES_BIOCHEM = [
         const ckG = levelGrade(ck);
         // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N29): بی‌ALT، «از عضله است» ثابت نشده — پس فوریتِ ASTِ تنها (this_week) کفِ این یافته است؛
         //   پیش‌تر «AST 160 + CK 680» routine می‌شد در حالی که AST 160 تنها this_week بود.
-        const muscleUrgency = ckG >= 4 ? "emergency" : ckG >= 3 || !alt ? "this_week" : "routine";
+        // P91 (تصمیمِ کاربر، [22]): کودکِ < ۱۶ با CK ≥ ۵×سقف ⇒ کفِ soon (فقط بالا می‌برد؛ اورژانس همان می‌ماند).
+        const ckChild = ckChildSoon(e, ck);
+        const muscleUrgency = ckG >= 4 ? "emergency" : ckChild ? "soon" : ckG >= 3 || !alt ? "this_week" : "routine";
         return {
           pattern: "muscle_origin_not_liver",
           urgency: muscleUrgency,
@@ -1332,15 +1334,21 @@ export const RULES_BIOCHEM = [
               : `آنزیم AST بالا رفته و CK (آنزیم مخصوص عضله) هم بالاست، که بیشتر به عضله می‌خورد تا کبد. ${
                   e.ungraded?.ALT || e.noRef?.includes("ALT") ? "ALT روی این برگه هست اما تفسیر نشد" : "ALT روی این برگه اندازه‌گیری نشده است"
                 }؛ برای جدا کردنِ کبد از عضله ALT لازم است. `) +
+            // باگِ ۶ (LIS ۲۰۲۶-۱۰-۰۶، [22]): زیرِ درجهٔ ۳، CK ِ ۱۴۲۴ ِ کودک هیچ‌جا نقل نمی‌شد (N5) — فقط «ورزش سنگین».
+            `AST شما ${ast.value} (حد طبیعی ${ast.range}) است. ` +
             (ckG >= 3
               ? `CK شما ${ck.value} است، یعنی چند برابرِ حدِ بالای طبیعی؛ این بیشتر از اثرِ ورزشِ معمول است و آسیبِ قابل‌توجهِ عضله (رابدومیولیز) می‌تواند به کلیه آسیب بزند، پس باید زود بررسی شود.`
-              : "ورزش سنگین چند روز اخیر هم می‌تواند این را بسازد."),
+              : ckChild
+                ? `CK شما ${ck.value} (حد طبیعی ${ck.range}) است. ${CK_CHILD_SENTENCE}`
+                : `CK شما ${ck.value} (حد طبیعی ${ck.range}) است. ورزش سنگین چند روز اخیر هم می‌تواند این را بسازد.`),
           action: muscleUrgency === "emergency"
             ? "همین امروز به اورژانس مراجعه کنید و این برگه را همراه ببرید."
+            : muscleUrgency === "soon"
+              ? CK_CHILD_SOON_ACTION
             : muscleUrgency === "this_week"
               ? "این هفته با پزشک مطرح کنید. اگر ادرارِ تیره (رنگِ چای یا کولا)، دردِ شدیدِ عضلانی یا کم‌شدنِ ادرار دارید، همان روز به اورژانس بروید."
               : "نوبت عادی. اگر ورزش سنگین کرده‌اید حتماً بگویید.",
-          suggest: [...(alt ? [] : ["ALT"]), "تکرار CK", "GGT", ...(ckG >= 3 ? ["کراتینین"] : [])],
+          suggest: [...(alt ? [] : ["ALT"]), "تکرار CK", "GGT", ...(ckG >= 3 || ckChild ? ["کراتینین"] : []), ...(ckChild ? ["آزمایش کامل ادرار", "پتاسیم"] : [])],
           warnings: [],
         };
       }
@@ -1364,6 +1372,11 @@ export const RULES_BIOCHEM = [
       //   دو نسخه از یک تصمیم. حالا: > ۱۰× ⇒ `soon` (۲۴ تا ۴۸ ساعت، بی‌has_critical) و جملهٔ action از همان فوریت می‌آید؛
       //   CTCAE درجهٔ ۴ (> ۲۰×) همان `emergency` + blocks_others می‌ماند و دستورش حالا اورژانس است. گارد M308.
       const urgency = maxG >= 4 ? "emergency" : marked ? "soon" : "this_week";
+      // باگِ ۶ (LIS ۲۰۲۶-۱۰-۰۶، [38]): «این اعداد نشان می‌دهند…» بی‌آنکه هیچ عددی گفته شود (N5). فقط آنزیمِ سنجیده و بالا نقل می‌شود.
+      const liverNums = ["ALT", "AST", "ALP"]
+        .map((k) => e.graded.find((g) => g.test === k && g.abnormal && g.dir === "high"))
+        .filter(Boolean)
+        .map((g) => `${faName(g.test)} ${g.value} (حد طبیعی ${g.range})`);
       return {
         pattern: `liver_${kind}`,
         urgency,
@@ -1372,6 +1385,7 @@ export const RULES_BIOCHEM = [
           ? "شاخص‌های کبد شما بسیار بالا هستند"
           : "بعضی از شاخص‌های کبد بالاتر از حد طبیعی هستند",
         must_say:
+          (liverNums.length ? `${liverNums.join("، ")} بالاتر از حد طبیعی است. ` : "") +
           (marked
             ? "آنزیم‌های کبدی خیلی بالا هستند، که می‌تواند نشانه‌ی یک آسیب فعال و قابل‌توجه کبد باشد (مثلاً التهاب حاد کبد). این حتماً و سریع باید بررسی شود. "
             : "") +

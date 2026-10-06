@@ -277,3 +277,30 @@ test("MM7: ادرار و سرولوژی — املای مثبت/منفی هما�
   }
   assert.deepEqual(bad, []);
 });
+
+// MM8 (باگِ ۱، LIS ۲۰۲۶-۱۰-۰۵): شمارش‌های مطلقِ افتراقی که موتور می‌سازد جمعشان از WBC بیشتر نمی‌شود — هر قالبِ برگه
+// (درصدِ بی‌واحدِ LIS، مطلقِ بی‌واحدِ Sysmex، WBCِ خام یا ×۱۰³). روی کدِ پیش از رفع قرمز است: «مونوسیت ۹۳۰۰ کنارِ WBC ۴٫۲».
+test("MM8: جمعِ شمارش‌های مطلقِ افتراقی ≤ WBC (N3/N31)", () => {
+  const ABS = ["NEUT_ABS", "LYMPH_ABS", "MONO_ABS", "EOS_ABS", "BASO_ABS"];
+  const NAMES = ["Neutrophils", "Lymphocytes", "Monocytes", "Eosinophils", "Basophils"];
+  const SPLITS = [[62, 28, 7, 2.5, 0.5], [72, 15, 9.3, 3, 0.7], [45, 40, 10, 4, 1], [85, 8, 5, 1.5, 0.5], [30, 55, 11, 3, 1]];
+  const bad = [];
+  let checked = 0;
+  for (const wbc of [2.1, 4.2, 7.8, 12.5, 25, 60]) {
+    for (const split of SPLITS) {
+      for (const raw of [false, true]) {
+        for (const style of ["pct", "abs"]) {
+          const vals = style === "pct" ? split : split.map((p) => +(wbc * p / 100).toFixed(2));
+          const tests = [{ name: "WBC", value: fmt(raw ? wbc * 1000 : wbc), unit: "" },
+            ...vals.map((v, i) => ({ name: NAMES[i], value: fmt(v), unit: "" }))];
+          const r = run(M45, tests);
+          const sum = ABS.reduce((s, k) => s + (graded(r, k)?.value ?? 0), 0);
+          checked++;
+          if (sum > wbc * 1000 * 1.1) bad.push(`${style}${raw ? "/raw" : ""} WBC ${wbc} [${vals.join(",")}] ⇒ جمعِ مطلق ${sum}`);
+        }
+      }
+    }
+  }
+  assert.equal(checked, 120);
+  assert.deepEqual(bad, [], `${bad.length} برگه شمارشِ مطلقِ بیش از WBC ساخت:\n${bad.slice(0, 8).join("\n")}`);
+});

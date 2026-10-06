@@ -25,7 +25,7 @@ import { routeSerology } from "./serology.js";
 import { isPrenatalSheet, prenatalClaim, prenatalItem, parseRiskDenominator, parseRiskCategory, parseGaDays } from "./prenatal.js";
 import { specimenSheetEvidence, specimenClaim, BARE_FLUID_LOOKALIKES } from "./specimen.js";
 import { isCastKey, castRoute, isSgKey, sgValue, SG_KEY, isCrystalKey, crystalRoute, epithelialKind, epithelialRoute,
-  urineBiliValueState, urobilValueState, smearRow, mergeSmear } from "./patterns_utils.js";
+  urineBiliValueState, urobilValueState, smearRow, mergeSmear, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
 
 // بیشترین مقدار قندِ موجود (ناشتا/تصادفی/دوساعته) — برای تصحیح سدیم
 function maxGlucose(tests) {
@@ -745,6 +745,7 @@ const URINE_ONLY_MARKERS = new Set([
   "nitrite", "nitrites", "leukocyteesterase", "urobilinogen",
   "casts", "crystals", "yeasts", "epithelialcells", "epithelial",
   "mucus", "puscell", "puscells", "bacteria", "urinalysis", "ua",
+  "leukoestr", "leukoesterase", "leucoesterase",   // باگِ ۵: املاهای LIS ِ استراز
 ]);
 
 // نشانگرهایی که فقط روی برگهٔ خون (CBC) می‌آیند — برای محافظت از برگهٔ ترکیبی
@@ -804,6 +805,34 @@ function detectUrineOnlyPages(ocrTests) {
     if (n >= 2 && !(bloodCount.get(p) > 0)) pages.add(p);
   }
   return pages;
+}
+
+// ═══ بازبینیِ LIS ۲۰۲۶-۱۰-۰۶ (باگِ ۵، N25): نوارِ ادرار روی برگهٔ ترکیبیِ CBC + ادرار ═══
+// 🔴 detectUrineOnlyPages با هر شاهدِ CBC دست می‌کشد، پس «Blood 3+»، «Protein 1+»، «Glucose 3+» ِ همان صفحه unmapped می‌شدند
+//    (۱۹/۱۸/۴ درخواست) و قاعده‌های هماچوری/پروتئینوری/گلوکزوری هرگز آن‌ها را نمی‌دیدند. «Leuko estr» (املای LIS) در هیچ فهرستی نبود.
+//    هویتِ ردیف = (صفحه، نام، *شکلِ مقدار*): نوارِ ادرار فقط با فهرستِ بستهٔ نوار پاسخ می‌دهد («negative»، «Trace»، «1+»…)؛
+//    سرم هرگز «3+» نیست. پس روی صفحه‌ای با دستِ‌کم دو نشانگرِ قویِ نوار (وزنِ مخصوص، نیتریت، استراز، اوروبیلینوژن)
+//    ردیفِ مبهم با مقدارِ نواری ادراری است؛ عدد («Glucose 95») همان سرم می‌ماند — حدس نمی‌زنیم.
+const LE_KEY_RE = /^(urine)?leu[ck]o(cytes?)?(esterase|estr|est|ester|esterasa)$|^لکوسیتاستراز$/;
+const isLeKey = (k) => LE_KEY_RE.test(k);
+const isDipstickStrongKey = (name, k) =>
+  isSgKey(name) || k === "nitrite" || k === "nitrites" || isLeKey(k) || /^(urine)?urobilinogen$/.test(k);
+// کلیدِ مبهمِ صفحه ⇒ نامِ ادراری‌ای که خواننده‌ها با آن جست‌وجو می‌کنند (urinePositive(e, /urine\s*blood/)، …).
+const DIPSTICK_AMBIG_NAME = {
+  blood: "Urine Blood", hb: "Urine Blood", hgb: "Urine Blood",
+  protein: "Urine Protein", glucose: "Urine Glucose", bilirubin: "Urine Bilirubin", ketone: "Urine Ketone",
+};
+// فهرستِ بستهٔ مقدارِ نوار (N6): کلِ مقدار، نه زیررشته. «small/moderate/large» مقیاسِ نوارِ خون است.
+const DIPSTICK_VALUE_RE = /^(neg|negative|منفی|nil|trace|رگه|\+\s*\/\s*-|±|[1-4]\s*\+|\+\s*[1-4]|\+{1,4}|pos|positive|مثبت|small|moderate|large)$/i;
+// ردیف‌های میکروسکوپیِ بی‌واحد که فقط روی برگهٔ ادرار می‌آیند و qual برایشان بس است (خواننده ندارند ⇒ unreadQualRows نامشان را می‌برد).
+const URINE_MICRO_ONLY_RE = /^(yeasts?(pseudo|cells?)?|mycelium|mycelia|pseudohyphae|hyphae|mucus|mucous|mucousthreads?|مخمر|موکوس)$/;
+function detectDipstickPages(ocrTests) {
+  const count = new Map();
+  for (const t of ocrTests) {
+    if (!t?.name) continue;
+    if (isDipstickStrongKey(t.name, norm(t.name))) count.set(t._page ?? 0, (count.get(t._page ?? 0) ?? 0) + 1);
+  }
+  return new Set([...count].filter(([, n]) => n >= 2).map(([p]) => p));
 }
 
 /** کدام صفحه‌ها پنل گاز خون (ABG) دارند؟ فقط این صفحه‌ها pH خون معنا دارند. */
@@ -978,6 +1007,135 @@ export function inferAge(ocr) {
 /**
  * OCR → مقادیر آماده برای موتور
  */
+// ═══ بازبینیِ LIS ۲۰۲۶-۱۰-۰۵ (باگِ ۱، N3/N31): افتراقیِ بی‌واحدِ < ۲۰ درصد است یا شمارشِ مطلق؟ — تصمیم در سطحِ برگه ═══
+// 🔴 قاعدهٔ ردیفی («بی‌واحد، بی‌٪، < ۲۰ ⇒ مطلق ×۱۰۰۰»، برای Sysmex «NEUT 4.31») روی خروجیِ LIS که درصد را بی‌واحد می‌دهد
+//    یک CBCِ کاملاً طبیعی را «مونوسیت ۷۰۰۰، ائوزینوفیل ۲۵۰۰، بازوفیل ۵۰۰» کرد (۶۸ درخواست، CLL ِ کاذب، «مونوسیت ۹۳۰۰ = ۲۲۱٪ِ WBC»).
+//    خودِ برگه جواب را دارد، بی‌حدسِ بزرگی: (الف) درصدهای یک افتراقی جمعشان ≈ ۱۰۰ است (Mixed/MID هم جزوِ آن)؛ (ب) شمارش‌های مطلق
+//    از WBC بیشتر نمی‌شوند. هر کدام برقرار باشد ⇒ ردیف‌های بی‌واحدِ < ۲۰ درصدند. ردیفی که کلیدش ردیفِ دیگری هم دارد («NEUT%» کنارِ
+//    «NEUT») دوقلوی مطلق است و نه کاندیدا است نه در جمع. بی‌هیچ‌کدام از دو شاهد ⇒ رفتارِ قبلی (Sysmex).
+const DIFF_PCT_KEYS = new Set(["NEUT_PCT", "LYMPH_PCT", "MONO_PCT", "EOS_PCT", "BASO_PCT", "BAND_PCT"]);
+const DIFF_MIXED_RE = /^(mixed|mxd|mid|mixedcells?|midcells?)(count|percent|pct)?$/;
+const DIFF_ABS_UNIT_RE = /10\^?3|10\*3|10³|10e3|k\/|\/ul|\/µl|\/μl|\/mm3|\/mm³|cells|cumm/i;
+function unitlessDiffIsPercent(rows) {
+  const perKey = new Map();
+  const cands = [];
+  let pctSum = 0, pctRows = 0;
+  const wbcs = [];
+  for (const t of rows) {
+    if (!t?.name) continue;
+    const n = norm(t.name);
+    const k = mapKey(n);
+    const v = toNum(t.value);
+    if (v == null) continue;
+    const u = String(t.unit ?? "").trim();
+    if (k === "WBC") { wbcs.push(v >= 1000 ? v / 1000 : v); continue; }
+    if (DIFF_MIXED_RE.test(n) && !DIFF_ABS_UNIT_RE.test(u)) { pctSum += v; pctRows++; continue; }
+    if (!DIFF_PCT_KEYS.has(k) || String(t.name).includes("#") || DIFF_ABS_UNIT_RE.test(u)) continue;
+    perKey.set(k, (perKey.get(k) || 0) + 1);
+    if (String(t.name).includes("%") || u.includes("%") || v >= 20) { pctSum += v; pctRows++; }
+    else cands.push({ k, v });
+  }
+  const live = cands.filter((c) => perKey.get(c.k) === 1);
+  if (!live.length) return false;
+  const candSum = live.reduce((s, c) => s + c.v, 0);
+  const total = pctSum + candSum;
+  const wbcK = wbcs.length && wbcs.every((w) => Math.abs(w - wbcs[0]) < 1e-9) ? wbcs[0] : null;
+  // (الف) جمعِ ≈ ۱۰۰ — مگر WBC خودش نزدیکِ ۱۰۰ باشد (آن‌جا مطلق‌ها هم جمعشان ≈ ۱۰۰ است)
+  if (pctRows + live.length >= 2 && total >= 85 && total <= 115 && !(wbcK != null && wbcK >= 80)) return true;
+  // (ب) مطلق‌ها نمی‌توانند از WBC بیشتر شوند
+  if (wbcK != null && wbcK > 0 && candSum > wbcK * 1.1) return true;
+  return false;
+}
+
+// ═══ بازبینیِ LIS ۲۰۲۶-۱۰-۰۵ (باگِ ۲، N25): دو ردیفِ WBC (یا RBC) روی یک صفحه — کدام مالِ ادرار است؟ ═══
+// 🔴 برگهٔ ترکیبیِ CBC + ادرار: «WBC 68»ِ بی‌واحدِ میکروسکوپیِ ادرار عدد است (بازه نیست)، پس به کلیدِ WBCِ خون می‌رسید و چون آخرین
+//    مقدار برنده بود، WBCِ 7.8 ِ CBC را پاک می‌کرد ⇒ `extreme_leukocytosis` اورژانسِ کاذب و نوتروفیلِ ۵۲٬۲۲۴ (درخواستِ [129]).
+//    هویتِ ردیف = (زمینه، نام)، نه نام: ردیفی که همسایهٔ بلافصلش (همان صفحه) ردیفِ فقط‌ادراری است یا مقدارِ میکروسکوپیِ ادرار دارد
+//    («20-25»، «Few») ادراری است ⇒ لایهٔ ۱ (/hpf). فقط وقتی برخی — نه همه — چنین همسایه‌ای دارند؛ وگرنه نمی‌دانیم کدام خون است ⇒
+//    هیچ‌کدام سنجیده نمی‌شود («تفسیر نشدند»)، نه حدس. ردیفِ تنها دست نمی‌خورد.
+const CELL_TWIN_KEYS = new Set(["WBC", "RBC"]);
+const CBC_NEIGHBOUR_KEYS = new Set(["HGB", "HCT", "MCV", "MCH", "MCHC", "PLT", "RDW_CV", "RDW_SD", "MPV", "PDW",
+  "NEUT_PCT", "LYMPH_PCT", "MONO_PCT", "EOS_PCT", "BASO_PCT", "BAND_PCT", "NEUT_ABS", "LYMPH_ABS", "MONO_ABS", "EOS_ABS", "BASO_ABS"]);
+const URINE_MICRO_VALUE_RE = /^\s*(\d+(\.\d+)?\s*[-–]\s*\d+(\.\d+)?|few|many|moderate|rare|occasional|plenty|loaded|full\s*field|نادر|کم|زیاد|فراوان)\s*$/i;
+function cellTwinRoutes(rows) {
+  const routes = new Map();
+  const groups = new Map();
+  rows.forEach((t, i) => {
+    if (!t?.name) return;
+    const k = mapKey(norm(t.name));
+    if (!CELL_TWIN_KEYS.has(k) || /[hl]pf/i.test(String(t.unit ?? ""))) return;
+    // «1-2»/«Few» عدد نیستند و همین حالا به qual (ادرار) می‌روند — فقط عددِ تنها می‌تواند جای WBC/RBCِ خون بنشیند.
+    if (toNum(t.value) == null || URINE_MICRO_VALUE_RE.test(String(t.value ?? ""))) return;
+    const g = `${t._page ?? 0}|${k}`;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(i);
+  });
+  // ردیفِ مرزِ دو بخش (اولین ردیفِ CBC کنارِ آخرین ردیفِ ادرار) هر دو جور همسایه دارد ⇒ امتیاز نسبی، نه «همسایهٔ ادراری دارد؟».
+  const score = (i) => {
+    let urine = 0, blood = 0;
+    for (const j of [i - 1, i + 1]) {
+      const n = rows[j];
+      if (!n?.name || (n._page ?? 0) !== (rows[i]._page ?? 0)) continue;
+      const nn = norm(n.name);
+      if (URINE_ONLY_MARKERS.has(nn) || URINE_MICRO_VALUE_RE.test(String(n.value ?? ""))) urine++;
+      else if (BLOOD_ONLY_MARKERS.has(nn) || DIFF_MIXED_RE.test(nn) || CBC_NEIGHBOUR_KEYS.has(mapKey(nn))) blood++;
+    }
+    return { urine, net: urine - blood };
+  };
+  for (const idx of groups.values()) {
+    if (idx.length < 2) continue;
+    if (new Set(idx.map((i) => String(rows[i].value ?? "").trim())).size < 2) continue;   // همان مقدار ⇒ تعارضی نیست
+    const s = idx.map((i) => ({ i, ...score(i) }));
+    // رتبه: اول امتیازِ خالص، بعد شمارِ همسایهٔ ادراری (ردیفِ CBC ِ بی‌همسایه در برابرِ ردیفِ مرزیِ ادرار).
+    const rank = (x) => x.net * 10 + x.urine;
+    const top = Math.max(...s.map(rank));
+    const best = s.filter((x) => rank(x) === top);
+    // ادراری = تنها ردیفِ بیشترین امتیاز، با دستِ‌کم یک همسایهٔ ادراری. بقیه (اگر هنوز بیش از یک مقدار دارند) نامعلوم‌اند.
+    if (best.length === 1 && best[0].urine > 0) {
+      routes.set(rows[best[0].i], "urine");
+      const rest = idx.filter((i) => i !== best[0].i);
+      if (new Set(rest.map((i) => String(rows[i].value ?? "").trim())).size > 1) rest.forEach((i) => routes.set(rows[i], "conflict"));
+    } else idx.forEach((i) => routes.set(rows[i], "conflict"));
+  }
+  return routes;
+}
+
+// ═══ بازبینیِ LIS ۲۰۲۶-۱۰-۰۵ (باگِ ۳، P89 — تصمیمِ کاربر): واحدِ Hbِ بی‌واحد از سازگاریِ درونیِ همان CBC ═══
+// 🔴 خروجیِ LIS ستونِ واحد ندارد ⇒ Hb در ۱۶۹ از ۱۶۹ درخواست `unit_unknown` می‌شد؛ ۲۴ بیمارِ میکروسیتیک بی‌یافتهٔ کم‌خونی/تالاسمی ماندند.
+//    دستگاه MCHC و MCH را *از خودِ Hb* حساب می‌کند: MCHC = Hb(g/dL) ÷ Hct(%) × ۱۰۰، MCH = Hb(g/dL) ÷ RBC(10⁶/µL) × ۱۰. پس
+//    MCHC/MCHِ چاپ‌شدهٔ همان برگه واحدِ Hb را بی‌حدسِ بزرگی تعیین می‌کند (g/dL و g/L ده برابر فاصله دارند). شرط‌ها:
+//    • هر رابطه‌ای که روی برگه هست باید برقرار باشد (±۱۵٪) و دقیقاً یک سیستم پاسخ دهد؛
+//    • شاخصِ ناممکن شاهد نیست (MCHC بیرون از ۲۲–۴۲ g/dL، MCH بیرون از ۱۲–۴۵ pg): «Hb = RBC»ِ خطای ورود با MCHC 12 ([3]) تأیید نمی‌شود؛
+//    • فقط وقتی decideUnit (واحدِ چاپ‌شده یا محدودهٔ مرجع) چیزی تعیین نکرد.
+const HGB_INDEX_TOLERANCE = 0.15;
+const MCHC_TRUSTED = MCHC_PLAUSIBLE_GDL, MCH_TRUSTED = MCH_PLAUSIBLE_PG;
+function hgbSystemFromIndices(rows) {
+  const first = {};
+  for (const t of rows) {
+    if (!t?.name) continue;
+    const k = mapKey(norm(t.name));
+    if (!["HGB", "HCT", "MCHC", "MCH", "RBC"].includes(k) || first[k] != null) continue;
+    if (/[hl]pf/i.test(String(t.unit ?? ""))) continue;
+    const v = toNum(t.value);
+    if (v != null && v > 0 && /^\s*[\d.,]+\s*$/.test(String(t.value))) first[k] = v;
+  }
+  const hb = first.HGB;
+  if (hb == null) return null;
+  const ids = [];
+  if (first.HCT != null && first.MCHC != null) {
+    const hct = first.HCT <= 1 ? first.HCT * 100 : first.HCT;
+    const mchc = first.MCHC > 100 ? first.MCHC / 10 : first.MCHC;
+    if (mchc >= MCHC_TRUSTED[0] && mchc <= MCHC_TRUSTED[1] && hct >= 5 && hct <= 80) ids.push((gdl) => (gdl / hct) * 100 / mchc);
+  }
+  if (first.RBC != null && first.MCH != null) {
+    const rbc = first.RBC >= 100 ? first.RBC / 1e6 : first.RBC;
+    if (first.MCH >= MCH_TRUSTED[0] && first.MCH <= MCH_TRUSTED[1] && rbc >= 0.5 && rbc <= 10) ids.push((gdl) => (gdl / rbc) * 10 / first.MCH);
+  }
+  if (!ids.length) return null;
+  const ok = UNIT_PROFILE.HGB.systems.filter((s) => ids.every((f) => Math.abs(f(hb * s.factor) - 1) <= HGB_INDEX_TOLERANCE));
+  return ok.length === 1 ? ok[0] : null;
+}
+
 /** واحدِ شمارشِ خام (/µL، /mm³، cells، cumm) بدونِ هیچ نشانهٔ 10³/10⁶. */
 function rawCountUnit(unit) {
   const u = String(unit || "").toLowerCase().replace(/\s+/g, "");
@@ -1026,6 +1184,7 @@ export function ocrToEngineInput(ocr) {
   const unreadableKeys = new Set();
   const urineOnlyPages = detectUrineOnlyPages(ocr?.tests || []);
   const abgPages = detectAbgPages(ocr?.tests || []);
+  const dipstickPages = detectDipstickPages(ocr?.tests || []);   // باگِ ۵
   // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
   const semenQual = {};
   // specs/012 (P68): مرزِ چاپ‌شدهٔ ردیف‌های سرولوژیِ کیفی (سرخجه) و آنتی‌بادی‌های تیروئید با بازهٔ چاپ‌شده — خواننده: serology.js
@@ -1048,6 +1207,7 @@ export function ocrToEngineInput(ocr) {
   // تعیینِ واحد از شواهد (نه چاپ‌شده): کلید → { basis, raw, from } — برای سطرِ «واحد» به بیمار.
   const unitResolved = {};
   const sexHint = inferSex(ocr), ageHint = inferAge(ocr);
+  const hgbFromIndices = hgbSystemFromIndices(ocr?.tests || []);
   // 🔴 واحدِ نانوشته (کلاسِ N3): پیش از این هر عددِ بی‌واحد بی‌صدا «متعارف» فرض می‌شد — کراتینینِ
   //    ۸۰ µmol/L (طبیعی) → اورژانس، قندِ ۱۵ mmol/L (بالا) → «قند پایین». حالا: اگر واحدِ چاپ‌شده
   //    شناخته‌شده است، همان راهِ امروز (دست‌نخورده)؛ وگرنه decideUnit در units.js از شواهدِ خودِ
@@ -1068,7 +1228,9 @@ export function ocrToEngineInput(ocr) {
       const plain = String(row.unit).toLowerCase().replace(/\s+/g, "");
       return rec.match(plain) ? row : { ...row, unit: rec.unit };
     }
-    const d = decideUnit(key, v, row.reference, sexHint, ageHint);
+    let d = decideUnit(key, v, row.reference, sexHint, ageHint);
+    // باگِ ۳ (P89): Hb بی‌واحد ⇒ واحد از MCHC/MCHِ همان برگه، فقط اگر decideUnit نتوانست.
+    if (!d.system && key === "HGB" && hgbFromIndices) d = { system: hgbFromIndices, basis: "indices" };
     if (!d.system) { unitUnknown[key] = { value: v, reference: row.reference ?? null }; return null; }
     unitResolved[key] = { basis: d.basis, raw: v, from: d.system.unit };
     // `_basis` روی *همین ردیف* — تا تبدیلِ ردیفِ واحددارِ هم‌کلید برچسبِ «بدونِ واحد» نگیرد (N5).
@@ -1097,9 +1259,18 @@ export function ocrToEngineInput(ocr) {
   const prenatalSheet = isPrenatalSheet(ocr?.tests || [], norm);
   // specs/014 (R1): شاهدِ ۲۴ساعت و ردیفِ «Fluid Type» در سطحِ برگه.
   const specimenEv = specimenSheetEvidence(ocr?.tests || [], norm, mapKey);
+  // باگِ ۱ (LIS ۲۰۲۶-۱۰-۰۵): افتراقیِ بی‌واحدِ این برگه درصد است؟ (جمع ≈ ۱۰۰ یا مطلق > WBC) — پایین، کنارِ v0 < 20.
+  const diffUnitlessPct = unitlessDiffIsPercent(ocr?.tests || []);
+  // باگِ ۲ (LIS ۲۰۲۶-۱۰-۰۵): WBC/RBCِ دوقلو روی یک صفحه — ادراری ⇒ /hpf؛ نامعلوم ⇒ «تفسیر نشدند».
+  const twinRoutes = cellTwinRoutes(ocr?.tests || []);
 
   for (let t of ocr?.tests || []) {
     if (!t?.name) continue;
+    {
+      const tw = twinRoutes.get(t);
+      if (tw === "conflict") { unmapped.push(t.name); continue; }
+      if (tw === "urine" && !String(t.unit ?? "").trim()) t = { ...t, unit: "/hpf" };
+    }
     let key = norm(t.name);
     // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N3): واحدِ چسبیده به عدد در خانهٔ نتیجه («21 mg/dL»، ستونِ واحد خالی) دور ریخته می‌شد و
     //   ردیف «واحدِ نامعلوم» می‌گرفت — قندِ ۲۱ از اورژانس به soon، تروپونینِ ۲٫۴ از اورژانس به this_week. فقط وقتی دنباله *همان*
@@ -1353,6 +1524,33 @@ export function ocrToEngineInput(ocr) {
       }
     }
 
+    // ═══ P91 ([38]): رنگِ مدفوع — شناخته، بی‌بازه (noReader ⇒ ungraded.STOOL_COLOR). خواننده: melena_microcytic_anemia، که
+    //   با explains آن را از خطِ «تفسیر نشدند» بیرون می‌برد؛ بی‌آن یافته، همان خط با نامِ فارسی می‌ماند. فقط نامِ صریحِ مدفوع —
+    //   «Color»ِ برهنه روی برگهٔ ترکیبی رنگِ ادرار هم می‌تواند باشد (N25) و دست نمی‌خورد.
+    if (/^(stool|feces|faeces|fecal|مدفوع)(colou?r|رنگ)$|^رنگمدفوع$/.test(key) && String(t.value ?? "").trim()) {
+      if (!noReader.includes("STOOL_COLOR")) noReader.push("STOOL_COLOR");
+      if (noReaderValues.STOOL_COLOR == null) noReaderValues.STOOL_COLOR = String(t.value).trim();
+      continue;
+    }
+    // ═══ لایه ۲ب (باگِ ۵): استرازِ لکوسیتی با هر املا، و نوار/میکروسکوپیِ برگهٔ ترکیبی ═══
+    //   استراز واژگانِ فقط‌ادرار است ⇒ روی هر صفحه‌ای؛ نامِ قانونی می‌گیرد تا LE_RE ِ قاعده‌ها («leukocyte|esterase») و
+    //   PAD_ROW_RE (کنارگذاشتن از شمارشِ WBC) آن را بشناسند. مقدارِ بیرون از فهرستِ بسته ⇒ «تفسیر نشدند» (N6).
+    //   املاهای قدیمی («Leukocyte Esterase»، «لکوسیت استراز») همان مسیرِ isQualitative را دارند — دست نمی‌خورند.
+    if (isLeKey(key) && !QUALITATIVE.has(key)) {
+      if (DIPSTICK_VALUE_RE.test(String(t.value ?? "").trim())) qual["Leukocyte Esterase"] = String(t.value).trim();
+      else unmapped.push(t.name);
+      continue;
+    }
+    if (dipstickPages.has(t._page ?? 0) || onUrinePage) {
+      const raw = String(t.value ?? "").trim();
+      const dn = onUrinePage ? null : DIPSTICK_AMBIG_NAME[key];   // صفحهٔ ادرارِ خالص: لایهٔ ۳ (پایین) همین را می‌کند
+      if (dn && (key === "bilirubin" ? urineBiliValueState(raw) !== "unknown" : DIPSTICK_VALUE_RE.test(raw))) {
+        qual[dn] = raw;
+        continue;
+      }
+      if (URINE_MICRO_ONLY_RE.test(key) && raw) { qual[`Urine ${t.name}`] = raw; continue; }
+    }
+
     // ═══ لایه ۳: کلید مبهم روی برگهٔ ادرارِ خالص → ادراری تلقی شود ═══
     // این هم اورژانس کاذب را می‌بندد و هم الگوهای ادرار را فعال می‌کند
     // (قبلاً این‌ها unmapped می‌شدند و کلاً از دست می‌رفتند).
@@ -1498,7 +1696,7 @@ export function ocrToEngineInput(ocr) {
       const u = String(t.unit || "");
       const looksAbsolute = /10\^?3|10\*3|K\/|\/uL|\/µL/i.test(u);
       const v0 = toNum(t.value);
-      if (looksAbsolute || (v0 != null && v0 < 20 && !u.includes("%"))) {
+      if (looksAbsolute || (v0 != null && v0 < 20 && !u.includes("%") && !diffUnitlessPct)) {
         engineKey = engineKey.replace("_PCT", "_ABS");
       }
     }
