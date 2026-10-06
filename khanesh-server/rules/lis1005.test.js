@@ -742,3 +742,21 @@ test("GD10 — P93-ج: عددِ بی‌واحدِ آزمونِ قندِ بارد
   const g100 = one([row("GTT fasting", "80", "mg/dL"), row("GTT 1h", "150", "mg/dL"), row("GTT 2h", "130", "mg/dL"), row("GTT 3h", "8")]);
   assert.equal(g100.urgency, "routine");
 });
+test("GD11 — سنِ بارداری: فقط از ورودیِ کاربر، فقط برای زنِ باردار، ۱–۴۲؛ جملهٔ هفته در یافتهٔ قند؛ فوریت دست نخورد", () => {
+  const pt = (gestWeeks, extra = {}) => ({ ...preg, gestWeeks, ...extra });
+  assert.equal(run([row("FBS", "95", "mg/dL")], pt(12)).e.gestWeeks, 12);
+  assert.equal(run([row("FBS", "95", "mg/dL")], pt("۱۲")).e.gestWeeks, 12, "رقمِ فارسی");
+  for (const bad of [0, 43, "12.5", "abc", null]) assert.equal(run([row("FBS", "95", "mg/dL")], pt(bad)).e.gestWeeks, undefined, String(bad));
+  assert.equal(run([row("FBS", "95", "mg/dL")], { sex: "F", age: 30, gestWeeks: 12 }).e.gestWeeks, undefined, "بی‌بارداری");
+  assert.equal(run([row("FBS", "95", "mg/dL")], { sex: "M", age: 30, pregnant: true, gestWeeks: 12 }).e.gestWeeks, undefined, "مرد");
+  const g = (w, rows = [row("FBS", "105", "mg/dL")]) => run(rows, pt(w)).p.findings.find((f) => f.pattern === "gestational_diabetes_range");
+  const early = g(12);
+  assert.match(early.must_say, /شما در هفتهٔ ۱۲ بارداری هستید؛ آزمونِ تحملِ قندِ ۷۵ گرمی طبقِ پروتکلِ کشوری در هفتهٔ ۲۴ تا ۲۸ انجام می‌شود\./);
+  assert.equal(early.urgency, g(null).urgency);
+  assert.match(g(26).must_say, /این همان بازهٔ هفتهٔ ۲۴ تا ۲۸/);
+  assert.match(g(32).must_say, /گذشته است/);
+  assert.doesNotMatch(g(null).must_say, /شما در هفتهٔ/, "بی‌هفته همان متنِ قبلی");
+  const nd = g(20, [row("2hpp", "145", "mg/dL")]);
+  assert.equal(nd.urgency, "routine"); assert.match(nd.must_say, /شما در هفتهٔ ۲۰ بارداری هستید/);
+  assert.doesNotMatch(nd.must_say, /اگر هنوز انجام نشده/);
+});

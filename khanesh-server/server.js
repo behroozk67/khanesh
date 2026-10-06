@@ -87,6 +87,8 @@ export function engineContext(engineOut, patternOut) {
     sex: engineOut.sex === "M" ? "مرد" : engineOut.sex === "F" ? "زن" : null,
     age_text: ageText(engineOut.age),
     pregnant: engineOut.pregnant === true,
+    // سنِ بارداری (هفته) — فقط وقتی کاربر وارد کرده؛ ResultView «باردار، هفتهٔ X» را از این می‌سازد.
+    ...(engineOut.gestWeeks != null ? { gest_weeks: engineOut.gestWeeks } : {}),
     conditions_applied: [...reported].filter((id) => used.has(id)).map((id) => ({ id, fa: conditionFa(id) })),
   };
 }
@@ -1104,6 +1106,7 @@ const analyzeHandler = async (req, res) => {
             conditions: patient?.conditions ?? [],
             // P53 پرسش ۲: بارداری ورودیِ درجه‌بندیِ Hb است (کفِ ۱۱.۰)، نه فقط لحن — مسیرِ عکس کلِ patient را پاس می‌دهد.
             pregnant: patient?.pregnant === true,
+            gestWeeks: patient?.gestWeeks ?? null,
           },
           unreadable_notes: [],
         };

@@ -2158,6 +2158,7 @@ export function ocrToEngineInput(ocr) {
     sex: inferSex(ocr),
     age: inferAge(ocr),
     pregnant: inferPregnant(ocr),
+    gestWeeks: inferGestWeeks(ocr),
   };
 }
 
@@ -2168,13 +2169,23 @@ function inferPregnant(ocr) {
   return v === true || /^(true|yes|بله|باردار)$/i.test(String(v ?? "").trim());
 }
 
+// سنِ بارداری (هفته): فقط از ورودیِ خودِ کاربر (فرم/پروفایل: patient.gestWeeks)، هرگز از متنِ برگه. عددِ صحیحِ ۱ تا ۴۲، وگرنه null.
+export const GEST_WEEKS_RANGE = [1, 42];
+function inferGestWeeks(ocr) {
+  const raw = String(ocr?.patient?.gestWeeks ?? "").trim().replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+  if (!/^\d{1,2}$/.test(raw)) return null;
+  const n = Number(raw);
+  return n >= GEST_WEEKS_RANGE[0] && n <= GEST_WEEKS_RANGE[1] ? n : null;
+}
+
 /**
  * اجرای موتور روی خروجی OCR
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
+  const gestWeeksF = pregnantF ? gestWeeks : null;
 
   // specs/011 (P66): شناسه یا برچسبِ قدیمیِ فارسی → شناسهٔ کاتالوگ. regexِ سرطان همان قبلی است (در conditions.js).
   const conditions = conditionIds(ocr?.patient?.conditions).ids;
@@ -2607,6 +2618,8 @@ export function runEngine(ocr) {
     ...(valueConflicts.length ? { valueConflicts } : {}),
     // P93: فقط در بارداریِ اعلام‌شده (تا فریزهای غیرباردار دست نخورند).
     ...(pregnantF ? { glucoseNames, ogtt100g } : {}),
+    // سنِ بارداری (هفته) — فقط بارداریِ اعلام‌شده با هفتهٔ واردشده؛ نبودنش یعنی «نامعلوم» (تا فریزها دست نخورند).
+    ...(gestWeeksF != null ? { gestWeeks: gestWeeksF } : {}),
     unitConversions,
     noRef,
     diffFailed,

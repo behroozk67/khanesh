@@ -79,6 +79,10 @@ export async function initDb() {
   if (!pcols.some((c) => c.name === 'age_recorded_at')) {
     await db.exec('ALTER TABLE profiles ADD COLUMN age_recorded_at INTEGER');
   }
+  // سنِ بارداری (۲۰۲۶-۱۰-۰۶): هفته + زمانِ ثبت، تا هفتهٔ امروز محاسبه شود.
+  for (const col of ['gest_weeks', 'gest_recorded_at']) {
+    if (!pcols.some((c) => c.name === col)) await db.exec(`ALTER TABLE profiles ADD COLUMN ${col} INTEGER`);
+  }
   console.log("✅ Database initialized");
 }
 
@@ -148,7 +152,7 @@ export async function createUserWithEmail(email) {
 const PROFILE_COLS = {
   firstName: 'first_name', lastName: 'last_name', sex: 'sex', ageValue: 'age_value',
   ageUnit: 'age_unit', pregnant: 'pregnant', conditions: 'conditions', conditionsAnswered: 'conditions_answered',
-  ageRecordedAt: 'age_recorded_at',
+  ageRecordedAt: 'age_recorded_at', gestWeeks: 'gest_weeks', gestRecordedAt: 'gest_recorded_at',
 };
 
 function rowToProfile(r) {
@@ -158,6 +162,7 @@ function rowToProfile(r) {
     ageValue: r.age_value ?? null, ageUnit: r.age_unit ?? null, pregnant: r.pregnant === 1,
     conditions: JSON.parse(r.conditions || '[]'), conditionsAnswered: r.conditions_answered === 1,
     ageRecordedAt: r.age_recorded_at ?? null,
+    gestWeeks: r.gest_weeks ?? null, gestRecordedAt: r.gest_recorded_at ?? null,
   };
 }
 

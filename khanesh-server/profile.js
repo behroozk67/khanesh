@@ -17,6 +17,7 @@ const IDS = new Set(CONDITIONS.map((c) => c.id));
 
 // بازهٔ هر واحدِ سن (data-model.md). «روز» تا ۶۰ و «ماه» تا ۲۳ — بعد از آن واحدِ بزرگ‌تر.
 const AGE_RANGE = { year: [1, 120], month: [1, 23], day: [0, 60] };
+const GEST_RANGE = [1, 42];   // هفتهٔ بارداری — همان بازهٔ GEST_WEEKS_RANGE در rules/adapter.js و profileStore.js
 
 export function ageInYears(value, unit) {
   if (value == null || !unit) return null;
@@ -91,6 +92,22 @@ export function validatePatch(body, current) {
   } else if (current?.pregnant && !eligible) {
     patch.pregnant = false;
   }
+  // سنِ بارداری (هفته): اختیاری، فقط همراهِ بارداری؛ زمانِ ثبت نگه داشته می‌شود تا هفتهٔ امروز حساب شود.
+  const pregnantNow = 'pregnant' in patch ? patch.pregnant : current?.pregnant === true;
+  if ('gestWeeks' in b) {
+    const raw = latin(b.gestWeeks).trim();
+    if (b.gestWeeks == null || raw === '') {
+      patch.gestWeeks = null; patch.gestRecordedAt = null;
+    } else {
+      const n = /^\d+$/.test(raw) ? Number(raw) : NaN;
+      if (!pregnantNow) return { error: 'هفتهٔ بارداری فقط وقتی معنا دارد که «باردار هستم» انتخاب شده باشد.' };
+      if (!Number.isInteger(n) || n < GEST_RANGE[0] || n > GEST_RANGE[1]) {
+        return { error: `هفتهٔ بارداری باید عددی بین ${faDigits(GEST_RANGE[0])} و ${faDigits(GEST_RANGE[1])} باشد.` };
+      }
+      patch.gestWeeks = n; patch.gestRecordedAt = Date.now();
+    }
+  }
+  if (!pregnantNow && current?.gestWeeks != null && !('gestWeeks' in patch)) { patch.gestWeeks = null; patch.gestRecordedAt = null; }
   return { patch };
 }
 

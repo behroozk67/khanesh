@@ -1303,3 +1303,15 @@ test("T58: specs/014 مرحلهٔ ب — برگهٔ فقط-قندِ CSF زیر �
   assert.ok((r.body.general_recommendations ?? []).join(" ").includes("پزشکِ معالج یا پرستارِ بخش"), JSON.stringify(r.body.general_recommendations));
   assert.ok(!(r.body.ocr_warnings ?? []).some((w) => /قند مایع/.test(w)), JSON.stringify(r.body.ocr_warnings));
 });
+
+test("GW1: سنِ بارداری از ورودِ دستی و از عکس به _engine.context.gest_weeks می‌رسد؛ بی‌بارداری نه", async () => {
+  const tests = [{ name: "Fasting Blood Sugar", value: "105", unit: "mg/dL" }];
+  const m = await analyze({ patient: { age: "30 سال", sex: "زن", pregnant: true, gestWeeks: 12 }, tests });
+  assert.equal(m.status, 200, JSON.stringify(m.body));
+  assert.equal(m.body._engine.context.gest_weeks, 12);
+  const p = await analyzePhoto({ sex: "زن", age: "30" }, { sex: "زن", age: "30 سال", pregnant: true, gestWeeks: 26 }, tests);
+  assert.equal(p.status, 200, JSON.stringify(p.body));
+  assert.equal(p.body._engine.context.gest_weeks, 26);
+  const n = await analyze({ patient: { age: "30 سال", sex: "زن", gestWeeks: 12 }, tests });
+  assert.equal(n.body._engine.context.gest_weeks, undefined);
+});
