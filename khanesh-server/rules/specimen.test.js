@@ -471,3 +471,15 @@ test("V09 — نسبتِ قندِ مایع/خون: جملهٔ زمان کنار�
   assert.doesNotMatch(unitless.must_say, /قندِ خون روی همین برگه نیست/);
   assert.match(f([row("CSF Glucose", "30", "mg/dL")], "csf_glucose_low").must_say, /قندِ خون روی همین برگه نیست/);   // غیابِ واقعی
 });
+
+// P87 (پاسخِ بازبینِ انسانی، ۲۰۲۶-۱۰-۰۶): علائمِ هشدار در action، و «موتور» از متنِ بیمار بیرون.
+test("W12 — پروتئینِ بارداری و آسیت: علائمِ هشدار در action؛ واژهٔ «موتور» در متنِ بیمار نیست", () => {
+  const p = only(prot("400", "mg/24h").p, "pregnancy_proteinuria_24h");
+  assert.match(p.action, /سردردِ شدید.*همان لحظه به اورژانس/);
+  assert.doesNotMatch(p.must_say, /موتور/);
+  assert.match(p.must_say, /این برگه فشارِ خون و علائمِ شما را نمی‌بیند/);
+  const a = only(asc([row("Ascitic Protein", "2.5", "g/dL"), row("Ascitic Glucose", "40", "mg/dL")]).p, "ascites_runyon_pattern");
+  assert.equal(a.urgency, "soon");
+  assert.match(a.action, /تب، دردِ شکم، گیجی.*همان لحظه به اورژانس/);
+  assert.match(a.must_say, /تشخیص نیست/);
+});
