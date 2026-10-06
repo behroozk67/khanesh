@@ -710,6 +710,10 @@ second one; a recurring entry is the strongest signal in the file.
   «پیش‌دیابت … تغییرِ رژیم» at `routine`. That was already the output for a pregnant «2hpp 160», since the engine had no gestational rule.
   Added `gestational_diabetes_range` (IADPSG 2010, read from the source) and the `GLU_1H` key. Guards `GD1`–`GD3`.
   **Before mapping a name, ask which population prints it most, and run the new mapping on that population.**
+  ⚠️ **P93 itself shipped an N3 bug, found the same day (P93-ب).** The new ungraded `GLU_1H` bypassed `units.js`, so «GTT 1h 10.5 mmol/L»
+  (≈ 189, gestational diabetes) read «به معیارِ ۱۸۰ نرسیده». A key added outside `refs.js` gets no unit handling: convert only with a printed
+  unit, and treat a unitless value as unjudged, never as "negative". The same fix added the two-step test (`GLU_GCT`, `GLU_3H`, Iranian
+  Endocrine Society 2021) and moved early-pregnancy FBS 92–99 to conditional (that source puts the cut at 100). Guards `GD4`–`GD7`.
 - **Widening a name matcher can create a false positive in the same breath** (`3d9fbd9`). Once
   anti-HBs reached `qual`, the HBV rule's `/hbs/` alternative matched it — and anti-HBs is the
   *immunity* marker, so a vaccinated patient would have been told they may have hepatitis B. When

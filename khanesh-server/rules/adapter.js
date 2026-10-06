@@ -130,6 +130,16 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   "1hgtt": "GLU_1H", "1hrgtt": "GLU_1H", "1hogtt": "GLU_1H", "1hrogtt": "GLU_1H",
   glucose1h: "GLU_1H", glucose1hr: "GLU_1H", glucose1hour: "GLU_1H", "1hourglucose": "GLU_1H", "1hrglucose": "GLU_1H",
   قندیکساعته: "GLU_1H", قندخونیکساعته: "GLU_1H",
+  // P93-ب (۲۰۲۶-۱۰-۰۶): روشِ دومرحله‌ای — راهنمای انجمنِ غددِ ایران ۲۰۲۱ (توصیهٔ ۱۵: روشِ ترجیحی در هفتهٔ ۲۴ تا ۲۸).
+  //   قندِ سه‌ساعته (آزمونِ ۱۰۰ گرمی) و چالشِ ۵۰ گرمی (GCT) — بیرونِ بارداری بی‌بازه (noRef)، در بارداری gestational_diabetes_range.
+  gtt3h: "GLU_3H", gtt3hr: "GLU_3H", gtt3hour: "GLU_3H", ogtt3h: "GLU_3H", ogtt3hr: "GLU_3H", ogtt3hour: "GLU_3H",
+  "3hgtt": "GLU_3H", "3hrgtt": "GLU_3H", "3hogtt": "GLU_3H", "3hrogtt": "GLU_3H",
+  glucose3h: "GLU_3H", glucose3hr: "GLU_3H", glucose3hour: "GLU_3H", "3hourglucose": "GLU_3H", "3hrglucose": "GLU_3H",
+  قندسهساعته: "GLU_3H", قندخونسهساعته: "GLU_3H",
+  gct: "GLU_GCT", glucosechallengetest: "GLU_GCT", glucosechallenge: "GLU_GCT", gct50g: "GLU_GCT", "50ggct": "GLU_GCT",
+  gct1h: "GLU_GCT", gct1hr: "GLU_GCT", "50gglucosechallengetest": "GLU_GCT", "50gglucosechallenge": "GLU_GCT",
+  glucose1h50g: "GLU_GCT", glucose1hr50g: "GLU_GCT", "50gglucose1h": "GLU_GCT", "50gglucose1hr": "GLU_GCT",
+  "قند۵۰گرمی": "GLU_GCT", "قند50گرمی": "GLU_GCT", تستچالشگلوکز: "GLU_GCT", آزمونچالشگلوکز: "GLU_GCT",
   // ناشتای OGTT همان قندِ ناشتاست (و «ناشتا» نام برده شده).
   gttfasting: "GLU_F", ogttfasting: "GLU_F", fastinggtt: "GLU_F", gtt0h: "GLU_F", ogtt0h: "GLU_F", glucose0h: "GLU_F",
   hemoglobina1c: "HBA1C", hba1c: "HBA1C", a1c: "HBA1C",
@@ -659,6 +669,8 @@ function hemostasisItem(key, t, sex) {
 const ADULT_ONLY_REF_KEYS = new Set(["MYOGLOBIN", "TRANSFERRIN", "ATIII", "TT"]);
 const PLATELET_INDEX_KEYS = new Set(["PDW", "P_LCR", "PLT_CRIT"]);
 const UNIT_KEPT = new Set(["PDW", "PLT_CRIT", "P_LCR", "CERULOPLASMIN", "U_COPPER_24H",
+  // P93-ب: قندهای آزمونِ تحملِ قند (۱ و ۳ساعته، چالشِ ۵۰ گرمی) — mmol/L فقط با واحدِ چاپ‌شده تبدیل می‌شود (N3).
+  "GLU_1H", "GLU_3H", "GLU_GCT",
   // P53 پرسش ۴ و ۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): ZPP فقط با µmol/mol، sTfR فقط با mg/L تفسیر می‌شوند، و درصدِ
   // واریانت‌های هموگلوبین را قاعده‌ها از ungraded می‌خوانند — بی‌بازه می‌مانند (noRef) تا قاعده explains کند.
   "ZPP", "STFR", "HBA", "HBS", "HBC", "HBE",
@@ -2010,7 +2022,6 @@ export function ocrToEngineInput(ocr) {
       valueConflicts.push({ key: k, name: faName(k), kept, dropped, reason });
     }
   }
-
   // P93 (دیابتِ بارداری، ۲۰۲۶-۱۰-۰۶): نامِ چاپ‌شدهٔ ردیفِ قندی که سنجیده شد — «ناشتا»ی صریح؟ OGTT یا «بعد از غذا»؟
   //   معیارِ IADPSG فقط برای ناشتای صریح و آزمونِ ۷۵ گرمی است (تصمیمِ کاربر). ردیفِ ۳ساعته ⇒ آزمونِ ۱۰۰ گرمی، معیارِ دیگر.
   const glucoseNames = {};
@@ -2018,6 +2029,7 @@ export function ocrToEngineInput(ocr) {
     if (typeof testsObj[k] === "number") glucoseNames[k] = valueConflicts.find((c) => c.key === k)?.kept.name ?? writer[k]?.name ?? null;
   }
   const ogtt100g = (ocr?.tests || []).some((t) => t?.name && /(gtt|ogtt|glucose|قند)/.test(norm(t.name)) && /(3h|3hr|3hour|۳ساعت|3ساعت|سهساعت)/.test(norm(t.name)));
+
   // ═══ عددِ ناممکن سنجیده نمی‌شود (بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵، N3) ═══
   // 🔴 «K 55» (اعشارِ افتاده)، «K 2,625» (کامای سه‌رقمی ⇒ ۲۶۲۵) و «Na 1400» اورژانسِ هیپرکالمی/هیپرناترمی می‌گرفتند — در «K 2,625»
   //    جهت هم وارونه بود (پتاسیمِ پایین). «HCT 2» از «HCT 8»ِ اورژانسی «نوبتِ عادی» می‌گرفت. عددی که با هیچ بدنِ زنده‌ای جور
@@ -2122,9 +2134,9 @@ export function ocrToEngineInput(ocr) {
   return {
     tests: testsObj,
     valueConflicts,
-    qual,
     glucoseNames,
     ogtt100g,
+    qual,
     semenQual,
     smear: mergeSmear(smearItems),
     hemostasis,
@@ -2429,9 +2441,19 @@ export function runEngine(ocr) {
       ungraded[key] = { value, reason: "platelet_index", unit: printedUnits[key] ?? null };
       continue;
     }
-    const ref = (NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF });
     // P93: قندِ یک‌ساعتهٔ OGTT بیرونِ بارداری معیار ندارد ⇒ noRef، ولی مقدار برای gestational_diabetes_range نگه داشته می‌شود.
-    if (key === "GLU_1H") { noRef.push(key); ungraded.GLU_1H = { value, reason: "no_range" }; continue; }
+    // P93-ب: ۳ساعته و چالشِ ۵۰ گرمی هم. 🔴 پیش از این «GTT 1h 10.5 mmol/L» (≈ ۱۸۹) ۱۰٫۵ خوانده می‌شد ⇒ «به ۱۸۰ نرسیده» (N3).
+    //   mgdl فقط با واحدِ چاپ‌شده؛ بی‌واحد ⇒ نام برده می‌شود، با معیار سنجیده نمی‌شود (P48).
+    if (key === "GLU_1H" || key === "GLU_3H" || key === "GLU_GCT") {
+      noRef.push(key);
+      const u = printedUnits[key] ?? null;
+      const c = toConventional("GLU_2H", value, u);
+      const mgdl = c.converted ? c.value : (u && /^mg\/?dl$/i.test(String(u).replace(/\s+/g, "")) ? value : null);
+      ungraded[key] = { value, reason: "no_range", unit: u, mgdl };
+      if (c.converted) unitConversions.push({ test: key, raw: value, from: c.from, value: c.value, to: "mg/dL", basis: "printed" });
+      continue;
+    }
+    const ref = (NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF });
     if (!ref) {
       noRef.push(key);
       if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range", ...(UNIT_KEPT.has(key) ? { unit: printedUnits[key] ?? null } : {}) };
@@ -2583,9 +2605,9 @@ export function runEngine(ocr) {
     unmapped,
     // دو عددِ متفاوت برای یک آزمایش (۲۰۲۶-۱۰-۰۶): server.js هشدار می‌سازد. فقط وقتی هست، تا فریزها دست نخورند.
     ...(valueConflicts.length ? { valueConflicts } : {}),
-    unitConversions,
     // P93: فقط در بارداریِ اعلام‌شده (تا فریزهای غیرباردار دست نخورند).
     ...(pregnantF ? { glucoseNames, ogtt100g } : {}),
+    unitConversions,
     noRef,
     diffFailed,
     abnormal: graded.filter((g) => g.abnormal),

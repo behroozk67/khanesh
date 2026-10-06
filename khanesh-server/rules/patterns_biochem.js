@@ -986,50 +986,103 @@ export const RULES_BIOCHEM = [
       const s = gdmState(e);
       // کلیدها در سورسِ قاعده خوانده می‌شوند تا RULE_READS آن‌ها را پوشش‌داده بشمارد (N18)؛ متن هم نامِ faNameشان را می‌برد.
       const read = (k) => e.graded.find((x) => x.test === k)?.value ?? null;
-      const f = read("GLU_F"), h2 = read("GLU_2H"), h1 = e.ungraded?.GLU_1H?.value ?? null;
+      const f = read("GLU_F"), h2 = read("GLU_2H"), a1c = read("HBA1C"), rnd = read("GLU_RANDOM");
+      const { h1, h3, gct } = s;
+      // عددِ چاپ‌شده، و اگر mmol/L بود، برابرِ mg/dLِ آن (N5: عددِ تبدیل‌شده روی برگه نیست).
+      const shown = (k) => { const x = e.ungraded?.[k]; return x?.mgdl != null && x.mgdl !== x.value ? `${x.value} ${x.unit} (برابرِ ${x.mgdl} mg/dL)` : `${x?.value}`; };
+      const toFa = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
+      const met = (v, cut) => v >= cut ? `به معیارِ ${toFa(cut)} رسیده است` : `به معیارِ ${toFa(cut)} نرسیده است`;
       const line = [];
-      if (s.kind === "other_test") line.push([f != null && `قند ناشتای شما ${f}`, h1 != null && `قند یک‌ساعته ${h1}`, h2 != null && `قند دو ساعتهٔ شما ${h2}`].filter(Boolean).join("، ") + " است.");
-      else if (f) line.push(s.fastNamed
-        ? `قند ناشتای شما ${f} است؛ ${f >= GDM.F ? "به معیارِ ۹۲ رسیده است" : "به معیارِ ۹۲ نرسیده است"}.`
-        : `عددِ قندِ شما ${f} است، ولی روی برگه نیامده که «قند ناشتا» بوده${f >= GDM.F ? "؛ اگر ناشتا گرفته شده، به معیارِ ۹۲ رسیده است" : ""}.`);
-      if (s.kind !== "other_test" && h1 != null) line.push(`قند یک‌ساعتهٔ آزمون ${h1} است؛ ${h1 >= GDM.H1 ? "به معیارِ ۱۸۰ رسیده است" : "به معیارِ ۱۸۰ نرسیده است"}.`);
-      if (s.kind !== "other_test" && h2 != null) line.push(s.h2Ogtt
-        ? `قند دو ساعتهٔ آزمون ${h2} است؛ ${h2 >= GDM.H2 ? "به معیارِ ۱۵۳ رسیده است" : "به معیارِ ۱۵۳ نرسیده است"}.`
-        : `قند دو ساعتهٔ شما ${h2} است${h2 >= GDM.H2 ? "؛ اگر از آزمونِ ۷۵ گرمیِ تحملِ قند است، به معیارِ ۱۵۳ رسیده است، ولی اگر دو ساعت بعد از غذا گرفته شده، این معیار به آن نمی‌خورد" : ""}.`);
+      if (s.kind === "other_test") line.push([f != null && `قند ناشتای شما ${f}`, h1 != null && `قند یک‌ساعته ${shown("GLU_1H")}`, h2 != null && `قند دو ساعتهٔ شما ${h2}`].filter(Boolean).join("، ") + " است.");
+      else if (s.test === "100") {
+        if (f != null) line.push(s.fastNamed ? `قند ناشتای آزمون ${f} است؛ ${met(f, CC.F)}.`
+          : `عددِ قندِ شما ${f} است، ولی روی برگه نیامده که «قند ناشتا» بوده${f >= CC.F ? "؛ اگر ناشتای آزمون است، به معیارِ ۹۵ رسیده است" : ""}.`);
+        if (h1 != null) line.push(`قند یک‌ساعتهٔ آزمون ${shown("GLU_1H")} است؛ ${met(h1, CC.H1)}.`);
+        if (h2 != null) line.push(`قند دو ساعتهٔ آزمون ${h2} است؛ ${met(h2, CC.H2)}.`);
+        if (h3 != null) line.push(`قند سه‌ساعتهٔ آزمون ${shown("GLU_3H")} است؛ ${met(h3, CC.H3)}.`);
+      } else if (s.kind === "not_diagnostic") {
+        if (s.ppMid) line.push(`قند دو ساعتهٔ شما ${h2} است. در بارداری این عدد با معیارِ «پیش‌دیابت» سنجیده نمی‌شود: اگر از آزمونِ ۷۵ گرمیِ تحملِ قند است، به معیارِ ۱۵۳ نرسیده است، و قندِ دو ساعت بعد از غذا معیارِ تشخیصِ دیابتِ بارداری نیست.`);
+      } else {
+        if (gct != null) line.push(`قند آزمون چالش ۵۰ گرمیِ شما (یک ساعت پس از نوشیدنِ ۵۰ گرم گلوکز) ${shown("GLU_GCT")} است؛ ${gct >= GCT.DM ? "به ۲۰۰ رسیده است" : gct >= GCT.POS ? "به مرزِ ۱۴۰ رسیده است و به ۲۰۰ نرسیده است" : "به مرزِ ۱۴۰ نرسیده است"}.`);
+        if (f != null) line.push(!s.fastNamed
+          ? `عددِ قندِ شما ${f} است، ولی روی برگه نیامده که «قند ناشتا» بوده${f >= GDM.F ? "؛ اگر ناشتا گرفته شده، به معیارِ ۹۲ رسیده است" : ""}.`
+          : f >= 126 || s.isOgttSheet ? `قند ناشتای شما ${f} است؛ ${met(f, GDM.F)}.`
+          : f >= GDM_FAST_EARLY ? `قند ناشتای شما ${f} است؛ هم به معیارِ ۱۰۰ برای آزمایشِ ابتدای بارداری رسیده است و هم به معیارِ ۹۲ برای ناشتای آزمونِ ۷۵ گرمی.`
+          : f >= GDM.F ? `قند ناشتای شما ${f} است. اگر ناشتای آزمونِ ۷۵ گرمیِ تحملِ قند است، به معیارِ ۹۲ رسیده است؛ اگر آزمایشِ ناشتای ابتدای بارداری است، معیارِ آن ۱۰۰ است و این عدد به آن نرسیده است.`
+          : `قند ناشتای شما ${f} است؛ ${met(f, GDM.F)}.`);
+        if (h1 != null) line.push(`قند یک‌ساعتهٔ آزمون ${shown("GLU_1H")} است؛ ${met(h1, GDM.H1)}.`);
+        if (h2 != null) line.push(s.h2Ogtt
+          ? `قند دو ساعتهٔ آزمون ${h2} است؛ ${met(h2, GDM.H2)}.`
+          : `قند دو ساعتهٔ شما ${h2} است${h2 >= GDM.H2 ? "؛ اگر از آزمونِ ۷۵ گرمیِ تحملِ قند است، به معیارِ ۱۵۳ رسیده است، ولی اگر دو ساعت بعد از غذا گرفته شده، این معیار به آن نمی‌خورد" : ""}.`);
+      }
+      if (a1c != null && a1c >= 6.5) line.push(`HbA1c شما ${a1c} است.`);
+      else if (a1c != null && a1c >= 5.7) line.push(`HbA1c شما ${a1c} است؛ در بارداری HbA1c برای تشخیصِ دیابتِ بارداری به کار نمی‌رود.`);
+      const UNJ = { GLU_1H: "قند یک‌ساعتهٔ آزمون تحمل قند", GLU_3H: "قند سه‌ساعتهٔ آزمون تحمل قند", GLU_GCT: "قند آزمون چالش ۵۰ گرمی" };
+      for (const k of s.unjudged) line.push(`${UNJ[k]} (${e.ungraded[k].value}) روی برگه هست ولی واحدش چاپ نشده، پس با معیار سنجیده نشد.`);
+      if (rnd != null && rnd >= 200) line.push(`قند خونِ تصادفیِ شما ${rnd} است؛ قندِ تصادفیِ ۲۰۰ یا بیشتر همراهِ علامت‌های قندِ بالا (تشنگی، پرادراری) در بارداری در محدودهٔ دیابتِ آشکار است.`);
       const owner = glucoseOwnerFires(e);
-      const urgency = s.kind === "negative" || s.kind === "other_test" ? "routine" : "this_week";
+      const routine = s.kind === "negative" || s.kind === "other_test" || s.kind === "not_diagnostic";
+      const urgency = routine ? "routine" : "this_week";
       const head = {
         overt: "قندِ شما در بارداری در محدودهٔ دیابت است، نه فقط دیابتِ بارداری",
         definite: "قندِ شما در محدودهٔ دیابتِ بارداری است",
         conditional: "قندِ شما ممکن است در محدودهٔ دیابتِ بارداری باشد",
+        gct_positive: "آزمونِ غربالگریِ قندِ بارداریِ شما مثبت است و آزمونِ تکمیلی لازم است",
         negative: "قندِ شما در این آزمون در محدودهٔ دیابتِ بارداری نیست",
         other_test: "آزمونِ تحملِ قندِ شما با معیارِ دیگری خوانده می‌شود",
+        not_diagnostic: "این عددِ قند در بارداری معیارِ تشخیصِ دیابتِ بارداری نیست",
+        partial: "بخشی از آزمونِ قندِ بارداریِ شما بی‌واحد چاپ شده و سنجیده نشد",
       }[s.kind];
+      const T75 = "(ناشتا ۹۲، یک‌ساعته ۱۸۰، دوساعته ۱۵۳)", T100 = "(ناشتا ۹۵، یک‌ساعته ۱۸۰، دوساعته ۱۵۵، سه‌ساعته ۱۴۰)";
       const tail = {
         overt: "قندِ ناشتای ۱۲۶ یا بیشتر، یا HbA1c ۶٫۵٪ یا بیشتر، در بارداری در محدودهٔ دیابتِ آشکار است، نه فقط دیابتِ بارداری.",
-        definite: "در آزمونِ ۷۵ گرمیِ تحملِ قند، رسیدنِ حتی یکی از این سه عدد (ناشتا ۹۲، یک‌ساعته ۱۸۰، دوساعته ۱۵۳) به معیار برای دیابتِ بارداری کافی است.",
-        conditional: "ماما یا پزشکتان روشن می‌کند که این عدد از کدام آزمون است.",
-        negative: "در آزمونِ ۷۵ گرمی، هیچ‌کدام از عددهای اندازه‌گیری‌شده به معیارِ دیابتِ بارداری (ناشتا ۹۲، یک‌ساعته ۱۸۰، دوساعته ۱۵۳) نرسیده است.",
+        definite: {
+          "75": `در آزمونِ ۷۵ گرمیِ تحملِ قند، رسیدنِ حتی یکی از این سه عدد ${T75} به معیار برای دیابتِ بارداری کافی است.`,
+          fast: "قندِ ناشتای ۱۰۰ تا ۱۲۵ در آزمایشِ ابتدای بارداری، و ۹۲ یا بیشتر در ناشتای آزمونِ ۷۵ گرمی، در محدودهٔ دیابتِ بارداری است.",
+          "100": `در آزمونِ ۱۰۰ گرمی، رسیدنِ دو عدد یا بیشتر از این چهار عدد ${T100} به معیار برای دیابتِ بارداری کافی است.`,
+          gct: "در آزمونِ چالشِ ۵۰ گرمی، قندِ ۲۰۰ یا بیشتر برای دیابتِ بارداری کافی است.",
+        }[s.test],
+        conditional: s.test === "100"
+          ? `در آزمونِ ۱۰۰ گرمی ${T100} تشخیص با رسیدنِ دست‌کم دو عدد به معیار گذاشته می‌شود؛ ` +
+            (s.cc === 1 && s.amb ? "در برگهٔ شما یک عدد به‌طورِ قطعی رسیده و ناشتا بودنِ عددِ دوم روی برگه نیامده است. "
+              : s.cc === 1 ? "در برگهٔ شما یک عدد رسیده است و برخی راهنماها با یک عدد هم دیابتِ بارداری را مطرح می‌کنند. "
+              : "در برگهٔ شما فقط عددِ قندی که ناشتا بودنش روی برگه نیامده به ۹۵ رسیده است. ") +
+            "تصمیم با ماما یا پزشکتان است."
+          : "ماما یا پزشکتان روشن می‌کند که این عدد از کدام آزمون است.",
+        gct_positive: "این آزمون غربالگری است و به‌تنهایی دیابتِ بارداری را تشخیص نمی‌دهد؛ قدمِ بعد آزمونِ ۱۰۰ گرمیِ تحملِ قند (سه‌ساعته، ناشتا) است.",
+        negative: {
+          "75": `در آزمونِ ۷۵ گرمی، هیچ‌کدام از عددهای اندازه‌گیری‌شده به معیارِ دیابتِ بارداری ${T75} نرسیده است.`,
+          "100": `در آزمونِ ۱۰۰ گرمی، هیچ‌کدام از عددهای اندازه‌گیری‌شده به معیارِ دیابتِ بارداری ${T100} نرسیده است.`,
+          gct: "در آزمونِ چالشِ ۵۰ گرمی، عددِ کمتر از ۱۴۰ یعنی غربالگریِ منفی.",
+        }[s.test],
         other_test: "برگهٔ شما قندِ سه‌ساعته هم دارد، یعنی احتمالاً آزمونِ ۱۰۰ گرمی بوده که معیارِ دیگری دارد؛ موتور دربارهٔ آن حکم نمی‌دهد و ماما یا پزشکتان آن را می‌خواند.",
+        not_diagnostic: "غربالگریِ دیابتِ بارداری با آزمونِ تحملِ قند در هفتهٔ ۲۴ تا ۲۸ انجام می‌شود؛ اگر هنوز انجام نشده، ماما یا پزشکتان زمانش را می‌گوید.",
+        partial: "تا عددِ بی‌واحد با واحدش خوانده نشود، نمی‌توان گفت این آزمون منفی است؛ ماما یا پزشکتان آن را با برگهٔ آزمایشگاه می‌خواند.",
       }[s.kind];
-      const missing = [!f && "ناشتا", h1 == null && "یک‌ساعته", h2 == null && "دوساعته"].filter(Boolean);
+      // «روی برگه نیست» فقط برای ردیفی که نه سنجیده شد نه چاپ شد (N4: ungraded = چاپ‌شده).
+      const absent = (v, k) => v == null && !e.ungraded?.[k];
+      const missing = s.kind !== "negative" || s.test === "gct" ? [] : [absent(f, "GLU_F") && "ناشتا", absent(h1, "GLU_1H") && "یک‌ساعته",
+        absent(h2, "GLU_2H") && "دوساعته", s.test === "100" && absent(h3, "GLU_3H") && "سه‌ساعته"].filter(Boolean);
+      const printed = (k) => e.ungraded?.[k]?.value ?? null;
       return {
         pattern: "gestational_diabetes_range",
         urgency,
-        key_number: s.kind === "negative" ? undefined : (h2 ?? h1 ?? f),
+        key_number: s.kind === "negative" ? undefined
+          : s.kind === "not_diagnostic" ? (s.ppMid ? h2 : a1c)
+          : (printed("GLU_GCT") ?? h2 ?? printed("GLU_1H") ?? printed("GLU_3H") ?? f ?? a1c),
         headline: head,
         must_say: line.join(" ") + " " + tail +
-          (s.kind === "negative" && missing.length ? ` عددِ ${missing.join(" و ")} روی این برگه نیست.` : "") +
+          (missing.length ? ` عددِ ${missing.join(" و ")} روی این برگه نیست.` : "") +
           (s.kind === "definite" || s.kind === "conditional" ? " دیابتِ بارداری با کنترلِ قند قابلِ مدیریت است و پیگیری‌اش برای شما و جنین مهم است." : ""),
         action: owner
           ? "زمانِ مراجعه را یافتهٔ «قندِ بسیار بالا» تعیین می‌کند؛ این برگه را همراه ببرید."
-          : s.kind === "negative" || s.kind === "other_test"
+          : routine
             ? "این نتیجه را در مراقبتِ بعدیِ بارداری همراه ببرید."
             : "این هفته این نتیجه را به ماما یا پزشکِ زنانِ خود نشان دهید.",
-        suggest: [],
+        suggest: s.kind === "gct_positive" ? ["تست تحمل قند ۱۰۰ گرمی"] : [],
         warnings: [],
-        explains: h1 != null ? ["GLU_1H"] : [],
-        sources: ["IADPSG_2010"],
+        explains: ["GLU_1H", "GLU_3H", "GLU_GCT"].filter((k) => e.ungraded?.[k]),
+        sources: ["IADPSG_2010", "IES_GDM_2021"],
       };
     },
   },
@@ -2043,23 +2096,67 @@ function severeGlucoseOwns(e) {
 /** یکی از سه مالکِ قندِ بسیار بالا/کتواسیدوز فعال است ⇒ زمان‌بندیِ مراجعه با اوست، نه با یافتهٔ دیابت. */
 // ═══ P93: وضعیتِ دیابتِ بارداری (IADPSG 2010، Table 1؛ دیابتِ آشکار: ناشتا ≥ ۱۲۶ یا HbA1c ≥ ۶٫۵) ═══
 const GDM = Object.freeze({ F: 92, H1: 180, H2: 153 });
+// P93-ب (۲۰۲۶-۱۰-۰۶): راهنمای انجمنِ غددِ ایران ۲۰۲۱ (Valizadeh و همکاران، IJEM 19(1):e107906؛ متن باز شد):
+//   توصیهٔ ۸–۹: ابتدای بارداری ناشتای ۱۰۰ تا ۱۲۵ = دیابتِ بارداری، < ۱۰۰ طبیعی (نه ۹۲)؛ توصیهٔ ۱۵: دومرحله‌ای روشِ ترجیحی؛
+//   توصیهٔ ۱۶–۱۸: چالشِ ۵۰ گرمی ≤ ۱۴۰ طبیعی، ۱۴۰–۱۹۹ ⇒ آزمونِ ۱۰۰ گرمی، > ۲۰۰ دیابتِ بارداری (مرزِ ۱۴۰ در متن دوپهلوست ⇒ ≥ ۱۴۰ مثبت،
+//   جهتِ امن)؛ توصیهٔ ۱۹ + جدولِ ۵: ۱۰۰ گرمی Carpenter-Coustan ۹۵/۱۸۰/۱۵۵/۱۴۰، دست‌کم دو عدد (ACOG یک عدد را هم می‌پذیرد ⇒ شرطی)؛
+//   توصیهٔ ۱۱: HbA1c برای تشخیصِ دیابتِ بارداری نه؛ توصیهٔ ۲۱: ۷۵ گرمی همان IADPSG.
+const GDM_FAST_EARLY = 100;
+const CC = Object.freeze({ F: 95, H1: 180, H2: 155, H3: 140 });
+const GCT = Object.freeze({ POS: 140, DM: 200 });
 function gdmState(e) {
   if (e?.pregnant !== true) return null;
   const g = (k) => e.graded?.find((x) => x.test === k)?.value ?? null;
   const names = e.glucoseNames ?? {};
-  const f = g("GLU_F"), h2 = g("GLU_2H"), a1c = g("HBA1C");
-  const h1 = e.ungraded?.GLU_1H?.value ?? null;
+  const f = g("GLU_F"), h2 = g("GLU_2H"), a1c = g("HBA1C"), rnd = g("GLU_RANDOM");
+  // ۱/۳ساعته و چالشِ ۵۰ گرمی: فقط mg/dLِ معلوم (mmol/L تبدیل‌شده) سنجیده می‌شود؛ بی‌واحد ⇒ نام برده می‌شود، سنجیده نه (N3/P48).
+  const u = (k) => e.ungraded?.[k]?.mgdl ?? null;
+  const h1 = u("GLU_1H"), h3 = u("GLU_3H"), gct = u("GLU_GCT");
+  const unjudged = ["GLU_1H", "GLU_3H", "GLU_GCT"].filter((k) => e.ungraded?.[k] && e.ungraded[k].mgdl == null);
   const fastNamed = f != null && /fast|fbs|fpg|gtt|ناشتا|0h/.test(String(names.GLU_F ?? "").toLowerCase().replace(/\s+/g, ""));
   const ogtt = (n) => /gtt|tolerance|تحمل/.test(String(n ?? "").toLowerCase());
   const h2Ogtt = h2 != null && ogtt(names.GLU_2H);
-  const isOgttSheet = h1 != null || h2Ogtt || ogtt(names.GLU_F);
-  const overt = (f != null && fastNamed && f >= 126) || (a1c != null && a1c >= 6.5);
-  const definite = (fastNamed && f >= GDM.F) || (h1 != null && h1 >= GDM.H1) || (h2Ogtt && h2 >= GDM.H2);
-  const conditional = (f != null && !fastNamed && f >= GDM.F) || (h2 != null && !h2Ogtt && h2 >= GDM.H2);
-  // آزمونِ ۱۰۰ گرمی (ردیفِ ۳ساعته): معیارِ IADPSG نمی‌خورد — حکم نمی‌دهیم، ولی «پیش‌دیابت»ِ glycemia هم نمی‌آید.
-  if (e.ogtt100g) return { kind: "other_test", f, h1, h2, fastNamed, h2Ogtt };
-  const kind = overt ? "overt" : definite ? "definite" : conditional ? "conditional" : isOgttSheet ? "negative" : null;
-  return kind ? { kind, f, h1, h2, fastNamed, h2Ogtt } : null;
+  const isOgttSheet = h1 != null || h2Ogtt || ogtt(names.GLU_F) || e.ungraded?.GLU_1H != null;
+  const base = { f, h1, h2, h3, gct, a1c, rnd, fastNamed, h2Ogtt, isOgttSheet, unjudged };
+  const overt = (fastNamed && f >= 126) || (a1c != null && a1c >= 6.5);
+  if (overt) return { ...base, kind: "overt", test: "75" };
+
+  // ── آزمونِ ۱۰۰ گرمی (ردیفِ ۳ساعته) ──
+  const has100 = h3 != null || e.ungraded?.GLU_3H != null;
+  if (has100) {
+    const cc = [fastNamed && f >= CC.F, h1 != null && h1 >= CC.H1, h2 != null && h2 >= CC.H2, h3 != null && h3 >= CC.H3].filter(Boolean).length;
+    const amb = f != null && !fastNamed && f >= CC.F;
+    const kind = cc >= 2 ? "definite" : cc + (amb ? 1 : 0) >= 1 ? "conditional" : unjudged.length ? "partial" : "negative";
+    return { ...base, kind, test: "100", cc, amb };
+  }
+  // ردیفِ ۳ساعته‌ای که نامش شناخته نشد ⇒ آزمونِ ۱۰۰ گرمی بی‌حکم (همان رفتارِ P93).
+  if (e.ogtt100g) return { ...base, kind: "other_test", test: "100" };
+
+  // ── آزمونِ ۷۵ گرمی / ناشتای ابتدای بارداری ──
+  const fastDefinite = fastNamed && f >= GDM.F && (isOgttSheet || f >= GDM_FAST_EARLY);
+  const fastEarly = fastNamed && !isOgttSheet && f >= GDM.F && f < GDM_FAST_EARLY;
+  const defBy75 = (h1 != null && h1 >= GDM.H1) || (h2Ogtt && h2 >= GDM.H2) || (fastDefinite && isOgttSheet);
+  const definite = defBy75 || fastDefinite;
+  const conditional = fastEarly || (f != null && !fastNamed && f >= GDM.F) || (h2 != null && !h2Ogtt && h2 >= GDM.H2);
+  const judged75 = f != null || h1 != null || h2 != null;
+
+  // ── چالشِ ۵۰ گرمی ──
+  if (gct != null) {
+    const kind = gct >= GCT.DM ? "definite" : definite ? "definite" : gct >= GCT.POS ? "gct_positive" : conditional ? "conditional" : unjudged.length ? "partial" : "negative";
+    const test = gct >= GCT.DM ? "gct" : definite ? (defBy75 ? "75" : "fast") : gct >= GCT.POS ? "gct" : conditional ? "75" : "gct";
+    return { ...base, kind, test };
+  }
+  if (definite) return { ...base, kind: "definite", test: defBy75 ? "75" : "fast" };
+  if (conditional) return { ...base, kind: "conditional", test: "75" };
+  // عددِ بی‌واحدِ آزمون (مثلاً «GTT 1h 10.5» = ۱۸۹ اگر mmol/L) ⇒ «منفی» نمی‌گوییم (N4)؛ همان فوریتِ شرطی.
+  if (unjudged.length) return { ...base, kind: "partial", test: "75" };
+  if (isOgttSheet && judged75) return { ...base, kind: "negative", test: "75" };
+  // P93-ب: عددی که در بارداری معیارِ تشخیص نیست ولی بیرونِ بارداری «پیش‌دیابت» می‌گرفت (۲ساعتهٔ بعد از غذا ۱۴۰–۱۵۲، HbA1c ۵٫۷–۶٫۴).
+  //   قندِ تصادفیِ ≥ ۲۰۰ مالکِ خودش (glycemia) را نگه می‌دارد.
+  const ppMid = h2 != null && !h2Ogtt && h2 >= 140 && h2 < GDM.H2;
+  const a1cMid = a1c != null && a1c >= 5.7;
+  if ((ppMid || a1cMid) && !(rnd != null && rnd >= 200)) return { ...base, kind: "not_diagnostic", test: "none", ppMid, a1cMid };
+  return null;
 }
 
 function glucoseOwnerFires(e) { return dkaOwns(e) || hhsOwns(e) || severeGlucoseOwns(e); }

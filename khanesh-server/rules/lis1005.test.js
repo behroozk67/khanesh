@@ -571,7 +571,10 @@ test("GD1 — نام‌های GTT/OGTTِ دوساعته و یک‌ساعته ش�
     assert.deepEqual(e.graded.map((g) => g.test), ["GLU_2H"], n);
   }
   for (const n of ["GTT 1h", "OGTT 1 hr", "Glucose 1h"]) assert.deepEqual(run([row(n, "150", "mg/dL")]).e.noRef, ["GLU_1H"], n);
-  for (const n of ["GCT", "GTT 3h", "Random Urine Glucose"]) assert.deepEqual(run([row(n, "150", "mg/dL")]).e.unmapped, [n], n);
+  // P93-ب (عمداً تغییر کرد): GCT و ۳ساعته حالا کلید دارند (noRef بیرونِ بارداری)؛ قندِ ادرار همچنان نه.
+  assert.deepEqual(run([row("GCT", "150", "mg/dL")]).e.noRef, ["GLU_GCT"]);
+  assert.deepEqual(run([row("GTT 3h", "150", "mg/dL")]).e.noRef, ["GLU_3H"]);
+  assert.deepEqual(run([row("Random Urine Glucose", "150", "mg/dL")]).e.unmapped, ["Random Urine Glucose"]);
 });
 test("GD2 — بارداری: یک عدد به معیار ⇒ this_week؛ «بعد از غذا»/«Glucose»ِ برهنه ⇒ شرطی؛ همه زیرِ معیار ⇒ routine؛ بی‌«پیش‌دیابت»", () => {
   const ogtt = gdm([row("GTT fasting", "85", "mg/dL"), row("GTT 1h", "190", "mg/dL"), row("GTT 2h", "140", "mg/dL")]);
@@ -583,7 +586,12 @@ test("GD2 — بارداری: یک عدد به معیار ⇒ this_week؛ «بع
   assert.match(pp.headline, /ممکن است/);
   assert.match(pp.must_say, /اگر دو ساعت بعد از غذا گرفته شده، این معیار به آن نمی‌خورد/);
   assert.match(gdm([row("Glucose", "95", "mg/dL")]).headline, /ممکن است/);
-  assert.match(gdm([row("FBS", "95", "mg/dL")]).headline, /در محدودهٔ دیابتِ بارداری است/);
+  // P93-ب (عمداً تغییر کرد): انجمنِ غددِ ایران — ناشتای ابتدای بارداری از ۱۰۰؛ «FBS 95» بی‌نشانِ OGTT ⇒ شرطی، همان this_week.
+  const fbs95 = gdm([row("FBS", "95", "mg/dL")]);
+  assert.match(fbs95.headline, /ممکن است/); assert.equal(fbs95.urgency, "this_week");
+  assert.match(fbs95.must_say, /اگر آزمایشِ ناشتای ابتدای بارداری است، معیارِ آن ۱۰۰ است/);
+  assert.match(gdm([row("FBS", "105", "mg/dL")]).headline, /در محدودهٔ دیابتِ بارداری است/);
+  assert.match(gdm([row("GTT fasting", "95", "mg/dL"), row("GTT 2h", "120", "mg/dL")]).headline, /در محدودهٔ دیابتِ بارداری است/);
   assert.equal(gdm([row("FBS", "90", "mg/dL")]), undefined);
   const neg = gdm([row("GTT fasting", "80", "mg/dL"), row("GTT 1h", "150", "mg/dL"), row("GTT 2h", "120", "mg/dL")]);
   assert.equal(neg.urgency, "routine");
@@ -594,10 +602,11 @@ test("GD2 — بارداری: یک عدد به معیار ⇒ this_week؛ «بع
   }
   assert.match(gdm([row("FBS", "130", "mg/dL")]).headline, /نه فقط دیابتِ بارداری/);
 });
-test("GD3 — بی‌بارداری همان قبلی؛ آزمونِ ۱۰۰ گرمی بی‌حکم؛ قندِ ≥ ۲۵۰ زمان را از مالکِ خودش می‌گیرد", () => {
+test("GD3 — بی‌بارداری همان قبلی؛ ۳ساعته‌ای که نامش شناخته نشد بی‌حکم؛ قندِ ≥ ۲۵۰ زمان را از مالکِ خودش می‌گیرد", () => {
   const notPreg = run([row("OGTT 2h", "160", "mg/dL")], { sex: "F", age: 30 }).p.findings.map((f) => f.pattern);
   assert.deepEqual(notPreg, ["prediabetes_range"]);
-  const g100 = gdm([row("GTT fasting", "90", "mg/dL"), row("GTT 1h", "190", "mg/dL"), row("GTT 2h", "160", "mg/dL"), row("GTT 3h", "140", "mg/dL")]);
+  // P93-ب (عمداً تغییر کرد): «GTT 3h» حالا Carpenter-Coustan می‌گیرد (GD5)؛ نامِ ۳ساعتهٔ ناشناخته همان «بی‌حکم» می‌ماند.
+  const g100 = gdm([row("GTT fasting", "90", "mg/dL"), row("GTT 1h", "190", "mg/dL"), row("GTT 2h", "160", "mg/dL"), row("Glucose 3 hours after load", "140", "mg/dL")]);
   assert.equal(g100.urgency, "routine");
   assert.match(g100.must_say, /آزمونِ ۱۰۰ گرمی/);
   assert.doesNotMatch(g100.must_say, /به معیارِ/);
@@ -641,4 +650,50 @@ test("L26 — PLT ۵۰–۱۰۰: یک یافته، با عدد؛ «ایزوله�
   const anem = find(run([row("PLT", "70"), row("Hb", "9", "g/dL"), row("WBC", "6")]).p, "thrombocytopenia");
   assert.doesNotMatch(anem.must_say, /کاهش خفیف/);
   assert.match(find(run([row("PLT", "130")]).p, "thrombocytopenia").must_say, /کاهش خفیف/);
+});
+
+// ── P93-ب (۲۰۲۶-۱۰-۰۶): راهنمای انجمنِ غددِ ایران ۲۰۲۱ (IES_GDM_2021) — دومرحله‌ای، ۱۰۰ گرمی، و عددهای بی‌معیار در بارداری ──
+test("GD4 — چالشِ ۵۰ گرمی: < ۱۴۰ منفی (routine)، ۱۴۰–۱۹۹ مثبت ⇒ آزمونِ ۱۰۰ گرمی (this_week)، ≥ ۲۰۰ دیابتِ بارداری؛ بیرونِ بارداری بی‌حکم", () => {
+  const neg = gdm([row("GCT", "120", "mg/dL")]);
+  assert.equal(neg.urgency, "routine"); assert.match(neg.must_say, /غربالگریِ منفی/);
+  for (const v of ["140", "199"]) {
+    const pos = gdm([row("Glucose Challenge Test", v, "mg/dL")]);
+    assert.equal(pos.urgency, "this_week", v); assert.match(pos.headline, /آزمونِ تکمیلی لازم است/, v);
+    assert.match(pos.must_say, /به‌تنهایی دیابتِ بارداری را تشخیص نمی‌دهد/, v); assert.deepEqual(pos.suggest, ["تست تحمل قند ۱۰۰ گرمی"]);
+  }
+  assert.match(gdm([row("GCT", "210", "mg/dL")]).headline, /در محدودهٔ دیابتِ بارداری است/);
+  const np = run([row("GCT", "150", "mg/dL")], { sex: "F", age: 30 });
+  assert.deepEqual(np.p.findings.map((f) => f.pattern), []); assert.deepEqual(np.e.noRef, ["GLU_GCT"]);
+});
+test("GD5 — آزمونِ ۱۰۰ گرمی (Carpenter-Coustan ۹۵/۱۸۰/۱۵۵/۱۴۰): دو عدد قطعی، یک عدد شرطی، صفر منفی؛ بی‌«تفسیر نشدند»", () => {
+  const r = (a, b, c, d) => [row("GTT fasting", a, "mg/dL"), row("GTT 1h", b, "mg/dL"), row("GTT 2h", c, "mg/dL"), row("GTT 3h", d, "mg/dL")];
+  const two = gdm(r("90", "190", "160", "130"));
+  assert.match(two.headline, /در محدودهٔ دیابتِ بارداری است/); assert.equal(two.urgency, "this_week");
+  assert.match(two.must_say, /قند سه‌ساعتهٔ آزمون 130 است؛ به معیارِ ۱۴۰ نرسیده است/);
+  assert.deepEqual(two.explains, ["GLU_1H", "GLU_3H"]);
+  const one = gdm(r("90", "190", "150", "130"));
+  assert.match(one.headline, /ممکن است/); assert.equal(one.urgency, "this_week"); assert.match(one.must_say, /دست‌کم دو عدد/);
+  const zero = gdm(r("80", "150", "130", "110"));
+  assert.equal(zero.urgency, "routine"); assert.match(zero.headline, /نیست/);
+  const ids = run(r("90", "190", "160", "130"), preg).p.findings.map((f) => f.pattern);
+  assert.ok(!ids.some((i) => /prediabetes|diabetes_range$|unexplained/.test(i) && i !== "gestational_diabetes_range"), ids.join());
+});
+test("GD6 — در بارداری «پیش‌دیابت» نه: ۲ساعتهٔ بعد از غذا ۱۴۰–۱۵۲ و HbA1c ۵٫۷–۶٫۴ ⇒ «معیارِ تشخیص نیست» (routine)؛ قندِ تصادفیِ ≥ ۲۰۰ مالکِ خودش", () => {
+  for (const rows of [[row("2hpp", "145", "mg/dL")], [row("HbA1c", "5.9", "%")]]) {
+    const ids = run(rows, preg).p.findings.map((f) => f.pattern);
+    assert.deepEqual(ids, ["gestational_diabetes_range"], JSON.stringify(rows));
+    const g = gdm(rows);
+    assert.equal(g.urgency, "routine"); assert.match(g.headline, /معیارِ تشخیصِ دیابتِ بارداری نیست/);
+  }
+  assert.match(gdm([row("HbA1c", "5.9", "%")]).must_say, /HbA1c برای تشخیصِ دیابتِ بارداری به کار نمی‌رود/);
+  assert.equal(gdm([row("2hpp", "130", "mg/dL")]), undefined, "زیرِ ۱۴۰ بی‌یافته، مثلِ قبل");
+  assert.deepEqual(run([row("2hpp", "145", "mg/dL")], { sex: "F", age: 30 }).p.findings.map((f) => f.pattern), ["prediabetes_range"], "بیرونِ بارداری دست نخورد");
+  assert.ok(run([row("HbA1c", "5.9", "%"), row("Random Glucose", "220", "mg/dL")], preg).p.findings.some((f) => f.pattern === "diabetes_range"));
+});
+test("GD7 — N3: «GTT 1h 10.5 mmol/L» (= ۱۸۹) به معیار رسیده؛ بی‌واحد ⇒ سنجیده نمی‌شود و «منفی» هم گفته نمی‌شود", () => {
+  const mm = gdm([row("GTT 1h", "10.5", "mmol/L")]);
+  assert.match(mm.must_say, /10\.5 mmol\/L \(برابرِ 189 mg\/dL\) است؛ به معیارِ ۱۸۰ رسیده است/); assert.equal(mm.urgency, "this_week");
+  const ul = gdm([row("GTT fasting", "85", "mg/dL"), row("GTT 1h", "10.5")]);
+  assert.equal(ul.urgency, "this_week"); assert.match(ul.must_say, /واحدش چاپ نشده، پس با معیار سنجیده نشد/);
+  assert.doesNotMatch(ul.headline, /نیست$/);
 });

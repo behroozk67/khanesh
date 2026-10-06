@@ -236,6 +236,18 @@ export const GUIDELINES = {
     scope: 'معیارِ دیابتِ بارداری در آزمونِ ۷۵ گرمی و دیابتِ آشکار در بارداری',
   },
 
+  // P93-ب (۲۰۲۶-۱۰-۰۶): متن باز شد (brieflands). توصیه‌های ۸، ۹، ۱۱، ۱۵–۲۱ و جدولِ ۵ (Carpenter-Coustan) نقل‌به‌لفظ خوانده شد.
+  //   راهنمای «وزارتِ بهداشت» نیست؛ متن خودش می‌گوید کارگروهِ انجمن است. سندِ وزارت در این جلسه پیدا نشد.
+  IES_GDM_2021: {
+    org: 'Iranian Endocrine Society',
+    fa: 'انجمنِ غددِ درون‌ریزِ ایران',
+    title: 'Iranian Endocrine Society Guidelines for Screening, Diagnosis, and Management of Gestational Diabetes Mellitus (Int J Endocrinol Metab 2021;19(1):e107906)',
+    year: 2021,
+    url: 'https://doi.org/10.5812/ijem.107906',
+    access: 'open',
+    scope: 'ناشتای ابتدای بارداری ۱۰۰–۱۲۵، چالشِ ۵۰ گرمی ۱۴۰/۲۰۰، آزمونِ ۱۰۰ گرمی ۹۵/۱۸۰/۱۵۵/۱۴۰ (دو عدد)، ۷۵ گرمی ۹۲/۱۸۰/۱۵۳، HbA1c برای تشخیص نه',
+  },
+
   ADA_SOC: {
     org: 'ADA',
     fa: 'انجمن دیابت آمریکا',
