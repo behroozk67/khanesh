@@ -35,7 +35,7 @@ import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
-import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, valueConflictLines } from "./rules/prompt.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
@@ -1225,6 +1225,8 @@ const analyzeHandler = async (req, res) => {
         );
       }
       // specs/014 (P87، مرحلهٔ الف): ادرارِ ۲۴ساعته/مایعِ بدن — شناخته، بی‌حکم. هیچ یافته‌ای نمی‌سازد، پس فوریت دست نمی‌خورد.
+      // ۲۰۲۶-۱۰-۰۶: دو ردیف، دو عدد، یک آزمایش — عددِ بدتر سنجیده شد؛ بیمار باید بداند (VC1).
+      ocrWarnings.push(...valueConflictLines(engineOut.valueConflicts));
       const specLine = specimenLine(engineOut.specimen, patternOut.findings);
       if (specLine) ocrWarnings.push(specLine);
       // P49: مقداری که یافته‌ای تفسیرش کرده (ویلسون، آنتی‌بادی کنارِ B12ِ پایین) در این خط نمی‌آید.

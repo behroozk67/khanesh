@@ -466,3 +466,29 @@ test("RG2 — RBS 141–199 ⇒ random_glucose_above_range (routine)، بی‌«
   const printed = only([row("RBS", "150", "mg/dL"), row("FBS", "95", "")]).must_say;   // N4: چاپ‌شده ولی بی‌واحد ≠ «روی برگه نیست»
   assert.doesNotMatch(printed, /قندِ ناشتا و HbA1c روی این برگه نیست|قندِ ناشتا روی این برگه نیست/);
 });
+
+// ── ۲۰۲۶-۱۰-۰۶ (تصمیمِ کاربر، N25): دو ردیفِ هم‌کلید با دو عددِ متفاوت — «آخری برنده» بی‌صدا بود ──
+test("VC1 — «Potassium 7.0» + «K 4.2» ⇒ ۷ سنجیده می‌شود (هر ترتیبی)، ۴٫۲ «تفسیر نشدند» + هشدار؛ دو واحدِ یک عدد تعارض نیست", async () => {
+  const { valueConflictLines } = await import("./prompt.js");
+  for (const order of [[row("Potassium", "7.0", "mmol/L"), row("K", "4.2", "mmol/L")], [row("K", "4.2", "mmol/L"), row("Potassium", "7.0", "mmol/L")]]) {
+    const { e, p } = run(order, { sex: "M", age: 50 });
+    assert.equal(e.graded.find((g) => g.test === "K").value, 7);
+    assert.equal(p.overall_urgency, "emergency");
+    assert.deepEqual(e.unmapped, ["K"]);
+    const [line] = valueConflictLines(e.valueConflicts ?? []);
+    assert.match(line, /برای پتاسیم دو عددِ متفاوت روی برگه آمده است/);
+    assert.match(line, /دورتر است \(7\) تفسیر شد/);
+  }
+  // هر دو داخلِ محدوده ⇒ اولی، بی‌ادعای «دورتر»
+  const na = run([row("Na", "140", "mmol/L"), row("Sodium", "137", "mmol/L")], { sex: "M", age: 50 }).e;
+  assert.equal(na.graded.find((g) => g.test === "NA").value, 140);
+  assert.doesNotMatch(valueConflictLines(na.valueConflicts)[0], /دورتر/);
+  // عددِ ناممکن برنده نمی‌شود
+  assert.equal(run([row("K", "55", "mmol/L"), row("Potassium", "4.2", "mmol/L")]).e.graded.find((g) => g.test === "K").value, 4.2);
+  // کنترلِ منفی: دو واحدِ یک عدد، و تکرارِ یکسان
+  for (const rows of [[row("Creatinine", "1.2", "mg/dL"), row("Creatinine", "106", "µmol/L")], [row("HbA1c", "6.5", "%"), row("HbA1c", "48", "mmol/mol")], [row("Hb", "13", "g/dL"), row("Hemoglobin", "13.0", "g/dL")]]) {
+    const { e } = run(rows, { sex: "M", age: 50 });
+    assert.deepEqual(e.valueConflicts ?? [], [], JSON.stringify(rows));
+    assert.deepEqual(e.unmapped, [], JSON.stringify(rows));
+  }
+});

@@ -2138,6 +2138,11 @@ not by a test.
   neighbour», dropped the CBC WBC when urine came first. Re-run: only [129] changed (emergency → this_week), and no blood count went
   unmapped anywhere. Guard `L12` (red before: `actual 68, expected 7.8`). **Rule:** "last write wins" is a silent identity decision.
   Whenever two rows can reach one key, decide which is which, or grade neither.
+- ⚠️ **Recurred 2026-10-06 across different names (user decision, uncommitted): «Potassium 7.0» + «K 4.2» ⇒ K=4.2, the hyperkalaemia emergency silently lost.**
+  `mergePages` only catches rows with the *same* name. In `ocrToEngineInput` every write was "last wins". A write-tracker (a `Proxy` on `tests`, so all
+  ~20 write points are covered at once) collects candidates per key. After the loop, the value farthest outside the range is graded (a urgency floor,
+  N3), and impossible values are excluded from that choice. The others go to «تفسیر نشدند», with a warning (`valueConflictLines`). Values within 1% of each other (two
+  units of one number) are not a conflict. Guard `VC1`.
 - ⚠️ **Recurred 2026-10-06 on the same export (bug 5, uncommitted): the dipstick half of a combined sheet was unread.**
   `detectUrineOnlyPages` stops at any CBC marker, so `Blood 3+`, `Protein 1+` and `Glucose 3+` stayed `unmapped` (19/18/4 requests).
   `Leuko estr` matched no alias. The rules search `qual` for `Urine Blood`/`Urine Glucose`, so even a rescued bare name would not be read.

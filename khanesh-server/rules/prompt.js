@@ -565,6 +565,19 @@ function fluidTypeLabel(fluid) {
   return `نوع: ${FLUID_TYPE_FA[fluid.type]}`;
 }
 // مرحلهٔ ب: ردیفی که یافته‌ای تفسیرش کرده («FL_GLU:csf» در explains) در خطِ «بی‌حکم» تکرار نمی‌شود.
+// ۲۰۲۶-۱۰-۰۶ (تصمیمِ کاربر): دو ردیف با دو عددِ متفاوت برای یک آزمایش — عددِ دورتر از محدوده سنجیده شد (کفِ فوریت)؛ بیمار باید بداند.
+export function valueConflictLines(conflicts = []) {
+  return (conflicts ?? []).map((c) => {
+    const all = [c.kept, ...c.dropped].map((x) => `«${x.name}» ${x.value}`).join("، ");
+    const why = c.reason === "worse"
+      ? "عددی که از محدودهٔ طبیعی دورتر است"
+      : "عددِ ردیفِ اول";
+    return `برای ${c.name} دو عددِ متفاوت روی برگه آمده است (${all}). ${why} (${c.kept.value}) تفسیر شد` +
+      (c.reason === "worse" ? " تا اگر درست باشد از دست نرود" : "") +
+      "؛ لطفاً با برگه مقایسه کنید و این را به پزشک بگویید.";
+  });
+}
+
 export function specimenLine(specimen, findings = []) {
   const explained = new Set((findings ?? []).flatMap((f) => f.explains ?? []));
   const open = (r) => !explained.has(`${r.id}:${r.fluid?.type ?? ""}`);

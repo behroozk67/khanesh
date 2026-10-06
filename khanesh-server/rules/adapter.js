@@ -1172,7 +1172,26 @@ function possibleValue(key, v) {
 }
 
 export function ocrToEngineInput(ocr) {
-  const tests = {};
+  // ═══ دو ردیف، دو عدد، یک آزمایش (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر) ═══
+  // 🔴 اندازه‌گیری‌شده: «Potassium 7.0» + «K 4.2» ⇒ K=4.2؛ اورژانسِ هیپرکالمی بی‌صدا گم می‌شد. هر نقطهٔ نوشتن «آخری برنده» بود
+  //    و mergePages فقط نام‌های یکسان را می‌گرفت. این ردیاب همهٔ نوشتن‌های حلقهٔ اصلی را می‌بیند (یک گلوگاه، نه بیست ویرایش).
+  //    پس از حلقه: عددی که دورتر از محدوده است سنجیده می‌شود (کفِ فوریت، N3)، بقیه «تفسیر نشدند» + هشدار. گارد VC1.
+  const testsObj = {};
+  let curRow = null;
+  const writer = {};
+  const candidates = {};
+  const tests = new Proxy(testsObj, {
+    set(o, k, v) {
+      if (curRow && typeof k === "string" && !k.startsWith("_") && typeof v === "number") {
+        if (writer[k] && writer[k] !== curRow && typeof o[k] === "number") {
+          (candidates[k] ??= [{ name: writer[k].name, value: o[k] }]).push({ name: curRow.name, value: v });
+        }
+        writer[k] = curRow;
+      }
+      o[k] = v;
+      return true;
+    },
+  });
   const qual = {};
   const unmapped = [];
   const rowNames = {};       // کلیدِ موتور ← نامِ چاپ‌شدهٔ اولین ردیف (برای unmappedِ عددِ ناممکن)
@@ -1271,6 +1290,7 @@ export function ocrToEngineInput(ocr) {
 
   for (let t of ocr?.tests || []) {
     if (!t?.name) continue;
+    curRow = { name: t.name };
     {
       const tw = twinRoutes.get(t);
       if (tw === "conflict") { unmapped.push(t.name); continue; }
@@ -1919,6 +1939,30 @@ export function ocrToEngineInput(ocr) {
     tests[engineKey] = v;
   }
 
+  curRow = null;
+  const valueConflicts = [];
+  {
+    const sexR = inferSex(ocr), ageR = inferAge(ocr) ?? 40;
+    const same = (a, b) => Math.abs(a - b) <= 0.01 * Math.max(Math.abs(a), Math.abs(b));   // دو واحدِ یک عدد (کراتینین ۱٫۲ و ۱۰۶ µmol/L)
+    for (const [k, list] of Object.entries(candidates)) {
+      const uniq = list.filter((c, i) => !list.slice(0, i).some((p) => same(p.value, c.value)));
+      if (uniq.length < 2) { testsObj[k] = list[0].value; continue; }
+      // عددِ ناممکن در انتخاب شرکت نمی‌کند (خودش پایین‌تر «تفسیر نشدند» می‌شود)؛ اگر هیچ‌کدام ممکن نیست، رفتارِ قبلی.
+      const live = uniq.filter((c) => possibleValue(k, c.value));
+      if (!live.length) continue;
+      const r = getRef(k, sexR, ageR);
+      const width = r ? Math.max(r[1] - r[0], 1e-9) : 1;
+      const off = (v) => (r ? Math.max(r[0] - v, v - r[1], 0) / width : 0);
+      // بدترین: دورترین از محدوده؛ تساوی ⇒ اولی (قاعدهٔ هموستاز).
+      const kept = live.reduce((best, c) => (off(c.value) > off(best.value) ? c : best), live[0]);
+      testsObj[k] = kept.value;
+      const dropped = uniq.filter((c) => c !== kept);
+      for (const d of dropped) if (!unmapped.includes(d.name)) unmapped.push(d.name);
+      const reason = off(kept.value) > Math.max(...dropped.map((d) => (possibleValue(k, d.value) ? off(d.value) : -1))) ? "worse" : "first";
+      valueConflicts.push({ key: k, name: faName(k), kept, dropped, reason });
+    }
+  }
+
   // ═══ عددِ ناممکن سنجیده نمی‌شود (بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵، N3) ═══
   // 🔴 «K 55» (اعشارِ افتاده)، «K 2,625» (کامای سه‌رقمی ⇒ ۲۶۲۵) و «Na 1400» اورژانسِ هیپرکالمی/هیپرناترمی می‌گرفتند — در «K 2,625»
   //    جهت هم وارونه بود (پتاسیمِ پایین). «HCT 2» از «HCT 8»ِ اورژانسی «نوبتِ عادی» می‌گرفت. عددی که با هیچ بدنِ زنده‌ای جور
@@ -2021,7 +2065,8 @@ export function ocrToEngineInput(ocr) {
   }
 
   return {
-    tests,
+    tests: testsObj,
+    valueConflicts,
     qual,
     semenQual,
     smear: mergeSmear(smearItems),
@@ -2057,7 +2102,7 @@ function inferPregnant(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, valueConflicts } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
 
   // specs/011 (P66): شناسه یا برچسبِ قدیمیِ فارسی → شناسهٔ کاتالوگ. regexِ سرطان همان قبلی است (در conditions.js).
@@ -2458,6 +2503,8 @@ export function runEngine(ocr) {
     ungraded,
     indices: idx,
     unmapped,
+    // دو عددِ متفاوت برای یک آزمایش (۲۰۲۶-۱۰-۰۶): server.js هشدار می‌سازد. فقط وقتی هست، تا فریزها دست نخورند.
+    ...(valueConflicts.length ? { valueConflicts } : {}),
     unitConversions,
     noRef,
     diffFailed,
