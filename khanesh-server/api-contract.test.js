@@ -1044,7 +1044,20 @@ test("L18b: برگهٔ فقط-ادرار — «Urine Culture: No growth» و «p
 });
 
 // بند ۵ (۲۰۲۶-۱۰-۰۶، تصمیمِ «الف»): برگه‌ای که همهٔ ردیف‌هایش خوانده شد و منفی بود «تفسیر نشد … هیچ‌کدام را نشناخت» می‌گرفت (۱۲ از ۲۳۶).
-test("T57: ادرارِ کاملاً منفی و تروپونینِ منفیِ تنها ⇒ «همه منفی»، نه «تفسیر نشد»؛ ردیفِ ناشناخته همان مسیرِ قبلی", async () => {
+// بندِ ۴ (۲۰۲۶-۱۰-۰۶، [57]): ادرارِ منفی با یک ردیفِ ناخوانا («Sp.Gravity 1.0») «هیچ‌کدام از مقادیر را نشناخت» می‌گرفت.
+test("L24b: برگهٔ ادرارِ منفی با یک ردیفِ ناخوانا ⇒ «بخشی از این برگه تفسیر نشد»، نه «هیچ‌کدام را نشناخت»؛ بی‌حکمِ «طبیعی»", async () => {
+  const r = await analyzePhoto({ sex: "زن", age: "7" }, { sex: "زن", age: "7 سال" },
+    [["Color", "Yellow"], ["Appearance", "Clear"], ["Protein", "negative"], ["Blood", "negative"], ["Nitrite", "Negative"],
+      ["Leuko estr", "negative"], ["Ketone", "negative"], ["Sp.Gravity", "1.0"]].map(([name, value]) => ({ name, value, unit: "" })));
+  assert.equal(r.status, 200);
+  assert.equal(r.body.summary, "بخشی از این برگه تفسیر نشد. این به معنای «طبیعی» بودن آن بخش نیست.");
+  assert.match(r.body.interpretation, /ردیفِ این برگه را خواند و در آن‌ها یافتهٔ غیرعادی ندید/);
+  assert.match(r.body.interpretation, /Sp\.Gravity/);
+  assert.doesNotMatch(JSON.stringify(r.body), /هیچ‌کدام از مقادیرِ این برگه را نشناخت|رقیق/);
+  assert.equal(r.body.has_critical, false);
+});
+
+test("T59: ادرارِ کاملاً منفی و تروپونینِ منفیِ تنها ⇒ «همه منفی»، نه «تفسیر نشد»؛ ردیفِ ناشناخته همان مسیرِ قبلی", async () => {
   const urine = await analyze({
     patient: { age: 30, sex: "F" },
     tests: [["Color", "Yellow"], ["Appearance", "Clear"], ["PH", "Acid"], ["Protein", "negative"], ["Blood", "negative"], ["Glucose", "negative"],

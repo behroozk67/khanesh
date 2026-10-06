@@ -105,7 +105,9 @@ export const PREANALYTICAL_RULES = [
 
   {
     id: 'edta_pseudothrombocytopenia',
-    attachTo: ['thrombocytopenia', 'severe_thrombocytopenia'],
+    // بندِ ۴ (LIS ۲۰۲۶-۱۰-۰۶): PLT ۵۰–۱۰۰ با Hb/WBCِ طبیعی حالا فقط isolated_thrombocytopenia دارد (thrombocytopenia کنار می‌رود) —
+    //   بی‌این، احتیاطِ EDTA از دقیقاً همان برگه‌ای می‌افتاد که برایش نوشته شده (N20: محتوای یافتهٔ کنارگذاشته). گارد G4.
+    attachTo: ['thrombocytopenia', 'severe_thrombocytopenia', 'isolated_thrombocytopenia'],
     // پلاکتِ پایینِ «تنها» — با هموگلوبین و گلبول سفیدِ طبیعی. در لولهٔ EDTA
     // پلاکت‌ها می‌توانند به هم بچسبند و دستگاه کمتر بشمارد. این یک تشخیصِ
     // آزمایشگاهی است، نه بیماری — و با لام یا لولهٔ سیترات رد می‌شود.

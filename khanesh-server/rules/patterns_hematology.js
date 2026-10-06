@@ -16,6 +16,7 @@ const printedUngraded = (e, k) => !!(e.ungraded?.[k] || e.noRef?.includes(k));
 const STOOL_BLACK_RE = /^(black|blackish|tarry|tar[\s-]*like|melena|melaena|سیاه|سیاه‌رنگ|سیاه رنگ|قیری|قیرمانند|قیری‌شکل)$/i;
 
 const LEUK_CYTO_IDS = new Set(["leukocytosis_with_cytopenia", "reactive_leukocytosis_with_cytopenia"]);
+const isolatedThrombocytopeniaFires = (e) => !!RULES_MALIGNANCY.find((r) => r.id === "isolated_thrombocytopenia")?.match(e);
 const leukCytopeniaOwns = (e) => RULES_MALIGNANCY.some((r) => LEUK_CYTO_IDS.has(r.id) && r.match(e));
 import { isNeonate, inNeonatalRedCellPeriod, ageFa, NEONATAL_DANGER_WARNING, NEONATAL_SAMEDAY_ACTION, neutMissingText, neonatalContextText,
   plateletAbnormal, plateletIndicesText, indicesInconsistentText, neonatalLowRbcClause } from "./neonatal.js";
@@ -805,19 +806,26 @@ export const RULES_HEMATOLOGY = [
   },
   {
     id: "thrombocytopenia",
+    // 🔴 بندِ ۴ (LIS ۲۰۲۶-۱۰-۰۶، N20): PLT ۵۰–۱۰۰ با Hb/WBCِ طبیعی دو یافته داشت — این («کاهش خفیف … فقط پیگیری») و
+    //   isolated_thrombocytopenia («ITP»). مالکِ آن ناحیه isolated_thrombocytopenia است؛ این قاعده می‌پرسد «آن فعال است؟»
+    //   (قاعدهٔ زنده، نه آستانهٔ کپی‌شده — M91e). گارد L26.
     match: (e) => {
       const p = e.graded.find((g) => g.test === "PLT");
-      return p?.abnormal && p.dir === "low" && p.value >= 50;
+      return p?.abnormal && p.dir === "low" && p.value >= 50 && !isolatedThrombocytopeniaFires(e);
     },
     build: (e) => {
       const p = e.graded.find((g) => g.test === "PLT");
+      // «خفیف» فقط وقتی سطحِ CTCAE واقعاً خفیف است (PLT ۶۰/۷۰ «خفیف» خوانده می‌شد).
+      const mild = !p.level || p.level === "mild";
       return {
         pattern: "thrombocytopenia",
         urgency: "this_week",
         headline: "پلاکت خون شما کمتر از حد طبیعی است",
         must_say:
           `پلاکت شما ${p.value} است (حد طبیعی ${p.range}). ` +
-          "پلاکت‌ها جلوی خونریزی را می‌گیرند. کاهش خفیف اغلب علت موقتی دارد (عفونت ویروسی، برخی داروها) و باید فقط پیگیری شود؛ خطر خونریزی معمولاً وقتی جدی می‌شود که پلاکت خیلی پایین‌تر بیاید.",
+          (mild
+            ? "پلاکت‌ها جلوی خونریزی را می‌گیرند. کاهش خفیف اغلب علت موقتی دارد (عفونت ویروسی، برخی داروها) و باید فقط پیگیری شود؛ خطر خونریزی معمولاً وقتی جدی می‌شود که پلاکت خیلی پایین‌تر بیاید."
+            : "پلاکت‌ها جلوی خونریزی را می‌گیرند. این مقدار کاهشِ خفیف نیست؛ علت‌های شایعش (عفونت ویروسی، برخی داروها) موقتی‌اند، ولی پزشک باید علتش را بررسی کند. خطر خونریزی معمولاً وقتی جدی می‌شود که پلاکت خیلی پایین‌تر بیاید."),
         action: "این هفته با پزشک وقت بگیرید.",
         suggest: ["تکرار CBC"],
         warnings: ["اگر خونریزی یا کبودی بی‌دلیل دیدید، زودتر مراجعه کنید."],

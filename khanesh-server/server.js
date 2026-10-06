@@ -150,10 +150,11 @@ export function unreadQualRows(engineOut, patternOut, { onlyUrineDipstick = fals
  * بند ۵ (LIS ۲۰۲۶-۱۰-۰۶، تصمیمِ «الف»): برگه‌ای که موتور همهٔ ردیف‌هایش را خواند و هیچ‌کدام چیزی نشان نداد (ادرارِ کاملاً منفی، تروپونین/CRPِ
  * منفیِ تنها). پیش از این «این برگه تفسیر نشد … هیچ‌کدام را نشناخت» می‌گرفت — دربارهٔ ۱۸ ردیفِ خوانده‌شده دروغ (۱۲ درخواست از ۲۳۶).
  * فقط وقتی: هیچ یافته‌ای، هیچ ردیفِ نشناخته‌ای، و هر ردیفِ کیفی منفی/اندازه/ظاهرِ معمول یا شمارشِ ادرارِ خوانده‌شده است. سوگیری به سمتِ
- * «تفسیر نشد»: هر ردیفِ دیگری («Bacteria: Few») برگه را در همان مسیرِ قبلی نگه می‌دارد. گارد T57.
+ * «تفسیر نشد»: هر ردیفِ دیگری («Bacteria: Few») برگه را در همان مسیرِ قبلی نگه می‌دارد. گارد T59.
  */
-export function qualAllReadNegative(engineOut, patternOut) {
-  if ((patternOut?.findings ?? []).length || (engineOut?.unmapped ?? []).length) return false;
+// `ignoreUnmapped`: بندِ ۴ ([57]) — فقط برای متنِ «بخشی تفسیر نشد» در buildUninterpretedResult، هرگز برای مسیرِ «همه منفی».
+export function qualAllReadNegative(engineOut, patternOut, { ignoreUnmapped = false } = {}) {
+  if ((patternOut?.findings ?? []).length || (!ignoreUnmapped && (engineOut?.unmapped ?? []).length)) return false;
   const rows = Object.entries(engineOut?.qual ?? {});
   return rows.length > 0 && rows.every(([name, value]) => {
     const v = String(value ?? "").trim();
@@ -1137,6 +1138,7 @@ const analyzeHandler = async (req, res) => {
     // کاربر به‌جای تفسیر، دست خالی نماند.
     let engineCandidate = null;
     let unmappedAtFallback = [];
+    let readNegativeAtFallback = 0;     // بندِ ۴ ([57]): ردیف‌های خوانده‌شدهٔ بی‌یافته روی برگهٔ «تفسیر نشد»
     let recognizedAtFallback = null;   // specs/014: خطِ «شناخته شد»ِ برگهٔ فقط-ادرارِ ۲۴ساعته/مایع (پیش از null شدنِ engineCandidate)
     let routedByQual = false;   // specs/011: برگه فقط به‌خاطرِ ردیف‌های کیفیِ صاحب‌دار در مسیرِ موتور ماند
     if (lastMergedOcr) {
@@ -1198,7 +1200,7 @@ const analyzeHandler = async (req, res) => {
       const ownedSpecimen = ((engineCandidate.specimen?.fluid?.length ?? 0) + (engineCandidate.specimen?.u24?.length ?? 0)) > 0 &&
         runPatterns(engineCandidate).findings.length > 0;
       routedByQual = ownedQual && engineCandidate.graded.length === 0;
-      // بند ۵: همهٔ ردیف‌ها خوانده شد و منفی بود ⇒ مسیرِ موتور با نتیجهٔ «همه منفی»، نه «تفسیر نشد» (T57).
+      // بند ۵: همهٔ ردیف‌ها خوانده شد و منفی بود ⇒ مسیرِ موتور با نتیجهٔ «همه منفی»، نه «تفسیر نشد» (T59).
       const allReadNegative = engineCandidate.graded.length === 0 && qualAllReadNegative(engineCandidate, runPatterns(engineCandidate));
       if (engineCandidate.graded.length === 0 && !ownedUngraded && !(engineCandidate.noRef?.length) && !hasHemostasis && !hasPrenatal && !ownedQual && !ownedSpecimen && !allReadNegative) {
         console.warn(
@@ -1206,6 +1208,10 @@ const analyzeHandler = async (req, res) => {
           `نگاشت‌نشده: ${engineCandidate.unmapped.join(", ") || "—"}`
         );
         unmappedAtFallback = engineCandidate.unmapped;
+        // بندِ ۴ ([57]): ردیف‌های خوانده‌شده‌ای که چیزی نشان ندادند — تا نتیجه نگوید «هیچ‌کدام را نشناخت» (L24b).
+        readNegativeAtFallback = engineCandidate.graded.length === 0 &&
+          qualAllReadNegative(engineCandidate, runPatterns(engineCandidate), { ignoreUnmapped: true })
+          ? Object.keys(engineCandidate.qual ?? {}).length : 0;
         recognizedAtFallback = specimenLine(engineCandidate.specimen);
         engineCandidate = null;
       }
@@ -1325,7 +1331,7 @@ const analyzeHandler = async (req, res) => {
     //   مرحلهٔ الف یعنی «بی‌حکم»، و مسیرِ قدیم متنِ خام را به مدل می‌دهد تا خودش حکم کند.
     if (!engineCandidate && (!LEGACY_ALLOWED || USE_GRAPH || recognizedAtFallback)) {
       console.warn("⚠️ موتور برگه را نشناخت و مسیرِ قدیم بسته است — نتیجهٔ «تفسیر نشد» بی‌فراخوانیِ مدل");
-      const out = buildUninterpretedResult(unmappedAtFallback, { listShown: extractedTests.length > 0, recognized: recognizedAtFallback });
+      const out = buildUninterpretedResult(unmappedAtFallback, { listShown: extractedTests.length > 0, recognized: recognizedAtFallback, readNegative: readNegativeAtFallback });
       if (recognizedAtFallback) ocrWarnings.push(recognizedAtFallback);
       if (extractedTests.length) out.extracted_tests = extractedTests;
       if (ocrWarnings.length) out.ocr_warnings = ocrWarnings;

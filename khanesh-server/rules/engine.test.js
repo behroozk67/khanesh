@@ -2080,8 +2080,10 @@ test("G4: پلاکتِ پایینِ منفرد، احتمالِ لختهٔ EDTA 
     ],
   });
   const p = runPatterns(e);
-  const t = p.findings.find((x) => x.rule_id === "thrombocytopenia");
+  // بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، عمدی): PLT ۹۵ با Hb/WBCِ طبیعی حالا یک مالک دارد — isolated_thrombocytopenia (N20)؛ احتیاطِ EDTA با آن می‌رود.
+  const t = p.findings.find((x) => x.rule_id === "isolated_thrombocytopenia");
   assert.ok(t, "قاعدهٔ ترومبوسیتوپنی باید فعال باشد");
+  assert.ok(!p.findings.some((x) => x.rule_id === "thrombocytopenia"), "دو یافته برای یک پلاکت");
   assert.ok(t.warnings.some((w) => w.includes("EDTA")));
 });
 
@@ -6474,7 +6476,7 @@ test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ ام
     //   isolated_thrombocytopenia عوض شد (probe: بقیهٔ یافته‌ها بایت‌به‌بایت همان).
     // بازپایهٔ عمدی (باگِ ۶، LIS ۲۰۲۶-۱۰-۰۶): liver_pattern حالا عددِ ALT/AST را در آغازِ must_say نقل می‌کند (N5)؛ با حذفِ همین
     //   پیشوند هش بایت‌به‌بایت همان db536cbb6c334e6e است.
-    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "9672d1bc9a4ce286"],
+    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "3272562e0b81615b"], // ⚠️ بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، عمدی): فقط ترومبوسیتوپنی — thrombocytopenia رفت، isolated عدد/بازه و بی‌«ایزوله» (Hb/WBC روی برگه نیست)؛ فوریت همان
     uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
     thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "0da3c35337661135"],
     // prl_thyroid برداشته شد (۲۰۲۶-۱۰-۰۳): پرولاکتین با تأییدِ P46 بند ۱ بازه و قاعده گرفت (hyperprolactinemia، M101–M101e)،
@@ -8848,7 +8850,9 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   // اندیس‌های ۲، ۳، ۶، ۷، ۹، ۱۰.
   // ⚠️ اندیس ۹ عمداً عوض شد (M275، ۲۰۲۶-۱۰-۰۱): leukocytosis نوتروفیلِ مطلقِ بالا را می‌گوید و unexplained_abnormal رفت — freezediff: فقط همین.
   // ⚠️ 3، 5، 10 عمداً عوض شد (M192، ۲۰۲۶-۰۹-۲۴): کم‌خونی RBC/HCT/MCHِ هم‌جهت را نام می‌برد و unexplained_abnormal رفت — freezediff: فقط همین. // ⚠️ اندیسِ ۱۱ عمداً عوض شد (۲۰۲۶-۱۰-۰۴، P77-۸): هماتوکریتِ کودکِ ۸ ساله بی‌بازهٔ سنی دیگر سنجیده نمی‌شود (noRef)؛ هش با دو ردیفِ بی‌یافتهٔ اول یکی است.
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","a9607b22be77c6ff","3bf61851eec439b1","c979a7f9f4e6d5f6","5e02ded58b6743fe","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","a9607b22be77c6ff","3bf61851eec439b1","c979a7f9f4e6d5f6","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
+  // ⚠️ اندیسِ ۸ (PLT 90، Hb/WBCِ طبیعی) عمداً عوض شد — بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، N20): thrombocytopenia کنارِ isolated_thrombocytopenia
+  //   کنار رفت؛ isolated عدد/بازه (به‌جای «به زیر ۱۰۰ هزار») و «تکرار CBC» گرفت. فوریت همان this_week (proof4.mjs، کپیِ pre4).
   assert.deepEqual(P.map(snap), EXPECTED);
 });
 
@@ -11780,8 +11784,9 @@ test("M253: vwf_panel — نسبتِ نقل‌شده، شریکِ غایب، د�
   // N20: پلاکتِ پایین کنارِ vWFِ پایین — هیچ must_sayی زمان‌بندی نمی‌گوید
   const p = m010Run([m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 90, "10^3/uL"),
     m010T("vWF:Ag", 25, "%", "50-160"), m010T("vWF:RCo", 10, "%", "50-160")], { sex: "F", age: 30 });
-  assert.ok(p.ids.includes("vwf_panel") && p.ids.includes("thrombocytopenia"), String(p.ids));
-  for (const f of p.p.findings.filter((x) => ["vwf_panel", "thrombocytopenia"].includes(x.pattern)))
+  // بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، عمدی): PLT ۹۰ با Hb/WBCِ طبیعی مالکش isolated_thrombocytopenia است، نه thrombocytopenia (N20).
+  assert.ok(p.ids.includes("vwf_panel") && p.ids.includes("isolated_thrombocytopenia"), String(p.ids));
+  for (const f of p.p.findings.filter((x) => ["vwf_panel", "isolated_thrombocytopenia"].includes(x.pattern)))
     assert.doesNotMatch(f.must_say, /این هفته|همین امروز|فوراً|اورژانس/, `${f.pattern}: زمان‌بندی در must_say`);
 });
 
@@ -11854,7 +11859,7 @@ const M010_FREEZE = {
   bare_inhibitor: ["M", 25, [...M010_BASE, m010T("Inhibitor", "Positive")], "f1317c856c6d3301"],
   // P91 (عمدی): فقط متن/پیشنهادِ maha_ttp_suspicion بی‌نشانگرِ همولیز؛ با patterns_malignancy.js ِ HEAD همان a191747c38d3b902.
   maha: ["F", 40, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 8, "g/dL"), m010T("PLT", 30, "10^3/uL")], "7ba7e24b48eebd59"],
-  plt_80: ["M", 40, [...M010_BASE, m010T("PLT", 80, "10^3/uL")], "5f0def5fcc135013"],
+  plt_80: ["M", 40, [...M010_BASE, m010T("PLT", 80, "10^3/uL")], "6e3e20993d98958a"], // ⚠️ بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، عمدی): thrombocytopenia کنارِ isolated_thrombocytopenia رفت؛ isolated عدد/بازه + احتیاطِ EDTA + هشدارِ کبودی؛ فوریت همان
 };
 
 test("M256: پلاکتِ ≥ ۱۰۰۰ ⇒ thrombocytosis «این هفته» بی «در بیشتر موارد واکنشی»؛ ۹۹۹ و ۵۰۰ بایت‌به‌بایت همان پیشین (FR-017)", () => {

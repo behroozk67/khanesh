@@ -865,6 +865,16 @@ function sgValue(v) {
   if (!m) return null;
   let n = parseFloat(m[1]);
   if (n >= 1000 && n <= 1060) n /= 1000;
+  else {
+    // 🔴 بندِ ۴ (LIS ۲۰۲۶-۱۰-۰۶، [57]، N3/N6): «1.0» با کمتر از سه رقمِ اعشار یعنی ۱.۰۰۰ تا ۱.۰۰۹ — هم «رقیق» هم معمول. کودکِ ۷ ساله
+    //   «ادرارِ خیلی رقیق» خواند. مقدارِ کوتاه فقط وقتی پذیرفته است که همهٔ خوانش‌هایش در یک دسته باشند («1.02» ⇒ ۱.۰۲۰–۱.۰۲۹، معمول)؛
+    //   وگرنه ناخوانا ⇒ «تفسیر نشدند». گارد L24.
+    const dec = (m[1].split(".")[1] ?? "").length;
+    if (dec < 3) {
+      const band = (x) => (x < SG_DILUTE_MAX ? "dilute" : x > SG_CONCENTRATED_MIN ? "conc" : "normal");
+      if (band(n) !== band(n + 10 ** -dec - 1e-9)) return null;
+    }
+  }
   return n >= 1.0 && n <= 1.06 ? n : null;
 }
 /** "dilute" | "usual" | "concentrated" | "unknown" | "absent" */

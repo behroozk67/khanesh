@@ -1821,6 +1821,11 @@ class is not covered by any entry above and it is trivially easy to reintroduce.
   endocrinologist (`M311`). **A new active condition is a clinical decision (P66); `M280` goes red on a silent one — update it on purpose.**
 
 
+- ⚠️ **Recurred 2026-10-06 on platelets (item 4 of the 236-request LIS review, `P94`, uncommitted).** PLT 50–100 beside a normal Hb/WBC fired
+  both `thrombocytopenia` («کاهش خفیف … فقط پیگیری») and `isolated_thrombocytopenia` («ITP»), which also said «به زیر ۱۰۰ هزار» at exactly 100
+  and quoted no number. Now `thrombocytopenia` stands down by calling the live rule. The owner gained the number, the bruising warning and «تکرار CBC».
+  **The EDTA caveat was attached by rule id (`preanalytical.js` `attachTo`)**, so the hand-off would have silently dropped it from the one sheet it
+  was written for. G4 caught that. When a rule stands down, grep its id outside `patterns_*.js` too. Guard `L26`.
 - ⚠️ **2026-10-06 (P91), a guideline-shaped proposal measured before it was built.** A sourced summary proposed TTP ⇒ emergency on
   "PLT < 150 + low Hb + any haemolysis marker". On the 236-request LIS export that fires twice. One is a 30-year-old post-partum woman,
   PLT 133, Hb 8.5, raised LDH, which is common after delivery: `this_week` would have become a TTP emergency. Only the text change shipped

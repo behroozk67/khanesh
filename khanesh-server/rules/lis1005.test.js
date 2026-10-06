@@ -603,3 +603,42 @@ test("GD3 — بی‌بارداری همان قبلی؛ آزمونِ ۱۰۰ گر
   assert.doesNotMatch(g100.must_say, /به معیارِ/);
   assert.match(gdm([row("FBS", "300", "mg/dL")]).action, /یافتهٔ «قندِ بسیار بالا»/);
 });
+
+// ── بندِ ۴، بخشِ فنی (۲۰۲۶-۱۰-۰۶، بی‌تصمیمِ بالینی؛ هر چهار روی کدِ پیش از رفع قرمز) ──
+test("L23 — [17] «R.B.C = 4..81» (نقطهٔ دوتایی) بی‌صدا در qual نمی‌ماند ⇒ «تفسیر نشدند»", () => {
+  const { e } = run([row("R.B.C", "4..81"), row("Hb", "16.1", "g/dL"), row("Hct", "45.7")], { sex: "M", age: 43 });
+  assert.deepEqual(e.unmapped, ["R.B.C"]);
+  assert.equal(e.qual["R.B.C"], undefined);
+  assert.deepEqual(run([row("RBC", "4.81")], { sex: "M", age: 43 }).e.graded.map((g) => g.test), ["RBC"], "عددِ سالم دست نخورد");
+});
+
+test("L24 — [57] وزنِ مخصوصِ «1.0» (کمتر از سه رقمِ اعشار، دو دسته) «خیلی رقیق» نمی‌شود؛ «1.02» و «1.030» همان", async () => {
+  const { sgValue } = await import("./patterns_utils.js");
+  for (const v of ["1.0", "1", "1.03"]) assert.equal(sgValue(v), null, v);
+  assert.equal(sgValue("1.02"), 1.02); assert.equal(sgValue("1.030"), 1.03); assert.equal(sgValue("1030"), 1.03); assert.equal(sgValue("1.000"), 1);
+  const { e, p } = run([row("Sp.Gravity", "1.0"), row("Nitrite", "Negative"), row("Leuko estr", "negative")], { sex: "F", age: 7 });
+  assert.deepEqual(e.unmapped, ["Sp.Gravity"]);
+  assert.ok(!p.findings.some((f) => f.rule_id === "urine_specific_gravity"), "«ادرارِ رقیق» از عددِ بریده");
+});
+
+test("L25 — crp_pos_esr_normal: فوریتِ this_week و جملهٔ «این هفته» یکی‌اند (N20)", () => {
+  const f = find(run([row("CRP", "Positive"), row("ESR", "10")], { sex: "F", age: 40 }).p, "crp_pos_esr_normal");
+  assert.equal(f.urgency, "this_week");
+  assert.match(f.action, /این هفته/);
+});
+
+test("L26 — PLT ۵۰–۱۰۰: یک یافته، با عدد؛ «ایزوله» فقط بی‌RBC/HCTِ پایین؛ «خفیف» فقط در سطحِ خفیف (N20، N5، N21)", () => {
+  const ids = (rows) => run(rows, { sex: "F", age: 40 }).p.findings.map((f) => f.rule_id).filter((i) => /thrombocytopenia/.test(i));
+  const base = [row("Hb", "13", "g/dL"), row("WBC", "6")];
+  for (const v of ["60", "70", "100"]) assert.deepEqual(ids([row("PLT", v), ...base]), ["isolated_thrombocytopenia"], v);
+  const p100 = find(run([row("PLT", "100"), ...base]).p, "isolated_thrombocytopenia");
+  assert.doesNotMatch(p100.must_say, /زیر ۱۰۰ هزار/); assert.match(p100.must_say, /پلاکت شما 100 است/);
+  assert.ok(p100.warnings.some((w) => /EDTA/.test(w)) && p100.warnings.some((w) => /کبودی/.test(w)), "محتوای thrombocytopenia گم شد");
+  const red = find(run([row("PLT", "70"), ...base, row("RBC", "3.5"), row("HCT", "33")]).p, "isolated_thrombocytopenia");
+  assert.doesNotMatch(red.headline + red.must_say, /ایزوله|سایر رده‌های خونی طبیعی/);
+  assert.match(red.must_say, /هماتوکریت \(33\)/);
+  // با Hbِ پایین مالک همان thrombocytopenia است، و ۷۰ «خفیف» نیست؛ ۱۳۰ هنوز خفیف است.
+  const anem = find(run([row("PLT", "70"), row("Hb", "9", "g/dL"), row("WBC", "6")]).p, "thrombocytopenia");
+  assert.doesNotMatch(anem.must_say, /کاهش خفیف/);
+  assert.match(find(run([row("PLT", "130")]).p, "thrombocytopenia").must_say, /کاهش خفیف/);
+});
