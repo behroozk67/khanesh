@@ -1,0 +1,52 @@
+T001 — baseline, measured 2026-10-07, working tree: branch recovery @ 707a8ed + uncommitted
+(score.js / score.test.js / patterns.js / server.js clean; khanesh/src/ResultDashboard.jsx has prior uncommitted edits)
+
+khanesh-server  npm test : tests 1190 · pass 1189 · fail 0 · todo 1 (M154b, a pre-existing todo)
+khanesh         oxlint   : exit 0, no diagnostics printed
+
+Red-first check (T005, T012, T022, T026, T029; tests batch-written; ruleReads export is additive only)
+Ran against the ORIGINAL score.js, plus stub exports appended so the import resolves
+(parseRange=()=>null, SCORE_TABLE={}, EXCLUDED={}, SYSTEMS=[]). File restored byte-identical afterwards.
+  tests 22 · pass 6 · fail 16
+  RED (16):
+    SCORE_TABLE coverage; graded range shape; width-relative distance; SC-001;
+    per-system this_week cap; bucket PT+INR+APTT; emergency K 7.0 (old signature ignored patternOut => cap 100);
+    worst+30; too_few by buckets; one_system; neonate count; all-normal 8 systems; unknown not counted;
+    plain count; worst named via faName; v2 contract
+  GREEN on old code (guards, labelled as such in the test file):
+    normal 1 / near 0.9 (unchanged behaviour); CTCAE marked floor 0.15; one-sided/unknown-range fallback 0.5/level;
+    one critical among 19 => <=35; metamorphic "worse never raises"; metamorphic "adding a normal row never lowers"
+
+T037 — quickstart §2 probe, after the change (patient {sex:M, age:40}; base = Hb 14.5, WBC 6.5, PLT 250, Cr 0.9, ALT 20, AST 22, FBS 90)
+  base+PT14+INR1.2         this_week  value=96   coag=75(cap75), others 100   PT 0.962 INR 0.8          expected ≈96  ✓
+  base+PT14+INR1.2+aPTT36  this_week  value=96   same coag bucket                                    expected ≈96  ✓
+  base+K7.0                emergency  value=35   lytes=15                                            expected ≤35  ✓
+  base+Ferritin320         routine    value=97   blood=90(cap90)  FERRITIN 0.995                     expected ≥95  ✓
+  CBC only (Hb,WBC,PLT,MCV,RDW)  none value=null reason=one_system, blood=100                        expected      ✓
+  base+ABG pH7.25 (+pCO2 40, HCO3 17)  this_week value=85  lytes=55(cap75)  PH 0.5 HCO3 0.662       expected pH≈0.50 ✓
+  Same probe on the pre-change score.js: PT/INR 75, PT/INR/aPTT 75, K 35, ferritin 90.
+
+T038 — full suite after: tests 1203 · pass 1202 · fail 0 · todo 1 (baseline 1190 · 1189 · 0 · 1; +13 = 22 new − 9 old score tests)
+T034 — khanesh: oxlint exit 0; vite build OK (pre-existing >500 kB chunk warning); grep systemScore|0.65|0.35 in ResultDashboard.jsx: none
+
+T040 — code-reviewer findings, fixed before commit (2 HIGH, 2 MEDIUM, 4 LOW; see CLAUDE.md N32 / P97):
+  HIGH  ruleReads never sees single-letter K => potassium_critical (soon) capped nothing => 96/high.
+        Fix: attribution = reads ∪ uncovered ∪ names in finding text; unattributable finding => whole-sheet cap.
+  HIGH  finding about an ungraded row (unitless urea, this_week) => 100 + «همه در محدوده». Fix: whole-sheet cap + count.unread.
+  MED   crossing the bound raised points (near 0.9 → just-out 1.0). Fix: out-of-range ≤ 0.9.
+  MED   soon/this_week sheet could show band high («مطلوب»). Fix: band ≤ mid; frontend tone from band.
+  LOW   supplementary findings capped (now excluded); scoreHistory SCORE_VERSION bumped 1→2; range-shape test passed sex at
+        the wrong level (fixed); «(۱ خارج)» wording left as contract, noted.
+  Not fixed, recorded as known limit in P97 (e): an implausible row (K 40 → unmapped, no finding) leaves the score at 100; it
+        appears only as «۱ ردیف بدون حکم» in the count line.
+  Red-first for the fixes: the four fixes reverted in a copy of score.js ⇒ tests 25 · pass 21 · fail 4; restored ⇒ 25 · 25 · 0.
+
+After fixes — full suite: tests 1213 · pass 1212 · fail 0 · todo 1 (baseline 1190 · 1189 · 0 · 1)
+After fixes — probe (probe015.mjs, patient {sex:M, age:40}):
+  PT14+INR1.2 96 mid (coag 75) · +aPTT36 96 mid · K7.0 35 low · K5.5(soon) 85 mid (lytes 55) · Ferritin320 97 high
+  Urea150 no-unit 75 mid (sheet cap 75, unread 1) · Ca12.5 65 mid · CBC-only null one_system · ABG pH7.25 85 mid (lytes 55)
+T039 — browser (headless Chromium via Puppeteer, my own backend :8788 + vite :5188, temp config deleted afterwards), manual path:
+  PT/INR: «از ۹ آزمایش، ۲ مورد خارج از محدوده (۲ بدون درجهٔ شدت)», radar 5 systems, «انعقاد ۷۵ / پایین‌ترین: INR», centre ۹۶,
+          subtitle «امتیازِ این برگه — خلاصهٔ مرورِ سریعِ همین برگه، نه حکمِ پزشکی». (Run before the review fixes; the band change
+          only affects colour.)
+  CBC 3 rows: «از ۳ آزمایش، همه در محدوده» + too_few sentence, blood 100, no centre number.

@@ -226,8 +226,10 @@ function engineDebug(engineOut, patternOut) {
     context: engineContext(engineOut, patternOut),
     indices: engineOut.indices,
     tests: serializeGraded(engineOut),
-    // «امتیازِ این برگه» (P97) — فقط از حکمِ خودِ موتور؛ سقفش فوریتِ همین برگه است. `points` نمرهٔ هر آزمایش (۰–۱) برای جمعِ هر دستگاه در فرانت.
-    score: healthScore(engineOut, patternOut.overall_urgency),
+    // «امتیازِ این برگه» v2 (P97، specs/015) — فقط از حکمِ خودِ موتور. نمرهٔ هر دستگاه همین‌جا ساخته می‌شود (فرانت فرمول ندارد)؛
+    // سقفِ اورژانس سراسری؛ بقیهٔ سقف‌ها روی دستگاهِ کلیدهای یافته، و اگر یافته به هیچ کلیدِ graded نسبت داده نشد، روی کلِ برگه.
+    // قرارداد: specs/015-sheet-score-redesign/contracts/score-output.md
+    score: healthScore(engineOut, patternOut),
     // ── منابعِ گایدلاینیِ یافته‌ها (شفافیت) ──
     // فقط شناسه‌هایی که واقعاً روی یافته‌های نمایش‌داده‌شده نشسته‌اند.
     // sourceList نامِ منبعِ پولی را با معادلِ آزادش جایگزین می‌کند تا

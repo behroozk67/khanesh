@@ -2305,6 +2305,34 @@ not by a test.
   52/120 red before). **Rule:** when a unit is missing, look first for a cross-row identity on the same sheet (percentages sum to 100,
   parts ≤ whole, Hb/Hct ≈ MCHC) before reaching for a per-row default.
 
+### N32 — A display score that treats every out-of-range row alike, and caps the whole sheet by one finding
+2026-10-07, `rules/score.js` (P97 → specs/015). Not a clinical rule, but it is the first number on the result page.
+
+- **Tried (P97 v1, same day):** two choices. Score every level-less out-of-range row a fixed 0.5. Cap the whole score by `overall_urgency`.
+- **Broke:** a patient reported a score of ≈ 50 for PT 14 / INR 1.2. Measured on a fully normal sheet plus those two rows: **75**.
+  `coagulation_abnormal` is `this_week`, and that capped blood, kidney, liver and glucose too. PT 3.7 % above its ULN scored the same
+  0.5 as ferritin at twice its ULN.
+- **The first fix was wrong too, caught only by sweeping the reference table:** distance relative to the *bound* scored pH 7.25 at
+  **0.997**, osmolality 260 at 0.95 and Cl 85 at 0.85. These are the narrow-range keys, and none of them has a CTCAE level to floor it.
+  The version that shipped measures distance in range-widths: PT 0.96, INR 0.80, pH 0.50.
+- **Two smaller traps on the way:**
+  - The probe passed `{ sex, age }` at the top level of `runEngine`'s input. The engine reads them only under `patient`, so it graded
+    with unknown sex (ferritin against «15–150») and printed no warning.
+  - The count line nearly said «خفیف/متوسط/شدید». The engine never says those words about a test (`grade.js` `FA`).
+- **The per-system cap shipped green at 22/22 and was still wrong.** `code-reviewer` caught it before commit.
+  - `RULE_READS`' token regex needs two characters, so it never sees `K`. `potassium_critical` at `soon` therefore capped nothing, and the
+    sheet scored 96, «مطلوب». A missing attribution **raises** the score; the research note had only checked that a wrong one lowers it.
+  - A finding about an ungraded row (unitless urea, `this_week`) left the score at 100 under «همه در محدوده».
+  - Crossing the bound raised the score: near-limit was 0.9, just out was 1.0.
+  - Fixed by: attribution = source reads ∪ `uncovered` ∪ names in the finding's text; an unattributable finding caps the whole sheet;
+    out-of-range ≤ 0.9; no `high` band on `soon`/`this_week` sheets.
+  - **Rule:** before you reuse `RULE_READS` for a new purpose, list what it cannot see (single-letter keys, keys read via helpers), and
+    test the direction a *miss* pushes the output, not only the direction a false hit pushes it.
+- **Rule:** a number derived from reference-range geometry has to be checked on the **narrowest** ranges (pH, osmolality, Cl), not on
+  the ordinary ones the bug report used. An urgency belongs to the system its finding is about, not to the whole sheet. And
+  before writing a probe, check *where* the engine reads its context. Guards: `rules/score.test.js` has 25 tests. 16 were red on v1 and 4
+  were red on the first v2. They include the 109-key coverage table and two metamorphic sweeps.
+
 Detailed instructions are split across `.claude/rules/`:
 
 - [architecture.md](.claude/rules/architecture.md) — core architecture decision (engine vs. LLM), the 9-step `/api/analyze` request flow, the legacy non-engine path. Describes the **classic path**, which is still the default and the only one with safety nets; the graph path is documented in this file instead.
