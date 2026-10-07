@@ -4,7 +4,7 @@
 // ترتیب عمدی است:
 //   ۰. بنر فوریت — فقط وقتی فوریت هست. نبودِ بنر خودش حالتِ عادی است؛
 //      هیچ‌وقت بنر سبزِ «همه‌چیز خوب است» رندر نمی‌شود.
-//   ۱. کارنامهٔ وضعیت — شمارش، فوریت، کارتِ هر دستگاه بدن.
+//   ۱. داشبوردِ وضعیت (ResultDashboard.jsx، جای Scorecard) — شمارش، فوریت، کارتِ هر دستگاه بدن.
 //      ⚠️ این بلوک در بازنویسیِ «وضعیت‌محور» جلو آمده و بالای «تأیید اعداد»
 //         نشسته. دلیلِ ترتیبِ قبلی («آیا درست خواندیم؟» اولین سؤالِ واقعیِ
 //         بیمار است) پاک نشده، منتقل شده: خودِ کارنامه وقتی مسیرْ عکس است
@@ -21,7 +21,7 @@
 import Num from "./Num.jsx";
 import RangeBand from "./RangeBand.jsx";
 import { parseRange } from "./rangeMath.js";
-import Scorecard from "./Scorecard.jsx";
+import ResultDashboard from "./ResultDashboard.jsx";
 import ExtractedTests from "./ExtractedTests.jsx";
 import { toFaDigits } from "./digits.js";
 import {
@@ -433,11 +433,15 @@ export default function ResultView({ result, asText, asList }) {
       {/* ۱. کارنامه — فقط روی مسیرِ موتور. بدون _engine داده‌ای برای شمردن نیست
              و ادعای «قاعده‌های ثابت» هم آنجا درست نیست. */}
       {hasEngine && (
-        <Scorecard
+        <ResultDashboard
+          result={result}
+          tests={tests}
           groups={groups}
           ctx={ctx}
           urgency={urgency}
           hasNumbers={extracted.length > 0}
+          asText={asText}
+          asList={asList}
         />
       )}
 
@@ -494,7 +498,7 @@ export default function ResultView({ result, asText, asList }) {
 
       {/* نمایش خروجی‌های قدیمی اگر LabMat نبود (برای سازگاری عقب‌رو) */}
       {!result.labmat && result.summary && (
-        <section className="card">
+        <section className="card" id="summary">
           <h2 className="block-title">خلاصه</h2>
           <p className="text">{asText(result.summary)}</p>
         </section>
@@ -509,7 +513,7 @@ export default function ResultView({ result, asText, asList }) {
       {!result.labmat && <UnmatchedNote rows={unmatchedRows} />}
 
       {!result.labmat && asList(result.general_recommendations).length > 0 && (
-        <section className="card">
+        <section className="card" id="recs">
           <h2 className="block-title">توصیه‌ها</h2>
           <ul className="bullet-list">
             {asList(result.general_recommendations).map((r, i) => (
