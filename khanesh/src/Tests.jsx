@@ -203,7 +203,8 @@ export default function Tests() {
   return (
     // site--pill: جایِ نوارِ کپسولیِ fixed را از بالای صفحه کنار می‌گذارد
     // (قواعدش در انتهای site.css، کنارِ خودِ نوار).
-    <div className="site site--pill" dir="rtl">
+    // site--lab-bg: فقط زمینه — آبیِ آزمایشگاهیِ روشن با مارپیچِ تار (public/lab/tests-helix.svg، ساختِ خودمان)
+    <div className="site site--pill site--lab-bg" dir="rtl">
       <PillNav withSearch page />
 
       {/* ---------- ۱. سربرگ ---------- */}
