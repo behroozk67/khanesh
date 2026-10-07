@@ -43,7 +43,6 @@ const num = (v) => {
 
 const defaultAsText = (v) =>
   v == null ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : v.text ?? v.title ?? '';
-const defaultAsList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 function fmtDate(d, opts = { year: 'numeric', month: 'short' }) {
@@ -117,9 +116,21 @@ function flagInfo(t) {
   return { abnormal, dir, critical };
 }
 
+// ⚠️ N5: کلسیم/سدیمی که موتور گرید می‌کند ممکن است تصحیح‌شده باشد و روی کاغذِ بیمار نباشد.
+//    عددِ برگه همیشه کنارِ عددِ تصحیح‌شده می‌آید (پیش‌تر در بخشِ «همهٔ آزمایش‌ها» بود).
+const CORRECTED = {
+  CA: { flag: 'ca_correction_applied', measured: 'ca_measured', why: 'با آلبومینِ شما تصحیح شده' },
+  NA: { flag: 'na_correction_applied', measured: 'na_measured', why: 'با قندِ بالای شما تصحیح شده' },
+};
+function correctionOf(key, indices) {
+  const c = CORRECTED[key];
+  if (!c || !indices?.[c.flag] || indices[c.measured] == null) return null;
+  return { measured: indices[c.measured], why: c.why };
+}
+
 const STATE_RANK = { critical: 3, abnormal: 2, unknown: 1, normal: 0 };
 
-function normTest(t, i, asText, hasNumbers = true) {
+function normTest(t, i, asText, hasNumbers = true, indices = null) {
   const name = asText(t.name ?? t.title ?? t.label_fa) || `آزمایش ${toFa(i + 1)}`;
   const value = hasNumbers ? num(t.value ?? t.result) : null;
   const { low, high } = parseRange(t);
@@ -145,6 +156,7 @@ function normTest(t, i, asText, hasNumbers = true) {
   return {
     id: String(t.key ?? t.id ?? `${name}-${i}`),
     key: t.key ?? null,
+    corrected: correctionOf(t.key, indices),
     name, value, unit: asText(t.unit), low, high, pos, dir, state, label, rangeText, deviation,
     raw: t,
   };
@@ -220,11 +232,9 @@ export default function ResultDashboard({
   ctx,
   urgency,
   asText = defaultAsText,
-  asList = defaultAsList,
   patientName,
   date,          // اختیاری: تاریخِ همین برگه (موتور تاریخ نمی‌دهد؛ بی‌مقدار نمایش داده نمی‌شود)
   history,       // اختیاری: [{ date, score }] — بی‌تاریخچه کارتِ روند نمایش داده نمی‌شود
-  onOpenReport,
   onDownload,
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
@@ -258,7 +268,7 @@ export default function ResultDashboard({
     const systems = groupSrc
       .map((g, gi) => {
         const key = sysKey(g.key ?? g.id ?? g.name);
-        const rows = (g.rows ?? g.tests ?? []).map((t, i) => normTest(t, i, asText, hasNumbers));
+        const rows = (g.rows ?? g.tests ?? []).map((t, i) => normTest(t, i, asText, hasNumbers, engine.indices));
         const worst = rows.reduce((w, r) => (STATE_RANK[r.state] > STATE_RANK[w] ? r.state : w), 'normal');
         return {
           key: `${key}-${gi}`,
@@ -273,7 +283,7 @@ export default function ResultDashboard({
 
     const all =
       Array.isArray(tests) && tests.length
-        ? tests.map((t, i) => normTest(t, i, asText, hasNumbers))
+        ? tests.map((t, i) => normTest(t, i, asText, hasNumbers, engine.indices))
         : systems.flatMap((s) => s.rows);
 
     const overall = score?.value ?? null;
@@ -285,7 +295,7 @@ export default function ResultDashboard({
     const trend = prev.length && overall != null ? [...prev, { date: date ?? null, score: overall, current: true }] : [];
 
     return { systems, all, overall, trend };
-  }, [tests, groups, asText, hasNumbers, history, date, score]);
+  }, [tests, groups, asText, hasNumbers, history, date, score, engine.indices]);
 
   const { systems, all, overall, trend } = model;
   const [focusKey, setFocusKey] = useState(null);
@@ -298,8 +308,6 @@ export default function ResultDashboard({
   const firstName = name.trim().split(/\s+/)[0] || '';
   const ageText = asText(engineCtx.age_text ?? ctx?.age_text);
   const sexText = asText(engineCtx.sex ?? ctx?.sex);
-  const recs = asList(result?.general_recommendations);
-  const summary = asText(result?.summary);
   const insights = useMemo(() => buildInsights(systems, all, urgency), [systems, all, urgency]);
   const showTrend = trend.length > 0;
 
@@ -379,8 +387,7 @@ export default function ResultDashboard({
             urgency={urgency} focusKey={focusKey} onSelect={toggleFocus} />
 
           <div className="kd-stack">
-            <InsightsCard items={insights} summary={summary} onOpenReport={onOpenReport} />
-            <RecsCard recs={recs} asText={asText} />
+            <InsightsCard items={insights} />
           </div>
 
           {showTrend && <TrendCard id={`${uid}-trend`} uid={uid} points={trend} urgency={urgency} />}
@@ -546,7 +553,7 @@ function ResultsCard({ id, systems, focus, onClearFocus, hasNumbers }) {
                           </>
                         )}
                         <b className={`kd-val kd-val--${t.state}`} style={{ left: `${p == null ? 50 : axis(p)}%` }}>
-                          {over && '▲'}{under && '▼'}{fmtNum(t.value)}
+                          {over && '▲'}{under && '▼'}{fmtNum(t.value)}{t.corrected && '*'}
                         </b>
                       </span>
                     </button>
@@ -562,6 +569,13 @@ function ResultsCard({ id, systems, focus, onClearFocus, hasNumbers }) {
             </div>
           ))}
         </div>
+      )}
+      {hasNumbers && shown.some((g) => g.rows.some((r) => r.corrected)) && (
+        <ul className="kd-footnote">
+          {shown.flatMap((g) => g.rows).filter((r) => r.corrected).map((r) => (
+            <li key={r.id}>* {r.name}: روی برگهٔ شما <bdi className="kd-ltr">{fmtNum(r.corrected.measured)}</bdi> است — عددِ نوار {r.corrected.why}.</li>
+          ))}
+        </ul>
       )}
       {hasNumbers && !focus && total > LIMIT && (
         <button type="button" className="kd-more" onClick={() => setExpanded((e) => !e)}>
@@ -663,7 +677,7 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
 }
 
 /* ---------- Insights ---------- */
-function InsightsCard({ items, summary, onOpenReport }) {
+function InsightsCard({ items }) {
   const [all, setAll] = useState(false);
   const shown = all ? items : items.slice(0, 3);
   return (
@@ -676,12 +690,6 @@ function InsightsCard({ items, summary, onOpenReport }) {
           </button>
         )}
       />
-      {summary && (
-        <p className="kd-summary">
-          {summary}
-          <a className="kd-linkbtn" href="#summary" onClick={onOpenReport}> متنِ کامل ←</a>
-        </p>
-      )}
       <ul className="kd-items">
         {shown.map((it, i) => (
           <li key={i} className="kd-item">
@@ -695,60 +703,6 @@ function InsightsCard({ items, summary, onOpenReport }) {
           </li>
         ))}
         {!shown.length && <li className="kd-item kd-item--empty">نکته‌ای برای نمایش نیست.</li>}
-      </ul>
-    </section>
-  );
-}
-
-/* ---------- Recommendations ---------- */
-function recIcon(text) {
-  const s = String(text);
-  if (/اورژانس|فوری/.test(s)) return <AlertI />;
-  if (/پزشک|ویزیت|مراجعه|مشورت/.test(s)) return <StethI />;
-  if (/آزمایش|تکرار|پیگیری/.test(s)) return <FlaskI />;
-  if (/رژیم|غذا|تغذیه|مکمل|ویتامین/.test(s)) return <LeafI />;
-  if (/ورزش|فعالیت|پیاده/.test(s)) return <RunI />;
-  if (/آب|مایعات/.test(s)) return <DropI />;
-  if (/خواب/.test(s)) return <MoonI />;
-  return <SparkI />;
-}
-
-function RecsCard({ recs, asText }) {
-  const [all, setAll] = useState(false);
-  const [open, setOpen] = useState(null);
-  const items = recs
-    .map((r) =>
-      r && typeof r === 'object'
-        ? { title: asText(r.title ?? r.text), sub: asText(r.detail ?? r.description ?? r.reason) }
-        : { title: asText(r), sub: '' }
-    )
-    .filter((r) => r.title);
-  const shown = all ? items : items.slice(0, 4);
-  return (
-    <section className="kd-card kd-list" id="recs">
-      <CardHead
-        title="توصیه‌های خوانش"
-        aside={items.length > 4 && (
-          <button type="button" className="kd-linkbtn" onClick={() => setAll((v) => !v)}>
-            {all ? 'بستن' : 'مشاهده همه'}
-          </button>
-        )}
-      />
-      <ul className="kd-items">
-        {shown.map((r, i) => (
-          <li key={i}>
-            <button type="button" className={`kd-item kd-item--rec${open === i ? ' is-open' : ''}`}
-              aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
-              <span className="kd-item__glyph">{recIcon(`${r.title} ${r.sub}`)}</span>
-              <span className="kd-item__body">
-                <b>{r.title}</b>
-                {r.sub && <small>{r.sub}</small>}
-              </span>
-              <ChevronI />
-            </button>
-          </li>
-        ))}
-        {!shown.length && <li className="kd-item kd-item--empty">توصیه‌ای ثبت نشده است.</li>}
       </ul>
     </section>
   );
@@ -874,13 +828,7 @@ const FileI = () => <Ico><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 
 const DownloadI = () => <Ico size={18}><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19h14" /></Ico>;
 const InfoI = () => <Ico size={20}><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="7.8" r=".6" fill="currentColor" /></Ico>;
 const SparkI = () => <Ico size={20}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" /></Ico>;
-const ChevronI = () => <span className="kd-chev"><Ico size={18}><path d="m14.5 6-6 6 6 6" /></Ico></span>;
 const FlaskI = () => <Ico><path d="M9.5 3.5h5M10 3.5v6L5.2 18a1.6 1.6 0 0 0 1.4 2.4h10.8a1.6 1.6 0 0 0 1.4-2.4L14 9.5v-6" /><path d="M7.5 15h9" /></Ico>;
-const StethI = () => <Ico><path d="M6 4v5a4 4 0 0 0 8 0V4" /><path d="M10 13v2a4 4 0 0 0 8 0v-1.5" /><circle cx="18" cy="11.5" r="2" /></Ico>;
-const LeafI = () => <Ico><path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14z" /><path d="M5 19 13 11" /></Ico>;
-const RunI = () => <Ico><circle cx="14" cy="4.5" r="1.6" /><path d="m7 21 3-6 3 2v5M10 15l1.5-6L8 10l-2 3M11.5 9l3 3 3-1" /></Ico>;
-const MoonI = () => <Ico><path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z" /></Ico>;
-const AlertI = () => <Ico><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5" /><circle cx="12" cy="16.3" r=".6" fill="currentColor" /></Ico>;
 const WarnI = () => (
   <Ico size={34} sw={2}>
     <path d="M12 3.8 21.2 19.5a.8.8 0 0 1-.7 1.2H3.5a.8.8 0 0 1-.7-1.2z" />

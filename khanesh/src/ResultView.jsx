@@ -1,179 +1,22 @@
 // ============================================================
 // صفحهٔ نتیجه — بازنویسی‌شده حولِ حکمِ موتور، نه فقط نثرِ مدل.
 //
-// ترتیب عمدی است:
-//   ۰. بنر فوریت — فقط وقتی فوریت هست. نبودِ بنر خودش حالتِ عادی است؛
-//      هیچ‌وقت بنر سبزِ «همه‌چیز خوب است» رندر نمی‌شود.
-//   ۱. داشبوردِ وضعیت (ResultDashboard.jsx، طرحِ روشن؛ جای Scorecard) — جایگاهِ اعداد، امتیازِ برگه، دستگاه‌ها.
-//      ⚠️ این بلوک در بازنویسیِ «وضعیت‌محور» جلو آمده و بالای «تأیید اعداد»
-//         نشسته. دلیلِ ترتیبِ قبلی («آیا درست خواندیم؟» اولین سؤالِ واقعیِ
-//         بیمار است) پاک نشده، منتقل شده: خودِ کارنامه وقتی مسیرْ عکس است
-//         صریح می‌گوید این شمارش روی اعدادِ خوانده‌شده از عکس بنا شده و
-//         مستقیم به همان بلوک لینک می‌دهد. اگر آن جمله را از Scorecard
-//         بردارید، این جابه‌جایی دیگر قابل دفاع نیست.
-//   ۲. تأیید اعداد.
-//   ۳. خلاصه و تفسیر.
-//   ۴. ردیف‌ها به تفکیک دستگاه بدن، با شمارش و نوارِ محدودهٔ مرجع.
-//   ۵. مقادیرِ محاسبه‌شده — همیشه با تصریحِ اینکه روی برگه نیستند (N5).
-//   ۶. منابع و سلبِ مسئولیت.
+// ترتیبِ نمایش (تصمیمِ کاربر، ۲۰۲۶-۱۰-۰۷):
+//   ۱. بنرِ فوریت (قرمز) — فقط وقتی فوریت هست؛ بنرِ سبزِ «همه‌چیز خوب است» هرگز.
+//      بعدش «تفسیر بر پایهٔ …» و هشدارهای صفحه/OCR، چون شرطِ خواندنِ تفسیرند.
+//   ۲. خلاصه  ۳. تفسیر  ۴. توصیه‌ها
+//   ۵. داشبورد (ResultDashboard.jsx) — جایگاهِ اعداد، امتیازِ برگه، دستگاه‌ها.
+//   ۶. اعدادی که از برگه خواندیم (+ تبدیلِ واحدها).
+//   ۷. مقادیرِ محاسبه‌شده (N5: همیشه با تصریحِ اینکه روی برگه نیستند)، منابع، «این تفسیر چطور ساخته شد؟»، سلبِ مسئولیت.
+// «همهٔ آزمایش‌ها» حذف شد؛ یادداشتِ N5 («روی برگهٔ شما: X») برای کلسیم/سدیمِ تصحیح‌شده به داشبورد رفت.
 // ============================================================
 
 import Num from "./Num.jsx";
-import RangeBand from "./RangeBand.jsx";
-import { parseRange } from "./rangeMath.js";
 import ResultDashboard from "./ResultDashboard.jsx";
 import ExtractedTests from "./ExtractedTests.jsx";
 import { toFaDigits } from "./digits.js";
-import {
-  STATES, stateOf, countRows, buildVerdictContext, dirIcon, labelOf,
-} from "./resultStates.js";
-import { CATEGORIES, CATEGORY_ORDER, categoryOf } from "./testCategories.js";
-
-/* ---------- چیپِ وضعیت ---------- */
-
-function Chip({ t, state }) {
-  return (
-    <span className={`chip ${state.cls}`}>
-      <span aria-hidden="true">{dirIcon(t, state)}</span>
-      {labelOf(t, state)}
-    </span>
-  );
-}
-
-/* ---------- شدتِ CTCAE ----------
-   عددِ خودِ موتور، نه ترجمهٔ ما. تا امروز serializeGraded این را می‌فرستاد و
-   کلاینت دورش می‌ریخت؛ نتیجه‌اش این بود که شدت فقط با رنگ منتقل می‌شد و
-   رنگ هم از فوریتِ کلِ پنل می‌آمد. حالا چهار پله، با واژه و شکل. */
-function GradeMeter({ grade }) {
-  if (typeof grade !== "number" || grade <= 0) return null;
-  return (
-    <span className="grade">
-      <span className="grade-pips" aria-hidden="true">
-        {[1, 2, 3, 4].map((g) => (
-          <i key={g} className={g <= grade ? "gp on" : "gp"} />
-        ))}
-      </span>
-      <span className="grade-text">
-        شدت بر پایهٔ CTCAE v5: درجهٔ {toFaDigits(grade)} از ۴
-      </span>
-    </span>
-  );
-}
-
-/* ---------- عددِ تصحیح‌شده ----------
-   ⚠️ N5: مقدارِ کلسیم/سدیمی که موتور گرید می‌کند ممکن است تصحیح‌شده باشد و
-   روی کاغذِ بیمار وجود نداشته باشد. بیمار که ۷.۳ را ببیند و روی برگه‌اش ۶.۲
-   باشد نتیجه می‌گیرد برنامه اشتباه می‌کند. پس عددِ برگه همیشه کنارش می‌آید —
-   نه فقط در بخشِ «مقادیر محاسبه‌شده»، بلکه در همان ردیف. */
-const CORRECTED = {
-  CA: { flag: "ca_correction_applied", measured: "ca_measured", why: "با آلبومینِ شما تصحیح شده" },
-  NA: { flag: "na_correction_applied", measured: "na_measured", why: "با قندِ بالای شما تصحیح شده" },
-};
-
-function MeasuredNote({ t, indices }) {
-  const c = CORRECTED[t.key];
-  if (!c || !indices?.[c.flag] || indices[c.measured] == null) return null;
-  return (
-    <p className="row-measured">
-      روی برگهٔ شما: <Num>{indices[c.measured]}</Num> — عددِ بالا {c.why}.
-    </p>
-  );
-}
-
-/* ---------- ردیفِ یک تست ---------- */
-
-function TestRow({ t, state, indices }) {
-  const r = parseRange(t.range);
-  const value = Number(t.value);
-  return (
-    <li className={`row ${state.cls}`}>
-      <div className="row-main">
-        <span className="row-name">{t.name}</span>
-        <Chip t={t} state={state} />
-      </div>
-
-      <div className="row-nums">
-        <Num>{t.value}</Num>
-        {t.range && (
-          <span className="row-range">
-            محدودهٔ مرجع: <Num>{t.range}</Num>
-          </span>
-        )}
-      </div>
-
-      <MeasuredNote t={t} indices={indices} />
-
-      {r && Number.isFinite(value) && (
-        <RangeBand low={r.low} high={r.high} value={value} stateCls={state.cls} />
-      )}
-
-      <GradeMeter grade={t.ctcaeGrade} />
-
-      {/* منبعِ محدوده کنارِ خودِ ادعا — اعتمادِ سطر‌به‌سطر، نه نشانِ تبلیغاتی */}
-      {t.refSource && <p className="row-src">منبع محدوده: {t.refSource}</p>}
-    </li>
-  );
-}
-
-/* ---------- بخشِ یک دستگاه بدن ---------- */
-
-function CountLine({ rows }) {
-  const { inRange, out, near } = countRows(rows);
-  return (
-    <span className="group-count">
-      {out > 0 ? (
-        <>
-          {toFaDigits(inRange)} در محدوده ·{" "}
-          <b>{toFaDigits(out)} خارج از محدوده</b>
-        </>
-      ) : near > 0 ? (
-        <>{toFaDigits(inRange)} مورد در محدوده، {toFaDigits(near)} مورد نزدیک مرز</>
-      ) : (
-        <>{toFaDigits(inRange)} مورد، همه در محدوده</>
-      )}
-    </span>
-  );
-}
-
-function SystemSection({ catKey, rows, ctx, indices }) {
-  const cat = CATEGORIES[catKey] ?? CATEGORIES.other;
-  const hasOut = rows.some((t) => t.abnormal);
-
-  const head = (
-    <>
-      <span className="group-title">
-        <span aria-hidden="true">{cat.icon}</span> {cat.label}
-      </span>
-      <CountLine rows={rows} />
-    </>
-  );
-
-  const body = (
-    <ul className="row-list">
-      {rows.map((t) => (
-        <TestRow key={t.key} t={t} state={stateOf(t, ctx)} indices={indices} />
-      ))}
-    </ul>
-  );
-
-  // ⚠️ هر گروهی که حتی یک موردِ خارج از محدوده دارد باز و غیرقابل‌جمع‌شدن است.
-  //    محتوای فوری هرگز پشتِ <details>، آکاردئون یا تب نمی‌رود. فقط گروهی که
-  //    تمامش داخل محدوده است جمع می‌شود — و شمارشش روی خودِ سرتیتر دیده می‌شود.
-  if (hasOut) {
-    return (
-      <section className="group" id={`sys-${catKey}`} tabIndex={-1}>
-        <h3 className="group-head">{head}</h3>
-        {body}
-      </section>
-    );
-  }
-  return (
-    <details className="group group--collapsible" id={`sys-${catKey}`} tabIndex={-1}>
-      <summary className="group-head">{head}</summary>
-      {body}
-    </details>
-  );
-}
+import { buildVerdictContext } from "./resultStates.js";
+import { CATEGORY_ORDER, categoryOf } from "./testCategories.js";
 
 /* ---------- بلوکِ حالت سوم ---------- */
 
@@ -430,20 +273,6 @@ export default function ResultView({ result, asText, asList }) {
              بیماریِ تیک‌خورده‌ای که قاعده ندارد اینجا نمی‌آید (FR-019). سرورِ قدیمی context ندارد ⇒ چیزی رندر نمی‌شود. */}
       <ContextLine ctx={eng?.context} asText={asText} />
 
-      {/* ۱. کارنامه — فقط روی مسیرِ موتور. بدون _engine داده‌ای برای شمردن نیست
-             و ادعای «قاعده‌های ثابت» هم آنجا درست نیست. */}
-      {hasEngine && (
-        <ResultDashboard
-          result={result}
-          tests={tests}
-          groups={groups}
-          ctx={ctx}
-          urgency={urgency}
-          asText={asText}
-          asList={asList}
-        />
-      )}
-
       {/* هشدارهای صفحه و OCR */}
       {result.pages?.failed?.length > 0 && (
         <div className="warn" role="alert">
@@ -456,10 +285,6 @@ export default function ResultView({ result, asText, asList }) {
           {asList(result.ocr_warnings).map((w, i) => <div key={i}>• {asText(w)}</div>)}
         </div>
       )}
-
-      {/* ۲. تأیید اعداد */}
-      <ExtractedTests list={extracted} pages={result.pages} asText={asText} />
-      {hasEngine && <UnitConversions rows={eng?.unitConversions} asText={asText} asList={asList} />}
 
       {/* ۳. خروجی گراف LabMat (بیمار و پزشک) */}
       {result.labmat && (
@@ -522,37 +347,22 @@ export default function ResultView({ result, asText, asList }) {
         </section>
       )}
 
-      {/* ۴. ردیف‌ها به تفکیک دستگاه بدن */}
-      {groups.length > 0 && (
-        <section className="card">
-          <h2 className="block-title">همهٔ آزمایش‌ها</h2>
-          <p className="hint">
-            حالتِ هر ردیف از حکمِ خودِ موتور برای همان آزمایش می‌آید، نه از فوریتِ کلِ برگه.
-            {urgency === "emergency" && (
-              // ⚠️ لازم است: حالا که «امروز» دیگر روی همهٔ ردیف‌ها مهر نمی‌خورد،
-              //    بیمار نباید از رنگِ کهرباییِ یک ردیف نتیجه بگیرد که فوریتِ
-              //    بالای صفحه منتفی است. هیچ ردیفی «بی‌خطر» برچسب نمی‌خورد.
-              <> {" "}فوریتِ بالای صفحه برای کلِ برگه است و با واژهٔ هیچ ردیفی لغو نمی‌شود.</>
-            )}
-          </p>
-          <div className="legend" aria-hidden="true">
-            {[STATES.normal, STATES.near, STATES.out, STATES.unmatched, STATES.emergency].map((s) => (
-              <span key={s.key} className={`mini-chip ${s.cls}`}>
-                <span>{s.icon}</span> {s.label}
-              </span>
-            ))}
-          </div>
-          {groups.map((g) => (
-            <SystemSection
-              key={g.key}
-              catKey={g.key}
-              rows={g.rows}
-              ctx={ctx}
-              indices={eng?.indices}
-            />
-          ))}
-        </section>
+      {/* ۱. کارنامه — فقط روی مسیرِ موتور. بدون _engine داده‌ای برای شمردن نیست
+             و ادعای «قاعده‌های ثابت» هم آنجا درست نیست. */}
+      {hasEngine && (
+        <ResultDashboard
+          result={result}
+          tests={tests}
+          groups={groups}
+          ctx={ctx}
+          urgency={urgency}
+          asText={asText}
+        />
       )}
+
+      {/* ۲. تأیید اعداد */}
+      <ExtractedTests list={extracted} pages={result.pages} asText={asText} />
+      {hasEngine && <UnitConversions rows={eng?.unitConversions} asText={asText} asList={asList} />}
 
       {/* ۵. مقادیر محاسبه‌شده */}
       <DerivedValues indices={eng?.indices} />
