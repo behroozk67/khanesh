@@ -4,7 +4,7 @@
 // ترتیب عمدی است:
 //   ۰. بنر فوریت — فقط وقتی فوریت هست. نبودِ بنر خودش حالتِ عادی است؛
 //      هیچ‌وقت بنر سبزِ «همه‌چیز خوب است» رندر نمی‌شود.
-//   ۱. داشبوردِ وضعیت (ResultDashboard.jsx، جای Scorecard) — شمارش، فوریت، کارتِ هر دستگاه بدن.
+//   ۱. کارنامهٔ وضعیت (Scorecard.jsx) — شمارش، فوریت، کارتِ هر دستگاه بدن.
 //      ⚠️ این بلوک در بازنویسیِ «وضعیت‌محور» جلو آمده و بالای «تأیید اعداد»
 //         نشسته. دلیلِ ترتیبِ قبلی («آیا درست خواندیم؟» اولین سؤالِ واقعیِ
 //         بیمار است) پاک نشده، منتقل شده: خودِ کارنامه وقتی مسیرْ عکس است
@@ -21,7 +21,8 @@
 import Num from "./Num.jsx";
 import RangeBand from "./RangeBand.jsx";
 import { parseRange } from "./rangeMath.js";
-import ResultDashboard from "./ResultDashboard.jsx";
+import Scorecard from "./Scorecard.jsx";
+// ResultDashboard.jsx (داشبوردِ تیره) فعلاً به تصمیمِ کاربر از صفحه برداشته شده (۲۰۲۶-۱۰-۰۷)؛ فایلش برای برگرداندن مانده.
 import ExtractedTests from "./ExtractedTests.jsx";
 import { toFaDigits } from "./digits.js";
 import {
@@ -433,15 +434,11 @@ export default function ResultView({ result, asText, asList }) {
       {/* ۱. کارنامه — فقط روی مسیرِ موتور. بدون _engine داده‌ای برای شمردن نیست
              و ادعای «قاعده‌های ثابت» هم آنجا درست نیست. */}
       {hasEngine && (
-        <ResultDashboard
-          result={result}
-          tests={tests}
+        <Scorecard
           groups={groups}
           ctx={ctx}
           urgency={urgency}
           hasNumbers={extracted.length > 0}
-          asText={asText}
-          asList={asList}
         />
       )}
 
