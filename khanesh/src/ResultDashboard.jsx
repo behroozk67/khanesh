@@ -131,9 +131,9 @@ function BodyMap({ groups, ctx, summary }) {
       </svg>
       {summary && (
         <div className="dash-insight">
-          <span className="dash-tag">خلاصهٔ تفسیر</span>
+          <span className="dash-tag">خلاصهٔ تفسیر هوشمند</span>
           <p>{summary}</p>
-          <a className="dash-link" href="#summary">متنِ کامل</a>
+          <a className="dash-link" href="#summary">دیدنِ متنِ کامل</a>
         </div>
       )}
     </div>
@@ -158,6 +158,7 @@ function PositionChart({ rows, ctx }) {
         <div>
           <p className="dash-muted">جای هر عدد نسبت به محدودهٔ مرجعِ خودش</p>
           <p className="dash-big">{cur.t.name}: <Num>{cur.t.value}</Num></p>
+          <p className="dash-pos-range">محدودهٔ مرجع: <Num>{cur.t.range}</Num></p>
         </div>
         <span className={`chip ${st.cls}`}><span aria-hidden="true">{dirIcon(cur.t, st)}</span>{labelOf(cur.t, st)}</span>
       </div>
@@ -190,15 +191,16 @@ function PositionChart({ rows, ctx }) {
         </ul>
       </div>
       <p className="dash-muted dash-pos-foot">
-        محدودهٔ مرجع: <Num>{cur.t.range}</Num> · روی هر ستون بزنید تا عددش را ببینید.
+        روی هر ستون بزنید تا نام، عدد و محدوده‌اش این بالا بیاید.
       </p>
     </div>
   );
 }
 
 /* ---------- کمانِ شمارش ----------
-   کمان = نسبتِ همان شمارش، بی‌درصد (همان قاعدهٔ Scorecard). */
-function CountGauge({ inRange, out, total }) {
+   کمان = نسبتِ همان شمارش، بی‌درصد (همان قاعدهٔ Scorecard). بخشِ خارج کهربایی است و فقط
+   وقتی فوریتِ موتور برای برگه emergency است قرمز می‌شود — قرمز انحصاری برای اورژانس است. */
+function CountGauge({ inRange, out, total, urgency }) {
   const R = 80, C = Math.PI * R;
   const okLen = total ? (inRange / total) * C : 0;
   return (
@@ -206,8 +208,8 @@ function CountGauge({ inRange, out, total }) {
       <p className="dash-muted">شمارشِ آزمایش‌ها</p>
       <p className="dash-big">{out > 0 ? `${toFaDigits(out)} مورد خارج از محدوده` : "همه داخلِ محدودهٔ مرجع"}</p>
       <svg viewBox="0 0 200 115" className="dash-gauge-svg" aria-hidden="true">
-        <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="#f5a35c" strokeWidth="14" strokeLinecap="round" opacity={out ? 1 : 0.15} />
-        <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="#d9f46a" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${okLen} ${C}`} />
+        <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke={urgency === "emergency" ? "var(--d-red)" : "var(--d-amber)"} strokeWidth="14" strokeLinecap="round" opacity={out ? 1 : 0.15} />
+        <path className="dash-gauge-ok" d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="var(--d-lime)" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${okLen} ${C}`} />
       </svg>
       <div className="dash-gauge-center">
         <span className="dash-gauge-num">{toFaDigits(inRange)}<small>/{toFaDigits(total)}</small></span>
@@ -333,7 +335,7 @@ export default function ResultDashboard({ result, tests, groups, ctx, urgency, h
           <NextStep urgency={urgency} recCount={asList(result.general_recommendations).length} />
           <div className="dash-row2">
             <PositionChart rows={tests} ctx={ctx} />
-            <CountGauge inRange={inRange} out={out} total={total} />
+            <CountGauge inRange={inRange} out={out} total={total} urgency={urgency} />
           </div>
           <SystemStrips groups={groups} ctx={ctx} />
           <div className="dash-row2 dash-row2--even">
