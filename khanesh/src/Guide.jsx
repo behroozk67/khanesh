@@ -193,7 +193,8 @@ export default function Guide({ c }) {
   const mainToc = useMemo(() => toc.filter((t) => t.lvl === 2), [toc]);
 
   return (
-    <div className="site" dir="rtl">
+    // site--lab-bg: همان زمینهٔ صفحهٔ تست‌ها (site.css) — صفحه‌های راهنمای هر آزمایش و هر دسته از همین‌جا رد می‌شوند
+    <div className="site site--lab-bg" dir="rtl">
       <Nav />
 
       {/* ---------- سربرگ ---------- */}

@@ -18,13 +18,16 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA })
   const ink = variant === "light" ? "#ffffff" : NAVY;
   const sloganInk = variant === "light" ? "#e7ecf8" : "#111111";
 
+  // اندازه از متغیرِ CSS (--lml-h / --lml-gap) با پیش‌فرضِ همین prop: نوارِ کپسولی روی گوشی کوچکش می‌کند
+  // (site.css)، وگرنه inline style بر هر قاعدهٔ CSS می‌چربید و دکمهٔ «تحلیل نتایج من» از کادر بیرون می‌زد.
+  const h = `var(--lml-h, ${height}px)`;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }} title={`${title} — ${BRAND_SLOGAN}`}>
+    <div className="lml" style={{ display: 'flex', alignItems: 'center', gap: 'var(--lml-gap, 16px)' }} title={`${title} — ${BRAND_SLOGAN}`}>
       <img
         src="/logo-transparent.png"
         alt={title}
         style={{
-          height: height,
+          height: h,
           objectFit: 'contain',
           /* زمینهٔ نشان شفاف است تا همرنگِ محیط شود. روی زمینهٔ تیره (variant="light") خطوطِ سیاهِ
              میکروسکوپ گم می‌شدند، پس رنگ‌ها وارونه و رنگ‌مایه برگردانده می‌شود. */
@@ -34,7 +37,7 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA })
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '6px' }}>
         <span style={{ 
           fontFamily: FA_FONT,
-          fontSize: `${height * 0.45}px`,
+          fontSize: `calc(${h} * 0.45)`,
           fontWeight: "800",
           lineHeight: 1.1,
           direction: "rtl",
@@ -42,9 +45,9 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA })
         }}>
           {BRAND_FA}
         </span>
-        <span style={{ 
+        <span className="lml-slogan" style={{ 
           fontFamily: FA_FONT, 
-          fontSize: `${height * 0.18}px`, 
+          fontSize: `calc(${h} * 0.18)`, 
           fontWeight: "600", 
           color: sloganInk,
           direction: "rtl",
