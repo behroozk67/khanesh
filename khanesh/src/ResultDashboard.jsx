@@ -1,358 +1,895 @@
-// ============================================================
-// داشبوردِ نتیجه — لایهٔ «یک نگاه»، به جای کارنامهٔ قبلی (Scorecard).
-//
-// ⚠️ مرزِ موتور: هر چیزی که این‌جا رنگ یا برچسب می‌گیرد از `_engine` می‌آید —
-//    حالتِ هر ردیف از stateOf (همان ResultView)، فوریت از `_engine.urgency`،
-//    واژهٔ هر ردیف از `fa`ِ خودِ موتور. این‌جا هیچ حکمِ بالینیِ تازه‌ای ساخته
-//    نمی‌شود.
-// ⚠️ چیزی که عمداً **نیست**: نمرهٔ سلامت، درصد، «ریسک»، روند یا نمودارِ زمانی.
-//    موتور هیچ‌کدام را ندارد و یک برگه روند ندارد. نمودارها فقط سه چیز نشان
-//    می‌دهند: شمارش، و جای هر عدد نسبت به محدودهٔ مرجعِ خودش (همان هندسهٔ
-//    RangeBand). ستون‌ها به هم وصل نمی‌شوند، چون خطِ بینِ دو آزمایشِ متفاوت
-//    روندی را القا می‌کند که وجود ندارد.
-// ⚠️ نامِ بیمار فقط از پروفایلِ همین دستگاه خوانده و فقط همین‌جا نمایش داده
-//    می‌شود؛ هرگز به سرور فرستاده نمی‌شود (patientFromProfile نام را ندارد).
-// ============================================================
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { CATEGORIES } from './testCategories.js';
+import { loadProfile } from './onboarding/profileStore.js';
+import './ResultDashboard.css';
 
-import { useEffect, useMemo, useState } from "react";
-import Num from "./Num.jsx";
-import { toFaDigits } from "./digits.js";
-import { parseRange } from "./rangeMath.js";
-import { CATEGORIES } from "./testCategories.js";
-import { URGENCY, countRows, dirIcon, labelOf, stateOf, worstState } from "./resultStates.js";
-import { loadProfile } from "./onboarding/profileStore.js";
-import "./dashboard.css";
+/* ==========================================================================
+   خوانش — داشبوردِ نتیجه (طرحِ روشن): ناوبری · سرصفحه · نوارِ جایگاهِ آزمایش‌ها ·
+   رادارِ دستگاه‌ها · نکات · توصیه‌ها · روند (فقط با تاریخچه).
 
-const STEPS = [
-  { key: "emergency", label: "همین امروز" },
-  { key: "soon", label: "۲۴ تا ۴۸ ساعت" },
-  { key: "this_week", label: "این هفته" },
-  { key: "routine", label: "نوبتِ عادی" },
-];
+   ⚠️ مرزِ موتور: هر حالت/برچسب/امتیاز از `_engine` می‌آید (abnormal، dir، level، fa،
+      score). این‌جا آستانه یا حکمِ بالینیِ تازه‌ای ساخته نمی‌شود؛ هندسهٔ نوار فقط
+      جای عدد را نسبت به محدودهٔ چاپ‌شدهٔ همان آزمایش می‌کشد.
+   ⚠️ عددِ بالینی لاتین می‌ماند (بیمار باید همان عددِ روی کاغذ را پیدا کند)؛ فقط
+      شمارش‌ها و امتیازها فارسی‌اند. نامِ آزمایش همیشه faName()ِ سرور است، نه کلیدِ خام (N8).
+   ⚠️ امتیاز = «امتیازِ این برگه» از rules/score.js (P97): جمعِ حکم‌های موتور با سقفِ فوریت.
+      نمرهٔ هر دستگاه از همان نمره‌های موتور (`score.points`) جمع می‌شود، نه فرمولِ جدا.
+   ========================================================================== */
 
-/* جای نقطهٔ هر دستگاه روی شکلِ بدن (درصدِ عرض/ارتفاعِ کادر) — دادهٔ نمایشی. */
-const SPOTS = {
-  thyroid: [50, 17], cardiac: [55, 31], lipids: [44, 30], cbc: [62, 40], iron: [38, 40],
-  coag: [70, 47], liver: [40, 47], glycemia: [56, 50], kidney: [36, 56], electro: [64, 56],
-  inflam: [50, 63], vitamin: [44, 74], serology: [57, 74], other: [50, 82],
+/* ---------------- number / text helpers ---------------- */
+const FA = '۰۱۲۳۴۵۶۷۸۹';
+const AR = '٠١٢٣٤٥٦٧٨٩';
+const toFa = (v) => String(v ?? '').replace(/[0-9]/g, (d) => FA[+d]);
+const toLatin = (s) =>
+  String(s ?? '')
+    .replace(/[۰-۹]/g, (d) => FA.indexOf(d))
+    .replace(/[٠-٩]/g, (d) => AR.indexOf(d))
+    .replace(/٫/g, '.');
+
+/** عددِ بالینی: لاتین. */
+function fmtNum(n, maxDigits = 2) {
+  if (n == null || !isFinite(n)) return '—';
+  const abs = Math.abs(n);
+  const d = abs >= 100 ? 0 : abs >= 10 ? Math.min(1, maxDigits) : maxDigits;
+  return String(Number(n.toFixed(d)));
+}
+
+const num = (v) => {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  const m = toLatin(v).replace(/(\d),(?=\d{3}(\D|$))/g, '$1').match(/-?\d+(?:\.\d+)?/);
+  return m ? parseFloat(m[0]) : null;
 };
 
-const numericRows = (tests) =>
-  tests
-    .map((t) => ({ t, r: parseRange(t.range), v: Number(t.value) }))
-    .filter((x) => x.r && Number.isFinite(x.v));
+const defaultAsText = (v) =>
+  v == null ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : v.text ?? v.title ?? '';
+const defaultAsList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-/* ---------- کارتِ بیمار ---------- */
-function PatientCard({ name, ctx, urg, urgency, topCat, outTotal, asText }) {
-  const sub = [ctx?.sex && asText(ctx.sex), ctx?.age_text && asText(ctx.age_text)].filter(Boolean).join("، "); // نه «·»: کنارِ رقمِ فارسی شبیهِ «۰» خوانده می‌شد («۴۲۰ سال»)
-  const initial = name ? name.trim()[0] : "؟";
-  return (
-    <div className="dash-card dash-patient">
-      <div className="dash-patient-head">
-        <span className="dash-avatar" aria-hidden="true">{initial}</span>
-        <div>
-          <p className="dash-patient-name">{name || "نتیجهٔ آزمایش شما"}</p>
-          {sub && <p className="dash-muted">{sub}</p>}
-        </div>
-      </div>
-      <p className="dash-line">
-        بیشترین موردِ خارج از محدوده:{" "}
-        <b className="dash-accent">{outTotal > 0 && topCat ? CATEGORIES[topCat]?.label : "موردی خارج از محدوده نیست"}</b>
-      </p>
-      <p className="dash-line">
-        فوریتِ موتور:{" "}
-        <span className={`dash-pill dash-pill--${urgency === "emergency" ? "red" : urgency === "none" ? "muted" : "lime"}`}>
-          {urg.label}
-        </span>
-      </p>
-    </div>
-  );
+function fmtDate(d, opts = { year: 'numeric', month: 'short' }) {
+  if (!d) return '';
+  const t = Date.parse(d);
+  if (!isFinite(t)) return toFa(String(d));
+  try {
+    return new Intl.DateTimeFormat('fa-IR-u-ca-persian', opts).format(new Date(t));
+  } catch {
+    return toFa(String(d));
+  }
 }
 
-/* ---------- خطِ زمانِ قدمِ بعدی ---------- */
-function NextStep({ urgency, recCount }) {
-  const idx = STEPS.findIndex((s) => s.key === urgency);
-  return (
-    <div className="dash-card dash-next">
-      <div className="dash-next-title">
-        <p className="dash-muted">قدمِ بعدی</p>
-        <p className="dash-big">{recCount > 0 ? `${toFaDigits(recCount)} توصیه` : "بدونِ توصیهٔ تازه"}</p>
-      </div>
-      <ol className="dash-steps" aria-label="زمانِ پیشنهادیِ موتور برای دیدنِ پزشک">
-        {STEPS.map((s, i) => (
-          <li key={s.key} className={i === idx ? `on${s.key === "emergency" ? " red" : ""}` : ""} aria-current={i === idx ? "step" : undefined}>
-            {i === idx && <span className="dash-marker" aria-hidden="true">اینجا</span>}
-            <span className="dash-step-label">{s.label}</span>
-          </li>
-        ))}
-      </ol>
-      {idx < 0 && <p className="dash-muted dash-next-note">موتور برای این برگه زمانِ مشخصی پیشنهاد نکرد.</p>}
-      <a className="dash-link" href="#recs">دیدنِ توصیه‌ها</a>
-    </div>
-  );
+/* ---------------- reference-range parsing (فقط برای هندسهٔ نوار) ---------------- */
+function parseRangeText(raw) {
+  const s = toLatin(raw).replace(/(\d),(?=\d{3}(\D|$))/g, '$1');
+  const m = s.match(/(-?\d+(?:\.\d+)?)\s*(?:-|–|—|~|to|تا)\s*(-?\d+(?:\.\d+)?)/i);
+  if (m) return { low: +m[1], high: +m[2] };
+  const lt = s.match(/(?:<=|=<|<|≤|up to|کمتر از|زیر)\s*(-?\d+(?:\.\d+)?)/i);
+  if (lt) return { low: null, high: +lt[1] };
+  const gt = s.match(/(?:>=|=>|>|≥|بیشتر از|بالای)\s*(-?\d+(?:\.\d+)?)/i);
+  if (gt) return { low: +gt[1], high: null };
+  return { low: null, high: null };
 }
 
-/* ---------- شکلِ بدن + خلاصه ---------- */
-function BodyMap({ groups, ctx, summary }) {
-  return (
-    <div className="dash-card dash-body">
-      {/* نقطه‌ها داخلِ خودِ SVG و به واحدِ viewBox‌اند تا با شکل یکجا مقیاس بخورند؛
-          نقطه‌های HTMLِ درصدی روی جعبهٔ حاشیه‌دارِ SVG از شکل بیرون می‌زدند. */}
-      <svg className="dash-figure" viewBox="0 0 200 300">
-        <defs aria-hidden="true">
-          <radialGradient id="dashGlow" cx="50%" cy="40%" r="60%">
-            <stop offset="0%" stopColor="#d9f46a" stopOpacity=".18" />
-            <stop offset="100%" stopColor="#d9f46a" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <rect width="200" height="300" fill="url(#dashGlow)" aria-hidden="true" />
-        <g aria-hidden="true" fill="none" stroke="#e8e8e8" strokeOpacity=".22" strokeWidth="1.4">
-          <circle cx="100" cy="30" r="20" />
-          <path d="M90 50 L90 62 M110 50 L110 62" />
-          <path d="M60 70 Q100 58 140 70 L150 150 Q150 200 135 240 L120 290 M60 70 L50 150 Q50 200 65 240 L80 290" />
-          <path d="M60 72 L35 150 L30 205 M140 72 L165 150 L170 205" />
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <path key={i} d={`M100 ${82 + i * 14} Q${78 - i} ${86 + i * 14} ${66 + i} ${96 + i * 14} M100 ${82 + i * 14} Q${122 + i} ${86 + i * 14} ${134 - i} ${96 + i * 14}`} />
-          ))}
-          <path d="M100 66 L100 200" strokeDasharray="3 4" />
-        </g>
-      {groups.map((g) => {
-        const [x, y] = SPOTS[g.key] ?? SPOTS.other;
-        const w = worstState(g.rows, ctx);
-        const label = `${CATEGORIES[g.key]?.label ?? ""}: ${w.label}`;
-        return (
-          <a key={g.key} href={`#sys-${g.key}`} className={`dash-spot dash-spot--${w.key}`} aria-label={label}>
-            <title>{label}</title>
-            <circle className="dash-spot-halo" cx={x * 2} cy={y * 3} r="10" />
-            <circle className="dash-spot-core" cx={x * 2} cy={y * 3} r="6.5" />
-          </a>
-        );
-      })}
-      </svg>
-      {summary && (
-        <div className="dash-insight">
-          <span className="dash-tag">خلاصهٔ تفسیر هوشمند</span>
-          <p>{summary}</p>
-          <a className="dash-link" href="#summary">دیدنِ متنِ کامل</a>
-        </div>
-      )}
-    </div>
-  );
+function parseRange(t) {
+  const r = t.range ?? t.ref ?? t.reference ?? t.ref_range;
+  let low = num(t.low ?? t.ref_low ?? t.min);
+  let high = num(t.high ?? t.ref_high ?? t.max);
+  if (Array.isArray(r)) {
+    low = num(r[0]);
+    high = num(r[1]);
+  } else if (r && typeof r === 'object') {
+    low = num(r.low ?? r.min ?? r.lower ?? r.from);
+    high = num(r.high ?? r.max ?? r.upper ?? r.to);
+    if (low == null && high == null && r.text) return parseRangeText(r.text);
+  } else if (typeof r === 'string' || typeof r === 'number') {
+    const p = parseRangeText(String(r));
+    if (p.low != null) low = p.low;
+    if (p.high != null) high = p.high;
+  }
+  return { low, high };
 }
 
-/* ---------- جای هر عدد نسبت به محدوده‌اش ----------
-   ۰ = کفِ محدوده، ۱ = سقفِ آن. بیرون از [−۰٫۵، ۱٫۵] روی لبه با پیکان می‌ایستد
-   و عددِ واقعی کنارش می‌آید — نشانگر هرگز دربارهٔ مقدار دروغ نمی‌گوید. */
-function PositionChart({ rows, ctx }) {
-  const items = useMemo(() => numericRows(rows), [rows]);
-  const firstOut = items.findIndex((x) => x.t.abnormal);
-  const [sel, setSel] = useState(firstOut >= 0 ? firstOut : 0);
-  if (!items.length) return null;
-  const cur = items[Math.min(sel, items.length - 1)];
-  const H = 100;
-  const yOf = (p) => H - ((Math.max(-0.5, Math.min(1.5, p)) + 0.5) / 2) * H;   // ٪ از بالا
-  const st = stateOf(cur.t, ctx);
-  return (
-    <div className="dash-card dash-pos">
-      <div className="dash-card-head">
-        <div>
-          <p className="dash-muted">جای هر عدد نسبت به محدودهٔ مرجعِ خودش</p>
-          <p className="dash-big">{cur.t.name}: <Num>{cur.t.value}</Num></p>
-          <p className="dash-pos-range">محدودهٔ مرجع: <Num>{cur.t.range}</Num></p>
-        </div>
-        <span className={`chip ${st.cls}`}><span aria-hidden="true">{dirIcon(cur.t, st)}</span>{labelOf(cur.t, st)}</span>
-      </div>
-      <div className="dash-pos-plot">
-        <div className="dash-pos-axis" aria-hidden="true">
-          <span style={{ top: `${yOf(1)}%` }}>سقفِ محدوده</span>
-          <span style={{ top: `${yOf(0)}%` }}>کفِ محدوده</span>
-        </div>
-        <div className="dash-pos-band" style={{ top: `${yOf(1)}%`, height: `${yOf(0) - yOf(1)}%` }} aria-hidden="true" />
-        <ul className="dash-pos-cols">
-          {items.map((x, i) => {
-            const p = (x.v - x.r.low) / (x.r.high - x.r.low);
-            const s = stateOf(x.t, ctx);
-            const edge = p > 1.5 ? "▲" : p < -0.5 ? "▼" : "";
-            return (
-              <li key={x.t.key}>
-                <button
-                  type="button"
-                  className={`dash-col dash-col--${s.key}${i === sel ? " sel" : ""}`}
-                  onClick={() => setSel(i)}
-                  aria-pressed={i === sel}
-                  aria-label={`${x.t.name}: ${x.t.value}، محدوده ${x.t.range}، ${labelOf(x.t, s)}`}
-                >
-                  <i className="dash-stem" style={{ top: `${Math.min(yOf(p), 50)}%`, bottom: `${100 - Math.max(yOf(p), 50)}%` }} />
-                  <i className="dash-dot" style={{ top: `${yOf(p)}%` }}>{edge}</i>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-      <p className="dash-muted dash-pos-foot">
-        روی هر ستون بزنید تا نام، عدد و محدوده‌اش این بالا بیاید.
-      </p>
-    </div>
-  );
+/** 0 = کفِ محدوده، 1 = سقفِ آن. */
+function position(v, low, high) {
+  if (v == null) return null;
+  if (low != null && high != null && high > low) return (v - low) / (high - low);
+  if (high != null && low == null) return high > 0 ? v / high : null;
+  if (low != null && high == null) {
+    if (low <= 0) return null;
+    return v < low ? v / low - 1 : Math.min(1, (v - low) / low);
+  }
+  return null;
 }
 
-/* ---------- کمانِ شمارش ----------
-   کمان = نسبتِ همان شمارش، بی‌درصد (همان قاعدهٔ Scorecard). بخشِ خارج کهربایی است و فقط
-   وقتی فوریتِ موتور برای برگه emergency است قرمز می‌شود — قرمز انحصاری برای اورژانس است. */
-function CountGauge({ inRange, out, total, urgency }) {
-  const R = 80, C = Math.PI * R;
-  const okLen = total ? (inRange / total) * C : 0;
-  return (
-    <div className="dash-card dash-gauge">
-      <p className="dash-muted">شمارشِ آزمایش‌ها</p>
-      <p className="dash-big">{out > 0 ? `${toFaDigits(out)} مورد خارج از محدوده` : "همه داخلِ محدودهٔ مرجع"}</p>
-      <svg viewBox="0 0 200 115" className="dash-gauge-svg" aria-hidden="true">
-        <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke={urgency === "emergency" ? "var(--d-red)" : "var(--d-amber)"} strokeWidth="14" strokeLinecap="round" opacity={out ? 1 : 0.15} />
-        <path className="dash-gauge-ok" d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="var(--d-lime)" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${okLen} ${C}`} />
-      </svg>
-      <div className="dash-gauge-center">
-        <span className="dash-gauge-num">{toFaDigits(inRange)}<small>/{toFaDigits(total)}</small></span>
-        <span className="dash-pill dash-pill--lime">در محدوده</span>
-      </div>
-    </div>
-  );
+/** حالتِ هر ردیف: فقط از حکمِ موتور (abnormal/dir/level)؛ موقعیتِ عدد فقط وقتی موتور حکمی نداده. */
+function flagInfo(t) {
+  let abnormal = typeof t.abnormal === 'boolean' ? t.abnormal : null;
+  let dir = t.dir === 'high' || t.dir === 'low' ? t.dir : null;
+  let critical = t.critical === true || t.level === 'critical';
+  if (critical) abnormal = true;
+  for (const raw of [t.flag, t.status, t.state, t.severity, t.direction]) {
+    if (typeof raw !== 'string') continue;
+    const x = raw.trim().toLowerCase();
+    if (/^(hh|ll)$|critical|panic|بحرانی/.test(x)) { critical = true; abnormal = true; }
+    if (/^(h|hh)$|high|بالا|↑|▲/.test(x)) { dir = dir ?? 'high'; abnormal = true; }
+    if (/^(l|ll)$|low|پایین|↓|▼/.test(x)) { dir = dir ?? 'low'; abnormal = true; }
+    if (/^(n|normal|ok)$|طبیعی|نرمال/.test(x) && abnormal == null) abnormal = false;
+  }
+  return { abnormal, dir, critical };
 }
 
-/* ---------- نوارِ هر دستگاه ---------- */
-function SystemStrips({ groups, ctx }) {
-  return (
-    <div className="dash-card dash-strips">
-      <p className="dash-muted">به تفکیکِ دستگاهِ بدن</p>
-      <ul>
-        {groups.map((g) => {
-          const { out, total } = countRows(g.rows);
-          const w = worstState(g.rows, ctx);
-          return (
-            <li key={g.key}>
-              <a href={`#sys-${g.key}`} className="dash-strip">
-                <span className="dash-strip-name">
-                  {CATEGORIES[g.key]?.label}:{" "}
-                  <b className={`dash-tone--${w.key}`}>{out ? `${toFaDigits(out)} از ${toFaDigits(total)} خارج` : `${toFaDigits(total)} در محدوده`}</b>
-                </span>
-                <span className="dash-strip-dots" aria-hidden="true">
-                  {g.rows.map((t) => <i key={t.key} className={`dash-tone-bg--${stateOf(t, ctx).key}`} />)}
-                </span>
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
+const STATE_RANK = { critical: 3, abnormal: 2, unknown: 1, normal: 0 };
+
+function normTest(t, i, asText, hasNumbers = true) {
+  const name = asText(t.name ?? t.title ?? t.label_fa) || `آزمایش ${toFa(i + 1)}`;
+  const value = hasNumbers ? num(t.value ?? t.result) : null;
+  const { low, high } = parseRange(t);
+  const pos = position(value, low, high);
+  const fl = flagInfo(t);
+  let dir = fl.dir;
+  if (!dir && fl.abnormal == null && pos != null) dir = pos > 1 ? 'high' : pos < 0 ? 'low' : null;
+  const abnormal = fl.abnormal ?? (pos != null ? pos < 0 || pos > 1 : null);
+  const state = fl.critical ? 'critical' : abnormal === true ? 'abnormal' : abnormal === false ? 'normal' : 'unknown';
+  const rangeText =
+    typeof t.range === 'string' && t.range.trim() ? t.range.trim()
+      : low != null && high != null ? `${fmtNum(low)} تا ${fmtNum(high)}`
+      : high != null ? `کمتر از ${fmtNum(high)}`
+      : low != null ? `بیشتر از ${fmtNum(low)}`
+      : '—';
+  const label =
+    asText(t.fa ?? t.label ?? t.interpretation ?? t.verdict ?? t.note) ||
+    (state === 'critical' ? 'مقدار بحرانی'
+      : dir === 'high' ? 'بالاتر از محدوده'
+      : dir === 'low' ? 'پایین‌تر از محدوده'
+      : state === 'normal' ? 'در محدوده مرجع' : 'بدون محدوده مرجع');
+  const deviation = pos == null ? 0 : pos > 1 ? pos - 1 : pos < 0 ? -pos : 0;
+  return {
+    id: String(t.key ?? t.id ?? `${name}-${i}`),
+    key: t.key ?? null,
+    name, value, unit: asText(t.unit), low, high, pos, dir, state, label, rangeText, deviation,
+    raw: t,
+  };
 }
 
-/* ---------- ستونِ تعدادِ هر دستگاه ---------- */
-function SystemBars({ groups, ctx }) {
-  const max = Math.max(1, ...groups.map((g) => g.rows.length));
-  const top = groups.reduce((a, g) => (countRows(g.rows).out > countRows(a.rows).out ? g : a), groups[0]);
-  return (
-    <div className="dash-card dash-bars">
-      <p className="dash-muted">تعدادِ آزمایش در هر دستگاه</p>
-      <p className="dash-big">{toFaDigits(groups.reduce((n, g) => n + g.rows.length, 0))} آزمایش</p>
-      <ul className="dash-bars-row">
-        {groups.map((g) => {
-          const { out, total } = countRows(g.rows);
-          const w = worstState(g.rows, ctx);
-          return (
-            <li key={g.key} title={`${CATEGORIES[g.key]?.label}: ${total}`}>
-              <span className="dash-bar" style={{ height: `${(total / max) * 100}%` }}>
-                {out > 0 && <span className={`dash-bar-out dash-tone-bg--${w.key}`} style={{ height: `${(out / total) * 100}%` }} />}
-              </span>
-              <span className={`dash-bar-label${g === top && countRows(top.rows).out ? " hi" : ""}`}>{CATEGORIES[g.key]?.icon}</span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
+/* ---------------- امتیاز ----------------
+   امتیازِ کل از سرور می‌آید (`_engine.score`). نمرهٔ هر دستگاه: ۰٫۶۵×میانگین + ۰٫۳۵×بدترین،
+   روی همان نمره‌های موتور (`score.points`)؛ اگر یک آزمایشِ بحرانی دارد ≤ ۴۰. */
+function systemScore(rows, points) {
+  const p = rows.map((r) => (r.key != null ? points?.[r.key] : null)).filter((x) => x != null);
+  if (!p.length) return null;
+  const mean = p.reduce((a, b) => a + b, 0) / p.length;
+  let v = (0.65 * mean + 0.35 * Math.min(...p)) * 100;
+  if (rows.some((r) => r.state === 'critical')) v = Math.min(v, 40);
+  return Math.round(v);
+}
+/** قرمز فقط برای اورژانس/بحرانی (قاعدهٔ پروژه)؛ بقیه کهربایی. */
+const scoreTone = (s, critical) => (s == null ? 'none' : critical ? 'bad' : s >= 85 ? 'good' : 'warn');
+
+/* ---------------- body systems ---------------- */
+const SYS_TITLE = {
+  thyroid: 'تیروئید', lipid: 'چربی خون', cardiac: 'قلب', cbc: 'شمارش خون', liver: 'کبد',
+  glycemia: 'قند خون', iron: 'آهن و کم‌خونی', kidney: 'کلیه', electrolytes: 'الکترولیت‌ها',
+  vitamins: 'ویتامین‌ها', inflammation: 'التهاب', urine: 'ادرار',
+};
+function sysKey(k) {
+  const s = String(k ?? '').toLowerCase();
+  if (/lip|chol|چربی/.test(s)) return 'lipid';
+  if (/thy|تیروئید/.test(s)) return 'thyroid';
+  if (/liv|hepat|lft|کبد/.test(s)) return 'liver';
+  if (/kid|ren|urea|cre|کلیه/.test(s)) return 'kidney';
+  if (/gly|gluc|diab|sugar|قند/.test(s)) return 'glycemia';
+  if (/cbc|hema|blood|خون/.test(s)) return 'cbc';
+  if (/iron|ferr|آهن/.test(s)) return 'iron';
+  if (/elec|lyte|الکترولیت/.test(s)) return 'electrolytes';
+  if (/vit|ویتامین/.test(s)) return 'vitamins';
+  if (/urin|ادرار/.test(s)) return 'urine';
+  if (/card|heart|قلب/.test(s)) return 'cardiac';
+  if (/infl|crp|esr|التهاب/.test(s)) return 'inflammation';
+  return s || 'other';
 }
 
-/* ---------- فهرستِ موارد خارج از محدوده ---------- */
-function OutList({ tests, ctx }) {
-  const out = tests.filter((t) => t.abnormal);
-  return (
-    <div className="dash-card dash-out">
-      <p className="dash-muted">موارد خارج از محدوده</p>
-      <p className="dash-big">{toFaDigits(out.length)} مورد</p>
-      {out.length === 0 ? (
-        <p className="dash-muted">
-          محدودهٔ مرجع طوری تعریف می‌شود که حدود ۹۵ درصد افرادِ سالم داخلش بیفتند. «داخلِ محدوده» یعنی
-          همین، و جای معاینه و سابقهٔ شما را نمی‌گیرد.
-        </p>
-      ) : (
-        <ul>
-          {out.map((t) => {
-            const s = stateOf(t, ctx);
-            return (
-              <li key={t.key}>
-                <span className="dash-out-name">{t.name}</span>
-                <Num>{t.value}</Num>
-                <span className={`chip ${s.cls}`}><span aria-hidden="true">{dirIcon(t, s)}</span>{labelOf(t, s)}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
+function useWidth() {
+  const ref = useRef(null);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    setW(el.clientWidth);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(([e]) => setW(e.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w];
 }
 
-/**
- * @param tests   `_engine.tests` (نام‌دار، همان فهرستِ ResultView)
- * @param groups  [{key, rows}] — همان گروه‌بندیِ ResultView
- * @param ctx     buildVerdictContext
- */
-export default function ResultDashboard({ result, tests, groups, ctx, urgency, hasNumbers, asText, asList }) {
-  const [name, setName] = useState("");
+const reduceMotion = () =>
+  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+const NO_SCORE_FA = {
+  too_few: 'آزمایشِ کافی برای امتیاز نیست (دست‌کم ۵ آزمایشِ دارای حکم لازم است).',
+  neonate: 'برای نوزادِ زیرِ ۲۸ روز امتیاز نمی‌دهیم؛ محدوده‌های نوزادی هنوز کامل نیست.',
+};
+
+/* ==========================================================================
+   Main component
+   ========================================================================== */
+export default function ResultDashboard({
+  result,
+  tests,
+  groups,
+  ctx,
+  urgency,
+  asText = defaultAsText,
+  asList = defaultAsList,
+  patientName,
+  date,          // اختیاری: تاریخِ همین برگه (موتور تاریخ نمی‌دهد؛ بی‌مقدار نمایش داده نمی‌شود)
+  history,       // اختیاری: [{ date, score }] — بی‌تاریخچه کارتِ روند نمایش داده نمی‌شود
+  onOpenReport,
+  onDownload,
+}) {
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const rootRef = useRef(null);
+  const [profileName, setProfileName] = useState('');
   useEffect(() => {
     let alive = true;
     loadProfile()
-      .then((p) => { if (alive) setName([p?.firstName, p?.lastName].filter(Boolean).join(" ")); })
+      .then((p) => { if (alive) setProfileName([p?.firstName, p?.lastName].filter(Boolean).join(' ')); })
       .catch(() => {});
     return () => { alive = false; };
   }, []);
 
-  if (!tests.length) return null;
-  const { inRange, out, total } = countRows(tests);
-  const urg = URGENCY[urgency] ?? URGENCY.none;
-  const topCat = groups.reduce((a, g) => (countRows(g.rows).out > countRows(a.rows).out ? g : a), groups[0])?.key;
+  // «عدد داریم» از خودِ آزمایش‌های موتور می‌آید، نه از extracted_tests (مسیرِ دستی/متنی هم عدد دارد)
+  const hasNumbers = (tests || []).some((t) => num(t.value ?? t.result) != null);
+  const engine = result?._engine || {};
+  const score = engine.score || null;
+
+  const model = useMemo(() => {
+    const groupSrc =
+      Array.isArray(groups) && groups.length
+        ? groups
+        : Object.values(
+            (tests || []).reduce((acc, t) => {
+              const k = t.group ?? t.system ?? 'other';
+              (acc[k] = acc[k] || { key: k, rows: [] }).rows.push(t);
+              return acc;
+            }, {})
+          );
+
+    const systems = groupSrc
+      .map((g, gi) => {
+        const key = sysKey(g.key ?? g.id ?? g.name);
+        const rows = (g.rows ?? g.tests ?? []).map((t, i) => normTest(t, i, asText, hasNumbers));
+        const worst = rows.reduce((w, r) => (STATE_RANK[r.state] > STATE_RANK[w] ? r.state : w), 'normal');
+        return {
+          key: `${key}-${gi}`,
+          title: asText(g.title ?? g.label ?? g.name_fa) || CATEGORIES[g.key]?.label || SYS_TITLE[key] || 'سایر',
+          rows,
+          state: rows.length ? worst : 'unknown',
+          abnormal: rows.filter((r) => r.state === 'abnormal' || r.state === 'critical').length,
+          score: score?.value != null ? systemScore(rows, score.points) : null,
+        };
+      })
+      .filter((s) => s.rows.length);
+
+    const all =
+      Array.isArray(tests) && tests.length
+        ? tests.map((t, i) => normTest(t, i, asText, hasNumbers))
+        : systems.flatMap((s) => s.rows);
+
+    const overall = score?.value ?? null;
+
+    const prev = (Array.isArray(history) ? history : [])
+      .map((h) => ({ date: h.date, score: num(h.score) }))
+      .filter((h) => h.score != null)
+      .sort((a, b) => (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0));
+    const trend = prev.length && overall != null ? [...prev, { date: date ?? null, score: overall, current: true }] : [];
+
+    return { systems, all, overall, trend };
+  }, [tests, groups, asText, hasNumbers, history, date, score]);
+
+  const { systems, all, overall, trend } = model;
+  const [focusKey, setFocusKey] = useState(null);
+  const focus = systems.find((s) => s.key === focusKey) || null;
+  const toggleFocus = (k) => setFocusKey((cur) => (cur === k ? null : k));
+  const [nav, setNav] = useState('overview');
+
+  const engineCtx = engine.context || {};
+  const name = patientName || profileName || '';
+  const firstName = name.trim().split(/\s+/)[0] || '';
+  const ageText = asText(engineCtx.age_text ?? ctx?.age_text);
+  const sexText = asText(engineCtx.sex ?? ctx?.sex);
+  const recs = asList(result?.general_recommendations);
+  const summary = asText(result?.summary);
+  const insights = useMemo(() => buildInsights(systems, all, urgency), [systems, all, urgency]);
+  const showTrend = trend.length > 0;
+
+  const go = (key) => {
+    setNav(key);
+    if (key === 'download') { onDownload?.(); return; }
+    const el = key === 'overview' ? rootRef.current : document.getElementById(`${uid}-${key}`);
+    el?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' });
+  };
+
+  const NAV = [
+    ['overview', 'نمای کلی', <HomeI key="i" />],
+    ['results', 'آزمایش‌ها', <DropI key="i" />],
+    showTrend && ['trend', 'روندها', <TrendI key="i" />],
+    ['systems', 'دستگاه‌های بدن', <ScanI key="i" />],
+    onDownload && ['download', 'دریافت داده', <FileI key="i" />],
+  ].filter(Boolean);
+
+  if (!all.length) return null;
 
   return (
-    <section className="dash" aria-labelledby="dash-h">
-      <h2 id="dash-h" className="sr-only">وضعیت در یک نگاه</h2>
-      <div className="dash-grid">
-        <div className="dash-col-side">
-          <PatientCard name={name} ctx={result._engine?.context} urg={urg} urgency={urgency} topCat={topCat} outTotal={out} asText={asText} />
-          <BodyMap groups={groups} ctx={ctx} summary={result.summary ? asText(result.summary) : ""} />
-        </div>
-        <div className="dash-col-main">
-          <NextStep urgency={urgency} recCount={asList(result.general_recommendations).length} />
-          <div className="dash-row2">
-            <PositionChart rows={tests} ctx={ctx} />
-            <CountGauge inRange={inRange} out={out} total={total} urgency={urgency} />
+    <div className="kd-wrap">
+    <div className="kd" dir="rtl" lang="fa" ref={rootRef}>
+      <div className="kd-shell">
+        {/* ---------------- sidebar ---------------- */}
+        <aside className="kd-side">
+          <div className="kd-logo" aria-label="خوانش">
+            <span className="kd-logo__word">خوانش</span>
+            <span className="kd-logo__dot" aria-hidden="true"><FlaskI /></span>
           </div>
-          <SystemStrips groups={groups} ctx={ctx} />
-          <div className="dash-row2 dash-row2--even">
-            <SystemBars groups={groups} ctx={ctx} />
-            <OutList tests={tests} ctx={ctx} />
+          <nav className="kd-nav" aria-label="بخش‌های داشبورد">
+            {NAV.map(([k, label, icon]) => (
+              <button key={k} type="button" className={`kd-nav__item${nav === k ? ' is-active' : ''}`}
+                aria-current={nav === k ? 'page' : undefined} onClick={() => go(k)}>
+                {icon}
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+          {(name || ageText || sexText) && (
+            <div className="kd-user">
+              <span className="kd-user__avatar" aria-hidden="true">{(name || '؟').trim().charAt(0)}</span>
+              <span className="kd-user__name">
+                {name || 'نتیجهٔ آزمایش شما'}
+                {(sexText || ageText) && <small>{[sexText, ageText].filter(Boolean).join('، ')}</small>}
+              </span>
+            </div>
+          )}
+        </aside>
+
+        {/* ---------------- main ---------------- */}
+        <main className={`kd-main${showTrend ? '' : ' kd-main--notrend'}`}>
+          <header className="kd-card kd-head">
+            <div>
+              <h1 className="kd-head__hello">سلام{firstName ? `، ${firstName}` : ''}</h1>
+              <p className="kd-head__sub">این مرور آزمایش شماست</p>
+            </div>
+            <div className="kd-head__actions">
+              {date && (
+                <div className="kd-datebox">
+                  <span>آخرین آزمایش</span>
+                  <b>{fmtDate(date, { year: 'numeric', month: 'long', day: 'numeric' })}</b>
+                </div>
+              )}
+              {onDownload && (
+                <button type="button" className="kd-btn" onClick={onDownload}>
+                  <DownloadI /> دریافت نتایج
+                </button>
+              )}
+            </div>
+          </header>
+
+          <ResultsCard id={`${uid}-results`} systems={systems} focus={focus}
+            onClearFocus={() => setFocusKey(null)} hasNumbers={hasNumbers} />
+
+          <RadarCard id={`${uid}-systems`} systems={systems} overall={overall} score={score}
+            urgency={urgency} focusKey={focusKey} onSelect={toggleFocus} />
+
+          <div className="kd-stack">
+            <InsightsCard items={insights} summary={summary} onOpenReport={onOpenReport} />
+            <RecsCard recs={recs} asText={asText} />
+          </div>
+
+          {showTrend && <TrendCard id={`${uid}-trend`} uid={uid} points={trend} urgency={urgency} />}
+        </main>
+      </div>
+    </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   Insights (فقط از حکمِ موتور)
+   ========================================================================== */
+function listFa(names) {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join('، ')} و ${names[names.length - 1]}`;
+}
+
+function buildInsights(systems, all, urgency) {
+  const out = [];
+  all
+    .filter((t) => t.state === 'critical')
+    .forEach((t) =>
+      out.push({
+        tone: 'bad', dir: t.dir || 'high',
+        title: `${t.name} در محدوده بحرانی است`,
+        text: `${t.label}. مرجع: ${t.rangeText}${urgency === 'emergency' ? '. همین امروز اقدام کنید.' : '.'}`,
+      })
+    );
+  systems
+    .filter((s) => s.abnormal > 0)
+    .sort((a, b) => b.abnormal - a.abnormal)
+    .forEach((s) => {
+      const rows = s.rows.filter((r) => r.state === 'abnormal');
+      if (!rows.length) return;
+      const names = rows.map((r) => r.name);
+      out.push({
+        tone: 'warn',
+        title: `${s.title}: ${toFa(rows.length)} مورد خارج از محدوده`,
+        text: `${listFa(names.slice(0, 3))}${names.length > 3 ? ' و موارد دیگر' : ''}؛ ${rows[0].label}.`,
+      });
+    });
+  const good = systems.filter((s) => s.state === 'normal');
+  if (good.length) {
+    const names = good.slice(0, 3).map((s) => s.title);
+    const count = good.slice(0, 3).reduce((a, s) => a + s.rows.length, 0);
+    out.push({
+      tone: 'good',
+      title: names.length === 1 ? `${names[0]} در محدوده مرجع است` : `${listFa(names)} در محدوده مرجع‌اند`,
+      text: `هر ${toFa(count)} آزمایش مربوط در محدوده است.`,
+    });
+  }
+  return out;
+}
+
+/* ==========================================================================
+   Cards
+   ========================================================================== */
+function InfoTip({ text }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => {
+      if (e.type === 'keydown' && e.key !== 'Escape') return;
+      if (e.type === 'pointerdown' && ref.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [open]);
+  return (
+    <span className="kd-info" ref={ref}>
+      <button type="button" className="kd-info__btn" aria-expanded={open} aria-label="توضیح"
+        onClick={() => setOpen((o) => !o)}>
+        <InfoI />
+      </button>
+      {open && <span className="kd-info__pop" role="tooltip">{text}</span>}
+    </span>
+  );
+}
+
+function CardHead({ title, sub, info, aside }) {
+  return (
+    <div className="kd-cardhead">
+      <div className="kd-cardhead__row">
+        <h2>{title}</h2>
+        <div className="kd-cardhead__aside">
+          {aside}
+          {info && <InfoTip text={info} />}
+        </div>
+      </div>
+      {sub && <p>{sub}</p>}
+    </div>
+  );
+}
+
+/* ---------- Results: range bars ---------- */
+const LIMIT = 12;
+const axis = (p) => 8 + ((clamp(p, -0.5, 1.5) + 0.5) / 2) * 84; // % along the track
+
+function ResultsCard({ id, systems, focus, onClearFocus, hasNumbers }) {
+  const [expanded, setExpanded] = useState(false);
+  const [sel, setSel] = useState(null);
+  // دستگاه‌های دارای موردِ بحرانی/خارج اول می‌آیند تا پشتِ «نمایش بیشتر» پنهان نشوند
+  const list = focus
+    ? [focus]
+    : systems
+        .map((g, i) => ({ g, i }))
+        .sort((a, b) => STATE_RANK[b.g.state] - STATE_RANK[a.g.state] || a.i - b.i)
+        .map(({ g }) => g);
+  const total = list.reduce((a, g) => a + g.rows.length, 0);
+  let left = expanded || focus ? Infinity : LIMIT;
+  const shown = list
+    .map((g) => {
+      const rows = g.rows.slice(0, Math.max(0, left));
+      left -= rows.length;
+      return { ...g, rows };
+    })
+    .filter((g) => g.rows.length);
+  const shownCount = shown.reduce((a, g) => a + g.rows.length, 0);
+
+  return (
+    <section className="kd-card kd-results" id={id}>
+      <CardHead
+        title="نتایج شما"
+        info="هر نوار، محدودهٔ مرجعِ همان آزمایش را نشان می‌دهد. بخشِ آبیِ روشن محدودهٔ مرجع است، بخشِ پررنگ‌تر میانهٔ آن، و خطِ عمودیِ وسط، مرکزِ محدوده. جعبهٔ آبی عددِ شماست؛ نارنجی یعنی خارج از محدوده و قرمز یعنی مقدارِ بحرانی. عددها همان اعدادِ روی برگه‌اند."
+        aside={focus && (
+          <button type="button" className="kd-chip" onClick={onClearFocus}>{focus.title} ✕</button>
+        )}
+      />
+      {!hasNumbers ? (
+        <div className="kd-empty">مقدار عددی از برگه آزمایش استخراج نشد.</div>
+      ) : (
+        <div className="kd-rows">
+          {shown.map((g) => (
+            <div key={g.key} className="kd-group">
+              <h3 className="kd-group__title">
+                {g.title}
+                {g.abnormal > 0 && <span className={`kd-tag kd-tag--${g.state}`}>{toFa(g.abnormal)} مورد</span>}
+              </h3>
+              {g.rows.map((t) => {
+                const isSel = sel === t.id;
+                const p = t.pos;
+                const over = p != null && p > 1.5;
+                const under = p != null && p < -0.5;
+                return (
+                  <React.Fragment key={t.id}>
+                    <button type="button" className={`kd-row${isSel ? ' is-sel' : ''}`}
+                      aria-expanded={isSel} onClick={() => setSel(isSel ? null : t.id)}
+                      aria-label={`${t.name}: ${fmtNum(t.value)} ${t.unit}، ${t.label}`}>
+                      <span className="kd-row__name">{t.name}</span>
+                      <span className={`kd-track${p == null ? ' kd-track--none' : ''}`}>
+                        <i className="kd-band kd-band--out" />
+                        {p != null && (
+                          <>
+                            <i className="kd-band kd-band--ref" style={{ left: `${axis(0)}%`, width: `${axis(1) - axis(0)}%` }} />
+                            <i className="kd-band kd-band--mid" style={{ left: `${axis(0.25)}%`, width: `${axis(0.75) - axis(0.25)}%` }} />
+                          </>
+                        )}
+                        <b className={`kd-val kd-val--${t.state}`} style={{ left: `${p == null ? 50 : axis(p)}%` }}>
+                          {over && '▲'}{under && '▼'}{fmtNum(t.value)}
+                        </b>
+                      </span>
+                    </button>
+                    {isSel && (
+                      <div className="kd-row__detail">
+                        <span>مرجع: <bdi className="kd-ltr">{t.rangeText}</bdi> <bdi className="kd-ltr">{t.unit}</bdi></span>
+                        <span className={`kd-text--${t.state}`}>{t.label}</span>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+      {hasNumbers && !focus && total > LIMIT && (
+        <button type="button" className="kd-more" onClick={() => setExpanded((e) => !e)}>
+          {expanded ? 'نمایش کمتر' : `نمایش بیشتر (${toFa(total - shownCount)})`}
+        </button>
+      )}
+    </section>
+  );
+}
+
+/* ---------- Radar: system scores ---------- */
+const TONE_WORD = { good: 'مطلوب', warn: 'نیاز به توجه', bad: 'نیازمند اقدام', none: 'بدون امتیاز' };
+
+function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect }) {
+  const scored = systems.filter((s) => s.score != null);
+  const n = scored.length;
+  const R = 29;
+  const pt = (i, r) => {
+    const a = (i / n) * Math.PI * 2;
+    return [50 + r * Math.sin(a), 50 - r * Math.cos(a)];
+  };
+  const poly = scored.map((s, i) => pt(i, (R * s.score) / 100).join(',')).join(' ');
+  const overallTone = scoreTone(overall, urgency === 'emergency');
+  const why = score?.reason ? NO_SCORE_FA[score.reason] : null;
+
+  return (
+    <section className="kd-card kd-radar" id={id}>
+      <CardHead
+        title="خلاصهٔ دستگاه‌های بدن"
+        sub="خلاصهٔ همین آزمایش‌هاست، نه ارزیابیِ کلِ سلامتِ شما"
+        info="امتیازِ کل از حکمِ خودِ موتور برای هر آزمایش ساخته می‌شود (در محدوده، نزدیکِ مرز، یا خارج با شدتِ مشخص) و هرگز از سقفِ فوریتِ همین برگه بالاتر نمی‌رود؛ پس برگهٔ اورژانسی هیچ‌وقت امتیازِ بالا نمی‌گیرد. امتیازِ هر دستگاه همان نمره‌ها را برای آزمایش‌های آن دستگاه جمع می‌کند و اگر موردِ بحرانی داشته باشد زیرِ ۴۰ می‌ماند. این عدد برای مرورِ سریع است و جای نظرِ پزشک را نمی‌گیرد."
+      />
+      {n >= 3 ? (
+        <div className="kd-radar__plot">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            {[0.25, 0.5, 0.75].map((k) => (
+              <circle key={k} cx="50" cy="50" r={R * k} className="kd-radar__ring" />
+            ))}
+            <circle cx="50" cy="50" r={R} className="kd-radar__ring kd-radar__ring--outer" />
+            {scored.map((s, i) => {
+              const [x, y] = pt(i, R);
+              return <line key={s.key} x1="50" y1="50" x2={x} y2={y} className="kd-radar__spoke" />;
+            })}
+            <polygon points={poly} className="kd-radar__area" />
+            {scored.map((s, i) => {
+              const [x, y] = pt(i, (R * s.score) / 100);
+              return <circle key={s.key} cx={x} cy={y} r="1.1" className={`kd-radar__dot kd-tone-${scoreTone(s.score, s.state === 'critical')}`} />;
+            })}
+          </svg>
+          {overall != null && (
+            <div className="kd-radar__center">
+              <b className={`kd-tone-${overallTone}`}>{toFa(overall)}</b>
+              <span>امتیازِ این برگه</span>
+            </div>
+          )}
+          {scored.map((s, i) => {
+            const a = (i / n) * Math.PI * 2;
+            const [x, y] = pt(i, R + 4);
+            const tone = scoreTone(s.score, s.state === 'critical');
+            return (
+              <button type="button" key={s.key}
+                className={`kd-axislabel${focusKey === s.key ? ' is-focus' : ''}`}
+                style={{
+                  left: `${x}%`, top: `${y}%`,
+                  transform: `translate(${-50 + 50 * Math.sin(a)}%, ${-50 - 50 * Math.cos(a)}%)`,
+                }}
+                aria-pressed={focusKey === s.key}
+                aria-label={`${s.title}: امتیاز ${toFa(s.score)} از ۱۰۰، ${TONE_WORD[tone]}. نمایش آزمایش‌ها`}
+                onClick={() => onSelect(s.key)}>
+                <span>{s.title}</span>
+                <b className={`kd-tone-${tone}`}>{toFa(s.score)}</b>
+              </button>
+            );
+          })}
+        </div>
+      ) : n > 0 ? (
+        <>
+          {overall != null && (
+            <p className="kd-overall"><b className={`kd-tone-${overallTone}`}>{toFa(overall)}</b> <span>امتیازِ این برگه</span></p>
+          )}
+          <ul className="kd-scorebars">
+            {scored.map((s) => {
+              const tone = scoreTone(s.score, s.state === 'critical');
+              return (
+                <li key={s.key}>
+                  <span>{s.title}</span>
+                  <i><em className={`kd-bgtone-${tone}`} style={{ width: `${s.score}%` }} /></i>
+                  <b className={`kd-tone-${tone}`}>{toFa(s.score)}</b>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      ) : (
+        <div className="kd-empty">{why ?? 'برای محاسبهٔ امتیاز، آزمایش با محدودهٔ مرجع لازم است.'}</div>
+      )}
+    </section>
+  );
+}
+
+/* ---------- Insights ---------- */
+function InsightsCard({ items, summary, onOpenReport }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? items : items.slice(0, 3);
+  return (
+    <section className="kd-card kd-list" id="summary-card">
+      <CardHead
+        title={<span className="kd-withicon"><SparkI /> نکات خوانش</span>}
+        aside={items.length > 3 && (
+          <button type="button" className="kd-linkbtn" onClick={() => setAll((v) => !v)}>
+            {all ? 'بستن' : 'مشاهده همه'}
+          </button>
+        )}
+      />
+      {summary && (
+        <p className="kd-summary">
+          {summary}
+          <a className="kd-linkbtn" href="#summary" onClick={onOpenReport}> متنِ کامل ←</a>
+        </p>
+      )}
+      <ul className="kd-items">
+        {shown.map((it, i) => (
+          <li key={i} className="kd-item">
+            <span className={`kd-item__icon kd-item__icon--${it.tone}`}>
+              {it.tone === 'good' ? <ArrowCircleI up /> : it.tone === 'warn' ? <WarnI /> : <ArrowCircleI up={it.dir !== 'low'} />}
+            </span>
+            <span className="kd-item__body">
+              <b>{it.title}</b>
+              <small>{it.text}</small>
+            </span>
+          </li>
+        ))}
+        {!shown.length && <li className="kd-item kd-item--empty">نکته‌ای برای نمایش نیست.</li>}
+      </ul>
+    </section>
+  );
+}
+
+/* ---------- Recommendations ---------- */
+function recIcon(text) {
+  const s = String(text);
+  if (/اورژانس|فوری/.test(s)) return <AlertI />;
+  if (/پزشک|ویزیت|مراجعه|مشورت/.test(s)) return <StethI />;
+  if (/آزمایش|تکرار|پیگیری/.test(s)) return <FlaskI />;
+  if (/رژیم|غذا|تغذیه|مکمل|ویتامین/.test(s)) return <LeafI />;
+  if (/ورزش|فعالیت|پیاده/.test(s)) return <RunI />;
+  if (/آب|مایعات/.test(s)) return <DropI />;
+  if (/خواب/.test(s)) return <MoonI />;
+  return <SparkI />;
+}
+
+function RecsCard({ recs, asText }) {
+  const [all, setAll] = useState(false);
+  const [open, setOpen] = useState(null);
+  const items = recs
+    .map((r) =>
+      r && typeof r === 'object'
+        ? { title: asText(r.title ?? r.text), sub: asText(r.detail ?? r.description ?? r.reason) }
+        : { title: asText(r), sub: '' }
+    )
+    .filter((r) => r.title);
+  const shown = all ? items : items.slice(0, 4);
+  return (
+    <section className="kd-card kd-list" id="recs">
+      <CardHead
+        title="توصیه‌های خوانش"
+        aside={items.length > 4 && (
+          <button type="button" className="kd-linkbtn" onClick={() => setAll((v) => !v)}>
+            {all ? 'بستن' : 'مشاهده همه'}
+          </button>
+        )}
+      />
+      <ul className="kd-items">
+        {shown.map((r, i) => (
+          <li key={i}>
+            <button type="button" className={`kd-item kd-item--rec${open === i ? ' is-open' : ''}`}
+              aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>
+              <span className="kd-item__glyph">{recIcon(`${r.title} ${r.sub}`)}</span>
+              <span className="kd-item__body">
+                <b>{r.title}</b>
+                {r.sub && <small>{r.sub}</small>}
+              </span>
+              <ChevronI />
+            </button>
+          </li>
+        ))}
+        {!shown.length && <li className="kd-item kd-item--empty">توصیه‌ای ثبت نشده است.</li>}
+      </ul>
+    </section>
+  );
+}
+
+/* ---------- Trend (فقط با تاریخچهٔ واقعی) ---------- */
+function TrendCard({ id, uid, points, urgency }) {
+  const [ref, w] = useWidth();
+  const [hover, setHover] = useState(null);
+  const H = 230;
+  const pad = { l: 34, r: 16, t: 16, b: 34 };
+  const timed = points.length > 0 && points.every((p) => isFinite(Date.parse(p.date)));
+  const ts = points.map((p, i) => (timed ? Date.parse(p.date) : i));
+  const tmin = Math.min(...ts);
+  const tmax = Math.max(...ts);
+  const innerL = pad.l + 22;
+  const innerR = Math.max(innerL + 10, w - pad.r - 22);
+  const x = (i) => (tmax === tmin ? (innerL + innerR) / 2 : innerL + ((ts[i] - tmin) / (tmax - tmin)) * (innerR - innerL));
+  const y = (v) => pad.t + (1 - v / 100) * (H - pad.t - pad.b);
+  const cur = points[points.length - 1];
+  const prev = points.length > 1 ? points[points.length - 2] : null;
+  const change = prev && prev.score ? Math.round(((cur.score - prev.score) / prev.score) * 100) : null;
+  const label = (p) => (p.date ? fmtDate(p.date) : 'این آزمایش');
+  const xs = points.map((_, i) => x(i));
+  const minGap = Math.min(...xs.slice(1).map((v, i) => v - xs[i]), Infinity);
+  const every = minGap < 70 ? Math.ceil(70 / Math.max(minGap, 1)) : 1;
+  const line = points.map((p, i) => `${i ? 'L' : 'M'}${x(i)} ${y(p.score)}`).join(' ');
+  const area = points.length > 1 ? `${line} L${x(points.length - 1)} ${y(0)} L${x(0)} ${y(0)} Z` : '';
+  const hp = hover != null ? points[hover] : null;
+
+  return (
+    <section className="kd-card kd-trend" id={id}>
+      <CardHead
+        title="روند امتیاز"
+        sub="امتیازِ هر نوبت آزمایش، از ۰ تا ۱۰۰"
+        aside={<span className="kd-legend"><i />امتیازِ شما</span>}
+        info="امتیازِ هر نوبت با همان روشِ این برگه محاسبه می‌شود. وقتی آزمایش‌های نوبت‌ها یکسان نباشند، مقایسه تقریبی است."
+      />
+      <div className="kd-trend__body">
+        <div className="kd-trend__plot" ref={ref}>
+          {cur && w > 0 && (
+            <svg width={w} height={H} role="img"
+              aria-label={`روند امتیاز: ${points.map((p) => `${label(p)} ${toFa(p.score)}`).join('، ')}`}>
+              <defs>
+                <linearGradient id={`${uid}-area`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="var(--kd-blue)" stopOpacity=".28" />
+                  <stop offset="1" stopColor="var(--kd-blue)" stopOpacity=".06" />
+                </linearGradient>
+              </defs>
+              {[0, 25, 50, 75, 100].map((v) => (
+                <g key={v}>
+                  <line x1={pad.l} x2={w - pad.r} y1={y(v)} y2={y(v)} className={`kd-gridline${v === 0 ? ' kd-gridline--base' : ''}`} />
+                  <text x={pad.l - 8} y={y(v) + 4} textAnchor="end" className="kd-tick">{toFa(v)}</text>
+                </g>
+              ))}
+              {area && <path d={area} fill={`url(#${uid}-area)`} />}
+              {points.length > 1 && <path d={line} className="kd-trend__line" />}
+              {points.map((p, i) => (
+                <g key={i}>
+                  {(i % every === 0 || i === points.length - 1) && (
+                    <text x={x(i)} y={H - 10} textAnchor="middle" className={`kd-tick${p.current ? ' is-cur' : ''}`}>{label(p)}</text>
+                  )}
+                  <circle cx={x(i)} cy={y(p.score)} r={p.current ? 6 : 4.5}
+                    className={`kd-trend__pt${p.current ? ' is-cur' : ''}`}
+                    tabIndex={0} role="button" aria-label={`${label(p)}: ${toFa(p.score)}`}
+                    onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+                    onFocus={() => setHover(i)} onBlur={() => setHover(null)} />
+                </g>
+              ))}
+            </svg>
+          )}
+          {hp && (
+            <span className="kd-tip" style={{ left: x(hover), top: y(hp.score) - 42 }}>
+              {label(hp)}: <b>{toFa(hp.score)}</b>
+            </span>
+          )}
+        </div>
+        <div className="kd-stats">
+          <div className="kd-stat kd-stat--main">
+            <b className={`kd-tone-${scoreTone(cur?.score, urgency === 'emergency')}`}>{cur ? toFa(cur.score) : '—'}</b>
+            <span>امتیازِ این برگه</span>
+          </div>
+          <div className="kd-stat">
+            <b>{prev ? toFa(prev.score) : '—'}</b>
+            <span>{prev ? `نوبتِ قبل (${label(prev)})` : 'نوبتِ قبل'}</span>
           </div>
         </div>
       </div>
-      <p className="dash-foot">
-        رنگ و برچسبِ هر مورد از حکمِ قاعده‌های موتور برای همان آزمایش است؛ فوریت برای کلِ برگه است.
-        {hasNumbers && (
-          <>
-            {" "}این شمارش روی اعدادی است که از عکسِ شما خواندیم.{" "}
-            <a href="#numbers-check" className="dash-link">یک نگاه به آن‌ها بیندازید</a> و با برگه مقایسه کنید.
-          </>
+      <p className="kd-trend__note">
+        <SparkI />
+        {change == null ? (
+          <span>با ثبتِ آزمایش‌های بعدی، تغییرِ امتیاز اینجا نشان داده می‌شود.</span>
+        ) : change === 0 ? (
+          <span>امتیازِ شما نسبت به نوبتِ قبل <b>تغییری نکرده</b> است.</span>
+        ) : (
+          <span>
+            امتیازِ شما نسبت به نوبتِ قبل{' '}
+            <b className={change > 0 ? 'kd-tone-good' : 'kd-tone-warn'}>
+              {toFa(Math.abs(change))}٪ {change > 0 ? 'بالاتر' : 'پایین‌تر'}
+            </b>{' '}
+            است.
+          </span>
         )}
       </p>
     </section>
   );
 }
+
+/* ==========================================================================
+   Icons (stroke, currentColor)
+   ========================================================================== */
+const Ico = ({ children, size = 22, sw = 1.6 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children}
+  </svg>
+);
+const HomeI = () => <Ico><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z" /></Ico>;
+const DropI = () => <Ico><path d="M12 3.5s6 6.4 6 10.5a6 6 0 0 1-12 0c0-4.1 6-10.5 6-10.5z" /><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5" /></Ico>;
+const TrendI = () => <Ico><path d="M4 4v16h16" /><path d="m7 15 4-5 3 3 5-6" /></Ico>;
+const ScanI = () => <Ico><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><path d="M8 12h2l1.5-3 2 6 1.5-3h1" /></Ico>;
+const FileI = () => <Ico><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z" /><path d="M14 3v4h4M12 11v6m-2.5-2.5L12 17l2.5-2.5" /></Ico>;
+const DownloadI = () => <Ico size={18}><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19h14" /></Ico>;
+const InfoI = () => <Ico size={20}><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="7.8" r=".6" fill="currentColor" /></Ico>;
+const SparkI = () => <Ico size={20}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" /></Ico>;
+const ChevronI = () => <span className="kd-chev"><Ico size={18}><path d="m14.5 6-6 6 6 6" /></Ico></span>;
+const FlaskI = () => <Ico><path d="M9.5 3.5h5M10 3.5v6L5.2 18a1.6 1.6 0 0 0 1.4 2.4h10.8a1.6 1.6 0 0 0 1.4-2.4L14 9.5v-6" /><path d="M7.5 15h9" /></Ico>;
+const StethI = () => <Ico><path d="M6 4v5a4 4 0 0 0 8 0V4" /><path d="M10 13v2a4 4 0 0 0 8 0v-1.5" /><circle cx="18" cy="11.5" r="2" /></Ico>;
+const LeafI = () => <Ico><path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14z" /><path d="M5 19 13 11" /></Ico>;
+const RunI = () => <Ico><circle cx="14" cy="4.5" r="1.6" /><path d="m7 21 3-6 3 2v5M10 15l1.5-6L8 10l-2 3M11.5 9l3 3 3-1" /></Ico>;
+const MoonI = () => <Ico><path d="M19 14.5A7.5 7.5 0 0 1 9.5 5a7.5 7.5 0 1 0 9.5 9.5z" /></Ico>;
+const AlertI = () => <Ico><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5" /><circle cx="12" cy="16.3" r=".6" fill="currentColor" /></Ico>;
+const WarnI = () => (
+  <Ico size={34} sw={2}>
+    <path d="M12 3.8 21.2 19.5a.8.8 0 0 1-.7 1.2H3.5a.8.8 0 0 1-.7-1.2z" />
+    <path d="M12 9.5v5" /><circle cx="12" cy="17.6" r=".7" fill="currentColor" />
+  </Ico>
+);
+const ArrowCircleI = ({ up }) => (
+  <Ico size={34} sw={2}>
+    <circle cx="12" cy="12" r="9.5" />
+    {up ? <path d="M12 16.5v-9m-4 4 4-4 4 4" /> : <path d="M12 7.5v9m-4-4 4 4 4-4" />}
+  </Ico>
+);

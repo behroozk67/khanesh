@@ -35,6 +35,7 @@ import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
+import { healthScore } from "./rules/score.js";
 import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines } from "./rules/prompt.js";
 import { glossQualText } from "./rules/patterns_utils.js";
 import { faName } from "./rules/names.js";
@@ -225,6 +226,8 @@ function engineDebug(engineOut, patternOut) {
     context: engineContext(engineOut, patternOut),
     indices: engineOut.indices,
     tests: serializeGraded(engineOut),
+    // «امتیازِ این برگه» (P97) — فقط از حکمِ خودِ موتور؛ سقفش فوریتِ همین برگه است. `points` نمرهٔ هر آزمایش (۰–۱) برای جمعِ هر دستگاه در فرانت.
+    score: healthScore(engineOut, patternOut.overall_urgency),
     // ── منابعِ گایدلاینیِ یافته‌ها (شفافیت) ──
     // فقط شناسه‌هایی که واقعاً روی یافته‌های نمایش‌داده‌شده نشسته‌اند.
     // sourceList نامِ منبعِ پولی را با معادلِ آزادش جایگزین می‌کند تا
