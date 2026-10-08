@@ -1271,6 +1271,8 @@ export function ocrToEngineInput(ocr) {
   const printedRefsAll = {};
   // کلیدهای *_ABS که از «درصد × WBC» ساخته شدند ⇒ درصدِ چاپ‌شده. عددِ مطلق روی برگه نیست (N5).
   const derivedAbs = {};
+  // بازهٔ چاپ‌شدهٔ ردیفِ درصدی (۲۰–۴۵٪) برای همان کلیدهای derivedAbs — فقط برای گزارشِ درصد کنارِ عدد (۲۰۲۶-۱۰-۰۸)؛ درجه‌بندی نمی‌شود.
+  const pctRefs = {}, derivedAbsRefs = {};
   const sexHint = inferSex(ocr), ageHint = inferAge(ocr);
   const hgbFromIndices = hgbSystemFromIndices(ocr?.tests || []);
   // 🔴 واحدِ نانوشته (کلاسِ N3): پیش از این هر عددِ بی‌واحد بی‌صدا «متعارف» فرض می‌شد — کراتینینِ
@@ -1801,6 +1803,7 @@ export function ocrToEngineInput(ocr) {
     if (UNIT_KEPT.has(engineKey) && !(engineKey in printedUnits)) printedUnits[engineKey] = t.unit ?? null;
     // بازهٔ ردیفِ درصدی (۲–۵٪) مالِ کلیدِ *_ABS نیست؛ فقط ردیف‌های غیرِ دیفرانسیل.
     if (t.reference && !/_ABS$|_PCT$/.test(engineKey) && !(engineKey in printedRefsAll)) printedRefsAll[engineKey] = String(t.reference);
+    if (t.reference && /_PCT$/.test(engineKey) && !(engineKey in pctRefs)) pctRefs[engineKey] = String(t.reference);
 
     let v = toNum(t.value);
     if (v == null) {
@@ -2127,6 +2130,7 @@ export function ocrToEngineInput(ocr) {
       if (tests[p] != null && tests[a] == null) {
         tests[a] = Math.round((abs * tests[p]) / 100);
         derivedAbs[a] = tests[p];
+        if (pctRefs[p]) derivedAbsRefs[a] = pctRefs[p];
       }
     }
   }
@@ -2168,6 +2172,7 @@ export function ocrToEngineInput(ocr) {
     printedRefs,
     printedRefsAll,
     derivedAbs,
+    derivedAbsRefs,
     diffMixed,
     printedUnits,
     unitConversions,
@@ -2201,7 +2206,7 @@ function inferGestWeeks(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, printedRefsAll, derivedAbs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, printedRefsAll, derivedAbs, derivedAbsRefs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
   const gestWeeksF = pregnantF ? gestWeeks : null;
 
@@ -2673,6 +2678,7 @@ export function runEngine(ocr) {
     // فقط وقتی هست، تا خروجیِ برگه‌های بی‌بازهٔ متفاوت بایت‌به‌بایت همان بماند (فریزها).
     ...(Object.keys(printedRanges).length ? { printedRanges } : {}),
     ...(Object.keys(derivedAbs).length ? { derivedAbs } : {}),
+    ...(Object.keys(derivedAbsRefs).length ? { derivedAbsRefs } : {}),
     abnormal: graded.filter((g) => g.abnormal),
     ...(tests._ddimer_ratio != null ? { _ddimer_uln_ratio: tests._ddimer_ratio } : {}),
   };

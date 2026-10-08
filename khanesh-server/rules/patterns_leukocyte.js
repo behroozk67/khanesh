@@ -7,10 +7,10 @@
 // هر قاعده جهت را از dirِ سنجیده‌شده می‌گیرد، نه از مقایسه با یک مرزِ شدت (N12)؛ و چون خواندنِ یک کلید آن را برای
 // تورِ «توضیح داده نشدند» پوشش‌داده می‌کند، هر شاخه‌ای که کلید در آن فعال است جملهٔ خودش را دارد (M156).
 import { MONOCYTOSIS_ABS_UL, HYPEREOSINOPHILIA_ABS_UL, MONOCYTOPENIA_SEVERE_ABS_UL, smearAxis, smearItemFa, smearLeukemicSentence,
-  smearCbcComplete, BLAST_EVAL_SENTENCE, absQuoteFa, ungradedFa, anemiaCrisisOwns } from "./patterns_utils.js";
+  smearCbcComplete, BLAST_EVAL_SENTENCE, absQuoteFa, keyNumFa, ungradedFa } from "./patterns_utils.js";
 import { netUrgency } from "./patterns_p73_gaps.js";
 import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
-import { RULES_HEMATOLOGY } from "./patterns_hematology.js";
+import { RULES_HEMATOLOGY, cytopeniaTripletFires } from "./patterns_hematology.js";
 
 // همان شکلِ patterns_cardiac.js: فوریت یک‌بار حساب می‌شود و جملهٔ اقدام از همان مشتق می‌شود (N20).
 function actionFor(urgency, { week, routine }) {
@@ -27,15 +27,6 @@ function firesHemById(e, id) {
 }
 const gradedOf = (e, key) => e.graded.find((g) => g.test === key);
 const ROUTINE_ACTION = "نتیجه را در نوبتِ عادی با پزشک در میان بگذارید.";
-// ۲۰۲۶-۱۰-۰۸ (P98، همان برگهٔ شفا): Hb↓ + PLT↓ + لنفوسیت↓ سه یافتهٔ جدا بود و هیچ‌کدام نمی‌گفت این‌ها با هم‌اند. «آیا این الگو فعال است»
-//   فقط یک‌جا تعریف می‌شود تا lymphopenia برای اقدامش از همین بپرسد، نه از کپیِ شرط (M91e). زیرِ pancytopenia / ترومبوسیتوپنیِ شدید /
-//   بحرانِ کم‌خونی کنار می‌کشد: آن‌ها مالکِ فوریت‌اند و این یافته نباید دومین زمان‌بندی بیفزاید (N20).
-function cytopeniaTripletFires(e) {
-  const low = (k) => { const g = gradedOf(e, k); return !!(g?.abnormal && g.dir === "low"); };
-  if (!(low("HGB") && low("PLT") && low("LYMPH_ABS"))) return false;
-  if (e.ungraded?.NEUT_ABS?.reason === "diff_incomplete") return false;
-  return !firesHemById(e, "pancytopenia") && !firesHemById(e, "severe_thrombocytopenia") && !anemiaCrisisOwns(e);
-}
 const K_HGB = "HGB", K_PLT = "PLT";
 // کلیدِ آزمایش به absQuoteFa: ثابتِ سطحِ ماژول، نه literal داخلِ must_say — M38 هر literalِ داخلِ متنِ کاربر را «رشتهٔ غیرفارسی» می‌شمارد.
 const K_LYMPH = "LYMPH_ABS", K_EOS = "EOS_ABS", K_NEUT = "NEUT_ABS", K_MONO = "MONO_ABS", K_BASO = "BASO_ABS";
@@ -44,13 +35,22 @@ const K_LYMPH = "LYMPH_ABS", K_EOS = "EOS_ABS", K_NEUT = "NEUT_ABS", K_MONO = "M
 // درجهٔ CTCAE همان‌جا محاسبه شده بود. جملهٔ نوتروفیل سه‌حالته است (N4/N21) و بیرونِ قاعده نوشته می‌شود تا NEUT_ABS در RULE_READS نیاید (M156).
 function lymphNeutClause(e) {
   const n = gradedOf(e, "NEUT_ABS");
+  // درصدِ چاپ‌شده را می‌گوید؛ اگر بازهٔ چاپیِ درصد با حکمِ مطلق نخواند، absQuoteFa خودش «ولی با احتساب …» می‌گوید و حکم را دوباره نمی‌گوییم.
+  const lead = (stateFa) => {
+    if (!(n && e?.derivedAbs?.[K_NEUT] != null)) return ` نوتروفیل شما ${stateFa} است`;
+    const q = absQuoteFa(e, K_NEUT, "نوتروفیل", n);
+    return q.includes("ولی با احتساب") ? ` ${q}` : ` ${q}، که ${stateFa} است`;
+  };
   if (n?.abnormal && n.dir === "high") {
-    return " نوتروفیل شما بالاتر از حد طبیعی است؛ نوتروفیلِ بالا همراهِ لنفوسیتِ پایین ترکیبی است که در پاسخِ بدن به استرسِ جسمیِ شدید، عفونتِ تازه یا مصرفِ داروهای کورتونی دیده می‌شود و به‌تنهایی نشانهٔ بیماریِ مشخصی نیست.";
+    return `${lead("بالاتر از حد طبیعی")}؛ نوتروفیلِ بالا همراهِ لنفوسیتِ پایین ترکیبی است که در پاسخِ بدن به استرسِ جسمیِ شدید، عفونتِ تازه یا مصرفِ داروهای کورتونی دیده می‌شود و به‌تنهایی نشانهٔ بیماریِ مشخصی نیست.`;
   }
   if (n?.abnormal && n.dir === "low") {
-    return " نوتروفیل شما هم پایین‌تر از حد طبیعی است، پس کاهش فقط به لنفوسیت‌ها محدود نیست و پزشک آن را کنار هم می‌سنجد.";
+    return `${lead("هم پایین‌تر از حد طبیعی")}، پس کاهش فقط به لنفوسیت‌ها محدود نیست و پزشک آن را کنار هم می‌سنجد.`;
   }
-  if (n) return ` ${absQuoteFa(e, K_NEUT, "نوتروفیل", n)} و در محدودهٔ طبیعی است.`;
+  if (n) {
+    const q = absQuoteFa(e, K_NEUT, "نوتروفیل", n);
+    return q.includes("ولی با احتساب") ? ` ${q}.` : ` ${q} و در محدودهٔ طبیعی است.`;
+  }
   const u = ungradedFa(e, "NEUT_ABS", "شمارشِ نوتروفیل");
   return u ? ` ${u}.` : " شمارشِ نوتروفیل روی این برگه نیست.";
 }
@@ -86,7 +86,7 @@ export const RULES_LEUKOCYTE = [
         action: strong ? "نتیجه را در نوبتِ عادی با پزشک در میان بگذارید؛ تکرارِ CBC چند هفته بعد روندِ آن را نشان می‌دهد." : ROUTINE_ACTION,
         suggest: strong ? ["تکرار CBC", "گسترش خون محیطی"] : ["تکرار CBC"],
         warnings: [],
-        key_number: m.value,
+        key_number: keyNumFa(e, K_MONO, m),
       };
     },
   },
@@ -112,7 +112,7 @@ export const RULES_LEUKOCYTE = [
           pattern: "monocytopenia", urgency: "routine", always_show: true,
           headline: "مونوسیت‌های خون شما هم پایین است",
           must_say: s,
-          brief: `مونوسیت شما هم پایین است (${m.value}) — بخشی از همان کاهشِ همهٔ رده‌های خون.`,
+          brief: `مونوسیت شما هم پایین است (${e.derivedAbs?.[K_MONO] != null ? `٪${e.derivedAbs[K_MONO]}` : m.value}) — بخشی از همان کاهشِ همهٔ رده‌های خون.`,
           suggest: [], warnings: [],
         };
       }
@@ -127,7 +127,7 @@ export const RULES_LEUKOCYTE = [
           action: "این هفته با پزشک وقت بگیرید و این برگه و فهرستِ داروهایتان را همراه ببرید.",
           suggest: ["تکرار CBC", "گسترش خون محیطی"],
           warnings: [],
-          key_number: m.value,
+          key_number: keyNumFa(e, K_MONO, m),
         };
       }
       const wbcLow = !!(w?.abnormal && w.dir === "low");
@@ -184,14 +184,14 @@ export const RULES_LEUKOCYTE = [
             : "نتیجه را در نوبتِ عادی با پزشک در میان بگذارید؛ تکرارِ CBC روندِ آن را نشان می‌دهد.",
         suggest: ["تکرار CBC"],
         warnings: severe ? ["اگر تب، لرز یا نشانهٔ عفونتِ تازه دارید، همان روز به پزشک مراجعه کنید."] : [],
-        key_number: l.value,
+        key_number: keyNumFa(e, K_LYMPH, l),
         explains: ["LYMPH_ABS"],
       };
     },
   },
 
   // ─────────── کاهشِ هم‌زمانِ هموگلوبین، پلاکت و لنفوسیت ───────────
-  // نه نامِ بیماری، نه آستانهٔ تازه: هر سه کاهش پیشاپیش از grade می‌آید. فوریت کفِ «این هفته» است (ترومبوسیتوپنی خودش this_week است)
+  // نه نامِ بیماری، نه آستانهٔ تازه: هر سه کاهش پیشاپیش از grade می‌آید. فوریت «soon» (۲۴ تا ۴۸ ساعت، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۸)
   // و اگر لنفوسیت به‌تنهایی بالاتر باشد همان را می‌گیرد. جملهٔ بستری/هپارین شرطی است؛ موتور «ICU» را از برگه نمی‌خواند.
   {
     id: "cytopenia_triplet",
@@ -199,7 +199,7 @@ export const RULES_LEUKOCYTE = [
     build: (e) => {
       const l = gradedOf(e, K_LYMPH), h = gradedOf(e, K_HGB), p = gradedOf(e, K_PLT);
       const u = netUrgency(e, l);
-      const urgency = u === "routine" || u === "this_week" ? "this_week" : u;
+      const urgency = u === "emergency" ? "emergency" : "soon"; // تصمیمِ کاربر ۲۰۲۶-۱۰-۰۸: ۲۴ تا ۴۸ ساعت
       return {
         pattern: "cytopenia_triplet",
         urgency,
@@ -211,7 +211,7 @@ export const RULES_LEUKOCYTE = [
           "اگر بستری هستید یا هپارین می‌گیرید، پزشکِ معالج این سه عدد را با روندِ روزهای قبل می‌سنجد؛ سرعتِ افتِ پلاکت از خودِ عدد مهم‌تر است.",
         action: urgency === "emergency"
           ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
-          : "این هفته با پزشک وقت بگیرید و فهرستِ داروهایتان را همراه ببرید.",
+          : "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید و این برگه و فهرستِ داروهایتان را همراه ببرید.",
         suggest: ["تکرار CBC", "گسترش خون محیطی"],
         warnings: ["اگر تب، خونریزی یا کبودیِ بی‌دلیل دارید، همان روز به پزشک مراجعه کنید."],
         key_number: p.value,
@@ -247,7 +247,7 @@ export const RULES_LEUKOCYTE = [
         }),
         suggest: hyper ? ["تکرار CBC", "آزمایش مدفوع برای انگل", "گسترش خون محیطی"] : ["آزمایش مدفوع برای انگل"],
         warnings: hyper ? ["اگر تنگیِ نفس، درد قفسهٔ سینه، تب یا بثوراتِ پوستیِ تازه دارید، زودتر مراجعه کنید."] : [],
-        key_number: x.value,
+        key_number: keyNumFa(e, K_EOS, x),
       };
     },
   },

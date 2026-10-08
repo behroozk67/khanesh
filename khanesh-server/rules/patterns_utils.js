@@ -14,7 +14,7 @@
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
-import { SURVIVAL_LIMITS, printedVerdict } from "./units.js";
+import { SURVIVAL_LIMITS, printedVerdict, parseReference } from "./units.js";
 import { GERIATRIC_REFS, GERIATRIC_FROM_AGE } from "./refs.js";
 import { getPedRef } from "./refs_ped.js";
 
@@ -100,14 +100,26 @@ export function applyPrintedRange(findings, e) {
   }
 }
 
-// عددِ مطلقِ دیفرانسیل (لنفوسیت، ائوزینوفیل، …) معمولاً روی برگه نیست: برگه درصد چاپ می‌کند و موتور آن را در WBC ضرب می‌کند.
-// جمله باید همان عددی را بگوید که بیمار روی برگه می‌بیند (N5). e.derivedAbs فقط وقتی هست که درصد چاپ شده بود.
-export function absQuoteFa(e, key, name, x) {
+// دیفرانسیل را به درصد گزارش می‌کنیم، نه عددِ مطلق (درخواستِ کاربر ۲۰۲۶-۱۰-۰۸): برگه درصد چاپ کرده و بیمار همان را می‌بیند (N5).
+//   e.derivedAbs فقط وقتی هست که درصد چاپ شده بود؛ بازهٔ چاپ‌شدهٔ همان ردیف e.derivedAbsRefs. حکم از عددِ مطلق می‌آید (WBC × درصد)؛
+//   اگر بازهٔ چاپیِ درصد با آن حکم نخواند (مثلاً نوتروفیلِ ٪۷۷ بالای ۷۵٪ ولی مطلقاً طبیعی)، همین را صریح می‌گوییم تا دو جمله ناسازگار نباشند.
+//   ردیفی که خودِ برگه مطلق چاپ کرده همان عددِ مطلق را می‌گوید. withVerdict=false: جملهٔ بعدی خودش حکم را می‌گوید.
+const ABS_STATE_FA = { low: "پایین‌تر از حد طبیعی", high: "بالاتر از حد طبیعی", normal: "در محدودهٔ طبیعی" };
+export function absQuoteFa(e, key, name, x, withVerdict = true) {
   const pct = e?.derivedAbs?.[key];
-  return pct != null
-    ? `${name} شما روی برگه ٪${pct} چاپ شده که با شمارشِ کلِ گلبول‌های سفید حدودِ ${x.value} در هر میکرولیتر می‌شود (حد طبیعی ${x.range})`
-    : `${name} شما ${x.value} است (حد طبیعی ${x.range})`;
+  if (pct == null) return `${name} شما ${x.value} است (حد طبیعی ${x.range})`;
+  const ref = e?.derivedAbsRefs?.[key];
+  const pr = ref ? parseReference(ref, e?.sex) : null;
+  const range = pr && pr.lo != null && pr.hi != null ? ` (حد طبیعی روی برگه ٪${pr.lo}–${pr.hi})` : "";
+  const pv = ref ? printedVerdict(ref, Number(pct), e?.sex) : null;
+  const printedState = pv === "above" ? "high" : pv === "below" ? "low" : pv === "within" ? "normal" : null;
+  const engineState = x.abnormal ? x.dir : "normal";
+  const mismatch = withVerdict && printedState && printedState !== engineState
+    ? `؛ ولی با احتساب تعداد کلِ گلبول‌های سفید، شمارشِ واقعیِ آن ${ABS_STATE_FA[engineState]} است` : "";
+  return `${name} شما ٪${pct} است${range}${mismatch}`;
 }
+// عددی که باید در متن باشد (key_number): درصدِ چاپ‌شده اگر متن همان را می‌گوید، وگرنه مقدارِ گرادشده.
+export const keyNumFa = (e, key, x) => e?.derivedAbs?.[key] ?? x.value;
 
 // ═══ P91 → P95 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶، [22]): CKِ کودک ═══
 // برای رابدومیولیزِ کودک گایدلاینِ اجماعی نیست؛ بیشترِ نویسندگان CK ≥ ۱۰۰۰ یا ≥ ۵×ULN را ملاک می‌گیرند (Arkansas Children's،

@@ -28,10 +28,12 @@ test("S1: لنفوسیتِ پایین مالک دارد؛ فوریت همان ک
   const f = find(p, "lymphopenia");
   assert.ok(f, `lymphopenia فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern)}`);
   assert.equal(f.urgency, "routine", "CTCAE درجهٔ ۲ ⇒ همان routineِ تورِ ایمنی");
-  assert.match(f.must_say, /757/);
+  assert.match(f.must_say, /لنفوسیت شما ٪8\.9 است \(حد طبیعی روی برگه ٪20–45\)/, "درصد گزارش می‌شود");
+  assert.ok(!/757/.test(f.must_say), "عددِ مطلقِ مشتق نباید در متن باشد");
+  assert.equal(f.key_number, 8.9, "key_number همان عددِ متن است");
   assert.ok(!(p.findings.find((x) => x.pattern === "unexplained_abnormal")?.must_say ?? "").includes("757"), "لنفوسیت نباید دوباره در «توضیح داده نشدند» بیاید");
   assert.ok(!e.graded.some((g) => g.test === "NEUT_ABS" && g.abnormal), "پیش‌فرضِ پنل: نوتروفیلِ مطلق در محدوده است");
-  assert.match(f.must_say, /نوتروفیل شما[\s\S]*و در محدودهٔ طبیعی است/, "جملهٔ نوتروفیل سه‌حالته: طبیعی");
+  assert.match(f.must_say, /نوتروفیل شما[\s\S]*در محدودهٔ طبیعی است/, "جملهٔ نوتروفیل سه‌حالته: طبیعی");
 });
 
 test("S1b: لنفوسیتِ شدید ⇒ این هفته؛ نوتروفیلِ بالا و نبودنِ نوتروفیل هر کدام جملهٔ خود را دارند (N4)", () => {
@@ -54,8 +56,9 @@ test("S1c: زیرِ pancytopenia کنار می‌کشد (دو یافته درب�
 
 test("S2: عددِ مطلقِ مشتق با درصدِ چاپ‌شده گفته می‌شود؛ وقتی مطلق چاپ شده، همان عدد", () => {
   const { p } = run(SHAFA);
-  assert.match(find(p, "lymphopenia").must_say, /٪8\.9 چاپ شده[^.]*757/);
-  assert.match(find(p, "eosinophilia").must_say, /٪6\.2 چاپ شده[^.]*527/);
+  assert.match(find(p, "lymphopenia").must_say, /٪8\.9 است/);
+  assert.match(find(p, "eosinophilia").must_say, /ائوزینوفیل شما ٪6\.2 است \(حد طبیعی روی برگه ٪2–5\)/);
+  assert.ok(!/757|527/.test(find(p, "lymphopenia").must_say + find(p, "eosinophilia").must_say), "عددِ مطلقِ مشتق نباید بیاید");
   const abs = run([r("WBC", "8.5"), r("Eos#", "527", "/µL")]);
   const f = find(abs.p, "eosinophilia");
   assert.ok(f, "eosinophilia فعال نشد");
@@ -108,11 +111,17 @@ test("S5: Hb↓ + PLT↓ + لنفوسیت↓ یک یافتهٔ مشترک می�
   const { p } = run(SHAFA);
   const f = find(p, "cytopenia_triplet");
   assert.ok(f, `cytopenia_triplet فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern)}`);
-  assert.equal(f.urgency, "this_week");
-  assert.match(f.must_say, /هموگلوبین 12\.9[\s\S]*پلاکت 127[\s\S]*757/);
+  assert.equal(f.urgency, "soon", "تصمیمِ کاربر: ۲۴ تا ۴۸ ساعت");
+  assert.match(f.action, /۲۴ تا ۴۸ ساعت/);
+  assert.match(f.must_say, /هموگلوبین 12\.9[\s\S]*پلاکت 127[\s\S]*٪8\.9/);
   assert.match(f.must_say, /این جمله تشخیص نیست/);
   const lym = find(p, "lymphopenia");
   assert.ok(lym, "lymphopenia همچنان باید بیاید (محتوای علت‌ها)");
+  for (const id of ["thrombocytopenia", "normocytic_anemia"]) {
+    const g = find(p, id);
+    assert.ok(g, id);
+    assert.ok(!/این هفته|همین امروز|نوبت با پزشک|نوبتِ عادی/.test(g.action), id + " دومین زمان‌بندی دارد: " + g.action);
+  }
   assert.ok(!/این هفته|همین امروز|نوبتِ عادی/.test(lym.action), `lymphopenia دومین زمان‌بندی دارد: ${lym.action}`);
   assert.ok(!/لوسمی|سرطان|ام‌دی‌اس/.test(f.must_say + f.headline), "نام بیماری نباید بیاید");
 });
@@ -130,4 +139,11 @@ test("S6: ترومبوسیتوپنی جملهٔ شرطیِ بستری/هپاری
   assert.ok(f);
   assert.equal(f.urgency, "this_week");
   assert.ok(f.warnings.some((w) => /بستری هستید یا هپارین/.test(w)));
+});
+
+test("S7: نوتروفیلِ ٪77.3 با بازهٔ چاپیِ ۴۵–۷۵ ولی مطلقاً طبیعی ⇒ تناقض صریح گفته می‌شود، نه سکوت", () => {
+  const { p } = run(SHAFA);
+  const m = find(p, "lymphopenia").must_say;
+  assert.match(m, /نوتروفیل شما ٪77\.3 است \(حد طبیعی روی برگه ٪45–75\)؛ ولی با احتساب تعداد کلِ گلبول‌های سفید، شمارشِ واقعیِ آن در محدودهٔ طبیعی است/);
+  assert.ok(!/در محدودهٔ طبیعی است و در محدودهٔ طبیعی/.test(m), "حکم دوبار تکرار نشود");
 });

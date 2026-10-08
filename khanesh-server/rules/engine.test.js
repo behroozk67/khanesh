@@ -10174,7 +10174,8 @@ test("M201: مونوسیتوز — بالای ۱۰۰۰ و «کمی بالاتر�
     assert.ok(f, `مونوسیت ${mono?.value}: monocytosis فعال نشد — ${s9Ids(p)}`);
     assert.equal(f.urgency, "routine");
     assert.ok(!s9Ids(p).includes("unmatched_abnormal"), "هنوز «توضیح آماده‌ای نداریم»");
-    assert.ok(f.must_say.includes(String(mono.value)), "عددِ مونوسیت در متن نیست");
+    // ۲۰۲۶-۱۰-۰۸ (تصمیمِ کاربر): دیفرانسیل به درصد گزارش می‌شود؛ وقتی برگه درصد چاپ کرده عددِ متن همان درصد است، نه مطلقِ مشتق.
+    assert.ok(f.must_say.includes(String(e.derivedAbs?.MONO_ABS ?? mono.value)), "عددِ مونوسیت در متن نیست");
     if (strong) assert.match(f.must_say, /مونوسیتوز/);
     else assert.match(f.must_say, /کمی بالاتر/);
     assert.doesNotMatch(f.must_say, /لوسمی|سرطان|بدخیم/, "نامِ تشخیص در متن");
