@@ -7,7 +7,7 @@
 // هر قاعده جهت را از dirِ سنجیده‌شده می‌گیرد، نه از مقایسه با یک مرزِ شدت (N12)؛ و چون خواندنِ یک کلید آن را برای
 // تورِ «توضیح داده نشدند» پوشش‌داده می‌کند، هر شاخه‌ای که کلید در آن فعال است جملهٔ خودش را دارد (M156).
 import { MONOCYTOSIS_ABS_UL, HYPEREOSINOPHILIA_ABS_UL, MONOCYTOPENIA_SEVERE_ABS_UL, smearAxis, smearItemFa, smearLeukemicSentence,
-  smearCbcComplete, BLAST_EVAL_SENTENCE, absQuoteFa, keyNumFa, ungradedFa } from "./patterns_utils.js";
+  smearCbcComplete, BLAST_EVAL_SENTENCE, absQuoteFa, keyNumFa, ungradedFa, levelGrade } from "./patterns_utils.js";
 import { netUrgency } from "./patterns_p73_gaps.js";
 import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
 import { RULES_HEMATOLOGY, cytopeniaTripletFires } from "./patterns_hematology.js";
@@ -191,15 +191,15 @@ export const RULES_LEUKOCYTE = [
   },
 
   // ─────────── کاهشِ هم‌زمانِ هموگلوبین، پلاکت و لنفوسیت ───────────
-  // نه نامِ بیماری، نه آستانهٔ تازه: هر سه کاهش پیشاپیش از grade می‌آید. فوریت «soon» (۲۴ تا ۴۸ ساعت، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۸)
-  // و اگر لنفوسیت به‌تنهایی بالاتر باشد همان را می‌گیرد. جملهٔ بستری/هپارین شرطی است؛ موتور «ICU» را از برگه نمی‌خواند.
+  // نه نامِ بیماری، نه آستانهٔ تازه: هر سه کاهش پیشاپیش از grade می‌آید. فوریت: اگر یکی از سه کاهش CTCAE درجهٔ ≥ ۳ باشد «soon» (۲۴ تا ۴۸ ساعت، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۸)،
+  // وگرنه this_week (کفِ ترومبوسیتوپنی)؛ اگر فوریتِ لنفوسیت emergency باشد همان. بی‌آستانهٔ تازه: درجه از ctcae.js می‌آید. جملهٔ بستری/هپارین شرطی است؛ موتور «ICU» را از برگه نمی‌خواند.
   {
     id: "cytopenia_triplet",
     match: (e) => cytopeniaTripletFires(e),
     build: (e) => {
       const l = gradedOf(e, K_LYMPH), h = gradedOf(e, K_HGB), p = gradedOf(e, K_PLT);
       const u = netUrgency(e, l);
-      const urgency = u === "emergency" ? "emergency" : "soon"; // تصمیمِ کاربر ۲۰۲۶-۱۰-۰۸: ۲۴ تا ۴۸ ساعت
+      const urgency = u === "emergency" ? "emergency" : [h, p, l].some((g) => levelGrade(g) >= 3) ? "soon" : "this_week";
       return {
         pattern: "cytopenia_triplet",
         urgency,
@@ -211,7 +211,9 @@ export const RULES_LEUKOCYTE = [
           "اگر بستری هستید یا هپارین می‌گیرید، پزشکِ معالج این سه عدد را با روندِ روزهای قبل می‌سنجد؛ سرعتِ افتِ پلاکت از خودِ عدد مهم‌تر است.",
         action: urgency === "emergency"
           ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
-          : "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید و این برگه و فهرستِ داروهایتان را همراه ببرید.",
+          : urgency === "soon"
+            ? "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید و این برگه و فهرستِ داروهایتان را همراه ببرید."
+            : "این هفته با پزشک وقت بگیرید و این برگه و فهرستِ داروهایتان را همراه ببرید.",
         suggest: ["تکرار CBC", "گسترش خون محیطی"],
         warnings: ["اگر تب، خونریزی یا کبودیِ بی‌دلیل دارید، همان روز به پزشک مراجعه کنید."],
         key_number: p.value,

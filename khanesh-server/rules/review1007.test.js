@@ -111,8 +111,8 @@ test("S5: Hb↓ + PLT↓ + لنفوسیت↓ یک یافتهٔ مشترک می�
   const { p } = run(SHAFA);
   const f = find(p, "cytopenia_triplet");
   assert.ok(f, `cytopenia_triplet فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern)}`);
-  assert.equal(f.urgency, "soon", "تصمیمِ کاربر: ۲۴ تا ۴۸ ساعت");
-  assert.match(f.action, /۲۴ تا ۴۸ ساعت/);
+  assert.equal(f.urgency, "this_week", "مورد ملایم (همه درجهٔ ≤ ۲): کفِ this_week، نه ۲۴ تا ۴۸ ساعت");
+  assert.ok(!/۲۴ تا ۴۸/.test(f.action));
   assert.match(f.must_say, /هموگلوبین 12\.9[\s\S]*پلاکت 127[\s\S]*٪8\.9/);
   assert.match(f.must_say, /این جمله تشخیص نیست/);
   const lym = find(p, "lymphopenia");
@@ -146,4 +146,13 @@ test("S7: نوتروفیلِ ٪77.3 با بازهٔ چاپیِ ۴۵–۷۵ ول�
   const m = find(p, "lymphopenia").must_say;
   assert.match(m, /نوتروفیل شما ٪77\.3 است \(حد طبیعی روی برگه ٪45–75\)؛ ولی با احتساب تعداد کلِ گلبول‌های سفید، شمارشِ واقعیِ آن در محدودهٔ طبیعی است/);
   assert.ok(!/در محدودهٔ طبیعی است و در محدودهٔ طبیعی/.test(m), "حکم دوبار تکرار نشود");
+});
+
+test("S5c: یکی از سه کاهش CTCAE درجهٔ ≥ ۳ ⇒ soon (۲۴ تا ۴۸ ساعت)", () => {
+  const { p, e } = run([r("WBC", "6.0"), r("Hb", "7.6", "g/dL"), r("PLT", "120"), r("Lymph#", "700", "/µL"), r("Neut#", "4000", "/µL")]);
+  assert.ok(e.graded.find((g) => g.test === "HGB" && g.level === "marked"), "پیش‌فرض: Hb سطحِ marked (درجهٔ ۳)");
+  const f = find(p, "cytopenia_triplet");
+  assert.ok(f, `فعال‌شده‌ها: ${p.findings.map((x) => x.pattern)}`);
+  assert.equal(f.urgency, "soon");
+  assert.match(f.action, /۲۴ تا ۴۸ ساعت/);
 });
