@@ -102,7 +102,7 @@ export function applyPrintedRange(findings, e) {
 
 // دیفرانسیل را به درصد گزارش می‌کنیم، نه عددِ مطلق (درخواستِ کاربر ۲۰۲۶-۱۰-۰۸): برگه درصد چاپ کرده و بیمار همان را می‌بیند (N5).
 //   e.derivedAbs فقط وقتی هست که درصد چاپ شده بود؛ بازهٔ چاپ‌شدهٔ همان ردیف e.derivedAbsRefs. حکم از عددِ مطلق می‌آید (WBC × درصد)؛
-//   اگر بازهٔ چاپیِ درصد با آن حکم نخواند (مثلاً نوتروفیلِ ٪۷۷ بالای ۷۵٪ ولی مطلقاً طبیعی)، همین را صریح می‌گوییم تا دو جمله ناسازگار نباشند.
+//   اگر بازهٔ چاپیِ درصد با آن حکم نخواند (مثلاً نوتروفیلِ ٪۸۸ بالای ۷۵٪ ولی مطلقاً طبیعی؛ نوتروفیلی را شمارشِ مطلق تعریف می‌کند: StatPearls NBK570571، CAP Today ۲۰۱۰)، همین را صریح می‌گوییم تا دو جمله ناسازگار نباشند.
 //   ردیفی که خودِ برگه مطلق چاپ کرده همان عددِ مطلق را می‌گوید. withVerdict=false: جملهٔ بعدی خودش حکم را می‌گوید.
 const ABS_STATE_FA = { low: "پایین‌تر از حد طبیعی", high: "بالاتر از حد طبیعی", normal: "در محدودهٔ طبیعی" };
 export function absQuoteFa(e, key, name, x, withVerdict = true) {
@@ -115,7 +115,8 @@ export function absQuoteFa(e, key, name, x, withVerdict = true) {
   const printedState = pv === "above" ? "high" : pv === "below" ? "low" : pv === "within" ? "normal" : null;
   const engineState = x.abnormal ? x.dir : "normal";
   const mismatch = withVerdict && printedState && printedState !== engineState
-    ? `؛ ولی با احتساب تعداد کلِ گلبول‌های سفید، شمارشِ واقعیِ آن ${ABS_STATE_FA[engineState]} است` : "";
+    ? `؛ ولی با احتساب تعداد کلِ گلبول‌های سفید، شمارشِ واقعیِ آن ${ABS_STATE_FA[engineState]} است` +
+      (engineState === "normal" ? " (درصد فقط سهمِ این سلول از کلِ گلبول‌های سفید است و با کم یا زیاد شدنِ سلول‌های دیگر هم بالا یا پایین می‌رود؛ زیادی یا کمیِ هر سلول را شمارشِ مطلقِ آن تعیین می‌کند)" : "") : "";
   return `${name} شما ٪${pct} است${range}${mismatch}`;
 }
 // عددی که باید در متن باشد (key_number): درصدِ چاپ‌شده اگر متن همان را می‌گوید، وگرنه مقدارِ گرادشده.
