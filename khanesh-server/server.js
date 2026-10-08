@@ -32,11 +32,12 @@ import "dotenv/config";
 import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue, inferAge, inferSex } from "./rules/adapter.js";
 import { bareUrineShape } from "./rules/specimen.js";
 import { activeConditionIds, conditionFa } from "./rules/conditions.js";
+import { onInpatient, inpatientBanner } from "./rules/inpatient.js";
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
 import { healthScore } from "./rules/score.js";
-import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines } from "./rules/prompt.js";
 import { glossQualText } from "./rules/patterns_utils.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
@@ -221,7 +222,7 @@ function engineDebug(engineOut, patternOut) {
     supplementary: patternOut.supplementary_ids ?? [],
     // ⚠️ بنرِ بالای صفحه برای نوزادِ «فقط-به‌خاطرِ-کف»: متنش از rules/neonatal.js می‌آید، نه از فرانت (N12: متنِ بالینیِ فرانت‌اند
     //    هیچ تورِ ایمنی ندارد). null ⇒ فرانت بنرِ عمومی را نشان می‌دهد. has_critical دست نمی‌خورد.
-    critical_banner: null,
+    critical_banner: inpatientBanner(engineOut, patternOut),   // بستری (۲۰۲۶-۱۰-۰۸): بنرِ «اورژانس/۱۱۵»ِ فرانت برای بیمارِ بیمارستانی غلط است
     // specs/011 (FR-016/FR-019): آنچه موتور *واقعاً* به کار برد — از engineOut، نه از درخواست. بیماریِ غیرفعال اینجا نمی‌آید.
     context: engineContext(engineOut, patternOut),
     indices: engineOut.indices,
@@ -1506,9 +1507,7 @@ const analyzeHandler = async (req, res) => {
     if (engineCandidate) {
       // ═══ مسیر موتور ═══
       const messages = [
-        { role: "system", content: isNeonate(engineOut?.age) ? `${ENGINE_SYSTEM_PROMPT}
-
-${NEONATAL_PROMPT_ADDENDUM}` : ENGINE_SYSTEM_PROMPT },
+        { role: "system", content: [ENGINE_SYSTEM_PROMPT, isNeonate(engineOut?.age) && NEONATAL_PROMPT_ADDENDUM, onInpatient(engineOut) && INPATIENT_PROMPT_ADDENDUM].filter(Boolean).join("\n\n") },
         // ورود دستی بارداری/بیماری زمینه‌ای را در patient می‌فرستد؛ فقط زمینهٔ لحن،
         // نه ورودیِ گرید. مسیر عکس این‌ها را ندارد و null می‌ماند.
         buildEnginePrompt(engineOut, patternOut, medlineContext, patient),

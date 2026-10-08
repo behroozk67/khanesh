@@ -24,6 +24,7 @@ import { AI_KEYS, autoAbState } from "./serology.js";
 import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
 import { rankOf, applyQualGloss, applyPrintedRange } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { applyInpatientVoice } from "./inpatient.js";
 import { applyNeonatalFloor, applyNeonatalVoice, applyChildVoice, isNeonate } from "./neonatal.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -666,6 +667,7 @@ export function runPatterns(engineOut) {
   applyNeonatalFloor(findings, engineOut);
   applyNeonatalVoice(findings, engineOut);
   applyChildVoice(findings, engineOut);
+  applyInpatientVoice(findings, engineOut);   // ۲۰۲۶-۱۰-۰۸: بستری ⇒ «به پرستار/پزشکِ بخش اطلاع دهید»؛ فوریت دست‌نخورده
   applyPrintedRange(findings, engineOut);   // ۲۰۲۶-۱۰-۰۷: بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور — فقط نمایش
   applyQualGloss(findings);   // بندِ ۵ (LIS ۲۰۲۶-۱۰-۰۶): «Negative» ⇒ «Negative» (منفی) — فقط معنا، بی‌تغییرِ حکم
   applyBareFluidVoice(findings, engineOut);

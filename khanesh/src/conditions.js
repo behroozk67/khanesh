@@ -13,6 +13,7 @@ export const CONDITIONS = [
   { id: "thal_trait", fa: "ناقل تالاسمی (مینور)" },
   { id: "chd", fa: "بیماری عروق قلب" },
   { id: "cancer", fa: "سرطان / شیمی‌درمانی" },
+  { id: "hospitalized", fa: "بستری در بیمارستان (بخش، ICU یا اورژانس)" },
 ];
 
 export const NONE_ID = "none";

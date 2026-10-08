@@ -12191,7 +12191,7 @@ import { CONDITIONS as M280_CONDITIONS, ACTIVE_CONDITIONS as M280_ACTIVE, condit
 import { buildEnginePrompt as m283Prompt } from "./prompt.js";
 
 test("M280: کاتالوگِ ده بیماریِ زمینه‌ای — شناسه، برچسبِ تازه و برچسبِ قدیمی همه به شناسه می‌رسند؛ ناشناخته حدس زده نمی‌شود", () => {
-  assert.equal(M280_CONDITIONS.length, 11);   // عمداً ۱۰ ⇒ ۱۱ (P72، ۲۰۲۶-۱۰-۰۳): `dialysis` — M310
+  assert.equal(M280_CONDITIONS.length, 12);   // عمداً ۱۰ ⇒ ۱۱ (P72، ۲۰۲۶-۱۰-۰۳): `dialysis` — M310؛ ۱۱ ⇒ ۱۲ (۲۰۲۶-۱۰-۰۸): `hospitalized` — inpatient.test.js
   for (const c of M280_CONDITIONS) {
     assert.ok(/[؀-ۿ]/.test(c.fa), `${c.id}: برچسبِ فارسی ندارد`);
     assert.deepEqual(m280Ids([c.id]).ids, [c.id]);
@@ -12205,7 +12205,7 @@ test("M280: کاتالوگِ ده بیماریِ زمینه‌ای — شناس�
   assert.deepEqual(r.unknown, ["سرماخوردگی"]);
   // فقط این سه مورد فعال‌اند تا بازبین P66 را تأیید کند — افزودنِ بی‌صدای یکی اینجا قرمز می‌شود.
   // عمداً ۲ ⇒ ۳ (P72، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): `dialysis` — فقط `kidney`/`creatinine_emergency`/`urea_bun_emergency` می‌خوانند (M310).
-  assert.deepEqual([...M280_ACTIVE].sort(), ["cancer", "dialysis", "dm2"]);
+  assert.deepEqual([...M280_ACTIVE].sort(), ["cancer", "dialysis", "dm2", "hospitalized"]);   // ۳ ⇒ ۴ عمداً (۲۰۲۶-۱۰-۰۸، تصمیمِ کاربر): فقط لحنِ دستور
 });
 
 test("M281: بیمارِ سرطانی با شناسه همان درجهٔ CTCAE را می‌گیرد که با برچسبِ قدیمی؛ بی‌بیماری، CTCAE نه", () => {
