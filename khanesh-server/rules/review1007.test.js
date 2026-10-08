@@ -156,3 +156,16 @@ test("S5c: یکی از سه کاهش CTCAE درجهٔ ≥ ۳ ⇒ soon (۲۴ تا
   assert.equal(f.urgency, "soon");
   assert.match(f.action, /۲۴ تا ۴۸ ساعت/);
 });
+
+test("S8: بیمارِ بستری — جملهٔ ارجاعِ زمان‌بندی نیمه نمی‌ماند و جملهٔ شرطیِ «اگر بستری هستید» نمی‌آید", () => {
+  const { p } = run(SHAFA, { age: 44, sex: "M", conditions: ["hospitalized"] });
+  for (const id of ["lymphopenia", "thrombocytopenia", "normocytic_anemia"]) {
+    const g = find(p, id);
+    assert.ok(g, id);
+    assert.match(g.action, /زمان‌بندیِ پیگیری را یافتهٔ «کاهشِ هم‌زمانِ سه ردهٔ خون» می‌گوید\./, `${id}: ارجاع نیمه ماند: ${g.action}`);
+  }
+  const t = find(p, "thrombocytopenia");
+  assert.ok(!t.warnings.some((w) => /اگر بستری هستید/.test(w)), "برای بیمارِ بستری شرطی بی‌معنا است");
+  assert.ok(t.warnings.some((w) => /افتِ پلاکت نسبت به روزهای قبل/.test(w)), "محتوا می‌ماند");
+  assert.ok(!/اگر بستری هستید/.test(find(p, "cytopenia_triplet").must_say));
+});

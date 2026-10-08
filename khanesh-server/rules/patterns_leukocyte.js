@@ -9,6 +9,7 @@
 import { MONOCYTOSIS_ABS_UL, HYPEREOSINOPHILIA_ABS_UL, MONOCYTOPENIA_SEVERE_ABS_UL, smearAxis, smearItemFa, smearLeukemicSentence,
   smearCbcComplete, BLAST_EVAL_SENTENCE, absQuoteFa, keyNumFa, ungradedFa, levelGrade } from "./patterns_utils.js";
 import { netUrgency } from "./patterns_p73_gaps.js";
+import { onInpatient } from "./inpatient.js";
 import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
 import { RULES_HEMATOLOGY, cytopeniaTripletFires } from "./patterns_hematology.js";
 
@@ -176,7 +177,7 @@ export const RULES_LEUKOCYTE = [
           (severe ? " این کاهش در حدِ «شدید» است و بدن در برابر عفونت‌ها آسیب‌پذیرتر می‌شود؛ پزشک باید علتش را زودتر بررسی کند." : "") +
           lymphNeutClause(e),
         action: cytopeniaTripletFires(e)
-          ? "این کاهش همراهِ دو کاهشِ دیگر در همین برگه است؛ زمان‌بندیِ مراجعه را یافتهٔ «کاهشِ هم‌زمانِ سه ردهٔ خون» می‌گوید." // دومین زمان‌بندی نمی‌آید (N20)
+          ? "این کاهش همراهِ دو کاهشِ دیگر در همین برگه است؛ زمان‌بندیِ پیگیری را یافتهٔ «کاهشِ هم‌زمانِ سه ردهٔ خون» می‌گوید." // دومین زمان‌بندی نمی‌آید (N20)
           : urgency === "emergency"
           ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
           : urgency === "this_week"
@@ -208,7 +209,7 @@ export const RULES_LEUKOCYTE = [
           `هموگلوبین ${h.value} (حد طبیعی ${h.range})، پلاکت ${p.value} (حد طبیعی ${p.range}) و ${absQuoteFa(e, K_LYMPH, "لنفوسیت", l)} هر سه پایین‌تر از حد طبیعی‌اند. ` +
           "وقتی چند ردهٔ خون با هم کم می‌شوند، پزشک اول دنبالِ یک علتِ مشترک می‌گردد، نه سه علتِ جدا: بیماری یا عفونتِ شدید، داروها (از جمله شیمی‌درمانی و کورتون)، " +
           "کم‌کاریِ مغزِ استخوان یا بیماری‌های ایمنی و خونی. این جمله تشخیص نیست و بیشتر موارد با پیگیریِ ساده روشن می‌شوند. " +
-          "اگر بستری هستید یا هپارین می‌گیرید، پزشکِ معالج این سه عدد را با روندِ روزهای قبل می‌سنجد؛ سرعتِ افتِ پلاکت از خودِ عدد مهم‌تر است.",
+          (onInpatient(e) ? "پزشکِ معالج این سه عدد را با روندِ روزهای قبل می‌سنجد؛ سرعتِ افتِ پلاکت از خودِ عدد مهم‌تر است." : "اگر بستری هستید یا هپارین می‌گیرید، پزشکِ معالج این سه عدد را با روندِ روزهای قبل می‌سنجد؛ سرعتِ افتِ پلاکت از خودِ عدد مهم‌تر است."),
         action: urgency === "emergency"
           ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
           : urgency === "soon"

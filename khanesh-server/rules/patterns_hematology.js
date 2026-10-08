@@ -1,6 +1,7 @@
 import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis as actionUnlessAnemiaCrisisBase, urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
 import { rbcMorphOf, bandNeutDiscordance, anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
 import { printedVerdict } from "./units.js";
+import { onInpatient } from "./inpatient.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical, hemolysisLdhAstSuspected } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -76,7 +77,7 @@ function mcvSizeClauseFa(e) {
   return `MCV ${m.value} ${hi ? "بالاتر" : "پایین‌تر"} از محدودهٔ چاپ‌شده روی برگهٔ شما (${printed}) است، ولی هنوز به حدِ گلبول‌های ${hi ? "درشت" : "ریز"} نرسیده`;
 }
 // کم‌خونی هم وقتی در الگوی سه‌گانه است زمان‌بندیِ جدا نمی‌دهد (همان Hb در cytopenia_triplet نقل می‌شود؛ N20). بقیه‌اش همان wrapperِ پیشین.
-const TRIPLET_DEFER = "این کم‌خونی همراهِ کاهشِ پلاکت و لنفوسیت در همین برگه است؛ زمان‌بندیِ مراجعه را یافتهٔ «کاهشِ هم‌زمانِ سه ردهٔ خون» می‌گوید.";
+const TRIPLET_DEFER = "این کم‌خونی همراهِ کاهشِ پلاکت و لنفوسیت در همین برگه است؛ زمان‌بندیِ پیگیری را یافتهٔ «کاهشِ هم‌زمانِ سه ردهٔ خون» می‌گوید.";
 function actionUnlessAnemiaCrisis(e, action) {
   const base = actionUnlessAnemiaCrisisBase(e, action);
   return base === action && action && cytopeniaTripletFires(e) ? TRIPLET_DEFER : base;
@@ -902,13 +903,15 @@ export const RULES_HEMATOLOGY = [
             ? "پلاکت‌ها جلوی خونریزی را می‌گیرند. کاهش خفیف اغلب علت موقتی دارد (عفونت ویروسی، برخی داروها) و باید فقط پیگیری شود؛ خطر خونریزی معمولاً وقتی جدی می‌شود که پلاکت خیلی پایین‌تر بیاید."
             : "پلاکت‌ها جلوی خونریزی را می‌گیرند. این مقدار کاهشِ خفیف نیست؛ علت‌های شایعش (عفونت ویروسی، برخی داروها) موقتی‌اند، ولی پزشک باید علتش را بررسی کند. خطر خونریزی معمولاً وقتی جدی می‌شود که پلاکت خیلی پایین‌تر بیاید."),
         action: cytopeniaTripletFires(e)
-          ? "این کاهش همراهِ دو کاهشِ دیگر در همین برگه است؛ زمان‌بندیِ مراجعه را یافتهٔ «کاهشِ هم‌زمانِ سه ردهٔ خون» می‌گوید." // دومین زمان‌بندی نمی‌آید (N20)
+          ? "این کاهش همراهِ دو کاهشِ دیگر در همین برگه است؛ زمان‌بندیِ پیگیری را یافتهٔ «کاهشِ هم‌زمانِ سه ردهٔ خون» می‌گوید." // دومین زمان‌بندی نمی‌آید (N20)
           : "این هفته با پزشک وقت بگیرید.",
         suggest: ["تکرار CBC"],
         warnings: [
           "اگر خونریزی یا کبودی بی‌دلیل دیدید، زودتر مراجعه کنید.",
           // P98 (پیشنهادِ ما، بازبین تأیید کند): موتور بستری‌بودن را نمی‌بیند، پس جمله شرطی است و فوریت را عوض نمی‌کند.
-          "اگر بستری هستید یا هپارین می‌گیرید، افتِ پلاکت نسبت به روزهای قبل را به پزشکِ معالج بگویید؛ سرعتِ افت از خودِ عدد مهم‌تر است.",
+          onInpatient(e)
+            ? "افتِ پلاکت نسبت به روزهای قبل را به پزشکِ معالج بگویید؛ سرعتِ افت از خودِ عدد مهم‌تر است."
+            : "اگر بستری هستید یا هپارین می‌گیرید، افتِ پلاکت نسبت به روزهای قبل را به پزشکِ معالج بگویید؛ سرعتِ افت از خودِ عدد مهم‌تر است.",
         ],
       };
     },
