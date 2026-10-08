@@ -1267,6 +1267,10 @@ export function ocrToEngineInput(ocr) {
   const unitResolved = {};
   // P96: بازهٔ چاپ‌شدهٔ ردیفِ کراتینین — برای «شیرخوار بی‌بازهٔ چاپ‌شده ⇒ بی‌پرچم».
   const printedRefs = {};
+  // ۲۰۲۶-۱۰-۰۷: بازهٔ چاپ‌شدهٔ هر ردیف (کلید → رشتهٔ خام) — فقط برای نمایش کنارِ بازهٔ موتور (printedRangesFor)؛ هیچ درجه‌بندی‌ای از آن نمی‌آید.
+  const printedRefsAll = {};
+  // کلیدهای *_ABS که از «درصد × WBC» ساخته شدند ⇒ درصدِ چاپ‌شده. عددِ مطلق روی برگه نیست (N5).
+  const derivedAbs = {};
   const sexHint = inferSex(ocr), ageHint = inferAge(ocr);
   const hgbFromIndices = hgbSystemFromIndices(ocr?.tests || []);
   // 🔴 واحدِ نانوشته (کلاسِ N3): پیش از این هر عددِ بی‌واحد بی‌صدا «متعارف» فرض می‌شد — کراتینینِ
@@ -1795,6 +1799,8 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
     if (UNIT_KEPT.has(engineKey) && !(engineKey in printedUnits)) printedUnits[engineKey] = t.unit ?? null;
+    // بازهٔ ردیفِ درصدی (۲–۵٪) مالِ کلیدِ *_ABS نیست؛ فقط ردیف‌های غیرِ دیفرانسیل.
+    if (t.reference && !/_ABS$|_PCT$/.test(engineKey) && !(engineKey in printedRefsAll)) printedRefsAll[engineKey] = String(t.reference);
 
     let v = toNum(t.value);
     if (v == null) {
@@ -2120,6 +2126,7 @@ export function ocrToEngineInput(ocr) {
     ]) {
       if (tests[p] != null && tests[a] == null) {
         tests[a] = Math.round((abs * tests[p]) / 100);
+        derivedAbs[a] = tests[p];
       }
     }
   }
@@ -2159,6 +2166,8 @@ export function ocrToEngineInput(ocr) {
     noReaderValues,
     ckmbUnitless,
     printedRefs,
+    printedRefsAll,
+    derivedAbs,
     diffMixed,
     printedUnits,
     unitConversions,
@@ -2192,7 +2201,7 @@ function inferGestWeeks(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, printedRefsAll, derivedAbs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
   const gestWeeksF = pregnantF ? gestWeeks : null;
 
@@ -2610,6 +2619,21 @@ export function runEngine(ocr) {
   // تصحیح‌های مشتق را برای مصرف الگوها در indices بگذار
   Object.assign(idx, derived);
 
+  // بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور (فقط نمایش — حکمِ «غیرطبیعی» همچنان با بازهٔ موتور است). فقط وقتی هر دو سر خوانده شد، هم‌مقیاس است
+  // (هر سر در ×۱٫۵ِ سرِ بازهٔ موتور؛ بازهٔ رایجِ «۷۰۰۰–۱۰۰۰۰» برای WBC یا بازهٔ واحدِ دیگر رد می‌شود) و با بازهٔ موتور فرق دارد.
+  const printedRanges = {};
+  for (const g of graded) {
+    const raw = printedRefsAll[g.test];
+    const m = /^(-?[\d.]+)–(-?[\d.]+)$/.exec(String(g.range ?? ""));
+    if (!raw || !m) continue;
+    const pr = parseReference(raw, sex);
+    const lo = Number(m[1]), hi = Number(m[2]);
+    if (!pr || pr.lo == null || pr.hi == null || !(lo > 0) || !(hi > 0) || !(pr.lo > 0) || !(pr.hi > 0)) continue;
+    const near = (a, b) => a / b <= 1.5 && b / a <= 1.5;
+    if (!near(pr.lo, lo) || !near(pr.hi, hi) || (pr.lo === lo && pr.hi === hi)) continue;
+    printedRanges[g.test] = `${pr.lo}–${pr.hi}`;
+  }
+
   return {
     sex, age,
     pregnant: pregnantF,
@@ -2646,6 +2670,9 @@ export function runEngine(ocr) {
     unitConversions,
     noRef,
     diffFailed,
+    // فقط وقتی هست، تا خروجیِ برگه‌های بی‌بازهٔ متفاوت بایت‌به‌بایت همان بماند (فریزها).
+    ...(Object.keys(printedRanges).length ? { printedRanges } : {}),
+    ...(Object.keys(derivedAbs).length ? { derivedAbs } : {}),
     abnormal: graded.filter((g) => g.abnormal),
     ...(tests._ddimer_ratio != null ? { _ddimer_uln_ratio: tests._ddimer_ratio } : {}),
   };

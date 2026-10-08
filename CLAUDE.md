@@ -1588,6 +1588,11 @@ structural, not specific to that rule.
   P60 closed 2026-09-29: prompt rule ۰.۷ keeps the «یافتهٔ تکمیلی» label (live model dropped it on run 1, kept it on run 2; n=1 each, `M242`);
   `COMPACT_HEADLINE_ONLY` / `NO_SUPPLEMENTARY_IDS` are explicit id lists, `M244`–`M244c`.
 
+- ⚠️ **Recurred 2026-10-07 on lymphocytes (Shafa ICU sheet, `P98`, uncommitted).** `LYMPH_ABS` low was graded (CTCAE G2) and had **no rule**; only the two
+  *high* directions had owners. Same rule as the neutrophil entry above: **check both `dir`s for every key.** The text it fell into quoted «لنفوسیت 757», a number that
+  is not on the sheet (the sheet prints ٪8.9) — N5. New `lymphopenia` rule + `absQuoteFa`. Guards `S1`–`S4` in `rules/review1007.test.js`.
+  M38 flagged an engine-key string literal passed *inside* a `must_say` template (`"LYMPH_ABS"`): pass keys as module-level constants.
+
 ### N19 — Covering the borderline case and not the frank one
 2026-08-06, `borderline_b12_deficiency`. Same session as N18, found by the same probe.
 

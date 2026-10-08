@@ -1,5 +1,6 @@
 import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis , urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
 import { rbcMorphOf, bandNeutDiscordance, anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
+import { printedVerdict } from "./units.js";
 import { faName } from "./names.js";
 import { preanalyticalCaveats, attachPreanalytical, hemolysisLdhAstSuspected } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -62,6 +63,18 @@ function adultRangeSentence(items) {
   return `${items.map((x) => `${indexLabelFa(x.test)} ${x.value} (${x.range})`).join(" و ")} با بازهٔ بزرگسالان سنجیده ${many ? "شدند" : "شد"}، ` +
     `چون بازهٔ مرجعِ این سن را در دست نداریم؛ معنای ${many ? "آن‌ها" : "آن"} را پزشک کنارِ سنِ کودک می‌سنجد. `;
 }
+// P98: مرزِ «درشت/ریز» تصمیمِ ثابتِ کاربر است (macroMcvCut/microMcvCut) و حکمِ موتور با بازهٔ خودش است؛ ولی برگه ممکن است MCV را با
+//   بازهٔ چاپ‌شدهٔ خودش H/L بزند (مثلاً ۹۷ با سقفِ ۹۶؛ e.printedRanges). متن در این حالت نباید «اندازهٔ طبیعی» بگوید: هم برچسبِ برگه
+//   و هم اینکه هنوز به حدِ درشت/ریز نرسیده راست گفته می‌شود. فقط جمله است، آستانهٔ تازه‌ای نیست و حکم عوض نمی‌شود.
+function mcvSizeClauseFa(e) {
+  const m = e?.graded?.find((x) => x.test === "MCV");
+  const printed = e?.printedRanges?.MCV;
+  if (!m || m.abnormal || !printed) return null;
+  const pv = printedVerdict(printed, m.value, e.sex);
+  if (pv !== "above" && pv !== "below") return null;
+  const hi = pv === "above";
+  return `MCV ${m.value} ${hi ? "بالاتر" : "پایین‌تر"} از محدودهٔ چاپ‌شده روی برگهٔ شما (${printed}) است، ولی هنوز به حدِ گلبول‌های ${hi ? "درشت" : "ریز"} نرسیده`;
+}
 function normocyticBrief(e, hgb) {
   // 🔴 برگهٔ واقعی (۲۰۲۶-۰۹-۲۴): زیرِ پان‌سیتوپنی/ترومبوسیتوپنیِ شدید (blocks_others) این یافته کامل پنهان می‌شد و
   //    Hb 10.1، هماتوکریت، MCH و RDW به «توضیح داده نشدند» می‌رفتند — همان کلاسِ M187 که microcytic_anemia بست.
@@ -83,7 +96,7 @@ function normocyticBrief(e, hgb) {
   return (
     (hgb != null
       ? `همچنین کم‌خونی دیده می‌شود: هموگلوبین ${hgb.value} (حد طبیعی ${hgb.range})` +
-        (mcvN ? `، با گلبول‌هایی به اندازهٔ طبیعی (MCV ${mcvN.value})` : "") +
+        (mcvN ? (mcvSizeClauseFa(e) ? `؛ ${mcvSizeClauseFa(e)}` : `، با گلبول‌هایی به اندازهٔ طبیعی (MCV ${mcvN.value})`) : "") +
         (sameN.length ? `؛ ${sameN.join("، ")} هم بخشی از همین کم‌خونی است` : "") + ". "
       : "همچنین کم‌خونی دیده می‌شود. ") +
     adultRangeSentence([...["HCT", "RBC", "MCH", "MCHC"].map(gOf).filter((x) => x?.abnormal && x.dir === "low" && adultInChild(x)), ...rdwsAdult]) +
@@ -874,7 +887,11 @@ export const RULES_HEMATOLOGY = [
             : "پلاکت‌ها جلوی خونریزی را می‌گیرند. این مقدار کاهشِ خفیف نیست؛ علت‌های شایعش (عفونت ویروسی، برخی داروها) موقتی‌اند، ولی پزشک باید علتش را بررسی کند. خطر خونریزی معمولاً وقتی جدی می‌شود که پلاکت خیلی پایین‌تر بیاید."),
         action: "این هفته با پزشک وقت بگیرید.",
         suggest: ["تکرار CBC"],
-        warnings: ["اگر خونریزی یا کبودی بی‌دلیل دیدید، زودتر مراجعه کنید."],
+        warnings: [
+          "اگر خونریزی یا کبودی بی‌دلیل دیدید، زودتر مراجعه کنید.",
+          // P98 (پیشنهادِ ما، بازبین تأیید کند): موتور بستری‌بودن را نمی‌بیند، پس جمله شرطی است و فوریت را عوض نمی‌کند.
+          "اگر بستری هستید یا هپارین می‌گیرید، افتِ پلاکت نسبت به روزهای قبل را به پزشکِ معالج بگویید؛ سرعتِ افت از خودِ عدد مهم‌تر است.",
+        ],
       };
     },
   },
@@ -1716,7 +1733,9 @@ export const RULES_HEMATOLOGY = [
         headline: "خون شما کم‌خونی نشان می‌دهد",
         must_say:
           mag +
-          "گلبول‌ها اندازهٔ طبیعی دارند ولی تعدادشان کم است (کم‌خونیِ نورموسیتیک)." +
+          (mcvSizeClauseFa(e)
+            ? `${mcvSizeClauseFa(e)}؛ پس اندازهٔ گلبول‌ها در حدِ نورموسیتیک و تعدادشان کم است (کم‌خونیِ نورموسیتیک).`
+            : "گلبول‌ها اندازهٔ طبیعی دارند ولی تعدادشان کم است (کم‌خونیِ نورموسیتیک).") +
           (anemiaCompanionsFa(e, false) ? ` ${anemiaCompanionsFa(e, false).trim()}` : "") + extra +
           " شمارش رتیکولوسیت (گلبول‌های تازه‌ساز) کلید تعیین علت است و برای پیدا کردن ریشهٔ کم‌خونی چند آزمایش دیگر لازم است.",
         action: actionUnlessAnemiaCrisis(

@@ -22,7 +22,7 @@ import { RULES_AUTOIMMUNE } from "./patterns_autoimmune.js";
 import { RULES_PRENATAL } from "./patterns_prenatal.js";
 import { AI_KEYS, autoAbState } from "./serology.js";
 import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
-import { rankOf, applyQualGloss } from "./patterns_utils.js";
+import { rankOf, applyQualGloss, applyPrintedRange } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { applyNeonatalFloor, applyNeonatalVoice, applyChildVoice, isNeonate } from "./neonatal.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
@@ -666,6 +666,7 @@ export function runPatterns(engineOut) {
   applyNeonatalFloor(findings, engineOut);
   applyNeonatalVoice(findings, engineOut);
   applyChildVoice(findings, engineOut);
+  applyPrintedRange(findings, engineOut);   // ۲۰۲۶-۱۰-۰۷: بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور — فقط نمایش
   applyQualGloss(findings);   // بندِ ۵ (LIS ۲۰۲۶-۱۰-۰۶): «Negative» ⇒ «Negative» (منفی) — فقط معنا، بی‌تغییرِ حکم
   applyBareFluidVoice(findings, engineOut);
 

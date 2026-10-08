@@ -118,7 +118,7 @@ const FREEZE = {
   // هش‌های قبلی: 0c3a87d251beba49، b4aca598b9885e65، e5639cb63a569a3d، fbc60061d1a28af4، 3c0fe6147ac78fa5.
   cbc_ida: [{ sex: "F", age: 30 }, [row("Hb", "9.5", "g/dL"), row("MCV", "70", "fL"), row("Ferritin", "6", "ng/mL"), row("WBC", "6.1"), row("PLT", "250")], "5aea52ee4a5253ff"],
   bmp: [{ sex: "M", age: 55 }, [row("Na", "138"), row("K", "4.2"), row("Creatinine", "1.0", "mg/dL"), row("Urea", "30", "mg/dL"), row("FBS", "95", "mg/dL")], "a25b0d7b6c56186a"],
-  lipid_dm: [{ sex: "M", age: 50 }, [row("Cholesterol", "210", "mg/dL"), row("LDL", "114", "mg/dL"), row("HDL", "38", "mg/dL"), row("TG", "240", "mg/dL"), row("FBS", "209", "mg/dL")], "2065fd25af68fbf4"],
+  lipid_dm: [{ sex: "M", age: 50 }, [row("Cholesterol", "210", "mg/dL"), row("LDL", "114", "mg/dL"), row("HDL", "38", "mg/dL"), row("TG", "240", "mg/dL"), row("FBS", "209", "mg/dL")], "7daeb3138c9d7c90"],   // بازپایهٔ عمدی ۲۰۲۶-۱۰-۰۷: فقط headline/must_sayِ diabetes_range (FBS 209). اثبات: برگرداندنِ همان دو hunk در یک کپی ⇒ 2065fd25af68fbf4.
   // بازپایهٔ عمدی (باگِ ۶): فقط پیشوندِ عددیِ تازهٔ liver_pattern؛ بی‌آن همان 3547cf8469405703.
   liver: [{ sex: "F", age: 45 }, [row("AST", "120"), row("ALT", "150"), row("ALP", "200"), row("Total Bilirubin", "2.1", "mg/dL")], "81b035b9b54b0949"],
   thyroid: [{ sex: "F", age: 35 }, [row("TSH", "8.2"), row("FT4", "0.9")], "5fa44e1713a9ec1d"],

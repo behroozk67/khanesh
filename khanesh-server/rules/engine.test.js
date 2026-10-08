@@ -7088,7 +7088,10 @@ test("M125: واحدِ چاپ‌شده بایت‌به‌بایت بی‌تغی�
   ];
   // ⚠️ عمداً بازپایه شد (P73، ۲۰۲۶-۱۰-۰۳): پنلِ «Total Bilirubin 40 µmol/L» (۱ از ۱۵) پیش‌تر unmatched_abnormal/routine می‌داد و حالا
   //   bilirubin_total_alone/routine؛ فوریتِ کلی یکی است. ۱۴ پنلِ دیگر بایت‌به‌بایت یکسان.
-  const EXPECTED = ["f665faa0048dbdf5", "c1d5e82d7ddbc3e0", "3b49baf122f3ba66", "bd45550d31afb2f3", "4436e94e10c7ae54",
+  // ⚠️ عمداً بازپایه شد (۲۰۲۶-۱۰-۰۷، سرتیتر و متنِ glycemia): ۳ پنلِ اول (FBS 126، FBS 7.2 mmol/L، HbA1c 48) فقط headline و must_say ِ diabetes_range
+  //   عوض شد («در محدودهٔ دیابت» + نامِ قند و عددش). اثبات: کپیِ درخت با فقط همان دو hunk برگردانده‌شده، هر ۱۵ هشِ قبلی را عیناً می‌دهد
+  //   (f665faa0048dbdf5، c1d5e82d7ddbc3e0، 3b49baf122f3ba66)؛ ۱۲ پنلِ دیگر بی‌تغییرند.
+  const EXPECTED = ["6c9c0b13f8bedb08", "64e5d9bacf2b4164", "4cf12f06147a9f54", "bd45550d31afb2f3", "4436e94e10c7ae54",
     "81ff9d916b808907", "e4d91c9257556a36", "995fad1290b5833e", "edac66e5fd40ebf2", "4231b77939cd3a67",
     "5a3b00c577ab6abf", "c2ef8cb631aa6acb", "09889f9ef3323ae1", "47ef5a64951b1422", "999ba4662ba255d9"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
   const snap = (rows) => {
@@ -11895,7 +11898,7 @@ const M010_FREEZE = {
   dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "207480882283b17f"],
   plt40_dd6: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 40, "10^3/uL"), m010T("D-dimer", 6.0, "µg/mL"), m010T("PT", 12, "sec"), m010T("Fibrinogen", 300, "mg/dL")], "372f21f3a9239c89"], // P95 (عمدی، proof95): فقط احتیاطِ EDTA «لام قابل‌اعتمادترین راه … سیترات یا هپارین»؛ فوریت همان
   plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "0b3777138bf58435"], // P95 (عمدی، proof95): severe_thrombocytopenia Hbِ پایین و لام/LDH را می‌گوید ⇒ نجاتِ تکمیلیِ anemia_hb_alone (فقط جملهٔ اول) لازم نیست؛ فوریت همان
-  plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "ce53c5c6951f5b7a"], // P95 (عمدی، proofM257: فوریت همان؛ EDTA/Hb-در-severe_thrombocytopenia/maha بی‌نشانگر)
+  plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "a86da6d7c90ad6c7"], // P98 (عمدی، proof2: کپیِ درخت با فقط هشدارِ شرطیِ بستری/هپارین برگردانده ⇒ هشِ قبلی ce53c5c6951f5b7a عیناً)؛ P95 (عمدی، proofM257: فوریت همان؛ EDTA/Hb-در-severe_thrombocytopenia/maha بی‌نشانگر)
   dd_only: ["M", 70, [...M010_BASE, m010T("D-dimer", 700, "ng/mL")], "3063cfd783be8dcc"],
   aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "b35c9851d8754cbd"],
   pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "0ee02a62f8a75c4f"],

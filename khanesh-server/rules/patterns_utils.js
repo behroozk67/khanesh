@@ -80,6 +80,35 @@ export function applyQualGloss(findings) {
   }
 }
 
+// ═══ ۲۰۲۶-۱۰-۰۷ (برگهٔ شفا، ICU): بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور ═══
+// متن «حد طبیعی ۱۵۰–۴۰۰» را می‌گفت وقتی برگه ۱۵۰–۴۵۰ چاپ کرده بود؛ بیمار حدی را می‌خواند که روی برگه‌اش نیست (N5).
+// حکم عوض نمی‌شود: «غیرطبیعی» همچنان با بازهٔ موتور است و بازهٔ برگه فقط کنارش گفته می‌شود. فقط وقتی adapter بازهٔ برگه را
+// هم‌مقیاس و متفاوت یافت، e.printedRanges دارد. جایگزینی فقط داخلِ «(… عدد … حد طبیعی R)» است، تا بازهٔ یک آزمایشِ دیگر دست نخورد.
+const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export function applyPrintedRange(findings, e) {
+  const pr = e?.printedRanges;
+  if (!pr) return;
+  for (const g of e.graded ?? []) {
+    const printed = pr[g.test];
+    if (!printed || !g.range) continue;
+    const re = new RegExp(`(${escRe(g.value)}[^.؛\\n]{0,60}?حد طبیعی\\s*)${escRe(g.range)}(?=\\))`, "g");
+    const fix = (s) => (typeof s === "string" ? s.replace(re, (_m, p1) => `${p1}${g.range}؛ روی برگهٔ شما ${printed}`) : s);
+    for (const f of findings) {
+      for (const k of ["must_say", "brief"]) if (typeof f[k] === "string") f[k] = fix(f[k]);
+      for (const k of ["warnings", "brief_warnings"]) if (Array.isArray(f[k])) f[k] = f[k].map(fix);
+    }
+  }
+}
+
+// عددِ مطلقِ دیفرانسیل (لنفوسیت، ائوزینوفیل، …) معمولاً روی برگه نیست: برگه درصد چاپ می‌کند و موتور آن را در WBC ضرب می‌کند.
+// جمله باید همان عددی را بگوید که بیمار روی برگه می‌بیند (N5). e.derivedAbs فقط وقتی هست که درصد چاپ شده بود.
+export function absQuoteFa(e, key, name, x) {
+  const pct = e?.derivedAbs?.[key];
+  return pct != null
+    ? `${name} شما روی برگه ٪${pct} چاپ شده که با شمارشِ کلِ گلبول‌های سفید حدودِ ${x.value} در هر میکرولیتر می‌شود (حد طبیعی ${x.range})`
+    : `${name} شما ${x.value} است (حد طبیعی ${x.range})`;
+}
+
 // ═══ P91 → P95 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۶، [22]): CKِ کودک ═══
 // برای رابدومیولیزِ کودک گایدلاینِ اجماعی نیست؛ بیشترِ نویسندگان CK ≥ ۱۰۰۰ یا ≥ ۵×ULN را ملاک می‌گیرند (Arkansas Children's،
 //   Cone Health peds pathway). P95 (منابعِ کاربر): «به‌زودی» (soon) از شواهد نمی‌آمد — CKِ بی‌علامت پس از ورزش بالا می‌رود و
