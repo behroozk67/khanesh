@@ -26,6 +26,9 @@ Measured 2026-10-08 on the working tree (branch `recovery`, `HEAD` `5ebdae8` + u
 - Q: Who is the expert view for? → A: **Clinical staff** (physicians, nurses), not the curious patient.
 - Q: What may it contain? → A: **Suggested follow-up tests and a deeper interpretation**, in addition to the verdict's numbers and sources.
 - Q: Switch or separate page? → A: **A switch on the same page**, default «ساده».
+- Q: How much new clinician-facing text (`pro`) ships with this feature? → A: **The slot, the rendering, and a first batch of about 20–30 of the most frequent rules**, each written as a proposal and recorded in `MEDICAL_RULES.md`.
+- Q: In the expert view, how much of a finding hidden under an emergency blocker is shown? → A: **Name, triggering values and sources only, collapsed; no action and no warnings**, so a second instruction never sits beside the emergency one.
+- Q: Does the expert view show the sheet score's per-system breakdown? → A: **Yes, read-only**: the total and band, then the eight systems with their keys, cap and lowest test, taken from the score output as it is. No formula is shown and nothing is recomputed.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -81,7 +84,7 @@ The expert view shows the number as printed on the sheet, the number the engine 
 
 For rules that carry an optional `pro` block, the expert view also shows its clinician-written cautions, differential and work-up. Rules with no `pro` block show nothing extra and nothing breaks.
 
-**Why this priority**: The user wants a deeper interpretation, which does not exist in the engine today. This story delivers the slot and the rendering, and the first batch of authored text; the full set is added rule by rule over time.
+**Why this priority**: The user wants a deeper interpretation, which does not exist in the engine today. This story delivers the slot, the rendering, and a first batch of about 20–30 of the most frequent rules; the remaining rules are added rule by rule over time.
 
 **Independent Test**: Give one rule a `pro` block in a test fixture. The expert view shows its three sections. A rule without it shows none, and the page does not error.
 
@@ -150,11 +153,13 @@ For a patient marked as hospitalized (P99), the expert view shows the same inpat
 - **FR-009**: The expert view MUST NOT introduce any threshold, range, urgency, score or timeline that is not already produced by the engine. The engine's urgency, `has_critical` and the sheet score MUST be identical in both modes.
 - **FR-010**: A test or row the engine did not grade MUST appear as «بدون حکم» with its printed value; "not measured" and "normal" MUST stay distinct (Constitution II).
 - **FR-011**: A rule MAY carry an optional `pro` block with `cautions`, `differential` and `workup`. A rule without it MUST render fully without error and without empty headings.
+- **FR-019**: This feature MUST ship `pro` text for a first batch of about 20–30 of the most frequent rules, chosen by how often they fire in the engine's own sweep, and every other rule MUST keep working without it.
 - **FR-012**: Any `pro` text MUST be Persian, MUST pass the same guards as patient text (encoding, language, no raw engine key, no outpatient wording for inpatients) and MUST be recorded in `MEDICAL_RULES.md` as a proposal for clinical review before it ships.
 - **FR-013**: For a hospitalized patient (P99) the expert view MUST use the engine's inpatient action wording and MUST NOT contain «اورژانس», «مطب» or «وقت بگیرید».
 - **FR-014**: The chosen mode MUST be stored only on the user's device, MUST be read and written defensively, and MUST fall back to «ساده» when storage is unavailable.
 - **FR-015**: Against an older server response without the new field, the expert view MUST degrade to the data it has and state that detail is unavailable; it MUST NOT throw and MUST NOT show an empty page.
-- **FR-016**: The findings hidden under a blocker, and the supplementary findings, MUST be identifiable in the expert view as such.
+- **FR-016**: The findings hidden under a blocker, and the supplementary findings, MUST be identifiable in the expert view as such. A hidden finding MUST show its Persian name, triggering values and sources in a collapsed form, and MUST NOT show its action or warnings.
+- **FR-020**: The expert view MUST show the sheet score's total and band and, read-only, each system's score, contributing tests, applied cap and lowest test, exactly as the server computed them. It MUST NOT recompute, re-weight or explain a formula.
 - **FR-017**: The new field MUST NOT be sent to the language model, MUST NOT feed the prompt, and MUST NOT change `overall_urgency` or `has_critical`.
 - **FR-018**: The new server field MUST be covered by tests that fail against the code without it (red first), including a sweep that no engine key or rule id leaks into it.
 
@@ -178,13 +183,14 @@ For a patient marked as hospitalized (P99), the expert view shows the same inpat
 - **SC-005**: For every sweep panel with a corrected or converted value, the as-printed value is shown and the derived value is labelled; none is shown alone.
 - **SC-006**: For hospitalized panels in the sweep, no outpatient phrase appears anywhere in the expert view.
 - **SC-007**: Against a response from before this feature, the page switched to «تخصصی» renders without error and states what is unavailable.
+- **SC-009**: At least 20 rules carry a `pro` block, each with at least one of cautions, differential or work-up; each is recorded in the clinical decision register as pending review.
 - **SC-008**: Every source shown in the expert view is traceable to the rule or the registry; a spot check of 20 rules finds none that the registry does not hold.
 
 ## Assumptions
 
 - The audience is clinical staff reading the same page a patient sees; there is no separate login or role in this feature. The switch is a view preference, not an access control.
-- "Deeper interpretation" is delivered in two steps. Phase 1 (this feature) shows the structure behind each verdict — values, ranges, grades, sources, preconditions, suggested tests. Phase 2 adds the `pro` slot and a first batch of authored text for the most frequent rules. Authoring the full set is ongoing work, not a gate for this feature.
-- No clinical prose for clinicians exists in the engine today (measured), so any `pro` text is new clinical content and goes through `MEDICAL_RULES.md` as a proposal. The first batch is limited to a small, named set of rules and is the reviewer's to approve.
+- "Deeper interpretation" is delivered in two steps. Phase 1 (this feature) shows the structure behind each verdict — values, ranges, grades, sources, preconditions, suggested tests. Phase 2 adds the `pro` slot and a first batch of about 20–30 authored rules (clarified 2026-10-08). Authoring the remaining rules is ongoing work, not a gate for this feature.
+- No clinical prose for clinicians exists in the engine today (measured), so any `pro` text is new clinical content and goes through `MEDICAL_RULES.md` as a proposal. The first batch is about 20–30 rules, named in the plan, and is the reviewer's to approve.
 - The expert view reuses the engine's text where it quotes any, unmodified. It does not paraphrase and does not translate the patient prose into clinical register.
 - The sheet score (P97) is unchanged and shown identically in both modes.
 - The inpatient wording (P99) is already applied inside the findings, so the expert view inherits it by reading the same fields.
