@@ -456,6 +456,41 @@ export function buildEngineRecommendations(patterns, engineOut) {
   return tidyRecommendations(filtered);
 }
 
+// ═══ فشرده‌سازیِ نمایشیِ فهرستِ توصیه‌ها (۲۰۲۶-۱۰-۰۸، درخواستِ کاربر) ═══
+// بیمار روی یک برگهٔ ساده ۲۰ سطر می‌دید که ۶ تایش «درخواست آزمایش X از پزشک» بود — لحنِ دستور به بیمار دربارهٔ کاری که
+// تصمیمش با پزشک است — و «فهرستِ داروها را همراه ببرید» دو بار. اینجا فقط *شکلِ نمایش* عوض می‌شود: هیچ جمله‌ای از موتور
+// حذف یا ساخته نمی‌شود، جز ادغامِ درخواست‌های آزمایش در یک جمله و حذفِ جملهٔ «فهرستِ داروها»ی کوتاه‌تر وقتی بلندترش هست.
+// هشدارها («اگر …»)، دستورِ نهایی و هر موردی که با الگو نمی‌خواند بایت‌به‌بایت می‌مانند.
+// ⚠️ buildEngineRecommendations عمداً دست‌نخورده است: expert.js، missingSuggestions و ~۴۰ تست فهرستِ تکی را می‌خوانند.
+const TEST_REQUEST = /^درخواست\s+(تکرارِ?\s+)?(?:آزمایش\s+)?(.+?)\s+از پزشک$/;
+const MED_LIST = /^فهرستِ?\s+داروهایتان.*همراه ببرید\.?$/;
+export function condenseRecommendations(list) {
+  const items = [...(list ?? [])];
+  const fresh = [], repeat = [];
+  const reqIdx = [];
+  items.forEach((r, i) => {
+    const m = String(r).trim().match(TEST_REQUEST);
+    if (!m || m[2].includes("—")) return;
+    (m[1] ? repeat : fresh).push(m[2].trim());
+    reqIdx.push(i);
+  });
+  const drop = new Set();
+  if (reqIdx.length >= 2) {
+    const uniq = (a) => [...new Set(a)];
+    const parts = [];
+    if (fresh.length) parts.push(`برای روشن شدن علت، پزشک ممکن است این آزمایش‌ها را لازم بداند: ${uniq(fresh).join("، ")}.`);
+    if (repeat.length) parts.push(`${fresh.length ? "همچنین" : "پزشک"} ممکن است تکرار این موارد را بخواهد: ${uniq(repeat).join("، ")}.`);
+    items[reqIdx[0]] = parts.join(" ");
+    reqIdx.slice(1).forEach((i) => drop.add(i));
+  }
+  const meds = items.map((r, i) => (MED_LIST.test(String(r).trim()) ? i : -1)).filter((i) => i >= 0);
+  if (meds.length >= 2) {
+    const keep = meds.reduce((a, b) => (String(items[b]).length > String(items[a]).length ? b : a));
+    meds.forEach((i) => { if (i !== keep) drop.add(i); });
+  }
+  return items.filter((_, i) => !drop.has(i));
+}
+
 /**
  * توکن‌های یک *نامِ آزمایش* برای سنجشِ حضور در متنِ مدل.
  *

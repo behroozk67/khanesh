@@ -38,7 +38,7 @@ import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
 import { healthScore } from "./rules/score.js";
-import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, condenseRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines } from "./rules/prompt.js";
 import { glossQualText } from "./rules/patterns_utils.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
@@ -1625,7 +1625,7 @@ const analyzeHandler = async (req, res) => {
       //    می‌گرفتند. حالا مدل این فیلدها را اصلاً نمی‌بیند (buildEnginePrompt) و فهرست
       //    همان چیزی است که موتور ساخته. فهرستِ مدل، اگر داده باشد، فقط در ردیابی ثبت می‌شود.
       const modelRecs = parsed.general_recommendations ?? parsed.recommendations ?? null;
-      parsed.general_recommendations = buildEngineRecommendations(patternOut, engineOut);
+      parsed.general_recommendations = condenseRecommendations(buildEngineRecommendations(patternOut, engineOut));
       tr.net("recommendations:engine", modelRecs, parsed.general_recommendations, { model_list_ignored: modelRecs != null });
       delete parsed.recommendations;
 
