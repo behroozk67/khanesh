@@ -25,6 +25,7 @@ import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
 import { rankOf, applyQualGloss, applyPrintedRange } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { applyInpatientVoice } from "./inpatient.js";
+import { PRO_TEXT } from "./pro_text.js";
 import { applyNeonatalFloor, applyNeonatalVoice, applyChildVoice, isNeonate } from "./neonatal.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
@@ -64,6 +65,8 @@ export const RULES = [
   ...RULES_PRENATAL
 ];
 bindP73Owners(RULES);
+// specs/016 (P100): متنِ تخصصیِ کادرِ درمان روی شیءِ قاعده. فقط rules/expert.js آن را می‌خواند؛ به حکم، فوریت و پرامپت نمی‌رسد.
+for (const r of RULES) if (PRO_TEXT[r.id]) r.pro = PRO_TEXT[r.id];
 
 //    پیشنهادها («تکرار CBC»، «پایش دوره‌ای TSH»، «تکرار کراتینین») دقیقاً دربارهٔ
 //    آزمایشی هستند که همین حالا داریم و باید بمانند. تطبیق دقیق تضمین می‌کند
@@ -435,6 +438,10 @@ function applyBareFluidVoice(findings, engineOut) {
   }
 }
 
+// specs/016 (research R2): یافته‌های پنهان‌شده زیرِ blocker (و نه «تکمیلی») برای نمای تخصصی. WeakMap است، نه فیلدِ
+//   خروجی، چون چند تستِ freeze کلِ خروجیِ runPatterns را hash می‌کنند و WeakMap در JSON.stringify دیده نمی‌شود.
+export const HIDDEN_FINDINGS = new WeakMap();
+
 export function runPatterns(engineOut) {
   const findings = [];
   // یافته‌های کم‌فوریتی که زیرِ blocker پنهان می‌شدند ولی عددی را توضیح می‌دهند که هیچ متنِ نمایشی نمی‌گوید —
@@ -732,7 +739,7 @@ export function runPatterns(engineOut) {
   // ⚠️ هیچ‌کدام از این‌ها فوریت را تغییر نمی‌دهند — فقط متن اضافه می‌کنند.
   const preanalytical = attachPreanalytical(shown, preanalyticalCaveats(engineOut));
 
-  return {
+  const result = {
     findings: shown,
     overall_urgency: shown[0]?.urgency ?? "none",
     has_critical: shown.some((f) => f.urgency === "emergency"),
@@ -748,4 +755,6 @@ export function runPatterns(engineOut) {
     // هشدارهای پیش‌تحلیلیِ بی‌صاحب (هدفشان در این پنل یافته‌ای نداشت)
     preanalytical,
   };
+  HIDDEN_FINDINGS.set(result, demoted.filter((f) => !supplementary.includes(f)));
+  return result;
 }

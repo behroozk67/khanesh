@@ -237,6 +237,9 @@ khanesh-project/
 │   │   ├── serology.js          # specs/012: مسیریابی + خوانشِ مجموعهٔ بسته — مشترکِ adapter و قاعده‌ها (یک قاعده برای «مثبت»)
 │   │   ├── patterns_utils.js    # levelGrade, rankOf, qualState (closed-set reader, N6) — shared by every patterns_* file
 │   │   ├── names.js             # engine key -> Persian display name (FA_NAMES, faName())
+│   │   ├── expert.js            # specs/016: `_engine.expert` (نمای تخصصیِ کادرِ درمان) — فقط بازچینیِ خروجیِ موتور؛ گارد: expert.test.js
+│   │   ├── pro_text.js          # specs/016 (P100): متنِ تخصصیِ ۳۰ قاعده، روی rule.pro؛ بی عددِ تازه (X15)، در انتظارِ بازبینی
+│   │   ├── inpatient.js         # P99: لحنِ دستور برای بیمارِ بستری؛ فوریت دست‌نخورده
 │   │   ├── prompt.js            # engine-driven system prompt + payload builder
 │   │   ├── medline.js           # MedlinePlus term extraction + lookup
 │   │   ├── coverage.js          # sentence-level check that the LLM kept every must_say
@@ -2337,6 +2340,16 @@ not by a test.
   the ordinary ones the bug report used. An urgency belongs to the system its finding is about, not to the whole sheet. And
   before writing a probe, check *where* the engine reads its context. Guards: `rules/score.test.js` has 25 tests. 16 were red on v1 and 4
   were red on the first v2. They include the 109-key coverage table and two metamorphic sweeps.
+
+### N33 — A sweep over a *new* surface found a leak in the previous day's fix
+2026-10-08, specs/016 (`X18`) → P99 (`inpatient.js`).
+
+- **Tried (P99, same day):** for an inpatient, `inpatientWarning` turned «اگر X، به اورژانس بروید» into «اگر X، همین حالا به پرستارِ بخش اطلاع دهید» by cutting at the sentence's **last** «،».
+- **Broke:** the thyroid-storm warning ends with a parenthesis that has its own «،» («… فوراً به اورژانس بروید (… «طوفان تیروئیدی»، یک وضعیت اورژانسی …)»). The cut landed inside the parenthesis, so a hospitalized patient still read «فوراً به اورژانس بروید». P99's own sweep (`H5`) is single-analyte and never builds TSH-low + FT4-high, so it was green. The expert view's hospitalized sweep (`X18`) also runs combined panels, and it caught the leak.
+- **The first fix was wrong too, and `code-reviewer` caught it before commit.** Cutting at the comma before the *first* directive word returned -1 for «اگر **همین حالا** نشانه‌های لخته دارید — …»: «همین حالا» is part of the *condition*. So the D-dimer clot warning was **dropped** for every hospitalized patient. No sweep saw it, because a deleted warning contains no outpatient word. The fix: strip a trailing parenthetical, then take the consequent from the first directive word of the *last* clause («،» / « — ») that has one; never drop a conditional warning.
+- **Rule:** a rewrite that can delete text needs a guard that counts what is left, not only one that searches for forbidden words. `H10` asserts the number of «اگر …» warnings is the same with and without the condition. Also: when a new surface reads an existing field, sweep it over **combined** panels. Guards `H8`, `H9`, `H10`.
+- **Same review, same lesson in the new view:** `pro` text for rules that fire in both directions (K, Na, Ca, vitamin D) listed only one direction's causes (N12). The expert view also printed the engine's converted value as «روی برگه» (N5), leaked `NEUT_PCT` (N8) because the guard exempted exactly the keys `faName` cannot name, skipped the `forbid` filter, and showed every finding's own `action`, bringing back the rival timelines that N7/N20 removed. Guards `X3`, `X11`, `X21`–`X27`.
+- **Tooling trap on the way, no patient cost:** a `Ø`-style escape written through the Edit tool or a Bash heredoc reached the file as a literal mojibake character, and `M37` went red on the test file itself. Write such fixtures with `String.fromCharCode` / a script that builds the backslash, then grep the file for the literal character.
 
 Detailed instructions are split across `.claude/rules/`:
 

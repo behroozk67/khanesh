@@ -1,0 +1,38 @@
+T001 — baseline, measured 2026-10-08, working tree: branch recovery @ 4d8c245
+  backend clean (no uncommitted khanesh-server files); frontend has a concurrent session's uncommitted edits in
+  ResultView.jsx, ResultDashboard.jsx/.css, Tafsir.jsx, onboarding/OnbShell.jsx, StartChoice.jsx, onboarding.css
+
+khanesh-server  npm test : tests 1230 · pass 1229 · fail 0 · todo 1
+khanesh-server  RULES    : 250
+khanesh         oxlint   : exit 0, no diagnostics
+khanesh         build    : exit 0 (pre-existing >500 kB chunk warning)
+
+Red-first (T007–T012, T020–T021, T024–T027, T031, T035–T038, T045, T047): expert.test.js against the T002 stub
+  (buildExpertView ⇒ null): tests 20 · pass 6 · fail 14. Green on the stub, by design: X0 (refactor-neutral hashes), X5 (no
+  prompt mutation), X14–X16 (the fixture asserts inside them fired; real rules had no pro yet). X3 was then made to require
+  x.version === 1 so it cannot pass on null.
+X18 found a P99 leak (thyroid-storm warning kept «فوراً به اورژانس» for inpatients) ⇒ H8, red before the fix.
+
+T052 code-reviewer: 2 HIGH, 4 MEDIUM, 4 LOW/MED, 5 vacuous-test notes. All fixed, each red first:
+  HIGH H8 regression dropped the D-dimer clot warning for inpatients ⇒ H9, H10 (red), fixed in inpatient.js
+  HIGH pro text one-directional for K/Na/Ca/vit D (N12) ⇒ X21 (red), blocks relabelled «در افزایش/کاهش/هر دو جهت»
+  MED  «روی برگه» wrong (conversion hid albumin correction; unprinted unit; engine value shown as sheet value) ⇒ X11 rewritten, X22–X24 (red)
+  MED  NEUT_PCT etc. leaked raw; guideline ids serialized ⇒ X3 key-shape check, X25 (red)
+  MED  forbid filter missing from expert suggestions ⇒ X26 (red)
+  MED  per-finding actions = rival timelines ⇒ action removed, x.recommendations = buildEngineRecommendations ⇒ X27 (red)
+  LOW  «محرک‌ها» caption over-claims ⇒ «آزمایش‌های مرتبطِ خارج از محدوده»; INDEX_INFO wording (bun_cr, na_corrected, osm_calc);
+       pro.sources rendered as citations; range_source no longer rendered; buildExpertView wrapped in try/catch in server.js
+  Tests: X5 now checks no pro text reaches the prompt; X15 compares numeric tokens, not substrings.
+  Not changed (product decision, recorded in P100): the switch is visible to patients and the choice persists per browser.
+
+After fixes — full suite (working tree, includes a concurrent session's api-contract.test.js hunk):
+  tests 1264 · pass 1263 · fail 0 · todo 1   (baseline 1230 · 1229 · 0 · 1)
+  khanesh lint exit 0; build OK.
+
+T053 browser (headless Chromium via Puppeteer; my own backend :8788 + Vite :5188, both stopped, temp config deleted;
+  user's 8787/5173 untouched), manual path PT 14 · INR 1.2, male 45:
+  simple view: dashboard present, no .xv, switch «ساده» checked
+  expert view: «دستور و توصیه‌های موتور» (same list as simple), «آزمایش‌های مرتبطِ خارج از محدوده», pro block with
+    «متنِ تخصصی — در انتظارِ بازبینیِ بالینی», score breakdown «انعقاد», «این هفته»; raw keys 0; horizontal scroll 0 at 390px
+  mode stored «expert», back to simple works, fresh browser context ⇒ no stored mode (opens «ساده»)
+  mobile caption squeeze seen in the screenshot ⇒ CSS fixed (caption full width)

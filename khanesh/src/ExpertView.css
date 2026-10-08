@@ -1,0 +1,44 @@
+/* نمای تخصصی (specs/016) — فقط توکن‌های موجودِ index.css؛ رنگِ تازه نیست. */
+.xv { display: grid; gap: var(--s5); }
+.xv-block { display: grid; gap: var(--s3); }
+.xv-muted { color: var(--ink-2); font-size: var(--t-sm); line-height: var(--lh-body); }
+.xv-note { color: var(--ink-2); font-size: var(--t-xs); }
+.xv-h4 { font-size: var(--t-sm); font-weight: var(--w-semibold); margin-block: var(--s3) var(--s1); }
+
+.xv-finding { padding: var(--s4); }
+.xv-finding > summary,
+.xv-block > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); min-height: var(--tap); }
+.xv-label { font-weight: var(--w-semibold); color: var(--ink); }
+
+.xv-chip {
+  display: inline-block; padding: 2px var(--s2); border-radius: var(--r-pill);
+  font-size: var(--t-2xs); background: var(--sunken); color: var(--ink-2); border: 1px solid var(--line);
+}
+.xv-chip--bad { background: var(--st-emergency-soft); color: var(--st-emergency-ink); border-color: transparent; }
+.xv-chip--warn { background: var(--st-out-bg); color: var(--st-out-fg); border-color: transparent; }
+.xv-chip--info { background: var(--brand-soft); color: var(--brand-ink); border-color: transparent; }
+
+.xv-table-wrap { width: 100%; overflow-x: auto; }
+.xv-table { width: 100%; border-collapse: collapse; font-size: var(--t-xs); }
+.xv-table caption { text-align: start; font-weight: var(--w-semibold); color: var(--ink-2); padding-block: var(--s2); }
+.xv-table th, .xv-table td { text-align: start; padding: var(--s2); border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.xv-table thead th { color: var(--ink-2); font-weight: var(--w-semibold); }
+
+.xv-pro { margin-top: var(--s3); padding: var(--s3); border-radius: var(--r-md); background: var(--sunken); border: 1px solid var(--line); }
+.xv-pro-tag { font-size: var(--t-2xs); color: var(--ink-3); }
+
+.xv-sources, .xv-systems, .xv-indices { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--s2); }
+.xv-hidden { padding-block: var(--s3); border-top: 1px solid var(--line-soft); }
+
+/* گوشی: جدول به کارتِ ردیفی تبدیل می‌شود تا صفحه افقی اسکرول نخورد. */
+@media (max-width: 480px) {
+  .xv-table thead { display: none; }
+  .xv-table caption { display: block; width: 100%; }
+  .xv-table, .xv-table tbody, .xv-table tr, .xv-table th, .xv-table td { display: block; width: 100%; }
+  .xv-table tr { padding-block: var(--s2); border-bottom: 1px solid var(--line); }
+  .xv-table td, .xv-table tbody th { border: 0; padding: 2px 0; }
+  .xv-table td::before { content: attr(data-label) ": "; color: var(--ink-2); }
+}
+
+/* سوییچِ «ساده / تخصصی» در ResultView — کنارِ خطِ «تفسیر بر پایهٔ …». */
+.view-switch { display: flex; justify-content: flex-start; margin-block: var(--s3); }

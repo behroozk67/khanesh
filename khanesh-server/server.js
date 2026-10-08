@@ -33,6 +33,7 @@ import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlacehold
 import { bareUrineShape } from "./rules/specimen.js";
 import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { onInpatient, inpatientBanner } from "./rules/inpatient.js";
+import { buildExpertView } from "./rules/expert.js";
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
@@ -202,7 +203,14 @@ export function ageBandMismatch(sheet, form) {
   return sb && fb && sb !== fb ? { sheet: ageText(s), profile: ageText(f) } : null;
 }
 
+// نمای تخصصی هرگز نباید کلِ پاسخِ بیمار را ۵۰۰ کند: خطا ⇒ null (فرانت «در دسترس نیست» می‌گوید) + لاگ.
+function expertOrNull(engineOut, patternOut, score) {
+  try { return buildExpertView(engineOut, patternOut, score); }
+  catch (e) { console.error("[expert] buildExpertView failed:", e?.message ?? e); return null; }
+}
+
 function engineDebug(engineOut, patternOut) {
+  const score = healthScore(engineOut, patternOut);
   return {
     patterns: patternOut.findings.map((f) => f.rule_id),
     urgency: patternOut.overall_urgency,
@@ -230,7 +238,10 @@ function engineDebug(engineOut, patternOut) {
     // «امتیازِ این برگه» v2 (P97، specs/015) — فقط از حکمِ خودِ موتور. نمرهٔ هر دستگاه همین‌جا ساخته می‌شود (فرانت فرمول ندارد)؛
     // سقفِ اورژانس سراسری؛ بقیهٔ سقف‌ها روی دستگاهِ کلیدهای یافته، و اگر یافته به هیچ کلیدِ graded نسبت داده نشد، روی کلِ برگه.
     // قرارداد: specs/015-sheet-score-redesign/contracts/score-output.md
-    score: healthScore(engineOut, patternOut),
+    score,
+    // نمای تخصصی (specs/016): فقط بازچینیِ خروجیِ موتور برای کادرِ درمان — هرگز به مدل نمی‌رود.
+    // قرارداد: specs/016-expert-view/contracts/expert-output.md
+    expert: expertOrNull(engineOut, patternOut, score),
     // ── منابعِ گایدلاینیِ یافته‌ها (شفافیت) ──
     // فقط شناسه‌هایی که واقعاً روی یافته‌های نمایش‌داده‌شده نشسته‌اند.
     // sourceList نامِ منبعِ پولی را با معادلِ آزادش جایگزین می‌کند تا

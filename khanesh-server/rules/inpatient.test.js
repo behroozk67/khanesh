@@ -109,3 +109,37 @@ test("H7: «تفسیر بر پایهٔ …» بستری را می‌آورد؛ �
   assert.equal(inpatientBanner(run([t("K", 7.0, "mEq/L")]).e, run([t("K", 7.0, "mEq/L")]).p), null);
   assert.equal(inpatientBanner(b.e, b.p), null);
 });
+
+test("H8: هشدارِ شرطی با «،» داخلِ پرانتزِ توضیحی (طوفانِ تیروئیدی) هم برای بستری بی‌اورژانس می‌شود (یافتهٔ X18، specs/016)", () => {
+  // پیش از رفع: lastIndexOf("،") به «،»ِ داخلِ «(… «طوفان تیروئیدی»، یک وضعیت اورژانسی …)» می‌رسید و «فوراً به اورژانس بروید» می‌ماند.
+  const { p } = run([t("TSH", 0.05, "mIU/L"), t("FT4", 2.6, "ng/dL")], IN);
+  const ws = p.findings.flatMap((f) => [...(f.warnings ?? []), ...(f.brief_warnings ?? [])]);
+  const storm = ws.find((w) => /ضربان قلب بسیار تند/.test(w));
+  assert.ok(storm, `هشدارِ طوفانِ تیروئیدی نبود: ${ws.join(" | ")}`);
+  assert.doesNotMatch(storm, /اورژانس/);
+  assert.match(storm, /^اگر تب بالا همراه ضربان قلب بسیار تند و بی‌قراری یا گیجی شدید پیدا کردید، همین حالا به پرستارِ بخش اطلاع دهید\.$/);
+});
+
+test("H9: هشدارِ شرطیِ D-dimer برای بستری حذف نمی‌شود — کاملِ نشانه‌ها + «پرستار» (بازبینیِ کدِ specs/016، رگرسیونِ H8)", () => {
+  // پس از H8: «همین حالا» در خودِ شرط بود («اگر همین حالا نشانه‌ها … دارید»)، lastIndexOf به -1 رسید و جمله حذف شد.
+  const { p } = run([t("D-dimer", 2.5, "mg/L FEU")], IN);
+  const ws = p.findings.flatMap((f) => [...(f.warnings ?? []), ...(f.brief_warnings ?? [])]);
+  const clot = ws.find((w) => /تنگی نفس ناگهانی/.test(w));
+  assert.ok(clot, `هشدارِ لخته حذف شد: ${ws.join(" | ")}`);
+  assert.match(clot, /سرفهٔ خونی/);
+  assert.match(clot, /پرستارِ بخش/);
+  assert.doesNotMatch(clot, /اورژانس/);
+});
+
+test("H10: جاروب — هیچ هشدارِ شرطی («اگر …») برای بستری حذف نمی‌شود؛ فقط بازنویسی (H8/H9)", () => {
+  const panels = [
+    [t("D-dimer", 2.5, "mg/L FEU")], [t("TSH", 0.05, "mIU/L"), t("FT4", 2.6, "ng/dL")], [t("K", 7.0, "mEq/L")], [t("PT", 14, "sec"), t("INR", 1.2)],
+    [t("Hb", 6, "g/dL")], [t("PLT", 15, "K/uL")], [t("FBS", 45, "mg/dL")], [t("Na", 118, "mEq/L")], [t("Ca", 14.5, "mg/dL")],
+    [t("WBC", 1.2, "K/uL")], [t("Troponin I", 2, "ng/mL")], [t("Creatinine", 6, "mg/dL")], [t("ALT", 900, "U/L")],
+  ];
+  const conds = (p) => p.findings.map((f) => [...(f.warnings ?? [])].flatMap((w) => w.split(/(?<=[.؟!؛])\s+/)).filter((s) => /^(اگر|چنانچه|در صورتِ?)\s/.test(s)).length);
+  for (const tests of panels) {
+    const a = run(tests).p, b = run(tests, IN).p;
+    assert.deepEqual(conds(b), conds(a), JSON.stringify(tests.map((x) => x.name)));
+  }
+});

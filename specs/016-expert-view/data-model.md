@@ -9,7 +9,8 @@ All entities are built on the server by `buildExpertView(engineOut, patternOut, 
 | `version` | `1` | bump on any breaking change |
 | `findings` | `ExpertFinding[]` | the shown findings, in the order `runPatterns` returned them |
 | `hidden` | `HiddenFinding[]` | findings demoted under a blocker and not shown as supplementary |
-| `suggested` | `string[]` | sheet-level suggested tests, de-duplicated, none already measured |
+| `recommendations` | `string[]` | the simple view's list (`buildEngineRecommendations`): one final action, then content, tests, warnings |
+| `suggested` | `string[]` | sheet-level suggested tests, de-duplicated, none already measured, `forbid`-filtered |
 | `tests` | `TestRow[]` | every graded test (abnormal first), plus ungraded rows as «بدون حکم» |
 | `indices` | `DerivedValue[]` | computed values, each labelled and explained |
 | `score` | `ScoreBreakdown \| null` | read-only copy of the P97 output |
@@ -26,7 +27,6 @@ All entities are built on the server by `buildExpertView(engineOut, patternOut, 
 | `briefed` | `boolean` | true when the patient saw the short form under a blocker |
 | `triggers` | `TestRow[]` | attributed abnormal tests (R3) |
 | `context` | `TestRow[]` | attributed in-range tests the finding speaks about |
-| `action` | `string` | the finding's `action`, verbatim (inpatient voice inherited) |
 | `warnings` | `string[]` | the finding's `warnings`, verbatim |
 | `suggest` | `string[]` | bare test names, filtered by `alreadyMeasured` |
 | `sources` | `Source[]` | from `RULE_SOURCES` + `f.sources`, through `sourceList` (paywall substitution) |
@@ -42,9 +42,10 @@ All entities are built on the server by `buildExpertView(engineOut, patternOut, 
 | Field | Type | Rule |
 |---|---|---|
 | `name` | `string` | `faName(key)`; the key itself is never serialized |
-| `printed` | `{ value, unit } \| null` | as on the sheet; `null` when not known |
+| `printed` | `{ value, unit } \| null` | as on the sheet, **only** when the engine kept it and `derived_from` says why it differs; `unit` is null unless the sheet printed it |
+| `unit_assumed` | `string` (optional) | the unit the engine inferred when the sheet printed none |
 | `graded` | `{ value, unit }` | what the engine graded |
-| `derived_from` | `"unit_conversion" \| "albumin_correction" \| "glucose_correction" \| null` | why `graded` differs from `printed` |
+| `derived_from` | `unit_conversion` \| `albumin_correction` \| `glucose_correction` \| `unit_conversion_and_albumin_correction` \| `unit_conversion_and_glucose_correction` \| `percent_of_wbc` \| `null` | why `graded` differs from `printed` |
 | `engine_range` | `string \| null` | the range the engine used |
 | `printed_range` | `string \| null` | from `printedRanges`, when the sheet printed one |
 | `range_source` | `string \| null` | `refSource` (Henry, RCPCH, geriatric, …) |
@@ -53,7 +54,7 @@ All entities are built on the server by `buildExpertView(engineOut, patternOut, 
 | `ctcae_grade` | `number \| null` | only when the engine graded with CTCAE |
 | `grading_source` | `string \| null` | `source` from grading |
 
-Rule: a test with `derived_from` set MUST have `printed` non-null, or it is shown with «مقدارِ روی برگه در دسترس نیست» (N5).
+Rule: `printed` is non-null only together with `derived_from`; otherwise the expert view does not claim a sheet value (N5, review fix: WBC 7000 was shown as «7 K/µL روی برگه»).
 
 ## DerivedValue
 

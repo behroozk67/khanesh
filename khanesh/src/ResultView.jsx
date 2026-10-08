@@ -11,8 +11,11 @@
 // «همهٔ آزمایش‌ها» حذف شد؛ یادداشتِ N5 («روی برگهٔ شما: X») برای کلسیم/سدیمِ تصحیح‌شده به داشبورد رفت.
 // ============================================================
 
+import { useState } from "react";
 import Num from "./Num.jsx";
 import ResultDashboard from "./ResultDashboard.jsx";
+import ExpertView from "./ExpertView.jsx";
+import Segmented from "./Segmented.jsx";
 import ExtractedTests from "./ExtractedTests.jsx";
 import { toFaDigits } from "./digits.js";
 import { buildVerdictContext } from "./resultStates.js";
@@ -214,9 +217,21 @@ function ContextLine({ ctx, asText }) {
   return <p className="ctx-line">تفسیر بر پایهٔ: <b>{parts.join("، ")}</b></p>;
 }
 
+// specs/016: «ساده / تخصصی» — فقط ترجیحِ همین مرورگر. هر خطای حافظه ⇒ «ساده» (FR-014).
+const VIEW_MODE_KEY = "azmayar_view_mode_v1";
+function readViewMode() {
+  try { return localStorage.getItem(VIEW_MODE_KEY) === "expert" ? "expert" : "simple"; } catch { return "simple"; }
+}
+function writeViewMode(m) {
+  try { localStorage.setItem(VIEW_MODE_KEY, m); } catch { /* حافظهٔ مسدود: فقط همین بار */ }
+}
+
 export default function ResultView({ result, asText, asList }) {
   const eng = result._engine;
   const hasEngine = !!eng;
+  const [viewMode, setViewMode] = useState(readViewMode);
+  // نمای تخصصی فقط روی مسیرِ موتور معنا دارد؛ بیرونِ آن همیشه ساده.
+  const expert = hasEngine && viewMode === "expert";
   const urgency = eng?.urgency ?? "none";
   // ⚠️ کلیدهایی که موتور صریحاً «بی‌توضیح» اعلام کرده. پیش‌تر اینجا فقط یک
   //    بولینِ کل‌پنلی از `patterns` ساخته می‌شد و به هر ردیفِ غیرطبیعی
@@ -273,6 +288,18 @@ export default function ResultView({ result, asText, asList }) {
              بیماریِ تیک‌خورده‌ای که قاعده ندارد اینجا نمی‌آید (FR-019). سرورِ قدیمی context ندارد ⇒ چیزی رندر نمی‌شود. */}
       <ContextLine ctx={eng?.context} asText={asText} />
 
+      {hasEngine && (
+        <div className="view-switch">
+          <Segmented
+            label="نمای نتیجه"
+            value={expert ? "expert" : "simple"}
+            options={[{ value: "simple", label: "ساده" }, { value: "expert", label: "تخصصی (کادر درمان)" }]}
+            onChange={(m) => { setViewMode(m); writeViewMode(m); }}
+            size="sm"
+          />
+        </div>
+      )}
+
       {/* هشدارهای صفحه و OCR */}
       {result.pages?.failed?.length > 0 && (
         <div className="warn" role="alert">
@@ -320,6 +347,9 @@ export default function ResultView({ result, asText, asList }) {
         </>
       )}
 
+      {/* specs/016: نمای تخصصی جای بدنهٔ نمای ساده (خلاصه تا داشبورد) می‌نشیند؛ بنر، «تفسیر بر پایهٔ …»،
+             اعدادِ خوانده‌شده و سلبِ مسئولیت در هر دو نما یکی‌اند. */}
+      {expert ? <ExpertView eng={eng} asText={asText} /> : (<>
       {/* نمایش خروجی‌های قدیمی اگر LabMat نبود (برای سازگاری عقب‌رو) */}
       {!result.labmat && result.summary && (
         <section className="card" id="summary">
@@ -359,6 +389,7 @@ export default function ResultView({ result, asText, asList }) {
           asText={asText}
         />
       )}
+      </>)}
 
       {/* ۲. تأیید اعداد */}
       <ExtractedTests list={extracted} pages={result.pages} asText={asText} />

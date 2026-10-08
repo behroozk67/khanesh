@@ -68,6 +68,12 @@ _engine = {
   context: { sex, age_text, pregnant, conditions_applied: [{ id, fa }] },   // specs/011: what the engine *used*; render the
                                 // «تفسیر بر پایهٔ …» line only from this. Inactive conditions never appear (FR-019)
   critical_banner: { title, body } | null,   // نوزادِ «فقط-به‌خاطرِ-کف» (2026-09-30): متنِ بنرِ بالای صفحه از rules/neonatal.js. null ⇒ بنرِ عمومیِ ResultView. has_critical دست نمی‌خورد
+                                             //   بیمارِ بستری (P99): «به پرستار/پزشکِ بخش اطلاع دهید» از rules/inpatient.js
+  expert: { version: 1, urgency, findings[], hidden[], suggested[], tests[], indices[], score, malformed } | absent,
+                                // specs/016 — نمای تخصصیِ کادرِ درمان (ExpertView.jsx، پشتِ سوییچِ «ساده / تخصصی» در ResultView).
+                                //   ساخته در rules/expert.js فقط از خروجیِ موتور؛ هرگز به مدل نمی‌رود. قرارداد: specs/016-expert-view/contracts/.
+                                //   ⚠️ `label`/`name` را رندر کن؛ کلید و شناسهٔ قاعده عمداً سریالایز نمی‌شوند (X3). نبودنش = «در دسترس نیست»، نه خطا.
+                                //   ⚠️ هرگز متنِ `result.labmat.doctorSection` (نوشتهٔ مدل در مسیرِ گراف) را به‌جایش نشان نده.
   supplementary: [rule_id, …],  //   …the subset shown as a compact «یافتهٔ تکمیلی» because it explained a number nothing else did
                                 //   (absent on an older server — treat as empty; nothing in the UI reads these yet)
   indices:  { egfr, ca_measured, ca_corrected, … },   // derived values, NOT on the patient's sheet

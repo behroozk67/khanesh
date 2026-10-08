@@ -88,7 +88,7 @@ export const INPATIENT_PROMPT_ADDENDUM = `
 هیچ جمله‌ای دربارهٔ رفتن به اورژانس، مطب یا گرفتنِ نوبت ننویس؛ بیمار همین‌جاست. دستورِ عمل را موتور می‌سازد (اطلاع به پزشک/پرستارِ بخش) و تو آن را ننویس. باقیِ قواعدِ بالا همان است.
 `.trim();
 
-const URGENCY_FA = {
+export const URGENCY_FA = {
   emergency: "فوری — همین امروز",
   soon: "ظرفِ ۲۴ تا ۴۸ ساعت",
   this_week: "این هفته",
@@ -216,7 +216,7 @@ function dropSubsumedText(list) {
  *   «پنل کامل آهن» = {FERRITIN, IRON, TIBC} ⊃ «آهن سرم» = {IRON}
  * داده‌محور است، نه فهرستِ دستی — از همان SUGGEST_TESTS خوانده می‌شود.
  */
-function dropSubsumedTests(suggestions) {
+export function dropSubsumedTests(suggestions) {
   return suggestions.filter((s) => {
     const mine = SUGGEST_TESTS[s];
     if (!mine?.length) return true;

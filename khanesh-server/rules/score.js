@@ -139,7 +139,8 @@ function textNames(text, k) {
  *    خواندنِ سورس، `uncovered`، و نام‌بردن در متنِ یافته. اگر باز هم هیچ کلیدِ graded‌ای پیدا نشد (مثلاً یافته
  *    دربارهٔ ردیفِ بی‌حکمِ unit_unknown است)، null برمی‌گردد ⇒ سقف روی کلِ برگه می‌نشیند (هرگز «بی‌سقف»).
  */
-function cappedKeys(f, abnormalKeys) {
+// specs/016 (research R3): همین تابع در rules/expert.js «محرک‌های یافته» را می‌سازد — یک منطقِ نسبت‌دهی، دو مصرف‌کننده.
+export function findingKeys(f, abnormalKeys) {
   if (f.rule_id === 'unmatched_abnormal') return [...abnormalKeys];
   const reads = ruleReads(f.rule_id);
   for (const k of f.uncovered ?? []) reads.add(k);
@@ -190,7 +191,7 @@ export function healthScore(engineOut, patternOut) {
   let sheetCap = urgency === 'emergency' ? URGENCY_CAP.emergency : 100;
   for (const f of po.findings ?? []) {
     if (!SYSTEM_CAP_URGENCIES.has(f?.urgency) || supplementary.has(f.rule_id)) continue;
-    const keys = cappedKeys(f, abnormalKeys);
+    const keys = findingKeys(f, abnormalKeys);
     if (!keys) { sheetCap = Math.min(sheetCap, URGENCY_CAP[f.urgency]); continue; }
     for (const k of keys) {
       const s = SCORE_TABLE[k]?.system;
