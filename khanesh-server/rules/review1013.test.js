@@ -682,3 +682,13 @@ test("P107e-L3: pH + HCO3 بی‌pCO2 ⇒ pHِ خون (اورژانس)؛ pH تن
   assert.equal(urg([["pH", 7.6, ""], ["HCO3", 25, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
   assert.equal(urg([["pH", 7.6, ""]]).u.blood_ph_abnormal, undefined);
 });
+
+// P107f (M10): T4ِ تام و رتیکولوسیتِ نوزاد با بازهٔ بزرگسال سنجیده نمی‌شود (noRef)؛ از ۲۸ روز به بعد و بزرگسال همان.
+test("P107f-M10: T4 تامِ ۱۵ µg/dL و رتیکولوسیتِ ۴٪ در نوزاد یافتهٔ کاذب نمی‌سازد؛ شیرخوار و بزرگسال همان", () => {
+  const neo = { sex: "M", age: 0.02 };
+  const t4 = runEngine({ patient: neo, tests: [{ name: "Total T4", value: "15", unit: "µg/dL" }] });
+  assert.ok(t4.noRef.includes("T4")); assert.equal(runPatterns(t4).findings.length, 0);
+  assert.equal(urg([["Reticulocyte", 4, "%"]], neo).p.findings.length, 0);
+  assert.ok(urg([["Total T4", 15, "µg/dL"]], { sex: "M", age: 0.5 }).u.total_t4_abnormal);
+  assert.ok(urg([["Total T4", 15, "µg/dL"]]).u.total_t4_abnormal);
+});
