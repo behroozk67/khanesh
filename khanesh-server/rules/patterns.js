@@ -369,7 +369,8 @@ function willBrief(f, findings) {
 }
 
 /** جملهٔ اولِ must_say — همان جمله‌ای که server.js برای key_number هم برمی‌دارد (عدد و جهت در آن است). */
-const firstSentence = (s) => String(s ?? "").split(/(?<=[.؟!])\s/)[0].trim();
+// نقطهٔ پس از یک حرفِ لاتینِ تنها («E. coli»، «H. pylori»، «S. aureus») پایانِ جمله نیست — پیش‌تر متنِ تکمیلی «کشت ادرار «E.» می‌شد.
+const firstSentence = (s) => String(s ?? "").split(/(?<=[.؟!])(?<!(?:^|[^A-Za-z])[A-Za-z]\.)\s/)[0].trim();
 /**
  * متنِ فشردهٔ «یافتهٔ تکمیلی»: جملهٔ اولِ خودِ قاعده، بی‌هیچ متنِ تازه. برچسب و شمارش را انتخابِ یافته‌ها می‌گذارد.
  * ⚠️ فقط از همان یافته می‌خواند؛ چیزی نمی‌سازد و timeline ندارد (action و warnings و suggest نمی‌آیند — N20).
@@ -678,6 +679,26 @@ export function runPatterns(engineOut) {
   applyPrintedRange(findings, engineOut);   // ۲۰۲۶-۱۰-۰۷: بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور — فقط نمایش
   applyQualGloss(findings);   // بندِ ۵ (LIS ۲۰۲۶-۱۰-۰۶): «Negative» ⇒ «Negative» (منفی) — فقط معنا، بی‌تغییرِ حکم
   applyBareFluidVoice(findings, engineOut);
+
+  // ═══ تورِ ایمنی ۳: نتیجهٔ کیفی/بی‌درجه زیرِ blocker (بازبینیِ ۲۰۲۶-۱۰-۱۳، یافتهٔ ۱۲) ═══
+  // 🔴 تورِ ۲ فقط یافته‌ای را برمی‌گرداند که *عددِ graded* بی‌توضیحی را نام ببرد. کشتِ خونِ مثبت، HIV/HBsAg/HCVِ واکنش‌گر، hCGِ مثبت،
+  //    VDRL و … عدد ندارند؛ پس زیرِ potassium_critical کاملاً ناپدید می‌شدند — نه در متن، نه در «توضیح داده نشدند» (N18/N28).
+  //    یافتهٔ پنهانی که هیچ کلیدِ graded ِ این برگه را نمی‌خواند، دربارهٔ ردیفی است که تورِ ۲ اصلاً نمی‌بیند؛ همان قالبِ «یافتهٔ تکمیلی»
+  //    را می‌گیرد (فقط جملهٔ اول، بی action/warnings/suggest — فوریت و دستورِ نهایی دست‌نخورده). یافته‌ای که کلیدِ graded می‌خواند
+  //    (leukopenia زیرِ pancytopenia) همچنان به داوریِ تورِ ۲ سپرده است.
+  {
+    const br = blockerRankOf(findings);
+    if (Number.isFinite(br)) {
+      const gradedKeys = new Set((engineOut.graded ?? []).map((g) => g.test));
+      for (const f of findings) {
+        if (rank(f.urgency) <= br || f.always_show || rescued.has(f)) continue;
+        if (f.technical || f.no_supplementary || NO_SUPPLEMENTARY_IDS.has(f.rule_id)) continue;
+        if (f.rule_id === "unexplained_abnormal") continue;
+        if ([...(RULE_READS.get(f.rule_id) ?? [])].some((k) => gradedKeys.has(k))) continue;
+        rescued.set(f, []);
+      }
+    }
+  }
 
   // ═══ انتخاب یافته‌ها ═══
   // 🔴 باگ قبلی: .find() فقط اولین blocks_others را برمی‌داشت و

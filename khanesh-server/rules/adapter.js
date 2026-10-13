@@ -37,7 +37,7 @@ function maxGlucose(tests) {
 function norm(s) {
   return String(s || "")
     .toLowerCase()
-    .replace(/[\s._\-\/()%#]/g, "")
+    .replace(/[\s._\-\/()%#,]/g, "")   // «،»/«,» هم: «Glucose, Fasting»، «Potassium, Serum»
     .replace(/[يی]/g, "ی")
     .replace(/[كک]/g, "ک")
     .replace(/\u200c/g, "")   // نیم‌فاصله
@@ -106,8 +106,14 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   // 🔴 N2 (۲۰۲۶-۱۰-۰۶، اندازه‌گیری‌شده): «Random Glucose 300» و «RBS» unmapped بودند ⇒ برگهٔ تک‌ردیفی هیچ یافته‌ای نمی‌گرفت.
   //   فقط املاهایی که «تصادفی/random» دارند؛ «Random Urine Glucose» عمداً نه (ادرار ≠ سرم، N25). گارد RG1.
   randomglucose: "GLU_RANDOM", rbs: "GLU_RANDOM", randombloodglucose: "GLU_RANDOM", glucoserandom: "GLU_RANDOM",
-  "glucose,random": "GLU_RANDOM", bloodglucoserandom: "GLU_RANDOM", randomsugar: "GLU_RANDOM", randombs: "GLU_RANDOM",
+  bloodglucoserandom: "GLU_RANDOM", randomsugar: "GLU_RANDOM", randombs: "GLU_RANDOM",
   randomplasmaglucose: "GLU_RANDOM", قندتصادفی: "GLU_RANDOM", قندخونتصادفی: "GLU_RANDOM",
+  // بازبینی ۲۰۲۶-۱۰-۱۳ (N2): املاهای رایجِ برگه که unmapped می‌ماندند ⇒ پتاسیم/سدیم/WBC/کراتینین بحرانی بی‌یافته. هر کدام فقط یک کلیدِ بی‌ابهام؛
+  //   «leukocytes» عمداً نه (LE ادرار). ردیفِ ادراری با صفحهٔ ادرار جدا می‌شود (N25).
+  "k+": "K", potassiumk: "K", serumpotassium: "K", potassiumserum: "K", پتاسیم: "K", پتاسیمسرم: "K",
+  "na+": "NA", sodiumna: "NA", serumsodium: "NA", sodiumserum: "NA", سدیم: "NA", سدیمسرم: "NA",
+  wbccount: "WBC", totalwbc: "WBC", pltcount: "PLT", bloodglucose: "GLU_RANDOM",
+  creatinineserum: "CREAT", screatinine: "CREAT", ureaserum: "UREA", bloodurea: "UREA", neutrophilcount: "NEUT_ABS",
   fbs: "GLU_F", fastingbloodsugar: "GLU_F", fastingbloodglucose: "GLU_F",
   fastingplasmaglucose: "GLU_F", glucosefasting: "GLU_F", قندخونناشتا: "GLU_F",
   // گلوکز/قند بدون قید → ناشتا فرض می‌شود (شایع‌ترین حالت در برگه‌های روتین)
@@ -815,11 +821,36 @@ const AMBIGUOUS_URINE_KEYS = new Set([
   "ph", "wbc", "rbc", "glucose", "hgb", "hb", "protein", "bilirubin", "blood", "ketone",
 ]);
 
+// ═══ سرتیترِ بخشِ برگه (بازبینی ۲۰۲۶-۱۰-۱۳، N25، پیشنهادِ کاربر) ═══
+// برگهٔ واقعی ردیف‌ها را زیرِ سرتیتر چاپ می‌کند («Biochemistry»، «Urine Analysis»، «کامل ادرار»). OCR حالا همان سرتیتر را در
+//   `section` می‌آورد (فرمِ دستی ردیفِ ادرار را «Urinalysis» می‌فرستد). برای کلیدِ مبهم (Glucose، Protein، pH، WBC، …) این شاهدِ
+//   مستقیم است و بر حدسِ صفحه‌ای مقدم است: «Glucose 106 mg/dL» زیرِ بیوشیمی، کنارِ نوارِ ادرار، قندِ خون می‌ماند.
+//   فهرستِ بسته؛ سرتیترِ ناشناخته (یا نبودنش) ⇒ null ⇒ همان منطقِ صفحه‌ای قبلی. ادرار اول سنجیده می‌شود («Urine Chemistry»).
+const SECTION_URINE_RE = /urin|\bu\s*[\/.]?\s*a\b|dipstick|strip|sediment|ادرار|رسوب/i;
+const SECTION_BLOOD_RE = /bioch|chem|serum|plasma|hemat|haemat|\bcbc\b|blood|lipid|liver|renal|kidney|electrolyt|hormon|endocrin|thyroid|immuno|serolog|coag|بیوشیمی|سرم|پلاسما|خون|هماتولوژی|چربی|هورمون|تیروئید|سرولوژی|ایمونولوژی|انعقاد/i;
+export function sectionKind(section) {
+  const s = String(section ?? "").trim();
+  if (!s) return null;
+  if (SECTION_URINE_RE.test(s)) return "urine";
+  if (SECTION_BLOOD_RE.test(s)) return "blood";
+  return null;
+}
+
 // pH خون فقط در این دامنه با حیات سازگار است؛ خارج از آن یعنی pH ادرار.
 const BLOOD_PH_MIN = 6.5;
 const BLOOD_PH_MAX = 7.9;
 
+// بازبینی ۲۰۲۶-۱۰-۱۳ (یافتهٔ ۹/۱۷، N25): واحدی که نوارِ ادرار و میکروسکوپیِ ادرار هرگز چاپ نمی‌کنند، شاهدِ خون است.
+//   پیش‌تر برگهٔ بیوشیمیِ کوتاه («Glucose 600 mg/dL · Hb 5.0 g/dL · Creatinine» + نوار) چون هیچ نامی از فهرستِ خون نداشت «ادرارِ خالص»
+//   می‌شد و Hb 5 به «Urine Blood» و قندِ ۶۰۰ به «Urine Glucose» می‌رفت. فقط واحدهای بی‌ابهام: g/dL، fL، pg و شمارشِ ×10³/×10⁶ در µL.
+//   «/µL» تنها نه (شمارشِ خودکارِ ادرار همان را چاپ می‌کند)، mg/dL و g/L نه (پروتئین/قندِ نوار).
+const BLOOD_ONLY_UNIT_RE = /^(g\/dl|fl|pg|(?:[x×*]?10(?:\^|\*\*)?[36]|10[³⁶]|[km]|thou|mill?)\/(?:[uµμ]l|mm3|cumm))$/i;
+function isBloodOnlyUnit(unit) {
+  return BLOOD_ONLY_UNIT_RE.test(String(unit ?? "").replace(/\s+/g, ""));
+}
+
 /**
+ * کدام صفحه‌ها «برگهٔ ادرارِ خالص»‌اند؟/**
  * کدام صفحه‌ها «برگهٔ ادرارِ خالص»‌اند؟
  * شرط محافظه‌کارانه: حداقل ۲ نشانگر ادرار و هیچ نشانگر خون (CBC یا بیوشیمی).
  * (اگر صفحه‌ای شاهد خون داشته باشد، دست نمی‌زنیم تا تستِ خون از بین نرود.)
@@ -832,7 +863,7 @@ function detectUrineOnlyPages(ocrTests) {
     const p = t._page ?? 0;
     const k = norm(t.name);
     if (URINE_ONLY_MARKERS.has(k)) urineCount.set(p, (urineCount.get(p) ?? 0) + 1);
-    if (BLOOD_ONLY_MARKERS.has(k) || BLOOD_BIOCHEM_MARKERS.has(k)) {
+    if (BLOOD_ONLY_MARKERS.has(k) || BLOOD_BIOCHEM_MARKERS.has(k) || isBloodOnlyUnit(t.unit)) {
       bloodCount.set(p, (bloodCount.get(p) ?? 0) + 1);
     }
   }
@@ -860,6 +891,29 @@ const DIPSTICK_AMBIG_NAME = {
 };
 // فهرستِ بستهٔ مقدارِ نوار (N6): کلِ مقدار، نه زیررشته. «small/moderate/large» مقیاسِ نوارِ خون است.
 const DIPSTICK_VALUE_RE = /^(neg|negative|منفی|nil|trace|رگه|\+\s*\/\s*-|±|[1-4]\s*\+|\+\s*[1-4]|\+{1,4}|pos|positive|مثبت|small|moderate|large)$/i;
+const isPlainNumber = (v) => /^\s*[\d۰-۹٠-٩]+(?:[.,٫][\d۰-۹٠-٩]+)?\s*$/.test(String(v ?? ""));
+/**
+ * پسوندِ هویتِ ادغام برای mergePages (N25): «Glucose 106» (بیوشیمی) و «Glucose Negative» (ادرار) روی یک صفحه دو ردیف‌اند،
+ * نه تکرار. پیش‌تر هم‌نام بودند، دومی «تکراری» دور ریخته می‌شد و هشدارِ «دو مقدارِ متفاوت» به بیمار می‌رسید.
+ * فقط برای کلیدِ مبهم؛ سرتیتر اگر هست، وگرنه شکلِ مقدار (نواری / غیرِ آن).
+ */
+export function mergeIdentityTag(name, value, section) {
+  const k = norm(name);
+  if (!AMBIGUOUS_URINE_KEYS.has(k)) return "";
+  const sk = sectionKind(section);
+  if (sk) return `:${sk}`;
+  return DIPSTICK_VALUE_RE.test(String(value ?? "").trim()) ? ":strip" : "";
+}
+/** «صفحه|کلید»ِ کلیدهای مبهمی که روی همان صفحه یک ردیف با مقدارِ نواری («Negative»، «2+») دارند. */
+function detectStripTwins(ocrTests) {
+  const out = new Set();
+  for (const t of ocrTests) {
+    if (!t?.name) continue;
+    const k = norm(t.name);
+    if (AMBIGUOUS_URINE_KEYS.has(k) && DIPSTICK_VALUE_RE.test(String(t.value ?? "").trim())) out.add(`${t._page ?? 0}|${k}`);
+  }
+  return out;
+}
 // ردیف‌های میکروسکوپیِ بی‌واحد که فقط روی برگهٔ ادرار می‌آیند و qual برایشان بس است (خواننده ندارند ⇒ unreadQualRows نامشان را می‌برد).
 const URINE_MICRO_ONLY_RE = /^(yeasts?(pseudo|cells?)?|mycelium|mycelia|pseudohyphae|hyphae|mucus|mucous|mucousthreads?|مخمر|موکوس)$/;
 function detectDipstickPages(ocrTests) {
@@ -1240,6 +1294,7 @@ export function ocrToEngineInput(ocr) {
   // کلیدهایی که ردیفشان چاپ شده ولی مقدارش ناخوانا بود (job c138671c، D1).
   const unreadableKeys = new Set();
   const urineOnlyPages = detectUrineOnlyPages(ocr?.tests || []);
+  const stripTwinKeys = detectStripTwins(ocr?.tests || []);
   const abgPages = detectAbgPages(ocr?.tests || []);
   const dipstickPages = detectDipstickPages(ocr?.tests || []);   // باگِ ۵
   // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
@@ -1420,7 +1475,13 @@ export function ocrToEngineInput(ocr) {
       t = { ...t, name: "Hemoglobin" };
       key = "hemoglobin";
     }
-    const onUrinePage = urineOnlyPages.has(t._page ?? 0);
+    // سرتیترِ بخش بر حدسِ صفحه مقدم است، فقط برای کلیدِ مبهم و رنگ/ظاهر (نامِ صریحِ «Urine …»/«Serum …» مسیرِ خودش را دارد).
+    const secKind = AMBIGUOUS_URINE_KEYS.has(key) || /^(colou?r|appearance|turbidity|clarity)$/.test(key) ? sectionKind(t.section) : null;
+    // بی‌سرتیتر: «Glucose 106» (عددِ ساده) کنارِ «Glucose Negative» (مقدارِ نوار) روی همان صفحه — نوار کیفی است، پس عدد مالِ سرم است.
+    //   پیش‌تر هر دو «Urine Glucose» می‌شدند و قندِ خون بی‌صدا گم می‌شد (آخری می‌برد).
+    const serumTwin = !secKind && stripTwinKeys.has(`${t._page ?? 0}|${key}`) && isPlainNumber(t.value);
+    const onUrinePage = secKind === "urine" ? true : secKind === "blood" || serumTwin ? false : urineOnlyPages.has(t._page ?? 0);
+    const onStripPage = secKind === "blood" || serumTwin ? false : secKind === "urine" || dipstickPages.has(t._page ?? 0);
 
     // ═══ specs/008: لایهٔ الکتروفورزِ هموگلوبین — پیش از qual، چون «hbs» را الگوی anti-HBs می‌گرفت ═══
     //  • hbs/hbc/hbe فقط با واحدِ ٪ یا شاهدِ الکتروفورز روی برگه واریانتِ هموگلوبین‌اند؛ بی‌شاهد ⇒ «تفسیر نشدند».
@@ -1590,7 +1651,7 @@ export function ocrToEngineInput(ocr) {
     //    pH خارج از دامنهٔ حیات (۵) هم که قطعاً ادرار است.
     if (key === "ph") {
       const v = toNum(t.value);
-      const isBloodPh = onAbgPage && !onUrinePage &&
+      const isBloodPh = (onAbgPage || secKind === "blood") && !onUrinePage && !onStripPage &&   // بی‌کربناتِ سرم کنار نوارِ ادرار pH ادرار را «pH خون» نمی‌کند (بازبینی ۱۰-۱۳)
         v != null && v >= BLOOD_PH_MIN && v <= BLOOD_PH_MAX;
       if (!isBloodPh) {
         qual["Urine pH"] = String(t.value);
@@ -1620,7 +1681,7 @@ export function ocrToEngineInput(ocr) {
       diffMixed ??= { name: t.name, value: toNum(t.value), unit: String(t.unit ?? "").trim() || null, reference: t.reference ?? null };
       continue;
     }
-    if (dipstickPages.has(t._page ?? 0) || onUrinePage) {
+    if (onStripPage || onUrinePage) {
       const raw = String(t.value ?? "").trim();
       // بند ۵ (تصمیمِ «الف»): رنگ/ظاهرِ ادرار روی صفحهٔ ادرار — شناخته، بی‌خواننده. در qual با نامِ قانونی، تا شبکهٔ unreadQualRows
       //   مقدارِ غیرعادی (کدر، قرمز…) را با نامِ فارسی بیاورد و Yellow/Clear بی‌صدا بماند (۸۴ درخواست «تفسیرشان نمی‌کند» می‌گرفتند).
@@ -1811,6 +1872,13 @@ export function ocrToEngineInput(ocr) {
       // به unmapped ⇒ «این تست‌ها … تفسیرشان نمی‌کند … با پزشک بررسی کنید».
       // بندِ ۴ (LIS ۲۰۲۶-۱۰-۰۶، [17]): «R.B.C = 4..81» (۴٫۸۱ با نقطهٔ دوتایی) همین شکل است — عددِ خراب، نه متن؛ در qual بی‌صدا می‌ماند. گارد L23.
       if (/^\s*[<>≤≥]?\s*[\d۰-۹٠-٩][\d۰-۹٠-٩.,٫٬\s]*$/.test(String(t.value ?? "")) && /[,٬]|[.٫]\s*[.٫]/.test(String(t.value))) {
+        unmapped.push(t.name);
+        continue;
+      }
+      // بازبینی ۲۰۲۶-۱۰-۱۳: عددِ خوانده‌نشده («7.5.»، «4.5 (3.8-5.2)»، «11.2 H.»، «7.5-») متن نیست؛ در qual هیچ قاعدهٔ عددی نمی‌خواندش
+      //   (K 7.5. ⇒ گزارش طبیعی) و RBC/WBCِ خون را به «ادرار» می‌برد. بازه («8-10») و درجه («1+») و تیتر («1/160») سرِ جای خود می‌مانند.
+      if (/^\s*[<>≤≥]?\s*[\d۰-۹٠-٩]+(?:[.,٫][\d۰-۹٠-٩]+)?\s*(?:\([^)]*\)|[.\s]*[HhLl]?[.\s]*|-)\s*$/.test(String(t.value ?? ""))
+          && !/^\s*[\d۰-۹٠-٩]\s*\+/.test(String(t.value))) {
         unmapped.push(t.name);
         continue;
       }

@@ -185,3 +185,53 @@ export function stripUnmeasuredClaims(text, measuredKeys, names = FA_NAMES) {
 
   return kept.join(" ");
 }
+
+// ============================================================
+// واژه‌های forbid در متنِ خودِ مدل  (N9، بازبینیِ ۲۰۲۶-۱۰-۱۳ یافتهٔ ۲۲)
+//
+// forbid تا امروز فقط روی فهرستِ توصیه‌ها اعمال می‌شد؛ summary/interpretation ِ مدل را فقط قاعدهٔ ۳ِ پرامپت نگه می‌داشت —
+// یعنی همان «دستورِ منفی» که N13 نشان داد مدل نادیده می‌گیرد. خطای اصلیِ N9 دقیقاً این بود: آهن برای کم‌خونیِ ماکروسیتیک.
+//
+// جمله‌ای از متنِ مدل که واژهٔ ممنوعِ یک یافته را دارد *جایگزین* می‌شود، نه فقط حذف: جای اولین جملهٔ آلوده، آن بخش از must_say ِ
+// همان یافته می‌نشیند که در بقیهٔ متن نیامده (missingFindingText) — پس حرفِ درستِ موتور گم نمی‌شود و تکرار هم نمی‌شود.
+// معافیت (همان R3-CR2 ِ buildEngineRecommendations): اگر یافتهٔ *دیگری* خودش دربارهٔ آن واژه است (headline/must_say)، جمله دست
+// نمی‌خورد — forbid ِ ماکروسیتیک نباید «فریتینِ شما پایین است» ِ یافتهٔ کمبودِ آهنِ همان برگه را پاک کند.
+// تطبیق: آغازِ واژه پس از normalizeFa («آهن» «آهن‌دار» را می‌گیرد؛ «iron» «environment» را نه).
+// ============================================================
+const startsWord = (normText, w) => {
+  const nw = normalizeFa(w);
+  if (!nw) return false;
+  return (" " + normText).includes(" " + nw);
+};
+
+/**
+ * @param {string} text متنِ مدل (summary یا interpretation)
+ * @param {object[]} findings یافته‌های نمایشی (patternOut.findings)
+ * @returns {{ text: string, hits: {word:string, rule_id:string, sentence:string}[] }}
+ */
+export function replaceForbiddenSentences(text, findings) {
+  const bans = (findings ?? []).flatMap((f) => (f.forbid ?? []).map((w) => ({ w, by: f })));
+  if (!bans.length || !text) return { text, hits: [] };
+  const ownedElsewhere = (b) => findings.some((o) => o !== b.by && startsWord(normalizeFa(`${o.headline ?? ""} ${o.must_say ?? ""}`), b.w));
+  const live = bans.filter((b) => !ownedElsewhere(b));
+  if (!live.length) return { text, hits: [] };
+
+  const sents = splitSentences(text);
+  const hits = [];
+  const slots = new Map();   // یافته → اندیسِ اولین جملهٔ آلوده‌اش
+  const kept = sents.map((s, i) => {
+    const n = normalizeFa(s);
+    const b = live.find((x) => startsWord(n, x.w));
+    if (!b) return s;
+    hits.push({ word: b.w, rule_id: b.by.rule_id, sentence: s });
+    if (!slots.has(b.by)) slots.set(b.by, i);
+    return null;
+  });
+  if (!hits.length) return { text, hits };
+  const rest = kept.filter(Boolean).join(" ");
+  for (const [f, i] of slots) {
+    const add = missingFindingText(f, rest);
+    if (add) kept[i] = add;
+  }
+  return { text: kept.filter(Boolean).join(" "), hits };
+}

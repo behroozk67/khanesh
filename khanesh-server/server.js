@@ -29,7 +29,7 @@ import "dotenv/config";
 // gpt-4o می‌فهمید ولی ۳۵ برابر گران بود — و باز هم برای کم‌خونی
 // ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
-import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue, inferAge, inferSex } from "./rules/adapter.js";
+import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue, inferAge, inferSex, mergeIdentityTag } from "./rules/adapter.js";
 import { bareUrineShape } from "./rules/specimen.js";
 import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { onInpatient, inpatientBanner } from "./rules/inpatient.js";
@@ -45,7 +45,7 @@ import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
 import { createAvalAIClient, safeParseJson } from "./avalaiClient.js";
 import { extractMedlineTerms, formatMedlineContext } from "./rules/medline.js";
-import { missingFindingText, stripUnmeasuredClaims, splitSentences } from "./rules/coverage.js";
+import { missingFindingText, stripUnmeasuredClaims, splitSentences, replaceForbiddenSentences } from "./rules/coverage.js";
 import { collectProtected, engineStrings, inventedDosage } from "./rules/protected.js";
 import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
 import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "./jobStore.js";
@@ -521,6 +521,7 @@ const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده ا
 - مقادیر تیتری (رایت، 2ME، کومبس رایت، ویدال) را عیناً با همان شکل ثبت کن: "1/160" یا "1:160". آن را به عدد تبدیل نکن و ساده‌اش نکن. اگر منفی است، همان "Negative" یا "منفی" را بنویس.
 - مقادیر پلاسی (CRP، RF) را هم عیناً بنویس: "3+" یا "Positive" یا "منفی". اگر عدد و واحد دارد (مثل "24 mg/L")، عدد را در value و واحد را در unit بگذار.
 - اگر عددی تار، مبهم یا مخدوش است، confidence را "low" بگذار. اگر اصلاً خوانا نیست، value را null بگذار.
+- برای هر ردیف، سرتیترِ بخشی را که ردیف زیرِ آن چاپ شده (مثل "Biochemistry"، "Hematology"، "Urine Analysis"، "کامل ادرار"، "Serology") عیناً در فیلد section بنویس. اگر ردیف زیرِ هیچ سرتیتری نیست، section را null بگذار. سرتیتر را از خودت حدس نزن.
 - اطلاعات شناسایی‌کننده (نام بیمار، کد ملی، تلفن، نام پزشک) را ثبت نکن. فقط سن و جنسیت را در صورت وجود بردار.
 
 ## خروجی
@@ -528,8 +529,10 @@ const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده ا
 {
   "patient": { "age": "51 سال", "sex": "مرد" },
   "tests": [
-    { "name": "WBC", "value": "5.66", "unit": "10*3/µL", "reference": "3.5 - 11", "flag": null, "confidence": "high" },
-    { "name": "RBC", "value": "2.58", "unit": "10*6/ul", "reference": "3.6 - 6.1", "flag": "L", "confidence": "high" }
+    { "name": "WBC", "value": "5.66", "unit": "10*3/µL", "reference": "3.5 - 11", "flag": null, "confidence": "high", "section": "Hematology" },
+    { "name": "RBC", "value": "2.58", "unit": "10*6/ul", "reference": "3.6 - 6.1", "flag": "L", "confidence": "high", "section": "Hematology" },
+    { "name": "Glucose", "value": "106", "unit": "mg/dl", "reference": "70 - 100", "flag": "H", "confidence": "high", "section": "Biochemistry" },
+    { "name": "Glucose", "value": "Negative", "unit": null, "reference": null, "flag": null, "confidence": "high", "section": "Urine Analysis" }
   ],
   "unreadable_notes": []
 }
@@ -756,7 +759,8 @@ export function mergePages(pageResults) {
         : /\d/.test(v) && !/[a-zA-Zء-ی]/.test(v) ? ":num" : ":txt";
       // specs/014 (بازبینیِ کد MEDIUM #3، N25): «Urine Protein 2+» (صفحهٔ آزمایشِ ادرار) و «Urine Protein 3500 mg/24h» (صفحهٔ
       //   ۲۴ساعته) یک کلید می‌شدند و یکی دور ریخته می‌شد. شکلِ مقدار (درجهٔ نوار / عدد) در کلید ⇒ هر دو می‌مانند.
-      const key = semenPrefix + (electroPage && amb ? "electro:" : "") + normName(t.name) + shape + bareUrineShape(t.name, v, normName);
+      const key = semenPrefix + (electroPage && amb ? "electro:" : "") + normName(t.name) + shape + bareUrineShape(t.name, v, normName)
+        + mergeIdentityTag(t.name, v, t.section);   // سرم/ادرارِ هم‌نام روی یک صفحه (بازبینی ۱۰-۱۳)
 
       if (seen.has(key)) {
         const prev = tests[seen.get(key)];
@@ -1100,6 +1104,8 @@ const analyzeHandler = async (req, res) => {
             value: urine ? String(t?.value ?? "").trim() : typeof t?.value === "number" ? t.value : parseFloat(t?.value),
             unit: t?.unit ?? "",
             urine,
+            // همان شاهدِ سرتیترِ عکس (adapter.sectionKind): ردیفِ ادرارِ فرم «Glucose» ادرار است، ردیفِ عددی سرم.
+            section: urine ? "Urinalysis" : null,
           };
         })
         .filter((t) => t.name && (t.urine ? t.value !== "" : Number.isFinite(t.value)))
@@ -1628,6 +1634,17 @@ const analyzeHandler = async (req, res) => {
       parsed.general_recommendations = condenseRecommendations(buildEngineRecommendations(patternOut, engineOut));
       tr.net("recommendations:engine", modelRecs, parsed.general_recommendations, { model_list_ignored: modelRecs != null });
       delete parsed.recommendations;
+
+      // ── forbid روی متنِ مدل (N9، بازبینی ۱۰-۱۳ یافتهٔ ۲۲) ── پیش از تورهای افزودن، تا اگر جملهٔ آلوده بخشی از must_say بود،
+      //    همان بخش با متنِ موتور برگردد. جزئیات: replaceForbiddenSentences در rules/coverage.js.
+      for (const field of ["summary", "interpretation"]) {
+        if (typeof parsed[field] !== "string") continue;
+        const fb = replaceForbiddenSentences(parsed[field], patternOut.findings);
+        if (!fb.hits.length) continue;
+        console.warn(`⚠️ مدل ${fb.hits.length} جمله با واژهٔ ممنوعِ یافته نوشت — با متنِ موتور جایگزین شد: ` + fb.hits.map((h) => `${h.rule_id}:${h.word}`).join(" | "));
+        tr.net(`forbid:${field}`, parsed[field], fb.text, { hits: fb.hits });
+        parsed[field] = fb.text;
+      }
 
       // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
       //

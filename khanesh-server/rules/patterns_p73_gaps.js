@@ -88,6 +88,12 @@ function anyFires(e, ids) {
   return false;
 }
 
+function livePatternIsMuscle(e) {
+  const r = ALL.find((x) => x?.id === "liver_pattern");
+  if (!r) return false;
+  try { return !!r.match(e) && r.build(e)?.pattern === "muscle_origin_not_liver"; } catch { return false; }
+}
+
 // ── ۱) HCT↑ / RBC↑ — WHO 2016 (معیارِ بزرگِ اولِ پلی‌سیتمی ورا): Hct > 49٪ مرد / > 48٪ زن ──
 const hctRbcHigh = {
   id: "hct_rbc_high",
@@ -165,7 +171,9 @@ const bilirubinTotalAlone = {
 // ── ۳) CK↑ تنها — رابدومیولیز: CK > ۵×ULN (Merck/MSD؛ مرورِ Chavez, Crit Care 2016 فقط از خلاصهٔ ثانویه) ──
 const ckElevatedAlone = {
   id: "ck_elevated_alone",
-  match: (e) => hi(g(e, "CK")) && !anyFires(e, P73_OWNERS.ck),
+  // بازبینی ۲۰۲۶-۱۰-۱۳ (N21/N4): liver_pattern فقط وقتی مالکِ CK است که شاخهٔ «از عضله نه کبد» ساخته شود؛ وگرنه (CK بالا + ALT هم بالا)
+  //   رابدومیولیز زیرِ «سلول‌های کبد» می‌رفت و CK هیچ‌جا گفته نمی‌شد. شاخه را از خودِ قاعدهٔ زنده می‌پرسیم، آستانه را کپی نمی‌کنیم.
+  match: (e) => hi(g(e, "CK")) && !anyFires(e, P73_OWNERS.ck.filter((id) => id !== "liver_pattern")) && !livePatternIsMuscle(e),
   build: (e) => {
     const ck = g(e, "CK");
     const ul = upperLimit(ck);

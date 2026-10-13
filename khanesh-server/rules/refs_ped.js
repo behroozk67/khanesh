@@ -16,7 +16,7 @@
 const CONV = {
   HGB:   0.1,      // g/L    → g/dL
   CREAT: 1/88.4,   // µmol/L → mg/dL
-  UREA_N:(1/0.357)/2.14, // mmol/L urea → mg/dL urea → BUN. (mmol/L ÷ 0.357 = mg/dL urea)
+  UREA_N:1/0.357, // mmol/L urea → mg/dL BUN (BUN mg/dL = mmol/L ÷ 0.357). تقسیم بر 2.14 دوباره‌کاری بود (بازبینی ۲۰۲۶-۱۰-۱۳)
   GLU:   1/0.0555, // mmol/L → mg/dL
   CA:    1/0.25,   // mmol/L → mg/dL
   MG:    1/0.4114, // mmol/L → mg/dL

@@ -214,6 +214,7 @@ export const RULES_CARDIAC = [
     match: (e) => {
       const crp = g(e, "CRP_Q");
       if (!crp || crp.value == null) return false;
+      if (e.age != null && e.age < 16) return false;   // منبع فقط بزرگسال را پوشش می‌دهد؛ نوزاد/کودک «خطر قلبی‌عروقی» نمی‌گیرد
       return crp.value >= HSCRP_RISK_ENHANCER_MGL && crp.value <= HSCRP_RISK_WINDOW_MAX_MGL;
     },
     build: (e) => {

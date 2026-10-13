@@ -357,10 +357,10 @@ function cultureState(raw, kind = "urine") {
   // نامِ ارگانیسم = رشد؛ «<10^3 other flora» یا «no significant growth» کنارِ آن منفی‌اش نمی‌کند، و آستانهٔ CFUِ معنادار فقط برای ادرار است
   //   (در کشتِ خون هر رشدی معنادار است).
   const ORG = /coli|klebsiella|proteus|pseudomonas|enterobacter|enterococc|staph|strep|candida|acinetobacter|citrobacter|morganella|serratia|salmonella|اشرشیا|کلبسیلا|پروتئوس|استافیلوکوک|استرپتوکوک|انتروکوک|کاندیدا|growth of|رشد (?:کرد|دارد)/i;
-  if (ORG.test(s) && !/(no|without|nil)\s+growth|عدم ?رشد|بدون ?رشد/i.test(s)) return "pos";
+  if (ORG.test(s) && !/(no|without|nil)\s+growth|عدم ?رشد|بدون ?رشد|(?:رشد|میکروب|باکتری|ارگانیسم)[^.؛\n]{0,25}(?:ندارد|نداشت|نکرد|نشد)/i.test(s)) return "pos";
   // N6: «بدون رشد»، «رشد نداشت»، «رشد … مشاهده نشد»، «No significant growth»، «<10000 CFU/mL» (زیرِ حدِ معنادار) منفی‌اند؛
   //   پیش‌تر فقط «عدم رشد/رشد نکرد» منفی بود و بقیه چون شامل «رشد/growth/cfu» بودند مثبت خوانده می‌شدند.
-  if (/(no|without|nil)\s+(significant\s+|bacterial\s+|organism\s+)?(growth|organisms?)|no ?growth|negative|sterile|not isolated|no bacteria|عدم ?رشد|بدون ?رشد|رشد ?(نکرد|نداشت|نشد|ندارد)|رشدی|منفی|steril|^-$|(رشد|باکتری|میکروب|growth).{0,25}(مشاهده|دیده|یافت) ?نشد/i.test(s)) return "neg";
+  if (/(no|without|nil)\s+(significant\s+|bacterial\s+|organism\s+)?(growth|organisms?)|no ?growth|(?:no|without|nil)\s+(?:\w+\s+){0,2}(?:growth|organisms?)|growth\s*[:=-]?\s*(?:none|nil|no|negative)|(?:رشد|میکروب|باکتری|ارگانیسم)[^.؛\n]{0,25}(?:ندارد|نداشت|نکرد|نشد)|negative|sterile|not isolated|no bacteria|عدم ?رشد|بدون ?رشد|رشد ?(نکرد|نداشت|نشد|ندارد)|رشدی|منفی|steril|^-$|(رشد|باکتری|میکروب|growth).{0,25}(مشاهده|دیده|یافت) ?نشد/i.test(s)) return "neg";
   if (kind === "urine" && /<\s*(10[,.]?000|10\s*\^\s*[34]|1[0o]\s*[⁴³])/i.test(s)) return "neg";
   // P84 (N30، فهرستِ بسته): «NEG»، «Not detected»، «Nil»، «Non-reactive» منفی‌اند؛ «POS»، «+» و «Detected» مثبت — هر دو فقط به‌عنوانِ
   //   *کلِ* مقدار. پیش‌تر هر دو «نامعلوم» می‌شدند (و نامعلوم حالا this_week است، پس منفیِ نانوشته فوریتِ کاذب می‌گرفت).

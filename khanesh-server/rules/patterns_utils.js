@@ -203,8 +203,8 @@ function titreFa(v) {
 // specs/012: از patterns_coverage_gaps.js به این‌جا آمد (بی‌تغییر) تا patterns_serology.js هم همین یک فهرست را بخواند — دو فهرست drift می‌کنند.
 export function qualState(raw) {
   const s = String(raw).toLowerCase().replace(/\s+/g, " ").trim();
-  if (/^(neg|negative|non[- ]?reactive|nonreactive|not[- ]reactive|not[- ]positive|not detected|undetected|nondetected|undetectable|not detectable|absent|nil|none|منفی|غیر ?واکنش[‌ ]?گر|واکنش[‌ ]?گر نیست|مثبت نیست|-)$/.test(s)) return { state: "neg" };
-  if (/^(pos|positive|reactive|detected|present)$|^(مثبت|واکنش[‌ ]?گر|پازیتیو|\+{1,4}|[1-4]\+)$/.test(s)) return { state: "pos" };
+  if (/^(neg|negative|non[- ]?reactive|nonreactive|not[- ]reactive|not[- ]positive|not detected|undetected|nondetected|undetectable|not detectable|absent|nil|none|منفی|غیر ?واکنش[‌ ]?گر|واکنش[‌ ]?گر نیست|مثبت نیست|نگاتیو|منفی است|-ve|-)$/.test(s)) return { state: "neg" };
+  if (/^(pos|positive|reactive|detected|present|\+ve|repeat(?:ed)?[- ]reactive)$|^(مثبت|مثبت است|پوزیتیو|واکنش[‌ ]?گر|پازیتیو|\+{1,4}|[1-4]\+)$/.test(s)) return { state: "pos" };
   // «+/-»، «±»، مرزی، نامشخص: نه مثبت نه منفی — جدا از «unknown» تا خواننده‌ها نتوانند آن را مثبت بخوانند (N6)
   if (/^(\+\/-|±|\+-|borderline|equivocal|indeterminate|inconclusive|trace|مرزی|نامشخص|نامعین)$/.test(s)) return { state: "equiv" };
   const m = s.match(/^([<>≥≤])?\s*(\d+(?:[.,]\d+)?)\s*(.*)$/);
@@ -222,6 +222,9 @@ export function qualVerdict(raw) {
   let s = String(raw ?? "").toLowerCase()
     .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
     .replace(/\s+/g, " ").trim();
+  // «1.5 (Reactive)» — شاخصِ عددی بیرونِ پرانتز و واژهٔ نتیجه داخلِ آن: واژهٔ داخلِ پرانتز نتیجه است، نه عددِ بیرون.
+  const inParen = s.match(/^[<>≥≤]?\s*\d+(?:[.,]\d+)?\s*\(([^)]*)\)\s*$/);
+  if (inParen) { const q = qualState(inParen[1].trim()); if (q.state !== "unknown" && q.state !== "num") return q; }
   s = s.replace(/\(.*?\)/g, " ").replace(/\s*[,;،؛].*$/, "").trim();
   // «POSITIVE.»، «Positive: 1/160»، «Positive for troponin»، «Positive ++»، «مثبت ۳+» — دُمِ نقطه‌گذاری/درجه/«for …» مثبت را منفی یا ناشناخته نمی‌کند.
   if (/^[a-z؀-ۿ]/.test(s)) {
@@ -484,7 +487,7 @@ function castTypesIn(text) {
  * نفی پیش از حضور سنجیده می‌شود: «Nil seen» و «not seen» و «ندارد» هر سه واژهٔ حضور را در خود دارند.
  */
 const EQUIVOCAL_RE = /^(\+\s*\/\s*-|-\s*\/\s*\+|±|equivocal|borderline|مشکوک|بینابینی)$/i;
-const CAST_ABSENT_RE = /\b(neg(ative)?|nil+|none|absent|no|not\s*(seen|found|detected|observed))\b|-ve\b|^-+$|منفی|دیده\s*نشد|مشاهده\s*نشد|یافت\s*نشد|ندارد|وجود\s*ندارد/i;
+const CAST_ABSENT_RE = /\b(neg(ative)?|nil+|none|absent|no|non[\s-]*present|not\s*(seen|found|detected|observed|present))\b|ندیده\s*شد|-ve\b|^-+$|منفی|دیده\s*نشد|مشاهده\s*نشد|یافت\s*نشد|ندارد|وجود\s*ندارد/i;
 const CAST_PRESENT_RE = /\b(rare|few|occasional|many|moderate|numerous|present|seen|positive|plenty|full\s*field|loaded)\b|\+|نادر|اندک|کم|گاه|زیاد|فراوان|متوسط|انبوه|مثبت|دیده\s*شد|مشاهده\s*شد|دارد/i;
 function castValueState(value) {
   const s = String(value ?? "").trim().replace(/[.,;:،؛]+$/, "").trim();
@@ -493,6 +496,8 @@ function castValueState(value) {
   // «+/-» و «±» مبهم‌اند، نه حاضر: «+/-» شاملِ «+» است و فهرستِ حضور آن را می‌گرفت (N6، بازبینیِ specs/006 #۲).
   if (EQUIVOCAL_RE.test(s)) return "unknown";
   if (CAST_ABSENT_RE.test(s)) return "absent";
+  const frac = s.match(/^(\d+(?:\.\d+)?)\s*\/\s*100$/);   // «0/100» = صفر در صد سلول؛ صورت کسر، نه بازه
+  if (frac) return parseFloat(frac[1]) > 0 ? "present" : "absent";
   const nums = (s.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
   if (nums.length) return Math.max(...nums) > 0 ? "present" : "absent";   // «0-0» غایب، «0-1» حاضر (مرجع ۰)
   return CAST_PRESENT_RE.test(s) ? "present" : "unknown";
@@ -666,8 +671,10 @@ function urineGrade(e, nameRe) {
       return Math.min(4, plusCount);
     }
     // عدد تنها (مثل «۳»)
-    const n = parseInt(s.replace(/[^\d]/g, ""), 10);
-    if (Number.isFinite(n) && /^\d/.test(s.replace(/[^\d]/g, ""))) return Math.min(4, n);
+    // بازبینی ۲۰۲۶-۱۰-۱۳: فقط «درجهٔ» صحیحِ ۰–۴ درجه است. «0.15 g/L»، «10 mg/dL»، «0.5 mmol/L» عددِ غلظت‌اند، نه «+۳/۴»؛
+    //   نگاشتشان به درجه وابسته به کیت است و اینجا ساخته نمی‌شود ⇒ null (خواننده نمی‌خواند؛ شبکهٔ «تفسیر نشدند» نامش را می‌برد).
+    if (/^\d+$/.test(s)) return Math.min(4, parseInt(s, 10));
+    if (/^\d/.test(s)) return null;
     // توصیفی
     if (/many|numerous|زیاد|فراوان|high|large|بزرگ/i.test(s)) return 3;
     if (/moderate|متوسط/i.test(s)) return 2;
