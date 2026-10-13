@@ -1365,3 +1365,12 @@ test("P105-M33: جملهٔ درستِ موتور دربارهٔ Hbِ بی‌جن
   assert.equal(r.status, 200);
   assert.match(r.body.interpretation, /برای زن طبیعی ولی برای مرد/, r.body.interpretation);
 });
+
+test("T58: mergePages — سن و جنسِ هم‌ارز («51 سال»≡«۵۱»، «مرد»≡«Male») ناسازگاری نیست؛ سن/جنسِ واقعاً متفاوت هست (۴۲۲ کاذب)", async () => {
+  const { mergePages } = await import("./server.js");
+  const page = (n, patient) => ({ ok: true, page: n, ocr: { patient, tests: [] } });
+  const same = mergePages([page(1, { age: "51 سال", sex: "مرد" }), page(2, { age: "۵۱", sex: "Male" })]);
+  assert.equal(same.mismatch, null, JSON.stringify(same.mismatch));
+  const diff = mergePages([page(1, { age: "51 سال", sex: "مرد" }), page(2, { age: "30", sex: "Female" })]);
+  assert.ok(diff.mismatch);
+});

@@ -768,7 +768,8 @@ export const RULES_BIOCHEM = [
           "نکته‌ی مهم این است که وقتی منیزیم کم باشد، بدن نمی‌تواند این املاح دیگر را به‌درستی متعادل کند — " +
           "و معمولاً تا منیزیم اصلاح نشود، بقیه هم درست نمی‌شوند (اصلاحِ منیزیم اغلب خودش پتاسیم و کلسیم را هم درست می‌کند). این نکته برای پزشک مهم است.",
         action: "این هفته با پزشک مطرح کنید و حتماً به پایین بودن منیزیم اشاره کنید.",
-        suggest: ["اصلاح منیزیم پیش از سایر املاح", "تکرار پنل الکترولیت", "بررسی توسط پزشک"],
+        // «اصلاح منیزیم…» جمله است نه نامِ آزمایش (N8)؛ محتوایش در must_say آمده است.
+        suggest: ["تکرار منیزیم", "تکرار پنل الکترولیت", "بررسی توسط پزشک"],
         warnings: [
           ...(kLow
             ? ["پایین بودنِ همزمانِ منیزیم و پتاسیم خطرِ بی‌نظمیِ ضربان قلب را بالا می‌برد؛ اگر تپش قلب، ضربان نامنظم یا سرگیجه دارید زودتر مراجعه کنید."]
@@ -1350,7 +1351,10 @@ export const RULES_BIOCHEM = [
       const t = val(e);
       // هر قندی که پایین باشد: ناشتا، دو ساعته، یا تصادفی
       const g = lowestGlucose(t.GLU_F, t.GLU_2H, t.GLU_RANDOM);   // کلیدها داخلِ سورسِ قاعده می‌مانند: RULE_READS آن‌ها را «خوانده» می‌شمارد (N18)
-      return g != null && g < 70;
+      // آستانهٔ ۷۰ بزرگسال فقط وقتی که خودِ درجه‌بندی (بازهٔ سنی: PED_REFS) هم «پایین» گفته؛ زیر ۵۴ همیشه (کفِ ایمنی).
+      //   نوزادِ ۱۰ روزه با قند ۶۰ (بازهٔ ۴۵–۹۹، طبیعی) پیش‌تر به‌خاطر ۷۰ ثابت «کمی پایین» می‌شنید.
+      const gradedLow = e.graded.some((x) => ["GLU_F", "GLU_2H", "GLU_RANDOM"].includes(x.test) && x.abnormal && x.dir === "low");
+      return g != null && g < 70 && (g < 54 || gradedLow);
     },
     build: (e) => {
       const t = val(e);
@@ -1419,7 +1423,9 @@ export const RULES_BIOCHEM = [
       const cholHigh = chol?.abnormal && chol.dir === "high";
       const ldlHigh = ldl?.abnormal && ldl.dir === "high";
       const hdlLow = hdl?.abnormal && hdl.dir === "low";
-      const tgHigh = t.TG != null && t.TG >= 150;
+      // ۱۵۰ ثابتِ بزرگسال؛ زیر ۱۶ سال حکم با بازهٔ سنیِ درجه‌بندی (کودک ۸ ساله TG 160، حد ۱۸۶، طبیعی است).
+      const tg = e.graded.find((g) => g.test === "TG");
+      const tgHigh = t.TG != null && ((e.age != null && e.age < 16) ? (tg?.abnormal && tg.dir === "high") : t.TG >= 150);
       return cholHigh || ldlHigh || hdlLow || tgHigh || ldlAboveDmTarget(e);
     },
     build: (e) => {

@@ -788,8 +788,23 @@ export function mergePages(pageResults) {
   // نکته: پرامپت OCR عمداً نام و کد ملی را نمی‌خواند (حریم خصوصی).
   // پس فقط سن و جنسیت را داریم — همان برای هشدار کافی است.
   let mismatch = null;
-  const ages = [...new Set(patients.map((p) => String(p.age || "").trim()).filter(Boolean))];
-  const sexes = [...new Set(patients.map((p) => String(p.sex || "").trim()).filter(Boolean))];
+  // مقایسه روی مقدارِ نرمال‌شده (inferAge/inferSex)، نه رشتهٔ خامِ OCR: «51 سال» ≡ «51» ≡ «۵۱ سال»، «مرد» ≡ «Male».
+  //   نمایش همان رشتهٔ خامِ اولین صفحه است. مقدارِ ناخواناشدنی به رشتهٔ خام برمی‌گردد (حدس نمی‌زنیم).
+  const distinctBy = (raws, norm) => {
+    const seen = new Map();
+    for (const raw of raws) {
+      const r = String(raw ?? "").trim();
+      if (!r) continue;
+      const k = norm(r) ?? `raw:${r}`;
+      if (!seen.has(k)) seen.set(k, r);
+    }
+    return [...seen.values()];
+  };
+  const ages = distinctBy(patients.map((p) => p.age), (r) => {
+    const a = inferAge({ patient: { age: r } });
+    return a == null ? null : `a:${Math.round(a * 1000) / 1000}`;
+  });
+  const sexes = distinctBy(patients.map((p) => p.sex), (r) => inferSex({ patient: { sex: r } }));
   if (ages.length > 1 || sexes.length > 1) {
     mismatch = { ages, sexes };
   }
@@ -1738,7 +1753,9 @@ const numbered = patternOut.findings.filter(
       const missingFacts = [];
       for (const f of patternOut.findings) {
         if (f.key_number == null) continue;
-        if (interpText.includes(toLatinDigits(f.key_number))) continue;
+        // مرز عدد: «8» نباید در «80»، «18» یا «1.8» پیدا شود.
+        const kn = toLatinDigits(f.key_number).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (new RegExp(`(?<![\\d.,])${kn}(?!\\d|[.,]\\d)`).test(interpText)) continue;
         const sent = String(f.must_say || "").split(/(?<=[.؟!])\s/)[0].trim();
         if (sent && !missingFacts.includes(sent)) missingFacts.push(sent);
       }

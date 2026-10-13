@@ -2366,6 +2366,17 @@ not by a test.
 - **Same review, same lesson in the new view:** `pro` text for rules that fire in both directions (K, Na, Ca, vitamin D) listed only one direction's causes (N12). The expert view also printed the engine's converted value as «روی برگه» (N5), leaked `NEUT_PCT` (N8) because the guard exempted exactly the keys `faName` cannot name, skipped the `forbid` filter, and showed every finding's own `action`, bringing back the rival timelines that N7/N20 removed. Guards `X3`, `X11`, `X21`–`X27`.
 - **Tooling trap on the way, no patient cost:** a `Ø`-style escape written through the Edit tool or a Bash heredoc reached the file as a literal mojibake character, and `M37` went red on the test file itself. Write such fixtures with `String.fromCharCode` / a script that builds the backslash, then grep the file for the literal character.
 
+### N34 — Recurrences from the 2026-10-14 audit, plus a false finding of my own
+2026-10-14, uncommitted work on top of P107. A pasted audit listed ~40 claims; each was re-measured on the live engine before fixing. Most were stale. Five were real.
+
+- **N3 again, in two rules (child thresholds):** `hypoglycemia` fired on a hard `g < 70` and `lipid_profile` on a hard `TG >= 150`. A 10-day-old with FBS 60 (graded normal, range 45–99) got «کمی پایین»; an 8-year-old with TG 160 (range up to 186) got the dyslipidaemia text. Now `hypoglycemia` needs the graded value to be low (or `g < 54`, the safety floor), and under 16 `lipid_profile` follows the graded TG. Guards `R13b-1`, `R13b-2`. **Still open:** the *text* of `lipid_profile` uses adult TG bands for a child.
+- **N25 again, `mergePages` mismatch:** ages and sexes were compared as raw OCR strings, so «51 سال» vs «51», or «مرد» vs «Male», across pages of one sheet gave a false 422. Now compared after `inferAge`/`inferSex`. Guard `T58` (it lives in `api-contract.test.js` because importing `server.js` elsewhere hangs the runner).
+- **`key_number` safety net used `includes`:** «8» matched inside «80»/«18»/«1.8», so the net stayed off. Now a digit-boundary regex. No suite test (it is inside the request closure); checked with a standalone probe.
+- **N8 again:** `suggest` held a sentence, «اصلاح منیزیم پیش از سایر املاح». Now «تکرار منیزیم». Guard `R13b-3`.
+- **My own error, not the audit's:** I reported HDL/uric acid/ALP/RBC/HCT as frontend-vs-backend range mismatches. The probe passed sex as `"F"`; `labRefs.js` expects `"female"`. With the right argument the frontend equals `getRef` for every key checked. **Rule:** before calling two tables different, call both with the argument form each one actually takes.
+- **Deleting a `PED_REFS` row is not free:** `CRP` and `TROPONIN_T` have no engine producer, but `score.js` names them and `score.test.js` enumerates `PED_REFS` keys. Removing them turned a test red; they were put back.
+- **Not fixed, by decision:** `inferSex` reads a Persian-digit printed reference range as nothing (only when `patient.sex` is empty).
+
 Detailed instructions are split across `.claude/rules/`:
 
 - [architecture.md](.claude/rules/architecture.md) — core architecture decision (engine vs. LLM), the 9-step `/api/analyze` request flow, the legacy non-engine path. Describes the **classic path**, which is still the default and the only one with safety nets; the graph path is documented in this file instead.
