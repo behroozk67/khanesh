@@ -646,3 +646,30 @@ test("P107b-M4: ALT/AST + INR/آلبومین/پلاکت یا هر بیلی‌ر�
 test("P107b-L2: albuminuria_pattern ارجاع به متخصص کلیه را دارد (ادغامِ ckd_pattern_diagnostic آن را نینداخت)", () => {
   assert.match(msOf(urg([["ACR", 400, "mg/g"]]), "albuminuria_pattern").action, /متخصص کلیه/);
 });
+
+// ═══ P107c — lowهای داورِ Opus (پیشنهادِ تأییدشدهٔ کاربر، ۲۰۲۶-۱۰-۱۳) ═══
+test("P107c-L1: یک اختلالِ اسید-باز، یک یافته — مالک pH را در متنش نقل می‌کند", () => {
+  const a = urg([["pH", 7.33, ""], ["pCO2", 30, "mmHg"], ["HCO3", 16, "mmol/L"]]);
+  assert.ok(!a.u.blood_ph_abnormal && a.u.bicarbonate_low_moderate);
+  assert.match(msOf(a, "bicarbonate_low_moderate").must_say, /pHِ خونِ شما 7\.33 است/);
+  const dka = urg([["pH", 7.10, ""], ["pCO2", 20, "mmHg"], ["HCO3", 8, "mmol/L"], ["Glucose", 450, "mg/dL"], ["Ketone", "3+"]]);
+  assert.ok(!dka.u.blood_ph_abnormal && dka.u.dka_pattern);
+  assert.match(msOf(dka, "dka_pattern").must_say, /pHِ خونِ شما 7\.1 است/);
+  // کف: pH بحرانی بدون مالکِ هم‌فوریت می‌ماند
+  assert.equal(urg([["pH", 7.6, ""], ["pCO2", 20, "mmHg"], ["HCO3", 20, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
+});
+
+test("P107c-L4: کنارِ دستورِ فوریِ Hb در بارداری جملهٔ ارجاعِ رقیب نمی‌آید", () => {
+  const r = urg([["Hb", 6.5, "g/dL"], ["MCV", 70, "fL"]], { sex: "F", age: 30, pregnant: true });
+  assert.ok(!r.p.findings.some((f) => /مامای خود/.test(f.action ?? "")));
+});
+
+test("P107c-L5: GGT نوزاد جملهٔ ULN بزرگسال نمی‌گیرد، کودک «الکل» نمی‌شنود؛ فیبرینوژنِ باردار جملهٔ قلبی نمی‌گیرد", () => {
+  assert.ok(!urg([["GGT", 150, "U/L"]], { sex: "M", age: 0.03 }).u.ggt_isolated);
+  const kid = msOf(urg([["GGT", 80, "U/L"]], { sex: "M", age: 8 }), "ggt_isolated");
+  assert.ok(kid); assert.doesNotMatch(kid.must_say, /الکل/);
+  assert.match(msOf(urg([["GGT", 120, "U/L"]]), "ggt_isolated").must_say, /الکل/, "بزرگسال همان");
+  const preg = msOf(urg([["Fibrinogen", 550, "mg/dL"]], { sex: "F", age: 30, pregnant: true }), "coag_other_direction");
+  assert.doesNotMatch(preg.must_say, /قلب و عروق/);
+  assert.match(msOf(urg([["Fibrinogen", 550, "mg/dL"]], { sex: "F", age: 30 }), "coag_other_direction").must_say, /قلب و عروق/);
+});

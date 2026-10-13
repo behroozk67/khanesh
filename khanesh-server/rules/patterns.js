@@ -21,7 +21,7 @@ import { RULES_SPECIMEN, ACTION_EMERGENCY as FLUID_ACTION_EMERGENCY } from "./pa
 import { RULES_AUTOIMMUNE } from "./patterns_autoimmune.js";
 import { RULES_PRENATAL } from "./patterns_prenatal.js";
 import { AI_KEYS, autoAbState } from "./serology.js";
-import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
+import { RULES_P73_GAPS, bindP73Owners, PH_STANDDOWN_OWNERS } from "./patterns_p73_gaps.js";
 import { RULES_REVIEW1013 } from "./patterns_review1013.js";
 import { rankOf, applyQualGloss, applyPrintedRange } from "./patterns_utils.js";
 import { faName } from "./names.js";
@@ -460,12 +460,25 @@ function applyPregnancyAnemiaReferral(findings, e) {
   if (!(hb?.value < 9)) return;
   const f = findings.find((x) => PREG_ANEMIA_OWNERS.includes(x.rule_id));
   if (!f || /زنان|ماما/.test(String(f.action ?? ""))) return;
+  // بازبینیِ Opus (L4): کنارِ دستورِ فوریِ Hb (مثلاً severe_anemia_crisis) زمان‌بندیِ رقیب نمی‌آید.
+  if (findings.some((x) => (x.urgency === "emergency" || x.urgency === "soon") && /anemia/.test(x.rule_id))) return;
   if (f.urgency === "routine" || f.urgency === "none") {
     f.urgency = "this_week";
     f.action = PREG_ANEMIA_SENTENCE;
   } else {
     f.action = `${String(f.action ?? "").trim()} ${PREG_ANEMIA_SENTENCE}`.trim();
   }
+}
+
+// P107 (بازبینیِ Opus، L1): وقتی قاعدهٔ اسید-باز مالکِ pH شد (blood_ph_abnormal کنار رفت)، عددِ pH در متنِ همان مالک نقل می‌شود.
+function applyPhCitation(findings, e) {
+  const ph = e?.graded?.find((g) => g.test === "PH");
+  if (!ph?.abnormal || findings.some((x) => x.rule_id === "blood_ph_abnormal")) return;
+  const f = findings.find((x) => PH_STANDDOWN_OWNERS.includes(x.rule_id));
+  if (!f) return;
+  const s = `pHِ خونِ شما ${ph.value} است (حد طبیعی ${ph.range}).`;
+  f.must_say = `${String(f.must_say ?? "").trim()} ${s}`;
+  if (f.brief) f.brief = `${String(f.brief).trim()} ${s}`;
 }
 
 // P107 (L2): کلیدهایی که کفِ فوریتِ «بحرانی» برایشان این هفته است، نه اورژانس.
@@ -737,6 +750,7 @@ export function runPatterns(engineOut) {
   applyNeonatalFloor(findings, engineOut);
   applyNeonatalVoice(findings, engineOut);
   applyChildVoice(findings, engineOut);
+  applyPhCitation(findings, engineOut);
   applyPregnancyAnemiaReferral(findings, engineOut);   // P107 (L12): بارداری + Hb < ۹ ⇒ ارجاع به پزشکِ زنان/ماما
   applyInpatientVoice(findings, engineOut);   // ۲۰۲۶-۱۰-۰۸: بستری ⇒ «به پرستار/پزشکِ بخش اطلاع دهید»؛ فوریت دست‌نخورده
   applyPrintedRange(findings, engineOut);   // ۲۰۲۶-۱۰-۰۷: بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور — فقط نمایش

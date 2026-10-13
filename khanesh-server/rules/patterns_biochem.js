@@ -1851,7 +1851,8 @@ export const RULES_BIOCHEM = [
       const ggt = e.graded.find((g) => g.test === "GGT");
       if (!(ggt?.abnormal && ggt.dir === "high")) return false;
       const hi = (k) => { const g = e.graded.find((x) => x.test === k); return g?.abnormal && g.dir === "high"; };
-      return !hi("ALP") && !hi("ALT") && !hi("AST");
+      // بازبینیِ Opus (L5): GGT در نوزاد (< ۲۸ روز) به‌طور طبیعی بالاتر از ULN بزرگسال است ⇒ جملهٔ اختصاصی با ULN بزرگسال گفته نمی‌شود.
+      return !hi("ALP") && !hi("ALT") && !hi("AST") && !isNeonate(e.age);
     },
     build: (e) => {
       const ggt = e.graded.find((g) => g.test === "GGT");
@@ -1865,7 +1866,7 @@ export const RULES_BIOCHEM = [
         headline: "آنزیم GGT شما بالاست",
         must_say:
           `آنزیم GGT شما ${ggt.value} است و از حد بالای طبیعی (${ref[1]}) بیشتر است. ` +
-          "GGT به‌تنهایی نشان نمی‌دهد مشکل از کجاست: مصرف الکل، بعضی داروها (مثل داروهای ضدتشنج)، " +
+          "GGT به‌تنهایی نشان نمی‌دهد مشکل از کجاست: " + (typeof e.age === "number" && e.age < 16 ? "" : "مصرف الکل، ") + "بعضی داروها (مثل داروهای ضدتشنج)، " +
           "کبد چرب و بیماری‌های مجاری صفراوی می‌توانند آن را بالا ببرند، و گاهی هم بدون هیچ بیماری مشخصی بالا می‌ماند. " +
           (alpKnown && aminoKnown
             ? "ALP، ALT و AST شما بالا نیستند، که این را کمی آرام‌تر می‌کند. "

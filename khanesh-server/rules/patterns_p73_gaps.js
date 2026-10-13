@@ -560,12 +560,16 @@ const biliIndirectHigh = {
 //   > ۷٫۵۵ بحرانی. قاعده‌های اسید-باز (severe_acidosis، …) مالک‌اند؛ این قاعده وقتی است که هیچ‌کدام فعال نیست، یا pH بحرانی است
 //   (بی‌آن، کفِ تور اورژانس را با دستورِ «تماس بگیرید» روی کارتِ بی‌توضیح می‌نشاند). فوریت = netUrgency (N29).
 const PH_OWNERS = ["severe_acidosis", "high_anion_gap", "normal_ag_acidosis", "metabolic_alkalosis", "dka_pattern", "hhs_pattern"];
+// بازبینیِ Opus (L1، N20؛ پیشنهادِ تأییدشده): یک اختلالِ اسید-باز، یک یافته. قاعدهٔ اسید-باز مالک است و pH را patterns.js در متنش
+//   نقل می‌کند (applyPhCitation)؛ این یافته فقط وقتی می‌ماند که هیچ مالکی دست‌کم هم‌فوریتِ آن نباشد (کف، N29).
+export const PH_STANDDOWN_OWNERS = [...PH_OWNERS, "bicarbonate_low_moderate"];
 const bloodPhAbnormal = {
   id: "blood_ph_abnormal",
   match: (e) => {
     const ph = g(e, "PH");
     if (!ph?.abnormal) return false;
-    return ph.level === "critical" ? !anyFires(e, ["severe_acidosis"]) || ph.dir === "high" : !anyFires(e, PH_OWNERS);
+    const need = URG_RANK[netUrgency(e, ph)];
+    return !PH_STANDDOWN_OWNERS.some((id) => { const b = liveBuild(e, id); return b && URG_RANK[b.urgency] <= need; });
   },
   build: (e) => {
     const ph = g(e, "PH");
