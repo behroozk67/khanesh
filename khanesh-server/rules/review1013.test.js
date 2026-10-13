@@ -680,7 +680,8 @@ test("P107c-L5: GGT نوزاد جملهٔ ULN بزرگسال نمی‌گیرد،
 // P107e (L3، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): pH کنارِ HCO3 بی‌pCO2 همان pHِ خون خوانده می‌شود — گازِ خونِ ناقص (pH + HCO3) رایج است و
 // ادراری‌خواندنش اورژانسِ واقعی را گم می‌کند. این آزمون خوانش را قفل می‌کند (سبزِ پیشین عمدی است)؛ بی‌HCO3 هنوز pHِ ادرار است.
 test("P107e-L3: pH + HCO3 بی‌pCO2 ⇒ pHِ خون (اورژانس)؛ pH تنها ⇒ ادرار، بی‌یافته", () => {
-  assert.equal(urg([["pH", 7.6, ""], ["HCO3", 25, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
+  assert.equal(urg([["pH", 7.6, ""], ["HCO3", 35, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
+  assert.equal(urg([["pH", 7.0, ""], ["HCO3", 8, "mmol/L"]]).u.severe_acidosis, "emergency");
   assert.equal(urg([["pH", 7.6, ""]]).u.blood_ph_abnormal, undefined);
 });
 
@@ -722,8 +723,8 @@ test("P107h-6: Hb ≤ ۸٫۵ بزرگسال ⇒ soon با جملهٔ «۲۴ تا
 test("P107h-19: pH بیرون از ۶٫۸–۷٫۸ هرگز pHِ خون نیست؛ داخلش با HCO3 همچنان خون است", () => {
   assert.equal(urg([["pH", 8.5, ""], ["HCO3", 25, "mmol/L"]]).p.findings.length, 0);
   assert.equal(urg([["pH", 6.7, ""], ["HCO3", 25, "mmol/L"]]).p.findings.length, 0);
-  assert.equal(urg([["pH", 7.8, ""], ["HCO3", 25, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
-  assert.equal(urg([["pH", 6.9, ""], ["HCO3", 25, "mmol/L"]]).p.overall_urgency, "emergency");
+  assert.equal(urg([["pH", 7.8, ""], ["HCO3", 35, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
+  assert.equal(urg([["pH", 6.9, ""], ["HCO3", 8, "mmol/L"]]).p.overall_urgency, "emergency");
 });
 
 test("P107h-4: متنِ FT4 پایین تکرارِ آزمایش و بررسیِ داروها و بیماریِ حاد را می‌گوید", () => {
@@ -748,4 +749,12 @@ test("P107h-5/11/15/16/17: گاردهای بی‌تغییر — soon فقط بز
   assert.ok(!hy([["ALT", 80, "U/L"], ["Total Bilirubin", 3, "mg/dL"]]), "ALT ≈ ۲×ULN < ۳× ⇒ Hy نیست");
   assert.ok(!hy([["ALT", 200, "U/L"], ["ALP", 700, "U/L"], ["Total Bilirubin", 4, "mg/dL"]]), "ALP ≥ ۲×ULN (ULN ۳۰۰) ⇒ Hy نیست");
   assert.match(msOf(urg([["ALT", 60, "U/L"]]), "liver_pattern").action, /آزمایشِ کبد تکرار شود/);
+});
+
+// P107i (بازبین، ردیف ۱۹): HCO3ِ بیوشیمیِ سرم شاهدِ گازِ خون نیست. pHِ ناهم‌جهت با HCO3 (۷٫۰ با ۲۵) pHِ ادرار می‌ماند؛ با pCO2 یا هم‌جهت همان خون.
+test("P107i-19: pH ۷٫۰ کنارِ HCO3 ۲۵ بی‌pCO2 اورژانسِ کاذب نمی‌دهد؛ هم‌جهت یا با pCO2 هنوز خون", () => {
+  assert.equal(urg([["pH", 7.0, ""], ["HCO3", 25, "mmol/L"]]).u.blood_ph_abnormal, undefined);
+  assert.equal(urg([["pH", 7.6, ""], ["HCO3", 25, "mmol/L"]]).u.blood_ph_abnormal, undefined);
+  assert.equal(urg([["pH", 7.0, ""], ["HCO3", 25, "mmol/L"], ["pCO2", 70, "mmHg"]]).u.severe_acidosis, "emergency", "با pCO2 گازِ خون است");
+  assert.equal(urg([["pH", 7.1, ""], ["HCO3", 10, "mmol/L"]]).u.severe_acidosis, "emergency");
 });

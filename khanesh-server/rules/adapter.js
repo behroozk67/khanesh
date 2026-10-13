@@ -964,6 +964,27 @@ function detectAbgPages(ocrTests) {
   return pages;
 }
 
+// P107i (بازبین، ردیف ۱۹): HCO3 در بیوشیمیِ معمولیِ سرم هم چاپ می‌شود و تنهایی شاهدِ گازِ خون نیست. صفحه‌ای که از نشانگرهای گاز خون فقط
+//   HCO3/بی‌کربنات دارد «فقط‌بی‌کربنات» است: pH در آن فقط وقتی خون خوانده می‌شود که با آن هم‌جهت باشد (اسیدمی ⇒ HCO3 پایین، قلیایی ⇒
+//   HCO3 بالا)، یا pH در ۷٫۳۵–۷٫۴۵ باشد. pH ناهم‌جهت (مثلاً ۷٫۰ با HCO3 ۲۵) pH ادرار می‌ماند. با pCO2/pO2/BE… یا سرتیترِ «خون» همان خوانش قبلی.
+const HCO3_ONLY_KEYS = new Set(["hco3", "bicarbonate"]);
+function detectHco3OnlyPages(ocrTests) {
+  const hco3 = new Map(); const full = new Set();
+  for (const t of ocrTests) {
+    if (!t?.name) continue;
+    const k = norm(t.name), p = t._page ?? 0;
+    if (HCO3_ONLY_KEYS.has(k)) { const v = toNum(t.value); if (v != null && !hco3.has(p)) hco3.set(p, v); }
+    else if (ABG_MARKERS.has(k)) full.add(p);
+  }
+  for (const p of full) hco3.delete(p);
+  return hco3;
+}
+export function phConcordantWithHco3(ph, hco3) {
+  if (hco3 == null || !Number.isFinite(hco3)) return true;
+  if (ph >= 7.35 && ph <= 7.45) return true;
+  return ph < 7.35 ? hco3 < 22 : hco3 > 28;
+}
+
 // آیا این کلید (نرمال‌شده) کیفی است؟
 // هم تطبیق دقیق با Set، هم چند الگوی امن برای نام‌های ترکیبی.
 // ⚠️ الگوها عمداً محدودند تا با تست‌های عددی تداخل نکنند.
@@ -1337,6 +1358,7 @@ export function ocrToEngineInput(ocr) {
   const urineOnlyPages = detectUrineOnlyPages(ocr?.tests || []);
   const stripTwinKeys = detectStripTwins(ocr?.tests || []);
   const abgPages = detectAbgPages(ocr?.tests || []);
+  const hco3OnlyPages = detectHco3OnlyPages(ocr?.tests || []);
   const dipstickPages = detectDipstickPages(ocr?.tests || []);   // باگِ ۵
   // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
   const semenQual = {};
@@ -1718,7 +1740,8 @@ export function ocrToEngineInput(ocr) {
     if (key === "ph") {
       const v = toNum(t.value);
       const isBloodPh = (onAbgPage || secKind === "blood") && !onUrinePage && !onStripPage &&   // بی‌کربناتِ سرم کنار نوارِ ادرار pH ادرار را «pH خون» نمی‌کند (بازبینی ۱۰-۱۳)
-        v != null && v >= BLOOD_PH_MIN && v <= BLOOD_PH_MAX;
+        v != null && v >= BLOOD_PH_MIN && v <= BLOOD_PH_MAX &&
+        (secKind === "blood" || !hco3OnlyPages.has(t._page ?? 0) || phConcordantWithHco3(v, hco3OnlyPages.get(t._page ?? 0)));   // P107i
       if (!isBloodPh) {
         qual["Urine pH"] = String(t.value);
         continue;
