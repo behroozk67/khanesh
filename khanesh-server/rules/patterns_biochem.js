@@ -1244,7 +1244,9 @@ export const RULES_BIOCHEM = [
         warnings.push(...a1cWarn);
         return {
           pattern: "diabetes_range",
-          urgency: "this_week",
+          // N20: وقتی «قندِ بسیار بالا» زمان‌بندی را دارد، فوریتِ همین یافته هم همان است (نه فقط جملهٔ action).
+          // فقط وقتی صاحبِ قند «soon» است. اگر emergency باشد (DKA/HHS/>۵۰۰) این یافته this_week می‌ماند: دومین emergency برای یک عدد M91c را می‌شکند.
+          urgency: glucoseOwnerUrgency(e) === "soon" ? "soon" : "this_week",
           headline: marked ? "قند خون شما بسیار بالاست و در محدودهٔ دیابت قرار دارد"
             : confirmed ? "قند خون شما در محدودهٔ دیابت است"
             : "قند خون شما در محدودهٔ دیابت است؛ تشخیص با تکرار آزمایش قطعی می‌شود",
@@ -2224,6 +2226,22 @@ function gdmState(e) {
 
 function glucoseOwnerFires(e) { return dkaOwns(e) || hhsOwns(e) || severeGlucoseOwns(e); }
 
+/**
+ * فوریتِ قاعدهٔ severe_hyperglycemia_uncertain_ketosis — یک تعریف، دو خواننده (خودِ قاعده و glycemia). تا پیش از این glycemia
+ * فقط *متنِ* action را به آن واگذار می‌کرد و فیلدِ urgencyاش «این هفته» می‌ماند؛ نمای تخصصی برچسبِ هر یافته را جدا می‌نویسد و
+ * یک برگه هم «۲۴ تا ۴۸ ساعت» می‌گرفت هم «این هفته» (گزارشِ کاربر ۲۰۲۶-۱۰-۱۳، N20).
+ */
+function glucoseOwnerUrgency(e) {
+  if (dkaOwns(e) || hhsOwns(e)) return "emergency";   // هر دو emergency اند
+  return severeGlucoseOwns(e) ? severeGlucoseUrgency(e) : null;
+}
+function severeGlucoseUrgency(e) {
+  const g = topGlucose(e);
+  const ket = ketoneState(e);
+  const ketoacidosisHint = ket === "positive" || dkaAcidosis(e);
+  return ketoacidosisHint || g.value > 500 ? "emergency" : "soon";
+}
+
 export const RULES_BIOCHEM_NEW = [
   // ── دیابت و قند ──
   // N20/N16 (لایهٔ ۲): `diabetes_a1c_diagnostic` حذف شد. هر پنلِ HbA1c ≥ ۶٫۵ را `glycemia` هم می‌گیرد (dmHits)، پس دو یافته دربارهٔ یک عدد با دو
@@ -2250,7 +2268,7 @@ export const RULES_BIOCHEM_NEW = [
       //    آنالیت در ctcae.js (`GLU_HIGH`) است: گریدِ ۳ = ۲۵۰ تا ۵۰۰،
       //    گریدِ ۴ = بالای ۵۰۰. پس «بالای ۵۰۰ → اورژانس» بازخوانیِ جدولِ
       //    موجود است، نه آستانهٔ تازه. (P42 در MEDICAL_RULES.md)
-      const urgency = ketoacidosisHint || g.value > 500 ? "emergency" : "soon";   // بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰: ۲۵۰–۵۰۰ بی‌علامت ⇒ ارزیابی ۲۴–۴۸ ساعته
+      const urgency = severeGlucoseUrgency(e);   // بازبینیِ متخصص ۲۰۲۶-۰۹-۳۰: ۲۵۰–۵۰۰ بی‌علامت ⇒ ارزیابی ۲۴–۴۸ ساعته
 
       // ⚠️ عمداً `blocks_others` ندارد: `glycemia` باید کنارش بماند. آن یافته
       //    چیزِ دیگری می‌گوید («این عدد در محدودهٔ دیابت است و تشخیص تکرار

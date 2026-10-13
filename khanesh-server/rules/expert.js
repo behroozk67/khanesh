@@ -16,6 +16,7 @@ import { sourceList } from "./guidelines.js";
 import { RULES, HIDDEN_FINDINGS, alreadyMeasured } from "./patterns.js";
 import { dropSubsumedTests, URGENCY_FA, buildEngineRecommendations } from "./prompt.js";
 import { findingKeys } from "./score.js";
+import { printedOf } from "./printed.js";
 
 const RULE_BY_ID = new Map(RULES.map((r) => [r.id, r]));
 const UNTITLED = "یافتهٔ بی‌عنوان";
@@ -46,31 +47,6 @@ const INDEX_INFO = {
     method_fa: "کلسترولِ تام منهای HDL." },
 };
 const inputFa = (k) => (/^[A-Z0-9_]+$/.test(k) ? nameOf(k) : k);
-
-/**
- * عددِ روی برگه و دلیلِ تفاوتش با عددِ سنجیده‌شده (N5). فقط وقتی پر می‌شود که موتور عددِ برگه را *واقعاً* نگه داشته و
- * دلیلِ تفاوت معلوم است؛ وگرنه null — «روی برگه» برای عددی که موتور بی‌ردپا تغییرش داده (WBC 7000 ⇒ 7) ادعا نمی‌شود.
- * واحدِ چاپ‌نشده هرگز «روی برگه» نوشته نمی‌شود: basis ≠ printed ⇒ unit = null و واحدِ برداشت‌شده در unit_assumed.
- */
-function printedOf(key, g, engineOut) {
-  const ix = engineOut.indices ?? {};
-  const albumin = key === "CA" && ix.ca_correction_applied;
-  const glucose = key === "NA" && ix.na_correction_applied;
-  const conv = (engineOut.unitConversions ?? []).find((c) => c.test === key);
-  if (conv) {
-    const printedUnit = conv.basis == null || conv.basis === "printed";
-    return {
-      printed: { value: conv.raw, unit: printedUnit ? conv.from ?? null : null },
-      ...(printedUnit ? {} : { unit_assumed: conv.from ?? null }),
-      derived_from: albumin ? "unit_conversion_and_albumin_correction" : glucose ? "unit_conversion_and_glucose_correction" : "unit_conversion",
-    };
-  }
-  if (albumin) return { printed: { value: ix.ca_measured, unit: null }, derived_from: "albumin_correction" };
-  if (glucose) return { printed: { value: ix.na_measured, unit: null }, derived_from: "glucose_correction" };
-  const pct = engineOut.derivedAbs?.[key];
-  if (pct != null) return { printed: { value: pct, unit: "%" }, derived_from: "percent_of_wbc" };
-  return { printed: null, derived_from: null };
-}
 
 // نامِ فارسیِ ردیف. faName برای کلیدِ بی‌نام خودِ کلید را برمی‌گرداند (NEUT_PCT) — آن هرگز چاپ نمی‌شود (N8، X25).
 const KEY_SHAPE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/;
@@ -153,13 +129,20 @@ export function buildExpertView(engineOut, patternOut, score) {
     ? { cautions: asStrings(rule.pro.cautions), differential: asStrings(rule.pro.differential), workup: asStrings(rule.pro.workup), sources: cite(rule.pro.sources) }
     : null);
 
+  // قندِ بسیار بالا زیرِ صاحبِ اورژانسی (DKA/HHS/>500) پنهان می‌شود و فوریتِ موتورش عمداً emergency نیست (M91c: دو emergency برای
+  //   یک عدد نه). در نمای تخصصی بیمار کنارِ «اورژانس» برچسبِ «این هفته» نبیند: فقط برچسبِ نمایشی بالا می‌رود، فیلدِ موتور دست‌نخورده.
+  const glucoseEmergency = shownFindings.some((s) => ["dka_pattern", "hhs_pattern", "severe_hyperglycemia_uncertain_ketosis"].includes(s.rule_id) && s.urgency === "emergency");
+  const KETONE_UNDER_DKA = shownFindings.some((s) => s.rule_id === "dka_pattern" && s.urgency === "emergency");
+  const shownUrgency = (f) => ((f.rule_id === "glycemia" && glucoseEmergency) || (f.rule_id === "ketonuria_pattern" && KETONE_UNDER_DKA) ? "emergency" : f.urgency);
+  const hiddenUrgency = shownUrgency;
   const findings = asArray(patternOut?.findings).map((f) => {
     const rule = RULE_BY_ID.get(f.rule_id);
     const sources = sourcesOf(f);
+    const su = shownUrgency(f);
     return {
       label: label(f),
-      urgency: f.urgency ?? null,
-      urgency_fa: URGENCY_FA[f.urgency] ?? null,
+      urgency: su ?? null,
+      urgency_fa: URGENCY_FA[su] ?? null,
       supplementary: f.supplementary === true,
       briefed: typeof f.brief === "string" && f.must_say === f.brief,
       triggers: triggersOf(f),
@@ -176,7 +159,8 @@ export function buildExpertView(engineOut, patternOut, score) {
   // FR-016 / Q2: نام، محرک و منبع — بی دستور، بی هشدار، بی pro، تا دستورِ دوم کنارِ اورژانس ننشیند.
   const hidden = asArray(patternOut ? HIDDEN_FINDINGS.get(patternOut) : null).map((f) => {
     const sources = sourcesOf(f);
-    return { label: label(f), urgency: f.urgency ?? null, urgency_fa: URGENCY_FA[f.urgency] ?? null,
+    const hu = hiddenUrgency(f);
+    return { label: label(f), urgency: hu ?? null, urgency_fa: URGENCY_FA[hu] ?? null,
       triggers: triggersOf(f), sources, no_source: sources.length === 0 };
   });
 

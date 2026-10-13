@@ -507,7 +507,7 @@ test("M365: کودکِ ۳ ساله — در متنِ موتور «شما» نم�
   const f = r.p.findings.find((x) => x.rule_id === "normocytic_anemia");
   assert.ok(f, `normocytic_anemia فعال نشد: ${ids(r)}`);
   assert.equal(hasYou(childText(r)), false, `«شما» مانده: ${childText(r).slice(0, 200)}`);
-  assert.match(f.must_say, /هموگلوبین کودک 10\.5/);
+  assert.match(f.must_say, /هموگلوبین فرزندتان 10\.5/);
   assert.deepEqual(f.suggest, ["رتیکولوسیت", "فریتین", "کراتینین", "CRP"]);
 });
 
@@ -525,8 +525,50 @@ test("M365b: کنترل — بزرگسال همان متن و همان چهار 
 
 test("M365c: کلماتِ دارای «شما» در ریشه («شمارش») دست نمی‌خورند؛ نوزاد صدای خودش را دارد", async () => {
   const { childVoice } = await import("./neonatal.js");
-  assert.equal(childVoice("شمارش خون شما طبیعی است و نتیجهٔ شماست"), "شمارش خون کودک طبیعی است و نتیجهٔ کودک است");
+  assert.equal(childVoice("شمارش خون شما طبیعی است و نتیجهٔ شماست"), "شمارش خون فرزندتان طبیعی است و نتیجهٔ کودک است");
   const n = run([row("Hemoglobin", 10, "g/dL")], { age: 10 / 365, sex: "M" });
-  assert.doesNotMatch(childText(n), /(هموگلوبین|خون|نتیجه) کودک/, "نوزاد نباید صدای کودک بگیرد");
+  assert.doesNotMatch(childText(n), /(هموگلوبین|خون|نتیجه) کودک /, "نوزاد نباید صدای کودک بگیرد");
   assert.match(childText(n), /نوزاد/);
+});
+
+test("M381: ماکروسیتوزِ بدونِ کم‌خونی (MCV بالا با Hb طبیعی یا غایب)؛ واگذاری به کمبود B12، آرتیفکت و کم‌خونی ماکروسیتیک", () => {
+  // ۱. بزرگسال: Hb 14 (طبیعی) + MCV 105 (بالا)
+  const a = run([row("Hb", "14", "g/dL"), row("MCV", "105", "fL")], { age: 30, sex: "M" });
+  assert.ok(ids(a).includes("macrocytosis_no_anemia"), ids(a).join());
+  assert.equal(urg(a, "macrocytosis_no_anemia"), "routine");
+  assert.match(finding(a, "macrocytosis_no_anemia").must_say, /کم‌خونی وجود ندارد/);
+  assert.match(finding(a, "macrocytosis_no_anemia").must_say, /ماکروسیتوز/);
+  assert.ok(!ids(a).includes("unexplained_abnormal"));
+
+  // ۲. کودکِ ۵ ساله: Hb 12 (طبیعی) + MCV 88 (بالای مرجعِ اطفال 75–87)
+  const kid = run([row("Hb", "12", "g/dL"), row("MCV", "88", "fL")], { age: 5, sex: "F" });
+  assert.ok(ids(kid).includes("macrocytosis_no_anemia"), ids(kid).join());
+  assert.match(finding(kid, "macrocytosis_no_anemia").must_say, /ضدتشنج|رتیکولوسیت/);
+  assert.ok(!ids(kid).includes("unexplained_abnormal"));
+
+  // ۳. MCV بالا بدون داشتن Hb روی برگه
+  const noHb = run([row("MCV", "105", "fL")], { age: 30, sex: "M" });
+  assert.ok(ids(noHb).includes("macrocytosis_no_anemia"), ids(noHb).join());
+  assert.match(finding(noHb, "macrocytosis_no_anemia").headline, /هموگلوبین روی برگه نیست/);
+  assert.match(finding(noHb, "macrocytosis_no_anemia").must_say, /هموگلوبین روی این برگه نیست/);
+
+  // ۴. کم‌خونی ماکروسیتیک (Hb 9 + MCV 105): قاعدهٔ ماکروسیتیک فعال می‌شود، نه این قاعده
+  const macroAnemia = run([row("Hb", "9", "g/dL"), row("MCV", "105", "fL")], { age: 30, sex: "M" });
+  assert.ok(ids(macroAnemia).includes("macrocytic_anemia"));
+  assert.ok(!ids(macroAnemia).includes("macrocytosis_no_anemia"));
+
+  // ۵. کمبود صریح B12 (< ۱۵۰): overt_b12_deficiency مالک است
+  const b12Overt = run([row("Hb", "14", "g/dL"), row("MCV", "105", "fL"), row("Vitamin B12", "100", "pg/mL")], { age: 30, sex: "M" });
+  assert.ok(ids(b12Overt).includes("overt_b12_deficiency"));
+  assert.ok(!ids(b12Overt).includes("macrocytosis_no_anemia"));
+
+  // ۶. کمبود مرزی B12 (۱۵۰–۳۹۹): borderline_b12_deficiency مالک است
+  const b12Border = run([row("Hb", "14", "g/dL"), row("MCV", "105", "fL"), row("Vitamin B12", "250", "pg/mL")], { age: 30, sex: "M" });
+  assert.ok(ids(b12Border).includes("borderline_b12_deficiency"));
+  assert.ok(!ids(b12Border).includes("macrocytosis_no_anemia"));
+
+  // ۷. خطای نمونه و آگلوتینین سرد (MCHC > 36.5): rbc_indices_implausible مالک است
+  const coldAgg = run([row("Hb", "14", "g/dL"), row("Hct", "38", "%"), row("MCV", "102", "fL"), row("MCHC", "37", "g/dL")], { age: 40, sex: "M" });
+  assert.ok(ids(coldAgg).includes("rbc_indices_implausible"));
+  assert.ok(!ids(coldAgg).includes("macrocytosis_no_anemia"));
 });

@@ -272,7 +272,7 @@ export default function ResultView({ result, asText, asList }) {
              role="alert" چون این تنها رشتهٔ واقعاً فوریِ صفحه است و تا امروز
              یک <div> ساده بود که هیچ اسکرین‌ریدری اعلامش نمی‌کرد. */}
       {result.has_critical && (
-        <div className={todayBanner ? "crit-banner crit-banner--today" : "crit-banner"} role="alert">
+        <div className={todayBanner && todayBanner.tone !== "emergency" ? "crit-banner crit-banner--today" : "crit-banner"} role="alert">
           <p className="crit-title">{todayBanner ? asText(todayBanner.title) : "این نتیجه باید همین امروز دیده شود"}</p>
           <p className="crit-body">
             {todayBanner ? asText(todayBanner.body) : (
@@ -360,7 +360,9 @@ export default function ResultView({ result, asText, asList }) {
       {!result.labmat && result.interpretation && (
         <section className="card">
           <h2 className="block-title">تفسیر</h2>
-          <p className="text">{asText(result.interpretation)}</p>
+          {asText(result.interpretation).split(/\n{2,}/).map((para, i) => (
+            <p className="text" key={i}>{para}</p>
+          ))}
         </section>
       )}
       
@@ -392,7 +394,8 @@ export default function ResultView({ result, asText, asList }) {
       </>)}
 
       {/* ۲. تأیید اعداد */}
-      <ExtractedTests list={extracted} pages={result.pages} asText={asText} />
+      {/* نمای تخصصی ردیف‌های خوانده‌شده را خودش (tests[]) دارد؛ فهرستِ «اعداد خوانده‌شده» فقط در نمای ساده می‌آید. */}
+      {!expert && <ExtractedTests list={extracted} pages={result.pages} asText={asText} />}
       {hasEngine && <UnitConversions rows={eng?.unitConversions} asText={asText} asList={asList} />}
 
       {/* ۵. مقادیر محاسبه‌شده */}

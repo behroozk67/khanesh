@@ -14,6 +14,7 @@ import { alreadyMeasured, SUGGEST_TESTS } from "./patterns.js";
 import { normalizeFa } from "./coverage.js";
 import { TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
 import { levelGrade } from "./patterns_utils.js";
+import { engineClosingBlocks } from "./printed.js";
 import { faName } from "./names.js";
 import { SPECIMEN_FA, FLUID_TYPE_FA } from "./specimen.js";
 import { activeConditionIds, conditionFa } from "./conditions.js";
@@ -42,12 +43,9 @@ export const ENGINE_SYSTEM_PROMPT = `
 ۰. اگر findings چند مورد دارد، **همه** را بنویس. هیچ‌کدام را ادغام یا حذف نکن.
    بیمار ممکن است همزمان چند مشکل فوری داشته باشد — پنهان کردن یکی خطرناک است.
 ۰.۵. جمله‌ها را تکرار نکن. هر مطلب فقط یک بار.
-۰.۷. اگر must_sayِ یک یافته با «یافتهٔ تکمیلی» شروع می‌شود، همان عبارتِ آغازین («یافتهٔ تکمیلی … (جدا از دستور اورژانسی):»)
-   را عیناً، با شمارهٔ خودش، سرِ همان جمله نگه دار و بقیهٔ جمله را پشتِ آن بنویس. این یافته‌ها را با یافته‌های اصلی
-   قاطی نکن؛ بعد از یافته‌های اصلی و به همان ترتیبی که آمده‌اند بیاور.
 ۱. فیلد must_say را کامل منتقل کن — این تشخیص موتور است. اگر داخلش عدد یا فهرستی آمده
    (مثل eGFR، میانگین قند، درصد، مقدار یک تست، یا فهرستِ چند تست با عددشان)، همه را حتماً در تفسیر بیاور؛ حذف یا خلاصه‌اش نکن.
-۲. هیچ آزمایشی را که در must_say نیامده نام نبر و پیشنهاد نده.
+۲. هیچ آزمایشی را که در must_say نیامده نام نبر و پیشنهاد نده. فهرستِ abnormal_tests فقط مرجعِ عددهاست؛ آزمایشی را که در هیچ must_say نیست جداگانه شرح نده.
 ۳. تست‌های داخل forbid را هرگز نام نبر — از نظر بالینی برای این الگو غلط‌اند.
 ۴. urgency را عوض نکن.
 ۵. هیچ عددی را تغییر نده یا از خودت نساز.
@@ -107,8 +105,12 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
   // ⚠️ test را با نام فارسی می‌فرستیم، نه کلید خام. اگر finding هیچ suggestِ
   //    فارسی نداشته باشد (unmatched_abnormal)، مدل از همین‌جا نام می‌سازد؛
   //    کلید خام مثل HGB/BILI_T هرگز نباید به بیمار برسد.
+  // آزمایشی که یافتهٔ تکمیلی دربارهٔ آن حرف می‌زند در پاراگرافِ جدای «موارد دیگر» می‌آید (printed.js)؛ اگر در این فهرست بماند مدل
+  //   دوباره دربارهٔ آن می‌نویسد و بیمار همان پلاکت/MCV/لنفوسیت را دو بار می‌خواند (گزارشِ کاربر ۲۰۲۶-۱۰-۱۳).
+  const supText = (patterns.findings ?? []).filter((f) => f.supplementary).map((f) => `${f.headline ?? ""} ${f.must_say ?? ""}`).join(" ");
+  const inSupplementary = (g) => !!supText && (supText.includes(faName(g.test)) || (/^[A-Za-z0-9]{2,6}$/.test(g.test) && supText.includes(`(${g.test})`)));
   const abnormal = engineOut.graded
-    .filter((g) => g.abnormal)
+    .filter((g) => g.abnormal && !inSupplementary(g))
     .map((g) => ({
       test: faName(g.test),
       value: g.value,
@@ -146,7 +148,9 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
     //    می‌گذارد. دلیلش اندازه‌گیری شد (۲۰۲۶-۰۹-۲۳، برگهٔ پان‌سیتوپنی، M188): مدل ۴
     //    مورد از ۱۴ را انداخت، از جمله «بدون اتلاف وقت فوراً به اورژانس». این‌ها دقیقاً
     //    همان فیلدهایی بودند که هیچ توری بررسی نمی‌کرد. چیزی که مدل نبیند، نمی‌تواند بیندازد.
-    findings: patterns.findings.map((f) => ({
+    // یافتهٔ تکمیلی (supplementary) به مدل نمی‌رود: server.js آن را عیناً در پاراگرافِ جدای «موارد دیگر» می‌گذارد (printed.js)؛
+    // مدل نمی‌تواند برچسب/جداسازی را بیندازد یا با یافته‌های اصلی قاطی کند.
+    findings: patterns.findings.filter((f) => !f.supplementary).map((f) => ({
       headline: f.headline,
       must_say: f.must_say,
       urgency: f.urgency,
@@ -556,6 +560,12 @@ export function missingSuggestions(modelRecs, patterns, engineOut) {
  * (از جمله اورژانس‌ها مثل DKA/سپسیس) نباید دور ریخته شوند. این تابع
  * حداقلِ ایمن را مستقیم از خروجی موتور می‌سازد.
  */
+/** بلوک‌های پایانیِ موتور (موارد دیگر، مواردِ طبیعی) با فاصلهٔ پاراگراف، یا رشتهٔ خالی. */
+export function closingSuffix(engineOut, patterns) {
+  const blocks = engineClosingBlocks(engineOut, patterns);
+  return blocks ? "\n\n" + blocks : "";
+}
+
 export function buildEngineFallbackResult(engineOut, patterns) {
   const r = buildEngineFallbackResultAdult(engineOut, patterns);
   return isNeonate(engineOut?.age) ? neonatalResultVoice(r) : r;
@@ -564,7 +574,7 @@ export function buildEngineFallbackResult(engineOut, patterns) {
 function buildEngineFallbackResultAdult(engineOut, patterns) {
   const findings = patterns.findings;
   const headlines = findings.map((f) => f.headline).filter(Boolean);
-  const mustSay = findings.map((f) => f.must_say).filter(Boolean);
+  const mustSay = findings.filter((f) => !f.supplementary).map((f) => f.must_say).filter(Boolean);
   // N8: این متن مستقیم به بیمار می‌رسد (هیچ LLM‌ای در این مسیر نیست)،
   // پس کلید موتور باید از faName() رد شود وگرنه «HGB: 9.2» روی صفحه می‌نشیند.
   const abnormalText = engineOut.abnormal
@@ -577,9 +587,9 @@ function buildEngineFallbackResultAdult(engineOut, patterns) {
       : (engineOut.abnormal.length
           ? "چند مقدار خارج از محدوده طبیعی است."
           : "نتایج آزمایش شما بررسی شد."),
-    interpretation: mustSay.length
+    interpretation: (mustSay.length
       ? mustSay.join(" ")
-      : (abnormalText ? `مقادیر خارج از محدوده: ${abnormalText}.` : ""),
+      : (abnormalText ? `مقادیر خارج از محدوده: ${abnormalText}.` : "")) + (findings.length ? closingSuffix(engineOut, patterns) : ""),
     general_recommendations: recs.length ? recs : ["نتایج را با پزشک بررسی کنید."],
     has_critical: patterns.has_critical,
     disclaimer:

@@ -25,6 +25,7 @@ import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
 import { RULES_REVIEW1013 } from "./patterns_review1013.js";
 import { rankOf, applyQualGloss, applyPrintedRange } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { rowQuoteFa, absOnlyQuoteFa, printedOf } from "./printed.js";
 import { applyInpatientVoice } from "./inpatient.js";
 import { PRO_TEXT } from "./pro_text.js";
 import { applyNeonatalFloor, applyNeonatalVoice, applyChildVoice, isNeonate } from "./neonatal.js";
@@ -399,14 +400,17 @@ const compactBody = (f) => {
  * همان قالبِ خطِ «توضیح داده نشدند» (نام، عدد، طبیعی). بدونِ این، عددِ CK-MB ۴۵ از گزارش می‌افتاد و فقط اسمش می‌ماند.
  * @param named ردیف‌های engineOut.abnormal که این یافته نامشان را می‌برد و هیچ متنِ دیگری نگفته بود.
  */
-function compactText(f, named = []) {
+function compactText(f, named = [], e = null) {
   const body = compactBody(f);
   const esc = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const says = (a) => new RegExp(`(^|[^0-9.])${esc(a.value)}($|[^0-9])`).test(body);
+  // درصدِ چاپ‌شده در جمله هست ولی شمارشِ مطلق نیست ⇒ فقط شمارشِ مطلق اضافه می‌شود (نه تکرارِ درصد).
+  const said = (a) => e && printedOf(a.test, a, e).printed?.value != null && new RegExp(`٪?${esc(printedOf(a.test, a, e).printed.value)}($|[^0-9])`).test(body);
   const lacking = named.filter((a) => !says(a));
-  if (!lacking.length) return body;
-  const list = lacking.map((a) => `${faName(a.test)} ${a.value}${a.range ? ` (طبیعی ${a.range})` : ""}`).join("، ");
-  return `${body.replace(/[.؟!]+$/, "")} — مقدار روی برگه: ${list}.`;
+  const causes = typeof f.causes_brief === "string" && f.causes_brief ? ` ${f.causes_brief}` : "";   // P103: علتِ کوتاهِ تأییدشده
+  if (!lacking.length) return body + causes;
+  const list = lacking.map((a) => (e ? ((said(a) && absOnlyQuoteFa(e, a)) || rowQuoteFa(e, a)) : `${faName(a.test)} ${a.value}${a.range ? ` (طبیعی ${a.range})` : ""}`)).join("، ");
+  return `${body.replace(/[.؟!]+$/, "")} — ${list}.${causes}`;
 }
 
 // ═══ P87 تصمیمِ ۱۱ (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر): قند/LDH/پروتئینِ بی‌نامِ نمونه کنارِ ردیفِ «Fluid Type» ═══
@@ -590,7 +594,7 @@ export function runPatterns(engineOut) {
         if (named.length) rescued.set(f, named);
       }
       if (rescued.size > 0) {
-        const extra = [...rescued.keys()].map((f) => `${f.headline ?? ""} ${compactText(f, rescued.get(f))}`).join(" ");
+        const extra = [...rescued.keys()].map((f) => `${f.headline ?? ""} ${compactText(f, rescued.get(f), engineOut)}`).join(" ");
         orphans = orphans.filter((a) => !textNamesTest(extra, a.test));
       }
     }
@@ -608,7 +612,7 @@ export function runPatterns(engineOut) {
       const head = orphans.slice(0, SHOWN);
       const rest = orphans.length - head.length;
       const list = head
-        .map((a) => `${faName(a.test)} ${a.value}${a.range ? ` (طبیعی ${a.range})` : ""}`)
+        .map((a) => rowQuoteFa(engineOut, a))
         .join("، ");
       const tail = rest > 0 ? ` و ${rest} مورد دیگر` : "";
 
@@ -742,10 +746,11 @@ export function runPatterns(engineOut) {
   // یافتهٔ تکمیلی: فقط جملهٔ اولِ خودِ قاعده، با برچسب و شمارش. action/warnings/suggest/protected نمی‌آیند —
   // فوریت و دستورِ نهایی و ترتیبِ اورژانس دست‌نخورده می‌ماند (این‌ها فوریتِ پایین‌تر از blocker دارند و
   // pickFinalAction/overall_urgency را عوض نمی‌کنند). forbid و key_number می‌مانند.
-  supplementary.forEach((f, i) => {
+  supplementary.forEach((f) => {
     shown.push({
       ...f,
-      must_say: `یافتهٔ تکمیلی ${i + 1} از ${supplementary.length} (جدا از دستور اورژانسی): ${compactText(f, rescued.get(f))}`,
+      // برچسب و شماره‌گذاری نیست: server.js همهٔ تکمیلی‌ها را در یک پاراگرافِ «موارد دیگر» می‌آورد (printed.js، supplementaryParagraph).
+      must_say: compactText(f, rescued.get(f), engineOut),
       action: "",
       warnings: [],
       suggest: [],

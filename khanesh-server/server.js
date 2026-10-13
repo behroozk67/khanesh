@@ -33,12 +33,13 @@ import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlacehold
 import { bareUrineShape } from "./rules/specimen.js";
 import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { onInpatient, inpatientBanner } from "./rules/inpatient.js";
+import { childBanner } from "./rules/neonatal.js";
 import { buildExpertView } from "./rules/expert.js";
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
 import { healthScore } from "./rules/score.js";
-import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, buildEngineRecommendations, condenseRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, closingSuffix, buildEngineRecommendations, condenseRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines } from "./rules/prompt.js";
 import { glossQualText } from "./rules/patterns_utils.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
@@ -230,7 +231,7 @@ function engineDebug(engineOut, patternOut) {
     supplementary: patternOut.supplementary_ids ?? [],
     // ⚠️ بنرِ بالای صفحه برای نوزادِ «فقط-به‌خاطرِ-کف»: متنش از rules/neonatal.js می‌آید، نه از فرانت (N12: متنِ بالینیِ فرانت‌اند
     //    هیچ تورِ ایمنی ندارد). null ⇒ فرانت بنرِ عمومی را نشان می‌دهد. has_critical دست نمی‌خورد.
-    critical_banner: inpatientBanner(engineOut, patternOut),   // بستری (۲۰۲۶-۱۰-۰۸): بنرِ «اورژانس/۱۱۵»ِ فرانت برای بیمارِ بیمارستانی غلط است
+    critical_banner: inpatientBanner(engineOut, patternOut) ?? childBanner(engineOut, patternOut),   // بستری (۲۰۲۶-۱۰-۰۸): بنرِ «اورژانس/۱۱۵»ِ فرانت برای بیمارِ بیمارستانی غلط است
     // specs/011 (FR-016/FR-019): آنچه موتور *واقعاً* به کار برد — از engineOut، نه از درخواست. بیماریِ غیرفعال اینجا نمی‌آید.
     context: engineContext(engineOut, patternOut),
     indices: engineOut.indices,
@@ -1635,17 +1636,6 @@ const analyzeHandler = async (req, res) => {
       tr.net("recommendations:engine", modelRecs, parsed.general_recommendations, { model_list_ignored: modelRecs != null });
       delete parsed.recommendations;
 
-      // ── forbid روی متنِ مدل (N9، بازبینی ۱۰-۱۳ یافتهٔ ۲۲) ── پیش از تورهای افزودن، تا اگر جملهٔ آلوده بخشی از must_say بود،
-      //    همان بخش با متنِ موتور برگردد. جزئیات: replaceForbiddenSentences در rules/coverage.js.
-      for (const field of ["summary", "interpretation"]) {
-        if (typeof parsed[field] !== "string") continue;
-        const fb = replaceForbiddenSentences(parsed[field], patternOut.findings);
-        if (!fb.hits.length) continue;
-        console.warn(`⚠️ مدل ${fb.hits.length} جمله با واژهٔ ممنوعِ یافته نوشت — با متنِ موتور جایگزین شد: ` + fb.hits.map((h) => `${h.rule_id}:${h.word}`).join(" | "));
-        tr.net(`forbid:${field}`, parsed[field], fb.text, { hits: fb.hits });
-        parsed[field] = fb.text;
-      }
-
       // ⚠️ مدل ممکن است یک اورژانس را ادغام یا حذف کند — حتی وقتی فقط یک اورژانس هست.
       //
       // 🔴 باگ واقعی (با فراخوانیِ زندهٔ gpt-4o-mini تأیید شد): قبلاً حضور را با
@@ -1673,7 +1663,29 @@ const analyzeHandler = async (req, res) => {
       // ⚠️ ترتیب عمدی است: این تور *پیش از* تضمینِ عددِ کلیدی اجرا می‌شود. اگر
       //    جمله‌های افتاده اینجا برگردند، عدد هم با آن‌ها برمی‌گردد و تضمینِ بعدی
       //    دیگر فعال نمی‌شود — پس یک جمله دو بار اضافه نمی‌شود.
-      const numbered = patternOut.findings.filter(
+      // ── forbid روی متنِ مدل (N9، بازبینی ۱۰-۱۳ یافتهٔ ۲۲) ── پیش از تورهای افزودن، تا اگر جملهٔ آلوده بخشی از must_say بود،
+      //    همان بخش با متنِ موتور برگردد. جزئیات: replaceForbiddenSentences در rules/coverage.js.
+      for (const field of ["summary", "interpretation"]) {
+        if (typeof parsed[field] !== "string") continue;
+        const fb = replaceForbiddenSentences(parsed[field], patternOut.findings);
+        if (!fb.hits.length) continue;
+        console.warn(`⚠️ مدل ${fb.hits.length} جمله با واژهٔ ممنوعِ یافته نوشت — با متنِ موتور جایگزین شد: ` + fb.hits.map((h) => `${h.rule_id}:${h.word}`).join(" | "));
+        tr.net(`forbid:${field}`, parsed[field], fb.text, { hits: fb.hits });
+        parsed[field] = fb.text;
+      }
+
+      // بلوک‌های پایانیِ موتور: «موارد دیگر» (یافته‌های تکمیلی) و «مواردِ در محدودهٔ طبیعی». مدل آن‌ها را نمی‌نویسد (پرامپت تکمیلی‌ها را
+      // نمی‌گیرد)، پس نمی‌شود انداخت؛ و *پیش از* تورِ پایین می‌آیند تا missingFindingText آن‌ها را «موجود» ببیند.
+      if (patternOut.findings.length) {
+        const closing = closingSuffix(engineOut, patternOut);
+        if (closing) {
+          const beforeClosing = parsed.interpretation;
+          parsed.interpretation = (parsed.interpretation || "") + closing;
+          tr.net("closingBlocks:append", beforeClosing, parsed.interpretation, { supplementary: patternOut.supplementary_ids ?? [] });
+        }
+      }
+      
+const numbered = patternOut.findings.filter(
         (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary
       );
       if (numbered.length) {

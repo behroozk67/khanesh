@@ -20,7 +20,8 @@ import { runEngine, parseTitre } from "./adapter.js";
 import { runPatterns, RULES, SUGGEST_TESTS } from "./patterns.js";
 import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT,
          tidyRecommendations, phraseSuggestion, buildNormalResult,
-         missingSuggestions, unexplainedNoRef } from "./prompt.js";
+         missingSuggestions, unexplainedNoRef, buildEnginePrompt } from "./prompt.js";
+import { supplementaryParagraph, normalRangeParagraph } from "./printed.js";
 import { extractMedlineTerms, matchesMedlineKey, TEST_MEDLINE_MAP, formatMedlineContext } from "./medline.js";
 import { missingSentences, missingFindingText, normalizeFa, splitSentences, distinctiveTokens } from "./coverage.js";
 import { runPatterns as _rp, RULE_SOURCES } from "./patterns.js";
@@ -1828,7 +1829,8 @@ test("پوشش/قلبی: با تروپونینِ مثبت، CK-MB زیرِ او�
   const ck = p.findings[1];
   assert.equal(ck.supplementary, true);
   assert.equal(ck.urgency, "this_week", "فوریتِ خودِ یافته دست‌نخورده");
-  assert.ok(ck.must_say.startsWith("یافتهٔ تکمیلی 1 از 1 (جدا از دستور اورژانسی): "), ck.must_say);
+  assert.ok(!ck.must_say.includes("یافتهٔ تکمیلی"), "برچسبِ شماره‌دار حذف شد؛ پاراگرافِ «موارد دیگر» جایش را گرفته: " + ck.must_say);
+  assert.ok(supplementaryParagraph(p).startsWith("موارد دیگرِ این برگه (جدا از دستور اورژانسیِ بالا): "), supplementaryParagraph(p));
   assert.ok(ck.must_say.includes("CK-MB 45 (طبیعی 0–25)"), "عدد از گزارش نمی‌افتد: " + ck.must_say);
   assert.equal(ck.action, "", "دستورِ زمان‌دارِ دوم نمی‌آید (N20)");
   assert.deepEqual(p.suppressed_ids, ["ckmb_high"]);
@@ -6050,7 +6052,7 @@ test("M103: قواعدِ تکراریِ فصل ۲۵ هیچ یافتهٔ تازه
     [[["TSH", "0.05"], ["FT4", "3.0", "ng/dL"]], ["thyroid_hyper_overt[this_week]"]],
     [[["TSH", "0.05"], ["FT4", "1.2", "ng/dL"], ["FT3", "6.0", "pg/mL"]], ["thyroid_t3_toxicosis[this_week]"]],
     [[["Na", "128"], ["Glucose", "400", "mg/dL"]],
-      ["severe_hyperglycemia_uncertain_ketosis[soon]", "diabetes_range[this_week]"]],
+      ["diabetes_range[soon]", "severe_hyperglycemia_uncertain_ketosis[soon]"]],   // 2026-10-13 عمداً: diabetes_range فوریتِ صاحبِ قند (soon) را می‌گیرد، نه «این هفته» — دو برچسبِ رقیب در نمای تخصصی (N20)
     [[["Serum Osmolality", "310"], ["Na", "140"], ["Glucose", "90", "mg/dL"], ["Urea", "30", "mg/dL"]],
       ["osmolal_gap_high[this_week]"]],
   ];
@@ -7629,7 +7631,7 @@ test("M158: فولاتِ بالاتر از محدوده در ماکروسیتی�
   assert.ok(m, fired(p).join(","));
   assert.doesNotMatch(m.must_say, /فولاتِ (شما|کودک) روی همین برگه طبیعی است/);
   // لایهٔ ۴ (P79): کودکِ < ۱۲ سال صدای «کودک» می‌گیرد (applyChildVoice) — عمداً عوض شد؛ معنا همان است.
-  assert.match(m.must_say, /فولاتِ کودک روی همین برگه بالاتر از محدودهٔ طبیعی است/);
+  assert.match(m.must_say, /فولاتِ فرزندتان روی همین برگه بالاتر از محدودهٔ طبیعی است/);
 });
 
 test("M159: فولاتِ بی‌واحد که واحدش از محدودهٔ مرجع تعیین شد — واحد کنارِ عددِ بیمار «چاپ‌شده» نوشته نمی‌شود (بازبینیِ کد ۴، N5)", () => {
@@ -9461,7 +9463,7 @@ test("M184h: متنِ WHOِ فریتین در کودک عددِ آستانهٔ �
   const boy = findPat(uuuRun(tests("40"), { age: 10, sex: "M" }), "iron_deficiency_masked_by_inflammation");
   assert.ok(boy);
   assert.doesNotMatch(boy.must_say, /آستانهٔ معمولِ 30/);
-  assert.match(boy.must_say, /محدودهٔ مرجع برای سنِ کودک/);   // P79: صدای کودک (عمداً عوض شد)
+  assert.match(boy.must_say, /محدودهٔ مرجع برای سنِ فرزندتان/);   // P79: صدای کودک (عمداً عوض شد)
   const tod = findPat(uuuRun(tests("20"), { age: 3, sex: "M" }), "iron_deficiency_masked_by_inflammation");
   assert.ok(tod);
   assert.match(tod.must_say, /فریتین زیر 30/);
@@ -11205,9 +11207,11 @@ test("M241: WBC 80 — لنفوسیت/ائوزینوفیل/مونوسیتِ با
   const sup = p.findings.filter((f) => f.supplementary);
   // ⚠️ عمداً عوض شد (P73): Hbِ ۱۲ (پایین برای مرد) بدونِ MCV حالا anemia_hb_alone دارد و آن هم زیرِ اورژانس «تکمیلی» می‌شود.
   assert.deepEqual(sup.map((f) => f.rule_id), ["cll_suspicion_nccn", "eosinophilia", "neutrophilia", "thrombocytosis", "monocytosis", "anemia_hb_alone"]);   // ۲۰۲۶-۱۰-۰۳ (بازه‌های فرانت): PLT ۴۵۰ > سقفِ ۴۰۰ ⇒ thrombocytosis هم تکمیلی
-  sup.forEach((f, i) => assert.ok(
-    f.must_say.startsWith(`یافتهٔ تکمیلی ${i + 1} از 6 (جدا از دستور اورژانسی): `), `برچسب/شمارش: ${f.must_say}`));
-  const text = s9Text(p);
+  sup.forEach((f) => assert.ok(!f.must_say.includes("یافتهٔ تکمیلی"), `برچسبِ قدیمی نباید در must_say بماند: ${f.must_say}`));
+  const para = supplementaryParagraph(p);
+  assert.ok(para.startsWith("موارد دیگرِ این برگه"), para);
+  for (const f of sup) assert.ok(para.includes(f.must_say.trim().replace(/[.؟!]$/, "")), `پاراگراف جمله‌ی ${f.rule_id} را ندارد`);
+  const text = s9Text(p) + " " + para;
   for (const n of ["6400", "4800", "3200", "56000"]) assert.ok(text.includes(n), `عدد ${n} در متنِ نمایشی نیست`);
   const un = s9Uncovered(p);
   for (const k of ["LYMPH_ABS", "EOS_ABS", "MONO_ABS", "NEUT_ABS"]) assert.ok(!un.includes(k), `${k} هنوز «بی‌توضیح» است: ${un}`);
@@ -11332,21 +11336,19 @@ test("M241h: یافتهٔ technical یا no_supplementary هرگز تکمیلی 
   assert.equal(impl.build(e).no_supplementary, true);
 });
 
-// ---------- M242: پرامپت برچسبِ «یافتهٔ تکمیلی» را نگه می‌دارد (P60، اجرای زندهٔ ۲۰۲۶-۰۹-۲۹) ----------
-// 🔴 اندازه‌گیری‌شده با مدلِ واقعی روی پنل WBC 80: هر سه عددِ تکمیلی (6400، 4800، 3200) در متن آمد ولی برچسبِ «(جدا از دستور
-//    اورژانسی)» در یک پاراگرافِ عادی حل شد؛ تورِ جمله‌به‌جمله برچسب را نمی‌سنجد چون جملهٔ مستقل نیست. قاعدهٔ ۰.۷ پرامپت فقط
-//    قالب‌بندی است (N9: پرامپت قضاوت نمی‌کند). این تست فقط دو چیز را قفل می‌کند: قاعده هست، و عبارتِ آغازینِ نقل‌شده در آن
-//    همان است که موتور واقعاً می‌سازد — وگرنه اگر برچسب عوض شود، پرامپت بی‌صدا به چیزی اشاره می‌کند که دیگر وجود ندارد.
-//    اینکه مدلِ واقعی رعایت می‌کند را فقط اجرای زنده می‌سنجد.
-test("M242: قاعدهٔ ۰.۷ پرامپت هست و به همان پیشوندی اشاره می‌کند که موتور برای یافتهٔ تکمیلی می‌سازد", () => {
-  const rule = ENGINE_SYSTEM_PROMPT.split("\n").join(" ").match(/۰\.۷\..*?(?=۱\. فیلد)/s)?.[0] ?? "";
-  assert.ok(rule.includes("یافتهٔ تکمیلی"), "قاعدهٔ ۰.۷ در پرامپت نیست");
-  assert.ok(rule.includes("جدا از دستور اورژانسی"), rule);
-  const sup = M241_WBC80().p.findings.find((f) => f.supplementary);
-  assert.ok(sup, "پیش‌شرط: یافتهٔ تکمیلی");
-  // عبارتِ آغازینِ واقعی: «یافتهٔ تکمیلی {i} از {n} (جدا از دستور اورژانسی):» — دو تکهٔ ثابتش باید در پرامپت هم باشند
-  assert.match(sup.must_say, /^یافتهٔ تکمیلی \d+ از \d+ \(جدا از دستور اورژانسی\): /);
-  for (const part of ["یافتهٔ تکمیلی", "جدا از دستور اورژانسی"]) assert.ok(sup.must_say.includes(part) && rule.includes(part), part);
+// ---------- M242: یافتهٔ تکمیلی به مدل نمی‌رسد؛ موتور آن را در پاراگرافِ جدا می‌گذارد (۲۰۲۶-۱۰-۱۳) ----------
+// پیش‌تر قاعدهٔ ۰.۷ پرامپت از مدل می‌خواست برچسبِ «یافتهٔ تکمیلی i از n» را نگه دارد و اجرای زنده نشان داد گاهی می‌اندازد. حالا
+// مدل اصلاً آن‌ها را نمی‌بیند و server.js پاراگراف را عیناً می‌چسباند — چیزی که مدل نبیند نمی‌تواند بیندازد (N7).
+test("M242: تکمیلی‌ها در payload مدل نیستند، قاعدهٔ ۰.۷ پرامپت نیست، و پاراگرافِ «موارد دیگر» همهٔ آن‌ها را دارد", () => {
+  assert.ok(!ENGINE_SYSTEM_PROMPT.includes("یافتهٔ تکمیلی"), "پرامپت هنوز به برچسبِ قدیمی اشاره می‌کند");
+  const { e, p } = M241_WBC80();
+  const sup = p.findings.filter((f) => f.supplementary);
+  assert.ok(sup.length, "پیش‌شرط: یافتهٔ تکمیلی");
+  const payload = JSON.parse(buildEnginePrompt(e, p).content);
+  assert.equal(payload.findings.length, p.findings.length - sup.length);
+  assert.ok(!payload.findings.some((f) => sup.some((s) => s.must_say === f.must_say)));
+  const para = supplementaryParagraph(p);
+  for (const f of sup) assert.ok(para.includes(f.must_say.trim().replace(/[.؟!]$/, "")), f.rule_id);
 });
 
 test("M243: MCVِ ۹۰ در نوزادِ ۲ ماهه طبیعی است (جدولِ تأییدشدهٔ ۲۰۲۶-۰۹-۳۰، P57-۱۰)؛ MCVِ ۹۰ در یک‌روزه هنوز طبق P57 «پایین» است", () => {
@@ -11901,7 +11903,16 @@ test("M255: dic_isth_score فقط روی ۵۰ ≤ PLT < ۱۰۰ + D-dimer > ۴۰�
 // ---------- M256/M257: freeze — هش‌ها روی درختِ e285030 (پیش از specs/010) اندازه‌گیری شده‌اند ----------
 // ⚠️ این دو تست عمداً روی هر دو درخت سبزند (به‌جز بازوی ≥ ۱۰۰۰ در M256): کارشان اثباتِ «دست‌نخورده» است (SC-002، FR-007).
 const m010Hash = (x) => crypto.createHash("sha256").update(JSON.stringify(x)).digest("hex").slice(0, 16);
-const m010P = (sex, age, rows) => runPatterns(runEngine({ tests: rows, patient: { sex, age } }));
+// 2026-10-13: «یافتهٔ تکمیلی i از n (جدا از دستور اورژانسی):» دیگر در must_say نیست (پاراگرافِ «موارد دیگر» در printed.js). فریز را همان‌طور که بود نگه می‌داریم
+//   با بازسازیِ برچسب؛ اثباتِ اینکه تنها تفاوت همین بود: هشِ dic_emerg با برچسبِ بازسازی‌شده برابرِ هشِ پیشین شد.
+const m010P = (sex, age, rows) => {
+  const p = runPatterns(runEngine({ tests: rows, patient: { sex, age } }));
+  const sup = p.findings.filter((f) => f.supplementary);
+  // P103 (۲۰۲۶-۱۰-۱۳): causes_brief فیلدِ تازه است و در شکلِ تکمیلی به انتهای متن می‌چسبد؛ فریز بدونِ آن سنجیده می‌شود.
+  for (const f of p.findings) if (f.causes_brief) { if (f.supplementary) f.must_say = f.must_say.replace(` ${f.causes_brief}`, ""); delete f.causes_brief; }
+  sup.forEach((f, i) => { f.must_say = `یافتهٔ تکمیلی ${i + 1} از ${sup.length} (جدا از دستور اورژانسی): ${f.must_say}`; });
+  return p;
+};
 const M010_FREEZE = {
   plt_500: ["M", 40, [...M010_BASE, m010T("PLT", 500, "10^3/uL")], "73c789652417bb1e"],
   plt_999: ["M", 40, [...M010_BASE, m010T("PLT", 999, "10^3/uL")], "80b649f8fc4b81ef"],

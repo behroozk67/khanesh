@@ -560,13 +560,14 @@ test("L19 — CK-MB: «CH MB II»/«CPK-MB(CHEMICAL)» شناخته؛ بی‌و�
 test("L20 — کودکِ زیرِ ۱۲: «اگر تب دارید/کردید» ⇒ «اگر کودک تب دارد/کرد»؛ شرطِ غیرعلامتی دست نمی‌خورد", async () => {
   const { childVoice } = await import("./neonatal.js");
   const f = find(run([row("WBC", "1.9")], { sex: "F", age: 9 }).p, "leukopenia");
-  assert.match(f.action, /اگر کودک تب دارد، فوراً به اورژانس بروید/);
+  // P103 (۲۰۲۶-۱۰-۱۳): WBC < 2 در کودکِ زیر ۱۲ ⇒ لحنِ والد («فرزندتان») و تب ⇒ مستقیم اورژانس (تصمیمِ کاربر).
+  assert.match(f.action, /فرزندتان را همین امروز به اورژانس ببرید، حتی اگر تب ندارد/);
   assert.ok(!/تب دارید|تب کردید/.test(JSON.stringify([f.action, f.warnings])), JSON.stringify([f.action, f.warnings]));
   assert.equal(childVoice("اگر تب یا درد پهلو دارید، زودتر مراجعه کنید."), "اگر کودک تب یا درد پهلو دارد، زودتر مراجعه کنید.");
   assert.equal(childVoice("اگر تکرار شد یا علامت دارید، بگویید."), "اگر تکرار شد یا علامت دارید، بگویید.");
   // بزرگسال دست نمی‌خورد
   const adult = find(run([row("WBC", "1.9")], { sex: "F", age: 40 }).p, "leukopenia");
-  assert.match(adult.action, /اگر تب دارید/);
+  assert.equal(adult.action, "بدون اتلاف وقت فوراً به اورژانس مراجعه کنید.");
 });
 
 test("L21 — یک جملهٔ «تکرارِ CBC»، دقیق‌ترینش؛ بقیهٔ همان action می‌ماند", async () => {

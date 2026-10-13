@@ -25,7 +25,6 @@ const DERIVED_FA = {
   unit_conversion_and_albumin_correction: "تبدیلِ واحد و اصلاح با آلبومین",
   unit_conversion_and_glucose_correction: "تبدیلِ واحد و اصلاح برای قند",
 };
-const BAND_FA = { high: "مطلوب", mid: "متوسط", low: "پایین" };
 
 function Rows({ rows, asText, caption }) {
   const r = list(rows).filter((t) => obj(t) && typeof t.name === "string" && t.name.trim());
@@ -155,33 +154,6 @@ function Finding({ f, asText, open }) {
   );
 }
 
-function Score({ score, asText }) {
-  const s = obj(score);
-  if (!s) return null;
-  const systems = list(s.systems).filter((y) => obj(y) && y.score != null);
-  return (
-    <section className="card xv-block">
-      <h3 className="block-title">امتیازِ این برگه — ریزِ دستگاه‌ها</h3>
-      <p className="xv-muted">
-        {s.value != null ? `کل: ${num(s.value)}` : "عددِ کل داده نشد"}
-        {s.band && BAND_FA[s.band] ? ` · ${BAND_FA[s.band]}` : ""} — فقط‌خواندنی؛ همان عددِ نمای ساده.
-      </p>
-      {systems.length > 0 && (
-        <ul className="xv-systems">
-          {systems.map((y, i) => (
-            <li key={i}>
-              <strong>{asText(y.fa)}</strong> {num(y.score)}
-              {y.capped && <span className="xv-note"> (سقفِ {num(y.cap)})</span>}
-              {list(y.keys).length > 0 && <span className="xv-note"> · {list(y.keys).map(asText).join("، ")}</span>}
-              {y.worst && <span className="xv-note"> · پایین‌ترین: {asText(y.worst)}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 export default function ExpertView({ eng, asText }) {
   const x = obj(eng?.expert);
 
@@ -207,7 +179,7 @@ export default function ExpertView({ eng, asText }) {
   return (
     <div className="xv">
       <p className="xv-muted">
-        نمای تخصصی برای کادرِ درمان: همان حکمِ موتور، با عددها، بازه‌ها و منبعِ هر یافته. فوریت و امتیاز با نمای ساده یکی است.
+        نمای تخصصی برای کادرِ درمان: همان حکمِ موتور، با عددها، بازه‌ها و منبعِ هر یافته. فوریت با نمای ساده یکی است.
       </p>
 
       {list(x.recommendations).length > 0 && (
@@ -267,7 +239,6 @@ export default function ExpertView({ eng, asText }) {
         </section>
       )}
 
-      <Score score={x.score} asText={asText} />
     </div>
   );
 }
