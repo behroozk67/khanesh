@@ -300,7 +300,7 @@ export const RULES_MALIGNANCY = [
           "کراتینین", "اوره", "آزمایش کامل ادرار", "اسید اوریک", "پتاسیم",
         ],
         warnings: [`اگر ${ped ? "کودک" : "بیمار"} تب دارد، همان ابتدا به تیمِ اورژانس بگویید؛ کشتِ خون و CRP را پزشک بر همین اساس درخواست می‌کند.`],
-        ...(w.refSource === "RCPCH 2016" ? { sources: ["RCPCH"] } : {}),
+        ...(w.refSource === "RCPCH 2016" ? { sources: ["RCPCH"] } : /^HSL \/ Royal Free/.test(w.refSource ?? "") ? { sources: ["HSL_RFH"] } : {}),
       };
     },
   },
@@ -351,7 +351,7 @@ export const RULES_MALIGNANCY = [
         suggest: [...(ne ? [] : ["شمارش افتراقی (عدد نوتروفیل)"]), "CRP", "ESR"],
         warnings: [fever],
         brief_warnings: [fever],
-        ...(w.refSource === "RCPCH 2016" ? { sources: ["RCPCH"] } : {}),
+        ...(w.refSource === "RCPCH 2016" ? { sources: ["RCPCH"] } : /^HSL \/ Royal Free/.test(w.refSource ?? "") ? { sources: ["HSL_RFH"] } : {}),
       };
     },
   },

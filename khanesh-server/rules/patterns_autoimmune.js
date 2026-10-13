@@ -480,7 +480,10 @@ function psaBuild(e) {
     parts.push(`درصدِ Free PSA حدود ${pct.toFixed(1)}٪ است؛ تفسیرِ این نسبت فقط وقتی PSA کل بین ۴ تا ۱۰ ng/mL باشد (با واحدِ چاپی) معتبر است، پس درباره‌اش حکمی نمی‌دهیم.`);
   }
   const above = tot.state === "above";
-  const urgency = urgencyOf(above || (band && band.high));
+  // M19/M29 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): PSA کلِ ≥ ۲۰ ng/mL بی محدودهٔ چاپی «نوبتِ عادی» بود ⇒ this_week. فقط با واحدِ چاپی (N3).
+  const psaVeryHigh = !above && totV != null && totV >= 20 && /^(ng\/ml|µg\/l|μg\/l|ug\/l)$/i.test(String(tot.unit ?? "").replace(/\s/g, ""));
+  if (psaVeryHigh) parts.push(`PSA کلِ شما ${totV} ng/mL است؛ عددِ ۲۰ و بالاتر، بی‌توجه به محدودهٔ آزمایشگاه، نیاز دارد که پزشک (معمولاً اورولوژیست) آن را زود ببیند. این تشخیصِ سرطان نیست.`);
+  const urgency = urgencyOf(above || psaVeryHigh || (band && band.high));
   parts.push(
     "PSA نشانگرِ بافتِ پروستات است نه فقط سرطان: بزرگیِ خوش‌خیم، التهاب و عفونتِ پروستات، سوندگذاری، انزالِ اخیر و دوچرخه‌سواری هم آن را بالا می‌برند. " +
     "اگر فیناستراید یا دوتاستراید مصرف می‌کنید، پس از حدود ۶ ماه PSA را تا حدود ۵۰٪ کمتر نشان می‌دهد و پزشک باید آن را در تفسیر لحاظ کند.");

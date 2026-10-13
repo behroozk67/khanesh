@@ -84,4 +84,32 @@ const pregnancyHellp = {
   },
 };
 
-export const RULES_REVIEW1013 = [neonatalBilirubinHourChart, pregnancyHellp];
+// ── ۳) M11 (P106): عددی که برای یک جنس طبیعی و برای دیگری غیرطبیعی است، وقتی جنسیت روی برگه نیست ──
+//   همان شکلِ hgb_sex_unknown (patterns_hematology.js)، برای بقیهٔ آزمایش‌ها؛ یک یافته برای همه. routine — عدد زیرِ هیچ ردیفی بحرانی نیست
+//   (عددِ بیرون از هر دو بازه همان‌طور سنجیده می‌شود و قاعدهٔ خودش را دارد).
+const SEX_FA = { F: "زن", M: "مرد" };
+const sexUnknownValue = {
+  id: "sex_unknown_value",
+  match: (e) => Object.values(e.ungraded ?? {}).some((u) => u?.reason === "sex_unknown_range"),
+  build: (e) => {
+    const rows = Object.entries(e.ungraded).filter(([, u]) => u?.reason === "sex_unknown_range");
+    const lines = rows.map(([k, u]) => {
+      const other = u.normalFor === "F" ? "M" : "F";
+      return `${faName(k)} ${u.value} (زن ${u.female}، مرد ${u.male}): برای ${SEX_FA[u.normalFor]} طبیعی ولی برای ${SEX_FA[other]} ${u.side === "low" ? "پایین" : "بالا"} است`;
+    });
+    return {
+      pattern: "sex_unknown_value",
+      urgency: "routine",
+      headline: "جنسیت روی برگه نیست و تفسیرِ چند آزمایش به آن بستگی دارد",
+      must_say:
+        "جنسیت روی این برگه مشخص نیست و حدِ طبیعیِ این آزمایش‌ها برای زن و مرد فرق دارد: " + lines.join("؛ ") + ". " +
+        "پس از روی همین برگه نمی‌شود گفت طبیعی‌اند یا نه.",
+      action: "در نوبت عادی با پزشک مطرح کنید؛ اگر جنسیت را در فرم وارد کنید، تفسیر دقیق‌تر می‌شود.",
+      suggest: [],
+      warnings: [],
+      explains: rows.map(([k]) => k),
+    };
+  },
+};
+
+export const RULES_REVIEW1013 = [neonatalBilirubinHourChart, pregnancyHellp, sexUnknownValue];

@@ -8832,7 +8832,8 @@ test("M179c: مرزهای بحرانِ هماتوکریت — Hb حاکم است
   assert.notEqual(uuuRun([["Hct", "0.18"]], F30).overall_urgency, "emergency");
   const g4 = uuuRun([["Hb", "21", null, "g/dL"], ["Hct", "63", null, "%"], ["RBC", "6.8", null, "10*6/uL"], ["MCV", "92", null, "fL"]], M40);
   assert.ok(fired(g4).includes("erythrocytosis"));
-  assert.equal(g4.overall_urgency, "this_week");
+  // ⚠️ عمداً عوض شد (P106، M6، تصمیمِ کاربر): هماتوکریتِ ≥ ۶۰ یا Hb ≥ ۲۰ ⇒ soon (پیش‌تر this_week).
+  assert.equal(g4.overall_urgency, "soon");
   // ⚠️ عمداً عوض شد (P73): HCT ۶۲ تنها دیگر «توضیحِ آماده نداریم» نمی‌گیرد؛ hct_rbc_high دارد.
   assert.deepEqual(fired(hctOnly("62", M40)), ["hct_rbc_high"]);
 });
@@ -10879,7 +10880,8 @@ test("M230: job fff90f58 — «لکوسیتوز + سیتوپنیِ شدید» ص
   assert.ok(f, `یافتهٔ لکوسیتوز + سیتوپنی نیامد: ${ids}`);
   assert.equal(f.urgency, "emergency");
   assert.match(f.must_say, /گلبول سفید 36\.6/);
-  assert.match(f.must_say, /3\.1 برابرِ سقف/, "بزرگیِ عدد نسبت به سقفِ بازهٔ همین سن");
+  // ⚠️ عمداً عوض شد (P106، M9): بازهٔ WBCِ ۶ ماه–۳ سال حالا ۶–۱۸ (HSL/Royal Free)، نه ۵–۱۲ ⇒ ۳۶٫۶ حدودِ ۲٫۰ برابرِ سقف.
+  assert.match(f.must_say, /2\.0 برابرِ سقف/, "بزرگیِ عدد نسبت به سقفِ بازهٔ همین سن");
   // P58 پرسش ۲ (بازبین ۲۰۲۶-۰۹-۲۹): جملهٔ خودِ بازبین، عیناً
   assert.ok(f.must_say.includes("تغییرات همزمان در رده‌های گلبول‌های سفید و سایر سلول‌های خونی مشاهده شده که نیازمند ارزیابی تکمیلی و فوری توسط متخصص خون (هماتولوژیست) جهت بررسی دقیق عملکرد مغز استخوان است."), f.must_say);
   assert.match(f.must_say, /نوتروفیل در دست نیست/, "غیبتِ نوتروفیل باید گفته شود (E2-ج)");
@@ -10890,7 +10892,7 @@ test("M230: job fff90f58 — «لکوسیتوز + سیتوپنیِ شدید» ص
   assert.ok(f.suggest.includes("گسترش خون محیطی با شمارش افتراقی دستی و بررسی بلاست"), String(f.suggest));
   for (const s of ["شمارش رتیکولوسیت", "بیلی‌روبین مستقیم و غیرمستقیم", "هاپتوگلوبین", "کومبس مستقیم", "LDH",
                    "کراتینین", "اوره", "آزمایش کامل ادرار", "اسید اوریک", "پتاسیم"]) assert.ok(f.suggest.includes(s), s);
-  assert.ok(f.sources?.includes("RCPCH"), "بازهٔ WBC از RCPCH است");
+  assert.ok(f.sources?.includes("HSL_RFH"), "بازهٔ WBC از جدولِ سنیِ HSL/Royal Free است (P106، M9؛ پیش‌تر RCPCH)");
   // P56 پرسش ۶ (M203e): نامِ تشخیص در متنِ بیمار نیست
   for (const x of p.findings) assert.doesNotMatch(fffText(x), /لوسمی|لوکمی|بدخیم|سرطان/, x.pattern);
   // WBC و لنفوسیت دیگر «بی‌توضیح» نیستند
@@ -11048,12 +11050,13 @@ test("M235b: دقیقاً یک صاحب برای WBC — دو سطح، leukocyto
 });
 
 test("M235c: شیرخوار (بازهٔ RCPCH) و برگهٔ بی‌اورژانسِ دیگر — سطحِ ۲ دستورِ خودش را دارد", () => {
-  const inf = fffFind(fffRun([fffTest("WBC", "15", "10^3/µL"), fffTest("HGB", "7.1", "g/dL"), fffTest("PLT", "36", "10^3/µL")]).p,
+  // ⚠️ عمداً عوض شد (P106، M9): WBCِ ۱۵ برای این سن دیگر بالا نیست (بازهٔ ۶–۱۸)؛ همان سنجش با ۲۰ (سطحِ ۱ از ۲۵ است).
+  const inf = fffFind(fffRun([fffTest("WBC", "20", "10^3/µL"), fffTest("HGB", "7.1", "g/dL"), fffTest("PLT", "36", "10^3/µL")]).p,
     "reactive_leukocytosis_with_cytopenia");
   assert.ok(inf, "سطحِ ۲ برای شیرخوار نیامد");
-  assert.match(inf.must_say, /از بازهٔ این سن \(5–12\) بالاتر است/);
+  assert.match(inf.must_say, /از بازهٔ این سن \(6–18\) بالاتر است/);
   assert.match(inf.warnings[0], /^اگر کودک تب دارد/);
-  assert.ok(inf.sources?.includes("RCPCH"));
+  assert.ok(inf.sources?.includes("HSL_RFH"));   // P106، M9
   const { e, p } = fffRun([fffTest("WBC", "15", "10^3/uL"), fffTest("Hb", "7.5", "g/dL"), fffTest("PLT", "250", "10^3/uL")], { age: 40, sex: "M" });
   assert.equal(p.overall_urgency, "this_week");
   assert.deepEqual(wbcOwners(p), ["reactive_leukocytosis_with_cytopenia"]);

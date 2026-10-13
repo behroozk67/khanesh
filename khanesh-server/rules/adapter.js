@@ -1040,6 +1040,10 @@ function censoredIndeterminate(engineKey, t, v, ocr) {
   const less = /^(<|≤|کمتر)/.test(cm[1]);
   return less ? (v > ref[1] || (ref[0] > 0 && v > ref[0])) : v < ref[1];
 }
+const SEX_UNKNOWN_OWN_POLICY = new Set(["CREAT", "PRL", "U_CA"]);   // M11 (P106)
+// M24 (P106): صدکِ ۹۹ِ hs-cTnT = ۱۴ ng/L = ۰٫۰۱۴ µg/L (Roche Elecsys hs-TnT؛ Fourth Universal Definition of MI، ۲۰۱۸).
+export const TNT_HS_99TH_UGL = 0.014;
+
 function toNum(v) {
   if (v == null) return null;
   const pre = commaToDot(String(v)
@@ -1800,6 +1804,13 @@ export function ocrToEngineInput(ocr) {
           { const pr = t.reference ? parseReference(t.reference, inferSex(ocr)) : null;
             if (pr?.hi > 0 && pr.hi < 0.6 && !(pr.lo < 0)) tests._trop_conv_uln = pr.hi; }
         }
+        // M24 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): hs-cTnT حدِ صدکِ ۹۹ِ خودش را دارد — ۱۴ ng/L (Roche Elecsys، Fourth Universal Definition
+        //   of MI) — نه آستانهٔ محافظه‌کارانهٔ ۳۰ ng/L ِ cTnI. «hs-cTnT 30 ng/L» (آسیبِ میوکارد) «طبیعی» و بی‌یافته بود. حدِ چاپ‌شدهٔ ردیف
+        //   همچنان مقدم است؛ فقط سنجهٔ hs (نام یا واحدِ ng/L).
+        if (tests._trop_hs && tests._trop_uln == null && /ctnt|^tnt$|^hstnt|troponint/.test(key)) {
+          tests._trop_uln = TNT_HS_99TH_UGL;
+          tests._trop_uln_tnt = true;
+        }
       } else {
         qual[t.name] = String(t.value);
       }
@@ -2383,6 +2394,7 @@ export function runEngine(ocr) {
   //    تا امروز هیچ‌کس نمی‌خواندش — نمونهٔ زندهٔ همین تله.)
   if (tests._trop_hs) derived.trop_hs_assay = true;
   if (tests._trop_uln != null) derived.trop_uln_ugl = tests._trop_uln;
+  if (tests._trop_uln_tnt) derived.trop_uln_source = "tnt_default";   // M24: حدِ پیش‌فرضِ hs-cTnT، نه چاپِ برگه
 
   const graded = [];
   // کیفی‌های بی‌خواننده (QUAL_NO_READER) از اول اینجا‌اند — خطِ «تفسیر نشدند»، نه qual (specs/004، N25).
@@ -2586,14 +2598,22 @@ export function runEngine(ocr) {
     // P53 پرسش ۱۱ بندِ ۳: جنسِ نامعلوم ⇒ Hb با هر دو ردیف سنجیده می‌شود. عددی که برای هر دو جنس پایین (یا بالا) است
     //   حکم می‌گیرد؛ عددی که برای یک جنس طبیعی و برای دیگری غیرطبیعی است سنجیده نمی‌شود و hgb_sex_unknown آن را می‌گوید.
     //   پیش‌تر ردیفِ زن (۱۲.۰) اعمال می‌شد و مردِ Hb 12.5 «طبیعی» می‌خواند.
-    if (key === "HGB" && !sex && !ungradedByAge) {
+    // M11 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): همان قاعده برای *هر* آزمایشی که بازهٔ زن و مرد فرق دارد (فریتین، کراتینین، ALT، آهن، …) —
+    //   پیش‌تر ردیفِ زن اعمال می‌شد و مردِ فریتین ۲۰ یا کراتینین ۱٫۲۵ «طبیعی» می‌خواند. خواننده: sex_unknown_value (patterns_review1013.js).
+    //   هورمون‌های تولیدمثل از قبل بی‌جنس سنجیده نمی‌شوند (REPRO_HORMONE_KEYS) و این‌جا نمی‌آیند.
+    //   کلیدهایی که سیاستِ «جنسِ نامعلوم»ِ تصمیم‌گرفته‌شدهٔ خودشان را دارند بیرون‌اند: کراتینین (P88، اجتماعِ دو بازه)، پرولاکتین (M101b،
+    //   حدِ پایین‌تر)، کلسیمِ ۲۴ساعته (W04، ۱۰۰–۳۰۰).
+    if (!sex && !ungradedByAge && !REPRO_HORMONE_KEYS.has(key) && !NO_RANGE_KEYS.has(key) && !SEX_UNKNOWN_OWN_POLICY.has(key)) {
       const rf = getRef(key, "F", age), rm = getRef(key, "M", age);
       if (rf && rm && (rf[0] !== rm[0] || rf[1] !== rm[1])) {
         const lo = Math.min(rf[0], rm[0]), loMax = Math.max(rf[0], rm[0]);
         const hi = Math.max(rf[1], rm[1]), hiMin = Math.min(rf[1], rm[1]);
         if ((value >= lo && value < loMax) || (value > hiMin && value <= hi)) {
           // ⚠️ نه «sex_unknown»: آن دلیل را reproductive_hormone_context می‌خواند و Hb را «هورمون» می‌نامید.
-          ungraded.HGB = { value, reason: "hgb_sex_unknown", side: value < loMax ? "low" : "high",
+          const side = value < loMax ? "low" : "high";
+          // جنسی که این عدد برایش طبیعی است: در سمتِ پایین، آن‌که حدِ پایینش کمتر است؛ در سمتِ بالا، آن‌که حدِ بالایش بیشتر است.
+          const normalFor = side === "low" ? (rf[0] < rm[0] ? "F" : "M") : (rf[1] > rm[1] ? "F" : "M");
+          ungraded[key] = { value, reason: key === "HGB" ? "hgb_sex_unknown" : "sex_unknown_range", side, normalFor,
             female: `${rf[0]}–${rf[1]}`, male: `${rm[0]}–${rm[1]}` };
           noRef.push(key);
           continue;

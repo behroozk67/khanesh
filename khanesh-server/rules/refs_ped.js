@@ -48,6 +48,8 @@ export const BILI_NEO_SOURCE = 'CALIPER via PMC11042559 (newborn bilirubin, 2026
 export const P57_SOURCE = 'User-approved 2026-09-28 (P57, pasted reference)';
 // CALIPER، Am J Clin Pathol 2020، Beckman Coulter DxH 900، سالمِ ۰ تا <۲۱ سال، متنِ باز: https://pmc.ncbi.nlm.nih.gov/articles/PMC7403759/ (جدولِ ۱، ۲۰۲۶-۰۹-۲۹)
 export const NATHAN_OSKI_SOURCE = 'Nathan & Oski (table supplied by user, approved 2026-09-30; book not opened)';
+export const NH3_NEO_SOURCE = 'OUH Biochemistry test catalogue (term neonate < 100 µmol/L) + IMD Scotland hyperammonaemia guideline 2017 (neonates < 4 weeks < 100) — P106';
+export const HSL_RFH_SOURCE = 'HSL / Royal Free Hospital paediatric haematology reference ranges (hslpathology.com, opened 2026-10-13) — P106';
 export const CALIPER_SOURCE = 'CALIPER 2020 (Am J Clin Pathol, DxH 900), PMC7403759';
 // Ghasemi A, et al. Arch Iran Med 2015;18(11):753–9 (TLGS)، جدولِ ۲، متنِ باز: https://journalaim.com/PDF/67_Nov2015_005.pdf (این جلسه باز کرد، ۲۰۲۶-۱۰-۰۵)
 export const GHASEMI_JAFFE_SOURCE = 'Ghasemi 2015 (Arch Iran Med, TLGS, conventional Jaffe), Table 2';
@@ -71,11 +73,21 @@ export const PED_REFS = {
     { maxAge: 4,      range: r(110, 140, CONV.HGB) },  // 6 ماه – 4 سال
     { maxAge: 12,     range: r(115, 140, CONV.HGB) },  // 5 – 12 سال
   ],
+  // M10 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): آمونیاکِ نوزادِ ترم (< ۴ هفته) تا ۱۰۰ µmol/L طبیعی است؛ با بازهٔ بزرگسال (۱۵–۴۵) «۸۰» soon می‌گرفت.
+  //   حدِ پایین ۰ است چون آمونیاکِ پایین معنای بالینی ندارد. بالای ۱۰۰ همان مسیرِ قبلی (ammonia_* / بحرانی). نارس (< ۱۵۰) جدا نشد —
+  //   سنِ بارداری را موتور ندارد؛ پرسشِ باز P106.
+  NH3: [
+    { maxAge: D(27),  range: [0, 100], source: NH3_NEO_SOURCE },
+  ],
   WBC: [                                    // ×10⁹/L = K/µL (بدون تبدیل)
     { maxAge: D(6),   range: [10.0, 26.0] },
     { maxAge: D(7),   range: [5.0,  21.0] },
     { maxAge: M(6),   range: [6.0,  15.0] },
-    { maxAge: 12,     range: [5.0,  12.0] },
+    // M9 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): یک ردیفِ ۵–۱۲ برای ۶ ماه تا ۱۲ سال، WBCِ ۱۵ِ کودکِ ۲ ساله (طبیعی) را «بالا» می‌کرد.
+    //   ردیف‌های سنیِ جدولِ آزمایشگاهِ Royal Free (HSL)؛ مرزِ ۶ ماه و ۱۲ سالِ قبلی دست‌نخورده.
+    { maxAge: 3.99,   range: [6.0,  18.0], source: HSL_RFH_SOURCE },  // ۶ ماه – ۳ سال
+    { maxAge: 7.99,   range: [5.0,  15.0], source: HSL_RFH_SOURCE },  // ۴ – ۷ سال
+    { maxAge: 12,     range: [4.5,  13.5], source: HSL_RFH_SOURCE },  // ۸ – ۱۲ سال
   ],
   PLT: [
     { maxAge: 16,     range: [150, 450] },

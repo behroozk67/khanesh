@@ -383,6 +383,9 @@ const anemiaHbAlone = {
     // شیرخوارِ زیرِ ۶ ماه درجه ندارد ⇒ دست‌کم this_week (بازبینیِ ۲۰۲۶-۱۰-۰۴)؛ اورژانسِ عددِ بحرانی دست‌نخورده.
     let urgency = netUrgency(e, hb);
     if (urgency === "routine" && infantAnemiaNoGrade(e)) urgency = "this_week";
+    // M8 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): Hb ≤ ۸٫۵ِ تنها «نوبتِ عادی» بود، حال آن‌که همان عدد کنارِ MCV this_week می‌گرفت
+    //   (normocytic_anemia) — هرچه برگه ناقص‌تر، فوریت کمتر (N19). کف، نه سقف.
+    if (urgency === "routine" && hb.value <= 8.5) urgency = "this_week";
     const sev = whoSeverity(e, hb.value);
     return {
       pattern: "anemia_hb_alone",

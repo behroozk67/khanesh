@@ -816,7 +816,7 @@ export const RULES_HEMATOLOGY = [
         warnings: neo ? [NEONATAL_DANGER_WARNING] : [],
         blocks_others: urgency === "emergency",
         // منبع فقط وقتی ردیفِ به‌کاررفته واقعاً RCPCH است (بزرگسال: هنری).
-        ...(u.refSource === "RCPCH 2016" ? { sources: ["RCPCH"] } : {}),
+        ...(u.refSource === "RCPCH 2016" ? { sources: ["RCPCH"] } : /^HSL \/ Royal Free/.test(u.refSource ?? "") ? { sources: ["HSL_RFH"] } : {}),
       };
     },
   },
@@ -1458,14 +1458,15 @@ export const RULES_HEMATOLOGY = [
     },
     build: (e) => {
       const hgb = e.graded.find((g) => g.test === "HGB");
+      const soon = erythroSoon(e);
       return {
         pattern: "erythrocytosis",
-        urgency: "this_week",
+        urgency: soon ? "soon" : "this_week",
         headline: "تعداد گلبول‌های قرمز و هموگلوبین شما بالاست",
         must_say:
           (hgb ? `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range})${erythroCompanionsFa(e)}؛ ` : "") +
           "یعنی خون غلیظ‌تر از حد معمول است. علت‌های شایع: کم‌آبی (که موقت است)، سیگار، آپنهٔ خواب، یا زندگی در ارتفاع. کمتر پیش می‌آید که از یک اختلال مغز استخوان (پلی‌سیتمی) باشد.",
-        action: "این هفته با پزشک وقت بگیرید. اگر کم‌آب هستید، آزمایش پس از آب‌رسانی کافی تکرار شود.",
+        action: soon ? ERYTHRO_SOON_ACTION : "این هفته با پزشک وقت بگیرید. اگر کم‌آب هستید، آزمایش پس از آب‌رسانی کافی تکرار شود.",
         suggest: ["تکرار CBC", "اریتروپویتین", "اشباع اکسیژن خون"],
         warnings: ["اگر سردرد شدید، تاری دید، یا درد و تورم یک‌طرفهٔ ساق پا دارید، زودتر مراجعه کنید — خون غلیظ خطر لخته را کمی بالا می‌برد."],
       };
@@ -1505,9 +1506,10 @@ export const RULES_HEMATOLOGY = [
       // فقط نبودنِ آن است که این قاعده را نوبت می‌دهد، نه اینکه Hb حتماً داخلِ بازه باشد. ادعای «داخلِ محدوده»
       // وقتی hgb.abnormal است غلط می‌بود (N12/N23 — یک عدد را با فرضِ یک جهت نخوان).
       const inRange = !hgb.abnormal;
+      const soon = erythroSoon(e);
       return {
         pattern: "erythrocytosis_who_screen",
-        urgency: inRange ? "routine" : "this_week",
+        urgency: soon ? "soon" : inRange ? "routine" : "this_week",
         headline: inRange
           ? "هموگلوبین شما داخل محدودهٔ آزمایشگاه ولی نزدیک سقف آن است"
           : "هموگلوبین شما بالاتر از حد طبیعی است",
@@ -1517,7 +1519,7 @@ export const RULES_HEMATOLOGY = [
             : `هموگلوبین شما ${hgb.value} است که از حد طبیعی (${hgb.range}) هم بالاتر است، و همچنین بالاتر از آستانهٔ `) +
           `${who} که سازمان جهانی بهداشت برای غربالگری پرخونی مغز استخوان (پلی‌سیتمی ورا) به کار می‌برد. ` + extra +
           " علت‌های شایع‌تر: کم‌آبی، سیگار، آپنهٔ خواب، یا زندگی در ارتفاع؛ کمتر پیش می‌آید از یک اختلال مغز استخوان باشد.",
-        action: inRange
+        action: soon ? ERYTHRO_SOON_ACTION : inRange
           ? "در نوبت عادی با پزشک مطرح کنید. اگر کم‌آب هستید، آزمایش پس از آب‌رسانی کافی تکرار شود."
           : "این هفته با پزشک وقت بگیرید. اگر کم‌آب هستید، آزمایش پس از آب‌رسانی کافی تکرار شود.",
         suggest: ["تکرار CBC", "اریتروپویتین"],
@@ -2270,7 +2272,10 @@ export const RULES_HEMATOLOGY = [
       // تصمیمِ کاربر ۲۰۲۶-۱۰-۰۴ (P82): فیبرینوژن < ۱۰۰ دیگر اورژانس نیست، soon است — ۱۰۰ آستانهٔ کرایو برای بیمارِ در حال خونریزی است، نه اورژانسِ سرپایی.
       const fibVeryLow = !!(fib && fib.value < 100);
       const severe = (inrRaised && liverSevere) || (inr && inr.value >= INR_EMERGENCY_FROM);
+      // M15 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): aPTTِ ≥ ۱۰۰ ثانیه (حدودِ ۳ برابرِ حدِ بالا) «این هفته» بود ⇒ soon.
+      const apttVeryLong = (e.graded.find((g) => g.test === "APTT")?.value ?? 0) >= 100;
       const soonInr = !severe && (
+        apttVeryLong ||
         fibVeryLow ||
         !!(inr && inr.value >= INR_SOON_FROM) ||
         (!isoPt && !!(pt && pt.value > 25)) ||
@@ -2823,6 +2828,15 @@ function erythroCompanionsFa(e) {
   const parts = [["RBC", "گلبول قرمز"], ["HCT", "هماتوکریت"]].map(([k, fa]) => { const g = hi(k); return g ? `${fa} ${g.value} (حد طبیعی ${g.range})` : null; }).filter(Boolean);
   return parts.length ? `، و ${parts.join(" و ")} هم بالاست` : "";
 }
+
+// M6 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): Hb ≥ ۲۰ یا هماتوکریت ≥ ۶۰٪ در بزرگسال (خطرِ غلظتِ خون/لخته) «این هفته» بود ⇒ soon.
+//   بیرون از سورسِ قاعده تا RULE_READS هماتوکریت را «پوشش‌داده» نشمارد (M156). کودک/نوزاد نه: Hb ۲۱ و HCT ۶۵ در نوزاد طبیعی است.
+function erythroSoon(e) {
+  if (e.age != null && isPediatricRCPCH(e.age)) return false;
+  const v = (k) => e.graded.find((g) => g.test === k)?.value;
+  return (v("HGB") ?? 0) >= 20 || (v("HCT") ?? 0) >= 60;
+}
+const ERYTHRO_SOON_ACTION = "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید. اگر سردردِ شدید، تاریِ دید، ضعف یا بی‌حسیِ یک طرفِ بدن، یا دردِ قفسهٔ سینه دارید، همین حالا به اورژانس بروید.";
 
 export function hemolysisRuleFires(e) {
   const r = RULES_HEMATOLOGY.find((x) => x.id === "hemolysis_pattern");

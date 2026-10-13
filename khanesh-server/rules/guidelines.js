@@ -446,6 +446,17 @@ export const GUIDELINES = {
     scope: 'محدوده‌های مرجعِ اطفال (< ۱۶ سال)',
   },
 
+  // P106 (M9): ردیف‌های سنیِ WBCِ کودک (۶ ماه تا ۱۲ سال). صفحه در ۲۰۲۶-۱۰-۱۳ باز و عددها از آن خوانده شد.
+  HSL_RFH: {
+    org: 'HSL / Royal Free London',
+    fa: 'آزمایشگاهِ بیمارستانِ رویال فری لندن',
+    title: 'Haematology reference ranges at Royal Free Hospital (paediatric)',
+    year: 2026,
+    url: 'https://www.hslpathology.com/research-and-innovation/reference-ranges/haematology-reference-ranges-at-rfh-rrl/',
+    access: 'open',
+    scope: 'محدوده‌های مرجعِ شمارشِ گلبول سفیدِ کودک',
+  },
+
   CTCAE: {
     org: 'NCI',
     fa: 'مؤسسهٔ ملی سرطان آمریکا',
