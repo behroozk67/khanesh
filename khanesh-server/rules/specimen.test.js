@@ -127,7 +127,10 @@ const FREEZE = {
   lis_ldh: [{ sex: "F", age: 32 }, [row("AST", "35"), row("ALT", "26"), row("LDH", "864"), row("T. Bilirubin(Clot)", "0.41"), row("Direct Bili.", "0.1")], "cb6e1b255fd08014"],
   lis_serum: [{ sex: "F", age: 40 }, [row("Serum Ca", "9.1"), row("serum Mg", "2"), row("serum p", "4"), row("Serum Protein", "7")], "4cffffe6d0a72fc1"],
   fluid_bare: [{ sex: "F", age: 46 }, [row("Glucose", "122"), row("LDH", "306"), row("Total Protein", "6.6")], "8531fb546310bbb6"],
-  neonate: [{ sex: "M", age: 0.01 }, [row("Hb", "15"), row("T. Bilirubin(Clot)", "12")], "3f4ef5adc6e6c72b"],
+  // بازپایهٔ عمدی (P104، ۲۰۲۶-۱۰-۱۳): بیلی‌روبینِ ۱۲ِ نوزادِ < ۱۴ روز دیگر «طبیعی» graded نیست ⇒ ungraded (neonatal_hour_chart) +
+  //   یافتهٔ neonatal_bilirubin_hour_chart (soon). اثبات: با غیرفعال‌کردنِ همان شاخه در adapter همان 3f4ef5adc6e6c72b ِ قبلی به دست آمد
+  //   و diff ِ خروجیِ کامل فقط همین دو تغییر بود.
+  neonate: [{ sex: "M", age: 0.01 }, [row("Hb", "15"), row("T. Bilirubin(Clot)", "12")], "84e97feae0e6c96e"],
 };
 
 test("U09 — فریزِ محورِ معدنی: «24h urine calcium» همچنان U_CA است و خروجی بایت‌به‌بایت همان (FR-014، سبزِ پیشین)", () => {

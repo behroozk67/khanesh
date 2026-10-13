@@ -179,3 +179,66 @@ test("R13-22: جملهٔ مدل با واژهٔ ممنوع با متنِ موت�
   // «iron» داخلِ «environment» واژهٔ ممنوع نیست
   assert.equal(replaceForbiddenSentences("This environment matters.", mac.findings).hits.length, 0);
 });
+
+// ════════ P104 — پنج تصمیمِ بالینیِ کاربر (۲۰۲۶-۱۰-۱۳) ════════
+const runP = (rows, patient) => {
+  const o = runEngine({ tests: rows.map(([name, value, unit, reference]) => ({ name, value, unit, reference })), patient });
+  return { o, p: runPatterns(o), ids: runPatterns(o).findings.map((f) => `${f.rule_id}:${f.urgency}`) };
+};
+
+test("P104-1 (یافتهٔ ۱۹): تروپونینِ ng/mL بالای حدِ چاپ‌شدهٔ خودِ ردیف ⇒ troponin_positive؛ بی‌مرجع یا مرجعِ شُل‌تر بی‌تغییر", () => {
+  const pt = { sex: "M", age: 60 };
+  for (const [n, v, ref] of [["Troponin I", "0.3", "<0.04"], ["Troponin T", "0.3", "<0.014"], ["Troponin I", "0.9", "<0.04"]]) {
+    assert.ok(runP([[n, v, "ng/mL", ref]], pt).ids.includes("troponin_positive:emergency"), `${n} ${v} ${ref}`);
+  }
+  assert.equal(runP([["Troponin I", "0.02", "ng/mL", "<0.04"]], pt).p.findings.length, 0);
+  assert.equal(runP([["Troponin I", "0.3", "ng/mL"]], pt).p.findings.length, 0, "بی‌مرجع: همان بازهٔ موتور");
+  assert.equal(runP([["Troponin I", "0.3", "ng/mL", "0-1"]], pt).p.findings.length, 0, "مرجعِ شُل‌تر از موتور اعمال نمی‌شود");
+  assert.ok(runP([["hs-Troponin I", "45", "ng/L", "<19"]], pt).ids.some((x) => x.startsWith("troponin_hs_above_99th")), "مسیرِ hs دست‌نخورده");
+});
+
+test("P104-2 (یافتهٔ ۶): بیلی‌روبینِ نوزادِ < ۱۴ روز داخلِ بازه ⇒ نمودارِ ساعتی (soon)؛ بالای بازه همان اورژانس؛ بعد از ۱۴ روز بی‌تغییر", () => {
+  const d1 = runP([["Total Bilirubin", "14.5", "mg/dL"]], { age: "1 day", sex: "M" });
+  assert.deepEqual(d1.ids, ["neonatal_bilirubin_hour_chart:soon"]);
+  assert.ok(!d1.o.graded.some((g) => g.test === "BILI_T"), "حکمِ «طبیعی» نباید بماند");
+  assert.doesNotMatch(d1.p.findings[0].must_say, /شما|نوزادِ نوزاد/);
+  assert.ok(runP([["Total Bilirubin", "18", "mg/dL"]], { age: "3 days" }).ids.includes("bilirubin_emergency:emergency"));
+  assert.ok(!runP([["Total Bilirubin", "6", "mg/dL"]], { age: "20 days" }).ids.some((x) => x.startsWith("neonatal_bilirubin_hour_chart")));
+  assert.equal(runP([["Total Bilirubin", "1", "mg/dL"]], { age: 40 }).p.findings.length, 0);
+});
+
+test("P104-3 (یافتهٔ ۲۰): بارداری + پلاکت < ۱۰۰ + AST/ALT ≥ ۲×ULN یا سه‌گانهٔ تنسی ⇒ اورژانس؛ غیرباردار/< ۲۰ هفته/پلاکت ۱۳۰ نه", () => {
+  const H = [["PLT", "80"], ["AST", "150", "U/L"], ["ALT", "140", "U/L"], ["LDH", "700", "U/L"]];
+  const yes = runP(H, { sex: "F", age: 30, pregnant: true });
+  assert.ok(yes.ids.includes("pregnancy_hellp_severe_features:emergency"), yes.ids.join());
+  assert.equal(yes.p.overall_urgency, "emergency");
+  for (const pt of [{ sex: "F", age: 30 }, { sex: "F", age: 30, pregnant: true, gestWeeks: 14 }]) {
+    assert.ok(!runP(H, pt).ids.some((x) => x.startsWith("pregnancy_hellp")), JSON.stringify(pt));
+  }
+  assert.ok(!runP([["PLT", "130"], ...H.slice(1)], { sex: "F", age: 30, pregnant: true }).ids.some((x) => x.startsWith("pregnancy_hellp")));
+  // فقط تنسی (AST ≥ ۷۰ ولی < ۲×ULN، LDH ≥ ۶۰۰، پلاکت ≤ ۱۰۰)
+  assert.ok(runP([["PLT", "95"], ["AST", "75", "U/L"], ["LDH", "650", "U/L"]], { sex: "F", age: 30, pregnant: true }).ids
+    .includes("pregnancy_hellp_severe_features:emergency"));
+});
+
+test("P104-4 (یافتهٔ ۲): DKA بی کتون فقط با HCO3 < ۱۸ (ADA 2024)؛ ۱۸–۲۱ ⇒ قندِ بالای بی‌کتون (soon) با درخواستِ کتون", () => {
+  const pt = { sex: "M", age: 40 };
+  const mid = runP([["FBS", "300", "mg/dL"], ["HCO3", "21"]], pt);
+  assert.ok(!mid.ids.some((x) => x.startsWith("dka_pattern")), mid.ids.join());
+  const sev = mid.p.findings.find((f) => f.rule_id === "severe_hyperglycemia_uncertain_ketosis");
+  assert.equal(sev?.urgency, "soon");
+  assert.match(sev.must_say, /کتون/);
+  assert.ok(runP([["FBS", "300", "mg/dL"], ["HCO3", "15"]], pt).ids.includes("dka_pattern:emergency"));
+  assert.ok(runP([["FBS", "300", "mg/dL"], ["HCO3", "21"], ["Urine Ketone", "2+"]], pt).ids.includes("dka_pattern:emergency"));
+  assert.equal(runP([["FBS", "600", "mg/dL"], ["HCO3", "10"]], pt).p.overall_urgency, "emergency", "بدترین ورودی (N3/N29)");
+  assert.equal(runP([["FBS", "520", "mg/dL"], ["HCO3", "21"]], pt).p.overall_urgency, "emergency", "قندِ > ۵۰۰ اورژانسِ خودش را دارد");
+});
+
+test("P104-5 (یافتهٔ ۵): Hb نوجوان — WHO: ۱۲–۱۴ سال < ۱۲٫۰، ≥ ۱۵ پسر < ۱۳٫۰؛ پسرِ ۱۳ ساله با ۱۳٫۲ کم‌خون نیست", () => {
+  const hb = (age, sex, v) => runP([["Hb", v, "g/dL"], ["MCV", "88", "fL"]], { age, sex });
+  assert.equal(hb(13, "M", "13.2").p.findings.length, 0);
+  assert.ok(hb(13, "M", "11.5").ids.some((x) => x.startsWith("normocytic_anemia")));
+  assert.equal(hb(15, "M", "13.2").p.findings.length, 0);
+  assert.ok(hb(15, "M", "12.8").ids.some((x) => x.startsWith("normocytic_anemia")));
+  assert.equal(hb(16, "M", "13.2").o.graded.find((g) => g.test === "HGB").range, "13.6–17.5", "بزرگسال (P53) دست‌نخورده");
+});

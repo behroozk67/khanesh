@@ -283,6 +283,31 @@ export const GUIDELINES = {
     scope: 'هدفِ LDL در دیابت (زیر ۱۰۰، و زیر ۷۰ در پرخطرِ قلبی‌عروقی)',
   },
 
+  // بازبینیِ ۲۰۲۶-۱۰-۱۳ (P104): متنِ خودِ ACOG پولی است و باز نشد؛ پلاکت < ۱۰۰٬۰۰۰ و ترانس‌آمینازِ > ۲ برابر از خلاصهٔ آزادِ زیر
+  //   خوانده شد. اعدادِ تنسی (LDH ≥ ۶۰۰، AST ≥ ۷۰) فقط از خلاصه‌های ثانویه آمده‌اند — در P104 ثبت است.
+  ACOG_PREECLAMPSIA: {
+    org: 'ACOG',
+    fa: 'کالج متخصصان زنان و زایمان آمریکا',
+    title: 'Practice Bulletin No. 222 — Gestational Hypertension and Preeclampsia',
+    year: 2020,
+    url: 'https://www.acog.org/clinical/clinical-guidance/practice-bulletin/articles/2020/06/gestational-hypertension-and-preeclampsia',
+    access: 'paywalled',
+    substitutedBy: 'WikEM — Pre-eclampsia (خلاصهٔ معیارهای ACOG)، https://wikem.org/wiki/Pre-eclampsia',
+    scope: 'ویژگی‌های شدیدِ پره‌اکلامپسی: پلاکت < ۱۰۰٬۰۰۰، ترانس‌آمینازِ > ۲ برابرِ حدِ بالا',
+  },
+
+  WHO_HB_2024: {
+    org: 'WHO',
+    fa: 'سازمان جهانی بهداشت',
+    title: 'Guideline on haemoglobin cutoffs to define anaemia in individuals and populations',
+    year: 2024,
+    url: 'https://www.who.int/publications/i/item/9789240088542',
+    access: 'open',
+    // ⚠️ جدولِ خودِ سند باز نشد؛ «< ۱۲۰ g/L در ۱۲–۱۴ سال، < ۱۳۰ g/L مردِ ≥ ۱۵ سال» از نقلِ BMJ Best Practice و مرورهای ۲۰۲۴ است
+    //   که می‌گویند بازنگریِ ۲۰۲۴ این گروه‌ها را عوض نکرد (P104).
+    scope: 'آستانهٔ کم‌خونی در نوجوان: ۱۲–۱۴ سال < ۱۲٫۰، پسرِ ≥ ۱۵ سال < ۱۳٫۰ g/dL',
+  },
+
   ESC_EAS_LIPID: {
     org: 'ESC/EAS',
     fa: 'انجمن قلب اروپا / انجمن آترواسکلروز اروپا',

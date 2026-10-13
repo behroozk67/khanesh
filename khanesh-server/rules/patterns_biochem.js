@@ -879,9 +879,10 @@ export const RULES_BIOCHEM = [
       const hco3Low = hco3?.abnormal && hco3.dir === "low";
       // کتون: ادرار یا سرم
       const ketone = urinePositive(e, /ketone|کتون|hydroxybutyrate|بتاهیدروکسی/i);
-      // برای احتیاط: گلوکز بالا + حداقل یکی از (بی‌کربنات پایین، کتون)
+      // P104 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، ADA 2024): بی کتونِ مثبت، فقط بی‌کربناتِ < ۱۸ اسیدوزِ DKA است. پیش‌تر هر بی‌کربناتِ
+      //   «پایین‌تر از بازه» (مثلاً ۲۱) کنارِ قندِ ۳۰۰ اورژانسِ DKA می‌گرفت. ۱۸–۲۱ ⇒ severe_hyperglycemia_uncertain_ketosis.
       // یا هر دوی بی‌کربنات پایین و کتون (حتی اگر گلوکز ثبت نشده)
-      return (gluHigh && (hco3Low || ketone)) || (hco3Low && ketone);
+      return (gluHigh && (ketone || dkaAcidosis(e))) || (hco3Low && ketone);
     },
     build: (e) => {
       const t = val(e);
@@ -2098,6 +2099,13 @@ function hco3State(e) {
   if (!g || g.value == null) return "absent";
   return g.abnormal && g.dir === "low" ? "low" : "normal";
 }
+// P104: معیارِ اسیدوزِ DKA در اجماعِ ADA/EASD/JBDS/AACE/DTS 2024 (Umpierrez و همکاران، Diabetes Care 2024) — بی‌کربنات < ۱۸ mmol/L.
+//   یک‌جا تعریف می‌شود و dka_pattern، dkaOwns و severe_hyperglycemia_uncertain_ketosis همین را می‌خوانند (M91e).
+const DKA_HCO3_BELOW = 18;
+function dkaAcidosis(e) {
+  const g = e.graded.find((x) => x.test === "HCO3");
+  return g?.value != null && g.value < DKA_HCO3_BELOW;
+}
 
 /**
  * آیا `dka_pattern` (در patterns_biochem.js) این برگه را برمی‌دارد؟
@@ -2117,7 +2125,7 @@ function dkaOwns(e) {
     (t.GLU_F != null && t.GLU_F >= 250) || (t.GLU_RANDOM != null && t.GLU_RANDOM >= 250);
   const hco3Low = hco3State(e) === "low";
   const ketone = ketoneState(e) === "positive";
-  return (gluHigh && (hco3Low || ketone)) || (hco3Low && ketone);
+  return (gluHigh && (ketone || dkaAcidosis(e))) || (hco3Low && ketone);   // همان شرطِ dka_pattern (P104)
 }
 
 /** آیا `hhs_pattern` این برگه را برمی‌دارد؟ (قندِ ≥۶۰۰ *و* بدونِ شواهدِ کتواسیدوز) */
@@ -2235,7 +2243,8 @@ export const RULES_BIOCHEM_NEW = [
 
       // شواهدِ کتواسیدوز که با این حال `dka_pattern` برشان نداشته — عملاً یعنی
       // قند فقط دوساعته ثبت شده. اینجا نباید در سکوت بیفتد.
-      const ketoacidosisHint = ket === "positive" || bic === "low";
+      // P104: بی‌کربناتِ کمی پایین (۱۸ تا حدِ پایینِ بازه) بی کتون شاهدِ کتواسیدوز نیست؛ فقط < ۱۸ (ADA 2024).
+      const ketoacidosisHint = ket === "positive" || dkaAcidosis(e);
 
       // ⚠️ فوریت از عددی که اینجا ساخته شده باشد نمی‌آید. نقاطِ برشِ همین
       //    آنالیت در ctcae.js (`GLU_HIGH`) است: گریدِ ۳ = ۲۵۰ تا ۵۰۰،
@@ -2257,6 +2266,11 @@ export const RULES_BIOCHEM_NEW = [
       } else if (ket === "positive") {
         evidence =
           "کتونِ ادرارِ شما مثبت است. کتونِ مثبت کنارِ قندِ بالا یعنی بدن به‌جای قند، چربی می‌سوزاند و اسیدِ حاصل در خون جمع می‌شود — همان کتواسیدوزِ دیابتی.";
+      } else if (bic === "low" && !dkaAcidosis(e)) {
+        const hv = e.graded.find((x) => x.test === "HCO3")?.value;
+        evidence =
+          `بی‌کربناتِ خونِ شما ${hv} است، کمی پایین‌تر از حدِ طبیعی، ولی به حدی که در کتواسیدوزِ دیابتی دیده می‌شود (زیرِ ۱۸) نرسیده. ` +
+          "برای کنار گذاشتنِ کتواسیدوز، کتونِ خون یا ادرار باید اندازه‌گیری شود.";
       } else if (bic === "low") {
         evidence =
           "بی‌کربناتِ خونِ شما پایین است، یعنی خون به سمتِ اسیدی رفته. این کنارِ قندِ بالا مطرح‌کنندهٔ کتواسیدوز است، حتی اگر کتون اندازه‌گیری نشده باشد.";

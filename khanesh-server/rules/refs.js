@@ -380,7 +380,10 @@ export function hgbRef(sex, age, { pregnant = false } = {}) {
   if (pregnant && sex === 'F') return [HGB_PREGNANCY_LOW, HGB_HIGH.F];
   const m = sex === 'M';
   const hi = m ? HGB_HIGH.M : HGB_HIGH.F;
-  if (age != null && age < 16) return m ? [14, hi] : [12.3, hi];
+  // P104 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، بازبینیِ چندعاملی یافتهٔ ۵؛ بستنِ پرسشِ باز P53/FR-004): ۱۲ تا زیرِ ۱۶ — جایی که PED_REFS ردیف
+  //   ندارد — آستانهٔ کم‌خونیِ WHO (WHO_HB_2024): ۱۲–۱۴ سال < ۱۲٫۰، ≥ ۱۵ سال مرد < ۱۳٫۰ و زن < ۱۲٫۰. پیش‌تر حدِ پیشینِ بزرگسال
+  //   (۱۴ / ۱۲٫۳) بود و پسرِ ۱۳ ساله با Hb 13.2 «کم‌خونی» می‌گرفت. سقف‌ها بی‌تغییر.
+  if (age != null && age < 16) return [age < 15 ? 12.0 : m ? 13.0 : 12.0, hi];
   if (age != null && age >= 70) return [m ? 12.4 : 11.8, hi];
   if (!m) return [12.0, hi];
   if (age != null && age < 20) return [13.6, hi];

@@ -22,6 +22,7 @@ import { RULES_AUTOIMMUNE } from "./patterns_autoimmune.js";
 import { RULES_PRENATAL } from "./patterns_prenatal.js";
 import { AI_KEYS, autoAbState } from "./serology.js";
 import { RULES_P73_GAPS, bindP73Owners } from "./patterns_p73_gaps.js";
+import { RULES_REVIEW1013 } from "./patterns_review1013.js";
 import { rankOf, applyQualGloss, applyPrintedRange } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { applyInpatientVoice } from "./inpatient.js";
@@ -61,6 +62,8 @@ export const RULES = [
   ...RULES_SPECIMEN,
   ...RULES_AUTOIMMUNE,
   ...RULES_P73_GAPS,
+  // بازبینیِ چندعاملیِ ۲۰۲۶-۱۰-۱۳ (P104): بیلی‌روبینِ نوزاد با نمودارِ ساعتی، HELLP/پره‌اکلامپسیِ شدید در بارداری.
+  ...RULES_REVIEW1013,
   // specs/013: دابل/کوآد مارکر — از کانالِ جدای e.prenatal، بی‌نمره.
   ...RULES_PRENATAL
 ];

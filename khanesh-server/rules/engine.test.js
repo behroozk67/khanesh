@@ -7206,10 +7206,12 @@ test("M129: بیلی‌روبین — «0.3-1.2» واحد را تعیین می�
   const neo = { age: 0, sex: "M" };
   // P96 (۲۰۲۶-۱۰-۰۶، تصمیمِ بازبین): بیلی‌روبینِ نوزادِ زیرِ یک ماه گامِ «اندازه» دارد (۱۴ فقط mg/dL است؛ ۱۴ µmol/L = ۰٫۸ mg/dL بعد از تولد ناممکن) و با
   //   *بازهٔ نوزادی* (CALIPER، P63) سنجیده می‌شود — نه بازهٔ بزرگسال؛ همان حفاظتِ B1 با راهی دیگر. ۱۴ داخلِ بازهٔ نوزادی است ⇒ بی‌یافته؛ ۱۸ اورژانس می‌ماند.
+  // ⚠️ عمداً عوض شد (P104، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): بیلی‌روبینِ نوزادِ < ۱۴ روز داخلِ بازهٔ CALIPER دیگر «طبیعی» گرفته نمی‌شود —
+  //   ungraded (neonatal_hour_chart) ⇒ neonatal_bilirubin_hour_chart (soon، نمودارِ ساعتی). بالای بازه همان مسیرِ قبلی است.
   const n14 = uuu([["Total Bilirubin", "14", "<15"]], neo);
-  const g14 = n14.graded.find((g) => g.test === "BILI_T");
-  assert.ok(g14 && /CALIPER/.test(g14.refSource) && g14.abnormal === false, `نوزاد باید با بازهٔ نوزادی سنجیده شود: ${JSON.stringify(g14)}`);
-  assert.equal(runPatterns(n14).overall_urgency, "none");
+  assert.ok(!n14.graded.some((g) => g.test === "BILI_T"), "بیلی‌روبینِ نوزاد نباید «طبیعی» سنجیده شود");
+  assert.equal(n14.ungraded.BILI_T?.reason, "neonatal_hour_chart");
+  assert.equal(runPatterns(n14).overall_urgency, "soon");
   assert.equal(runPatterns(uuu([["Total Bilirubin", "18", "up to 12"]], neo)).overall_urgency, "emergency");
 });
 
@@ -7285,9 +7287,13 @@ test("M134: نوزاد — جملهٔ یافته و action یک فوریت دا�
   assert.doesNotMatch(noUnit.action, /اورژانس/);
   // ۱۵۰ کنارِ «<205» داخلِ محدودهٔ خودِ آزمایشگاه است — «خارج از محدوده» گفته نمی‌شود
   // P96: ۱۵۰ برای نوزاد فقط µmol/L می‌تواند باشد (۱۵۰ mg/dL ناممکن) ⇒ ۸٫۸ mg/dL، داخلِ بازهٔ نوزادی، بی‌یافته — «خارج از محدوده» هم گفته نمی‌شود.
+  // ⚠️ عمداً عوض شد (P104، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): بیلی‌روبینِ نوزادِ < ۱۴ روز داخلِ بازهٔ CALIPER دیگر «طبیعی» گرفته نمی‌شود —
+  //   ungraded (neonatal_hour_chart) ⇒ neonatal_bilirubin_hour_chart (soon، نمودارِ ساعتی). بالای بازه همان مسیرِ قبلی است.
   const p150 = uuuRun([["Total Bilirubin", "150", "<205"]], neo);
-  assert.equal(p150.findings.length, 0, fired(p150).join());
-  assert.equal(p150.overall_urgency, "none");
+  assert.deepEqual(fired(p150), ["neonatal_bilirubin_hour_chart"], fired(p150).join());
+  assert.equal(p150.overall_urgency, "soon");
+  assert.doesNotMatch(p150.findings[0].must_say, /خارج از محدوده|بالاست|بالاتر|نوزادِ نوزاد/);
+  assert.match(p150.findings[0].must_say, /نمودار|ساعت|زودرس/);   // بندِ میانی (سنِ ساعتی) با لحنِ نوزاد حذف نشود
   // و ۱۸ کنارِ «up to 12» اورژانس می‌ماند (B1) — حالا با یافتهٔ خودِ بیلی‌روبین
   assert.equal(uuuRun([["Total Bilirubin", "18", "up to 12"]], neo).overall_urgency, "emergency");
 });
@@ -9106,9 +9112,10 @@ test("M184c: مرزهای سنیِ ۱۶/۲۰/۵۰/۷۰ — بازهٔ هر سن 
 });
 
 test("M184d: قفل — ۱۲ تا ۱۵ ساله، سقف‌ها، بحرانِ Hb و سنِ نامعلوم بی‌تغییر (specs/008 R1)", () => {
-  // ✅ سبز روی هر دو درخت: RCPCH برای ۱۲–۱۵ ردیف ندارد و بازهٔ امروزِ بزرگسال (۱۴ / ۱۲.۳) می‌ماند.
-  assert.equal(hbGr(hbPanel("13.8", { age: 13, sex: "M" })).range, "14–17.5");
-  assert.equal(hbGr(hbPanel("12.2", { age: 14, sex: "F" })).range, "12.3–16");   // سقفِ زن ۱۶ (۲۰۲۶-۱۰-۰۳)
+  // ⚠️ عمداً عوض شد (P104، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، WHO_HB_2024): ۱۲–۱۴ سال حدِ پایینِ ۱۲٫۰، ≥ ۱۵ مرد ۱۳٫۰ و زن ۱۲٫۰ — نه ۱۴ / ۱۲٫۳ِ بزرگسال.
+  assert.equal(hbGr(hbPanel("13.8", { age: 13, sex: "M" })).range, "12–17.5");
+  assert.equal(hbGr(hbPanel("13.8", { age: 15, sex: "M" })).range, "13–17.5");
+  assert.equal(hbGr(hbPanel("12.2", { age: 14, sex: "F" })).range, "12–16");   // سقفِ زن ۱۶ (۲۰۲۶-۱۰-۰۳)
   assert.equal(hbGr(hbPanel("17.0", { age: 40, sex: "M" })).abnormal, false);
   assert.equal(hbGr(hbPanel("17.6", { age: 40, sex: "M" })).dir, "high");
   assert.equal(hbGr(hbPanel("16.1", { age: 40, sex: "F" })).dir, "high");
@@ -11502,10 +11509,13 @@ test("M246d: نوزادِ < ۲۸ روز — K ≥ ۶ اورژانس (K ۵٫۹ ن
 test("M246e: بیلی‌روبینِ نوزادِ < ۱۴ روز با بازهٔ نوزادی (CALIPER) سنجیده می‌شود، نه ۰–۱٫۲۳ی بزرگسال؛ بعد از ۱۴ روز و بزرگسال دست‌نخورده (P63)", () => {
   const g = (age, name, v, unit = "mg/dL") => { const r = m220Run(age, [m220T(name, v, unit)], "M"); return { r, g: r.e.graded.find((x) => /^BILI_/.test(x.test)) }; };
   // 🔴 پیش‌تر: ۹٫۵۸ در روزِ ۳ «بالا» (بازهٔ بزرگسال ۰–۱٫۲۳) و «همین امروز» می‌گرفت.
+  // ⚠️ عمداً عوض شد (P104، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): بیلی‌روبینِ نوزادِ < ۱۴ روز داخلِ بازهٔ CALIPER دیگر «طبیعی» گرفته نمی‌شود —
+  //   ungraded (neonatal_hour_chart) ⇒ neonatal_bilirubin_hour_chart (soon، نمودارِ ساعتی). بالای بازه همان مسیرِ قبلی است.
   const ok = g("3 روز", "Total Bilirubin", "9.58");
-  assert.equal(ok.g.abnormal, false, JSON.stringify(ok.g)); assert.equal(ok.g.range, "0.23–14.8");
-  assert.equal(ok.r.p.findings.length, 0, String(ok.r.ids));
-  assert.equal(g("3 روز", "Total Bilirubin", "160", "µmol/L").g.abnormal, false, "۱۶۰ µmol/L ≈ ۹٫۴ mg/dL");
+  assert.equal(ok.g, undefined, JSON.stringify(ok.g)); assert.equal(ok.r.e.ungraded.BILI_T?.reason, "neonatal_hour_chart");
+  assert.deepEqual(ok.r.p.findings.map((f) => f.pattern), ["neonatal_bilirubin_hour_chart"], String(ok.r.ids));
+  assert.ok(ok.r.p.findings.every((f) => f.urgency !== "emergency"));
+  assert.ok(Math.abs(m220Run("3 روز", [m220T("Total Bilirubin", "160", "µmol/L")], "M").e.ungraded.BILI_T.value - 9.36) < 0.1, "۱۶۰ µmol/L ≈ ۹٫۴ mg/dL");
   assert.equal(g("3 روز", "Direct Bilirubin", "0.6").g.abnormal, false);
   const dh = g("3 روز", "Direct Bilirubin", "1.4");
   assert.equal(dh.g.dir, "high"); assert.ok(dh.r.p.findings.every((f) => f.urgency !== "emergency"), String(dh.r.ids));
@@ -11600,7 +11610,8 @@ test("M277: اورهٔ سالمند (≥ ۷۵) بازهٔ AACB می‌گیرد؛
 test("M246b: job 5fdd233a — بیلی‌روبینِ «T. Bilirubin(Clot)» به BILI_T می‌رسد (N2) و MCH 38 به‌تنهایی اورژانس نمی‌سازد", () => {
   for (const name of ["T. Bilirubin(Clot)", "T. Bilirubin", "T.Bilirubin"]) {
     const e = runEngine({ patient: { age: "3 روز" }, tests: [m220T(name, "9.58", "mg/dl")] });
-    assert.ok(e.graded.some((g) => g.test === "BILI_T"), `${name}: ${JSON.stringify(e.unmapped)}`);
+    // P104: داخلِ بازهٔ نوزادی ⇒ ungraded (نمودارِ ساعتی)؛ آنچه این تست قفل می‌کند (رسیدنِ نام به BILI_T، N2) همان است.
+    assert.ok(e.graded.some((g) => g.test === "BILI_T") || e.ungraded.BILI_T, `${name}: ${JSON.stringify(e.unmapped)}`);
   }
   const e = runEngine({ patient: { age: "3 روز" }, tests: [m220T("MCH", "38", "pg"), m220T("T. Bilirubin(Clot)", "9.58", "mg/dl")] });
   assert.deepEqual(e.unmapped, []);

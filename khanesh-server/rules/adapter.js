@@ -1751,6 +1751,12 @@ export function ocrToEngineInput(ocr) {
           //    بازهٔ ng/L ‏۱ تا ۱۰۰٬۰۰۰ — روی ۱۰ تا ۱۰۰ کاملاً هم‌پوشان‌اند.
           //    حدس زدن در این هم‌پوشانی همان چیزی است که N3 دربارهٔ آن است.
           tests.TROPONIN_I = tv;
+          // P37 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، بازبینیِ چندعاملی یافتهٔ ۱۹): سقفِ ۰٫۶ µg/L عددِ سنجه‌های قدیمی است؛ سنجهٔ امروزیِ
+          //   ng/mL حدش ۰٫۰۱–۰٫۰۶ است و TnT حتی پایین‌تر. «TnI 0.3 ng/mL، مرجعِ برگه <0.04» (۷ برابر) «طبیعی» و بی‌یافته می‌شد.
+          //   حدِ بالای چاپ‌شدهٔ *همین ردیف* هم‌واحدِ خودِ عدد است، پس مقایسه به واحد وابسته نیست. فقط وقتی سخت‌گیرتر از
+          //   موتور است به کار می‌رود (هرگز شُل‌تر نمی‌کند — N23)، و فقط حدِ مثبت و پایین‌تر از ۰٫۶.
+          { const pr = t.reference ? parseReference(t.reference, inferSex(ocr)) : null;
+            if (pr?.hi > 0 && pr.hi < 0.6 && !(pr.lo < 0)) tests._trop_conv_uln = pr.hi; }
         }
       } else {
         qual[t.name] = String(t.value);
@@ -2563,6 +2569,24 @@ export function runEngine(ocr) {
       const mgdl = c.converted ? c.value : (u && /^mg\/?dl$/i.test(String(u).replace(/\s+/g, "")) ? value : null);
       ungraded[key] = { value, reason: "no_range", unit: u, mgdl };
       if (c.converted) unitConversions.push({ test: key, raw: value, from: c.from, value: c.value, to: "mg/dL", basis: "printed" });
+      continue;
+    }
+    // P63 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، بازبینیِ چندعاملی یافتهٔ ۶): بیلی‌روبینِ تامِ نوزادِ زیرِ ۱۴ روز با یک بازهٔ ثابت (CALIPER)
+    //   «طبیعی» گفته نمی‌شود — آستانه به سنِ ساعتی و سنِ بارداری بستگی دارد (AAP 2022) و موتور هیچ‌کدام را ندارد؛ «۱۴٫۵ در روزِ اول»
+    //   پیش‌تر «طبیعی» و بی‌یافته بود. عددِ داخلِ بازه ⇒ ungraded (neonatal_hour_chart) ⇒ neonatal_bilirubin_hour_chart (soon).
+    //   بالای بازه همان مسیرِ قبلی است (graded ⇒ bilirubin_total_alone / bilirubin_emergency) — فوریت هرگز پایین نمی‌آید.
+    if (key === "BILI_T" && age != null && age * 365 < 14) {
+      const r0 = getRef(key, sex, age);
+      if (r0 && value >= r0[0] && value <= r0[1]) {
+        ungraded.BILI_T = { value, reason: "neonatal_hour_chart" };
+        continue;
+      }
+    }
+    // P37 (بالا): تروپونینِ سنجهٔ سنتی با حدِ بالای چاپ‌شدهٔ خودِ ردیف سنجیده می‌شود ⇒ troponin_positive (همان فوریتِ موجود).
+    if (key === "TROPONIN_I" && !tests._trop_hs && tests._trop_conv_uln != null) {
+      const hi = tests._trop_conv_uln;
+      graded.push({ test: key, value, range: `0–${hi}`, refSource: "حدِ چاپ‌شدهٔ همین برگه (P37)",
+        ...evaluate(key, value, 0, hi, isCancerPatient) });
       continue;
     }
     const ref = (NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF });

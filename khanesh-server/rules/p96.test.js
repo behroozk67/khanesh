@@ -46,7 +46,8 @@ test("P96-۱ب: بیلی‌روبینِ نوزادِ زیرِ یک ماه گام
   assert.deepEqual(ids(bare.p), ids(printed.p));
   assert.equal(bare.p.overall_urgency, "emergency");
   assert.ok(ids(bare.p).includes("bilirubin_emergency"));
-  assert.ok(Math.abs(graded(run([row("T.Bili", "150")], neo).e, "BILI_T").value - 8.77) < 0.05, "۱۵۰ برای نوزاد فقط µmol/L است");
+  // P104: داخلِ بازهٔ نوزادی ⇒ ungraded (نمودارِ ساعتی)؛ تبدیلِ واحد (آنچه این بند قفل می‌کند) همان است.
+  assert.ok(Math.abs(run([row("T.Bili", "150")], neo).e.ungraded.BILI_T.value - 8.77) < 0.05, "۱۵۰ برای نوزاد فقط µmol/L است");
   // ۱٫۵: هر دو خوانش زیرِ ۲ mg/dL ⇒ مبهم ⇒ نامعلوم می‌ماند.
   assert.equal(run([row("T.Bili", "1.5")], neo).e.ungraded.BILI_T?.reason, "unit_unknown");
   // همان ۱۸ برای کودکِ ۵ ساله نامعلوم است (گام فقط برای نوزاد).
