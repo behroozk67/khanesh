@@ -675,3 +675,10 @@ test("P107c-L5: GGT نوزاد جملهٔ ULN بزرگسال نمی‌گیرد،
   assert.ok(preg); assert.doesNotMatch(preg.must_say, /قلب و عروق/);
   assert.match(msOf(urg([["Fibrinogen", 550, "mg/dL"]], { sex: "F", age: 30 }), "coag_other_direction").must_say, /قلب و عروق/);
 });
+
+// P107e (L3، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): pH کنارِ HCO3 بی‌pCO2 همان pHِ خون خوانده می‌شود — گازِ خونِ ناقص (pH + HCO3) رایج است و
+// ادراری‌خواندنش اورژانسِ واقعی را گم می‌کند. این آزمون خوانش را قفل می‌کند (سبزِ پیشین عمدی است)؛ بی‌HCO3 هنوز pHِ ادرار است.
+test("P107e-L3: pH + HCO3 بی‌pCO2 ⇒ pHِ خون (اورژانس)؛ pH تنها ⇒ ادرار، بی‌یافته", () => {
+  assert.equal(urg([["pH", 7.6, ""], ["HCO3", 25, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
+  assert.equal(urg([["pH", 7.6, ""]]).u.blood_ph_abnormal, undefined);
+});
