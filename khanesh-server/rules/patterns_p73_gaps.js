@@ -313,15 +313,20 @@ const totalT4Abnormal = {
 };
 
 // ── ۸) HCO3↓ متوسط (بالای آستانهٔ اورژانس) — KDIGO 2024: اسیدوزِ CKD ≤ 22؛ قلیا فقط < 18 ──
+// بازبینیِ Opus (M1، N29): فوریتِ بی‌کربناتِ پایین یک تعریف دارد؛ blood_ph_abnormal وقتی جای این قاعده را می‌گیرد (pHِ بالا) همین را کف می‌گیرد.
+function bicarbUrgency(e, h) {
+  // ۱۸ آستانهٔ KDIGOِ بزرگسال است؛ زیر ۱۶ سال بازهٔ کودکان از PED_REFS می‌آید و عددِ ثابت نمی‌خورد (N23).
+  const adult = e.age == null || e.age >= 16;
+  return adult && h.value < 18 ? "this_week" : "routine";
+}
+const BICARB_WARNING = "اگر تنفسِ تند و عمیق، تهوع و استفراغِ مداوم، خواب‌آلودگیِ غیرعادی یا گیجی دارید، همان لحظه به اورژانس بروید.";
 const bicarbonateLow = {
   id: "bicarbonate_low_moderate",
   // P107 (L13): کنارِ pHِ خونِ بالا، بی‌کربناتِ پایین جبران است نه «اسیدوزِ متابولیک»؛ blood_ph_abnormal عددش را نقل می‌کند.
   match: (e) => lo(g(e, "HCO3")) && !hi(g(e, "PH")) && !anyFires(e, P73_OWNERS.hco3),
   build: (e) => {
     const h = g(e, "HCO3");
-    // ۱۸ آستانهٔ KDIGOِ بزرگسال است؛ زیر ۱۶ سال بازهٔ کودکان از PED_REFS می‌آید و عددِ ثابت نمی‌خورد (N23).
-    const adult = e.age == null || e.age >= 16;
-    const urgency = adult && h.value < 18 ? "this_week" : "routine";
+    const urgency = bicarbUrgency(e, h);
     return {
       pattern: "bicarbonate_low_moderate",
       urgency,
@@ -334,7 +339,7 @@ const bicarbonateLow = {
         comp(e, K.CREAT, "کراتینین"),
       action: ACT[urgency],
       suggest: ["الکترولیت‌ها", "کراتینین و eGFR"],
-      warnings: ["اگر تنفسِ تند و عمیق، تهوع و استفراغِ مداوم، خواب‌آلودگیِ غیرعادی یا گیجی دارید، همان لحظه به اورژانس بروید."],
+      warnings: [BICARB_WARNING],
     };
   },
 };
@@ -565,7 +570,11 @@ const bloodPhAbnormal = {
   build: (e) => {
     const ph = g(e, "PH");
     const low = ph.dir === "low";
-    const urgency = netUrgency(e, ph);
+    const h = g(e, "HCO3");
+    // M1: pHِ بالا + بی‌کربناتِ پایین (مختلط/جبران) — bicarbonate_low_moderate کنار رفته؛ فوریت و هشدارش نباید گم شود.
+    const mixed = !!(lo(h) && !anyFires(e, P73_OWNERS.hco3));
+    const netU = netUrgency(e, ph);
+    const urgency = mixed && URG_RANK[bicarbUrgency(e, h)] < URG_RANK[netU] ? bicarbUrgency(e, h) : netU;
     return {
       pattern: "blood_ph_abnormal",
       urgency,
@@ -578,8 +587,8 @@ const bloodPhAbnormal = {
         "pH را باید کنارِ بی‌کربنات و فشارِ دی‌اکسیدِ کربن (pCO2) همان گازِ خون تفسیر کرد تا معلوم شود علت تنفسی است یا متابولیک. " +
         comp(e, K.HCO3, "بی‌کربنات"),
       action: ACT[urgency],
-      suggest: [],
-      warnings: [],
+      suggest: mixed ? ["الکترولیت‌ها", "کراتینین و eGFR"] : [],
+      warnings: mixed ? [BICARB_WARNING] : [],
     };
   },
 };

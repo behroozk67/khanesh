@@ -14,7 +14,7 @@ import { evaluate } from "./grade.js";
 import { getPedRef } from "./refs_ped.js";
 import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcrossSystems, BRANCH_FACTORS,
          parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv, normUnit,
-         HEMOSTASIS_KEYS, hemostasisUnit, SURVIVAL_LIMITS, EXTRA_PRINTED_UNITS } from "./units.js";
+         HEMOSTASIS_KEYS, hemostasisUnit, SURVIVAL_LIMITS, EXTRA_PRINTED_UNITS, extraUnitContradicted } from "./units.js";
 // فقط برای سنجیدنِ «هر خوانشِ ممکن»ِ عددِ بی‌واحد با خودِ موتور (specs/003، B3). patterns.js هیچ‌چیز از
 // adapter.js نمی‌خواند، پس چرخهٔ import نیست.
 import { runPatterns } from "./patterns.js";
@@ -1380,7 +1380,12 @@ export function ocrToEngineInput(ocr) {
   const resolveRowUnit = (key, row, v) => {
     if (!UNIT_PROFILE[key]) return row;
     // P107 (L11): واحدِ چاپ‌شدهٔ دوم (mEq/L کلسیم، mmol/L اسید اوریک/هموگلوبین) شناخته‌شده است؛ تبدیل پایین‌تر (toConventional).
-    if (row.unit && EXTRA_PRINTED_UNITS[key]?.some(([re]) => re.test(String(row.unit).toLowerCase().replace(/\s+/g, "")))) return row;
+    //   ⚠️ اگر محدودهٔ چاپ‌شدهٔ همان ردیف با آن واحد نمی‌خواند (H1)، واحد باور نمی‌شود ⇒ سنجیده نمی‌شود (unit_unknown_values).
+    if (row.unit && EXTRA_PRINTED_UNITS[key]?.some(([re]) => re.test(String(row.unit).toLowerCase().replace(/\s+/g, "")))) {
+      if (!extraUnitContradicted(key, row.unit, row.reference, sexHint, ageHint)) return row;
+      unitUnknown[key] = { value: v, reference: row.reference ?? null };
+      return null;
+    }
     const rec = recognizedUnit(key, row.unit);
     if (rec) {
       // «(mg/dL)»، «mgdl»، «میلی گرم در دسی لیتر»: شناخته شد، ولی شاخه‌های پایین (تروپونین، تستوسترون،

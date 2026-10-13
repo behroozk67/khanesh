@@ -46,6 +46,12 @@ function hyLawPattern(e) {
   const bt = f("BILI_T");
   const alpX = timesUln(f("ALP"));
   if (!(at > 3) || !((timesUln(bt) ?? 0) > 2) || (alpX != null && alpX >= 2)) return null;
+  // بازبینیِ Opus (M2): FDA می‌گوید پیش از «قانون Hy» همولیز/گیلبر/عضله باید کنار گذاشته شود ⇒ بیلی‌روبینِ مستقیمِ طبیعی،
+  //   همولیزِ فعال یا CK بالا (AST از عضله) ⇒ این جمله ساخته نمی‌شود (فوریت همان this_week می‌ماند).
+  const bd = f("BILI_D");
+  if ((bd && !bd.abnormal) || hemolysisRuleFires(e)) return null;
+  const ck = f("CK");
+  if (ck?.abnormal && ck.dir === "high") return null;
   return { bili: bt.value };
 }
 /** ALT/AST ِ بالا همه < ۲×ULN و ALP بالا نیست (ACG 2017: borderline). */
@@ -54,8 +60,14 @@ function liverBorderline(e) {
   const highs = ["ALT", "AST"].map(f).filter((x) => x?.abnormal && x.dir === "high");
   const alp = f("ALP");
   if (!highs.length || (alp?.abnormal && alp.dir === "high")) return false;
-  // بیلی‌روبینِ > ۲ برابر کنارِ آنزیمِ بالا «مرزی» نیست (اختلالِ دفع) ⇒ همان this_week.
-  if ((timesUln(f("BILI_T")) ?? 0) > 2) return false;
+  // بازبینیِ Opus (H2): ACG 2017 راهنمای بزرگسالِ غیرباردار است ⇒ کودک (< ۱۶) و بارداریِ اعلام‌شده «مرزی» نمی‌گیرند
+  //   (HELLP/کبدِ چربِ حاملگی با ALT/AST < ۲×ULN هم می‌آید).
+  if ((typeof e.age === "number" && e.age < 16) || e.context?.pregnant || e.pregnant) return false;
+  // (M4) نشانهٔ دیگرِ کبد/انعقاد/پلاکت یا هر بیلی‌روبینِ بالا کنارِ آنزیم ⇒ «مرزی و شایع» درست نیست ⇒ همان this_week.
+  const bt = f("BILI_T");
+  if (bt?.abnormal && bt.dir === "high") return false;
+  const alb = f("ALB"), plt = f("PLT"), inr = f("INR"), pt = f("PT");
+  if ((alb?.abnormal && alb.dir === "low") || (plt?.abnormal && plt.dir === "low") || (inr?.abnormal && inr.dir === "high") || (pt?.abnormal && pt.dir === "high")) return false;
   return highs.every((x) => { const r = timesUln(x); return r != null && r < 2; });
 }
 

@@ -598,3 +598,51 @@ test("P107-L20: بیمارِ بستری — هشدارِ شرطی «به پرس�
   const sev = r.p.findings.find((f) => f.rule_id === "severe_hyperglycemia_uncertain_ketosis");
   assert.match((sev.warnings || []).join(" "), /^علائم هشدار:.*پرستارِ بخش اطلاع دهید/, "فهرستِ علائم حذف نمی‌شود، فرمانش پرستار است");
 });
+
+// ═══ P107b — یافته‌های high/medium داورِ Opus روی 2d9933e (۲۰۲۶-۱۰-۱۳) ═══
+test("P107b-H1: واحدِ چاپیِ mEq/L که محدودهٔ چاپیِ همان ردیف نقضش می‌کند باور نمی‌شود (بی اورژانسِ کاذب)", () => {
+  const rows = (name, value, unit, reference) => [{ name, value: String(value), unit, reference }];
+  const go = (r) => runPatterns(runEngine({ patient: { sex: "M", age: 45 }, tests: r }));
+  const ca = go(rows("Calcium", 9.6, "mEq/L", "8.5-10.5"));
+  assert.ok(!ca.findings.some((f) => f.rule_id === "calcium_abnormal"), "Ca 9.6 mEq/L با محدودهٔ mg/dL");
+  assert.notEqual(ca.overall_urgency, "emergency");
+  assert.ok(!go(rows("Hemoglobin", 14, "mmol/L", "13-17")).findings.some((f) => /erythrocytosis/.test(f.rule_id)));
+  assert.ok(!go(rows("Magnesium", 2.0, "mEq/L", "1.7-2.4")).findings.some((f) => f.rule_id === "magnesium_abnormal"));
+  // کنترل مثبت: محدودهٔ هم‌خوان با mEq/L ⇒ تبدیل می‌شود
+  assert.equal(go(rows("Calcium", 4.8, "mEq/L", "4.2-5.1")).findings.length, 0);
+});
+
+test("P107b-H2: «مرزی» ACG برای کودک و باردار اعمال نمی‌شود؛ بزرگسال همان routine", () => {
+  assert.equal(urg([["ALT", 50, "U/L"], ["AST", 50, "U/L"]], { sex: "F", age: 30, pregnant: true }).u.liver_pattern, "this_week");
+  assert.equal(urg([["ALT", 50, "U/L"]], { sex: "M", age: 5 }).u.liver_pattern, "this_week");
+  assert.equal(urg([["ALT", 60, "U/L"]]).u.liver_pattern, "routine");
+});
+
+test("P107b-M1: pH بالا + HCO3 پایین فوریت و هشدارِ بی‌کربنات را از دست نمی‌دهد (N29)", async () => {
+  const { buildEngineRecommendations } = await import("./prompt.js");
+  const e = runEngine({ patient: { sex: "M", age: 45 }, tests: [{ name: "pH", value: "7.47" }, { name: "pCO2", value: "25", unit: "mmHg" }, { name: "HCO3", value: "17", unit: "mmol/L" }] });
+  const p = runPatterns(e);
+  assert.equal(p.overall_urgency, "this_week");
+  assert.match(buildEngineRecommendations(p, e).join(" "), /همان لحظه به اورژانس بروید/);
+});
+
+test("P107b-M2: قانونِ Hy با بیلی‌روبینِ مستقیمِ طبیعی، همولیز یا CK بالا ساخته نمی‌شود", () => {
+  const hy = (r) => /دفعِ بیلی‌روبین هم مختل شده/.test(msOf(urg(r), "liver_pattern")?.must_say ?? "");
+  assert.ok(hy([["ALT", 200, "U/L"], ["AST", 150, "U/L"], ["Total Bilirubin", 4, "mg/dL"]]), "کنترل مثبت");
+  assert.ok(!hy([["ALT", 150, "U/L"], ["Total Bilirubin", 3, "mg/dL"], ["Direct Bilirubin", 0.2, "mg/dL"]]));
+  assert.ok(!hy([["AST", 200, "U/L"], ["ALT", 130, "U/L"], ["CK", 5000, "U/L"], ["Total Bilirubin", 3, "mg/dL"]]));
+});
+
+test("P107b-M3: TG بحرانی کنار لیپازِ بالا اورژانس می‌ماند؛ TG تنها همان this_week", () => {
+  assert.equal(urg([["Triglycerides", 1500, "mg/dL"], ["Lipase", 600, "U/L"]]).p.overall_urgency, "emergency");
+  assert.equal(urg([["Triglycerides", 1500, "mg/dL"]]).p.overall_urgency, "this_week");
+});
+
+test("P107b-M4: ALT/AST + INR/آلبومین/پلاکت یا هر بیلی‌روبینِ بالا «مرزی» نیست", () => {
+  assert.equal(urg([["ALT", 60, "U/L"], ["AST", 70, "U/L"], ["INR", 1.8, ""], ["Albumin", 2.8, "g/dL"], ["PLT", 90, "10^3/uL"]]).u.liver_pattern, "this_week");
+  assert.equal(urg([["ALT", 60, "U/L"], ["Total Bilirubin", 2.5, "mg/dL"]]).u.liver_pattern, "this_week");
+});
+
+test("P107b-L2: albuminuria_pattern ارجاع به متخصص کلیه را دارد (ادغامِ ckd_pattern_diagnostic آن را نینداخت)", () => {
+  assert.match(msOf(urg([["ACR", 400, "mg/g"]]), "albuminuria_pattern").action, /متخصص کلیه/);
+});

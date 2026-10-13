@@ -609,6 +609,28 @@ export function printedRangeFits(key, printed, band) {
 }
 
 /**
+ * P107 (بازبینیِ Opus، H1): واحدِ چاپ‌شدهٔ دوم (EXTRA_PRINTED_UNITS) را محدودهٔ چاپ‌شدهٔ همان ردیف رد می‌کند؟
+ * «Calcium 9.6 mEq/L، ref 8.5-10.5»: محدوده mg/dL است نه mEq/L؛ تبدیل ×۲ عددِ طبیعی را اورژانس می‌کرد (کلاسِ B7).
+ * فقط وقتی محدوده خوانده و قابل‌مقایسه باشد و با بازهٔ موتور در آن واحد بیش از ×۳ فاصله داشته باشد «ردشده» است.
+ */
+export function extraUnitContradicted(key, unit, reference, sex, age) {
+  const u0 = normUnit(unit);
+  const alt = u0 && (EXTRA_PRINTED_UNITS[key] ?? []).find(([re]) => re.test(u0));
+  if (!alt) return false;
+  const printed = parseReference(reference, sex);
+  const band = getRef(key, sex, age ?? 40);
+  if (!printed || !band) return false;
+  // محدوده به کدام بازه نزدیک‌تر است: بازهٔ متعارفِ موتور (واحدِ اصلی) یا همان بازه در واحدِ چاپ‌شده؟
+  const dist = (div) => {
+    const b = [band[0] == null ? null : band[0] / div, band[1] == null ? null : band[1] / div];
+    const pts = comparablePoints(printed, b);
+    return pts ? Math.abs(Math.log(pts[0] / pts[1])) : null;
+  };
+  const asConventional = dist(1), asPrinted = dist(alt[1]);
+  return asConventional != null && asPrinted != null && asConventional < asPrinted;
+}
+
+/**
  * تصمیمِ واحد برای یک ردیفِ عددیِ بدونِ واحدِ شناخته‌شده. تابعِ خالص.
  * @returns {{system: object|null, basis: 'reference'|'magnitude'|null, detail: string|null}}
  */

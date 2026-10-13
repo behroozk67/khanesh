@@ -704,7 +704,9 @@ export function runPatterns(engineOut) {
     //    فقط بالا می‌برد، هرگز پایین نمی‌آورد؛ یافتهٔ پنهان/brief مالک نیست (آن‌جا blocker فوریتِ بالاتر را دارد).
     // P107 (L2، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): چربیِ خون (کلسترول ۶۰۰، TG ۱۵۰۰) خودش اقدامِ اورژانسیِ بیمارستانی نمی‌خواهد؛ کف
     //   برایش this_week است. خطرِ پانکراتیت با جملهٔ شرطیِ lipid_profile («اگر درد شدید شکم … فوراً اورژانس») گفته می‌شود.
-    const netNeed = (a) => a.level === "critical" ? (FLOOR_CAP_THIS_WEEK.has(a.test) ? "this_week" : "emergency")
+    //   بازبینیِ Opus (M3): TG ۱۵۰۰ کنارِ لیپاز/آمیلازِ بالا الگوی پانکراتیت است ⇒ سقف برداشته می‌شود و کفِ اورژانس می‌ماند (N29).
+    const pancreasHigh = engineOut.graded.some((g) => (g.test === "LIPASE" || g.test === "AMYLASE") && g.abnormal && g.dir === "high");
+    const netNeed = (a) => a.level === "critical" ? (FLOOR_CAP_THIS_WEEK.has(a.test) && !pancreasHigh ? "this_week" : "emergency")
       : (a.level === "marked" || levelGrade(a) >= 3) ? "this_week" : null;
     const orphanSet = new Set(orphans.map((a) => a.test));
     const shownOwners = findings.filter((f) => !hidden.has(f) && !briefed.has(f) && f.rule_id !== "unexplained_abnormal");
