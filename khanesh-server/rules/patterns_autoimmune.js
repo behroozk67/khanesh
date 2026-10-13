@@ -442,7 +442,10 @@ function tmBuild(e) {
   const ex = explainsOf(e, st);
   return {
     pattern: "tumor_markers_result", urgency, action: ACTION[urgency],
-    headline: above ? "تومورمارکر روی برگهٔ شما بالاتر از محدودهٔ چاپ‌شده است" : "نتیجهٔ تومورمارکرهای شما",
+    // P105 (M19): «بالاتر از محدودهٔ چاپ‌شده» فقط وقتی محدوده‌ای چاپ شده و عدد از آن بالاتر است؛ کلسی‌تونینِ > ۱۰۰ بی‌محدودهٔ چاپی
+    //   سرتیترِ خودش را می‌گیرد (بدنه همان‌جا می‌گفت «محدودهٔ مرجع … چاپ نشده»).
+    headline: items.some((id) => st[id].state === "above") ? "تومورمارکر روی برگهٔ شما بالاتر از محدودهٔ چاپ‌شده است"
+      : calcHi ? "کلسی‌تونینِ شما بالاتر از ۱۰۰ pg/mL است" : "نتیجهٔ تومورمارکرهای شما",
     must_say: parts.join(" "),
     suggest: [], warnings: [],
     ...(ex.length ? { explains: ex } : {}),

@@ -93,6 +93,11 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   neut: "NEUT_PCT", neu: "NEUT_PCT", neutrophil: "NEUT_PCT", neutrophils: "NEUT_PCT",
   // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N2): «ANC» و «Absolute Neutrophil Count» unmapped بودند. ANCA (آنتی‌بادی) دست نمی‌خورد — R9.
   anc: "NEUT_ABS", absoluteneutrophilcount: "NEUT_ABS", absoluteneutrophils: "NEUT_ABS", neutrophilsabsolute: "NEUT_ABS",
+  // بازبینیِ medium ۲۰۲۶-۱۰-۱۳ (M27، N2): املاهای رایجِ «abs» ⇒ unmapped بودند.
+  neutrophilsabs: "NEUT_ABS", neutrophilabs: "NEUT_ABS", absneutrophil: "NEUT_ABS", absneutrophils: "NEUT_ABS",
+  absoluteneutrophil: "NEUT_ABS",
+  lymphocytesabs: "LYMPH_ABS", lymphocyteabs: "LYMPH_ABS", abslymphocyte: "LYMPH_ABS", abslymphocytes: "LYMPH_ABS",
+  absolutelymphocytecount: "LYMPH_ABS", absolutelymphocytes: "LYMPH_ABS", lymphocytesabsolute: "LYMPH_ABS",
   lymph: "LYMPH_PCT", lym: "LYMPH_PCT", lymphocyte: "LYMPH_PCT", lymphocytes: "LYMPH_PCT",
   mono: "MONO_PCT", mon: "MONO_PCT", monocyte: "MONO_PCT", monocytes: "MONO_PCT",
   eos: "EOS_PCT", eosinophil: "EOS_PCT", eosinophils: "EOS_PCT",
@@ -463,6 +468,17 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   betahcgserum: "HCG", serumbetahcg: "HCG", bhcgserum: "HCG",
   pregnancytest: "HCG", تستبارداری: "HCG", آزمایشبارداری: "HCG",
   بتاhcg: "HCG", تستبارداری: "HCG", تستبارداریخون: "HCG",
+
+  // ═══ بازبینیِ medium ۲۰۲۶-۱۰-۱۳ (M27، N2): املاهای رایجِ برگهٔ واقعی که unmapped بودند ═══
+  //   «Creat 6» / «Alk Phos 900» / «Glycated Hemoglobin 11» ⇒ هیچ یافته‌ای. «Ca++» (کلسیمِ یونیزه، mmol/L) و «Globulin» عمداً
+  //   نگاشت نشده‌اند: کلیدِ موتور ندارند، و نگاشتِ Ca++ به کلسیمِ تام عددِ ۱٫۲ را «کلسیمِ بحرانی» می‌کرد.
+  creat: "CREAT", phosphate: "PHOS", inorganicphosphorus: "PHOS", inorganicphosphate: "PHOS",
+  alkphos: "ALP", alkphosphatase: "ALP", got: "AST", gpt: "ALT",
+  tlc: "WBC", totalleukocytecount: "WBC",
+  freethyroxine: "FT4", thyroidstimulatinghormone: "TSH", tshultra: "TSH", ultrasensitivetsh: "TSH",
+  glycatedhemoglobin: "HBA1C", glycatedhaemoglobin: "HBA1C", glycosylatedhemoglobin: "HBA1C",
+  cholesteroltotal: "CHOL", totalironbindingcapacity: "TIBC", reticulocytecount: "RETIC",
+  urate: "URIC", serumurate: "URIC", thrombocyte: "PLT",
 };
 
 // ═══════════ آنالیزِ مایع منی (P47) ═══════════
@@ -1032,6 +1048,11 @@ function toNum(v) {
     .replace(/٬/g, ",")           // جداکنندهٔ هزارگانِ عربی → کاما (همان قاعدهٔ بالا)
     .replace(/٫/g, "."));         // ممیز عربی → نقطه
   if (pre == null) return null;
+  // بازبینیِ medium ۲۰۲۶-۱۰-۱۳ (M23، N3): واحدِ رقم‌دار در خودِ مقدار («7500 /mm3»، «7.5 x10^3/uL»، «90 mL/min/1.73m2») رقمش را
+  //   به عدد می‌چسباند ⇒ «75003» / «7.5103»، و WBCِ طبیعی اورژانسِ لکوسیتوز می‌شد. فقط عددِ ابتدایی خوانده می‌شود، و فقط وقتی دنباله
+  //   واقعاً واحد است و رقم دارد؛ تیتر («1/160»)، بازه («8-10»)، درجه («1+») و پرچم («11.2 H.») رفتارِ قبلی را دارند.
+  const lead = pre.match(/^\s*[<>≤≥]?\s*([+\-]?\d+(?:\.\d+)?)\s*(\S.*)$/);
+  if (lead && /\d/.test(lead[2]) && /^(\/\s*[a-zµμ]|[a-zµμ×*%]|10\s*[\^*eE])/i.test(lead[2])) return Number(lead[1]);
   const s = pre.replace(/[^\d.\-+]/g, "");
   if (!s) return null;
   const n = Number(s);
@@ -1082,16 +1103,19 @@ export function inferAge(ocr) {
   //    هر الگو عدد را فقط وقتی می‌گیرد که واحد بلافاصله پس از آن بیاید، پس یک عدد دو بار شمرده نمی‌شود.
   const PARTS = [
     [/([\d.]+)\s*(?:سال|year|yr|y)/gi, 1],
-    [/([\d.]+)\s*(?:ماه|month|mo)/gi, 1 / 12],
+    [/([\d.]+)\s*(?:ماه|month|mths?|mo)/gi, 1 / 12],
     [/([\d.]+)\s*(?:هفته|weeks?|wks?|w)(?![a-z])/gi, 7 / 365],
     [/([\d.]+)\s*(?:روز|day|d)/gi, 1 / 365],
     [/([\d.]+)\s*(?:ساعت|hours?|hrs?|h)(?![a-z])/gi, 1 / 8760],
   ];
+  // بازبینیِ medium (M20): «4 M» ماه است یا مرد؟ — حدس نمی‌زنیم (سنِ نامعلوم، نه ۴ سال). و عددِ > ۱۲۰ سن نیست (سالِ تولد «1990»/«1370»
+  //   یا خطای OCR)؛ پیش‌تر سنِ ۱۹۹۰ کراتینینِ ۱٫۱ را «نارساییِ کلیه، اورژانس» می‌کرد.
+  if (/^\s*[\d.]+\s*M\s*$/i.test(s)) return null;
   let total = 0, hit = false;
   for (const [re, f] of PARTS) for (const p of s.matchAll(re)) { total += Number(p[1]) * f; hit = true; }
-  if (hit) return total;
   const m = s.match(/([\d.]+)/);
-  return m ? Number(m[1]) : null;
+  const age = hit ? total : m ? Number(m[1]) : null;
+  return age != null && Number.isFinite(age) && age <= 120 ? age : null;
 }
 
 /**
@@ -1587,6 +1611,24 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
 
+    // ═══ بازبینیِ medium ۲۰۲۶-۱۰-۱۳ (M26، N25): میکروسکوپیِ مدفوع ادرار نیست ═══
+    //   «Stool RBC 5-10 /hpf» به لایهٔ ۱ می‌رفت، «Urine Stool RBC» می‌شد و hematuria می‌گفت «در آزمایش ادرار شما خون … سنگ کلیه».
+    //   خواننده‌ای برای میکروسکوپیِ مدفوع نداریم ⇒ «تفسیر نشدند». رنگ (STOOL_COLOR) و خونِ مخفی/کالپروتکتین خوانندهٔ خود را دارند.
+    //   فقط ردیف‌های میکروسکوپی (سلول/مخاط/کریستال)؛ آنتی‌ژنِ هلیکوباکتر، خونِ مخفی و کالپروتکتین کانالِ خودشان را دارند (S01).
+    if (/stool|feces|faeces|fa?ecal|مدفوع/i.test(t.name)
+        && /rbc|wbc|pus|leuk|erythro|blood\s*cells?|epithel|bacteri|yeast|mucus|crystal|cast|گلبول|چرک|مخاط/i.test(t.name)) {
+      unmapped.push(t.name);
+      continue;
+    }
+
+    // ═══ M16 (N25/N2): HCV RNA / HIV RNA / بار ویروسی آنتی‌بادی نیست ═══
+    //   «HCV RNA Positive» را خوانندهٔ غربالگریِ آنتی‌بادی می‌خواند («آنتی‌بادی هپاتیت C واکنش‌گر … آزمایش تکمیلی») و «HCV RNA 2500000»
+    //   بی‌صدا در qual می‌ماند. RNA/DNA/بار ویروسی خواننده ندارد ⇒ «تفسیر نشدند»، مثلِ HBV DNA.
+    if (/(hcv|hiv|hbv|hepatitis|هپاتیت|ایدز)[^a-z]*.*\b(rna|dna|pcr|nat|viral\s*load)\b|viral\s*load|بار\s*ویروس/i.test(t.name)) {
+      unmapped.push(t.name);
+      continue;
+    }
+
     // ═══ لایه ۱: واحد /hpf یا /lpf → میکروسکوپی ادرار، نه شمارش خون ═══
     if (/\/?\s*[hl]pf/i.test(String(t.unit || ""))) {
       // سیلندری که نوع یا مقدارش معلوم نیست («Mixed Casts»، «RBC Casts: N/S»، «Casts: Hyaline 0-1, RBC 0»)
@@ -1787,7 +1829,9 @@ export function ocrToEngineInput(ocr) {
       const ek = mapKey(key);
       const titre = parseTitre(t.value);
       if (titre != null) tests[ek] = titre;
-      else qual[t.name] = String(t.value);
+      // M18 (N28، P105): «الگو خودش تصمیم بگیرد» هرگز پیاده نشد — هیچ قاعده‌ای رایتِ کیفیِ qual را نمی‌خواند، پس «Wright: Positive»/«++»
+      //   بی‌صدا گم می‌شد. بی‌تیتر نه عدد می‌سازیم نه حکم ⇒ «تفسیر نشدند».
+      else unmapped.push(t.name);
       continue;
     }
 
@@ -1904,6 +1948,12 @@ export function ocrToEngineInput(ocr) {
     //    سنجیده نمی‌شوند و به unmapped می‌روند («تفسیرشان نمی‌کند … با پزشک»). بی‌این، «Hct 0.39»ِ طبیعی
     //    «پایین» می‌شد و با بحرانِ هماتوکریت (patterns_utils، crisisArm) اورژانسِ کاذب. عددِ معمولی دست نمی‌خورد (M177b).
     // «ARC 1.2 %» ردیفِ RETIC ِ درصدیِ بدنام‌گذاری‌شده است، نه شمارشِ مطلق — حدس نمی‌زنیم کدام (M181).
+    // بازبینیِ medium (M21، N3): PT/APTT/INR به درصد («PT 95 %»، فعالیتِ پروترومبین) با بازهٔ ثانیه/نسبت سنجیده می‌شد ⇒ INR 95٪ اورژانس.
+    //   درصد واحدِ دیگری است و تبدیل ندارد ⇒ تفسیر نشدند.
+    if ((engineKey === "PT" || engineKey === "APTT" || engineKey === "INR") && /%/.test(`${t.unit ?? ""} ${t.value ?? ""}`)) {
+      unmapped.push(t.name);
+      continue;
+    }
     if (engineKey === "RETIC_ABS" && /%/.test(String(t.unit ?? ""))) {
       unmapped.push(t.name);
       continue;

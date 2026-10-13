@@ -448,11 +448,17 @@ export const inNeonatalRedCellPeriod = (age) => age != null && age <= PED_REFS.M
 // 🔴 job c138671c: این کلیدها ردیفِ PED_REFS ندارند و قاعدهٔ عمومیِ RCPCH («بازهٔ بزرگسال») بازهٔ *زنِ بزرگسال* را
 //    به نوزادِ ۱ روزه می‌داد: RBC با ۴.۱–۵.۱ (نوزادِ سالمِ ۵.۵ «بالا» می‌شد)، RDW-SD با ۳۵–۵۶ کنارِ MCVِ ۱۲۸. تا بازهٔ
 //    نوزادیِ منبع‌دار (P57)، در این دوره سنجیده نمی‌شوند ⇒ noRef، و neonatal_reference_context دلیلش را می‌گوید.
+// بازبینیِ medium ۲۰۲۶-۱۰-۱۳ (M10، P105): NT-proBNPِ نوزاد در روزهای اول هزاران است و با بازهٔ بزرگسال (۰–۳۰۰) «soon» می‌شد. عددِ
+//    تازه‌ای نمی‌گذاریم ⇒ در دورهٔ نوزادیِ WHO (isNeonate، ۲۸ روز) سنجیده نمی‌شود (noRef). ⚠️ NH3، T4ِ تام و رتیکولوسیت عمداً اینجا
+//    نیستند: noRef آمونیاکِ ۲۵۰ (اورژانسِ واقعیِ نوزاد) و T4ِ پایین (کم‌کاریِ مادرزادی) را هم خاموش می‌کرد (N3: کف، نه سقف) — بازهٔ
+//    نوزادیِ منبع‌دارشان تصمیمِ بالینی است (MEDICAL_RULES.md، P105).
 export const NEONATAL_NO_ADULT_FALLBACK = new Set(['RBC', 'RDW_CV', 'RDW_SD']);
+export const NEONATE_NO_ADULT_FALLBACK = new Set(['NTPROBNP']);
 
 export function getRef(testKey, sex, age, { pregnant = false } = {}) {
   if (REPRO_HORMONE_KEYS.has(testKey) && ((age != null && age < 16) || !sex)) return null;
   if (NEONATAL_NO_ADULT_FALLBACK.has(testKey) && inNeonatalRedCellPeriod(age) && !getPedRef(testKey, age)) return null;
+  if (NEONATE_NO_ADULT_FALLBACK.has(testKey) && isNeonate(age) && !getPedRef(testKey, age)) return null;
   // کورتیزولِ صبح/پس از دگزامتازون: بازهٔ بزرگسال برای زیر ۱۶ سال حدس است (P46) ⇒ سنجیده نمی‌شود، نه با بازهٔ بزرگسال.
   if ((testKey === 'CORTISOL_AM' || testKey === 'CORTISOL_DST') && age != null && age < 16) return null;
   // بیلی‌روبینِ غیرمستقیمِ نوزادِ < ۱۴ روز: بازهٔ منبع‌دار نداریم و بازهٔ بزرگسال (۰٫۱–۱) غلط است ⇒ سنجیده نمی‌شود (P63).

@@ -889,6 +889,13 @@ second one; a recurring entry is the strongest signal in the file.
   paediatric table to the adult one must be an explicit decision per key, never the default. Guards `M220`–`M222`.
   The exact table/page for the P57 numbers is still unsourced (`MEDICAL_RULES.md`, P57).
 
+- ⚠️ **Recurred 2026-10-13 through digits inside the unit (P105, M23, M20).** `toNum` stripped every non-digit, so a unit
+  that contains digits joined the number: «7500 /mm3» → 75003 → WBC 75, «7.5 x10^3/uL» → 7.5103. That gave a false
+  `extreme_leukocytosis` emergency on a normal CBC. The same review found age «1990» (a birth year) read as an age, so
+  creatinine 1.1 became a kidney emergency. Fixed: `toNum` takes only the leading number when the tail is a unit with digits,
+  and `inferAge` refuses anything above 120 (and «4 M»). Guards `P105-M23`, `P105-M20`.
+  **Rule:** when a parser drops characters, list which characters can carry digits (units, exponents, years) before trusting it.
+
 ### N4 — Telling the patient about a test they didn't have
 `9c93319`
 
@@ -1595,6 +1602,14 @@ structural, not specific to that rule.
   *high* directions had owners. Same rule as the neutrophil entry above: **check both `dir`s for every key.** The text it fell into quoted «لنفوسیت 757», a number that
   is not on the sheet (the sheet prints ٪8.9) — N5. New `lymphopenia` rule + `absQuoteFa`. Guards `S1`–`S4` in `rules/review1007.test.js`.
   M38 flagged an engine-key string literal passed *inside* a `must_say` template (`"LYMPH_ABS"`): pass keys as module-level constants.
+
+- ⚠️ **Recurred 2026-10-13 in the P60 rescue itself (P105, M2/M30/M31).** The rescue only considered numbers that no shown rule
+  *read*. `potassium_critical` reads Mg but stays silent about low Mg on purpose (`magnesium_depletion` owns it), and that owner was
+  hidden. So K 2.4 + Mg 1.2, Ca 6.2 + PTH 4, and glucose 56 under `severe_acidosis` lost the second number entirely. Now a hidden
+  finding comes back when the shown text does not **quote that number**. The pass is greedy, most urgent first, so two hidden
+  findings never repeat one value. `dka_pattern` and adult severe `leukopenia` now quote their own glucose / neutrophil count.
+  Guards `P105-M2/M30/M31`; `M257` (`dic_emerg`), `M241g` re-baselined on purpose. **Coverage is "the number appears in the text",
+  not "the source mentions the key" — the second is a fact about code, the first about the page.**
 
 ### N19 — Covering the borderline case and not the frank one
 2026-08-06, `borderline_b12_deficiency`. Same session as N18, found by the same probe.

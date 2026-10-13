@@ -585,13 +585,37 @@ export function runPatterns(engineOut) {
     //    «بی‌توضیح» می‌خواند (N18/N2). حالا چنین یافته‌ای به شکلِ فشرده برمی‌گردد. یافته‌ای که چیزِ تازه‌ای نمی‌گوید
     //    (کلیدهایش را متنِ دیگری گفته، مثلِ leukopenia زیرِ pancytopenia) پنهان می‌ماند تا اورژانس رقیق نشود؛ شمارشش در
     //    suppressed/suppressed_ids می‌ماند. ملاک، متنِ فشرده است نه RULE_READS (N18: پوششْ خاصیتِ متنِ دیده‌شده است).
-    if (orphans.length > 0 && hidden.size > 0) {
+    // 🔴 بازبینیِ medium ۲۰۲۶-۱۰-۱۳ (M2/M30/M31، P105): نامزدِ نجات «عددی است که متنِ نمایشی نامش را نمی‌برد»، نه «عددی که هیچ
+    //    یافتهٔ نمایشی سورسش را نمی‌خواند». potassium_critical توکنِ MG را می‌خواند ولی برای Mgِ پایین عمداً ساکت است (مالک
+    //    magnesium_depletion است)؛ severe_acidosis قند را، calcium_abnormal PTH را. پس Mg 1.2 زیرِ K 2.4، قندِ ۵۶ زیرِ HCO3 8.8 و PTH 4
+    //    زیرِ کلسیمِ ۶٫۲ «پوشش‌داده» حساب می‌شدند و هیچ‌جای گزارش نبودند. فقط یافتهٔ *پنهانی* که خودش آن عدد را نام ببرد برمی‌گردد
+    //    (فشرده، بی‌دستور)؛ تورِ «توضیح داده نشدند» بی‌تغییر است.
+    //    «نام بردن» بی‌عدد کافی نیست: «کلسیمِ پایین می‌تواند از کاهشِ منیزیم باشد» Mgِ ۰٫۸ را نمی‌گوید.
+    //    عددی که یافتهٔ نمایشی می‌گوید مالِ همان یافته است (قندِ ۶۵۰ زیرِ hhs_pattern): glycemiaِ پنهان تکرارِ کم‌فوریت‌ترِ همان حرف است
+    //    و برنمی‌گردد (CB11). «مالک» یعنی یافتهٔ نمایشی‌ای که کلید را می‌خواند یا نام می‌برد *و* عددش را می‌گوید (hhs_pattern «قند خون» می‌گوید، نه «قند ناشتا»).
+    const escN = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const shownText = (f) => briefed.has(f)
+      ? [f.headline, f.brief, (f.brief_warnings ?? []).join(" ")].join(" ")
+      : [f.headline, f.must_say, (f.warnings ?? []).join(" ")].join(" ");
+    const quoted = (a) => a.value != null && findings.some((f) => {
+      if (hidden.has(f)) return false;
+      const t = shownText(f);
+      return (RULE_READS.get(f.rule_id)?.has(a.test) || textNamesTest(t, a.test))
+        && new RegExp(`(^|[^0-9.])${escN(a.value)}($|[^0-9])`).test(t);
+    });
+    const unnamed = engineOut.abnormal.filter((a) => !quoted(a));
+    if (unnamed.length > 0 && hidden.size > 0) {
       const seen = (f) => `${f.headline ?? ""} ${compactBody(f)}`;
-      for (const f of hidden) {
+      // حریصانه، فوری‌ترین اول: یافته‌ای که فقط عددی را تکرار می‌کند که یافتهٔ نجات‌یافتهٔ قبلی گفته، پنهان می‌ماند
+      // (TSH 7 در thyroid و hypothyroid_dyslipidemia_link؛ X19).
+      let left = unnamed;
+      for (const f of [...hidden].sort((x, y) => rank(x.urgency) - rank(y.urgency))) {
         // یافتهٔ فنی (خطای نمونه/دستگاه) یا آن‌که خودش کنار گذاشته، تکمیلی نمی‌شود؛ کلیدش به خطِ صادقانهٔ «توضیح داده نشدند» می‌رود.
         if (f.technical || f.no_supplementary || NO_SUPPLEMENTARY_IDS.has(f.rule_id)) continue;
-        const named = orphans.filter((a) => textNamesTest(seen(f), a.test));
-        if (named.length) rescued.set(f, named);
+        // خواندنِ کلید هم بس است: compactText عددِ برگه را خودش به جملهٔ فشرده می‌افزاید (hypoglycemia نامِ «قند ناشتا» را نمی‌برد).
+        const named = unnamed.filter((a) => textNamesTest(seen(f), a.test) || RULE_READS.get(f.rule_id)?.has(a.test));
+        // معیارِ برگشت فقط عددِ *تازه* است؛ ولی جملهٔ فشرده هر عددی را که نام می‌برد با مقدارش می‌گوید (M241g).
+        if (named.some((a) => left.includes(a))) { rescued.set(f, named); left = left.filter((a) => !named.includes(a)); }
       }
       if (rescued.size > 0) {
         const extra = [...rescued.keys()].map((f) => `${f.headline ?? ""} ${compactText(f, rescued.get(f), engineOut)}`).join(" ");

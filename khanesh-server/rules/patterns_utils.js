@@ -533,6 +533,11 @@ function urineCellState(e, nameRe, upper) {
     if (isCastKey(k) || PAD_ROW_RE.test(k) || !nameRe.test(k)) continue;
     const s = String(v).trim().replace(/[.,;:،؛]+$/, "").trim();
     if (/^<|کمتر|less\s*than/i.test(s)) return "low";
+    // M17 (N6، P105): درجهٔ «+» شمارشِ سلول نیست («3+» سه سلول نیست). همان هم‌ارزیِ urineGrade: ≥ ۲+ (moderate/many) ⇒ زیاد؛
+    //   «+»/«1+» (few) تعیین‌نشده. «Innumerable»/«TNTC» یعنی بی‌شمار.
+    const plus = s.match(/^(\d)\s*\+$|^\+\s*(\d)$|^(\++)$/);
+    if (plus) return Number(plus[1] ?? plus[2] ?? plus[3].length) >= 2 ? "high" : "unknown";
+    if (/innumerable|uncountable|countless|بی\s*شمار|بیشمار|غیرقابل\s*شمارش/i.test(s)) return "high";
     const nums = (s.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
     if (nums.length) return Math.max(...nums) > upper ? "high" : "low";
     if (CELL_LOW_RE.test(s)) return "low";
@@ -642,6 +647,8 @@ function urineCellCount(e, nameRe) {
     const s = String(v).trim();
     // «<5» یا «کمتر از ۵» → زیر آستانه، صفر برگردان
     if (/^<|کمتر|less\s*than|<\s*\d/i.test(s)) return 0;
+    // M17: «3+»/«+3» درجه است نه شمارش — عدد نمی‌سازیم (N6)؛ urineCellState درجه را می‌خواند.
+    if (/\+/.test(s)) return null;
     // همه‌ی اعداد را بگیر و بزرگ‌ترین (سقف بازه) را برگردان
     const nums = (s.match(/\d+(?:\.\d+)?/g) || []).map(parseFloat);
     if (nums.length) return Math.max(...nums);

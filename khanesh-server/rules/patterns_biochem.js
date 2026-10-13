@@ -7,6 +7,7 @@ import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 import { isNeonate } from "./neonatal.js";
 import { SURVIVAL_LIMITS } from "./units.js";
 import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION } from "./patterns_utils.js";
+import { hemolysisRuleFires } from "./patterns_hematology.js";   // P105 (M7): ژیلبرِ «بی‌خطرترین» کنارِ همولیزِ فعال گفته نمی‌شود
 
 /**
  * پیش‌شرطِ الگوی زنجیره‌ایِ منیزیم: منیزیمِ پایین به‌همراه پتاسیم یا کلسیمِ پایین.
@@ -580,9 +581,12 @@ export const RULES_BIOCHEM = [
       const urgent = !critical && (v >= 151 || v <= 129);
       const urgency = critical ? "emergency" : urgent ? "this_week" : "routine";
       const rangeTxt = nag?.range ? ` (حد طبیعی ${nag.range})` : "";
-      const corrNote = e.indices.na_correction_applied
-        ? ` (این مقدار به‌خاطر قند خیلی بالا تصحیح شده؛ عددِ اندازه‌گیری‌شده روی برگه ${e.indices.na_measured} است.)`
-        : "";
+      // P105 (M1، N5): جملهٔ تصحیح در انتهای متن بود و «یافتهٔ تکمیلی» فقط جملهٔ اول را نشان می‌دهد ⇒ زیرِ HHS بیمار «سدیم 130» می‌خواند
+      //   و ۱۱۸ِ روی برگه هیچ‌جا نبود. عددِ چاپ‌شده حالا در خودِ جملهٔ اول است.
+      const corrected = !!e.indices.na_correction_applied;
+      const firstSentence = corrected
+        ? `سدیمِ روی برگهٔ شما ${e.indices.na_measured} است؛ چون قند خون خیلی بالاست، مقدارِ تصحیح‌شده‌اش ${v}${rangeTxt} است. `
+        : `سدیم خون شما ${v}${rangeTxt} است. `;
       return {
         pattern: high ? "hypernatremia" : "hyponatremia",
         urgency,
@@ -592,7 +596,7 @@ export const RULES_BIOCHEM = [
           ? "سدیم خون شما بالاست"
           : "سدیم خون شما پایین است",
         must_say:
-          `سدیم خون شما ${v}${rangeTxt} است. ` +
+          firstSentence +
           (high
             ? "سدیم بالاتر از حد طبیعی اغلب یعنی بدن نسبت به آب، نمک بیش‌ازحد دارد (معمولاً کم‌آبی یا کم‌نوشیدن آب). "
             : "سدیم پایین‌تر از حد طبیعی یعنی نسبت آب به نمک بدن به‌هم خورده؛ علت‌های مختلفی دارد (از مصرف بعضی داروها تا مشکل کلیه/قلب/هورمونی). ") +
@@ -603,8 +607,7 @@ export const RULES_BIOCHEM = [
             ? ""
             : high
               ? " سدیمِ بالا تقریباً همیشه یعنی کمبودِ آب، نه زیادیِ نمک: یا آبِ کافی نرسیده، یا از راهِ ادرار، تعریق یا اسهال بیش‌ازحد رفته است. در سالمندان و کسانی که خودشان نمی‌توانند آب بخواهند شایع‌تر است."
-              : " سدیمِ پایین معمولاً یعنی آبِ بدن نسبت به نمک زیاد شده، نه اینکه نمک کم خورده‌اید. از علت‌های شایع و قابلِ پیگیری: بعضی داروهای ادرارآور (به‌ویژه تیازیدها)، بعضی داروهای ضدافسردگی، کم‌کاری تیروئید، و بیماری‌های قلب، کبد یا کلیه.") +
-          corrNote,
+              : " سدیمِ پایین معمولاً یعنی آبِ بدن نسبت به نمک زیاد شده، نه اینکه نمک کم خورده‌اید. از علت‌های شایع و قابلِ پیگیری: بعضی داروهای ادرارآور (به‌ویژه تیازیدها)، بعضی داروهای ضدافسردگی، کم‌کاری تیروئید، و بیماری‌های قلب، کبد یا کلیه."),
         action: critical
           ? "همین حالا به اورژانس مراجعه کنید. اگر گیجی، سردرد شدید یا تشنج رخ داد، فوری‌تر."
           : urgent
@@ -891,12 +894,15 @@ export const RULES_BIOCHEM = [
       const ketone = urinePositive(e, /ketone|کتون|hydroxybutyrate|بتاهیدروکسی/i);
       // اگر هم بی‌کربنات پایین و هم کتون → تصویر کامل‌تر و جدی‌تر
       const fullPicture = hco3Low && ketone;
+      // P105 (N5): عددِ قند گفته نمی‌شد، پس glycemiaِ پنهان («قندِ ناشتای شما ۵۲۰ … محدودهٔ دیابت») تنها جای آن عدد بود.
+      const glu = ["GLU_F", "GLU_RANDOM"].map((k) => e.graded.find((g) => g.test === k)).find((g) => g?.value != null && g.value >= 250);
       return {
         pattern: "dka_pattern",
         urgency: "emergency",
         blocks_others: true,
         headline: "این نتایج ممکن است نشانه‌ی یک وضعیت جدی و فوری باشند",
         must_say:
+          (glu ? `قند خون شما ${glu.value} است (حد طبیعی ${glu.range}). ` : "") +
           "ترکیب قند خون بسیار بالا" +
           (ketone ? "، وجود کتون" : "") +
           (hco3Low ? "، و اسیدی شدن خون" : "") +
@@ -1683,7 +1689,9 @@ export const RULES_BIOCHEM = [
       // بیلی‌روبین غیرمستقیم غالب
       // اگر آنزیم‌ها طبیعی و بیلی‌روبین خیلی بالا نیست → احتمال گیلبرت (خوش‌خیم)
       // specs/006 (بازبینیِ پزشکی B1): بیلی‌روبینِ مثبتِ نوارِ ادرار یعنی بخشِ مستقیم به ادرار رسیده — با ژیلبر جور نیست.
-      const mildIndirect = total != null && total < 5 && !enzymesHigh && urineBiliState(e) !== "positive";
+      // P105 (M7، N20/N21): کنارِ hemolysis_likely (LDH/رتیکولوسیتِ بالا) «شایع‌ترین و بی‌خطرترین علت ژیلبر … نوبت عادی» با همان برگه
+      //   متناقض بود؛ قاعدهٔ همولیز از خودش پرسیده می‌شود (hemolysisRuleFires)، نه کپیِ آستانه‌اش.
+      const mildIndirect = total != null && total < 5 && !enzymesHigh && urineBiliState(e) !== "positive" && !hemolysisRuleFires(e);
       return {
         pattern: "bilirubin_indirect_dominant",
         urgency: mildIndirect ? "routine" : "this_week",

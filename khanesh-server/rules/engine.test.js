@@ -8904,7 +8904,9 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   // ⚠️ اندیس ۹ عمداً عوض شد (M275، ۲۰۲۶-۱۰-۰۱): leukocytosis نوتروفیلِ مطلقِ بالا را می‌گوید و unexplained_abnormal رفت — freezediff: فقط همین.
   // ⚠️ 3، 5، 10 عمداً عوض شد (M192، ۲۰۲۶-۰۹-۲۴): کم‌خونی RBC/HCT/MCHِ هم‌جهت را نام می‌برد و unexplained_abnormal رفت — freezediff: فقط همین. // ⚠️ اندیسِ ۱۱ عمداً عوض شد (۲۰۲۶-۱۰-۰۴، P77-۸): هماتوکریتِ کودکِ ۸ ساله بی‌بازهٔ سنی دیگر سنجیده نمی‌شود (noRef)؛ هش با دو ردیفِ بی‌یافتهٔ اول یکی است.
   // ⚠️ اندیسِ ۵ (MCHC 37) عمداً عوض شد — P95: spherocytosis_likely جملهٔ «اسفروسیت به‌تنهایی تشخیصِ نوعی کم‌خونی نیست؛ DAT» و پیشنهادِ DAT/رتیکولوسیت/LDH گرفت (proof95، فوریت همان).
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","533579b1749fa223","3bf61851eec439b1","c979a7f9f4e6d5f6","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
+  // ⚠️ اندیس ۶ عمداً عوض شد (P105، M6): erythrocytosis گلبولِ قرمزِ 6.3 و هماتوکریتِ 56 را می‌گوید و unexplained_abnormalِ هماتوکریت رفت —
+  //   مقایسهٔ خروجیِ کامل با HEAD (630cb3f): فقط همین دو؛ فوریت و اقدام یکسان.
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","533579b1749fa223","dd3f16a57359abb0","c979a7f9f4e6d5f6","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
   // ⚠️ اندیسِ ۸ (PLT 90، Hb/WBCِ طبیعی) عمداً عوض شد — بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، N20): thrombocytopenia کنارِ isolated_thrombocytopenia
   //   کنار رفت؛ isolated عدد/بازه (به‌جای «به زیر ۱۰۰ هزار») و «تکرار CBC» گرفت. فوریت همان this_week (proof4.mjs، کپیِ pre4).
   assert.deepEqual(P.map(snap), EXPECTED);
@@ -11312,7 +11314,9 @@ const m241WithFake = (fake, fn) => {
 };
 
 test("M241g: جملهٔ اولِ بی‌زمینه («این اعداد…») در یافتهٔ تکمیلی جایش را به headlineِ خودبسندهٔ همان قاعده می‌دهد", () => {
-  const f = m241WithFake(m241Fake({}), () => M241_WBC80().p.findings.find((x) => x.rule_id === "m241_fake"));
+  // P105: نجات حریصانه و فوری‌ترین-اول است؛ یافتهٔ ساختگیِ this_week لنفوسیت را تکراری می‌گفت (قاعدهٔ واقعی زودتر گفته بود).
+  //   soon ⇒ اولِ صف، تا موضوعِ همین آزمون (جانشینیِ headline) سنجیده شود.
+  const f = m241WithFake(m241Fake({ urgency: "soon" }), () => M241_WBC80().p.findings.find((x) => x.rule_id === "m241_fake"));
   assert.ok(f, "یافتهٔ ساختگی تکمیلی نشد");
   assert.equal(f.supplementary, true);
   assert.ok(!/این اعداد/.test(f.must_say), f.must_say);
@@ -11918,7 +11922,7 @@ const M010_FREEZE = {
   plt_999: ["M", 40, [...M010_BASE, m010T("PLT", 999, "10^3/uL")], "80b649f8fc4b81ef"],
   // ⚠️ dic_emerg عمداً بازپایه شد (P73): Hbِ ۱۳ (پایین برای مرد ۶۰ ساله، بی‌MCV) پیش‌تر unexplained_abnormal/routine بود، حالا anemia_hb_alone/routine؛
   //   dic_pattern و coagulation_abnormal و فوریتِ کلی (emergency) دست‌نخورده.
-  dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "207480882283b17f"],
+  dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "d15a28c282d5521f"], // P105 (عمدی، proof257): پلاکتِ ۶۰ را متنِ DIC نمی‌گفت ⇒ thrombocytopenia تکمیلی برمی‌گردد؛ بی آن، هش عیناً 207480882283b17f
   plt40_dd6: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 40, "10^3/uL"), m010T("D-dimer", 6.0, "µg/mL"), m010T("PT", 12, "sec"), m010T("Fibrinogen", 300, "mg/dL")], "372f21f3a9239c89"], // P95 (عمدی، proof95): فقط احتیاطِ EDTA «لام قابل‌اعتمادترین راه … سیترات یا هپارین»؛ فوریت همان
   plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "0b3777138bf58435"], // P95 (عمدی، proof95): severe_thrombocytopenia Hbِ پایین و لام/LDH را می‌گوید ⇒ نجاتِ تکمیلیِ anemia_hb_alone (فقط جملهٔ اول) لازم نیست؛ فوریت همان
   plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "a86da6d7c90ad6c7"], // P98 (عمدی، proof2: کپیِ درخت با فقط هشدارِ شرطیِ بستری/هپارین برگردانده ⇒ هشِ قبلی ce53c5c6951f5b7a عیناً)؛ P95 (عمدی، proofM257: فوریت همان؛ EDTA/Hb-در-severe_thrombocytopenia/maha بی‌نشانگر)
@@ -11926,7 +11930,7 @@ const M010_FREEZE = {
   aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "b35c9851d8754cbd"],
   pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "0ee02a62f8a75c4f"],
   // بازبینیِ ۲۰۲۶-۱۰-۰۴ (N20، M369): عمداً عوض شد — تنها تفاوت‌ها با پیشین (diff کاملِ خروجی): actionِ شاخهٔ severe («همین امروز با پزشک تماس بگیرید» ⇒ اورژانس) و هشدارِ خونریزی («همان لحظه به اورژانس بروید»، هم‌راستا با اورژانس بودنِ یافته).
-  fib_90: ["M", 40, [...M010_BASE, m010T("Fibrinogen", 90, "mg/dL")], "ec06a77d719a98cb"],
+  fib_90: ["M", 40, [...M010_BASE, m010T("Fibrinogen", 90, "mg/dL")], "6e137b7b264bd6a1"], // P105 (عمدی، proof257b): فقط متن/actionِ فیبرینوژنِ تنها (نه «زمانِ لخته … وارفارین»)؛ برگرداندنِ همان دو رشته ⇒ ec06a77d719a98cb؛ فوریت همان
   // ۲۰۲۶-۱۰-۰۳ (P67): TT حالا کلیدِ شناخته‌شده و قاعده‌دار است؛ این تنها ردیفِ freeze است که عمداً عوض شد (M290).
   tt: ["M", 40, [...M010_BASE, m010T("Thrombin Time", 30, "sec")], "fc9c0947e7eb8acf"],
   adamts: ["F", 40, [...M010_BASE, m010T("ADAMTS13 activity", 4, "%")], "f1317c856c6d3301"],

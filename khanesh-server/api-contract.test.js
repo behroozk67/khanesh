@@ -1320,3 +1320,48 @@ test("GW1: سنِ بارداری از ورودِ دستی و از عکس به _e
   const n = await analyze({ patient: { age: "30 سال", sex: "زن", gestWeeks: 12 }, tests });
   assert.equal(n.body._engine.context.gest_weeks, undefined);
 });
+
+// ═══ P105 (بازبینیِ medium ۲۰۲۶-۱۰-۱۳، M35): JSONِ معتبر ولی بی‌شکل از مدل ⇒ نتیجهٔ قطعیِ موتور، نه بدنهٔ خالی/آرایه ═══
+test("P105-M35: مدل «{}» / «[]» / summary و interpretationِ خالی ⇒ fallbackِ موتور با has_critical و _engine", async () => {
+  for (const rawContent of ["{}", "[]", JSON.stringify({ summary: "", interpretation: "  " }), JSON.stringify({ analysis: "x" })]) {
+    const r = await analyze(PANEL_CRITICAL, null, { rawContent });
+    assert.equal(r.status, 200, rawContent);
+    assert.ok(r.body && !Array.isArray(r.body), `${rawContent}: بدنه آرایه است`);
+    assert.equal(r.body.has_critical, true, `${rawContent}: has_critical گم شد`);
+    assert.ok(r.body._engine, `${rawContent}: _engine گم شد`);
+    assert.ok(typeof r.body.interpretation === "string" && r.body.interpretation.trim(), `${rawContent}: تفسیر خالی`);
+  }
+});
+
+// ═══ P105 (M22): ردیفِ هم‌نامِ دو صفحه با مقدارِ متفاوت — اورژانس به ترتیبِ صفحه‌ها بسته نیست ═══
+test("P105-M22: mergePages هر دو مقدارِ متفاوتِ هم‌نام را به adapter می‌دهد؛ K 4.0 سپس 7.2 ⇒ اورژانس، در هر ترتیب", async () => {
+  const { mergePages } = await import("./server.js");
+  const { runEngine } = await import("./rules/adapter.js");
+  const { runPatterns } = await import("./rules/patterns.js");
+  for (const [a, b] of [["4.0", "7.2"], ["7.2", "4.0"]]) {
+    const m = mergePages([
+      { ok: true, page: 1, ocr: { tests: [{ name: "Potassium", value: a, unit: "mmol/L" }] } },
+      { ok: true, page: 2, ocr: { tests: [{ name: "Potassium", value: b, unit: "mmol/L" }] } },
+    ]);
+    const p = runPatterns(runEngine({ tests: m.tests, patient: { sex: "M", age: 50 } }));
+    assert.equal(p.overall_urgency, "emergency", `${a} → ${b}`);
+  }
+  // مقدارِ یکسان همچنان یک ردیف است
+  const same = mergePages([
+    { ok: true, page: 1, ocr: { tests: [{ name: "Potassium", value: "4.0" }] } },
+    { ok: true, page: 2, ocr: { tests: [{ name: "Potassium", value: "4.0" }] } },
+  ]);
+  assert.equal(same.tests.length, 1);
+});
+
+// ═══ P105 (M33): stripUnmeasuredClaims ردیفِ چاپ‌شدهٔ بی‌درجه (Hb بی‌جنسیت) را «اندازه‌گیری‌نشده» نمی‌شمارد ═══
+test("P105-M33: جملهٔ درستِ موتور دربارهٔ Hbِ بی‌جنسیت («برای زن طبیعی ولی برای مرد پایین») از متنِ مدل حذف نمی‌شود", async () => {
+  const { runEngine } = await import("./rules/adapter.js");
+  const { runPatterns } = await import("./rules/patterns.js");
+  const panel = { patient: { age: 30 }, tests: [{ name: "Hb", value: 12.5, unit: "g/dL" }, { name: "MCV", value: 70, unit: "fL" }] };
+  const p = runPatterns(runEngine({ patient: panel.patient, tests: panel.tests.map((t) => ({ ...t, value: String(t.value) })) }));
+  const text = p.findings.find((f) => f.pattern === "hgb_sex_unknown").must_say;
+  const r = await analyze(panel, modelSays({ text }));
+  assert.equal(r.status, 200);
+  assert.match(r.body.interpretation, /برای زن طبیعی ولی برای مرد/, r.body.interpretation);
+});

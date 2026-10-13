@@ -771,8 +771,12 @@ export function mergePages(pageResults) {
             pages: [prev._page, p.page],
             values: [prev.value, t.value],
           });
+          // 🔴 بازبینیِ medium ۲۰۲۶-۱۰-۱۳ (M22، P105): «اولی برنده» K 4.0ِ صفحهٔ ۱ را نگه می‌داشت و K 7.2ِ صفحهٔ ۲ را دور می‌ریخت —
+          //    اورژانس به ترتیبِ عکس‌ها بسته بود. هر دو به adapter می‌روند؛ همان سیاستِ VC1 (دورترین از بازه سنجیده می‌شود، دیگری
+          //    «تفسیر نشدند» + هشدار) برای ردیف‌های هم‌نام هم اعمال می‌شود.
+          tests.push({ ...t, _page: p.page });
         }
-        continue; // اولی را نگه می‌داریم
+        continue;
       }
 
       seen.set(key, tests.length);
@@ -1559,6 +1563,14 @@ const analyzeHandler = async (req, res) => {
     tr.stage("llm_raw", { raw });
 
     parsed = safeParseJson(raw);
+    // 🔴 بازبینیِ medium (M35، P105): JSONِ معتبر ولی بی‌شکل («{}» برای content خالی، آرایه، summary/interpretation خالی) از تورِ
+    //    «!parsed» رد می‌شد ⇒ تفسیرِ خالی، و برای آرایه کلِ بدنه [] بود (has_critical/_engine گم، حتی با K 7.1). در مسیرِ موتور همان
+    //    نتیجهٔ قطعیِ موتور جایش می‌نشیند (N18: شرطِ «فقط شکستِ کامل» تور نیست).
+    if (parsed && patternOut && engineOut && (typeof parsed !== "object" || Array.isArray(parsed)
+        || ![parsed.summary, parsed.interpretation].some((s) => typeof s === "string" && s.trim()))) {
+      tr.stage("parse_shape", { ok: false, kind: Array.isArray(parsed) ? "array" : typeof parsed });
+      parsed = null;
+    }
     tr.stage("parse", { ok: !!parsed, parsed: parsed ?? null });
     if (!parsed) {
       // ⚠️ در «مسیر موتور» یافته‌ها (از جمله اورژانس‌ها) قبلاً قطعی محاسبه شده‌اند.
@@ -1607,7 +1619,14 @@ const analyzeHandler = async (req, res) => {
     //    analysis/reasoning/text هم بیرون می‌زند. تا وقتی پاسخ به یک شکلِ
     //    مشخص محدود نشده، فیلتر باید همهٔ رشته‌های سطحِ اول را ببیند.
     if (engineOut) {
-      const measured = [...new Set(engineOut.graded.map((g) => g.test))];
+      // P105 (M33، N4 برعکس): «اندازه‌گیری‌شده» یعنی روی برگه چاپ شده، نه «سنجیده‌شده». FSHِ بی‌جنسیت، Hbِ جنسیت‌نامعلوم، BHBِ بی‌واحد و
+      //   مارکرهای MoM در ungraded/noRef/prenatal‌اند و جملهٔ درستِ موتور دربارهٔ آن‌ها («جنسیت مشخص نیست…») حذف می‌شد.
+      const measured = [...new Set([
+        ...engineOut.graded.map((g) => g.test),
+        ...Object.keys(engineOut.ungraded ?? {}),
+        ...(engineOut.noRef ?? []),
+        ...Object.keys(engineOut.prenatal?.markers ?? {}),
+      ])];
       for (const [k, v] of Object.entries(parsed)) {
         if (typeof v !== "string") continue;
         const after = stripUnmeasuredClaims(v, measured);

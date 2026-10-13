@@ -51,9 +51,12 @@ const rangeTxt = (x) => (x?.range ? ` (حد طبیعی ${x.range})` : "");
  * چون اگر دو جای موتور دو تعریفِ متفاوت از «کلیهٔ مختل» داشته باشند،
  * بیمار می‌تواند یک یافته بگیرد که کلیه را درگیر می‌داند و یکی که نمی‌داند.
  */
+// P105 (M28): بیمارِ دیالیزیِ اعلام‌شده کلیهٔ مختل دارد، حتی بی کراتینین روی برگه. پیش‌تر Ca 8 + PTH 800 + فسفر 7.5 برای او
+//   «hpt_secondary_nonrenal» می‌شد: «این خبرِ بدی نیست … کمبودِ ویتامین D شایع‌ترین علت». همان شرطِ onDialysis در patterns_nephrology.js.
+const dialysis = (e) => Array.isArray(e.conditions) && e.conditions.includes("dialysis");
 function renalImpaired(e) {
   const creat = g(e, "CREAT");
-  return hi(creat) || (e.indices?.egfr != null && e.indices.egfr < 60);
+  return dialysis(e) || hi(creat) || (e.indices?.egfr != null && e.indices.egfr < 60);
 }
 
 /**
@@ -435,7 +438,7 @@ export const RULES_MINERAL_BONE = [
     build: (e) => {
       const ca = g(e, "CA"), pth = g(e, "PTH");
       const egfr = e.indices?.egfr;
-      const egfrTxt = egfr != null ? ` (eGFR محاسبه‌شدهٔ شما ${egfr})` : "";
+      const egfrTxt = dialysis(e) ? " (شما دیالیز می‌شوید)" : egfr != null ? ` (eGFR محاسبه‌شدهٔ شما ${egfr})` : "";
       return {
         pattern: "secondary_hyperparathyroidism_renal",
         urgency: "this_week",
