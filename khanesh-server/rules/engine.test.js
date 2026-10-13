@@ -11063,9 +11063,10 @@ test("M235c: شیرخوار (بازهٔ RCPCH) و برگهٔ بی‌اورژان
   assert.match(inf.warnings[0], /^اگر کودک تب دارد/);
   assert.ok(inf.sources?.includes("HSL_RFH"));   // P106، M9
   const { e, p } = fffRun([fffTest("WBC", "15", "10^3/uL"), fffTest("Hb", "7.5", "g/dL"), fffTest("PLT", "250", "10^3/uL")], { age: 40, sex: "M" });
-  assert.equal(p.overall_urgency, "this_week");
+  // P107h (تصمیمِ کاربر، ردیف ۶) عمداً: Hb 7.5 در بزرگسال ⇒ دست‌کم soon (قبلاً this_week / «این هفته»).
+  assert.equal(p.overall_urgency, "soon");
   assert.deepEqual(wbcOwners(p), ["reactive_leukocytosis_with_cytopenia"]);
-  assert.match(buildEngineRecommendations(p, e)[0], /این هفته با پزشک وقت بگیرید/);
+  assert.match(buildEngineRecommendations(p, e)[0], /۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید/);
 });
 
 // ---------- M240–M240f: job 40b8a901 (پان‌سیتوپنیِ بزرگسال با اوره/PT/K بالا، برگهٔ واقعی ۲۰۲۶-۰۹-۲۸، P59) ----------

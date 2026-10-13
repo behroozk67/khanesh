@@ -433,9 +433,10 @@ test("P106-M6: Hb ≥ ۲۰ یا HCT ≥ ۶۰ در بزرگسال ⇒ soon", () =
   assert.equal(urg([["Hb", 18.5, "g/dL"], ["HCT", 55, "%"], ["RBC", 6.5, "10^6/uL"], ["MCV", 88, "fL"]]).u.erythrocytosis, "this_week");
 });
 
-test("P106-M8: Hb ≤ ۸٫۵ِ تنها ⇒ this_week (بارداری هم)", () => {
-  assert.equal(urg([["Hb", 8.2, "g/dL"]]).u.anemia_hb_alone, "this_week");
-  assert.equal(urg([["Hb", 8.2, "g/dL"]], { sex: "F", age: 28, pregnant: true }).u.anemia_hb_alone, "this_week");
+test("P106-M8: Hb ≤ ۸٫۵ِ تنها ⇒ دست‌کم this_week؛ P107h (تصمیمِ کاربر ردیف ۶) آن را soon کرد (بارداری هم)", () => {
+  assert.equal(urg([["Hb", 8.8, "g/dL"]]).u.anemia_hb_alone, "this_week");
+  assert.equal(urg([["Hb", 8.2, "g/dL"]]).u.anemia_hb_alone, "soon");
+  assert.equal(urg([["Hb", 8.2, "g/dL"]], { sex: "F", age: 28, pregnant: true }).u.anemia_hb_alone, "soon");
 });
 
 test("P106-M9: WBCِ کودکِ ۲ ساله ۱۵ طبیعی است (بازهٔ ۶–۱۸، HSL/Royal Free)", () => {
@@ -544,7 +545,7 @@ test("P107-L10: تستِ بارداریِ ادرار (UPT/Urine Pregnancy Test) 
 
 test("P107-L11: واحدِ چاپ‌شدهٔ mEq/L برای کلسیم و mmol/L برای Hb تبدیل می‌شود؛ بی‌واحد حدس نمی‌خورد", () => {
   assert.equal(urg([["Calcium", 4.8, "mEq/L"]]).p.findings.length, 0, "۴٫۸ mEq/L = ۹٫۶۲ mg/dL");
-  assert.equal(urg([["Hemoglobin", 5.2, "mmol/L"]]).u.anemia_hb_alone, "this_week");
+  assert.equal(urg([["Hemoglobin", 5.2, "mmol/L"]]).u.anemia_hb_alone, "soon", "۵٫۲ mmol/L ≈ ۸٫۴ g/dL ≤ ۸٫۵ ⇒ soon (P107h)");
 });
 
 test("P107-L12: Hb ≤ ۸٫۵ در بارداری ⇒ ارجاع به پزشکِ زنان/ماما", () => {
@@ -705,4 +706,46 @@ test("P107g-L9: فسفات ۳٫۵ در نوجوانِ ۱۴ ساله و ALP ۳۳�
   assert.equal(one("ALP", 330, "U/L", { sex: "M", age: 15.5 }).abnormal, false);
   assert.equal(one("ALP", 400, "U/L", { sex: "M", age: 15.5 }).dir, "high");
   assert.equal(one("ALP", 330, "U/L", { sex: "F", age: 15.5 }).dir, "high", "دختر همان RCPCH ۴۹–۲۴۲ ماند");
+});
+
+// ═══ P107h — جدولِ بازبینِ پزشکی (الف + ب + تصمیم‌های کاربر روی ج) ═══
+test("P107h-6: Hb ≤ ۸٫۵ بزرگسال ⇒ soon با جملهٔ «۲۴ تا ۴۸ ساعت»؛ ۸٫۸ و کودک this_week؛ بارداری جملهٔ همین مراجعه می‌گیرد", () => {
+  const a = urg([["Hb", 8.2, "g/dL"], ["MCV", 70, "fL"]]);
+  assert.equal(a.u.microcytic_anemia, "soon");
+  assert.match(msOf(a, "microcytic_anemia").action, /۲۴ تا ۴۸ ساعت/);
+  assert.equal(urg([["Hb", 8.8, "g/dL"]]).u.anemia_hb_alone, "this_week");
+  assert.equal(urg([["Hb", 8.2, "g/dL"]], { sex: "M", age: 8 }).u.anemia_hb_alone, "this_week", "کودک: ردهٔ بزرگسال نیست");
+  const p = msOf(urg([["Hb", 8.2, "g/dL"]], { sex: "F", age: 28, pregnant: true }), "anemia_hb_alone").action;
+  assert.match(p, /در همین مراجعه با پزشکِ زنان/); assert.doesNotMatch(p, /این هفته/);
+});
+
+test("P107h-19: pH بیرون از ۶٫۸–۷٫۸ هرگز pHِ خون نیست؛ داخلش با HCO3 همچنان خون است", () => {
+  assert.equal(urg([["pH", 8.5, ""], ["HCO3", 25, "mmol/L"]]).p.findings.length, 0);
+  assert.equal(urg([["pH", 6.7, ""], ["HCO3", 25, "mmol/L"]]).p.findings.length, 0);
+  assert.equal(urg([["pH", 7.8, ""], ["HCO3", 25, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
+  assert.equal(urg([["pH", 6.9, ""], ["HCO3", 25, "mmol/L"]]).p.overall_urgency, "emergency");
+});
+
+test("P107h-4: متنِ FT4 پایین تکرارِ آزمایش و بررسیِ داروها و بیماریِ حاد را می‌گوید", () => {
+  assert.match(msOf(urg([["FT4", 0.21, "ng/dL"], ["TSH", 2.5, "mIU/L"]]), "thyroid").action, /آزمایش تکرار شود و داروها و بیماریِ حادِ اخیرتان هم بررسی شود/);
+});
+
+test("P107h-14: فیبرینوژنِ باردارِ ۲۰۰–۳۰۰ — هفتهٔ ≥ ۲۸ soon، نامعلوم this_week، < ۲۸ هفته و غیرباردار بی‌یافته", () => {
+  const f = (v, p) => urg([["Fibrinogen", v, "mg/dL"]], { sex: "F", age: 30, ...p });
+  assert.equal(f(250, { pregnant: true, gestWeeks: 34 }).u.fibrinogen_pregnancy_low, "soon");
+  assert.equal(f(250, { pregnant: true }).u.fibrinogen_pregnancy_low, "this_week");
+  assert.ok(!f(250, { pregnant: true, gestWeeks: 12 }).u.fibrinogen_pregnancy_low);
+  assert.ok(!f(250).u.fibrinogen_pregnancy_low);
+  assert.ok(!f(350, { pregnant: true, gestWeeks: 34 }).u.fibrinogen_pregnancy_low);
+});
+
+test("P107h-5/11/15/16/17: گاردهای بی‌تغییر — soon فقط بزرگسال؛ آمیلاز/TG جملهٔ شرطیِ درد شکم؛ Hy فقط AT>3×ULN و ALP<2×ULN؛ routine کبد «تکرار» می‌گوید", () => {
+  assert.equal(urg([["Hb", 21, "g/dL"], ["HCT", 62, "%"]], { sex: "M", age: 40 }).u.erythrocytosis_who_screen, "soon");
+  assert.ok(!urg([["Hb", 21, "g/dL"], ["HCT", 62, "%"]], { sex: "M", age: 5 }).u.erythrocytosis_who_screen);
+  assert.match(msOf(urg([["Amylase", 400, "U/L"]]), "pancreas_pattern").action, /درد شدید شکم.*همان روز به اورژانس/);
+  assert.match(msOf(urg([["Triglycerides", 1500, "mg/dL"]]), "lipid_profile").action, /درد شدید شکم.*اورژانس/);
+  const hy = (r) => /دفعِ بیلی‌روبین هم مختل شده/.test(msOf(urg(r), "liver_pattern")?.must_say ?? "");
+  assert.ok(!hy([["ALT", 80, "U/L"], ["Total Bilirubin", 3, "mg/dL"]]), "ALT ≈ ۲×ULN < ۳× ⇒ Hy نیست");
+  assert.ok(!hy([["ALT", 200, "U/L"], ["ALP", 700, "U/L"], ["Total Bilirubin", 4, "mg/dL"]]), "ALP ≥ ۲×ULN (ULN ۳۰۰) ⇒ Hy نیست");
+  assert.match(msOf(urg([["ALT", 60, "U/L"]]), "liver_pattern").action, /آزمایشِ کبد تکرار شود/);
 });

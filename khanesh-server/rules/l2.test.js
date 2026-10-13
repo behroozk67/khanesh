@@ -180,8 +180,8 @@ test("M333: تالاسمیِ میکروسیتیک با Hb 7.5 (شدید) routine
   const s = run([row("Hb", "7.5", "g/dL"), row("MCV", "62", "fL"), row("RBC", "4.8")], { age: 35, sex: "F" });
   const f = s.p.findings.find((x) => x.pattern === "microcytic_thal_likely");
   assert.ok(f, ids(s).join());
-  assert.equal(f.urgency, "this_week");
-  assert.ok(/همین چند روز/.test(f.action) && !/نوبت عادی/.test(f.action), f.action);
+  assert.equal(f.urgency, "soon");   // P107h (تصمیمِ کاربر، ردیف ۶): Hb ≤ ۸٫۵ ⇒ دست‌کم soon (قبلاً this_week)
+  assert.ok(/۲۴ تا ۴۸ ساعت/.test(f.action) && !/نوبت عادی/.test(f.action), f.action);
   assert.ok(!/تعدادشان زیاد/.test(f.headline), f.headline);
   // کنترل: Hb 11 · MCV 68 · RBC بالا ⇒ همان routine و همان تیتر
   const m = run([row("Hb", "11", "g/dL"), row("MCV", "68", "fL"), row("RBC", "6.2")], { age: 35, sex: "F" });

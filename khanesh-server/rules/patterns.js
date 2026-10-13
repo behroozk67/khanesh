@@ -454,6 +454,7 @@ export const HIDDEN_FINDINGS = new WeakMap();
 //   یافتهٔ کم‌خونی که دیده می‌شود (یک‌بار). فقط بالا می‌برد؛ اورژانس/soon دست نمی‌خورد. بستری را applyInpatientVoice بعداً بازنویسی می‌کند.
 const PREG_ANEMIA_OWNERS = ["anemia_hb_alone", "microcytic_anemia", "normocytic_anemia", "macrocytic_anemia", "iron_deficiency_panel"];
 const PREG_ANEMIA_SENTENCE = "کم‌خونی در این حد در بارداری را این هفته با پزشکِ زنان یا مامای خود هم در میان بگذارید.";
+const PREG_ANEMIA_SENTENCE_SOON = "کم‌خونی در این حد در بارداری را در همین مراجعه با پزشکِ زنان یا مامای خود هم در میان بگذارید.";   // کنارِ «۲۴ تا ۴۸ ساعت»، نه «این هفته»
 function applyPregnancyAnemiaReferral(findings, e) {
   if (!e?.pregnant) return;
   const hb = e.graded?.find((g) => g.test === "HGB");
@@ -461,12 +462,12 @@ function applyPregnancyAnemiaReferral(findings, e) {
   const f = findings.find((x) => PREG_ANEMIA_OWNERS.includes(x.rule_id));
   if (!f || /زنان|ماما/.test(String(f.action ?? ""))) return;
   // بازبینیِ Opus (L4): کنارِ دستورِ فوریِ Hb (مثلاً severe_anemia_crisis) زمان‌بندیِ رقیب نمی‌آید.
-  if (findings.some((x) => (x.urgency === "emergency" || x.urgency === "soon") && /anemia/.test(x.rule_id))) return;
+  if (findings.some((x) => x.urgency === "emergency" && /anemia/.test(x.rule_id))) return;
   if (f.urgency === "routine" || f.urgency === "none") {
     f.urgency = "this_week";
     f.action = PREG_ANEMIA_SENTENCE;
   } else {
-    f.action = `${String(f.action ?? "").trim()} ${PREG_ANEMIA_SENTENCE}`.trim();
+    f.action = `${String(f.action ?? "").trim()} ${f.urgency === "soon" ? PREG_ANEMIA_SENTENCE_SOON : PREG_ANEMIA_SENTENCE}`.trim();
   }
 }
 
@@ -483,6 +484,7 @@ function applyPhCitation(findings, e) {
 
 // P107 (L2): کلیدهایی که کفِ فوریتِ «بحرانی» برایشان این هفته است، نه اورژانس.
 const FLOOR_CAP_THIS_WEEK = new Set(["CHOL", "LDL", "TG"]);
+const HB_SOON_MAX = 8.5;   // P107h: تصمیمِ کاربر (بی‌منبع؛ AABB آستانهٔ انتقالِ خون را ۷ می‌گذارد)
 
 export function runPatterns(engineOut) {
   const findings = [];
@@ -719,8 +721,14 @@ export function runPatterns(engineOut) {
     //   برایش this_week است. خطرِ پانکراتیت با جملهٔ شرطیِ lipid_profile («اگر درد شدید شکم … فوراً اورژانس») گفته می‌شود.
     //   بازبینیِ Opus (M3): TG ۱۵۰۰ کنارِ لیپاز/آمیلازِ بالا الگوی پانکراتیت است ⇒ سقف برداشته می‌شود و کفِ اورژانس می‌ماند (N29).
     const pancreasHigh = engineOut.graded.some((g) => (g.test === "LIPASE" || g.test === "AMYLASE") && g.abnormal && g.dir === "high");
-    const netNeed = (a) => a.level === "critical" ? (FLOOR_CAP_THIS_WEEK.has(a.test) && !pancreasHigh ? "this_week" : "emergency")
+    const adultAge = engineOut.age == null || engineOut.age >= 16;
+    const netNeedBase = (a) => a.level === "critical" ? (FLOOR_CAP_THIS_WEEK.has(a.test) && !pancreasHigh ? "this_week" : "emergency")
       : (a.level === "marked" || levelGrade(a) >= 3) ? "this_week" : null;
+    // P107h (تصمیمِ کاربر، ردیف ۶): Hb ≤ ۸٫۵ در بزرگسال (بارداری هم) ⇒ دست‌کم soon؛ فقط بالا می‌برد (N29). عددِ ۸٫۵ تصمیمِ کاربر است.
+    const netNeed = (a) => {
+      const base = netNeedBase(a);
+      return a.test === "HGB" && a.dir === "low" && a.value <= HB_SOON_MAX && adultAge && (base == null || base === "this_week") ? "soon" : base;
+    };
     const orphanSet = new Set(orphans.map((a) => a.test));
     const shownOwners = findings.filter((f) => !hidden.has(f) && !briefed.has(f) && f.rule_id !== "unexplained_abnormal");
     const textOf = (f) => [f.headline, f.must_say].join(" ");
@@ -741,7 +749,9 @@ export function runPatterns(engineOut) {
       top.urgency = need;
       top.action = need === "emergency"
         ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
-        : "این هفته با پزشک وقت بگیرید و این برگه را همراه ببرید.";
+        : need === "soon"
+          ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و این برگه را همراه ببرید."
+          : "این هفته با پزشک وقت بگیرید و این برگه را همراه ببرید.";
       (top.urgency_floor_from ??= []).push(a.test);
     }
   }
