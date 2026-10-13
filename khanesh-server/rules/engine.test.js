@@ -3644,14 +3644,15 @@ test("M56: با ACR بالا و بدونِ کراتینین، ادعای «eGFR 
   assert.equal(e.indices.egfr, undefined, "برای این پنل eGFR نباید محاسبه شود");
 
   const p = runPatterns(e);
-  const f = p.findings.find((x) => x.pattern === "ckd_pattern_diagnostic");
+  // P107 (L19، N20): ckd_pattern_diagnostic کنار رفته؛ قابِ ACR + eGFR حالا در albuminuria_pattern است (albEgfrFrame).
+  const f = p.findings.find((x) => x.rule_id === "albuminuria_pattern");
   assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ") || "هیچ"}`);
+  assert.ok(!p.findings.some((x) => x.rule_id === "ckd_pattern_diagnostic"), "یافتهٔ تکراری نباید باشد");
 
   assert.doesNotMatch(f.must_say, /eGFR شما طبیعی/,
     "دربارهٔ تستِ اندازه‌گیری‌نشده ادعای «طبیعی» نکن (N4)");
   assert.match(f.must_say, /محاسبه نشده/,
     "غیبتِ eGFR باید صریح گفته شود، نه با سکوت رد شود");
-  assert.equal(f.urgency, "routine");
 });
 
 // M56b — نیمهٔ دومِ همان نقص: وقتی eGFR *هست*، باید عددِ واقعی بیاید.
@@ -3667,7 +3668,7 @@ test("M56b: وقتی کراتینین هست، عددِ واقعیِ eGFR در �
   assert.ok(e.indices.egfr != null, "برای این پنل eGFR باید محاسبه شود");
 
   const p = runPatterns(e);
-  const f = p.findings.find((x) => x.pattern === "ckd_pattern_diagnostic");
+  const f = p.findings.find((x) => x.rule_id === "albuminuria_pattern");   // P107 (L19): قابِ eGFR به این قاعده منتقل شد
   assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ") || "هیچ"}`);
   assert.match(
     f.must_say,
@@ -6047,7 +6048,7 @@ test("M103: قواعدِ تکراریِ فصل ۲۵ هیچ یافتهٔ تازه
     [[["TSH", "6.0"], ["FT4", "0.6", "ng/dL"]], ["thyroid_hypo_overt[this_week]"]],   // FT4 ۰٫۶ (بازهٔ فرانت ۰٫۷–۲٫۰؛ ۲۰۲۶-۱۰-۰۳)
     [[["TSH", "4.8"], ["FT4", "1.2", "ng/dL"]], ["thyroid_hypo_subclinical[routine]"]],
     [[["TSH", "12"], ["FT4", "1.2", "ng/dL"]], ["thyroid_hypo_subclinical[routine]"]],
-    [[["TSH", "1.0"], ["FT4", "0.6", "ng/dL"]], ["thyroid_ft4_abnormal[routine]"]],
+    [[["TSH", "1.0"], ["FT4", "0.6", "ng/dL"]], ["thyroid_ft4_abnormal[this_week]"]],   // P107-L18 (تصمیمِ کاربر، ۲۰۲۶-۱۰-۱۳) عمداً: FT4 پایین + TSH طبیعی ⇒ this_week + ارجاع به متخصصِ غدد (قبلاً routine)
     [[["TSH", "0.3"], ["FT4", "0.6", "ng/dL"]], ["thyroid_central_hypo[this_week]"]],
     [[["TSH", "0.05"], ["FT4", "3.0", "ng/dL"]], ["thyroid_hyper_overt[this_week]"]],
     [[["TSH", "0.05"], ["FT4", "1.2", "ng/dL"], ["FT3", "6.0", "pg/mL"]], ["thyroid_t3_toxicosis[this_week]"]],
@@ -7093,9 +7094,10 @@ test("M125: واحدِ چاپ‌شده بایت‌به‌بایت بی‌تغی�
   // ⚠️ عمداً بازپایه شد (۲۰۲۶-۱۰-۰۷، سرتیتر و متنِ glycemia): ۳ پنلِ اول (FBS 126، FBS 7.2 mmol/L، HbA1c 48) فقط headline و must_say ِ diabetes_range
   //   عوض شد («در محدودهٔ دیابت» + نامِ قند و عددش). اثبات: کپیِ درخت با فقط همان دو hunk برگردانده‌شده، هر ۱۵ هشِ قبلی را عیناً می‌دهد
   //   (f665faa0048dbdf5، c1d5e82d7ddbc3e0، 3b49baf122f3ba66)؛ ۱۲ پنلِ دیگر بی‌تغییرند.
+  // ⚠️ آخری عمداً بازپایه شد (P107، ۲۰۲۶-۱۰-۱۳): فقط جملهٔ علتِ کمبودِ آهنِ مرد (L7: «قاعدگی» از متنِ مرد حذف شد). اثبات: کپیِ درخت با فقط hunkهای P107 (L7 علت+اقدام، L1 پیروی از liver_pattern، L17 safety_warnings) برگردانده‌شده، هشِ قبلی را عیناً می‌دهد.
   const EXPECTED = ["6c9c0b13f8bedb08", "64e5d9bacf2b4164", "4cf12f06147a9f54", "bd45550d31afb2f3", "4436e94e10c7ae54",
     "81ff9d916b808907", "e4d91c9257556a36", "995fad1290b5833e", "edac66e5fd40ebf2", "4231b77939cd3a67",
-    "5a3b00c577ab6abf", "c2ef8cb631aa6acb", "09889f9ef3323ae1", "47ef5a64951b1422", "999ba4662ba255d9"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
+    "5a3b00c577ab6abf", "c2ef8cb631aa6acb", "09889f9ef3323ae1", "47ef5a64951b1422", "ae34e1364ae42f9c"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
   const snap = (rows) => {
     const e = runEngine({ patient: { age: 50, sex: "M" }, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
     const p = runPatterns(e);
@@ -7973,7 +7975,7 @@ test("M164d: برگه‌های بی‌سیلندر بایت‌به‌بایت ه
     F1: [uaRows([["Blood", "+3"], ["RBC", "20-30", "/hpf"], ["Protein", "+2"]]), "4e83768b46572462"], // ⚠️ همان: هشدارِ بارداریِ پروتئینوری از برگهٔ مرد حذف شد (M276b)
     F2: [uaRows([["Leukocyte Esterase", "+2"], ["WBC", "15-20", "/hpf"]], { nitrite: "Positive", bacteria: "Many" }), "0c01081d2bd2a9c9"],
     // ⚠️ F3 عمداً عوض شد — specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp).
-    F3: [[["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["WBC", "7.2"], ["PLT", "250"], ["Ferritin", "6", "ng/mL"]], "0f9815f32914c487"], // ⚠️ P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff).
+    F3: [[["Hb", "9.5", "g/dL"], ["MCV", "70", "fL"], ["WBC", "7.2"], ["PLT", "250"], ["Ferritin", "6", "ng/mL"]], "21af156029b6e060"], // ⚠️ P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff).
     F4: [[["Hb", "13.5", "g/dL"], ["MCV", "88", "fL"], ["PLT", "250"], ["Creatinine", "1.0", "mg/dL"],
           ["FBS", "95", "mg/dL"], ...uaRows([["RBC", "1-2", "/hpf"], ["WBC", "2-3", "/hpf"]])], "afa275a4d0cd7a69"], // ⚠️ عمداً عوض شد — job fff90f58 (P58، N8): ردیفِ «کراتینین» در SUGGEST_TESTS ⇒ normocytic_anemia دیگر کنارِ Creatinine 1.0ِ همین برگه «کراتینین» پیشنهاد نمی‌دهد؛ تنها تفاوتِ خروجی همین یک رشته در suggest است (diffِ کاملِ خروجی روی درختِ پیش‌از‌اصلاح سنجیده شد). // ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
     F7: [uaRows([["WBC", "1-2", "/hpf"]], { bacteria: "Many" }), "2d753638ee88a4b4"],
@@ -11925,15 +11927,15 @@ const M010_FREEZE = {
   plt_999: ["M", 40, [...M010_BASE, m010T("PLT", 999, "10^3/uL")], "80b649f8fc4b81ef"],
   // ⚠️ dic_emerg عمداً بازپایه شد (P73): Hbِ ۱۳ (پایین برای مرد ۶۰ ساله، بی‌MCV) پیش‌تر unexplained_abnormal/routine بود، حالا anemia_hb_alone/routine؛
   //   dic_pattern و coagulation_abnormal و فوریتِ کلی (emergency) دست‌نخورده.
-  dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "d15a28c282d5521f"], // P105 (عمدی، proof257): پلاکتِ ۶۰ را متنِ DIC نمی‌گفت ⇒ thrombocytopenia تکمیلی برمی‌گردد؛ بی آن، هش عیناً 207480882283b17f
+  dic_emerg: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 60, "10^3/uL"), m010T("PT", 18, "sec"), m010T("Fibrinogen", 120, "mg/dL")], "fbde11589ed6b7bf"], // P105 (عمدی، proof257): پلاکتِ ۶۰ را متنِ DIC نمی‌گفت ⇒ thrombocytopenia تکمیلی برمی‌گردد؛ بی آن، هش عیناً 207480882283b17f
   plt40_dd6: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 40, "10^3/uL"), m010T("D-dimer", 6.0, "µg/mL"), m010T("PT", 12, "sec"), m010T("Fibrinogen", 300, "mg/dL")], "372f21f3a9239c89"], // P95 (عمدی، proof95): فقط احتیاطِ EDTA «لام قابل‌اعتمادترین راه … سیترات یا هپارین»؛ فوریت همان
   plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "0b3777138bf58435"], // P95 (عمدی، proof95): severe_thrombocytopenia Hbِ پایین و لام/LDH را می‌گوید ⇒ نجاتِ تکمیلیِ anemia_hb_alone (فقط جملهٔ اول) لازم نیست؛ فوریت همان
   plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "a86da6d7c90ad6c7"], // P98 (عمدی، proof2: کپیِ درخت با فقط هشدارِ شرطیِ بستری/هپارین برگردانده ⇒ هشِ قبلی ce53c5c6951f5b7a عیناً)؛ P95 (عمدی، proofM257: فوریت همان؛ EDTA/Hb-در-severe_thrombocytopenia/maha بی‌نشانگر)
   dd_only: ["M", 70, [...M010_BASE, m010T("D-dimer", 700, "ng/mL")], "3063cfd783be8dcc"],
-  aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "b35c9851d8754cbd"],
-  pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "0ee02a62f8a75c4f"],
+  aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "9f137c25b23770f4"],
+  pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "94e00e35c2d503ae"],
   // بازبینیِ ۲۰۲۶-۱۰-۰۴ (N20، M369): عمداً عوض شد — تنها تفاوت‌ها با پیشین (diff کاملِ خروجی): actionِ شاخهٔ severe («همین امروز با پزشک تماس بگیرید» ⇒ اورژانس) و هشدارِ خونریزی («همان لحظه به اورژانس بروید»، هم‌راستا با اورژانس بودنِ یافته).
-  fib_90: ["M", 40, [...M010_BASE, m010T("Fibrinogen", 90, "mg/dL")], "6e137b7b264bd6a1"], // P105 (عمدی، proof257b): فقط متن/actionِ فیبرینوژنِ تنها (نه «زمانِ لخته … وارفارین»)؛ برگرداندنِ همان دو رشته ⇒ ec06a77d719a98cb؛ فوریت همان
+  fib_90: ["M", 40, [...M010_BASE, m010T("Fibrinogen", 90, "mg/dL")], "53ce53bcbe2a9617"], // P105 (عمدی، proof257b): فقط متن/actionِ فیبرینوژنِ تنها (نه «زمانِ لخته … وارفارین»)؛ برگرداندنِ همان دو رشته ⇒ ec06a77d719a98cb؛ فوریت همان
   // ۲۰۲۶-۱۰-۰۳ (P67): TT حالا کلیدِ شناخته‌شده و قاعده‌دار است؛ این تنها ردیفِ freeze است که عمداً عوض شد (M290).
   tt: ["M", 40, [...M010_BASE, m010T("Thrombin Time", 30, "sec")], "fc9c0947e7eb8acf"],
   adamts: ["F", 40, [...M010_BASE, m010T("ADAMTS13 activity", 4, "%")], "f1317c856c6d3301"],
@@ -12587,7 +12589,7 @@ test("M303b: دستورِ اورژانسِ کلیه دستورِ نهاییِ ا
     assert.doesNotMatch(r.recs[0], /دیالیز/, label);
     assert.ok(!r.recs.some((s) => /دیالیز[^.]*تماس/.test(s)), `${label}: ${r.recs.join(" | ")}`);
   }
-  assert.equal(pickFinalAction(l1([{ name: "Creatinine", value: "8", unit: "mg/dL" }]).p.findings)?.rule_id, "creatinine_emergency");
+  assert.equal(pickFinalAction(l1([{ name: "Creatinine", value: "8", unit: "mg/dL" }]).p.findings)?.rule_id, "kidney");   // P107 (L19): creatinine_emergency در kidney ادغام شد (یک یافته، یک دستور)
 });
 
 test("M304: قاعدهٔ thyroid دربارهٔ TSHِ اندازه‌گیری‌نشده «طبیعی» نمی‌گوید؛ FT3ِ بالا متنِ کم‌کاری نمی‌گیرد (N4، N12، P72)", () => {
@@ -12739,7 +12741,7 @@ test("M310: بیمارِ دیالیزیِ اعلام‌شده برای کرات�
   // کنترلِ منفی ۱: همان برگه بی‌اعلامِ دیالیز ⇒ اورژانسِ قبلی
   const nd = l1(rows);
   assert.equal(nd.p.overall_urgency, "emergency");
-  assert.ok(nd.p.findings.some((x) => x.rule_id === "creatinine_emergency"));
+  assert.ok(nd.p.findings.some((x) => x.rule_id === "kidney" && x.urgency === "emergency"));   // P107 (L19): قبلاً creatinine_emergency
   // کنترلِ منفی ۲: بیماریِ مزمنِ کلیه (ckd) دیالیز نیست و چیزی را عوض نمی‌کند
   assert.equal(l1(rows, { age: 55, sex: "M", conditions: ["ckd"] }).p.overall_urgency, "emergency");
   // کنترلِ منفی ۳: پتاسیمِ ۷ بیمارِ دیالیزی همچنان اورژانس و دستورِ نهایی است

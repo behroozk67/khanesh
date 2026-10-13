@@ -224,8 +224,17 @@ function coagulationBrief(e) {
 //   جملهٔ جهتِ پایین بی‌ادعای بالینی است: فقط عدد، بازه، و اینکه جزوِ «طولانی‌شدن» نیست. گارد L3.
 function apttShortClause(e) {
   const a = e.graded.find((x) => x.test === "APTT");
-  return a?.abnormal && a.dir === "low"
+  return (a?.abnormal && a.dir === "low"
     ? ` APTT شما ${a.value} (حد طبیعی ${a.range}) کوتاه‌تر از حد طبیعی است؛ این عدد جزوِ «طولانی‌شدنِ زمان لخته شدن» نیست و جداگانه با پزشک مرور شود.`
+    : "") + fibHighClause(e);
+}
+// P107 (L5، M156): coagulation_abnormal کلیدِ FIB را می‌خواند، پس فیبرینوژنِ *بالا* کنارِ PTِ بالا «پوشش‌داده» و ناگفته می‌ماند.
+//   جهتِ بالا همین‌جا یک جمله می‌گیرد (همان مسیرِ aPTTِ کوتاه، هم متنِ کامل هم brief).
+const FIB_HIGH_WHY = "فیبرینوژن پروتئینی است که در التهاب، عفونت، بارداری، سیگار کشیدن و پس از جراحی یا آسیب بالا می‌رود؛ پس معمولاً نشانهٔ یک التهاب است، نه بیماریِ خونریزی‌دهنده.";
+function fibHighClause(e) {
+  const f = e.graded.find((x) => x.test === "FIB");
+  return f?.abnormal && f.dir === "high"
+    ? ` فیبرینوژن شما ${f.value} (حد طبیعی ${f.range}) بالاتر از حد طبیعی است؛ ${FIB_HIGH_WHY}`
     : "";
 }
 // job 40b8a901 (F1): لنفوسیتِ مطلقِ پایین زیرِ پان‌سیتوپنی. درجهٔ «شدید» از جدولِ CTCAE می‌آید (< ۵۰۰ = G3) و دست نمی‌خورد؛
@@ -402,6 +411,35 @@ function indicesImplausible(e) {
   const underHgbCrisis = crisisArm(e) === "hgb";
   return !!(mchc?.abnormal && mchc.dir === "high" && Number(mchc.value) > MCHC_ARTEFACT_GDL &&
     hgb && hct && (underHgbCrisis || !hgbLow) && !spherocytosisFires(e));
+}
+
+// P107 (L7): «قاعدگیِ سنگین» برای مرد و کودک نوشته می‌شد. علت‌ها به جنس و سن بسته‌اند؛ جنس/سنِ نامعلوم ⇒ همان متنِ قبلی
+//   (حذفِ یک علتِ ممکن بدتر از ذکرِ یک علتِ نامربوط است).
+function mayMenstruate(e) {
+  if (e.sex === "M") return false;
+  const a = typeof e.age === "number" ? e.age : null;
+  return a == null || (a >= 10 && a < 55);
+}
+function ironCauseFa(e) {
+  if (mayMenstruate(e)) return ". شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است.";
+  if (typeof e.age === "number" && e.age < 16)
+    return ". در کودکان شایع‌ترین علت‌ها دریافتِ ناکافیِ آهن و رشدِ سریع است؛ خون‌ریزیِ پنهان از دستگاهِ گوارش را هم پزشک در نظر می‌گیرد.";
+  return ". شایع‌ترین علت‌ها خون‌ریزیِ مزمن (به‌ویژه از دستگاهِ گوارش، که گاهی دیده نمی‌شود) و دریافت یا جذبِ ناکافیِ آهن است.";
+}
+
+const COAG_TIME_KEYS = ["PT", "INR"];   // ثابتِ ماژول، نه literal داخلِ build (M38)
+// P107 (L8، N21): HbFِ بالا کنارِ گلبولِ کوچک با متنِ «کمبودِ آهن … همین الگوی آزمایش شماست» می‌آمد. HbFِ بالا در برخی انواعِ صفتِ
+//   تالاسمیِ بتا دیده می‌شود، پس متن هر دو را باز می‌گذارد. فوریت دست‌نخورده (شاخهٔ تالاسمی نمی‌شود). کلیدِ HBF بیرون از قاعده خوانده
+//   می‌شود تا در RULE_READSِ microcytic_anemia نیاید (مالکش hbf_elevated است، M156).
+const hbfRaised = (e) => { const g = e.graded.find((x) => x.test === "HBF"); return !!(g?.abnormal && g.dir === "high"); };
+const MECH_MIXED_HBF =
+  "دو علتِ شایعِ گلبولِ کوچک وجود دارد: کمبودِ آهن، یا یک ویژگیِ ارثیِ خون (صفتِ تالاسمی). هموگلوبینِ جنینیِ (HbF) همین برگه بالاست، " +
+  "که در برخی انواعِ صفتِ تالاسمیِ بتا دیده می‌شود؛ پس از روی این برگه نمی‌شود یکی را انتخاب کرد و پزشک هر دو را بررسی می‌کند.";
+
+/** آیا coagulation_abnormal فعال است؟ قاعدهٔ زنده فراخوانده می‌شود، نه شرطش (M91e). */
+function coagulationFires(e) {
+  const r = RULES_HEMATOLOGY.find((x) => x.id === "coagulation_abnormal");
+  return !!r?.match(e);
 }
 
 export const RULES_HEMATOLOGY = [
@@ -1065,6 +1103,14 @@ export const RULES_HEMATOLOGY = [
           "و خودش معمولاً بی‌خطر است. کمبود آهن هم می‌تواند شبیهش باشد، " +
           "ولی این الگو بیشتر به حالت ارثی می‌خورد." +
           (mi != null ? ` (شاخص Mentzer = ${mi})` : "") +
+          // P107 (L8): MCHِ پایین بخشِ همین الگوست ولی به «توضیحِ آماده نداریم» می‌رفت. هر جهت جمله دارد (M156).
+          (() => {
+            const mch = e.graded.find((g) => g.test === "MCH");
+            if (!mch?.abnormal) return "";
+            return mch.dir === "low"
+              ? ` MCH شما ${mch.value} (حد طبیعی ${mch.range}) هم پایین است، یعنی هر گلبول هموگلوبینِ کمتری دارد؛ این بخشی از همین الگوی گلبولِ کوچک است.`
+              : ` MCH شما ${mch.value} بالاتر از حد طبیعی (${mch.range}) است و با کوچکیِ گلبول‌ها هم‌خوان نیست؛ پزشک آن را کنارِ بقیهٔ نتایج می‌سنجد.`;
+          })() +
           (fc ? ` ${fc.text}.` + (["low", "masked"].includes(fc.state) ? " کمبودِ آهن و این ویژگیِ ارثی می‌توانند هم‌زمان باشند." : "") : "") +
           hba2Clause(e, { owner: true }),
         action: a2
@@ -1817,7 +1863,7 @@ export const RULES_HEMATOLOGY = [
         must_say:
           mag +
           "این یعنی کم‌خونیِ میکروسیتیک (گلبولِ کوچک). " +
-          (thal ? mechThal : mechIda) +
+          (thal ? mechThal : hbfRaised(e) ? MECH_MIXED_HBF + (fc ? ` ${fc.text}.` : "") : mechIda) +
           hba2Clause(e, { idaBranch: !thal, owner: true }),
         action: actionUnlessAnemiaCrisis(
           e,
@@ -2328,6 +2374,39 @@ export const RULES_HEMATOLOGY = [
         brief_warnings: [
           "اگر خونریزی غیرعادی یا کبودیِ بی‌دلیل دیدید، همان روز به پزشک مراجعه کنید.",
         ],
+        // P107 (L17، کلاسِ M155): هشدارِ دارویی در نسخهٔ کوتاه/تکمیلی هم می‌ماند (patterns.js).
+        safety_warnings: ["تا مشخص شدن علت، آسپرین یا مسکن‌های ضدالتهاب مصرف نکنید."],
+      };
+    },
+  },
+
+  // P107 (L5، N1): فیبرینوژنِ بالا یا aPTTِ کوتاهِ تنها به «توضیحِ آماده نداریم» می‌رفت. وقتی coagulation_abnormal فعال است
+  //   همان جمله‌ها در متنِ آن می‌آیند (apttShortClause)؛ این قاعده فقط وقتی است که آن فعال نیست (فراخوانیِ قاعدهٔ زنده، M91e).
+  //   فوریت همان routineِ تور (N29)؛ هیچ آستانهٔ تازه‌ای نیست، فقط جهت نسبت به بازهٔ مرجع.
+  {
+    id: "coag_other_direction",
+    match: (e) => {
+      const f = e.graded.find((x) => x.test === "FIB");
+      const a = e.graded.find((x) => x.test === "APTT");
+      const any = (f?.abnormal && f.dir === "high") || (a?.abnormal && a.dir === "low");
+      return !!any && !coagulationFires(e);
+    },
+    build: (e) => {
+      const f = e.graded.find((x) => x.test === "FIB");
+      const fibHigh = !!(f?.abnormal && f.dir === "high");
+      return {
+        pattern: "coag_other_direction",
+        urgency: "routine",
+        headline: fibHigh ? "فیبرینوژنِ شما بالاتر از حد طبیعی است" : "aPTTِ شما کوتاه‌تر از حد طبیعی است",
+        must_say: apttShortClause(e).trim() +
+          (fibHigh ? " بالا ماندنِ پایدارِ فیبرینوژن با خطرِ بیماری‌های قلب و عروق همراه است و پزشک آن را کنارِ بقیهٔ نشانه‌ها می‌سنجد." : "") +
+          // N4: فقط دربارهٔ شاخصی که روی برگه هست و طبیعی است حرف می‌زنیم؛ نبودن ≠ طبیعی.
+          (() => {
+            const ok = COAG_TIME_KEYS.map((k) => e.graded.find((x) => x.test === k)).filter((g) => g && !g.abnormal);
+            return ok.length ? ` ${ok.map((g) => `${g.test} ${g.value}`).join(" و ")} در محدودهٔ طبیعی است.` : "";
+          })(),
+        action: "در نوبتِ عادی با پزشک مطرح کنید.",
+        suggest: fibHigh ? ["CRP"] : [],
       };
     },
   },
@@ -2415,10 +2494,12 @@ export const RULES_HEMATOLOGY = [
                 ? ` (فریتین شما ${t.FERRITIN} است؛ در محدودهٔ مرجع جا می‌گیرد ولی نزدیکِ لبهٔ پایینِ آن است و ` +
                   "زیرِ حدی است که معمولاً برای کمبودِ آهن در نظر گرفته می‌شود)"
                 : "") +
-            ". شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است." +
+            ironCauseFa(e) +
             (inflam ? " توجه: نشانه‌های التهاب هم بالاست و ممکن است تصویر آهن را پیچیده کند — پزشک باید تفسیر کند." : "")) + mcvClause + ixClause,
         ...(ix ? { explains: ["STFR"] } : {}),
-        action: "این هفته با پزشک وقت بگیرید. اگر خون‌ریزی گوارشی یا قاعدگی سنگین دارید حتماً بگویید.",
+        action: mayMenstruate(e)
+          ? "این هفته با پزشک وقت بگیرید. اگر خون‌ریزی گوارشی یا قاعدگی سنگین دارید حتماً بگویید."
+          : "این هفته با پزشک وقت بگیرید. اگر مدفوعِ سیاه یا خونی، یا خون‌ریزیِ دیگری دارید حتماً بگویید.",
         suggest: whoOnly
           ? ["اشباع ترانسفرین (TSAT)", "گیرندهٔ محلول ترانسفرین (sTfR)", "بررسی علت التهاب"]
           : ["پنل کامل آهن", "بررسی علت خون‌ریزی"],

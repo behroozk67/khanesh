@@ -330,6 +330,18 @@ export const GUIDELINES = {
     scope: 'ULNِ «سالم» برای ALT و نسبت R در افتراقِ آسیبِ سلولی از انسدادی؛ بیلی‌روبینِ بالا ⇒ تفکیکِ مستقیم/غیرمستقیم و بررسیِ الگوی آنزیم‌ها',
   },
 
+  FDA_DILI_2009: {
+    org: 'FDA',
+    fa: 'سازمان غذا و داروی آمریکا',
+    title: 'Guidance for Industry — Drug-Induced Liver Injury: Premarketing Clinical Evaluation',
+    year: 2009,
+    url: 'https://www.fda.gov/media/116737/download',
+    access: 'open',
+    // P107 (L1): سند باز و خوانده شد (۲۰۲۶-۱۰-۱۳). «Hy's Law»: AT > 3×ULN + TBL > 2×ULN + ALP < 2×ULN؛ حدود ۱۰٪ مرگ یا پیوند؛
+    //   «repeat testing within 48 to 72 hours … especially great if AT is much greater than 3xULN and/or TBL is greater than 2xULN».
+    scope: 'ترکیبِ آسیبِ سلولِ کبد (ALT/AST > ۳ برابرِ حدِ بالا) با بیلی‌روبینِ > ۲ برابر، بی ALPِ ≥ ۲ برابر (قانونِ Hy)',
+  },
+
   AASLD: {
     org: 'AASLD',
     fa: 'انجمن مطالعهٔ بیماری‌های کبد آمریکا',

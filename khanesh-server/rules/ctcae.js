@@ -157,6 +157,27 @@ export const CTCAE_V5 = {
     },
     note: 'CTCAE Grade 2 برای هیپوکالمی تعریف نشده',
   },
+  // P107 (L13، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): pHِ خونِ شریانی (فقط وقتی adapter آن را pHِ خون شناخته — شاهدِ ABG).
+  //   CTCAE v5 «Acidosis»: G1 = pH < طبیعی و ≥ ۷٫۳؛ G3 = pH < ۷٫۳؛ «Alkalosis»: G1 = > طبیعی و ≤ ۷٫۵؛ G3 = > ۷٫۵.
+  //   G4ِ CTCAE «تهدیدکنندهٔ حیات» است و عدد ندارد؛ عددِ G4 اینجا تصمیمِ کاربر است: < ۷٫۲۰ یا > ۷٫۵۵ ⇒ بحرانی (اورژانس).
+  PH_LOW: {
+    term: 'Acidosis', dir: 'low', type: 'abs', unit: '',
+    grade(v, lln) {
+      if (v >= lln) return 0;
+      if (v >= 7.3) return 1;
+      if (v >= 7.2) return 3;
+      return 4;
+    },
+  },
+  PH_HIGH: {
+    term: 'Alkalosis', dir: 'high', type: 'abs', unit: '',
+    grade(v, _lln, uln) {
+      if (v <= uln) return 0;
+      if (v <= 7.5) return 1;
+      if (v <= 7.55) return 3;
+      return 4;
+    },
+  },
   K_HIGH: {
     term: 'Hyperkalemia', dir: 'high', type: 'abs', unit: 'mEq/L',
     // G1: >ULN – 5.5 | G2: >5.5 – 6.0 | G3: >6.0 – 7.0 | G4: >7.0
@@ -363,6 +384,7 @@ export const CTCAE_MAP = {
   EOS_ABS:   { low: null,        high: 'EOS_HIGH'   },
   NA:        { low: 'NA_LOW',    high: 'NA_HIGH'    },
   K:         { low: 'K_LOW',     high: 'K_HIGH'     },
+  PH:        { low: 'PH_LOW',    high: 'PH_HIGH'    },   // P107 (L13)
   CA:        { low: 'CA_LOW',    high: 'CA_HIGH'    },
   MG:        { low: 'MG_LOW',    high: null         },
   GLU_F:     { low: 'GLU_LOW',   high: 'GLU_HIGH'   },

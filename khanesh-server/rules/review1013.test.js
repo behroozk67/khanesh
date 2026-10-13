@@ -479,3 +479,122 @@ test("P106-M19: PSA کلِ ≥ ۲۰ ng/mL بی محدودهٔ چاپی ⇒ this_
   assert.equal(urg([["Total PSA", 120, "ng/mL"]], { sex: "M", age: 50 }).u.psa_result, "this_week");
   assert.equal(urg([["Total PSA", 120, ""]], { sex: "M", age: 50 }).u.psa_result, "routine");
 });
+
+// ═══ P107 — ۷ تصمیمِ بالینیِ کاربر + ۱۳ باگِ کم‌اهمیتِ بازبینیِ ۲۰۲۶-۱۰-۱۳ ═══
+const msOf = (r, id) => r.p.findings.find((f) => f.rule_id === id);
+
+test("P107-L1: ALT/AST بالا + بیلی‌روبین تام > ۲×ULN (قانون Hy، FDA 2009) ⇒ soon و جملهٔ بیلی‌روبین", () => {
+  const r = urg([["ALT", 200, "U/L"], ["AST", 150, "U/L"], ["Total Bilirubin", 4, "mg/dL"]]);
+  assert.equal(r.u.liver_pattern, "soon");
+  assert.match(msOf(r, "liver_pattern").must_say, /بیلی‌روبین تام شما .* بیش از دو برابرِ حدِ بالا/);
+  assert.equal(r.u.bilirubin_total_alone, "soon", "هم‌افق با liver_pattern");
+});
+
+test("P107-L14: ALT < ۲×ULN (ACG 2017 «مرزی») ⇒ routine؛ بیلی‌روبین > ۲×ULN آن را بالا می‌برد", () => {
+  const r = urg([["ALT", 60, "U/L"]]);
+  assert.equal(r.u.liver_pattern, "routine");
+  assert.match(msOf(r, "liver_pattern").must_say, /مرزی/);
+  assert.equal(urg([["ALT", 60, "U/L"], ["Total Bilirubin", 3, "mg/dL"]]).u.liver_pattern, "this_week");
+  assert.equal(urg([["ALT", 120, "U/L"]]).u.liver_pattern, "this_week", "۲–۵× همان");
+});
+
+test("P107-L2: کلسترول/TG تنها هرگز بالاتر از this_week نمی‌شود", () => {
+  assert.equal(urg([["Cholesterol", 600, "mg/dL"]]).p.overall_urgency, "this_week");
+  assert.equal(urg([["Triglycerides", 1500, "mg/dL"]]).p.overall_urgency, "this_week");
+});
+
+test("P107-L3: GGTِ تنها یافتهٔ خودش را دارد (نه «توضیح آماده نداریم»)؛ ALT بالا → liver_pattern", () => {
+  const r = urg([["GGT", 120, "U/L"]]);
+  assert.equal(r.u.ggt_isolated, "routine");
+  assert.ok(!r.u.unmatched_abnormal);
+  assert.equal(urg([["GGT", 300, "U/L"]]).u.ggt_isolated, "this_week");
+  assert.ok(!urg([["GGT", 120, "U/L"], ["ALT", 90, "U/L"]]).u.ggt_isolated);
+});
+
+test("P107-L4: بازوفیل ≥ ۱۰۰۰ ⇒ this_week با متنِ اختصاصی", () => {
+  const r = urg([["WBC", 20, "10^3/uL"], ["Baso#", 2.5, "10^3/uL"], ["Neut#", 12, "10^3/uL"]], { sex: "M", age: 55 });
+  assert.equal(r.u.basophilia, "this_week");
+  assert.match(msOf(r, "basophilia").action, /لامِ خونِ محیطی/);
+});
+
+test("P107-L5: فیبرینوژن بالا و aPTT کوتاه صاحب دارند (coag_other_direction)", () => {
+  assert.equal(urg([["Fibrinogen", 700, "mg/dL"]], { sex: "F", age: 35 }).u.coag_other_direction, "routine");
+  assert.equal(urg([["aPTT", 20, "sec"]], { sex: "F", age: 35 }).u.coag_other_direction, "routine");
+});
+
+test("P107-L6: فاکتور ۸ ≥ ۱۰۰ بی‌محدودهٔ چاپی ⇒ «نشانهٔ کمبود نیست، ولی برگه محدوده را چاپ نکرده»", () => {
+  const r = urg([["Factor VIII Activity", 180, "%"]], { sex: "F", age: 35 });
+  assert.match(r.p.findings[0].must_say, /نشانهٔ کمبودِ فاکتور نیست، ولی برگه محدودهٔ طبیعی‌اش را چاپ نکرده/);
+});
+
+test("P107-L7: ایرون‌دفیشنسی در مرد — اقدام «مدفوع سیاه/خون‌ریزی» و در زنِ در سنِ قاعدگی سؤالِ قاعدگی", () => {
+  const m = urg([["Ferritin", 20, "ng/mL"], ["Hb", 15, "g/dL"]], { sex: "M", age: 40 });
+  assert.match(msOf(m, "iron_deficiency_panel").action, /مدفوعِ سیاه یا خونی/);
+});
+
+test("P107-L8: HbF بالا کنار کم‌خونی میکروسیتیک ⇒ سازوکارِ مختلط در متن؛ بدون کم‌خونی thal_trait می‌ماند", () => {
+  const r = urg([["HbF", 18, "%"], ["Hb", 8, "g/dL"], ["MCV", 65, "fL"]], { sex: "F", age: 28 });
+  assert.match(msOf(r, "microcytic_anemia").must_say, /هموگلوبینِ جنینیِ \(HbF\) همین برگه بالاست/);
+});
+
+test("P107-L10: تستِ بارداریِ ادرار (UPT/Urine Pregnancy Test) خوانده می‌شود، نه سرم", () => {
+  assert.equal(urg([["Urine Pregnancy Test", "Positive"]], { sex: "F", age: 30 }).u.hcg_result, "routine");
+  assert.equal(urg([["UPT", "Positive"]], { sex: "F", age: 30 }).u.hcg_result, "routine");
+});
+
+test("P107-L11: واحدِ چاپ‌شدهٔ mEq/L برای کلسیم و mmol/L برای Hb تبدیل می‌شود؛ بی‌واحد حدس نمی‌خورد", () => {
+  assert.equal(urg([["Calcium", 4.8, "mEq/L"]]).p.findings.length, 0, "۴٫۸ mEq/L = ۹٫۶۲ mg/dL");
+  assert.equal(urg([["Hemoglobin", 5.2, "mmol/L"]]).u.anemia_hb_alone, "this_week");
+});
+
+test("P107-L12: Hb ≤ ۸٫۵ در بارداری ⇒ ارجاع به پزشکِ زنان/ماما", () => {
+  const r = urg([["Hb", 8.2, "g/dL"]], { sex: "F", age: 28, pregnant: true });
+  assert.match(msOf(r, "anemia_hb_alone").action, /پزشکِ زنان یا مامای خود/);
+  assert.doesNotMatch(msOf(urg([["Hb", 8.2, "g/dL"]], { sex: "F", age: 28 }), "anemia_hb_alone").action, /مامای/);
+});
+
+test("P107-L13: pH خون ۷٫۶ ⇒ blood_ph_abnormal اورژانس؛ ۷٫۲۵ ⇒ this_week؛ بی‌کربنات پایین کنار pH بالا نقض نمی‌گوید", () => {
+  const r = urg([["pH", 7.6, ""], ["pCO2", 20, "mmHg"], ["HCO3", 20, "mmol/L"]]);
+  assert.equal(r.u.blood_ph_abnormal, "emergency");
+  assert.equal(urg([["pCO2", 70, "mmHg"], ["pO2", 50, "mmHg"], ["pH", 7.25, ""]]).u.blood_ph_abnormal, "this_week");
+});
+
+test("P107-L15: Mg بسیار پایین + K پایین ⇒ magnesium_depletion اورژانس و potassium_critical this_week", () => {
+  const r = urg([["K", 2.8, "mmol/L"], ["Mg", 0.255, "mg/dL"]]);
+  assert.equal(r.u.magnesium_depletion, "emergency");
+  assert.equal(r.u.potassium_critical, "this_week");
+});
+
+test("P107-L16: قند بالا با بی‌کربنات بالا — متن نمی‌گوید «پایین نیست» بی‌توضیح", () => {
+  const r = urg([["FBS", 275, "mg/dL"], ["HCO3", 37.7, "mmol/L"]]);
+  assert.match(msOf(r, "severe_hyperglycemia_uncertain_ketosis").must_say, /بالاتر از حدِ طبیعی است/);
+});
+
+test("P107-L17: INR بالا کنار K ۷ — دستورِ نهاییِ گزارش «اورژانس» می‌ماند", async () => {
+  const { buildEngineRecommendations } = await import("./prompt.js");
+  const e = runEngine({ patient: { sex: "M", age: 45 }, tests: [{ name: "INR", value: "4.4" }, { name: "K", value: "7", unit: "mmol/L" }] });
+  const recs = buildEngineRecommendations(runPatterns(e), e);
+  assert.match(recs[0], /اورژانس/);
+});
+
+test("P107-L18: FT4 پایین با TSH طبیعی ⇒ this_week و ارجاع به متخصصِ غدد", () => {
+  const r = urg([["FT4", 0.21, "ng/dL"], ["TSH", 2.5, "mIU/L"]]);
+  assert.equal(r.u.thyroid, "this_week");
+  assert.match(msOf(r, "thyroid").action, /ارجاع به متخصصِ غدد را بخواهید/);
+});
+
+test("P107-L19: ACR و کراتینینِ بحرانی — kidney اورژانس می‌ماند و جمله‌های دیالیز حفظ می‌شود", () => {
+  const r = urg([["Creatinine", 5.5, "mg/dL"]]);
+  assert.equal(r.u.kidney, "emergency");
+  assert.match(msOf(r, "kidney").action, /دیالیز/);
+  assert.ok(!r.u.creatinine_emergency, "کپیِ دوم ندارد");
+});
+
+test("P107-L20: بیمارِ بستری — هشدارِ شرطی «به پرستار اطلاع دهید» و بدون «اورژانس/۱۱۵»", () => {
+  const r = urg([["FBS", 400, "mg/dL"]], { sex: "M", age: 50, conditions: ["hospitalized"] });
+  const w = r.p.findings.flatMap((f) => f.warnings || []).join(" ");
+  assert.match(w, /همین حالا به پرستارِ بخش اطلاع دهید/);
+  assert.doesNotMatch(w, /اورژانس|۱۱۵/);
+  const sev = r.p.findings.find((f) => f.rule_id === "severe_hyperglycemia_uncertain_ketosis");
+  assert.match((sev.warnings || []).join(" "), /^علائم هشدار:.*پرستارِ بخش اطلاع دهید/, "فهرستِ علائم حذف نمی‌شود، فرمانش پرستار است");
+});

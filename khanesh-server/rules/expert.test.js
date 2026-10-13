@@ -111,12 +111,12 @@ function leaks(x) {
 const h = (o) => createHash("sha256").update(JSON.stringify(o)).digest("hex").slice(0, 16);
 // هش‌ها از score.js و patterns.js پیش از T004/T006 (درختِ 4d8c245) گرفته شد. [healthScore, runPatterns]
 const X0_FREEZE = {
-  ptinr: ["dc18ce553fb92148", "6fe3d8065bbfafef"], k7: ["0c3005673518b172", "3e8191e35b92b634"],
-  k55: ["1a75602774814a44", "cddfedd36e0af236"], ida: ["a2144e5b55692b2d", "cf00a362c1d0f97b"],
-  caalb: ["b30ca0c8e67fc1fb", "106e7bbcb2e189e1"], urea: ["e801d2e94bd4e5d7", "d4652c8d35931739"],
+  ptinr: ["dc18ce553fb92148", "c9a1aa71a90bfe2e"], k7: ["0c3005673518b172", "3e8191e35b92b634"],
+  k55: ["1a75602774814a44", "cddfedd36e0af236"], ida: ["a2144e5b55692b2d", "6aaf1159b8f64fe5"],
+  caalb: ["b30ca0c8e67fc1fb", "d15391d327996497"], urea: ["e801d2e94bd4e5d7", "d4652c8d35931739"],
   cbc: ["d4116a0c2bedb3c1", "f1317c856c6d3301"], lipid: ["4f7830d11e2096df", "8ca6f6261a0158eb"],
   thyroid: ["40c5918c3652f561", "a4e8587d3736ca6b"], liver: ["a56db527c0987166", "9bcc4080715c6f74"],
-  kidney: ["bc3a5f60a0f2d0a9", "dfd379647b1efec5"], normal: ["a49525941325f4a7", "f1317c856c6d3301"],
+  kidney: ["bc3a5f60a0f2d0a9", "f7f33ea438235fe1"], normal: ["a49525941325f4a7", "f1317c856c6d3301"],
 };
 test("X0: نمره و خروجیِ runPatterns با این ویژگی بایت‌به‌بایت همان است (بازآرایی بی‌اثر، R2/R3)", () => {
   for (const [id, tests] of Object.entries(P)) {

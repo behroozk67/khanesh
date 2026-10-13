@@ -22,7 +22,7 @@ const lo = (x) => !!(x?.abnormal && x.dir === "low");
 // کلیدِ آزمایش‌ها که به comp() می‌روند: ثابتِ سطحِ ماژول، نه literal داخلِ build — M38 هر literalِ داخلِ build را «متنِ کاربر» می‌شمارد.
 const K = {
   MCV: "MCV", HGB: "HGB", BILI_D: "BILI_D", CREAT: "CREAT", FERRITIN: "FERRITIN", TSAT: "TSAT", CRP: "CRP_Q",
-  IRON: "IRON", GGT: "GGT", BILI_T: "BILI_T", TSH: "TSH", FT4: "FT4", WBC: "WBC", ALT: "ALT", AST: "AST", ALP: "ALP",
+  IRON: "IRON", GGT: "GGT", HCO3: "HCO3", BILI_T: "BILI_T", TSH: "TSH", FT4: "FT4", WBC: "WBC", ALT: "ALT", AST: "AST", ALP: "ALP",
 };
 
 const ACT = {
@@ -88,6 +88,14 @@ function anyFires(e, ids) {
   return false;
 }
 
+const URG_RANK = { emergency: 0, soon: 1, this_week: 2, routine: 3, none: 4 };
+/** خروجیِ ساخته‌شدهٔ قاعدهٔ زنده (یا null) — شاخه و فوریت را از خودِ قاعده می‌پرسیم، نه از کپیِ شرطش (M91e). */
+function liveBuild(e, id) {
+  const r = ALL.find((x) => x?.id === id);
+  if (!r) return null;
+  try { return r.match(e) ? r.build(e) : null; } catch { return null; }
+}
+
 function livePatternIsMuscle(e) {
   const r = ALL.find((x) => x?.id === "liver_pattern");
   if (!r) return false;
@@ -142,7 +150,12 @@ const bilirubinTotalAlone = {
   match: (e) => hi(g(e, "BILI_T")) && !anyFires(e, P73_OWNERS.bilirubin),
   build: (e) => {
     const b = g(e, "BILI_T");
-    const urgency = netUrgency(e, b, isNeonate(e.age));
+    // P107 (L1، N20): کنارِ liver_pattern دو زمان‌بندیِ رقیب می‌آمد («این هفته» و «نوبتِ عادی») دربارهٔ یک کبد.
+    //   حالا فوریت = فوری‌ترِ دو (تور و liver_pattern)، و اگر liver_pattern تعیین‌کننده است، همان دستورش.
+    const own = netUrgency(e, b, isNeonate(e.age));
+    const liver = liveBuild(e, "liver_pattern");
+    const liverWins = liver && URG_RANK[liver.urgency] <= URG_RANK[own];
+    const urgency = liverWins ? liver.urgency : own;
     const enz = [g(e, "ALT"), g(e, "AST"), g(e, "ALP")];
     const allNormal = enz.every((x) => x && !x.abnormal);
     const anyAbn = enz.some((x) => x?.abnormal);
@@ -161,7 +174,7 @@ const bilirubinTotalAlone = {
           : anyAbn
             ? "چون آنزیم‌های کبد هم خارج از محدوده‌اند، ارزیابیِ کبد و مجاریِ صفراوی اولویت دارد."
             : ""),
-      action: ACT[urgency],
+      action: liverWins ? liver.action : ACT[urgency],
       suggest: ["بیلی‌روبین مستقیم و غیرمستقیم", "AST", "ALP"],
       warnings: ["اگر زردیِ چشم یا پوست، ادرارِ تیره همراه با مدفوعِ کم‌رنگ، تب یا دردِ شکم دارید، منتظرِ نوبت نمانید و همان روز مراجعه کنید."],
     };
@@ -302,7 +315,8 @@ const totalT4Abnormal = {
 // ── ۸) HCO3↓ متوسط (بالای آستانهٔ اورژانس) — KDIGO 2024: اسیدوزِ CKD ≤ 22؛ قلیا فقط < 18 ──
 const bicarbonateLow = {
   id: "bicarbonate_low_moderate",
-  match: (e) => lo(g(e, "HCO3")) && !anyFires(e, P73_OWNERS.hco3),
+  // P107 (L13): کنارِ pHِ خونِ بالا، بی‌کربناتِ پایین جبران است نه «اسیدوزِ متابولیک»؛ blood_ph_abnormal عددش را نقل می‌کند.
+  match: (e) => lo(g(e, "HCO3")) && !hi(g(e, "PH")) && !anyFires(e, P73_OWNERS.hco3),
   build: (e) => {
     const h = g(e, "HCO3");
     // ۱۸ آستانهٔ KDIGOِ بزرگسال است؛ زیر ۱۶ سال بازهٔ کودکان از PED_REFS می‌آید و عددِ ثابت نمی‌خورد (N23).
@@ -385,7 +399,11 @@ const anemiaHbAlone = {
     if (urgency === "routine" && infantAnemiaNoGrade(e)) urgency = "this_week";
     // M8 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): Hb ≤ ۸٫۵ِ تنها «نوبتِ عادی» بود، حال آن‌که همان عدد کنارِ MCV this_week می‌گرفت
     //   (normocytic_anemia) — هرچه برگه ناقص‌تر، فوریت کمتر (N19). کف، نه سقف.
-    if (urgency === "routine" && hb.value <= 8.5) urgency = "this_week";
+    // P107 (L12، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): کف از ۸٫۵ به زیرِ ۱۰ رفت (WHO: Hb < ۱۰ دست‌کم «متوسط» است، برای همهٔ گروه‌ها جز
+    //   زیرِ ۵ سال/بارداری که ۷–۹٫۹ است). کف، نه سقف.
+    if (urgency === "routine" && hb.value < 10) urgency = "this_week";
+    // P107 (L12): در بارداری Hb < ۹ ⇒ ارجاعِ صریح به پزشکِ زنان/ماما در همین هفته (جمله، نه فوریتِ تازه).
+    const pregLow = !!e.pregnant && hb.value < 9;
     const sev = whoSeverity(e, hb.value);
     return {
       pattern: "anemia_hb_alone",
@@ -398,7 +416,9 @@ const anemiaHbAlone = {
         (sev ? `بر پایهٔ طبقه‌بندیِ سازمان جهانی بهداشت برای سن${e.pregnant ? " و بارداریِ" : "ِ"} شما، این کم‌خونیِ ${sev} است. ` : "") +
         "هموگلوبین به‌تنهایی علت را نمی‌گوید. برای پیدا کردنِ علت معمولاً حجمِ گلبول قرمز (MCV) و بقیهٔ شاخص‌های CBC، فریتین (ذخیرهٔ آهن)، رتیکولوسیت، و در صورتِ لزوم B12 و فولات خواسته می‌شود؛ چون درمانِ هر نوع فرق دارد و بدونِ دانستنِ علت نباید خودسرانه قرصِ آهن شروع کرد. " +
         comp(e, K.MCV, "حجم گلبول قرمز (MCV)") + " " + comp(e, K.FERRITIN, "فریتین"),
-      action: ACT[urgency],
+      action: pregLow && urgency === "this_week"
+        ? "این هفته با پزشکِ زنان یا مامای خود مطرح کنید؛ کم‌خونی در این حد در بارداری نیاز به بررسی و درمانِ زودتر دارد."
+        : ACT[urgency],
       suggest: ["شاخص‌های گلبول قرمز (MCV، MCH)", "فریتین", "رتیکولوسیت"],
       warnings: ["اگر ضعفِ شدید، تپشِ قلبِ تند، تنگیِ نفس، سرگیجه یا دردِ قفسهٔ سینه دارید، یا خونریزی (مدفوعِ سیاه، قاعدگیِ بسیار زیاد) دارید، زودتر مراجعه کنید."],
     };
@@ -530,8 +550,42 @@ const biliIndirectHigh = {
   },
 };
 
+// ── P107 (L13، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): pHِ خونِ شریانی ──
+// pH فقط وقتی به اینجا می‌رسد که adapter آن را pHِ خون شناخته (شاهدِ گازِ خون). درجه از ctcae.js (PH_LOW/PH_HIGH): < ۷٫۲۰ یا
+//   > ۷٫۵۵ بحرانی. قاعده‌های اسید-باز (severe_acidosis، …) مالک‌اند؛ این قاعده وقتی است که هیچ‌کدام فعال نیست، یا pH بحرانی است
+//   (بی‌آن، کفِ تور اورژانس را با دستورِ «تماس بگیرید» روی کارتِ بی‌توضیح می‌نشاند). فوریت = netUrgency (N29).
+const PH_OWNERS = ["severe_acidosis", "high_anion_gap", "normal_ag_acidosis", "metabolic_alkalosis", "dka_pattern", "hhs_pattern"];
+const bloodPhAbnormal = {
+  id: "blood_ph_abnormal",
+  match: (e) => {
+    const ph = g(e, "PH");
+    if (!ph?.abnormal) return false;
+    return ph.level === "critical" ? !anyFires(e, ["severe_acidosis"]) || ph.dir === "high" : !anyFires(e, PH_OWNERS);
+  },
+  build: (e) => {
+    const ph = g(e, "PH");
+    const low = ph.dir === "low";
+    const urgency = netUrgency(e, ph);
+    return {
+      pattern: "blood_ph_abnormal",
+      urgency,
+      headline: low ? "pHِ خونِ شما پایین‌تر از حد طبیعی است (خون اسیدی‌تر شده)" : "pHِ خونِ شما بالاتر از حد طبیعی است (خون قلیایی‌تر شده)",
+      must_say:
+        `pHِ خونِ شما ${ph.value} است (حد طبیعی ${ph.range})؛ یعنی خون ${low ? "اسیدی‌تر" : "قلیایی‌تر"} از حدِ طبیعی است. ` +
+        (urgency === "emergency"
+          ? `این حد از ${low ? "اسیدی" : "قلیایی"} شدنِ خون می‌تواند کارِ قلب، مغز و عضلات را مختل کند و نیاز به رسیدگیِ فوری دارد. `
+          : "") +
+        "pH را باید کنارِ بی‌کربنات و فشارِ دی‌اکسیدِ کربن (pCO2) همان گازِ خون تفسیر کرد تا معلوم شود علت تنفسی است یا متابولیک. " +
+        comp(e, K.HCO3, "بی‌کربنات"),
+      action: ACT[urgency],
+      suggest: [],
+      warnings: [],
+    };
+  },
+};
+
 export const RULES_P73_GAPS = [
   hctRbcHigh, bilirubinTotalAlone, ckElevatedAlone, albuminLowAlone, ironMarkersHigh,
   totalT4Abnormal, bicarbonateLow, pctIntermediate, ammoniaMildHigh, anemiaHbAlone,
-  rdwHigh, tibcHigh, tibcLow, biliDirectHigh, biliIndirectHigh,
+  rdwHigh, tibcHigh, tibcLow, biliDirectHigh, biliIndirectHigh, bloodPhAbnormal,
 ];

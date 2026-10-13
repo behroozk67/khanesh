@@ -137,7 +137,8 @@ function hcgState(e) {
     if (!HCG_QUAL_NAME_RE.test(k)) continue;   // همان الگوی دروازهٔ پروژسترون در adapter
     const s = String(v).trim();
     // «Pregnancy test» ممکن است ادرار باشد؛ «خون» را فقط وقتی می‌گوییم که نامِ ردیف بگوید.
-    const blood = /beta|β|bhcg|بتا|serum|سرم|خون/i.test(k);
+    //   P107 (L10): «BHCG Urine» / «β-hCG (ادرار)» بتا دارد ولی ادرار است.
+    const blood = /beta|β|bhcg|بتا|serum|سرم|خون/i.test(k) && !/urine|ادرار|\bupt\b/i.test(k);
     // N6: مجموعهٔ بسته — «Not positive»، «+/-»، «Borderline» پیش‌تر «مثبت» خوانده می‌شدند (زیررشتهٔ pos / +).
     //   مرزی/نامشخص ⇒ null (حکم نه)؛ qual_equivocal_result (patterns_coverage_gaps) آن را نام می‌برد.
     const vs = qualVerdict(s).state;

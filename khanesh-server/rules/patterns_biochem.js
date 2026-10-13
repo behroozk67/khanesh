@@ -33,6 +33,32 @@ function lowestGlucose(...vals) {
 }
 
 // ~۱۰× سقفِ مرجع: ALT > ۳۶۰ (سقف ≈۳۶) یا AST > ۳۳۰ (سقف ≈۳۳) — عددِ P72 (تصمیمِ کاربر)، یک تعریف برای liver_pattern و هم‌ردیفانش.
+// P107: سقفِ بازهٔ درجه‌بندی‌شده («7–41» ⇒ 41). عددِ جدا از refs.js ساخته نمی‌شود.
+function rangeUpper(x) {
+  const n = String(x?.range ?? "").split(/[–-]/).map(Number).filter(Number.isFinite);
+  return n.length >= 2 ? n[n.length - 1] : null;
+}
+const timesUln = (x) => { const u = rangeUpper(x); return x && u ? x.value / u : null; };
+/** قانونِ Hy (FDA DILI 2009): AT > ۳×ULN + بیلی‌روبینِ تام > ۲×ULN + ALP < ۲×ULN (یا سنجیده‌نشده). ⇒ { bili } | null */
+function hyLawPattern(e) {
+  const f = (k) => e.graded.find((g) => g.test === k);
+  const at = Math.max(timesUln(f("ALT")) ?? 0, timesUln(f("AST")) ?? 0);
+  const bt = f("BILI_T");
+  const alpX = timesUln(f("ALP"));
+  if (!(at > 3) || !((timesUln(bt) ?? 0) > 2) || (alpX != null && alpX >= 2)) return null;
+  return { bili: bt.value };
+}
+/** ALT/AST ِ بالا همه < ۲×ULN و ALP بالا نیست (ACG 2017: borderline). */
+function liverBorderline(e) {
+  const f = (k) => e.graded.find((g) => g.test === k);
+  const highs = ["ALT", "AST"].map(f).filter((x) => x?.abnormal && x.dir === "high");
+  const alp = f("ALP");
+  if (!highs.length || (alp?.abnormal && alp.dir === "high")) return false;
+  // بیلی‌روبینِ > ۲ برابر کنارِ آنزیمِ بالا «مرزی» نیست (اختلالِ دفع) ⇒ همان this_week.
+  if ((timesUln(f("BILI_T")) ?? 0) > 2) return false;
+  return highs.every((x) => { const r = timesUln(x); return r != null && r < 2; });
+}
+
 function liverMarked(e) {
   const alt = e.graded.find((g) => g.test === "ALT");
   const ast = e.graded.find((g) => g.test === "AST");
@@ -1582,7 +1608,13 @@ export const RULES_BIOCHEM = [
       // N20 (P72 پرسش ۱، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): «≈۱۰× سقف» پیش‌تر `emergency` بود ولی دستورش «همین چند روز» —
       //   دو نسخه از یک تصمیم. حالا: > ۱۰× ⇒ `soon` (۲۴ تا ۴۸ ساعت، بی‌has_critical) و جملهٔ action از همان فوریت می‌آید؛
       //   CTCAE درجهٔ ۴ (> ۲۰×) همان `emergency` + blocks_others می‌ماند و دستورش حالا اورژانس است. گارد M308.
-      const urgency = maxG >= 4 ? "emergency" : marked ? "soon" : "this_week";
+      // P107 (L1، تصمیمِ کاربر): قانونِ Hy — FDA DILI 2009 (سندِ بازشده): AT > ۳×ULN + بیلی‌روبینِ تام > ۲×ULN + ALP < ۲×ULN
+      //   ⇒ آسیبِ سلولی به حدی که دفعِ بیلی‌روبین مختل شده (~۱۰٪ مرگ/پیوند در DILI) و تکرارِ ظرفِ ۴۸–۷۲ ساعت ⇒ soon.
+      // P107 (L14، تصمیمِ کاربر): ALT/AST «borderline» = < ۲×ULN (ACG 2017، خلاصهٔ بازشده) و ALP بالا نیست ⇒ routine.
+      //   ULN همان سقفِ بازهٔ درجه‌بندی است (بی‌عددِ تازه).
+      const hy = hyLawPattern(e);
+      const borderline = !hy && liverBorderline(e);
+      const urgency = maxG >= 4 ? "emergency" : marked || hy ? "soon" : borderline ? "routine" : "this_week";
       // باگِ ۶ (LIS ۲۰۲۶-۱۰-۰۶، [38]): «این اعداد نشان می‌دهند…» بی‌آنکه هیچ عددی گفته شود (N5). فقط آنزیمِ سنجیده و بالا نقل می‌شود.
       const liverNums = ["ALT", "AST", "ALP"]
         .map((k) => e.graded.find((g) => g.test === k && g.abnormal && g.dir === "high"))
@@ -1592,11 +1624,18 @@ export const RULES_BIOCHEM = [
         pattern: `liver_${kind}`,
         urgency,
         blocks_others: maxG >= 4,
+        ...(hy ? { sources: ["FDA_DILI_2009"] } : borderline ? { sources: ["ACG_LIVER"] } : {}),
         headline: marked
           ? "شاخص‌های کبد شما بسیار بالا هستند"
           : "بعضی از شاخص‌های کبد بالاتر از حد طبیعی هستند",
         must_say:
           (liverNums.length ? `${liverNums.join("، ")} بالاتر از حد طبیعی است. ` : "") +
+          (hy
+            ? `بیلی‌روبین تام شما هم ${hy.bili} است، یعنی بیش از دو برابرِ حدِ بالا. وقتی آسیبِ سلول‌های کبد به حدی است که دفعِ بیلی‌روبین هم مختل شده، وضعیت جدی‌تر از هر کدام به‌تنهایی است (به‌ویژه اگر علتش دارو یا مکمل باشد) و آزمایش‌ها باید ظرفِ دو سه روز تکرار و بررسی شوند. `
+            : "") +
+          (borderline
+            ? "این افزایش کمتر از دو برابرِ حدِ بالای طبیعی است (در راهنمای کالج گوارش آمریکا «مرزی» نامیده می‌شود)؛ شایع است و اغلب با چربیِ کبد، وزن، الکل یا دارو مربوط است، ولی باید تکرار و پیگیری شود. "
+            : "") +
           (marked
             ? "آنزیم‌های کبدی خیلی بالا هستند، که می‌تواند نشانه‌ی یک آسیب فعال و قابل‌توجه کبد باشد (مثلاً التهاب حاد کبد). این حتماً و سریع باید بررسی شود. "
             : "") +
@@ -1609,7 +1648,9 @@ export const RULES_BIOCHEM = [
           ? "همین امروز به اورژانس مراجعه کنید و لیست کامل داروها و مکمل‌هایتان را همراه ببرید."
           : urgency === "soon"
             ? "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید و لیست کامل داروها و مکمل‌هایتان را همراه ببرید. اگر زردی چشم/پوست، گیجی یا استفراغ دارید، به اورژانس بروید."
-            : "این هفته وقت بگیرید. لیست کامل داروها و مکمل‌هایتان را همراه ببرید.",
+            : urgency === "routine"
+              ? "در نوبتِ عادی با پزشک مطرح کنید و بخواهید آزمایشِ کبد تکرار شود. لیست کامل داروها و مکمل‌هایتان را همراه ببرید."
+              : "این هفته وقت بگیرید. لیست کامل داروها و مکمل‌هایتان را همراه ببرید.",
         suggest:
           kind === "cholestatic"
             ? ["GGT", "بیلی‌روبین مستقیم و غیرمستقیم", "سونوگرافی شکم"]
@@ -1783,6 +1824,46 @@ export const RULES_BIOCHEM = [
           ? "نوبت عادی. اگر باردار هستید یا علامت خاصی دارید، با پزشک مطرح کنید."
           : "نوبت عادی. اگر علامت خاصی دارید، با پزشک مطرح کنید.",
         suggest: ggtKnown ? [] : ["GGT — برای مشخص شدن منبع ALP"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══════════ GGT بالای تنها (P107-L3: بی‌مالک بود و به «توضیح آماده نداریم» می‌افتاد — N1) ═══════════
+  // ALP بالا → alp_isolated مالک است (GGT را همان‌جا می‌خواند)؛ ALT/AST بالا → liver_pattern.
+  // شدت از levelGrade (CTCAE GGT: ≥ درجهٔ ۳ ⇒ بیش از ۵ برابر حد بالا) می‌آید، نه عددِ تازه.
+  // منبع: ACG 2017 — GGT به‌تنهایی غیراختصاصی است و کارش روشن‌کردنِ منشأ ALP است.
+  {
+    id: "ggt_isolated",
+    match: (e) => {
+      const ggt = e.graded.find((g) => g.test === "GGT");
+      if (!(ggt?.abnormal && ggt.dir === "high")) return false;
+      const hi = (k) => { const g = e.graded.find((x) => x.test === k); return g?.abnormal && g.dir === "high"; };
+      return !hi("ALP") && !hi("ALT") && !hi("AST");
+    },
+    build: (e) => {
+      const ggt = e.graded.find((g) => g.test === "GGT");
+      const marked = levelGrade(ggt) >= 3;
+      const ref = ADULT_REFS.GGT.both;
+      const alpKnown = e.graded.some((g) => g.test === "ALP");
+      const aminoKnown = e.graded.some((g) => g.test === "ALT") && e.graded.some((g) => g.test === "AST");
+      return {
+        pattern: "ggt_isolated",
+        urgency: marked ? "this_week" : "routine",
+        headline: "آنزیم GGT شما بالاست",
+        must_say:
+          `آنزیم GGT شما ${ggt.value} است و از حد بالای طبیعی (${ref[1]}) بیشتر است. ` +
+          "GGT به‌تنهایی نشان نمی‌دهد مشکل از کجاست: مصرف الکل، بعضی داروها (مثل داروهای ضدتشنج)، " +
+          "کبد چرب و بیماری‌های مجاری صفراوی می‌توانند آن را بالا ببرند، و گاهی هم بدون هیچ بیماری مشخصی بالا می‌ماند. " +
+          (alpKnown && aminoKnown
+            ? "ALP، ALT و AST شما بالا نیستند، که این را کمی آرام‌تر می‌کند. "
+            : "برای معنی‌دار شدنِ آن، پزشک معمولاً آن را کنار ALP، ALT و AST می‌خواند که روی برگهٔ شما کامل نیست. ") +
+          "فهرست داروها و مکمل‌هایی که مصرف می‌کنید را به پزشک بگویید.",
+        action: marked
+          ? "این هفته با پزشک مطرح کنید و بخواهید آزمایش‌های کبد تکرار شود."
+          : "در نوبتِ عادی با پزشک مطرح کنید و بخواهید آزمایش‌های کبد تکرار شود.",
+        suggest: [...(alpKnown ? [] : ["ALP"]), ...(e.graded.some((g) => g.test === "ALT") ? [] : ["ALT"]), "سونوگرافی شکم"],
+        sources: ["ACG_LIVER"],
         warnings: [],
       };
     },
@@ -2117,11 +2198,14 @@ function ketoneState(e) {
   return urinePositive(e, KETONE_RE) ? "positive" : "negative";
 }
 
-/** وضعیتِ بی‌کربنات: "low" | "normal" | "absent" — به همان دلیلِ بالا سه‌حالته. */
+/** وضعیتِ بی‌کربنات: "low" | "high" | "normal" | "absent" — به همان دلیلِ بالا چندحالته.
+ *  P107 (L16): «high» جدا شد؛ پیش‌تر ۳۷٫۷ «طبیعی» خوانده می‌شد کنارِ یافتهٔ آلکالوز (N4/N12: !low ≠ normal). */
 function hco3State(e) {
   const g = e.graded.find((x) => x.test === "HCO3");
   if (!g || g.value == null) return "absent";
-  return g.abnormal && g.dir === "low" ? "low" : "normal";
+  if (g.abnormal && g.dir === "low") return "low";
+  if (g.abnormal && g.dir === "high") return "high";
+  return "normal";
 }
 // P104: معیارِ اسیدوزِ DKA در اجماعِ ADA/EASD/JBDS/AACE/DTS 2024 (Umpierrez و همکاران، Diabetes Care 2024) — بی‌کربنات < ۱۸ mmol/L.
 //   یک‌جا تعریف می‌شود و dka_pattern، dkaOwns و severe_hyperglycemia_uncertain_ketosis همین را می‌خوانند (M91e).
@@ -2324,7 +2408,9 @@ export const RULES_BIOCHEM_NEW = [
         const bicPart =
           bic === "normal"
             ? "بی‌کربناتِ خونتان طبیعی است"
-            : "بی‌کربناتِ خون هم اندازه‌گیری نشده";
+            : bic === "high"
+              ? "بی‌کربناتِ خونتان پایین نیست (بالاتر از حدِ طبیعی است)"
+              : "بی‌کربناتِ خون هم اندازه‌گیری نشده";
         evidence =
           `${ketPart} و ${bicPart}. ` +
           (ket === "negative"

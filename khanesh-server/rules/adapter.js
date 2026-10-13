@@ -14,7 +14,7 @@ import { evaluate } from "./grade.js";
 import { getPedRef } from "./refs_ped.js";
 import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcrossSystems, BRANCH_FACTORS,
          parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv, normUnit,
-         HEMOSTASIS_KEYS, hemostasisUnit, SURVIVAL_LIMITS } from "./units.js";
+         HEMOSTASIS_KEYS, hemostasisUnit, SURVIVAL_LIMITS, EXTRA_PRINTED_UNITS } from "./units.js";
 // فقط برای سنجیدنِ «هر خوانشِ ممکن»ِ عددِ بی‌واحد با خودِ موتور (specs/003، B3). patterns.js هیچ‌چیز از
 // adapter.js نمی‌خواند، پس چرخهٔ import نیست.
 import { runPatterns } from "./patterns.js";
@@ -625,6 +625,18 @@ function unitGatedKey(key, unit) {
 const PCT_PLATELETCRIT_UNIT = /^%$/;
 function pctKey(unit) {
   return PCT_PLATELETCRIT_UNIT.test(normUnit(unit)) ? "PLT_CRIT" : "PCT_SEPSIS";
+}
+
+// P107 (L10، N2): تستِ بارداریِ ادرار با املاهای رایجِ برگه unmapped بود و «Positive» هیچ یافته‌ای نمی‌گرفت.
+//   فقط جوابِ کیفی (Positive/Negative/…) به HCG می‌رود: عددِ hCGِ ادرار با بازهٔ سرم قابلِ مقایسه نیست ⇒ unmapped، نه حدس (N3).
+const URINE_HCG_QUAL_ALIASES = new Set([
+  "urinepregnancytest", "pregnancytesturine", "upt", "pregtest", "pregnancytestqualitative",
+  "hcgurine", "urinehcg", "bhcgurine", "urinebhcg", "betahcgurine", "urinebetahcg",
+  "bhcgqualitative", "betahcgqualitative", "hcgqualitative", "qualitativehcg", "qualitativebhcg", "qualitativebetahcg",
+  "تستبارداریادرار", "آزمایشبارداریادرار", "بارداریادرار", "تستحاملگی", "تستحاملگیادرار",
+]);
+function urineHcgKey(key, value) {
+  return URINE_HCG_QUAL_ALIASES.has(key) && toNum(value) == null ? "HCG" : undefined;
 }
 
 // «PT INR» (ردیفِ جدا از «PT») روی برگه‌های LIS یعنی INR — ۴۰ درخواستِ یک بیمارستان، INRِ ۱٫۴ تا ۱٫۸ بی‌تفسیر (N2، گارد L2).
@@ -1367,6 +1379,8 @@ export function ocrToEngineInput(ocr) {
   const BRANCH_KEYS = new Set(["TROPONIN_I", "CRP_Q", "TESTO", "T3"]);
   const resolveRowUnit = (key, row, v) => {
     if (!UNIT_PROFILE[key]) return row;
+    // P107 (L11): واحدِ چاپ‌شدهٔ دوم (mEq/L کلسیم، mmol/L اسید اوریک/هموگلوبین) شناخته‌شده است؛ تبدیل پایین‌تر (toConventional).
+    if (row.unit && EXTRA_PRINTED_UNITS[key]?.some(([re]) => re.test(String(row.unit).toLowerCase().replace(/\s+/g, "")))) return row;
     const rec = recognizedUnit(key, row.unit);
     if (rec) {
       // «(mg/dL)»، «mgdl»، «میلی گرم در دسی لیتر»: شناخته شد، ولی شاخه‌های پایین (تروپونین، تستوسترون،
@@ -1911,6 +1925,7 @@ export function ocrToEngineInput(ocr) {
     if (!engineKey) engineKey = unitGatedKey(key, t.unit);
     if (!engineKey && key === "pct") engineKey = pctKey(t.unit);
     if (!engineKey) engineKey = ptInrKey(key, t.value);
+    if (!engineKey) engineKey = urineHcgKey(key, t.value);
     if (!engineKey) {
       unmapped.push(t.name);
       continue;

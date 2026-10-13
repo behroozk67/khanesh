@@ -137,6 +137,19 @@ export const SI_CONVERSIONS = {
  *    سراغِ عددِ *بی‌واحد* هم می‌رود — «Hct 39»ِ بی‌واحد، رایج‌ترین شکلِ برگه، بی‌محدودهٔ چاپ‌شده دیگر
  *    سنجیده نمی‌شد. عددِ بی‌واحدِ ناممکن (هماتوکریتِ ≤ ۱، MCHCِ > ۱۰۰) را adapter به unmapped می‌فرستد.
  */
+// ── P107 (L11، N3): واحدِ چاپ‌شدهٔ دومی که جدولِ اصلی نداشت. فقط با واحدِ *چاپ‌شده* (عددِ بی‌واحد هرگز به این‌ها نمی‌رسد) ──
+//   ضریب‌ها از ظرفیت و جرمِ مولی‌اند، نه قراردادِ کیت:
+//   کلسیم ۲ظرفیتی: ۱ mEq/L = ۰٫۵ mmol/L = ۲٫۰۰۴ mg/dL (۴۰٫۰۸ g/mol)؛ منیزیم ۲ظرفیتی: ۱ mEq/L = ۰٫۵ mmol/L = ۱٫۲۱۵ mg/dL (۲۴٫۳۱).
+//   اسید اوریک ۱۶۸٫۱ g/mol: ۱ mmol/L = ۱۶٫۸۱ mg/dL. هموگلوبین (واحدِ تک‌زنجیره، Hb(Fe)، ۱۶۱۱۴ g/mol): ۱ mmol/L = ۱٫۶۱۱ g/dL.
+//   پیش‌تر «Ca 4.8 mEq/L» (= ۹٫۶ mg/dL، طبیعی) اورژانس می‌شد و «Hb 5.2 mmol/L» (≈ ۸٫۴ g/dL) unit_unknown ِ اورژانسی.
+//   فسفات عمداً نیست: ظرفیتش به pH بسته است و mEq/L برایش ضریبِ ثابت ندارد.
+export const EXTRA_PRINTED_UNITS = {
+  CA:   [[/^meq\/l$/, 2.004, 'mg/dL']],
+  MG:   [[/^meq\/l$/, 1.215, 'mg/dL']],
+  URIC: [[/^mmol\/l$/, 16.81, 'mg/dL']],
+  HGB:  [[/^mmol\/l$/, 1.611, 'g/dL']],
+};
+
 export const PRINTED_ONLY_CONVERSIONS = {
   HCT:  { si: /^(l\/l|fraction)$/, factor: 100, conv: '%' },
   MCHC: { si: /^g\/l$/, factor: 0.1, conv: 'g/dL' },
@@ -266,10 +279,13 @@ export function toConventional(engineKey, value, unit) {
     return { value: r.value, converted: r.converted, from: r.from, to: '%', ...(r.inferred ? { inferred: true } : {}) };
   }
 
-  const rule = SI_CONVERSIONS[engineKey] ?? PRINTED_ONLY_CONVERSIONS[engineKey];
+  const u0 = normUnit(unit);
+  // P107 (L11): واحدِ چاپ‌شدهٔ دوم (فقط چاپ‌شده، هرگز حدس) — پیش از جدولِ اصلی، چون الگوهایشان هم‌پوشانی ندارند.
+  const alt = u0 && (EXTRA_PRINTED_UNITS[engineKey] ?? []).find(([re]) => re.test(u0));
+  const rule = alt ? { si: alt[0], factor: alt[1], conv: alt[2] } : SI_CONVERSIONS[engineKey] ?? PRINTED_ONLY_CONVERSIONS[engineKey];
   if (!rule) return { value, converted: false, from: null, to: null };
 
-  const u = normUnit(unit);
+  const u = u0;
   if (!u || !rule.si.test(u)) {
     return { value, converted: false, from: null, to: null };
   }

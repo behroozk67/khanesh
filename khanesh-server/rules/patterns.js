@@ -450,6 +450,27 @@ function applyBareFluidVoice(findings, engineOut) {
 //   خروجی، چون چند تستِ freeze کلِ خروجیِ runPatterns را hash می‌کنند و WeakMap در JSON.stringify دیده نمی‌شود.
 export const HIDDEN_FINDINGS = new WeakMap();
 
+// P107 (L12، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): در بارداری Hb < ۹ ⇒ دست‌کم this_week و ارجاعِ صریح به پزشکِ زنان/ماما، روی همان
+//   یافتهٔ کم‌خونی که دیده می‌شود (یک‌بار). فقط بالا می‌برد؛ اورژانس/soon دست نمی‌خورد. بستری را applyInpatientVoice بعداً بازنویسی می‌کند.
+const PREG_ANEMIA_OWNERS = ["anemia_hb_alone", "microcytic_anemia", "normocytic_anemia", "macrocytic_anemia", "iron_deficiency_panel"];
+const PREG_ANEMIA_SENTENCE = "کم‌خونی در این حد در بارداری را این هفته با پزشکِ زنان یا مامای خود هم در میان بگذارید.";
+function applyPregnancyAnemiaReferral(findings, e) {
+  if (!e?.pregnant) return;
+  const hb = e.graded?.find((g) => g.test === "HGB");
+  if (!(hb?.value < 9)) return;
+  const f = findings.find((x) => PREG_ANEMIA_OWNERS.includes(x.rule_id));
+  if (!f || /زنان|ماما/.test(String(f.action ?? ""))) return;
+  if (f.urgency === "routine" || f.urgency === "none") {
+    f.urgency = "this_week";
+    f.action = PREG_ANEMIA_SENTENCE;
+  } else {
+    f.action = `${String(f.action ?? "").trim()} ${PREG_ANEMIA_SENTENCE}`.trim();
+  }
+}
+
+// P107 (L2): کلیدهایی که کفِ فوریتِ «بحرانی» برایشان این هفته است، نه اورژانس.
+const FLOOR_CAP_THIS_WEEK = new Set(["CHOL", "LDL", "TG"]);
+
 export function runPatterns(engineOut) {
   const findings = [];
   // یافته‌های کم‌فوریتی که زیرِ blocker پنهان می‌شدند ولی عددی را توضیح می‌دهند که هیچ متنِ نمایشی نمی‌گوید —
@@ -681,7 +702,9 @@ export function runPatterns(engineOut) {
     //    برگه کامل‌تر، بیمار کمتر شنید. اصلاحِ تک‌قاعده‌ای (P73، P84) همیشه یکی را جا می‌انداخت؛ این کف برای *هر* قاعده است:
     //    فوری‌ترین یافتهٔ نمایشیِ مالکِ آن عدد دست‌کم همان فوریتِ تور را می‌گیرد، و جملهٔ اقدامش هم با آن عوض می‌شود (N20).
     //    فقط بالا می‌برد، هرگز پایین نمی‌آورد؛ یافتهٔ پنهان/brief مالک نیست (آن‌جا blocker فوریتِ بالاتر را دارد).
-    const netNeed = (a) => a.level === "critical" ? "emergency"
+    // P107 (L2، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): چربیِ خون (کلسترول ۶۰۰، TG ۱۵۰۰) خودش اقدامِ اورژانسیِ بیمارستانی نمی‌خواهد؛ کف
+    //   برایش this_week است. خطرِ پانکراتیت با جملهٔ شرطیِ lipid_profile («اگر درد شدید شکم … فوراً اورژانس») گفته می‌شود.
+    const netNeed = (a) => a.level === "critical" ? (FLOOR_CAP_THIS_WEEK.has(a.test) ? "this_week" : "emergency")
       : (a.level === "marked" || levelGrade(a) >= 3) ? "this_week" : null;
     const orphanSet = new Set(orphans.map((a) => a.test));
     const shownOwners = findings.filter((f) => !hidden.has(f) && !briefed.has(f) && f.rule_id !== "unexplained_abnormal");
@@ -693,7 +716,13 @@ export function runPatterns(engineOut) {
       if (onDialysis(engineOut) && DIALYSIS_SILENCED_KEYS.has(a.test)) continue;
       const owners = shownOwners.filter((f) => [...(RULE_READS.get(f.rule_id) ?? [])].includes(a.test) || textNamesTest(textOf(f), a.test));
       if (!owners.length || owners.some((f) => rank(f.urgency) <= rank(need))) continue;
-      const top = owners.reduce((x, y) => (rank(y.urgency) < rank(x.urgency) ? y : x));
+      // P107 (L15، N20): فوری‌ترین مالک گاهی فقط برای زمینه از عدد نام می‌برد (potassium_critical دربارهٔ منیزیم)، و کفِ اورژانس روی
+      //   کارتِ پتاسیم می‌نشست در حالی که مالکِ واقعیِ منیزیم «این هفته» می‌ماند. ترجیح: یافته‌ای که سرتیترش همان آزمایش را نام می‌برد،
+      //   بعد یافته‌ای که خودِ عدد را نقل می‌کند؛ میانِ هم‌رده‌ها فوری‌ترین (رفتارِ پیشین).
+      const pref = (f) => (textNamesTest(f.headline ?? "", a.test) ? 0 : String(f.must_say ?? "").includes(String(a.value)) ? 1 : 2);
+      const best = Math.min(...owners.map(pref));
+      const top = owners.filter((f) => pref(f) === best).reduce((x, y) => (rank(y.urgency) < rank(x.urgency) ? y : x));
+      if (rank(top.urgency) <= rank(need)) continue;
       top.urgency = need;
       top.action = need === "emergency"
         ? "همین امروز با پزشک تماس بگیرید و این برگه را همراه ببرید."
@@ -706,6 +735,7 @@ export function runPatterns(engineOut) {
   applyNeonatalFloor(findings, engineOut);
   applyNeonatalVoice(findings, engineOut);
   applyChildVoice(findings, engineOut);
+  applyPregnancyAnemiaReferral(findings, engineOut);   // P107 (L12): بارداری + Hb < ۹ ⇒ ارجاع به پزشکِ زنان/ماما
   applyInpatientVoice(findings, engineOut);   // ۲۰۲۶-۱۰-۰۸: بستری ⇒ «به پرستار/پزشکِ بخش اطلاع دهید»؛ فوریت دست‌نخورده
   applyPrintedRange(findings, engineOut);   // ۲۰۲۶-۱۰-۰۷: بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور — فقط نمایش
   applyQualGloss(findings);   // بندِ ۵ (LIS ۲۰۲۶-۱۰-۰۶): «Negative» ⇒ «Negative» (منفی) — فقط معنا، بی‌تغییرِ حکم
@@ -759,12 +789,15 @@ export function runPatterns(engineOut) {
   // به ترتیبِ فوریت (پایدار) تا شمارهٔ «۱ از n» همان ترتیبی باشد که بعد از shown.sort دیده می‌شود.
   const supplementary = demoted.filter((f) => rescued.has(f)).sort((x, y) => rank(x.urgency) - rank(y.urgency));
 
+  // P107 (L17، کلاسِ M155/N20): safety_warnings هشدارِ دارویی‌ای است که با کوتاه یا تکمیلی شدنِ یافته نباید بیفتد
+  //   (آسپرین/NSAID کنارِ INRِ بالا یا کراتینینِ بالا). دستورِ زمان ندارد، پس با دستورِ نهاییِ اورژانس رقابت نمی‌کند.
+  const withSafety = (ws, f) => [...ws, ...(f.safety_warnings ?? []).filter((w) => !ws.includes(w))];
   // یافتهٔ always_show که فقط به‌خاطر همین استثنا زیر یک blocker مانده،
   //   نسخهٔ کوتاهش (brief) را می‌گیرد تا پیام اورژانس را شلوغ نکند.
   //   brief_warnings: هشدارهایی که حتی در نسخهٔ کوتاه نباید بیفتند (مثلِ هشدارِ ناقل بودنِ HbA2 — R3-CR1).
   const shown = selected.map((f) =>
     willBrief(f, findings)
-      ? { ...f, must_say: f.brief, warnings: f.brief_warnings ?? [], suggest: [] }
+      ? { ...f, must_say: f.brief, warnings: withSafety(f.brief_warnings ?? [], f), suggest: [] }
       : f
   );
   // یافتهٔ تکمیلی: فقط جملهٔ اولِ خودِ قاعده، با برچسب و شمارش. action/warnings/suggest/protected نمی‌آیند —
@@ -776,7 +809,7 @@ export function runPatterns(engineOut) {
       // برچسب و شماره‌گذاری نیست: server.js همهٔ تکمیلی‌ها را در یک پاراگرافِ «موارد دیگر» می‌آورد (printed.js، supplementaryParagraph).
       must_say: compactText(f, rescued.get(f), engineOut),
       action: "",
-      warnings: [],
+      warnings: withSafety([], f),
       suggest: [],
       protected: [],
       supplementary: true,
