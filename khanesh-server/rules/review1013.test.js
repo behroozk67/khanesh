@@ -669,7 +669,9 @@ test("P107c-L5: GGT نوزاد جملهٔ ULN بزرگسال نمی‌گیرد،
   const kid = msOf(urg([["GGT", 80, "U/L"]], { sex: "M", age: 8 }), "ggt_isolated");
   assert.ok(kid); assert.doesNotMatch(kid.must_say, /الکل/);
   assert.match(msOf(urg([["GGT", 120, "U/L"]]), "ggt_isolated").must_say, /الکل/, "بزرگسال همان");
-  const preg = msOf(urg([["Fibrinogen", 550, "mg/dL"]], { sex: "F", age: 30, pregnant: true }), "coag_other_direction");
-  assert.doesNotMatch(preg.must_say, /قلب و عروق/);
+  // فیبرینوژنِ بارداری (P107d، Abbassi-Ghanavati 2009): تا ۶۱۹ mg/dL طبیعی؛ بالاتر «بالا» ولی بی‌جملهٔ قلب و عروق.
+  assert.equal(urg([["Fibrinogen", 550, "mg/dL"]], { sex: "F", age: 30, pregnant: true }).p.findings.length, 0);
+  const preg = msOf(urg([["Fibrinogen", 650, "mg/dL"]], { sex: "F", age: 30, pregnant: true }), "coag_other_direction");
+  assert.ok(preg); assert.doesNotMatch(preg.must_say, /قلب و عروق/);
   assert.match(msOf(urg([["Fibrinogen", 550, "mg/dL"]], { sex: "F", age: 30 }), "coag_other_direction").must_say, /قلب و عروق/);
 });

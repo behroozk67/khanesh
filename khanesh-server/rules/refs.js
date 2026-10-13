@@ -456,7 +456,11 @@ export const inNeonatalRedCellPeriod = (age) => age != null && age <= PED_REFS.M
 export const NEONATAL_NO_ADULT_FALLBACK = new Set(['RBC', 'RDW_CV', 'RDW_SD']);
 export const NEONATE_NO_ADULT_FALLBACK = new Set(['NTPROBNP']);
 
+// P107d: فیبرینوژن در بارداری به‌طور طبیعی بالا می‌رود. سقف = بالاترین سقفِ سه‌ماههٔ سوم (۶۱۹ mg/dL، Abbassi-Ghanavati 2009 — از بازنشر)؛
+//   هفتهٔ بارداری به موتور نمی‌رسد، پس بازهٔ سه‌ماههٔ آخر برای همه گرفته می‌شود (محتاط به سمتِ کم‌گفتن «بالا»). حدِ پایین بی‌تغییر.
+export const FIB_PREGNANCY_HIGH = 619;
 export function getRef(testKey, sex, age, { pregnant = false } = {}) {
+  if (testKey === 'FIB' && pregnant && sex === 'F') return [ADULT_REFS.FIB.both[0], FIB_PREGNANCY_HIGH];
   if (REPRO_HORMONE_KEYS.has(testKey) && ((age != null && age < 16) || !sex)) return null;
   if (NEONATAL_NO_ADULT_FALLBACK.has(testKey) && inNeonatalRedCellPeriod(age) && !getPedRef(testKey, age)) return null;
   if (NEONATE_NO_ADULT_FALLBACK.has(testKey) && isNeonate(age) && !getPedRef(testKey, age)) return null;

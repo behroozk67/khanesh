@@ -469,6 +469,19 @@ export const GUIDELINES = {
     scope: 'محدوده‌های مرجعِ شمارشِ گلبول سفیدِ کودک',
   },
 
+  // P107d (فیبرینوژنِ بارداری، ۲۰۲۶-۱۰-۱۳): جدولِ مرجعِ بارداری. ⚠️ متنِ اصلی (پشتِ cookie-wall در PubMed) باز نشد؛ عددها از بازنشرِ
+  //   perinatology.com که همین مقاله را مرجعِ اول می‌گیرد خوانده شد (فیبرینوژنِ پلاسما mg/dL: غیرباردار ۲۳۳–۴۹۶، سه‌ماههٔ ۱ ۲۴۴–۵۱۰،
+  //   ۲ ۲۹۱–۵۳۸، ۳ ۳۷۳–۶۱۹). مطالعه‌های دیگر بازهٔ پهن‌تری می‌دهند (n=۷۱: تا ۹٫۱۴ g/L)، پس این عدد قطعی نیست.
+  ABBASSI_PREG_2009: {
+    org: 'ACOG journal (Obstet Gynecol)',
+    fa: 'جدولِ مرجعِ آزمایش‌ها در بارداری (Abbassi-Ghanavati، Greer، Cunningham)',
+    title: 'Pregnancy and laboratory studies: a reference table for clinicians. Obstet Gynecol 2009;114:1326–31',
+    year: 2009,
+    url: 'https://pubmed.ncbi.nlm.nih.gov/19935037/',
+    access: 'open',
+    scope: 'سقفِ طبیعیِ فیبرینوژن در بارداری (بالاترین سقفِ سه‌ماههٔ سوم)',
+  },
+
   CTCAE: {
     org: 'NCI',
     fa: 'مؤسسهٔ ملی سرطان آمریکا',
