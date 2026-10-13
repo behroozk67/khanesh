@@ -685,10 +685,24 @@ test("P107e-L3: pH + HCO3 بی‌pCO2 ⇒ pHِ خون (اورژانس)؛ pH تن
 
 // P107f (M10): T4ِ تام و رتیکولوسیتِ نوزاد با بازهٔ بزرگسال سنجیده نمی‌شود (noRef)؛ از ۲۸ روز به بعد و بزرگسال همان.
 test("P107f-M10: T4 تامِ ۱۵ µg/dL و رتیکولوسیتِ ۴٪ در نوزاد یافتهٔ کاذب نمی‌سازد؛ شیرخوار و بزرگسال همان", () => {
-  const neo = { sex: "M", age: 0.02 };
+  const neo = { sex: "M", age: 0.01 };   // ۳٫۶ روز (< ۷ روز: T4 بی‌بازه)
   const t4 = runEngine({ patient: neo, tests: [{ name: "Total T4", value: "15", unit: "µg/dL" }] });
   assert.ok(t4.noRef.includes("T4")); assert.equal(runPatterns(t4).findings.length, 0);
   assert.equal(urg([["Reticulocyte", 4, "%"]], neo).p.findings.length, 0);
-  assert.ok(urg([["Total T4", 15, "µg/dL"]], { sex: "M", age: 0.5 }).u.total_t4_abnormal);
+  assert.ok(urg([["Total T4", 15, "µg/dL"]], { sex: "M", age: 0.5 }).u.total_t4_abnormal, "۷ روز–<۱ سال: CALIPER ۵٫۸۷–۱۳٫۶۷");
   assert.ok(urg([["Total T4", 15, "µg/dL"]]).u.total_t4_abnormal);
+  assert.equal(urg([["Total T4", 12, "µg/dL"]], { sex: "M", age: 0.5 }).p.findings.length, 0, "۱۲ داخلِ بازهٔ شیرخوار (قبلاً با بازهٔ بزرگسال هم طبیعی)");
+  assert.equal(urg([["Reticulocyte", 4, "%"]], { sex: "M", age: 0.02 }).p.findings.length, 0, "۴٪ در ۰–۱۴ روز طبیعی (CALIPER ۱٫۵–۴٫۲)");
+});
+
+// P107g (L9): فسفات/ALPِ نوجوان با جدولِ CALIPERِ کاربر — پیش‌تر نوجوانِ سالم «پایین/بالا» می‌خورد.
+test("P107g-L9: فسفات ۳٫۵ در نوجوانِ ۱۴ ساله و ALP ۳۳۰ در پسرِ ۱۵٫۵ ساله طبیعی است؛ ۲٫۵ و ۴۰۰ هنوز غیرطبیعی", () => {
+  const one = (name, v, unit, p) => runEngine({ patient: p, tests: [{ name, value: String(v), unit }] }).graded[0];
+  assert.equal(one("Phosphorus", 3.6, "mg/dL", { sex: "M", age: 14 }).abnormal, false);
+  assert.equal(one("Phosphorus", 3.3, "mg/dL", { sex: "F", age: 14 }).abnormal, false);
+  assert.equal(one("Phosphorus", 2.5, "mg/dL", { sex: "M", age: 14 }).dir, "low");
+  assert.equal(one("Phosphorus", 9, "mg/dL", { sex: "M", age: 0.01 }).abnormal, false, "نوزاد ۰–۱۴ روز تا ۱۰٫۵");
+  assert.equal(one("ALP", 330, "U/L", { sex: "M", age: 15.5 }).abnormal, false);
+  assert.equal(one("ALP", 400, "U/L", { sex: "M", age: 15.5 }).dir, "high");
+  assert.equal(one("ALP", 330, "U/L", { sex: "F", age: 15.5 }).dir, "high", "دختر همان RCPCH ۴۹–۲۴۲ ماند");
 });

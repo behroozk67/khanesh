@@ -50,6 +50,8 @@ export const P57_SOURCE = 'User-approved 2026-09-28 (P57, pasted reference)';
 export const NATHAN_OSKI_SOURCE = 'Nathan & Oski (table supplied by user, approved 2026-09-30; book not opened)';
 export const NH3_NEO_SOURCE = 'OUH Biochemistry test catalogue (term neonate < 100 µmol/L) + IMD Scotland hyperammonaemia guideline 2017 (neonates < 4 weeks < 100) — P106';
 export const HSL_RFH_SOURCE = 'HSL / Royal Free Hospital paediatric haematology reference ranges (hslpathology.com, opened 2026-10-13) — P106';
+// P107g: جدولِ CALIPER که کاربر داد (فسفات/ALP/T4/رتیکولوسیت)؛ مقاله‌ها باز نشد.
+export const PEDIATRIC_CALIPER_USER_SOURCE = 'CALIPER (Colantonio 2012؛ Bailey 2013؛ Bohn 2020) — جدولِ CSV ارائه‌شده توسط کاربر ۲۰۲۶-۱۰-۱۳';
 export const CALIPER_SOURCE = 'CALIPER 2020 (Am J Clin Pathol, DxH 900), PMC7403759';
 // Ghasemi A, et al. Arch Iran Med 2015;18(11):753–9 (TLGS)، جدولِ ۲، متنِ باز: https://journalaim.com/PDF/67_Nov2015_005.pdf (این جلسه باز کرد، ۲۰۲۶-۱۰-۰۵)
 export const GHASEMI_JAFFE_SOURCE = 'Ghasemi 2015 (Arch Iran Med, TLGS, conventional Jaffe), Table 2';
@@ -254,8 +256,13 @@ export const PED_REFS = {
   //    عمداً هموار نشد: هیچ منبعی باندِ انتقالیِ نوجوانی نمی‌دهد و ساختنش یعنی
   //    اختراعِ عدد. اگر روزی منبعی برای ۱۶–۱۸ سال پیدا شد، اینجا جایش است.
   // قفل‌شده با M71.
-  PHOS: [ { maxAge: 1,  range: r(1.3,  2.6,  CONV.PHOS) },   // RCPCH 2016 — بدون تغییر
-          { maxAge: 16, range: r(1.29, 2.26, CONV.PHOS), source: 'Henry ch.16' } ], // → 3.99–7.00 mg/dL
+  // P107g (L9، ۲۰۲۶-۱۰-۱۳): جدولِ CALIPER (Colantonio 2012، آنالایزر Abbott c8000، فسفومولیبدات) که کاربر به‌عنوان «منبعِ دیگر» داد؛ با مقاله تطبیق داده نشده.
+  //   پیش‌تر نوجوانِ سالم با ۳٫۵ mg/dL «پایین» (حدِ ۳٫۹۹) و نوزاد با ۹ «بالا» (سقفِ ۸٫۰۵) می‌خورد.
+  PHOS: [ { maxAge: D(14), range: [5.6, 10.5], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۰–۱۴ روز
+          { maxAge: 1,     range: [4.8, 8.4],  source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۱۵ روز – <۱ سال
+          { maxAge: 5,     range: [4.3, 6.8],  source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۱ – <۵ سال
+          { maxAge: 13,    range: [4.1, 5.9],  source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۵ – <۱۳ سال
+          { maxAge: 16,    M: [3.5, 6.2], F: [3.2, 5.5], range: [3.2, 6.2], source: PEDIATRIC_CALIPER_USER_SOURCE } ], // ۱۳ – <۱۶ سال
 
   // ---- متابولیک (صفحه ۲) ----
   GLU_F: [                                  // mmol/L → mg/dL
@@ -349,7 +356,9 @@ export const PED_REFS = {
     { maxAge: 1,      range: [59, 425] },   // شیرخوار — RCPCH، دست‌نخورده
     { maxAge: 3,      range: [76, 308] },   // ۱–۳ سال — RCPCH، دست‌نخورده
     { maxAge: 15,     range: [80, 800] },   // ۳–۱۵ سال — تصمیمِ مالک
-    { maxAge: 16,     range: [49, 242] },   // ۱۵–۱۶ سال — RCPCH، دست‌نخورده
+    // P107g (L9): پسرِ سالمِ ۱۵ ساله با ALP ۳۳۰ «بالا» می‌خورد (سقفِ ۲۴۲). پسر: CALIPER ۸۹–۳۶۵ (Colantonio 2012، c8000)؛ دختر: RCPCH دست‌نخورده؛
+    //   سقفِ CALIPER دختر (۱۲۸) باریک و کیت‌وابسته است ⇒ اعمال نشد. جنسِ نامعلوم: اجتماع.
+    { maxAge: 16,     M: [89, 365], F: [49, 242], range: [49, 365], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۱۵–۱۶ سال
   ],
   // ⚠️ نوزادِ < ۱۴ روز (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۱، P63): ردیفِ زیر («۱۴ روز – ۱۶ سال») پیش‌تر از سنِ صفر هم اعمال می‌شد و بیلی‌روبینِ
   //   ۹٫۵۸ در روزِ ۳ «بالا» خوانده می‌شد. بازهٔ این سن از CALIPER (تأییدشده در PMC11042559، نوزادانِ ۲–۱۱ روزه، ۹۵٪): تام ۴–۲۵۳ µmol/L،
@@ -377,6 +386,21 @@ export const PED_REFS = {
     { maxAge: D(3),   range: [5.2, 14.6] },
     { maxAge: 1,      range: [0.6,  8.1] },
     { maxAge: 16,     range: [0.5,  4.5] },
+  ],
+  // P107g (M10): T4 تام — Bailey 2013 (Abbott i2000 CMIA)؛ زیر ۷ روز ردیفِ بی‌بازه ⇒ سنجیده نمی‌شود (NEONATE_NO_ADULT_FALLBACK).
+  T4: [
+    { maxAge: D(7),   range: null },
+    { maxAge: 1,      range: [5.87, 13.67], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۷ روز – <۱ سال
+    { maxAge: 9,      range: [6.16, 10.32], source: PEDIATRIC_CALIPER_USER_SOURCE },
+    { maxAge: 12,     range: [5.48, 9.31],  source: PEDIATRIC_CALIPER_USER_SOURCE },
+    { maxAge: 14,     M: [5.01, 8.28], F: [5.08, 8.34], range: [5.01, 8.34], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۱۲ – <۱۴
+    { maxAge: 16,     M: [4.68, 8.62], F: [5.46, 12.99], range: [4.68, 12.99], source: PEDIATRIC_CALIPER_USER_SOURCE }, // ۱۴ – <۱۹ (تا ۱۶)
+  ],
+  // P107g (M10): رتیکولوسیت ٪ — Bohn 2020 (فلوسیتومتری). مطلق (×10⁹/L) به‌خاطرِ واحد اضافه نشد.
+  RETIC: [
+    { maxAge: D(14),  range: [1.5, 4.2], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۰ – <۱۴ روز
+    { maxAge: M(2),   range: [0.8, 2.8], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۱۵ روز – <۲ ماه
+    { maxAge: 16,     range: [0.5, 1.8], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۲ ماه – <۱۸ سال
   ],
   FT4: [                                    // pmol/L → ng/dL
     { maxAge: D(6),   range: r(11, 32, CONV.FT4) },
