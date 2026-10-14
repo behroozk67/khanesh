@@ -1038,6 +1038,16 @@ const analyzeHandler = async (req, res) => {
             retry_after: 60,
           });
         }
+        // قطعیِ ارتباط (ECONNRESET/تایم‌اوت/۵xx) هم نباید «عکس ناخوانا» گزارش شود:
+        // عکس سالم بود و کاربر بی‌دلیل عکس تازه می‌گرفت.
+        const UPSTREAM = new Set(["upstream_timeout", "upstream_error", "upstream_rate_limit"]);
+        if (pages.every((p) => UPSTREAM.has(p.error))) {
+          return res.status(503).json({
+            error: "ارتباط با سرویس خواندن عکس برقرار نشد؛ مشکل از عکس شما نیست. چند لحظه بعد دوباره تلاش کنید.",
+            retry_after: 30,
+            failed_pages: merged.failedPages,
+          });
+        }
         return res.status(502).json({
           error: "هیچ‌کدام از عکس‌ها خوانده نشد. لطفاً عکس واضح‌تری بگیرید یا مقادیر را دستی وارد کنید.",
           failed_pages: merged.failedPages,

@@ -443,11 +443,12 @@ test("M359: INR — ۳٫۲ دیگر اورژانس نیست؛ ۴٫۵ تا < ۱۰
   assert.match(all(run([row("INR", "6")])), /خونریزی/);
 });
 
-test("M360: هماتوکریتِ کودک (< ۱۶ سال) بی‌بازهٔ سنی سنجیده نمی‌شود؛ بحرانِ HCT < ۲۱ هنوز اورژانس؛ بزرگسال بی‌تغییر (P77-۸)", () => {
+test("M360: هماتوکریتِ کودک (< ۱۶ سال) با بازهٔ CALIPER سنجیده می‌شود؛ بحرانِ HCT < ۲۱ هنوز اورژانس؛ بزرگسال بی‌تغییر", () => {
   const kid = { age: 4, sex: "F" };
   const a = run([row("HCT", "33", "%"), row("Hb", "11.2", "g/dL")], kid);
   assert.ok(!ids(a).includes("low_rbc_hct_without_anemia"), ids(a).join());
-  assert.ok(a.e.noRef.includes("HCT"));
+  assert.ok(a.e.graded.some((g) => g.test === "HCT"));
+  assert.equal(a.e.graded.find((g) => g.test === "HCT")?.abnormal, false);
   const b = run([row("HCT", "15", "%")], kid);
   assert.ok(ids(b).includes("severe_anemia_crisis") && b.p.has_critical, ids(b).join());
   assert.ok(!/حد طبیعی undefined|حد طبیعی null/.test(all(b)));

@@ -177,9 +177,12 @@ export const PED_REFS = {
   ],
   // LYMPH_PCT: بازهٔ ۲۰–۴۰٪ برداشته شد (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۹ پس از دیدنِ اثرش)؛ درصدها مثلِ قبل سنجیده نمی‌شوند.
   HCT: [                                    // PCV، fraction → %
-    { maxAge: M(2),   range: [44, 64] },
-    { maxAge: M(3),   range: [32, 44] },
-    { maxAge: 3,      range: [36, 44] },
+    { maxAge: M(2),   range: [44, 64] },   // ۰ تا ۲ ماه
+    { maxAge: M(3),   range: [32, 44] },   // ۲ تا ۳ ماه
+    { maxAge: 3,      range: [36, 44] },   // ۳ ماه تا ۳ سال
+    { maxAge: 4,      range: [31.3, 41.7], source: CALIPER_SOURCE },  // ۳ تا ۴ سال (CALIPER 2020)
+    { maxAge: 14,     range: [34.9, 43.7], source: CALIPER_SOURCE },  // ۴ تا ۱۴ سال (CALIPER 2020)
+    { maxAge: 16,     M: [40.1, 50.6], F: [36.2, 45.9], range: [36.2, 50.6], source: CALIPER_SOURCE },  // ۱۴ تا ۱۶ سال (CALIPER 2020)
   ],
   ESR: [                                    // mm/hr
     { maxAge: 16,     range: [0, 20] },
@@ -389,11 +392,11 @@ export const PED_REFS = {
     { maxAge: 16,     range: [0.5,  4.5] },
   ],
   // P107g (M10): T4 تام — Bailey 2013 (Abbott i2000 CMIA)؛ زیر ۷ روز ردیفِ بی‌بازه ⇒ سنجیده نمی‌شود (NEONATE_NO_ADULT_FALLBACK).
+  // P107m (بازبین ۲۰۲۶-۱۰-۱۴): ۷–۲۷ روز هم بی‌بازه — T4 در دو هفتهٔ اول فیزیولوژیک بالاست (جدولِ ۲–۴ هفتگی ≈ ۷–۱۶ µg/dL، غیرِ روش‌اختصاصی)
+  //   و ۵٫۸۷–۱۳٫۶۷ ِ Bailey نوزادِ ۱۸ روزهٔ سالم با T4 ۱۵ را soon می‌کرد. تا بازهٔ تأییدشدهٔ همین روش و سن، سنجیده نمی‌شود (noRef ⇒ پزشکِ نوزاد).
   T4: [
     { maxAge: D(28),  range: null },
     { maxAge: 1,      range: [5.87, 13.67], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۲۸ روز – <۱ سال (ردیفِ CALIPER از ۷ روز است؛ ۷–۲۷ روز بالا بی‌بازه شد)
-  // P107m (بازبین ۲۰۲۶-۱۰-۱۴): ۷–۲۷ روز هم بی‌بازه — T4 در دو هفتهٔ اول فیزیولوژیک بالاست (جدولِ ۲–۴ هفتگی ≈ ۷–۱۶ µg/dL، غیرِ روش‌اختصاصی)
-  //   و ۵٫۸۷–۱۳٫۶۷ ِ Bailey نوزادِ ۱۸ روزهٔ سالم با T4 ۱۵ را soon می‌کرد. تا بازهٔ تأییدشدهٔ همین روش و سن، سنجیده نمی‌شود (noRef ⇒ پزشکِ نوزاد).
     { maxAge: 9,      range: [6.16, 10.32], source: PEDIATRIC_CALIPER_USER_SOURCE },
     { maxAge: 12,     range: [5.48, 9.31],  source: PEDIATRIC_CALIPER_USER_SOURCE },
     { maxAge: 14,     M: [5.01, 8.28], F: [5.08, 8.34], range: [5.01, 8.34], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۱۲ – <۱۴

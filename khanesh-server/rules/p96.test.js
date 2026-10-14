@@ -85,9 +85,9 @@ test("P96-۳: LDHِ تنها routine است فقط وقتی < ۲×ULN، CBC غی
   assert.equal(ldh([row("LDH", "677"), ...kcbc], kid).urgency, "routine", "بی‌بازهٔ چاپ‌شده ⇒ بازهٔ موتور (۳۷۰)");
 });
 
-test("P96-۴ و ۵: HCTِ کودکِ بی‌بازه و کراتینینِ شیرخوارِ بی‌بازهٔ چاپ‌شده پرچمِ بالینی نمی‌گیرند", () => {
+test("P96-۴ و ۵: HCTِ کودک با بازهٔ CALIPER و کراتینینِ شیرخوارِ بی‌بازهٔ چاپ‌شده پرچمِ بالینی نمی‌گیرند", () => {
   const kid = run([row("Hb", "12", "g/dL"), row("Hct", "37"), row("WBC", "7"), row("Platelet", "250")], { sex: "F", age: 8 }).e;
-  assert.equal(graded(kid, "HCT"), undefined); assert.equal(kid.ungraded.HCT?.reason, "no_ped_range"); assert.ok(kid.noRef.includes("HCT"));
+  assert.equal(graded(kid, "HCT")?.abnormal, false); assert.equal(graded(kid, "HCT")?.range, "34.9–43.7");
   const inf = { sex: "M", age: "6 ماه" };
   const a = run([row("Creatinine", "0.9", "mg/dL")], inf);
   assert.equal(graded(a.e, "CREAT"), undefined); assert.equal(a.e.ungraded.CREAT?.reason, "infant_no_printed_range");

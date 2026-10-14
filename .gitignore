@@ -40,3 +40,16 @@ labmat-prototype/node_modules/
 # secrets / patient data
 /data/
 /database.sqlite
+
+# local tooling / scratch
+/.claude/backend-dev.log
+/.hermes/
+/khanesh-server/.hermes/
+/.clinerules/
+/labmate-bot/
+/abs.sh
+/diagnose-labmate.bat
+/start-labmate*.bat
+/khanesh-server/query_db.cjs
+/note-site.md
+/specs/*.mp4

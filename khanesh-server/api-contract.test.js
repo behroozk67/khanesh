@@ -50,6 +50,7 @@ http.createServer = function patchedCreateServer(...args) {
 
 // ── مرزِ شبکه ────────────────────────────────────────────────
 const realFetch = globalThis.fetch;
+let llmNetworkFail = false; // true ⇒ fetch به AvalAI مثل ECONNRESET می‌شکند
 let llmCalls = 0;          // شمارندهٔ فراخوانیِ مدل — تستِ T6 روی این است
 let medlineCalls = 0;
 let llmPayload = null;     // چیزی که مدل «برمی‌گرداند» در تستِ جاری
@@ -80,6 +81,7 @@ globalThis.fetch = async function stubbedFetch(input, init) {
   // مرزِ LLM (AvalAI، سازگار با OpenAI) — هم OCR، هم هر ۱۲ عاملِ گراف
   if (url.includes("/chat/completions")) {
     llmCalls++;
+    if (llmNetworkFail) throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNRESET" } });
     llmLastRequest = typeof init?.body === "string" ? init.body : null;
     const content = llmRawContent !== null
       ? llmRawContent
@@ -952,6 +954,18 @@ async function analyzePhoto(sheetPatient, formPatient, tests) {
   });
   return { status: res.status, body: await res.json().catch(() => null) };
 }
+
+test("T52b: قطعیِ شبکه به AvalAI (ECONNRESET) «عکس ناخوانا» گزارش نمی‌شود؛ ۵۰۳ با پیامِ ارتباطی", async () => {
+  llmNetworkFail = true;
+  try {
+    const r = await analyzePhoto({ sex: "زن", age: "45" }, { sex: "زن", age: "45 سال" }, []);
+    assert.equal(r.status, 503, JSON.stringify(r.body));
+    assert.match(r.body.error, /مشکل از عکس شما نیست/);
+    assert.doesNotMatch(r.body.error, /واضح‌تری/);
+  } finally {
+    llmNetworkFail = false;
+  }
+});
 
 test("T39: برگه «مرد»، پروفایل «زن» → با زن سنجیده می‌شود و یک جملهٔ اختلاف در ocr_warnings می‌آید؛ هم‌خوان ⇒ بی‌جمله (FR-017)", async () => {
   const tests = [{ name: "Hemoglobin", value: "12.5", unit: "g/dL", reference: "" }];
