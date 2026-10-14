@@ -819,3 +819,39 @@ test("P107l-neo-glucose: نوزادِ < ۲۸ روز با قندِ ۴۵–۵۳ ی
   assert.equal(hypo(urg([["FBS", 46, "mg/dL"]], { sex: "M", age: 0.5 })), "hypoglycemia_significant/emergency");
   assert.equal(hypo(urg([["FBS", 52, "mg/dL"]], { sex: "M", age: 40 })), "hypoglycemia_significant/emergency");
 });
+
+// P107m (بازبین ۲۰۲۶-۱۰-۱۴) — سه موردِ بالینی.
+test("P107m-1: Hb 8.2 / MCV 70 / فریتین 6 ⇒ گزارش فقط یک زمان‌بندی («۲۴ تا ۴۸ ساعت») و پرسشِ خون‌ریزی جدا می‌ماند (گارد، شرطِ بازبین)", async () => {
+  const { buildEngineRecommendations, condenseRecommendations } = await import("./prompt.js");
+  const o = runEngine({ patient: { age: 30, sex: "F" }, tests: [{ name: "Hemoglobin", value: "8.2", unit: "g/dL" }, { name: "MCV", value: "70", unit: "fL" }, { name: "Ferritin", value: "6", unit: "ng/mL" }] });
+  const recs = condenseRecommendations(buildEngineRecommendations(runPatterns(o), o));
+  const all = recs.join(" | ");
+  assert.match(all, /۲۴ تا ۴۸ ساعت/); assert.doesNotMatch(all, /این هفته/);
+  assert.ok(recs.some((r) => /خون‌ریزی گوارشی یا قاعدگی سنگین/.test(r)), all);
+});
+
+test("P107m-2: ALP «۱۵ ساله» بازهٔ جنس‌دار می‌گیرد (مرزِ نیم‌باز)؛ ۱۴٫۹ همان ۸۰–۸۰۰", () => {
+  const alp = (age, sex, v) => runEngine({ patient: { age, sex }, tests: [{ name: "ALP", value: String(v), unit: "U/L" }] }).graded.find((g) => g.test === "ALP");
+  assert.equal(alp(15, "F", 300).dir, "high"); assert.equal(alp(15, "M", 85).dir, "low");
+  assert.ok(!alp(15, "M", 330).abnormal); assert.ok(!alp(14.9, "F", 300).abnormal);
+});
+
+test("P107m-3a: T4 تامِ ۷–۲۷ روزگی بی‌بازه است (noRef)؛ از ۲۸ روز همان CALIPER", () => {
+  const t4 = (age, v) => runEngine({ patient: { age, sex: "M" }, tests: [{ name: "Total T4", value: String(v), unit: "µg/dL" }] });
+  const a = t4(18 / 365, 15); assert.ok(a.noRef.includes("T4")); assert.equal(runPatterns(a).findings.length, 0);
+  assert.ok(t4(10 / 365, 4).noRef.includes("T4"));
+  assert.ok(urg([["Total T4", 15, "µg/dL"]], { sex: "M", age: 0.5 }).u.total_t4_abnormal);
+});
+
+test("P107m-3b: رتیکولوسیتِ خفیف (≤ ۳٫۵٪) در ۱۵ روز–۲ ماه با Hb طبیعی ⇒ routine بی‌کفِ نوزادی؛ Hb پایین/غایب، بیلی‌روبینِ بالا یا > ۳٫۵ ⇒ همان soon", () => {
+  const A = { sex: "M", age: 27 / 365 };
+  const ok = urg([["Reticulocyte", 3, "%"], ["Hemoglobin", 15, "g/dL"]], A);
+  assert.equal(ok.u.neonatal_retic_mild, "routine"); assert.equal(ok.p.overall_urgency, "routine");
+  const f = msOf(ok, "neonatal_retic_mild"); assert.match(f.warnings.join(" "), /زرد یا رنگ‌پریده/); assert.ok(f.must_say.includes("3"));
+  assert.equal(urg([["Reticulocyte", 3, "%"]], A).u.neonatal_retic_mild, undefined, "Hb غایب ≠ طبیعی (N4)");
+  assert.equal(urg([["Reticulocyte", 3, "%"]], A).p.overall_urgency, "soon");
+  assert.equal(urg([["Reticulocyte", 3, "%"], ["Hemoglobin", 9, "g/dL"]], A).u.neonatal_retic_mild, undefined);
+  assert.equal(urg([["Reticulocyte", 4.5, "%"], ["Hemoglobin", 15, "g/dL"]], A).u.neonatal_retic_mild, undefined);
+  assert.equal(urg([["Reticulocyte", 3, "%"], ["Hemoglobin", 15, "g/dL"], ["Total Bilirubin", 15, "mg/dL"]], A).u.neonatal_retic_mild, undefined);
+  assert.equal(urg([["Reticulocyte", 3, "%"], ["Hemoglobin", 15, "g/dL"]], { sex: "M", age: 10 / 365 }).u.neonatal_retic_mild, undefined, "زیرِ ۱۵ روز بازهٔ دیگری دارد");
+});

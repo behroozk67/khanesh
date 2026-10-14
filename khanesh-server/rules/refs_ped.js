@@ -355,7 +355,8 @@ export const PED_REFS = {
     { maxAge: M(1),   range: [73, 391] },   // نوزاد — RCPCH، دست‌نخورده
     { maxAge: 1,      range: [59, 425] },   // شیرخوار — RCPCH، دست‌نخورده
     { maxAge: 3,      range: [76, 308] },   // ۱–۳ سال — RCPCH، دست‌نخورده
-    { maxAge: 15,     range: [80, 800] },   // ۳–۱۵ سال — تصمیمِ مالک
+    // P107m (بازبین ۲۰۲۶-۱۰-۱۴): مرزِ نیم‌باز مثلِ CALIPER/RCPA («۱۵ تا <۱۷»)؛ «۱۵ ساله» = ۱۵٫۰–۱۵٫۹۹ ⇒ ردیفِ جنس‌دار (الگوی کراتینین، 15 - D(1)).
+    { maxAge: 15 - D(1), range: [80, 800] },   // ۳ – <۱۵ سال — تصمیمِ مالک
     // P107g (L9): پسرِ سالمِ ۱۵ ساله با ALP ۳۳۰ «بالا» می‌خورد (سقفِ ۲۴۲). پسر: CALIPER ۸۹–۳۶۵ (Colantonio 2012، c8000)؛ دختر: RCPCH دست‌نخورده؛
     //   سقفِ CALIPER دختر (۱۲۸) باریک و کیت‌وابسته است ⇒ اعمال نشد. جنسِ نامعلوم: اجتماع.
     { maxAge: 16,     M: [89, 365], F: [49, 242], range: [49, 365], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۱۵–۱۶ سال
@@ -389,8 +390,10 @@ export const PED_REFS = {
   ],
   // P107g (M10): T4 تام — Bailey 2013 (Abbott i2000 CMIA)؛ زیر ۷ روز ردیفِ بی‌بازه ⇒ سنجیده نمی‌شود (NEONATE_NO_ADULT_FALLBACK).
   T4: [
-    { maxAge: D(7),   range: null },
-    { maxAge: 1,      range: [5.87, 13.67], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۷ روز – <۱ سال
+    { maxAge: D(28),  range: null },
+    { maxAge: 1,      range: [5.87, 13.67], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۲۸ روز – <۱ سال (ردیفِ CALIPER از ۷ روز است؛ ۷–۲۷ روز بالا بی‌بازه شد)
+  // P107m (بازبین ۲۰۲۶-۱۰-۱۴): ۷–۲۷ روز هم بی‌بازه — T4 در دو هفتهٔ اول فیزیولوژیک بالاست (جدولِ ۲–۴ هفتگی ≈ ۷–۱۶ µg/dL، غیرِ روش‌اختصاصی)
+  //   و ۵٫۸۷–۱۳٫۶۷ ِ Bailey نوزادِ ۱۸ روزهٔ سالم با T4 ۱۵ را soon می‌کرد. تا بازهٔ تأییدشدهٔ همین روش و سن، سنجیده نمی‌شود (noRef ⇒ پزشکِ نوزاد).
     { maxAge: 9,      range: [6.16, 10.32], source: PEDIATRIC_CALIPER_USER_SOURCE },
     { maxAge: 12,     range: [5.48, 9.31],  source: PEDIATRIC_CALIPER_USER_SOURCE },
     { maxAge: 14,     M: [5.01, 8.28], F: [5.08, 8.34], range: [5.01, 8.34], source: PEDIATRIC_CALIPER_USER_SOURCE },   // ۱۲ – <۱۴

@@ -14,6 +14,8 @@ import { factorOwnsAptt } from "./patterns_hemostasis.js";
 // N4 (بازبینیِ ۲۰۲۶-۱۰-۰۴): «روی این برگه نیست» فقط وقتی ردیف واقعاً چاپ نشده. ردیفِ چاپ‌شدهٔ بی‌بازه در e.ungraded/noRef است،
 //   نه در e.graded — همان سه‌حالتهٔ comp() در patterns_p73_gaps.js و missingFa در patterns_endocrine_rheum.js.
 const printedUngraded = (e, k) => !!(e.ungraded?.[k] || e.noRef?.includes(k));
+// P107m: سقفِ «خفیف» برای رتیکولوسیتِ ۱۵ روز تا ۲ ماهگی (٪) — پیشنهادِ بازبین (سقفِ Beebe ۵–۷ هفته ≈ ۳٫۴۷)، تأییدِ پزشک لازم.
+const NEONATAL_RETIC_MILD_MAX = 3.5;
 // P91: «سیاه» ِ رنگِ مدفوع — فهرستِ بسته روی کلِ مقدار (N6).
 const STOOL_BLACK_RE = /^(black|blackish|tarry|tar[\s-]*like|melena|melaena|سیاه|سیاه‌رنگ|سیاه رنگ|قیری|قیرمانند|قیری‌شکل)$/i;
 
@@ -2445,6 +2447,38 @@ export const RULES_HEMATOLOGY = [
         always_show: true,
         brief: `فیبرینوژنِ ${f.value} برای ${late ? "اواخرِ" : "سه‌ماههٔ آخرِ"} بارداری پایین است؛ زود با پزشکِ زنان یا مامای خود در میان بگذارید.`,
         brief_warnings: ["اگر خون‌ریزی غیرعادیِ واژینال یا دردِ ناگهانیِ شکم دارید، همین حالا به اورژانس بروید."],
+      };
+    },
+  },
+
+  // P107m (بازبین ۲۰۲۶-۱۰-۱۴، ۳-ب): رتیکولوسیتِ کمی بالا در ۱۵ روز تا ۲ ماهگی — پس از افتِ روزهای اول، افزایشِ اندک در هفته‌های بعد
+  //   می‌تواند فیزیولوژیک باشد (Beebe ۵–۷ هفته ۲٫۱۲–۳٫۴۷٪). پیش‌تر بی‌مالک بود ⇒ unmatched_abnormal و کفِ نوزادی «همین امروز».
+  //   فقط وقتی: بالاتر از بازهٔ سنی و ≤ ۳٫۵٪ (پیشنهادِ بازبین)، Hb درجه‌بندی‌شده و پایین نیست (غایب ≠ طبیعی، N4)، بیلی‌روبین بالا نیست.
+  //   وگرنه همان مسیرِ قبلی (soon). کفِ نوزادیِ N26 فقط برای همین یافته برداشته می‌شود (no_neonatal_floor)؛ علامت‌ها جملهٔ شرطی‌اند.
+  {
+    id: "neonatal_retic_mild",
+    match: (e) => {
+      if (e.age == null || e.age < 15 / 365 || e.age >= 2 / 12) return false;
+      const r = e.graded.find((x) => x.test === "RETIC");
+      const hb = e.graded.find((x) => x.test === "HGB");
+      const bili = e.graded.find((x) => x.test === "BILI_T" || x.test === "BILI_I");
+      return !!r && r.abnormal && r.dir === "high" && r.value <= NEONATAL_RETIC_MILD_MAX &&
+        !!hb && !(hb.abnormal && hb.dir === "low") && !(bili?.abnormal && bili.dir === "high");
+    },
+    build: (e) => {
+      const r = e.graded.find((x) => x.test === "RETIC");
+      const hb = e.graded.find((x) => x.test === "HGB");
+      return {
+        pattern: "neonatal_retic_mild",
+        urgency: "routine",
+        headline: "رتیکولوسیتِ نوزاد کمی بالاست",
+        must_say:
+          `رتیکولوسیتِ نوزاد ${r.value}٪ است، کمی بالاتر از بازهٔ این سن (${r.range}). در هفته‌های دوم تا هشتمِ زندگی، پس از افتِ روزهای اول، ` +
+          `افزایشِ اندکِ رتیکولوسیت می‌تواند طبیعی باشد. هموگلوبینِ نوزاد (${hb.value}) در بازهٔ سنی است.`,
+        action: "در اولین ویزیت با پزشکِ نوزاد مطرح کنید.",
+        warnings: ["اگر نوزاد زرد یا رنگ‌پریده است یا ادرارش تیره است، همین امروز او را نزد پزشکِ نوزاد ببرید."],
+        suggest: [],
+        no_neonatal_floor: true,
       };
     },
   },
