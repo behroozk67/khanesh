@@ -23,3 +23,12 @@ test("R13b-3: suggest منیزیم جملهٔ شکسته نمی‌سازد", () 
   assert.equal(phraseSuggestion("تکرار منیزیم"), "درخواست تکرار منیزیم از پزشک");
 });
 
+test("R13b-4: متن lipid_profile کودک حدِ TG سنی را می‌گوید، نه ۱۵۰ بزرگسال", () => {
+  const f = (age, tg) =>
+    runPatterns(runEngine({ patient: { sex: "M", age }, tests: [T("TG", tg, "mg/dL")] })).findings.find((x) => x.rule_id === "lipid_profile");
+  const child = f(8, 200);
+  assert.ok(child, "کودک ۸ ساله TG 200 (بالای ۱۸۶) باید یافته بگیرد");
+  assert.match(child.must_say, /زیر ۱۸۶ در این سن/);
+  assert.doesNotMatch(child.must_say, /مطلوب زیر ۱۵۰/);
+  assert.match(f(40, 160).must_say, /مرزی است \(مطلوب زیر ۱۵۰\)/);
+});

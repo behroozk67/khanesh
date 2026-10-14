@@ -1447,9 +1447,13 @@ export const RULES_BIOCHEM = [
       //   پانکراتیت رخ می‌دهد — یافتهٔ عمومیِ «چربی خون در حد مطلوب نیست» می‌گرفت.
       //   قفل‌شده با M78/M78b.
       const tg = t.TG;
+      // زیر ۱۶ سال حدِ TG از بازهٔ سنیِ همان درجه‌بندی می‌آید (N34، N3): کودک ۸ ساله حدش ۱۸۶ است، نه ۱۵۰/۲۰۰.
+      const pedTg = e.age != null && e.age < 16 ? e.graded.find((g) => g.test === "TG") : null;
+      const pedTgUln = pedTg ? Math.round(parseFloat(String(pedTg.range).split("–")[1])) : null;
+      const tgCut = Number.isFinite(pedTgUln) ? String(pedTgUln).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]) : "۱۵۰";
       const tgSevere = tg != null && tg >= 500;      // خیلی‌بالا: خطر پانکراتیت + آستانهٔ درمان دارویی
-      const tgHigh = tg != null && tg >= 200;        // ۲۰۰–۴۹۹
-      const tgBorderline = tg != null && tg >= 150;  // ۱۵۰–۱۹۹
+      const tgHigh = tg != null && (pedTg ? pedTg.abnormal && pedTg.dir === "high" : tg >= 200);        // ۲۰۰–۴۹۹
+      const tgBorderline = tg != null && !pedTg && tg >= 150;  // ۱۵۰–۱۹۹ (بزرگسال)
 
       // خطر پانکراتیت → جدی‌ترین، اولویت دارد
       if (tgSevere) {
@@ -1462,7 +1466,7 @@ export const RULES_BIOCHEM = [
           ...(tg != null ? { key_number: tg } : {}),
           headline: "تری‌گلیسرید خون شما بسیار بالاست",
           must_say:
-            `تری‌گلیسرید (یک نوع چربی خون) شما ${tg} است، در حالی‌که حد مطلوب زیر ۱۵۰ است. ` +
+            `تری‌گلیسرید (یک نوع چربی خون) شما ${tg} است، در حالی‌که حد مطلوب زیر ${tgCut} است. ` +
             "از ۵۰۰ به بالا «خیلی بالا» شمرده می‌شود: ذرات چربی می‌توانند لوزالمعده را تحریک کنند و خطر التهاب لوزالمعده (پانکراتیت) بالا می‌رود — وضعیتی جدی و گاهی اورژانسی. در همین سطح است که معمولاً علاوه بر رژیم، دارو هم برای پایین‌آوردن تری‌گلیسرید شروع می‌شود، دقیقاً برای پیشگیری از همین التهاب. چربی خونِ بالا خطر قلبی‌عروقی را هم افزایش می‌دهد.",
           action: "این هفته حتماً با پزشک مطرح کنید. اگر درد شدید شکم همراه تهوع و استفراغ دارید، فوراً به اورژانس بروید.",
           suggest: ["پروفایل چربی ناشتا (۱۲ ساعت)", "بررسی توسط پزشک", "قند خون"],
@@ -1485,7 +1489,7 @@ export const RULES_BIOCHEM = [
       else if (dmTarget) parts.push(`کلسترول بد (LDL) ${ldl.value} (هدف در دیابت: زیر ۱۰۰)`);
       if (hdlLow) parts.push(`کلسترول خوب (HDL) ${hdl.value} که پایین است (مطلوب: مردان بالای ۴۰، زنان بالای ۵۰)`);
       // ⚠️ اینجا tg همیشه < ۵۰۰ است — شاخهٔ ≥۵۰۰ بالاتر با return بسته شده.
-      if (tgHigh) parts.push(`تری‌گلیسرید ${tg} که بالاست (مطلوب زیر ۱۵۰)`);
+      if (tgHigh) parts.push(`تری‌گلیسرید ${tg} که بالاست (مطلوب زیر ${tgCut}${pedTg ? " در این سن" : ""})`);
       else if (tgBorderline) parts.push(`تری‌گلیسرید ${tg} که مرزی است (مطلوب زیر ۱۵۰)`);
 
       const summary = parts.join("، ");
