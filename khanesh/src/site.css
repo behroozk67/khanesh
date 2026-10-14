@@ -275,8 +275,8 @@
 @media (min-width: 980px) {
   /* نامتقارن: متن ستونِ غالب است و کارتِ نمونه کوچک‌تر و پایین‌تر از خطِ تیتر
      می‌نشیند، نه هم‌قدِ متن. */
-  .site-hero-grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr); gap: var(--s14); }
-  .site-hero-grid .site-figure--hero { margin-block-start: var(--s12); max-width: 440px; justify-self: center; }
+  .site-hero-grid { grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: var(--s12); align-items: center; }
+  .site-hero-grid .site-figure--hero { justify-self: stretch; }
 }
 .site-hero h1 {
   font-size: var(--t-hero); font-weight: var(--w-bold);

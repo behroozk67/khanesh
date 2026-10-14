@@ -229,9 +229,9 @@ export default function Tests() {
           {/* ابعاد = ابعادِ واقعیِ فایل (۹۰۰×۹۰۰)، نه عددِ دل‌بخواه */}
           <div className="site-figure site-figure--hero">
             <img
-              src="/lab/hero.jpg"
-              alt="کارشناس آزمایشگاه با روپوش سفید، پشتِ دستگاه و در حال بررسی نمونه"
-              width="900" height="900" decoding="async"
+              src="/lab/tests-hero.webp"
+              alt="برگهٔ آزمایش، دو لولهٔ نمونهٔ خون و تبلتی که نتیجهٔ آزمایش را با نوارِ محدودهٔ مرجع نشان می‌دهد"
+              width="1800" height="1005" decoding="async" fetchPriority="high"
             />
           </div>
         </div>
