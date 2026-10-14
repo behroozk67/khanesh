@@ -973,17 +973,14 @@ function detectHco3OnlyPages(ocrTests) {
   for (const t of ocrTests) {
     if (!t?.name) continue;
     const k = norm(t.name), p = t._page ?? 0;
-    if (HCO3_ONLY_KEYS.has(k)) { const v = toNum(t.value); if (v != null && !hco3.has(p)) hco3.set(p, v); }
+    if (HCO3_ONLY_KEYS.has(k)) { const v = toNum(t.value); if (v != null || !hco3.has(p)) hco3.set(p, v); }   // P107j: ردیفِ HCO3ِ خالی/غیرعددی هم صفحه را «فقط‌بی‌کربنات» می‌کند
     else if (ABG_MARKERS.has(k)) full.add(p);
   }
   for (const p of full) hco3.delete(p);
   return hco3;
 }
-export function phConcordantWithHco3(ph, hco3) {
-  if (hco3 == null || !Number.isFinite(hco3)) return true;
-  if (ph >= 7.35 && ph <= 7.45) return true;
-  return ph < 7.35 ? hco3 < 22 : hco3 > 28;
-}
+// P107j: قاعدهٔ جهتیِ ۲۲/۲۸ حذف شد — از روی pH و HCO3 نمی‌شود خون را از ادرار جدا کرد (اسیدوزِ تنفسیِ حاد HCO3 نرمال دارد؛ ادرارِ قلیایی/CKD
+//   کنارِ HCO3 پایین می‌نشیند). pHِ بیرون از ۷٫۳۵–۷٫۴۵ در چنین صفحه‌ای نه خون است نه ادرار ⇒ `ambiguousPh` و یافتهٔ صریحِ ph_type_ambiguous.
 
 // آیا این کلید (نرمال‌شده) کیفی است؟
 // هم تطبیق دقیق با Set، هم چند الگوی امن برای نام‌های ترکیبی.
@@ -1364,6 +1361,7 @@ export function ocrToEngineInput(ocr) {
   const stripTwinKeys = detectStripTwins(ocr?.tests || []);
   const abgPages = detectAbgPages(ocr?.tests || []);
   const hco3OnlyPages = detectHco3OnlyPages(ocr?.tests || []);
+  let ambiguousPh = null;   // P107j
   const dipstickPages = detectDipstickPages(ocr?.tests || []);   // باگِ ۵
   // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
   const semenQual = {};
@@ -1744,10 +1742,13 @@ export function ocrToEngineInput(ocr) {
     //    pH خارج از دامنهٔ حیات (۵) هم که قطعاً ادرار است.
     if (key === "ph") {
       const v = toNum(t.value);
-      const isBloodPh = (onAbgPage || secKind === "blood") && !onUrinePage && !onStripPage &&   // بی‌کربناتِ سرم کنار نوارِ ادرار pH ادرار را «pH خون» نمی‌کند (بازبینی ۱۰-۱۳)
-        v != null && v >= BLOOD_PH_MIN && v <= BLOOD_PH_MAX &&
-        (secKind === "blood" || !hco3OnlyPages.has(t._page ?? 0) || phConcordantWithHco3(v, hco3OnlyPages.get(t._page ?? 0)));   // P107i
+      const bloodEligible = (onAbgPage || secKind === "blood") && !onUrinePage && !onStripPage &&   // بی‌کربناتِ سرم کنار نوارِ ادرار pH ادرار را «pH خون» نمی‌کند (بازبینی ۱۰-۱۳)
+        v != null && v >= BLOOD_PH_MIN && v <= BLOOD_PH_MAX;
+      // P107j: صفحه‌ای که از نشانگرهای گاز خون فقط HCO3 دارد و سرتیترِ «خون» ندارد: pH فقط در ۷٫۳۵–۷٫۴۵ (بی‌خطر در هر دو خوانش) خون خوانده می‌شود.
+      const hco3Only = secKind !== "blood" && hco3OnlyPages.has(t._page ?? 0);
+      const isBloodPh = bloodEligible && (!hco3Only || (v >= 7.35 && v <= 7.45));
       if (!isBloodPh) {
+        if (bloodEligible && hco3Only) { if (!ambiguousPh) ambiguousPh = { value: v, hco3: hco3OnlyPages.get(t._page ?? 0) ?? null }; continue; }
         qual["Urine pH"] = String(t.value);
         continue;
       }
@@ -2336,6 +2337,7 @@ export function ocrToEngineInput(ocr) {
   return {
     tests: testsObj,
     valueConflicts,
+    ambiguousPh,
     glucoseNames,
     ogtt100g,
     qual,
@@ -2390,7 +2392,7 @@ function inferGestWeeks(ocr) {
  * @returns خروجی ساختاریافته برای پرامپت
  */
 export function runEngine(ocr) {
-  const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, printedRefsAll, derivedAbs, derivedAbsRefs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, printedRefsAll, derivedAbs, derivedAbsRefs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, ambiguousPh, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
   const gestWeeksF = pregnantF ? gestWeeks : null;
 
@@ -2877,6 +2879,8 @@ export function runEngine(ocr) {
     unmapped,
     // دو عددِ متفاوت برای یک آزمایش (۲۰۲۶-۱۰-۰۶): server.js هشدار می‌سازد. فقط وقتی هست، تا فریزها دست نخورند.
     ...(valueConflicts.length ? { valueConflicts } : {}),
+    // P107j: pHِ بی‌نوع (خون یا ادرار؟) — فقط وقتی هست، تا فریزها دست نخورند. خواننده: ph_type_ambiguous.
+    ...(ambiguousPh ? { ambiguousPh } : {}),
     // P93: فقط در بارداریِ اعلام‌شده (تا فریزهای غیرباردار دست نخورند).
     ...(pregnantF ? { glucoseNames, ogtt100g } : {}),
     // سنِ بارداری (هفته) — فقط بارداریِ اعلام‌شده با هفتهٔ واردشده؛ نبودنش یعنی «نامعلوم» (تا فریزها دست نخورند).

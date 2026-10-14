@@ -679,9 +679,10 @@ test("P107c-L5: GGT نوزاد جملهٔ ULN بزرگسال نمی‌گیرد،
 
 // P107e (L3، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳): pH کنارِ HCO3 بی‌pCO2 همان pHِ خون خوانده می‌شود — گازِ خونِ ناقص (pH + HCO3) رایج است و
 // ادراری‌خواندنش اورژانسِ واقعی را گم می‌کند. این آزمون خوانش را قفل می‌کند (سبزِ پیشین عمدی است)؛ بی‌HCO3 هنوز pHِ ادرار است.
-test("P107e-L3: pH + HCO3 بی‌pCO2 ⇒ pHِ خون (اورژانس)؛ pH تنها ⇒ ادرار، بی‌یافته", () => {
-  assert.equal(urg([["pH", 7.6, ""], ["HCO3", 35, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
-  assert.equal(urg([["pH", 7.0, ""], ["HCO3", 8, "mmol/L"]]).u.severe_acidosis, "emergency");
+test("P107e-L3: pH + HCO3 با pCO2 ⇒ pHِ خون (اورژانس)؛ بی‌pCO2 ⇒ مبهم (P107j)؛ pH تنها ⇒ ادرار، بی‌یافته", () => {
+  assert.equal(urg([["pH", 7.6, ""], ["HCO3", 35, "mmol/L"], ["pCO2", 50, "mmHg"]]).u.blood_ph_abnormal, "emergency");
+  assert.equal(urg([["pH", 7.0, ""], ["HCO3", 8, "mmol/L"], ["pCO2", 25, "mmHg"]]).u.severe_acidosis, "emergency");
+  assert.equal(urg([["pH", 7.0, ""], ["HCO3", 8, "mmol/L"]]).u.ph_type_ambiguous, "soon");
   assert.equal(urg([["pH", 7.6, ""]]).u.blood_ph_abnormal, undefined);
 });
 
@@ -723,8 +724,8 @@ test("P107h-6: Hb ≤ ۸٫۵ بزرگسال ⇒ soon با جملهٔ «۲۴ تا
 test("P107h-19: pH بیرون از ۶٫۸–۷٫۸ هرگز pHِ خون نیست؛ داخلش با HCO3 همچنان خون است", () => {
   assert.equal(urg([["pH", 8.5, ""], ["HCO3", 25, "mmol/L"]]).p.findings.length, 0);
   assert.equal(urg([["pH", 6.7, ""], ["HCO3", 25, "mmol/L"]]).p.findings.length, 0);
-  assert.equal(urg([["pH", 7.8, ""], ["HCO3", 35, "mmol/L"]]).u.blood_ph_abnormal, "emergency");
-  assert.equal(urg([["pH", 6.9, ""], ["HCO3", 8, "mmol/L"]]).p.overall_urgency, "emergency");
+  assert.equal(urg([["pH", 7.8, ""], ["HCO3", 35, "mmol/L"], ["pCO2", 50, "mmHg"]]).u.blood_ph_abnormal, "emergency");
+  assert.equal(urg([["pH", 6.9, ""], ["HCO3", 8, "mmol/L"], ["pCO2", 25, "mmHg"]]).p.overall_urgency, "emergency");
 });
 
 test("P107h-4: متنِ FT4 پایین تکرارِ آزمایش و بررسیِ داروها و بیماریِ حاد را می‌گوید", () => {
@@ -756,5 +757,25 @@ test("P107i-19: pH ۷٫۰ کنارِ HCO3 ۲۵ بی‌pCO2 اورژانسِ کا
   assert.equal(urg([["pH", 7.0, ""], ["HCO3", 25, "mmol/L"]]).u.blood_ph_abnormal, undefined);
   assert.equal(urg([["pH", 7.6, ""], ["HCO3", 25, "mmol/L"]]).u.blood_ph_abnormal, undefined);
   assert.equal(urg([["pH", 7.0, ""], ["HCO3", 25, "mmol/L"], ["pCO2", 70, "mmHg"]]).u.severe_acidosis, "emergency", "با pCO2 گازِ خون است");
-  assert.equal(urg([["pH", 7.1, ""], ["HCO3", 10, "mmol/L"]]).u.severe_acidosis, "emergency");
+  assert.equal(urg([["pH", 7.1, ""], ["HCO3", 10, "mmol/L"]]).u.ph_type_ambiguous, "soon", "P107j: دیگر خون فرض نمی‌شود (اورژانسِ HCO3 جداست و می‌ماند)");
+});
+
+// P107j (داورِ نهایی، ۲۰۲۶-۱۰-۱۴): قاعدهٔ جهتیِ ۲۲/۲۸ هر دو خطا را داشت — اسیدوزِ تنفسیِ حاد (pH ۷٫۱۵، HCO3 ۲۷) ادرار می‌شد و «نتایج طبیعی است»
+//   می‌گرفت؛ pH ادرارِ ۷٫۰ کنارِ HCO3 ۱۸ (CKD) اورژانسِ کاذب می‌داد. pH کنارِ فقط‌HCO3 از روی دو عدد قابلِ تشخیص نیست ⇒ نه خون نه ادرار؛ یافتهٔ صریحِ «مبهم».
+test("P107j-19: pH کنارِ فقط‌HCO3 (بی‌pCO2 و بی‌سرتیتر) ⇒ ph_type_ambiguous، نه اورژانسِ کاذب نه سکوت؛ با pCO2 همان خون", () => {
+  for (const [ph, h] of [[7.15, 27], [7.58, 22], [7.0, 25], [7.0, 18], [7.6, 32], [7.34, 22], [7.46, 28]]) {
+    const r = urg([["pH", ph, ""], ["HCO3", h, "mmol/L"]]);
+    assert.equal(r.u.ph_type_ambiguous, "soon", `pH ${ph}/HCO3 ${h}`);
+    assert.equal(r.u.severe_acidosis, undefined); assert.equal(r.u.blood_ph_abnormal, undefined);
+    assert.equal(r.p.overall_urgency, "soon");
+    const f = msOf(r, "ph_type_ambiguous");
+    assert.ok(f.must_say.includes(String(ph)), "عددِ برگه نقل شود (N5)");
+    assert.match(f.must_say, /نمی‌دانیم|روشن نیست/); assert.doesNotMatch(f.must_say, /اسیدوز|آلکالوز/);
+    assert.match(f.warnings.join(" "), /همین حالا به اورژانس/, "جملهٔ شرطیِ اورژانس");
+  }
+  assert.equal(urg([["pH", 7.15, ""], ["HCO3", 27, "mmol/L"], ["pCO2", 80, "mmHg"]]).p.overall_urgency, "emergency", "با pCO2 گازِ خون است");
+  assert.equal(urg([["pH", 7.4, ""], ["HCO3", 24, "mmol/L"]]).u.ph_type_ambiguous, undefined, "۷٫۳۵–۷٫۴۵ بی‌خطر: خونِ نرمال");
+  assert.equal(urg([["pH", 7.0, ""], ["HCO3", 18, "mmol/L"], ["Urine pH", 7.0, ""], ["Nitrite", "Negative", ""], ["Specific Gravity", 1.015, ""]]).u.severe_acidosis, undefined);
+  assert.equal(urg([["pH", 7.0, ""]]).u.ph_type_ambiguous, undefined, "pH تنها ⇒ ادرار، بی‌یافته");
+  assert.equal(urg([["pH", 7.0, ""], ["HCO3", "", "mmol/L"]]).u.severe_acidosis, undefined, "HCO3ِ خالی هم همان");
 });

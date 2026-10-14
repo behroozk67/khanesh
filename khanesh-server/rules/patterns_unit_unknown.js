@@ -113,3 +113,30 @@ export const RULES_UNIT_UNKNOWN = [
     },
   },
 ];
+
+// ── P107j: pH کنارِ فقط‌HCO3 — نوعش (خون یا ادرار) از برگه معلوم نیست ──
+//   قاعدهٔ ۲۲/۲۸ هم اسیدوزِ تنفسیِ حاد (HCO3 نرمال) را ادرار می‌کرد و «طبیعی» می‌گفت، هم pHِ ادرارِ ۷٫۰ کنارِ HCO3ِ پایینِ CKD را اورژانس.
+//   پس نه حکم می‌دهیم نه ساکت می‌مانیم: عدد نقل می‌شود (N5)، جهت و نامِ بیماری نیست (N12)، اورژانس فقط جملهٔ شرطی است (مثلِ TROPONIN_WARNING).
+//   فوریتِ soon و action از یک ثابت می‌آیند (N20).
+const PH_AMBIGUOUS_URGENCY = "soon";
+const PH_AMBIGUOUS_WARNING = "اگر این pH مربوط به خون است و تنگیِ نفسِ شدید، گیجی یا کاهشِ هوشیاری دارید، منتظر نمانید و همین حالا به اورژانس بروید.";
+RULES_UNIT_UNKNOWN.push({
+  id: "ph_type_ambiguous",
+  match: (e) => e.ambiguousPh != null,
+  build: (e) => {
+    const { value, hco3 } = e.ambiguousPh;
+    const beside = hco3 != null && Number.isFinite(hco3) ? `بی‌کربنات (${fmt(hco3)})` : "بی‌کربنات";
+    return {
+      pattern: "ph_type_ambiguous",
+      urgency: PH_AMBIGUOUS_URGENCY,
+      headline: "نوعِ pHِ روی برگهٔ شما مشخص نیست",
+      must_say: `روی برگهٔ شما یک pH به عددِ ${fmt(value)} چاپ شده، ولی روشن نیست که pHِ خون است یا pHِ ادرار: کنارش فقط ${beside} دیده می‌شود و نه ردیفِ دیگری از گازِ خون (مثل pCO2) و نه عنوانِ «خون» یا «ادرار». برای همین دربارهٔ این عدد قضاوت نمی‌کنیم. pHِ خون فقط در بازهٔ باریکِ ۷٫۳۵ تا ۷٫۴۵ طبیعی است و بیرون از آن مهم است؛ پس نوعِ این pH باید روشن شود. برگهٔ اصلی را به پزشک یا آزمایشگاه نشان دهید.`,
+      action: ACTION[PH_AMBIGUOUS_URGENCY],
+      warnings: [PH_AMBIGUOUS_WARNING],
+      suggest: [],
+      always_show: true,
+      brief: `pHِ ${fmt(value)} روی برگه نوعش (خون یا ادرار) مشخص نیست؛ برگهٔ اصلی را به پزشک نشان دهید.`,
+      brief_warnings: [PH_AMBIGUOUS_WARNING],
+    };
+  },
+});

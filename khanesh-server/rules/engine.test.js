@@ -356,7 +356,8 @@ test("U1: pH ادرار ۵ دیگر pH خون خوانده نمی‌شود و ا
 test("U1: pH واقعی خون (۷.۲) همچنان درست درجه‌بندی می‌شود", () => {
   const e = runEngine({
     patient: { age: 60, sex: "M" },
-    tests: [{ name: "pH", value: "7.2" }, { name: "HCO3", value: "14" }],
+    // P107j: HCO3 به‌تنهایی شاهدِ گازِ خون نیست؛ گازِ واقعی pCO2 هم دارد (بی‌pCO2 ⇒ ph_type_ambiguous، گارد P107j-19).
+    tests: [{ name: "pH", value: "7.2" }, { name: "HCO3", value: "14" }, { name: "pCO2", value: "30" }],
   });
   const ph = e.graded.find((g) => g.test === "PH");
   assert.ok(ph, "pH در دامنهٔ خون باید به‌عنوان pH خون بماند");
