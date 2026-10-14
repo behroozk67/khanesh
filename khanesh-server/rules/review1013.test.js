@@ -779,3 +779,25 @@ test("P107j-19: pH کنارِ فقط‌HCO3 (بی‌pCO2 و بی‌سرتیتر)
   assert.equal(urg([["pH", 7.0, ""]]).u.ph_type_ambiguous, undefined, "pH تنها ⇒ ادرار، بی‌یافته");
   assert.equal(urg([["pH", 7.0, ""], ["HCO3", "", "mmol/L"]]).u.severe_acidosis, undefined, "HCO3ِ خالی هم همان");
 });
+
+// P107k (داورِ نهایی، ۲۰۲۶-۱۰-۱۴): fibrinogen_pregnancy_low (soon) زیرِ هر اورژانس پنهان می‌شد و عددِ ۲۵۰ هیچ‌جا نمی‌آمد (N18)؛ فیبرینوژنِ g/L با بازهٔ mg/dL
+//   سنجیده می‌شد (N3: «۳٫۰ g/L» نرمال ⇒ soon) و قاعده برای برگهٔ g/L هرگز فعال نمی‌شد؛ تیترِ «اواخرِ بارداری» وقتی هفته نامعلوم است ادعای بی‌پشتوانه بود.
+test("P107k-fib: g/L تبدیل می‌شود؛ زیرِ اورژانس عدد دیده می‌شود؛ تیتر بی‌هفته ادعای اواخر نمی‌کند", () => {
+  const P = { sex: "F", age: 30, pregnant: true, gestWeeks: 34 };
+  // N3: ۴٫۵ g/L = ۴۵۰ mg/dL در بارداری طبیعی است؛ ۳٫۰ g/L = ۳۰۰ mg/dL طبیعیِ غیرباردار.
+  assert.equal(urg([["Fibrinogen", 4.5, "g/L"]], P).p.findings.length, 0);
+  assert.equal(urg([["Fibrinogen", 3.0, "g/L"]], { sex: "F", age: 30 }).p.findings.length, 0);
+  // ۲٫۵ g/L = ۲۵۰ mg/dL ⇒ همان قاعدهٔ بارداری با برگهٔ g/L
+  assert.equal(urg([["Fibrinogen", 2.5, "g/L"]], P).u.fibrinogen_pregnancy_low, "soon");
+  // N18: زیرِ اورژانس پنهان نمی‌شود و عددِ ۲۵۰ در خروجی هست
+  const r = urg([["Fibrinogen", 250, "mg/dL"], ["Hb", 6, "g/dL"], ["PLT", 30, "K/uL"]], P);
+  assert.equal(r.p.overall_urgency, "emergency");
+  const fib = r.p.findings.find((x) => x.pattern === "fibrinogen_pregnancy_low");
+  assert.ok(fib, "یافتهٔ فیبرینوژن زیرِ اورژانس دیده شود");
+  assert.ok(JSON.stringify(fib).includes("250"));
+  const k = urg([["Fibrinogen", 250, "mg/dL"], ["K", 7, "mmol/L"]], P);
+  assert.ok(k.p.findings.some((x) => x.pattern === "fibrinogen_pregnancy_low"));
+  // تیتر
+  assert.match(msOf(urg([["Fibrinogen", 250, "mg/dL"]], P), "fibrinogen_pregnancy_low").headline, /اواخرِ بارداری/);
+  assert.doesNotMatch(msOf(urg([["Fibrinogen", 250, "mg/dL"]], { sex: "F", age: 28, pregnant: true }), "fibrinogen_pregnancy_low").headline, /^فیبرینوژنِ شما برای اواخرِ بارداری/);
+});

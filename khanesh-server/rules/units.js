@@ -164,6 +164,9 @@ export const PRINTED_ONLY_CONVERSIONS = {
   LACTATE:     { si: /^mg\/dl$/, factor: 1 / 9.008, conv: 'mmol/L' },
   PCT_SEPSIS:  { si: /^(pg\/ml|ng\/l)$/, factor: 0.001, conv: 'ng/mL' },
   APOB:        { si: /^g\/l$/, factor: 100, conv: 'mg/dL' },
+  // P107k (N3): refs.js فیبرینوژن را mg/dL (۲۰۰–۴۰۰) می‌خواهد ولی برگه‌های g/L (۲–۴) رایج‌اند؛ «۳٫۰ g/L» نرمال با بازهٔ mg/dL «پایین» و soon می‌شد.
+  //   فقط با واحدِ چاپ‌شده؛ ۱ g/L = ۱۰۰ mg/dL (تعریفی).
+  FIB:         { si: /^g\/l$/, factor: 100, conv: 'mg/dL' },
   // P77-۱۲: FLC در refs.js mg/L است؛ mg/dL ×۱۰. بی‌واحد = mg/L (شکلِ رایجِ Freelite) — فرضِ بازبین‌پذیر، در متنِ قاعده گفته می‌شود.
   KAPPA_FLC:   { si: /^mg\/dl$/, factor: 10, conv: 'mg/L' },
   LAMBDA_FLC:  { si: /^mg\/dl$/, factor: 10, conv: 'mg/L' },
