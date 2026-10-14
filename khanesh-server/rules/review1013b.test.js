@@ -32,3 +32,11 @@ test("R13b-4: متن lipid_profile کودک حدِ TG سنی را می‌گوی�
   assert.doesNotMatch(child.must_say, /مطلوب زیر ۱۵۰/);
   assert.match(f(40, 160).must_say, /مرزی است \(مطلوب زیر ۱۵۰\)/);
 });
+
+test("R13b-5: inferSex محدودهٔ Hb با رقم فارسی را می‌خواند", async () => {
+  const { inferSex } = await import("./adapter.js");
+  const sx = (reference) => inferSex({ patient: { age: 40 }, tests: [{ name: "Hb", value: "14", reference }] });
+  assert.equal(sx("۱۳٫۵-۱۷٫۵"), "M");
+  assert.equal(sx("۱۲-۱۶"), "F");
+  assert.equal(sx("13.5-17.5"), "M");
+});

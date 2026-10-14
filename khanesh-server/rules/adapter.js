@@ -1116,7 +1116,12 @@ export function inferSex(ocr) {
   if (age != null && age < 12) return null;
   for (const t of ocr?.tests || []) {
     if (NAME_MAP[norm(t.name)] !== "HGB" || !t.reference) continue;
-    const m = String(t.reference).match(/([\d.]+)\s*[-–]\s*([\d.]+)/);
+    // رقم فارسی/عربی و «٫» در محدودهٔ چاپی هم خوانده می‌شود (N34)، وگرنه «۱۳٫۵-۱۷٫۵» جنسیت را نامعلوم می‌گذاشت.
+    const refText = String(t.reference)
+      .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+      .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+      .replace(/[٫،]/g, ".");
+    const m = refText.match(/([\d.]+)\s*[-–]\s*([\d.]+)/);
     if (!m) continue;
     const lo = Number(m[1]);
     if (lo >= 13.5) return "M";
