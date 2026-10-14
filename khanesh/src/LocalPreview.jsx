@@ -83,10 +83,10 @@ export default function LocalPreview({
 
       <div className="io-row">
         <button type="button" className="btn btn--ghost btn--sm" onClick={onExport}>
-          خروجی JSON
+          ذخیرهٔ فایل نتایج (JSON)
         </button>
         <label className="btn btn--ghost btn--sm btn--file">
-          واردات JSON
+          بارگذاری فایل نتایج
           <input type="file" accept=".json" className="sr-only" onChange={onImport} />
         </label>
       </div>

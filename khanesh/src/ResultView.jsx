@@ -26,7 +26,7 @@ import { CATEGORY_ORDER, categoryOf } from "./testCategories.js";
 function UnmatchedNote({ rows }) {
   if (!rows.length) return null;
   return (
-    <section className="card unmatched-box">
+    <section className="card prose-block unmatched-box">
       <h2 className="block-title">خارج از محدوده — تفسیرش با پزشک است</h2>
       <p className="text">
         {rows.length === 1 ? "این مقدار" : "این مقادیر"} خارج از محدودهٔ مرجع است، ولی ما الگوی
@@ -195,7 +195,7 @@ function Provenance({ hasEngine }) {
         <div className="prov-body">
           <p className="text">
             این تفسیر با مدل زبانی نوشته شده و قاعده‌های بالینی ما روی آن اجرا نشده. برای تفسیر
-            دقیق‌تر، عکس برگه را آپلود کنید یا مقادیر را در فرم وارد کنید.
+            دقیق‌تر، تصویر برگه را بارگذاری کنید یا مقادیر را در فرم وارد کنید.
           </p>
         </div>
       )}
@@ -327,12 +327,12 @@ export default function ResultView({ result, asText, asList }) {
             </div>
           )}
           
-          <section className="card">
+          <section className="card prose-block">
             <h2 className="block-title">تفسیر برای شما (زبان ساده)</h2>
             <p className="text">{asText(result.labmat.patientSection)}</p>
           </section>
 
-          <section className="card" style={{borderLeft: "4px solid var(--primary-color)"}}>
+          <section className="card prose-block">
             <h2 className="block-title">گزارش تخصصی برای پزشک</h2>
             <p className="text">{asText(result.labmat.doctorSection)}</p>
             {result.labmat.suggestedFollowUps?.length > 0 && (
@@ -352,13 +352,13 @@ export default function ResultView({ result, asText, asList }) {
       {expert ? <ExpertView eng={eng} asText={asText} /> : (<>
       {/* نمایش خروجی‌های قدیمی اگر LabMat نبود (برای سازگاری عقب‌رو) */}
       {!result.labmat && result.summary && (
-        <section className="card" id="summary">
+        <section className="card prose-block" id="summary">
           <h2 className="block-title">خلاصه</h2>
           <p className="text">{asText(result.summary)}</p>
         </section>
       )}
       {!result.labmat && result.interpretation && (
-        <section className="card">
+        <section className="card prose-block">
           <h2 className="block-title">تفسیر</h2>
           {asText(result.interpretation).split(/\n{2,}/).map((para, i) => (
             <p className="text" key={i}>{para}</p>
@@ -369,7 +369,7 @@ export default function ResultView({ result, asText, asList }) {
       {!result.labmat && <UnmatchedNote rows={unmatchedRows} />}
 
       {!result.labmat && asList(result.general_recommendations).length > 0 && (
-        <section className="card" id="recs">
+        <section className="card prose-block" id="recs">
           <h2 className="block-title">توصیه‌ها</h2>
           <ul className="bullet-list">
             {asList(result.general_recommendations).map((r, i) => (

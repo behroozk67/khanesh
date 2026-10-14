@@ -112,15 +112,9 @@
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
-.kd-logo { display: flex; align-items: center; gap: 4px; padding-inline: 10px; }
+.kd-logo { display: flex; align-items: center; gap: 10px; padding-inline: 10px; }
+.kd-logo img { display: block; flex: none; }
 .kd-logo__word { font-size: 30px; font-weight: 800; color: #262a3e; letter-spacing: -0.5px; line-height: 1; }
-.kd-logo__dot {
-  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
-  background: radial-gradient(circle at 35% 30%, #ff6f8b, var(--kd-coral) 70%);
-  color: #fff; margin-inline-start: -10px; margin-top: -14px;
-  box-shadow: 0 6px 16px rgba(238, 66, 103, 0.3);
-}
-.kd-logo__dot svg { width: 22px; height: 22px; }
 .kd-nav { display: flex; flex-direction: column; gap: 6px; }
 .kd-nav__item {
   display: flex; align-items: center; gap: 12px;
@@ -155,6 +149,10 @@
     'head head head'
     'results radar stack';
 }
+/* ترتیبِ ستون‌ها مثلِ طرحِ مرجع: نتایج چپ، رادار وسط، نکات راست.
+   فقط چیدمانِ شبکه چپ‌به‌راست است؛ متنِ داخلِ هر کارت راست‌به‌چپ می‌ماند. */
+.kd-main { direction: ltr; }
+.kd-main > * { direction: rtl; }
 .kd-head { grid-area: head; }
 .kd-results { grid-area: results; }
 .kd-radar { grid-area: radar; }
@@ -361,7 +359,6 @@
   }
   .kd-side::-webkit-scrollbar { display: none; }
   .kd-logo__word { font-size: 24px; }
-  .kd-logo__dot { width: 32px; height: 32px; }
   .kd-nav { flex-direction: row; gap: 4px; }
   .kd-nav__item { white-space: nowrap; padding: 9px 12px; font-size: 14px; gap: 8px; }
   .kd-user { display: none; }
@@ -388,3 +385,8 @@
 }
 
 .kd-footnote { margin-top: 12px; font-size: 12.5px; color: var(--kd-sub); line-height: 1.8; }
+
+/* specs/015: خطِ شمارشِ ساده پیش از عدد، و «پایین‌ترین: …» زیرِ نمرهٔ هر دستگاه */
+.kd-countline { margin: 4px 0 2px; font-size: 14px; line-height: 1.7; }
+.kd-countline--why { color: var(--kd-sub); font-size: 13px; }
+.kd-worst { display: block; font-size: 11px; font-weight: 400; color: var(--kd-sub); }

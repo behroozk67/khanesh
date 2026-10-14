@@ -2,13 +2,14 @@ import { Link } from "react-router-dom";
 import { LabMateLogo } from "../LabMateLogo.jsx";
 import { toFaDigits } from "../digits.js";
 import Icon from "./icons.jsx";
+import LabHelix from "./LabHelix.jsx";
 import "./onboarding.css";
 
 // قابِ مشترکِ صفحه‌های ورود و پرسش‌های آغازین: لوگو یا «بازگشت»، پیشرفتِ «۲ از ۴»، تیتر.
 export default function OnbShell({ step, total = 4, onBack, title, lede, variant, children }) {
   return (
     <div className={`onb${variant ? ` onb--${variant}` : ""}`} dir="rtl">
-      <Backdrop />
+      {variant === "lab" ? <LabHelix /> : <Backdrop />}
       <div className="onb-top">
         {onBack ? (
           <button type="button" className="onb-back" onClick={onBack}>

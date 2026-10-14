@@ -34,7 +34,7 @@ export default function StartChoice() {
 
   const name = profile?.firstName ? `${profile.firstName}، ` : "";
   return (
-    <OnbShell title={`${name}نتایج را چطور وارد می‌کنید؟`}>
+    <OnbShell variant="lab" title={`${name}نتایج را چطور وارد می‌کنید؟`}>
       {profile && (
         <div className="onb-chip">
           <span>تفسیر برای: <b>{profileSummary(profile)}</b></span>

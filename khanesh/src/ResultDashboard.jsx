@@ -1,6 +1,9 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CATEGORIES } from './testCategories.js';
 import { loadProfile } from './onboarding/profileStore.js';
+import { BRAND_FA } from './Logo.jsx';
+import { LabMateMark } from './LabMateLogo.jsx';
+import { recordScore, hashStr } from './scoreHistory.js';
 import './ResultDashboard.css';
 
 /* ==========================================================================
@@ -163,16 +166,25 @@ function normTest(t, i, asText, hasNumbers = true, indices = null) {
 }
 
 /* ---------------- امتیاز ----------------
-   امتیازِ کل از سرور می‌آید (`_engine.score`). نمرهٔ هر دستگاه: ۰٫۶۵×میانگین + ۰٫۳۵×بدترین،
-   روی همان نمره‌های موتور (`score.points`)؛ اگر یک آزمایشِ بحرانی دارد ≤ ۴۰. */
-function systemScore(rows, points) {
-  const p = rows.map((r) => (r.key != null ? points?.[r.key] : null)).filter((x) => x != null);
-  if (!p.length) return null;
-  const mean = p.reduce((a, b) => a + b, 0) / p.length;
-  let v = (0.65 * mean + 0.35 * Math.min(...p)) * 100;
-  if (rows.some((r) => r.state === 'critical')) v = Math.min(v, 40);
-  return Math.round(v);
+   امتیازِ کل و نمرهٔ هر دستگاه هر دو از سرور می‌آیند (`_engine.score` v2، specs/015). فرانت فرمولی ندارد
+   (پیش‌تر داشت و با سرور دو منبع برای یک عدد بود). دستگاه‌های امتیاز (۸ دستگاهِ سرور) از گروه‌های نمایشیِ
+   فهرستِ آزمایش‌ها (testCategories) جدا هستند. سرورِ قدیمی (بی‌version) ⇒ فقط عددِ کل، بی‌دستگاه. */
+function scoreSystemsOf(score, all) {
+  if (score?.version !== 2 || !Array.isArray(score.systems)) return [];
+  return score.systems
+    .filter((s) => s.score != null)
+    .map((s) => {
+      const rows = all.filter((r) => r.key != null && s.keys?.includes(r.key));
+      const worstState = rows.reduce((w, r) => (STATE_RANK[r.state] > STATE_RANK[w] ? r.state : w), 'normal');
+      return {
+        key: `score-${s.id}`, title: s.fa, score: s.score, critical: !!s.critical, worst: s.worst ?? null,
+        rows, state: s.critical ? 'critical' : worstState,
+        abnormal: rows.filter((r) => r.state === 'abnormal' || r.state === 'critical').length,
+      };
+    });
 }
+/** رنگِ عددِ کل از `band`ِ سرور (برگهٔ soon/this_week هرگز «مطلوب» نیست)؛ سرورِ قدیمی ⇒ همان قاعدهٔ عددی. */
+const BAND_TONE = { high: 'good', mid: 'warn', low: 'warn' };
 /** قرمز فقط برای اورژانس/بحرانی (قاعدهٔ پروژه)؛ بقیه کهربایی. */
 const scoreTone = (s, critical) => (s == null ? 'none' : critical ? 'bad' : s >= 85 ? 'good' : 'warn');
 
@@ -218,7 +230,9 @@ const reduceMotion = () =>
   typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const NO_SCORE_FA = {
-  too_few: 'آزمایشِ کافی برای امتیاز نیست (دست‌کم ۵ آزمایشِ دارای حکم لازم است).',
+  too_few: 'آزمایشِ کافی برای امتیازِ کل نیست (دست‌کم ۵ اندازه‌گیریِ مستقل لازم است).',
+  one_system: (names) =>
+    `امتیازِ کل فقط وقتی داده می‌شود که برگه دست‌کم دو دستگاهِ بدن را پوشش دهد. امتیاز فقط برای: ${names}.`,
   neonate: 'برای نوزادِ زیرِ ۲۸ روز امتیاز نمی‌دهیم؛ محدوده‌های نوزادی هنوز کامل نیست.',
 };
 
@@ -240,11 +254,13 @@ export default function ResultDashboard({
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const rootRef = useRef(null);
   const [profileName, setProfileName] = useState('');
+  const [profileReady, setProfileReady] = useState(false); // تاریخچه پس از معلوم‌شدنِ نامِ پروفایل ثبت می‌شود
   useEffect(() => {
     let alive = true;
     loadProfile()
       .then((p) => { if (alive) setProfileName([p?.firstName, p?.lastName].filter(Boolean).join(' ')); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { if (alive) setProfileReady(true); });
     return () => { alive = false; };
   }, []);
 
@@ -276,7 +292,6 @@ export default function ResultDashboard({
           rows,
           state: rows.length ? worst : 'unknown',
           abnormal: rows.filter((r) => r.state === 'abnormal' || r.state === 'critical').length,
-          score: score?.value != null ? systemScore(rows, score.points) : null,
         };
       })
       .filter((s) => s.rows.length);
@@ -287,19 +302,34 @@ export default function ResultDashboard({
         : systems.flatMap((s) => s.rows);
 
     const overall = score?.value ?? null;
+    const scoreSystems = scoreSystemsOf(score, all);
+    return { systems, all, overall, scoreSystems };
+  }, [tests, groups, asText, hasNumbers, score, engine.indices]);
 
-    const prev = (Array.isArray(history) ? history : [])
+  const { systems, all, overall, scoreSystems } = model;
+
+  // روند: همیشه نمایش داده می‌شود. نقطه‌های قبلی یا از prop `history` می‌آیند، یا از تاریخچهٔ همین دستگاه
+  // (scoreHistory.js). نقطهٔ فعلی بی‌تاریخچه تنهاست و کارت می‌گوید با نوبتِ بعد خط کشیده می‌شود.
+  const sig = useMemo(
+    () => (overall == null ? null : hashStr(`${overall}|${all.map((t) => `${t.key ?? t.name}:${t.value}`).sort().join('|')}`)),
+    [all, overall]
+  );
+  const [stored, setStored] = useState(null);
+  useEffect(() => {
+    if (!profileReady || overall == null || !sig) return;
+    setStored(recordScore(hashStr(profileName), overall, sig));
+  }, [profileReady, profileName, overall, sig]);
+  const trend = useMemo(() => {
+    if (overall == null) return [];
+    const src = Array.isArray(history) ? history : stored?.prev ?? [];
+    const prev = src
       .map((h) => ({ date: h.date, score: num(h.score) }))
       .filter((h) => h.score != null)
       .sort((a, b) => (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0));
-    const trend = prev.length && overall != null ? [...prev, { date: date ?? null, score: overall, current: true }] : [];
-
-    return { systems, all, overall, trend };
-  }, [tests, groups, asText, hasNumbers, history, date, score, engine.indices]);
-
-  const { systems, all, overall, trend } = model;
+    return [...prev, { date: date ?? stored?.date ?? null, score: overall, current: true }];
+  }, [history, stored, date, overall]);
   const [focusKey, setFocusKey] = useState(null);
-  const focus = systems.find((s) => s.key === focusKey) || null;
+  const focus = systems.find((s) => s.key === focusKey) || scoreSystems.find((s) => s.key === focusKey) || null;
   const toggleFocus = (k) => setFocusKey((cur) => (cur === k ? null : k));
   const [nav, setNav] = useState('overview');
 
@@ -309,7 +339,6 @@ export default function ResultDashboard({
   const ageText = asText(engineCtx.age_text ?? ctx?.age_text);
   const sexText = asText(engineCtx.sex ?? ctx?.sex);
   const insights = useMemo(() => buildInsights(systems, all, urgency), [systems, all, urgency]);
-  const showTrend = trend.length > 0;
 
   const go = (key) => {
     setNav(key);
@@ -321,7 +350,7 @@ export default function ResultDashboard({
   const NAV = [
     ['overview', 'نمای کلی', <HomeI key="i" />],
     ['results', 'آزمایش‌ها', <DropI key="i" />],
-    showTrend && ['trend', 'روندها', <TrendI key="i" />],
+    ['trend', 'روندها', <TrendI key="i" />],
     ['systems', 'دستگاه‌های بدن', <ScanI key="i" />],
     onDownload && ['download', 'دریافت داده', <FileI key="i" />],
   ].filter(Boolean);
@@ -334,9 +363,9 @@ export default function ResultDashboard({
       <div className="kd-shell">
         {/* ---------------- sidebar ---------------- */}
         <aside className="kd-side">
-          <div className="kd-logo" aria-label="خوانش">
-            <span className="kd-logo__word">خوانش</span>
-            <span className="kd-logo__dot" aria-hidden="true"><FlaskI /></span>
+          <div className="kd-logo" aria-label={BRAND_FA}>
+            <LabMateMark size={44} title={BRAND_FA} />
+            <span className="kd-logo__word">{BRAND_FA}</span>
           </div>
           <nav className="kd-nav" aria-label="بخش‌های داشبورد">
             {NAV.map(([k, label, icon]) => (
@@ -359,7 +388,7 @@ export default function ResultDashboard({
         </aside>
 
         {/* ---------------- main ---------------- */}
-        <main className={`kd-main${showTrend ? '' : ' kd-main--notrend'}`}>
+        <main className="kd-main">
           <header className="kd-card kd-head">
             <div>
               <h1 className="kd-head__hello">سلام{firstName ? `، ${firstName}` : ''}</h1>
@@ -383,14 +412,15 @@ export default function ResultDashboard({
           <ResultsCard id={`${uid}-results`} systems={systems} focus={focus}
             onClearFocus={() => setFocusKey(null)} hasNumbers={hasNumbers} />
 
-          <RadarCard id={`${uid}-systems`} systems={systems} overall={overall} score={score}
+          <RadarCard id={`${uid}-systems`} systems={scoreSystems} overall={overall} score={score}
             urgency={urgency} focusKey={focusKey} onSelect={toggleFocus} />
 
           <div className="kd-stack">
             <InsightsCard items={insights} />
           </div>
 
-          {showTrend && <TrendCard id={`${uid}-trend`} uid={uid} points={trend} urgency={urgency} />}
+          <TrendCard id={`${uid}-trend`} uid={uid} points={trend} urgency={urgency}
+            why={typeof NO_SCORE_FA[score?.reason] === 'string' ? NO_SCORE_FA[score.reason] : null} />
         </main>
       </div>
     </div>
@@ -598,16 +628,23 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
     return [50 + r * Math.sin(a), 50 - r * Math.cos(a)];
   };
   const poly = scored.map((s, i) => pt(i, (R * s.score) / 100).join(',')).join(' ');
-  const overallTone = scoreTone(overall, urgency === 'emergency');
-  const why = score?.reason ? NO_SCORE_FA[score.reason] : null;
+  const overallTone = urgency === 'emergency'
+    ? scoreTone(overall, true)
+    : (score?.band && BAND_TONE[score.band]) || scoreTone(overall, false);
+  const reason = score?.reason;
+  const why = reason === 'one_system'
+    ? NO_SCORE_FA.one_system(scored.map((s) => s.title).join('، '))
+    : reason ? NO_SCORE_FA[reason] : null;
+  const worstFa = (s) => (s.worst?.name ? `پایین‌ترین: ${s.worst.name}` : null);
 
   return (
     <section className="kd-card kd-radar" id={id}>
       <CardHead
         title="خلاصهٔ دستگاه‌های بدن"
-        sub="خلاصهٔ همین آزمایش‌هاست، نه ارزیابیِ کلِ سلامتِ شما"
-        info="امتیازِ کل از حکمِ خودِ موتور برای هر آزمایش ساخته می‌شود (در محدوده، نزدیکِ مرز، یا خارج با شدتِ مشخص) و هرگز از سقفِ فوریتِ همین برگه بالاتر نمی‌رود؛ پس برگهٔ اورژانسی هیچ‌وقت امتیازِ بالا نمی‌گیرد. امتیازِ هر دستگاه همان نمره‌ها را برای آزمایش‌های آن دستگاه جمع می‌کند و اگر موردِ بحرانی داشته باشد زیرِ ۴۰ می‌ماند. این عدد برای مرورِ سریع است و جای نظرِ پزشک را نمی‌گیرد."
+        sub="امتیازِ این برگه — خلاصهٔ مرورِ سریعِ همین برگه، نه حکمِ پزشکی"
+        info="امتیازِ هر آزمایش از حکمِ خودِ موتور می‌آید: در محدوده کامل، و هرچه دورتر از محدوده (برحسبِ پهنای همان محدوده) کمتر؛ اگر موتور برای آزمایش درجهٔ شدت داده باشد، امتیاز از آن درجه بیشتر نمی‌شود. آزمایش‌های هم‌خانواده (مثل PT و INR) یک‌بار شمرده می‌شوند. دستگاهی که یافته‌ای با فوریتِ مشخص دارد از سقفِ همان فوریت بالاتر نمی‌رود، و برگهٔ اورژانسی هرگز بیش از ۳۵ نمی‌گیرد. امتیازِ کل میانگینِ وزنیِ دستگاه‌هاست و بیش از ۳۰ واحد از ضعیف‌ترین دستگاه بالاتر نمی‌رود. این عدد برای مرورِ سریع است و جای نظرِ پزشک را نمی‌گیرد."
       />
+      {why && n > 0 && <p className="kd-countline kd-countline--why">{why}</p>}
       {n >= 3 ? (
         <div className="kd-radar__plot">
           <svg viewBox="0 0 100 100" aria-hidden="true">
@@ -622,7 +659,7 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
             <polygon points={poly} className="kd-radar__area" />
             {scored.map((s, i) => {
               const [x, y] = pt(i, (R * s.score) / 100);
-              return <circle key={s.key} cx={x} cy={y} r="1.1" className={`kd-radar__dot kd-tone-${scoreTone(s.score, s.state === 'critical')}`} />;
+              return <circle key={s.key} cx={x} cy={y} r="1.1" className={`kd-radar__dot kd-tone-${scoreTone(s.score, s.critical)}`} />;
             })}
           </svg>
           {overall != null && (
@@ -634,7 +671,8 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
           {scored.map((s, i) => {
             const a = (i / n) * Math.PI * 2;
             const [x, y] = pt(i, R + 4);
-            const tone = scoreTone(s.score, s.state === 'critical');
+            const tone = scoreTone(s.score, s.critical);
+            const w = worstFa(s);
             return (
               <button type="button" key={s.key}
                 className={`kd-axislabel${focusKey === s.key ? ' is-focus' : ''}`}
@@ -643,10 +681,11 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
                   transform: `translate(${-50 + 50 * Math.sin(a)}%, ${-50 - 50 * Math.cos(a)}%)`,
                 }}
                 aria-pressed={focusKey === s.key}
-                aria-label={`${s.title}: امتیاز ${toFa(s.score)} از ۱۰۰، ${TONE_WORD[tone]}. نمایش آزمایش‌ها`}
+                aria-label={`${s.title}: امتیاز ${toFa(s.score)} از ۱۰۰، ${TONE_WORD[tone]}${w ? `، ${w}` : ''}. نمایش آزمایش‌ها`}
                 onClick={() => onSelect(s.key)}>
                 <span>{s.title}</span>
                 <b className={`kd-tone-${tone}`}>{toFa(s.score)}</b>
+                {w && <small className="kd-worst">{w}</small>}
               </button>
             );
           })}
@@ -658,10 +697,11 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
           )}
           <ul className="kd-scorebars">
             {scored.map((s) => {
-              const tone = scoreTone(s.score, s.state === 'critical');
+              const tone = scoreTone(s.score, s.critical);
+              const w = worstFa(s);
               return (
                 <li key={s.key}>
-                  <span>{s.title}</span>
+                  <span>{s.title}{w && <small className="kd-worst">{w}</small>}</span>
                   <i><em className={`kd-bgtone-${tone}`} style={{ width: `${s.score}%` }} /></i>
                   <b className={`kd-tone-${tone}`}>{toFa(s.score)}</b>
                 </li>
@@ -669,6 +709,9 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
             })}
           </ul>
         </>
+      ) : overall != null ? (
+        // سرورِ قدیمی (بی‌score.systems): فقط عددِ کل، بی‌فرمولِ محلی
+        <p className="kd-overall"><b className={`kd-tone-${overallTone}`}>{toFa(overall)}</b> <span>امتیازِ این برگه</span></p>
       ) : (
         <div className="kd-empty">{why ?? 'برای محاسبهٔ امتیاز، آزمایش با محدودهٔ مرجع لازم است.'}</div>
       )}
@@ -683,7 +726,7 @@ function InsightsCard({ items }) {
   return (
     <section className="kd-card kd-list" id="summary-card">
       <CardHead
-        title={<span className="kd-withicon"><SparkI /> نکات خوانش</span>}
+        title={<span className="kd-withicon"><SparkI /> نکات {BRAND_FA}</span>}
         aside={items.length > 3 && (
           <button type="button" className="kd-linkbtn" onClick={() => setAll((v) => !v)}>
             {all ? 'بستن' : 'مشاهده همه'}
@@ -709,9 +752,17 @@ function InsightsCard({ items }) {
 }
 
 /* ---------- Trend (فقط با تاریخچهٔ واقعی) ---------- */
-function TrendCard({ id, uid, points, urgency }) {
+function TrendCard({ id, uid, points, urgency, why }) {
   const [ref, w] = useWidth();
   const [hover, setHover] = useState(null);
+  if (!points.length) {
+    return (
+      <section className="kd-card kd-trend" id={id}>
+        <CardHead title="روند امتیاز" sub="امتیازِ هر نوبت آزمایش، از ۰ تا ۱۰۰" />
+        <div className="kd-empty">{why ?? 'برای نمایشِ روند، امتیازِ این برگه لازم است.'}</div>
+      </section>
+    );
+  }
   const H = 230;
   const pad = { l: 34, r: 16, t: 16, b: 34 };
   const timed = points.length > 0 && points.every((p) => isFinite(Date.parse(p.date)));
@@ -725,7 +776,7 @@ function TrendCard({ id, uid, points, urgency }) {
   const cur = points[points.length - 1];
   const prev = points.length > 1 ? points[points.length - 2] : null;
   const change = prev && prev.score ? Math.round(((cur.score - prev.score) / prev.score) * 100) : null;
-  const label = (p) => (p.date ? fmtDate(p.date) : 'این آزمایش');
+  const label = (p) => (p.date ? fmtDate(p.date, { year: 'numeric', month: 'short', day: 'numeric' }) : 'این آزمایش');
   const xs = points.map((_, i) => x(i));
   const minGap = Math.min(...xs.slice(1).map((v, i) => v - xs[i]), Infinity);
   const every = minGap < 70 ? Math.ceil(70 / Math.max(minGap, 1)) : 1;
@@ -739,7 +790,7 @@ function TrendCard({ id, uid, points, urgency }) {
         title="روند امتیاز"
         sub="امتیازِ هر نوبت آزمایش، از ۰ تا ۱۰۰"
         aside={<span className="kd-legend"><i />امتیازِ شما</span>}
-        info="امتیازِ هر نوبت با همان روشِ این برگه محاسبه می‌شود. وقتی آزمایش‌های نوبت‌ها یکسان نباشند، مقایسه تقریبی است."
+        info="امتیازِ هر نوبت با همان روشِ این برگه محاسبه می‌شود. وقتی آزمایش‌های نوبت‌ها یکسان نباشند، مقایسه تقریبی است. این تاریخچه فقط روی همین دستگاه ذخیره می‌شود و فقط تاریخ و امتیاز دارد، نه مقدارِ آزمایش‌ها."
       />
       <div className="kd-trend__body">
         <div className="kd-trend__plot" ref={ref}>
@@ -828,7 +879,6 @@ const FileI = () => <Ico><path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 
 const DownloadI = () => <Ico size={18}><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19h14" /></Ico>;
 const InfoI = () => <Ico size={20}><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="7.8" r=".6" fill="currentColor" /></Ico>;
 const SparkI = () => <Ico size={20}><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" /></Ico>;
-const FlaskI = () => <Ico><path d="M9.5 3.5h5M10 3.5v6L5.2 18a1.6 1.6 0 0 0 1.4 2.4h10.8a1.6 1.6 0 0 0 1.4-2.4L14 9.5v-6" /><path d="M7.5 15h9" /></Ico>;
 const WarnI = () => (
   <Ico size={34} sw={2}>
     <path d="M12 3.8 21.2 19.5a.8.8 0 0 1-.7 1.2H3.5a.8.8 0 0 1-.7-1.2z" />

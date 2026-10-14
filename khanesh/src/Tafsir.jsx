@@ -8,6 +8,7 @@ import EntryGrid from "./EntryGrid.jsx";
 import PhotoGuide from "./onboarding/PhotoGuide.jsx";
 import { loadProfile, clearProfile, intakeStep, patientFromProfile, profileSummary } from "./onboarding/profileStore.js";
 import "./onboarding/onboarding.css";
+import LabHelix from "./onboarding/LabHelix.jsx";
 
 function hasAuthToken() {
   try { return !!localStorage.getItem("auth_token"); } catch { return false; }
@@ -242,7 +243,7 @@ export default function Tafsir() {
       `سن: ${age || "نامشخص"} ${age ? unitFa : ""}`,
       `جنسیت: ${sex === "female" ? "زن" : sex === "male" ? "مرد" : "نامشخص"}`,
     ];
-    if (months != null && months < 6) parts.push("توجه: بیمار نوزاد است؛ محدوده‌های مرجع نوزادی لحاظ شود.");
+    if (months != null && months < 6) parts.push(months < 1 ? "توجه: بیمار نوزاد (زیر ۱ ماه) است؛ محدوده‌های مرجع نوزادی لحاظ شود." : "توجه: بیمار شیرخوار (زیر ۶ ماه) است؛ محدوده‌های مرجع شیرخوارگی لحاظ شود.");
     if (sex === "female" && pregnant) parts.push("وضعیت: باردار");
     // ⚠️ بیماری‌های زمینه‌ای عمداً اینجا نیستند — نه نام، نه شمار: این رشته در مسیرِ قدیم به مدل می‌رود و
     //    بیماریِ غیرفعال نباید به مدل برسد (FR-019، بازبینیِ کد #7). موتور شناسه‌ها را از patient.conditions می‌خواند.
@@ -408,7 +409,9 @@ export default function Tafsir() {
   if (profile && intakeStep(profile) !== "done") return <Navigate to="/app" replace />;
 
   return (
-    <div className="page">
+    // page--lab: همان زمینهٔ آبی و مارپیچِ DNAِ صفحهٔ انتخابِ روش (onboarding.css، LabHelix.jsx)؛ فقط زمینه
+    <div className="page page--lab">
+      <LabHelix />
       <div className="shell">
         <header className="site-header" style={{ position: 'relative' }}>
           <Link to="/" style={{ textDecoration: 'none' }}>
