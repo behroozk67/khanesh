@@ -2374,7 +2374,7 @@ not by a test.
 - **`key_number` safety net used `includes`:** «8» matched inside «80»/«18»/«1.8», so the net stayed off. Now a digit-boundary regex. No suite test (it is inside the request closure); checked with a standalone probe.
 - **N8 again:** `suggest` held a sentence, «اصلاح منیزیم پیش از سایر املاح». Now «تکرار منیزیم». Guard `R13b-3`.
 - **My own error, not the audit's:** I reported HDL/uric acid/ALP/RBC/HCT as frontend-vs-backend range mismatches. The probe passed sex as `"F"`; `labRefs.js` expects `"female"`. With the right argument the frontend equals `getRef` for every key checked. **Rule:** before calling two tables different, call both with the argument form each one actually takes.
-- **Deleting a `PED_REFS` row is not free:** `CRP` and `TROPONIN_T` have no engine producer, but `score.js` names them and `score.test.js` enumerates `PED_REFS` keys. Removing them turned a test red; they were put back.
+- **Deleting a `PED_REFS` row is not free:** `CRP` and `TROPONIN_T` have no engine producer, but `score.js` names them and `score.test.js` enumerates `PED_REFS` keys. Removing them turned a test red; they were put back. **Decision (2026-10-14): keep both.** They exist only in `PED_REFS` (no adult row, no `NAME_MAP` producer), so they are inert in grading; `score.js` groups name them and `score.test.js` derives its key set from `PED_REFS`. Remove them only together with those two references.
 - **Not fixed, by decision:** `inferSex` reads a Persian-digit printed reference range as nothing (only when `patient.sex` is empty).
 
 Detailed instructions are split across `.claude/rules/`:
