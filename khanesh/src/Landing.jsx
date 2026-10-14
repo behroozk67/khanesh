@@ -568,7 +568,7 @@ function Resources() {
       <div className="site-res-grid">
         <article className="site-res">
           <div className="site-figure">
-            <img src="/lab/res-1.webp" alt="دست‌های دستکش‌پوش، دو لولهٔ نمونهٔ خون را بالای سانتریفیوژ نگه داشته‌اند" loading="lazy" decoding="async" width="1024" height="1024" />
+            <img src="/lab/how-capture.webp" alt="دو دست، گوشی را موازی با برگهٔ آزمایش نگه داشته‌اند و قاب‌بندیِ برگه روی صفحهٔ گوشی دیده می‌شود" loading="lazy" decoding="async" width="1024" height="1024" />
           </div>
           <h3>شیوهٔ عکس‌برداری از برگهٔ آزمایش</h3>
           <p>
