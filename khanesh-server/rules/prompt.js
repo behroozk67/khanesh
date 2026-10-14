@@ -828,3 +828,23 @@ function buildNormalResultAdult(engineOut) {
     disclaimer: "این تفسیر صرفاً جهت افزایش آگاهی است و جایگزین توصیه پزشک نیست.",
   };
 }
+
+/**
+ * آیا عددِ کلیدیِ یک یافته در متنِ مدل آمده؟ (تورِ key_number در server.js)
+ * مقایسه عددی است نه رشته‌ای: «1,500» ≡ 1500، «5.0» ≡ 5، «8.50» ≡ 8.5؛ ولی «8» در «80»، «18»، «1.8» یا «2008» پیدا نمی‌شود.
+ * ویرگول فقط جداکنندهٔ هزارگان (گروه‌های سه‌رقمی) است، نه اعشار. کلیدِ غیرعددی (مثلاً «7.4/3.2») به مرزِ رقمیِ رشته‌ای برمی‌گردد.
+ * متن باید رقمِ لاتین باشد (فراخوان ارقام فارسی را قبلاً تبدیل می‌کند).
+ */
+export function keyNumberAppears(text, keyNumber) {
+  const key = String(keyNumber ?? "").trim();
+  if (!key) return true;
+  const want = Number(key.replace(/,/g, ""));
+  if (/^\d[\d,]*(\.\d+)?$/.test(key) && Number.isFinite(want)) {
+    // ویرگولِ بین گروه‌های سه‌رقمی هزارگان است؛ هر ویرگولِ دیگرِ میانِ دو عدد (۸,۹) اعشار.
+    const toks = String(text).match(/\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+,\d+|\d+(?:\.\d+)?/g) ?? [];
+    const num = (t) => Number(/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(t) ? t.replace(/,/g, "") : t.replace(",", "."));
+    return toks.some((t) => num(t) === want);
+  }
+  const esc = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<![\\d.,])${esc}(?!\\d|[.,]\\d)`).test(String(text));
+}

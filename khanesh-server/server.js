@@ -39,7 +39,7 @@ import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
 import { healthScore } from "./rules/score.js";
-import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, closingSuffix, buildEngineRecommendations, condenseRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, closingSuffix, buildEngineRecommendations, condenseRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines, keyNumberAppears } from "./rules/prompt.js";
 import { glossQualText } from "./rules/patterns_utils.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
@@ -795,9 +795,12 @@ export function mergePages(pageResults) {
     for (const raw of raws) {
       const r = String(raw ?? "").trim();
       if (!r) continue;
+      // P107l: ناخواناشدنی (جنسِ «unknown»، سنِ «1990») وقتی صفحهٔ دیگری مقدارِ خواناشدنی دارد ناسازگاری نیست (۴۲۲ کاذب)؛
+      //   اگر هیچ صفحه‌ای خواناشدنی نیست، رشتهٔ خام مقایسه می‌شود (رفتارِ پیشین).
       const k = norm(r) ?? `raw:${r}`;
       if (!seen.has(k)) seen.set(k, r);
     }
+    if ([...seen.keys()].some((k) => !k.startsWith("raw:"))) return [...seen.entries()].filter(([k]) => !k.startsWith("raw:")).map(([, v]) => v);
     return [...seen.values()];
   };
   const ages = distinctBy(patients.map((p) => p.age), (r) => {
@@ -1753,9 +1756,8 @@ const numbered = patternOut.findings.filter(
       const missingFacts = [];
       for (const f of patternOut.findings) {
         if (f.key_number == null) continue;
-        // مرز عدد: «8» نباید در «80»، «18» یا «1.8» پیدا شود.
-        const kn = toLatinDigits(f.key_number).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        if (new RegExp(`(?<![\\d.,])${kn}(?!\\d|[.,]\\d)`).test(interpText)) continue;
+        // مرز عدد: «8» نباید در «80»، «18» یا «1.8» پیدا شود؛ «1,500» ≡ 1500 و «5.0» ≡ 5 (P107l: keyNumberAppears).
+        if (keyNumberAppears(interpText, toLatinDigits(f.key_number))) continue;
         const sent = String(f.must_say || "").split(/(?<=[.؟!])\s/)[0].trim();
         if (sent && !missingFacts.includes(sent)) missingFacts.push(sent);
       }

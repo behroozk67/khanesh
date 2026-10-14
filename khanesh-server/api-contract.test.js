@@ -1374,3 +1374,10 @@ test("T58: mergePages — سن و جنسِ هم‌ارز («51 سال»≡«۵۱
   const diff = mergePages([page(1, { age: "51 سال", sex: "مرد" }), page(2, { age: "30", sex: "Female" })]);
   assert.ok(diff.mismatch);
 });
+
+test("T58b: mergePages — ناخواناشدنی («unknown»، «1990») وقتی صفحهٔ دیگر مقدارِ خواناشدنی دارد ۴۲۲ کاذب نمی‌سازد؛ دو مقدارِ خواناشدنیِ متفاوت هنوز ناسازگار است (P107l)", async () => {
+  const { mergePages } = await import("./server.js");
+  const page = (n, patient) => ({ ok: true, page: n, ocr: { patient, tests: [] } });
+  assert.equal(mergePages([page(1, { age: "35", sex: "unknown" }), page(2, { age: "1990", sex: "Male" })]).mismatch, null);
+  assert.ok(mergePages([page(1, { age: "35", sex: "Male" }), page(2, { age: "40", sex: "Male" })]).mismatch);
+});

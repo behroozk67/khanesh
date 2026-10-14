@@ -1354,7 +1354,8 @@ export const RULES_BIOCHEM = [
       // آستانهٔ ۷۰ بزرگسال فقط وقتی که خودِ درجه‌بندی (بازهٔ سنی: PED_REFS) هم «پایین» گفته؛ زیر ۵۴ همیشه (کفِ ایمنی).
       //   نوزادِ ۱۰ روزه با قند ۶۰ (بازهٔ ۴۵–۹۹، طبیعی) پیش‌تر به‌خاطر ۷۰ ثابت «کمی پایین» می‌شنید.
       const gradedLow = e.graded.some((x) => ["GLU_F", "GLU_2H", "GLU_RANDOM"].includes(x.test) && x.abnormal && x.dir === "low");
-      return g != null && g < 70 && (g < 54 || gradedLow);
+      //   P107l: نوزادِ < ۲۸ روز بازهٔ خودش را دارد (۴۵–۹۹)؛ کفِ ۵۴ بزرگسال قندِ ۴۵–۵۳ را که درجه‌بندی «طبیعی» می‌گوید soon نکند. زیر ۴۰ مالکش neonatal_hypoglycemia است (و درجه‌بندی «پایین» می‌گوید).
+      return g != null && g < 70 && ((g < 54 && !isNeonate(e.age)) || gradedLow);
     },
     build: (e) => {
       const t = val(e);

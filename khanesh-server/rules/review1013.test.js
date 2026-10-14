@@ -801,3 +801,21 @@ test("P107k-fib: g/L تبدیل می‌شود؛ زیرِ اورژانس عدد �
   assert.match(msOf(urg([["Fibrinogen", 250, "mg/dL"]], P), "fibrinogen_pregnancy_low").headline, /اواخرِ بارداری/);
   assert.doesNotMatch(msOf(urg([["Fibrinogen", 250, "mg/dL"]], { sex: "F", age: 28, pregnant: true }), "fibrinogen_pregnancy_low").headline, /^فیبرینوژنِ شما برای اواخرِ بارداری/);
 });
+
+// P107l (داورِ نهایی): تورِ key_number «1,500» و «5.0» را با «1500» و «5» تطبیق نمی‌داد (جملهٔ تکراری، N7)؛ «8» هنوز در «80/18/1.8/2008» پیدا نمی‌شود.
+test("P107l-keyNumber: تطبیقِ عددی؛ مرزِ رقمی دست‌نخورده", async () => {
+  const { keyNumberAppears: k } = await import("./prompt.js");
+  assert.ok(k("مقدار 1,500 است", 1500)); assert.ok(k("مقدار 5.0 است", 5)); assert.ok(k("مقدار 8.50", 8.5)); assert.ok(k("عدد 8.", 8));
+  for (const t of ["80", "18", "1.8", "2008", "8,9"]) assert.ok(!k(t, 8), t);
+  assert.ok(!k("8,9", 89)); assert.ok(k("pH 7.4/3.2", "7.4/3.2"));
+});
+
+// P107l (داورِ نهایی): کفِ g<54 بزرگسال برای نوزادِ ۱۰ روزه با قندِ ۵۲ (بازهٔ نوزادی ۴۵–۹۹، «طبیعی») soon می‌ساخت؛ زیرِ ۴۰ مالکش neonatal_hypoglycemia می‌ماند.
+test("P107l-neo-glucose: نوزادِ < ۲۸ روز با قندِ ۴۵–۵۳ یافتهٔ کاذب ندارد؛ < ۴۰ اورژانس؛ شیرخوار و بزرگسال کفِ ۵۴ را نگه می‌دارند", () => {
+  const neo = { sex: "M", age: 0.03 };   // ≈ ۱۱ روز
+  assert.equal(urg([["FBS", 52, "mg/dL"]], neo).p.findings.filter((x) => /hypoglyc/.test(x.pattern)).length, 0);
+  const hypo = (r) => r.p.findings.filter((x) => /hypoglyc/.test(x.pattern)).map((x) => x.pattern + "/" + x.urgency).join();
+  assert.equal(hypo(urg([["FBS", 38, "mg/dL"]], neo)), "neonatal_hypoglycemia/emergency");
+  assert.equal(hypo(urg([["FBS", 46, "mg/dL"]], { sex: "M", age: 0.5 })), "hypoglycemia_significant/emergency");
+  assert.equal(hypo(urg([["FBS", 52, "mg/dL"]], { sex: "M", age: 40 })), "hypoglycemia_significant/emergency");
+});
