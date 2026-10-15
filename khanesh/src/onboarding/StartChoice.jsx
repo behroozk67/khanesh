@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import OnbShell from "./OnbShell.jsx";
 import { loadProfile, intakeStep, profileSummary } from "./profileStore.js";
 import Icon from "./icons.jsx";
@@ -9,13 +9,16 @@ import Icon from "./icons.jsx";
 // ============================================================
 export function AppEntry() {
   const [target, setTarget] = useState(null);
+  const { search } = useLocation();
   useEffect(() => {
     let alive = true;
+    // «?test=<k>» (پیوندِ قدیمیِ جستجو) فقط وقتی پروفایل کامل است به ورودِ دستی می‌رسد؛ وگرنه ثبت‌نام اول.
+    const wantsTest = /[?&]test=/.test(search);
     loadProfile()
-      .then((p) => { if (alive) { const s = intakeStep(p); setTarget(s === "done" ? "/app/start" : `/app/intake/${s}`); } })
+      .then((p) => { if (alive) { const s = intakeStep(p); setTarget(s === "done" ? (wantsTest ? `/app/manual${search}` : "/app/start") : `/app/intake/${s}`); } })
       .catch(() => alive && setTarget("/app/intake/name"));
     return () => { alive = false; };
-  }, []);
+  }, [search]);
   return target ? <Navigate to={target} replace /> : <div className="onb" dir="rtl" aria-busy="true" />;
 }
 

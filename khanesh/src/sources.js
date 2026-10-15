@@ -296,6 +296,20 @@ export const SRC = {
     en: "Lippi et al., Biochemia Medica 2011;21(1):79-85",
     url: "https://pubmed.ncbi.nlm.nih.gov/22141206/",
   },
+  // ⚠️ این دو، کنارِ CLSI_SUB و MEDLINEPLUS، منابعِ بخشِ «تداخلات دارویی» و
+  //    «خطاهای آزمایش» در صفحهٔ هر آزمایش‌اند (content/interference/).
+  FDA_BIOTIN: {
+    org: "FDA", year: "۲۰۱۹",
+    fa: "هشدارِ ایمنی دربارهٔ تداخلِ بیوتین با آزمایش‌های آزمایشگاهی",
+    en: "The FDA Warns that Biotin May Interfere with Lab Tests: FDA Safety Communication",
+    url: "https://www.fda.gov/medical-devices/safety-communications/fda-warns-biotin-may-interfere-lab-tests-fda-safety-communication",
+  },
+  TESTING_COM: {
+    org: "ADLM", year: "۲۰۲۶",
+    fa: "راهنمای آزمایش‌های آزمایشگاهی برای بیماران (انجمنِ پزشکیِ آزمایشگاهیِ آمریکا)",
+    en: "Testing.com — Lab tests guide (Association for Diagnostics & Laboratory Medicine)",
+    url: "https://www.testing.com/",
+  },
 };
 
 export const cite = (id) => SRC[id];
