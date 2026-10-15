@@ -4,6 +4,8 @@ import { toFaDigits } from "./digits.js";
 import { BRAND_FA } from "./Logo.jsx";
 import { Footer, PillNav } from "./Landing.jsx";
 import { GUIDES, tierLabel, catPath } from "./testCatalog.js";
+import GuideCarousel from "./GuideCarousel.jsx";
+import GuideIcon from "./guideIcons.jsx";
 import "./site.css";
 
 // ============================================================
@@ -84,33 +86,82 @@ import "./site.css";
 
 const BRAND = BRAND_FA;
 
-// ---------- دو کارتِ «راهنماهای منتخب» ----------
-const FEATURED = [
-  {
-    to: "/tests/thyroid", tone: "deep", k1: "تیروئید", k2: "آزمایش",
-    t: "آزمایش عملکرد تیروئید",
-    d: "آزمایش تیروئید کم‌کاری و پرکاریِ این غده را نشان می‌دهد. TSH و T4 در فرمِ ورودِ دستی پشتیبانی می‌شوند و موتور آن‌ها را کنار هم تفسیر می‌کند.",
-  },
-  {
-    to: "/tests/allergy", tone: "soft", k1: "آلرژی", k2: "آزمایش",
-    t: "آزمایش آلرژی",
-    d: "آزمایش آلرژی مشخص می‌کند بدن به کدام ماده واکنش نشان می‌دهد. این دسته هنوز در تفسیرِ خودکار پوشش داده نمی‌شود؛ فهرستش برای آشنایی است.",
-  },
+// ---------- «راهنماهای منتخب» — نوارِ لغزان ----------
+// قبلاً فقط تیروئید و آلرژی؛ حالا یک نوار از راهنماهای اصلی (GuideCarousel).
+// ⚠️ توضیحِ هر کارت از خودِ GUIDES می‌آید (g.d) و شمارِ «در فرم» از tierِ
+//    آیتم‌ها شمرده می‌شود — هیچ ادعای پوششی دستی نوشته نمی‌شود، چون ادعای
+//    دستی روزی که آزمایشی به فرم اضافه شود بی‌صدا غلط می‌شود.
+const FEATURED_IDS = [
+  ["thyroid", "تیروئید", "thyroid"],
+  ["allergy", "آلرژی", "allergy"],
+  ["cardiac", "قلب و چربی", "heart"],
+  ["vitamins", "ویتامین‌ها", "pill"],
+  ["pregnancy", "بارداری", "baby"],
+  ["hormone", "هورمون‌ها", "hormone"],
+  ["infectious", "عفونت‌ها", "virus"],
+  ["immunity", "ایمنی و واکسن", "shield"],
+  ["cancer", "نشانگرهای سرطان", "ribbon"],
+  ["genetic", "ژنتیک", "dna"],
 ];
+const TONES = ["deep", "soft", "warm"];
+const FEATURED = FEATURED_IDS.map(([id, k1, icon], i) => {
+  const g = GUIDES.find((x) => x.id === id);
+  if (!g) return null;
+  const form = g.items.filter((it) => it.tier === "form").length;
+  return {
+    key: id, to: catPath(id), tone: TONES[i % 3], k1, k2: "راهنما", icon,
+    t: g.t, d: g.d,
+    meta: form
+      ? `${toFaDigits(g.items.length)} آزمایش · ${toFaDigits(form)} تا در فرمِ ورودِ دستی`
+      : `${toFaDigits(g.items.length)} آزمایش · فقط راهنمای آموزشی`,
+  };
+}).filter(Boolean);
 
-// ---------- دو کارتِ «آزمایش‌های پرکاربرد» ----------
-const POPULAR = [
-  {
-    to: "/tests/disease", tone: "warm", cta: "دیدن آزمایش‌ها", k1: "CMP", k2: "پنل متابولیک",
-    t: "پنل کامل متابولیک (CMP)",
-    d: "پنل کامل متابولیک چهارده اندازه‌گیری روی یک نمونهٔ خون است و قند، کلیه، کبد و الکترولیت‌ها را با هم نشان می‌دهد. بیشترِ این عددها در فرمِ ورودِ دستی پشتیبانی می‌شوند.",
-  },
-  {
-    to: "/test/chlamydia-pcr", tone: "soft", cta: "دیدن راهنما", k1: "کلامیدیا", k2: "آزمایش",
-    t: "آزمایش کلامیدیا",
-    d: "کلامیدیا شایع‌ترین عفونتِ مقاربتیِ باکتریایی است و اغلب هیچ نشانه‌ای ندارد. این آزمایش هنوز در تفسیرِ خودکار پوشش داده نمی‌شود.",
-  },
+// ---------- «آزمایش‌های پرکاربرد» — نوارِ لغزان ----------
+// توضیح و برچسبِ پوشش از خودِ آیتمِ testCatalog (it.d و tierLabel) می‌آید.
+const POPULAR_IDS = [
+  ["cbc", "CBC", "شمارش خون", "blood"],
+  ["fbs", "FBS", "قند ناشتا", "drop"],
+  ["hba1c", "HbA1c", "قند سه‌ماهه", "drop"],
+  ["lipid-panel", "چربی", "پروفایل لیپید", "heart"],
+  ["tsh", "TSH", "تیروئید", "thyroid"],
+  ["vitd", "ویتامین D", "۲۵-OH", "sun"],
+  ["ferritin", "فریتین", "ذخیرهٔ آهن", "blood"],
+  ["b12", "B12", "ویتامین", "pill"],
+  ["cr", "کراتینین", "کلیه", "kidney"],
+  ["alt", "ALT", "کبد", "liver"],
+  ["u-a", "ادرار", "آزمایش کامل", "flask"],
+  ["crp", "CRP", "التهاب", "stethoscope"],
 ];
+const ITEM_BY_ID = (() => {
+  const m = new Map();
+  GUIDES.forEach((g) => g.items.forEach((it) => { const id = it.k || it.slug; if (!m.has(id)) m.set(id, it); }));
+  return m;
+})();
+const POPULAR = POPULAR_IDS.map(([id, k1, k2, icon], i) => {
+  const it = ITEM_BY_ID.get(id);
+  if (!it) return null;
+  return { key: id, to: it.to, tone: TONES[(i + 2) % 3], k1, k2, icon, t: it.n, d: it.d, meta: tierLabel(it) };
+}).filter(Boolean);
+
+// یک کارتِ گرافیکی — مشترکِ هر دو نوار.
+function SlideCard({ c, cta }) {
+  return (
+    <article className="site-tile gc-card">
+      <Link className={`site-tile-art site-tile-art--${c.tone} gc-art`} to={c.to} aria-hidden="true" tabIndex={-1}>
+        <span className="gc-art-txt">
+          <b>{c.k1}</b>
+          <span>{c.k2}</span>
+        </span>
+        <GuideIcon name={c.icon} size={88} />
+      </Link>
+      <h3><Link to={c.to}>{c.t}</Link></h3>
+      {c.d && <p>{c.d}</p>}
+      {c.meta && <small className="gc-meta">{c.meta}</small>}
+      <Link className="btn btn--secondary btn--pill" to={c.to}>{cta}</Link>
+    </article>
+  );
+}
 
 // ---------- فهرستِ الفبایی: کلیدها و سطل‌ها ----------
 //
@@ -244,19 +295,12 @@ export default function Tests() {
       {/* ---------- ۲. راهنماهای منتخب ---------- */}
       <section className="site-wrap site-sec">
         <h2 className="site-h2">راهنماهای منتخب</h2>
-        <div className="site-tiles site-tiles--2">
-          {FEATURED.map((c) => (
-            <article className="site-tile" key={c.t}>
-              <Link className={`site-tile-art site-tile-art--${c.tone}`} to={c.to} aria-hidden="true" tabIndex={-1}>
-                <b>{c.k1}</b>
-                <span>{c.k2}</span>
-              </Link>
-              <h3><Link to={c.to}>{c.t}</Link></h3>
-              <p>{c.d}</p>
-              <Link className="btn btn--secondary btn--pill" to={c.to}>دیدن راهنما</Link>
-            </article>
-          ))}
-        </div>
+        <GuideCarousel
+          label="راهنماهای منتخب"
+          items={FEATURED}
+          getKey={(c) => c.key}
+          renderItem={(c) => <SlideCard c={c} cta="دیدن راهنما" />}
+        />
       </section>
 
       {/* ---------- ۳. جعبه‌های راهنما ---------- */}
@@ -273,19 +317,12 @@ export default function Tests() {
       <section className="site-basis">
         <div className="site-wrap site-sec">
           <h2 className="site-h2">آزمایش‌های پرکاربرد</h2>
-          <div className="site-tiles site-tiles--2">
-            {POPULAR.map((c) => (
-              <article className="site-tile" key={c.t}>
-                <Link className={`site-tile-art site-tile-art--${c.tone}`} to={c.to} aria-hidden="true" tabIndex={-1}>
-                  <b>{c.k1}</b>
-                  <span>{c.k2}</span>
-                </Link>
-                <h3><Link to={c.to}>{c.t}</Link></h3>
-                <p>{c.d}</p>
-                <Link className="btn btn--secondary btn--pill" to={c.to}>{c.cta}</Link>
-              </article>
-            ))}
-          </div>
+          <GuideCarousel
+            label="آزمایش‌های پرکاربرد"
+            items={POPULAR}
+            getKey={(c) => c.key}
+            renderItem={(c) => <SlideCard c={c} cta="دیدن راهنما" />}
+          />
         </div>
       </section>
 
