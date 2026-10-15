@@ -896,6 +896,13 @@ second one; a recurring entry is the strongest signal in the file.
   and `inferAge` refuses anything above 120 (and «4 M»). Guards `P105-M23`, `P105-M20`.
   **Rule:** when a parser drops characters, list which characters can carry digits (units, exponents, years) before trusting it.
 
+- ⚠️ **Recurred 2026-10-16 on total T3 (P108): a unit system missing from `UNIT_PROFILE` makes the printed range pick the wrong one.**
+  Iranian kits print T3 in **ng/mL** («0.52–1.85»). Only ng/dL and nmol/L existed, so «T3 1.2» beside «0.52-2.1» was decided as nmol/L,
+  read 78 ng/dL «پایین», and fired `thyroid_nonthyroidal_illness` (`this_week`) on a mid-range value (120 ng/dL). Adding ng/mL put two systems
+  ×1.54 apart, which disabled the range step for the whole key, so the R4 gate is now per candidate (`systemRatio`): «80-200» still
+  decides ng/dL. Guards `V1`, `M121c`. **Rule:** before trusting a range-decided unit, list every unit labs print for that analyte, not
+  the two the table happens to hold.
+
 ### N4 — Telling the patient about a test they didn't have
 `9c93319`
 
@@ -1162,6 +1169,9 @@ five analytes wider.
   is a **directionless number**: it says how much unmeasured anion is present, never whether the
   patient is acidotic. Fixed by gating the rule on `HCO3` not being high, and giving alkalosis its
   own rule. Guard `M52`.
+- ⚠️ **Recurred 2026-10-16 as a text that contradicts its own index (P108).** `thal_trait_no_anemia` matched on `RBC > 5.5` *or* Mentzer < 13,
+  then printed «بیشتر به حالت ارثی می‌خورد (شاخص Mentzer = 13.6)»; 13.6 points the other way. When the index is computed it now decides
+  (Mentzer ≥ 13 ⇒ `microcytosis_no_anemia`). Guard `V4`. **A sentence that quotes an index must agree with the index's own direction.**
 - **Rule:** before interpreting any computed index (`anion_gap`, `bun_cr`, `r_ratio`, `nlr`,
   `non_hdl`, `osm_gap`), write down which measured value supplies its direction, and gate on that
   value explicitly. An index that can be produced by two opposite clinical states must never carry

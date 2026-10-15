@@ -51,6 +51,11 @@ import { isNeonate, inNeonatalRedCellPeriod, ageFa, NEONATAL_DANGER_WARNING, NEO
 // پیامدِ فرزند — دلیلِ انجامِ این آزمایش — گم می‌شد (M155-class، N20).
 const HBA2_CARRIER_WARNING = "اگر قصدِ ازدواج یا بچه‌دار شدن دارید، این نتیجه را حتماً به پزشک یا مشاورِ ژنتیک نشان دهید؛ " +
   "اگر هر دو والد ناقل باشند، فرزند ممکن است شکلِ شدیدِ بیماری را بگیرد.";
+/** جملهٔ MCH کنارِ گلبولِ کوچک — هر دو جهت (M156). کلید در متنِ قاعدهٔ صدازننده می‌ماند تا RULE_READS عوض نشود. */
+const microMchClause = (mch) => !mch?.abnormal ? ""
+  : mch.dir === "low"
+    ? ` MCH شما ${mch.value} (حد طبیعی ${mch.range}) هم پایین است، یعنی هر گلبول هموگلوبینِ کمتری دارد؛ این بخشی از همین الگوی گلبولِ کوچک است.`
+    : ` MCH شما ${mch.value} بالاتر از حد طبیعی (${mch.range}) است و با کوچکیِ گلبول‌ها هم‌خوان نیست؛ پزشک آن را کنارِ بقیهٔ نتایج می‌سنجد.`;
 const carrierWarnings = (e) => (["trait", "very_high"].includes(hba2State(e)) ? [HBA2_CARRIER_WARNING] : []);
 
 // ─── برگهٔ واقعی ۲۰۲۶-۰۹-۲۴: نسخهٔ کوتاهِ normocytic_anemia زیرِ اورژانسِ دیگر ───
@@ -1087,7 +1092,11 @@ export const RULES_HEMATOLOGY = [
       const small = ped ? !!(mcv?.abnormal && mcv.dir === "low") : t.MCV != null && t.MCV < 80;
       const rbcHigh = ped ? !!(rbc?.abnormal && rbc.dir === "high") : t.RBC != null && t.RBC > 5.5;
       // میکروسیتوز + Hbِ در محدوده + RBC بالا یا Mentzer پایین
-      return inRange && small && (rbcHigh || (e.indices.mentzer != null && e.indices.mentzer < 13));
+      // 🔴 ۲۰۲۶-۱۰-۱۶ (P108، N12): «RBC > 5.5» به‌تنهایی کافی بود، پس MCV 79.4 / RBC 5.84 (منتزر ۱۳.۶ ⇒ سمتِ کمبودِ آهن) متنِ
+      //   «بیشتر به حالت ارثی می‌خورد (شاخص Mentzer = 13.6)» می‌گرفت — جمله خلافِ عددِ خودش. وقتی منتزر محاسبه شده، همان تصمیم می‌گیرد؛
+      //   منتزرِ ≥ ۱۳ به microcytosis_no_anemia می‌رود (متنِ دوسویهٔ «آهن یا صفتِ تالاسمی»، همان هشدارِ ناقلی — غربالگریِ کشوری MCV < ۸۰).
+      const mi = e.indices.mentzer;
+      return inRange && small && (mi != null ? mi < 13 : rbcHigh);
     },
     build: (e) => {
       const mi = e.indices.mentzer;
@@ -1107,13 +1116,7 @@ export const RULES_HEMATOLOGY = [
           "ولی این الگو بیشتر به حالت ارثی می‌خورد." +
           (mi != null ? ` (شاخص Mentzer = ${mi})` : "") +
           // P107 (L8): MCHِ پایین بخشِ همین الگوست ولی به «توضیحِ آماده نداریم» می‌رفت. هر جهت جمله دارد (M156).
-          (() => {
-            const mch = e.graded.find((g) => g.test === "MCH");
-            if (!mch?.abnormal) return "";
-            return mch.dir === "low"
-              ? ` MCH شما ${mch.value} (حد طبیعی ${mch.range}) هم پایین است، یعنی هر گلبول هموگلوبینِ کمتری دارد؛ این بخشی از همین الگوی گلبولِ کوچک است.`
-              : ` MCH شما ${mch.value} بالاتر از حد طبیعی (${mch.range}) است و با کوچکیِ گلبول‌ها هم‌خوان نیست؛ پزشک آن را کنارِ بقیهٔ نتایج می‌سنجد.`;
-          })() +
+          microMchClause(e.graded.find((g) => g.test === "MCH")) +
           (fc ? ` ${fc.text}.` + (["low", "masked"].includes(fc.state) ? " کمبودِ آهن و این ویژگیِ ارثی می‌توانند هم‌زمان باشند." : "") : "") +
           hba2Clause(e, { owner: true }),
         action: a2
@@ -1175,6 +1178,8 @@ export const RULES_HEMATOLOGY = [
         must_say:
           `اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} است که کوچک‌تر از حد طبیعی${mcv?.range ? ` (${mcv.range})` : ""} است. ` +
           hbSentence +
+          // ۲۰۲۶-۱۰-۱۶ (P108): منتزرِ ≥ ۱۳ حالا از thal_trait_no_anemia به این‌جا می‌آید و MCHِ پایین به «توضیح داده نشدند» می‌افتاد (N18).
+          microMchClause(e.graded.find((g) => g.test === "MCH")).trimStart() + (e.graded.find((g) => g.test === "MCH")?.abnormal ? " " : "") +
           (fc
             ? `${fc.text}؛ علتِ شایعِ دیگرِ گلبولِ کوچک یک ویژگیِ ارثیِ خون (صفتِ تالاسمی) است.` +
               (adultRisk && ["neutral", "masked"].includes(fc.state) ? giBleed : "")

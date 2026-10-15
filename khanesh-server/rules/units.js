@@ -430,6 +430,10 @@ UNIT_PROFILE.TROPONIN_I = { key: 'TROPONIN_I', loinc: LOINC.TROPONIN_I, plausibl
 UNIT_PROFILE.T3 = { key: 'T3', loinc: LOINC.T3, plausible: null, systems: [
   sys('conv', 'ng/dl', 1, (u) => u === 'ng/dl'),
   sys('si', 'nmol/l', BRANCH_FACTORS.T3_NMOL_TO_NGDL, (u) => /nmol/.test(u)),
+  // ۲۰۲۶-۱۰-۱۶ (N3): کیت‌های رایجِ ایران T3ِ تام را ng/mL چاپ می‌کنند (بازهٔ «0.52–1.85»). بی این سیستم «T3 1.2» با بازهٔ «0.52-2.1»
+  //   nmol/L تعیین و ۷۸ ng/dL «پایین» خوانده می‌شد (درستش ۱۲۰، وسطِ بازه). ng/mL و nmol/L فقط ×۱.۵۴ فاصله دارند ⇒ محدودهٔ چاپ‌شده
+  //   دیگر بینِ آن‌ها تمایز نمی‌دهد (R4) و عددِ بی‌واحد «واحد نامعلوم» می‌ماند، نه یک حدس.
+  sys('ng/mL', 'ng/ml', BRANCH_FACTORS.TESTO_NGML_TO_NGDL, (u) => u === 'ng/ml'),
 ] };
 UNIT_PROFILE.CRP_Q = { key: 'CRP_Q', loinc: LOINC.CRP_Q, plausible: null, systems: [
   sys('conv', 'mg/l', 1, (u) => ['mg/l', 'µg/ml', 'ug/ml', 'mcg/ml'].includes(u)),
@@ -447,6 +451,12 @@ export function minSystemRatio(key) {
   for (let i = 0; i < f.length; i++) for (let j = i + 1; j < f.length; j++) {
     m = Math.min(m, Math.max(f[i], f[j]) / Math.min(f[i], f[j]));
   }
+  return m;
+}
+/** نسبتِ یک سیستم تا نزدیک‌ترین سیستمِ دیگرِ همان کلید. T3 (۲۰۲۶-۱۰-۱۶): ng/dL از هر دو دور است ولی nmol/L و ng/mL فقط ×۱.۵۴. */
+export function systemRatio(key, s) {
+  let m = Infinity;
+  for (const o of UNIT_PROFILE[key].systems) if (o !== s) m = Math.min(m, Math.max(o.factor, s.factor) / Math.min(o.factor, s.factor));
   return m;
 }
 export const REFERENCE_DECISIVE_RATIO = 1.5;   // ریاضی، نه بالینی: √۲.۲۵ (research R4)
@@ -658,7 +668,9 @@ export function decideUnit(key, value, reference, sex, age) {
   const bandMismatch = /^BILI_/.test(key) && age != null && age < 1;
   const printed = parseReference(reference, sex);
   const band = getRef(key, sex, age ?? 40);
-  if (printed && band && !bandMismatch && minSystemRatio(key) >= REFERENCE_DECISIVE_RATIO ** 2) {
+  // ۲۰۲۶-۱۰-۱۶: دروازه برای *هر سیستمِ نامزد* است، نه کلِ کلید — برای کلیدِ دوسیستمی همان minSystemRatio است (رفتار یکی)؛
+  //   برای T3 «80-200» هنوز ng/dL تعیین می‌شود ولی «0.52-2.1» (nmol/L یا ng/mL؟) تعیین‌نشده می‌ماند.
+  if (printed && band && !bandMismatch) {
     const L = Math.log(REFERENCE_DECISIVE_RATIO);
     // بازهٔ موتور در هر سیستم = بازهٔ متعارف ÷ ضریب
     const near = p.systems.filter((s) => {
@@ -666,7 +678,7 @@ export function decideUnit(key, value, reference, sex, age) {
       const pts = comparablePoints(printed, b);
       return pts && Math.abs(Math.log(pts[0] / pts[1])) < L;
     });
-    if (near.length === 1) {
+    if (near.length === 1 && systemRatio(key, near[0]) >= REFERENCE_DECISIVE_RATIO ** 2) {
       return inPlausible(near[0])
         ? { system: near[0], basis: 'reference', detail: String(reference) }
         : { system: null, basis: null, detail: `ناسازگار: ${reference}` };

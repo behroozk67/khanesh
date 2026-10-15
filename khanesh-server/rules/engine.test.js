@@ -47,9 +47,9 @@ test("A1: creatRef با سن null محدودهٔ بالغ می‌دهد نه ن�
 
 test("A1: getRef('CREAT') با سن null → بالغِ جنس‌محور", () => {
   // کراتینین اکنون جنس‌محور است (زنان تودهٔ عضلانی کمتر → کف پایین‌تر).
-  assert.deepEqual(getRef("CREAT", "M", null), [0.6, 1.2]);
+  assert.deepEqual(getRef("CREAT", "M", null), [0.6, 1.3]);   // P108 (۲۰۲۶-۱۰-۱۶): سقفِ مرد ۱٫۲ ⇒ ۱٫۳
   assert.deepEqual(getRef("CREAT", "F", null), [0.5, 1.1]);
-  assert.deepEqual(getRef("CREAT", null, null), [0.6, 1.2]);  // جنس نامعلوم → بازهٔ بازتر
+  assert.deepEqual(getRef("CREAT", null, null), [0.6, 1.2]);  // جنس نامعلوم: عمداً ۱٫۲ — بی جنس eGFR نیست
 });
 
 test("A1: کراتینین ۱.۰ با سن نامعلوم غیرطبیعی شمرده نمی‌شود", () => {
@@ -6490,7 +6490,9 @@ test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ ام
     //   isolated_thrombocytopenia عوض شد (probe: بقیهٔ یافته‌ها بایت‌به‌بایت همان).
     // بازپایهٔ عمدی (باگِ ۶، LIS ۲۰۲۶-۱۰-۰۶): liver_pattern حالا عددِ ALT/AST را در آغازِ must_say نقل می‌کند (N5)؛ با حذفِ همین
     //   پیشوند هش بایت‌به‌بایت همان db536cbb6c334e6e است.
-    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "3272562e0b81615b"], // ⚠️ بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، عمدی): فقط ترومبوسیتوپنی — thrombocytopenia رفت، isolated عدد/بازه و بی‌«ایزوله» (Hb/WBC روی برگه نیست)؛ فوریت همان
+    // بازپایهٔ عمدی (P108، ۲۰۲۶-۱۰-۱۶): کراتینینِ ۱٫۲ِ زن با eGFR ۶۳ ⇒ kidney «routine» + سرتیترِ «کراتینین … کمی بالاتر» + جملهٔ بازهٔ ۶۰–۸۹
+    //   به‌جای «مرحلهٔ ۲». diffِ کاملِ خروجی (درختِ HEAD برای همین هفت فایل): فقط همان یافته عوض شد و به‌خاطرِ فوریتِ کمترش جابه‌جا شد. قبلی 3272562e0b81615b.
+    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "5c490ca4d14d0667"], // ⚠️ بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، عمدی): فقط ترومبوسیتوپنی — thrombocytopenia رفت، isolated عدد/بازه و بی‌«ایزوله» (Hb/WBC روی برگه نیست)؛ فوریت همان
     uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
     thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "0da3c35337661135"],
     // prl_thyroid برداشته شد (۲۰۲۶-۱۰-۰۳): پرولاکتین با تأییدِ P46 بند ۱ بازه و قاعده گرفت (hyperprolactinemia، M101–M101e)،
@@ -6971,9 +6973,12 @@ test("M121c: محدودهٔ چاپ‌شده فقط وقتی شاهد است که
   const U = await import("./units.js");
   const below = Object.keys(U.UNIT_PROFILE).filter((k) => U.minSystemRatio(k) < U.REFERENCE_DECISIVE_RATIO ** 2).sort();
   // اگر کلیدِ تازه‌ای زیرِ ۲.۲۵ برود، این آزمون قرمز می‌شود تا کسی تصمیمش را بگیرد.
-  assert.deepEqual(below, ["B12", "FT3"]);
+  // ۲۰۲۶-۱۰-۱۶: T3 عمداً افزوده شد (سیستمِ ng/mL). دروازه حالا برای هر سیستمِ نامزد است (systemRatio): ng/dL هنوز تعیین می‌شود.
+  assert.deepEqual(below, ["B12", "FT3", "T3"]);
   assert.equal(U.decideUnit("B12", 300, "148-664", "M", 40).system, null, "B12: pg/mL و pmol/L فقط ۱.۳۶ برابر فرق دارند");
   assert.equal(U.decideUnit("FT3", 5, "3.1-6.8", "M", 40).system, null);
+  assert.equal(U.decideUnit("T3", 120, "80-200", "M", 40).system?.id, "conv", "T3: ng/dL از nmol/L و ng/mL دور است");
+  assert.equal(U.decideUnit("T3", 1.2, "0.52-2.1", "M", 40).system, null, "T3: nmol/L و ng/mL فقط ۱.۵۴ برابر فرق دارند");
 });
 
 test("M122: چهار عددِ طبیعیِ SIِ بی‌واحد دیگر اورژانس نمی‌سازند (SC-001)", () => {
@@ -9990,10 +9995,11 @@ test("M191b: نورموسیتیکِ تنها (بی‌اورژانس) کلیده�
 test("M191c: RDW-SD و RDW-CV دو نامِ جدا دارند؛ اقدامِ تور خودش نامِ موارد را می‌گوید (N8)", () => {
   // 🔴 پیش‌تر: «RDW 64.2 (طبیعی 35–56)، RDW 23.2 (طبیعی 11.5–14.5)» و «این موارد را هم … مرور کنید» بی‌مرجع در فهرستِ توصیه‌ها.
   assert.notEqual(faName("RDW_SD"), faName("RDW_CV"));
-  const p = uuuRun([["MCV", "72", null, "fL"], ["MCH", "23", null, "pg"]], M40);
+  // P108 (۲۰۲۶-۱۰-۱۶): MCHِ پایین حالا جملهٔ microcytosis_no_anemia را دارد؛ موضوعِ آزمون (عبارتِ اقدامِ تور) با ردیفی بی‌قاعده سنجیده می‌شود.
+  const p = uuuRun([["MCV", "72", null, "fL"], ["Albumin", "5.6", null, "g/dL"]], M40);
   const un = findPat(p, "unexplained_abnormal");
   assert.equal(un?.urgency, "routine");
-  assert.match(un.action, /MCH/);
+  assert.match(un.action, /آلبومین/);
   assert.doesNotMatch(un.action, /این موارد/);
 });
 

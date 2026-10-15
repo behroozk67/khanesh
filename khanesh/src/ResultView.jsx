@@ -70,6 +70,8 @@ const INDEX_LABELS = {
 // جفتِ «اندازه‌گیری‌شده ← محاسبه‌شده»: عددِ تصحیح‌شده هرگز بدونِ عددِ
 // روی برگه نمایش داده نمی‌شود (N5).
 const MEASURED_OF = { ca_corrected: "ca_measured", na_corrected: "na_measured" };
+// ۲۰۲۶-۱۰-۱۶: «روی برگهٔ شما: 9.9» نامِ آزمایش را نداشت و در چیدمانِ راست‌به‌چپ زیرِ eGFR دیده می‌شد — عددِ کلسیم کنارِ eGFR (N5).
+const MEASURED_NAME = { ca_corrected: "کلسیم", na_corrected: "سدیم" };
 
 function DerivedValues({ indices }) {
   if (!indices) return null;
@@ -92,7 +94,7 @@ function DerivedValues({ indices }) {
             <li key={k} className="derived-row">
               {measured != null && (
                 <span className="derived-parent">
-                  روی برگهٔ شما: <Num>{measured}</Num>
+                  {MEASURED_NAME[k]} روی برگهٔ شما: <Num>{measured}</Num>
                 </span>
               )}
               <span className="derived-child">

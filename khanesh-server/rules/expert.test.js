@@ -113,10 +113,12 @@ const h = (o) => createHash("sha256").update(JSON.stringify(o)).digest("hex").sl
 const X0_FREEZE = {
   ptinr: ["dc18ce553fb92148", "c9a1aa71a90bfe2e"], k7: ["0c3005673518b172", "3e8191e35b92b634"],
   k55: ["1a75602774814a44", "cddfedd36e0af236"], ida: ["a2144e5b55692b2d", "6aaf1159b8f64fe5"],
-  caalb: ["b30ca0c8e67fc1fb", "d15391d327996497"], urea: ["e801d2e94bd4e5d7", "d4652c8d35931739"],
+  // بازپایهٔ عمدی (P108، ۲۰۲۶-۱۰-۱۶): سقفِ کراتینینِ مرد ۱٫۳ ⇒ فقط نمرهٔ کراتینینِ ۲٫۱ (فاصله تا حد) عوض شد؛ runPatterns همان. قبلی b30ca0c8e67fc1fb.
+  caalb: ["ddda5e14c655cee5", "d15391d327996497"], urea: ["e801d2e94bd4e5d7", "d4652c8d35931739"],
   cbc: ["d4116a0c2bedb3c1", "f1317c856c6d3301"], lipid: ["4f7830d11e2096df", "8ca6f6261a0158eb"],
   thyroid: ["40c5918c3652f561", "a4e8587d3736ca6b"], liver: ["a56db527c0987166", "9bcc4080715c6f74"],
-  kidney: ["bc3a5f60a0f2d0a9", "f7f33ea438235fe1"], normal: ["a49525941325f4a7", "f1317c856c6d3301"],
+  // بازپایهٔ عمدی (P108): همان علتِ caalb — فقط نمرهٔ کراتینینِ ۱٫۸ و رشتهٔ بازه؛ runPatterns همان (diffِ کامل). قبلی bc3a5f60a0f2d0a9.
+  kidney: ["9a022704445ec4bb", "f7f33ea438235fe1"], normal: ["a49525941325f4a7", "f1317c856c6d3301"],
 };
 test("X0: نمره و خروجیِ runPatterns با این ویژگی بایت‌به‌بایت همان است (بازآرایی بی‌اثر، R2/R3)", () => {
   for (const [id, tests] of Object.entries(P)) {

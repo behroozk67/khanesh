@@ -2112,6 +2112,11 @@ export function ocrToEngineInput(ocr) {
       tests.T3 = Math.round(v * BRANCH_FACTORS.T3_NMOL_TO_NGDL);
       continue;
     }
+    // ۲۰۲۶-۱۰-۱۶ (N3): ng/mL ⇒ ×۱۰۰ (همان عاملِ تعریفیِ تستوسترون). پیش‌تر «T3 1.2 ng/mL» خام با ۸۰–۱۸۰ سنجیده می‌شد.
+    if (engineKey === "T3" && /^ng\/ml$/i.test(String(t.unit || "").replace(/\s+/g, ""))) {
+      tests.T3 = Math.round(v * BRANCH_FACTORS.TESTO_NGML_TO_NGDL);
+      continue;
+    }
 
     // ⚠️ شمارش مطلق: برگه معمولاً 10^3/uL می‌دهد (مثل NEU# = 3.66)
     //    موتور /µL می‌خواهد. اگر عدد کوچک بود، ضرب در 1000.

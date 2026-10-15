@@ -62,14 +62,14 @@ const BUCKETS = {
   flc: ['KAPPA_FLC', 'LAMBDA_FLC'],
 };
 
-// ⚠️ جای‌گذاری‌های قضاوتی (P97، باز برای بازبین): CK/میوگلوبین ⇒ قلب؛ آمیلاز/لیپاز ⇒ کبد؛ اسید-باز ⇒ الکترولیت؛
+// ⚠️ جای‌گذاری‌های قضاوتی (P97، باز برای بازبین): CK/میوگلوبین ⇒ بیرون از امتیاز (P108، EXCLUDED)؛ آمیلاز/لیپاز ⇒ کبد؛ اسید-باز ⇒ الکترولیت؛
 //    U_CA (ادرارِ ۲۴ساعته) ⇒ کلیه؛ B12/فولات ⇒ خون‌سازی؛ ویتامین D/PTH ⇒ مواد معدنی.
 const SYSTEM_MEMBERS = {
   blood: ['red_mass', 'red_indices', 'rdw', 'iron_transport', 'flc', 'WBC', 'PLT', 'MPV', 'NEUT_ABS', 'LYMPH_ABS',
     'MONO_ABS', 'EOS_ABS', 'BASO_ABS', 'BAND_ABS', 'RETIC', 'FERRITIN', 'B12', 'FOLATE', 'HAPTO', 'LDH', 'HBA2', 'HBF'],
   liver: ['transaminase', 'bilirubin', 'ALP', 'GGT', 'ALB', 'TP', 'NH3', 'AMYLASE', 'LIPASE'],
   kidney: ['renal_n', 'ACR', 'U_CA'],
-  heart: ['atherogenic', 'troponin', 'natriuretic', 'HDL', 'TG', 'CK', 'CK_MB', 'MYOGLOBIN', 'HCY'],
+  heart: ['atherogenic', 'troponin', 'natriuretic', 'HDL', 'TG', 'CK_MB', 'HCY'],
   metabolic: ['glucose', 'thyroxine', 'triiodo', 'cortisol', 'GLU_2H', 'HBA1C', 'URIC', 'TSH', 'ANTI_TPO', 'PRL', 'TESTO'],
   coag: ['coag_time', 'FIB', 'DDIMER', 'ATIII', 'TT'],
   inflam: ['crp', 'brucella', 'ESR', 'PCT_SEPSIS', 'RF'],
@@ -91,6 +91,9 @@ export const SCORE_TABLE = (() => {
 export const EXCLUDED = Object.freeze(Object.fromEntries(
   ['SEMEN_PH', 'SEMEN_VOL', 'SPERM_CONC', 'SPERM_MORPH', 'SPERM_MOT_PROG', 'SPERM_MOT_TOTAL']
     .map((k) => [k, 'تحلیلِ منی دربارهٔ کارِ یک دستگاهِ بدن حکمی نمی‌دهد'])
+    // ۲۰۲۶-۱۰-۱۶ (P108): CK و میوگلوبین مالِ عضله‌اند نه قلب؛ CKِ ۳۵۷ِ پس از ورزش «قلب ۵۵» می‌ساخت. دستگاهِ عضله نداریم؛
+    //   یافتهٔ CK (رابدومیولیز، ck_elevated_alone) هنوز از راهِ سقفِ فوریت در امتیاز می‌نشیند.
+    .concat(['CK', 'MYOGLOBIN'].map((k) => [k, 'آنزیمِ عضله است، نه شاخصِ قلب؛ دستگاهِ عضله در امتیاز نیست']))
 ));
 
 const RANGE_RE = /^(-?\d+(?:\.\d+)?)–(-?\d+(?:\.\d+)?)$/;

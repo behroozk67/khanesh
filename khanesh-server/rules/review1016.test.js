@@ -1,0 +1,110 @@
+// بازبینیِ ۲۰۲۶-۱۰-۱۶ (P108): برگهٔ تقریباً سالمِ مردِ ۳۶ ساله «این هفته» + ۳۳ توصیه می‌گرفت. شش ریشه، هر کدام یک آزمون:
+//   V1 T3ِ «1.2» با بازهٔ «0.52-2.1» (کیتِ ng/mL) nmol/L حدس زده و ۷۸ ng/dL «پایین» خوانده می‌شد (N3)
+//   V2 سقفِ کراتینینِ مرد ۱٫۲ (تصمیمِ کاربر ⇒ ۱٫۳)
+//   V3 کراتینینِ درجهٔ ۱ با eGFR ≥ ۶۰ «این هفته» و «مرحلهٔ ۲ بیماری کلیه» می‌گرفت، در حالی که G3a روتین بود (وارونگیِ فوریت)
+//   V4 منتزرِ ۱۳٫۶ (سمتِ کمبودِ آهن) متنِ «بیشتر به حالت ارثی می‌خورد» می‌گرفت (N12)
+//   V5 T4ِ تامِ چاپ‌شده نادیده و «FT4 اندازه‌گیری نشده … نمی‌توان کنار گذاشت» گفته می‌شد (N4/N21)
+//   V6 CK (آنزیمِ عضله) امتیازِ «قلب» را پایین می‌آورد
+import test from "node:test";
+import assert from "node:assert/strict";
+import { runEngine } from "./adapter.js";
+import { runPatterns } from "./patterns.js";
+import { healthScore, SCORE_TABLE } from "./score.js";
+
+const r = (name, value, unit, reference) => ({ name, value, ...(unit ? { unit } : {}), ...(reference ? { reference } : {}) });
+const M36 = { age: 36, sex: "M" };
+const run = (tests, patient = M36) => {
+  const e = runEngine({ patient, tests });
+  return { e, p: runPatterns(e) };
+};
+const ids = (p) => p.findings.map((f) => f.pattern);
+const find = (p, id) => p.findings.find((f) => f.pattern === id);
+const g = (e, k) => e.graded.find((x) => x.test === k);
+
+// برگهٔ نمونهٔ بازبینی (مقادیرِ گزارش‌شده؛ بازه‌های چاپ‌شده همان‌هایی که بازبین نقل کرد)
+const SHEET = [
+  r("WBC", "6.8", "x10^3/uL", "4-10"), r("RBC", "5.84", "x10^6/uL", "4.5-6.0"), r("Hb", "15.5", "g/dL", "13.5-17.5"),
+  r("HCT", "46.4", "%", "40-52"), r("MCV", "79.4", "fL", "80-96"), r("MCH", "26.6", "pg", "27-33"), r("MCHC", "33.4", "g/dL", "32-36"),
+  r("RDW-CV", "13.1", "%", "11.5-14.5"), r("PLT", "245", "x10^3/uL", "150-450"), r("PDW", "16.2", "", "9-20"),
+  r("FBS", "92", "mg/dL", "70-100"), r("Urea", "32", "mg/dL", "15-45"), r("Creatinine", "1.23", "mg/dL", "0.7-1.3"),
+  r("Uric Acid", "8.2", "mg/dL", "3.6-8.2"), r("Cholesterol", "193", "mg/dL"), r("Triglyceride", "153", "mg/dL"),
+  r("HDL", "42", "mg/dL"), r("LDL", "112", "mg/dL"), r("SGOT (AST)", "33", "U/L"), r("SGPT (ALT)", "48", "U/L"),
+  r("ALP", "140", "U/L", "80-306"), r("CK", "357", "U/L"), r("Albumin", "5.3", "g/dL", "3.5-5.2"), r("Calcium", "9.9", "mg/dL"),
+  r("Ferritin", "85", "ng/mL", "30-400"), r("Vitamin B12", "251", "pg/mL", "200-835"), r("TSH", "3.0", "mIU/L"),
+  r("T4", "8.1", "ug/dL", "5-12"), r("T3", "1.2", "", "0.52-2.1"), r("ESR", "5", "mm/hr"),
+  r("Urine Protein", "Neg"), r("Urine Blood", "Neg"), r("Urine RBC", "0-1", "/hpf"),
+];
+
+test("V0: برگهٔ نمونه — فوریتِ کل routine؛ نه کلیه، نه تیروئید، نه «مرحلهٔ ۲»، نه نتیجه‌گیریِ ارثیِ خلافِ منتزر", () => {
+  const { p } = run(SHEET);
+  assert.equal(p.overall_urgency, "routine", `فوریت: ${p.overall_urgency} — ${ids(p)}`);
+  for (const id of ["kidney_impairment", "thyroid_nonthyroidal_illness", "thal_trait_likely"]) {
+    assert.ok(!ids(p).includes(id), `${id} نباید فعال شود: ${ids(p)}`);
+  }
+  const all = JSON.stringify(p.findings);
+  assert.doesNotMatch(all, /مرحلهٔ ۲/);
+  assert.doesNotMatch(all, /بیشتر به حالت ارثی می‌خورد/);
+  assert.ok(!(find(p, "unexplained_abnormal")?.uncovered ?? []).includes("MCH"), "MCHِ پایین جملهٔ خودش را دارد");
+});
+
+test("V1: T3 — ng/mL ×۱۰۰؛ بی‌واحد با بازهٔ «0.52-2.1» حدس زده نمی‌شود؛ «80-200» همچنان ng/dL (کنترل)", () => {
+  const ngml = run([r("T3", "1.2", "ng/mL", "0.52-1.85"), r("TSH", "3.0", "mIU/L")]);
+  assert.equal(g(ngml.e, "T3")?.value, 120);
+  assert.equal(g(ngml.e, "T3")?.abnormal, false);
+  const bare = run([r("T3", "1.2", "", "0.52-2.1"), r("TSH", "3.0", "mIU/L")]);
+  assert.equal(g(bare.e, "T3"), undefined, "T3ِ بی‌واحدِ مبهم نباید سنجیده شود");
+  assert.ok(!ids(bare.p).includes("thyroid_nonthyroidal_illness"));
+  assert.match(find(bare.p, "unit_unknown_values")?.must_say ?? "", /در محدودهٔ مرجعی است که خودِ آزمایشگاه کنارش چاپ کرده/);
+  const conv = run([r("T3", "120", "", "80-200"), r("TSH", "3.0", "mIU/L")]);
+  assert.equal(g(conv.e, "T3")?.value, 120, "ng/dL از نامزدهای دیگر دور است و هنوز تعیین می‌شود");
+  const si = run([r("T3", "1.2", "nmol/L"), r("TSH", "3.0", "mIU/L")]);
+  assert.equal(g(si.e, "T3")?.value, 78, "nmol/L ِ چاپ‌شده همان تبدیلِ قبلی");
+});
+
+test("V2: کراتینینِ مرد تا ۱٫۳ طبیعی است؛ زن و جنسِ نامعلوم دست‌نخورده", () => {
+  assert.equal(g(run([r("Creatinine", "1.25", "mg/dL")]).e, "CREAT").abnormal, false);
+  assert.equal(g(run([r("Creatinine", "1.35", "mg/dL")]).e, "CREAT").abnormal, true);
+  assert.equal(g(run([r("Creatinine", "1.15", "mg/dL")], { age: 36, sex: "F" }).e, "CREAT").abnormal, true);
+  assert.equal(g(run([r("Creatinine", "1.25", "mg/dL")], { age: 36 }).e, "CREAT").abnormal, true, "بی جنس eGFR نیست ⇒ سقف ۱٫۲ می‌ماند");
+});
+
+test("V3: کراتینینِ درجهٔ ۱ با eGFR ≥ ۶۰ ⇒ روتین، بی «مرحلهٔ ۲»؛ eGFR < ۶۰ همان «این هفته» (کنترل)", () => {
+  const { p } = run([r("Creatinine", "1.2", "mg/dL")], { age: 29, sex: "F" });
+  const k = find(p, "kidney_impairment");
+  assert.ok(k, `kidney فعال نشد: ${ids(p)}`);
+  assert.equal(k.urgency, "routine");
+  assert.match(k.headline, /کراتینین شما کمی بالاتر/);
+  assert.doesNotMatch(k.must_say, /مرحلهٔ ۲/);
+  assert.match(k.must_say, /به‌تنهایی بیماری کلیه حساب نمی‌شود/);
+  assert.doesNotMatch(k.action, /این هفته/, "N20: دستور از همان فوریت");
+  const low = find(run([r("Creatinine", "1.6", "mg/dL")], { age: 60, sex: "F" }).p, "kidney_impairment");
+  assert.equal(low?.urgency, "this_week", "eGFR < ۶۰ با کراتینینِ بالا");
+});
+
+test("V4: منتزرِ ≥ ۱۳ تالاسمی را نتیجه نمی‌گیرد؛ منتزرِ < ۱۳ همان thal_trait_likely (کنترل)", () => {
+  const hi = run([r("Hb", "15.5", "g/dL"), r("RBC", "5.84"), r("MCV", "79.4", "fL"), r("MCH", "26.6", "pg"), r("Ferritin", "85", "ng/mL")]);
+  assert.ok(!ids(hi.p).includes("thal_trait_likely"), `منتزر ${hi.e.indices.mentzer}: ${ids(hi.p)}`);
+  assert.match(find(hi.p, "microcytosis_no_anemia")?.must_say ?? "", /MCH شما 26\.6/);
+  const lo = run([r("Hb", "15.8", "g/dL"), r("RBC", "7.13"), r("MCV", "67.3", "fL"), r("MCH", "22.2", "pg")]);
+  assert.ok(ids(lo.p).includes("thal_trait_likely"), `منتزر ${lo.e.indices.mentzer}: ${ids(lo.p)}`);
+});
+
+test("V5: T3ِ پایین بی‌FT4 — T4ِ تامِ چاپ‌شده نام برده می‌شود؛ بی T4 جملهٔ قبلی؛ فوریت دست‌نخورده (N29)", () => {
+  const withT4 = run([r("T3", "60", "ng/dL"), r("TSH", "2.0", "mIU/L"), r("T4", "8.1", "ug/dL")]);
+  const f = find(withT4.p, "thyroid_nonthyroidal_illness");
+  assert.ok(f, `فعال نشد: ${ids(withT4.p)}`);
+  assert.match(f.must_say, /T4 تامِ شما 8\.1 .* در محدوده است/);
+  assert.doesNotMatch(f.must_say, /بدونِ آن کم‌کاریِ ناشی از غدهٔ هیپوفیز را نمی‌توان کنار گذاشت/);
+  const noT4 = find(run([r("T3", "60", "ng/dL"), r("TSH", "2.0", "mIU/L")]).p, "thyroid_nonthyroidal_illness");
+  assert.match(noT4.must_say, /بدونِ آن کم‌کاریِ ناشی از غدهٔ هیپوفیز را نمی‌توان کنار گذاشت/);
+  assert.equal(f.urgency, noT4.urgency);
+});
+
+test("V6: CK و میوگلوبین در دستگاهِ «قلب» نیستند؛ CKِ بالا امتیازِ قلب را پایین نمی‌آورد", () => {
+  assert.equal(SCORE_TABLE.CK, undefined);
+  assert.equal(SCORE_TABLE.MYOGLOBIN, undefined);
+  const lip = [r("Cholesterol", "180", "mg/dL"), r("TG", "120", "mg/dL"), r("HDL", "50", "mg/dL"), r("LDL", "100", "mg/dL"),
+    r("Hb", "15", "g/dL"), r("WBC", "6"), r("PLT", "250"), r("Creatinine", "0.9", "mg/dL"), r("ALT", "20")];
+  const heart = (tests) => { const { e, p } = run(tests); return healthScore(e, p).systems?.find((s) => s.id === "heart")?.score; };
+  assert.equal(heart([...lip, r("CK", "357", "U/L")]), heart(lip));
+});
