@@ -1,0 +1,19 @@
+[Unit]
+Description=Khanesh / LabMate API
+After=network.target
+
+[Service]
+User=khanesh
+WorkingDirectory=/opt/khanesh/app
+EnvironmentFile=/etc/khanesh/env
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+# کارهای تحلیل در حافظه‌اند؛ هنگام توقف به درخواست‌های در جریان مهلت بده
+TimeoutStopSec=20
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/khanesh
+
+[Install]
+WantedBy=multi-user.target
