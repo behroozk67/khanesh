@@ -1412,3 +1412,14 @@ test("T60: P108-ج — priorFromStoredResult: فقط ALT/AST از _engine.tests�
   const e2 = runEngine({ patient: { sex: "F", age: 36 }, tests: [{ name: "ALT", value: "40", unit: "U/L" }], prior: p, sampleDate: "2026-10-16T10:00:00Z" });
   assert.equal(e2.prior, undefined);
 });
+
+test("T61: P108-ج — mergePages تاریخِ نمونه را از هر صفحه برمی‌دارد (دو تاریخِ متفاوت ⇒ هیچ)؛ priorFromStoredResult تاریخِ نمونه را بر تاریخِ بارگذاری مقدم می‌داند", async () => {
+  const { mergePages, priorFromStoredResult } = await import("./server.js");
+  const pg = (page, patient) => ({ ok: true, page, ocr: { patient, tests: [{ name: "ALT", value: "48", unit: "U/L" }] } });
+  assert.equal(mergePages([pg(1, { age: "36" }), pg(2, { sample_date: "۱۴۰۵/۰۷/۲۴" })]).sampleDate, "2026-10-16");
+  assert.equal(mergePages([pg(1, { sample_date: "1405/07/24" }), pg(2, { sample_date: "1405/07/20" })]).sampleDate, undefined);
+  assert.equal(mergePages([pg(1, { age: "36" })]).sampleDate, undefined);
+  const row = { created_at: "2026-10-16 08:00:00", result: { _engine: { context: { sample_date: "2026-08-11" },
+    tests: [{ key: "ALT", value: 46, abnormal: true, dir: "high", range: "0–41" }] } } };
+  assert.equal(priorFromStoredResult(row).date, "2026-08-11");
+});

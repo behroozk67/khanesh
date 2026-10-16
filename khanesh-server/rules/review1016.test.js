@@ -11,6 +11,7 @@ import { runEngine } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
 import { healthScore, SCORE_TABLE } from "./score.js";
 import { isMinorDeviation } from "./minor.js";
+import { parseSampleDate } from "./sampledate.js";
 
 const r = (name, value, unit, reference) => ({ name, value, ...(unit ? { unit } : {}), ...(reference ? { reference } : {}) });
 const M36 = { age: 36, sex: "M" };
@@ -157,4 +158,21 @@ test("V11: بی prior خروجیِ موتور کلیدِ prior ندارد؛ تا
   assert.equal(runEngine({ patient: M36, tests: ALT48 }).prior, undefined);
   assert.equal(runEngine({ patient: M36, tests: ALT48, prior: priorAlt(46, "x"), sampleDate: "2026-10-16" }).prior, undefined);
   assert.equal(runEngine({ patient: M36, tests: ALT48, prior: priorAlt(46, "2026-11-01"), sampleDate: "2026-10-16" }).prior, undefined);
+});
+
+test("V12: تاریخِ نمونهٔ چاپ‌شده — شمسی/میلادی/ارقامِ فارسی ⇒ ISO؛ مبهم، آینده، ۱۰+ سال و اسفندِ ۳۰ ِ غیرکبیسه ⇒ null", () => {
+  const now = Date.parse("2026-10-16");
+  const cases = { "۱۴۰۵/۰۷/۲۴": "2026-10-16", "24/07/1405": "2026-10-16", "1404/01/01": "2025-03-21", "1403/12/30": "2025-03-20",
+    "تاریخ پذیرش: ۱۴۰۵/۰۵/۰۱": "2026-07-23", "2026-10-16": "2026-10-16", "16/10/2026": "2026-10-16",
+    "1404/12/30": null, "03/04/2026": null, "1405/07/26": null, "1395/01/01": null, "x": null };
+  for (const [s, want] of Object.entries(cases)) assert.equal(parseSampleDate(s, now), want, s);
+});
+
+test("V13: فاصلهٔ دو نوبت با تاریخِ نمونهٔ چاپ‌شده سنجیده می‌شود؛ برگهٔ فعلیِ قدیمی‌تر از نوبتِ قبلی ⇒ نوبتِ قبلی نداریم", () => {
+  const prior = priorAlt(46, "2026-08-11");
+  const e = runEngine({ patient: { ...M36, sample_date: "۱۴۰۵/۰۷/۲۴" }, tests: ALT48, prior });
+  assert.equal(e.sample_date, "2026-10-16");
+  assert.equal(e.prior.weeks, 9.4);
+  const old = runEngine({ patient: { ...M36, sample_date: "1405/04/01" }, tests: ALT48, prior });   // 2026-06-22 < 2026-08-11
+  assert.equal(old.prior, undefined);
 });

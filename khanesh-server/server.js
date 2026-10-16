@@ -29,6 +29,7 @@ import "dotenv/config";
 // gpt-4o می‌فهمید ولی ۳۵ برابر گران بود — و باز هم برای کم‌خونی
 // ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
+import { parseSampleDate } from "./rules/sampledate.js";
 import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue, inferAge, inferSex, mergeIdentityTag } from "./rules/adapter.js";
 import { bareUrineShape } from "./rules/specimen.js";
 import { activeConditionIds, conditionFa } from "./rules/conditions.js";
@@ -85,7 +86,7 @@ export function ageText(years) {
  */
 /**
  * P108-ج: ردیفِ ذخیره‌شدهٔ jobs ⇒ `prior` ِ موتور ({ date, graded, sex }). فقط ALT/AST؛ نتیجهٔ بی‌_engine ⇒ null.
- * created_at ِ SQLite به وقتِ UTC و بی‌منطقه است ⇒ «Z». تاریخِ بارگذاری جایِ تاریخِ نمونه است (برگه تاریخِ نمونه را نمی‌دهد).
+ * تاریخ: `_engine.context.sample_date` (چاپ‌شده روی برگه) اگر هست، وگرنه created_at (SQLite، UTC بی‌منطقه ⇒ «Z»).
  */
 export function priorFromStoredResult(row) {
   const eng = row?.result?._engine;
@@ -93,8 +94,9 @@ export function priorFromStoredResult(row) {
   const graded = eng.tests.filter((t) => t.key === "ALT" || t.key === "AST")
     .map((t) => ({ test: t.key, value: t.value, abnormal: t.abnormal, dir: t.dir, range: t.range }));
   if (!graded.length || !row.created_at) return null;
+  // تاریخِ نمونهٔ چاپ‌شده بر تاریخِ بارگذاری مقدم است (برگهٔ قدیمیِ امروز آپلودشده).
   const c = String(row.created_at);
-  const date = /[zZ]|[+-]\d\d:?\d\d$/.test(c) ? c : c.replace(" ", "T") + "Z";
+  const date = eng.context?.sample_date ?? (/[zZ]|[+-]\d\d:?\d\d$/.test(c) ? c : c.replace(" ", "T") + "Z");
   const sex = eng.context?.sex === "مرد" ? "M" : eng.context?.sex === "زن" ? "F" : null;
   return { date, graded, ...(sex ? { sex } : {}) };
 }
@@ -109,6 +111,8 @@ export function engineContext(engineOut, patternOut) {
     pregnant: engineOut.pregnant === true,
     // سنِ بارداری (هفته) — فقط وقتی کاربر وارد کرده؛ ResultView «باردار، هفتهٔ X» را از این می‌سازد.
     ...(engineOut.gestWeeks != null ? { gest_weeks: engineOut.gestWeeks } : {}),
+    // P108-ج: تاریخِ نمونهٔ چاپ‌شده (میلادی، ISO) — نوبتِ بعدیِ همین کاربر فاصله را با این می‌سنجد.
+    ...(engineOut.sample_date ? { sample_date: engineOut.sample_date } : {}),
     conditions_applied: [...reported].filter((id) => used.has(id)).map((id) => ({ id, fa: conditionFa(id) })),
   };
 }
@@ -540,11 +544,12 @@ const OCR_PROMPT = `تو یک استخراج‌کنندهٔ دقیق داده ا
 - اگر عددی تار، مبهم یا مخدوش است، confidence را "low" بگذار. اگر اصلاً خوانا نیست، value را null بگذار.
 - برای هر ردیف، سرتیترِ بخشی را که ردیف زیرِ آن چاپ شده (مثل "Biochemistry"، "Hematology"، "Urine Analysis"، "کامل ادرار"، "Serology") عیناً در فیلد section بنویس. اگر ردیف زیرِ هیچ سرتیتری نیست، section را null بگذار. سرتیتر را از خودت حدس نزن.
 - اطلاعات شناسایی‌کننده (نام بیمار، کد ملی، تلفن، نام پزشک) را ثبت نکن. فقط سن و جنسیت را در صورت وجود بردار.
+- تاریخِ نمونه‌گیری (یا پذیرش) را اگر روی برگه چاپ شده، عیناً همان‌طور که نوشته شده در patient.sample_date بنویس (مثلاً "1405/07/24"). تاریخِ تولد یا تاریخِ چاپِ جواب را نگذار. اگر نیست یا مطمئن نیستی، null بگذار.
 
 ## خروجی
 فقط JSON برگردان، بدون بک‌تیک و بدون متن اضافه. فشرده بنویس:
 {
-  "patient": { "age": "51 سال", "sex": "مرد" },
+  "patient": { "age": "51 سال", "sex": "مرد", "sample_date": "1405/07/24" },
   "tests": [
     { "name": "WBC", "value": "5.66", "unit": "10*3/µL", "reference": "3.5 - 11", "flag": null, "confidence": "high", "section": "Hematology" },
     { "name": "RBC", "value": "2.58", "unit": "10*6/ul", "reference": "3.6 - 6.1", "flag": "L", "confidence": "high", "section": "Hematology" },
@@ -829,10 +834,14 @@ export function mergePages(pageResults) {
   }
 
   const patient = patients.find((p) => p.age || p.sex) || patients[0] || null;
+  // P108-ج: تاریخِ نمونه از هر صفحه‌ای که چاپش کرده؛ دو تاریخِ متفاوت ⇒ null (حدس نمی‌زنیم کدام).
+  const sampleDates = [...new Set(patients.map((p) => parseSampleDate(p.sample_date)).filter(Boolean))];
+  const sampleDate = sampleDates.length === 1 ? sampleDates[0] : null;
 
   return {
     tests,
     patient,
+    ...(sampleDate ? { sampleDate } : {}),
     failedPages: failed,
     duplicates: dupes,
     unreadableNotes: notes,
@@ -1099,6 +1108,7 @@ const analyzeHandler = async (req, res) => {
         //    هر فیلدی که کاربر پر کرده برنده است، و بقیه (مثلاً جنسیتِ چاپ‌شده روی برگه) از خودِ برگه می‌آید.
         patient: mergePatient(merged.patient, patient),
         unreadable_notes: merged.unreadableNotes,
+        ...(merged.sampleDate ? { sampleDate: merged.sampleDate } : {}),
       };
       lastMergedOcr = mergedOcr;
 

@@ -24,6 +24,7 @@ import { faName } from "./names.js";
 import { routeSerology } from "./serology.js";
 import { isPrenatalSheet, prenatalClaim, prenatalItem, parseRiskDenominator, parseRiskCategory, parseGaDays } from "./prenatal.js";
 import { specimenSheetEvidence, specimenClaim, BARE_FLUID_LOOKALIKES } from "./specimen.js";
+import { parseSampleDate } from "./sampledate.js";
 import { isCastKey, castRoute, isSgKey, sgValue, SG_KEY, isCrystalKey, crystalRoute, epithelialKind, epithelialRoute,
   urineBiliValueState, urobilValueState, smearRow, mergeSmear, rbcMorphRow, mergeRbcMorph, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
 
@@ -2402,10 +2403,16 @@ function inferGestWeeks(ocr) {
 //        ocr.sampleDate = تاریخِ نمونهٔ فعلی (پیش‌فرض: اکنون).
 // خروجی: { weeks, ALT?, AST? } — فقط کلیدهایی که در نوبتِ قبلی سنجیده شده‌اند. تاریخِ نامعتبر یا آینده ⇒ null (نوبتِ قبلی نداریم).
 const PRIOR_KEYS = ["ALT", "AST"];
+/** تاریخِ نمونهٔ فعلی: ocr.sampleDate (سرور از برگه خوانده) یا patient.sample_date (رشتهٔ چاپ‌شده) ⇒ ISO یا null. */
+function sampleDateOf(ocr) {
+  if (ocr?.sampleDate && Number.isFinite(Date.parse(ocr.sampleDate))) return String(ocr.sampleDate);
+  return parseSampleDate(ocr?.patient?.sample_date);
+}
 function priorVisit(ocr, sex, age) {
   const p = ocr?.prior;
   if (!p || typeof p !== "object") return null;
-  const t0 = Date.parse(p.date), t1 = ocr.sampleDate ? Date.parse(ocr.sampleDate) : Date.now();
+  const sd = sampleDateOf(ocr);
+  const t0 = Date.parse(p.date), t1 = sd ? Date.parse(sd) : Date.now();
   if (!Number.isFinite(t0) || !Number.isFinite(t1) || t0 >= t1) return null;
   // یک حساب ممکن است برگهٔ عضوِ دیگرِ خانواده را هم بفرستد: جنسِ متفاوت ⇒ همان شخص نیست ⇒ نوبتِ قبلی نداریم.
   if (p.sex && sex && p.sex !== sex) return null;
@@ -2884,9 +2891,11 @@ export function runEngine(ocr) {
   // P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): نوبتِ قبلیِ ALT/AST برای «پایداری». فقط وقتی ورودی دارد (سرور از نتیجهٔ ذخیره‌شدهٔ
   //   کاربرِ واردشده می‌سازد) ⇒ بی‌آن خروجی بایت‌به‌بایت همان.
   const prior = priorVisit(ocr, sex, age);
+  const sampleDate = sampleDateOf(ocr);
 
   return {
     ...(prior ? { prior } : {}),
+    ...(sampleDate ? { sample_date: sampleDate } : {}),
     sex, age,
     pregnant: pregnantF,
     // specs/011: همهٔ شناسه‌های گزارش‌شده؛ قاعده‌ها فقط شناسه‌های ACTIVE_CONDITIONS را می‌خوانند.
