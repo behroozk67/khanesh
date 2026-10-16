@@ -42,6 +42,7 @@ import {
 export default function Tafsir() {
   const { mode: rawMode } = useParams();
   const mode = rawMode === "photo" || rawMode === "pdf" || rawMode === "manual" ? rawMode : null;
+  const usePhotos = mode === "photo" || mode === "pdf";
   const [profile, setProfile] = useState(null);
   const [profileErr, setProfileErr] = useState("");
   // ⚠️ بازبینیِ کد #5: پیش‌تر خطای بارگذاری پروفایلِ خالی می‌ساخت و تحلیل بی‌سن/جنس/بارداری/بیماری می‌رفت —
@@ -257,7 +258,6 @@ export default function Tafsir() {
     setAiError(""); setMismatchError(false); setAiResult(null);
     if (!profileReady) { setAiError(profileErr || "پروفایل هنوز بارگذاری نشده است."); return; }
     // specs/011: هر حالت فقط ورودیِ خودش را می‌فرستد — عکس یا PDF در حالتِ فایل، اعداد در حالتِ دستی.
-    const usePhotos = mode === "photo" || mode === "pdf";
     if (usePhotos && images.length === 0) {
       setAiError(mode === "pdf" ? "ابتدا فایل PDF برگهٔ آزمایش را انتخاب کنید." : "ابتدا عکسِ برگهٔ آزمایش را انتخاب کنید.");
       return;
