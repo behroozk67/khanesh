@@ -53,6 +53,14 @@ export default function StartChoice() {
           </span>
           <span className="onb-mode-go"><Icon name="arrowEnd" size={20} /></span>
         </Link>
+        <Link to="/app/pdf" className="onb-mode">
+          <span className="onb-mode-ic"><Icon name="fileText" size={26} /></span>
+          <span>
+            <span className="onb-mode-t">فایل PDF آزمایش</span>
+            <span className="onb-mode-d">فایل دریافتی از آزمایشگاه را ارسال کنید؛ صفحه‌ها خودکار خوانده می‌شوند.</span>
+          </span>
+          <span className="onb-mode-go"><Icon name="arrowEnd" size={20} /></span>
+        </Link>
         <Link to="/app/manual" className="onb-mode">
           <span className="onb-mode-ic"><Icon name="pencil" size={26} /></span>
           <span>

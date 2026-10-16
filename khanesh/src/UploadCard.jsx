@@ -35,24 +35,28 @@ export default function UploadCard({
   mode = "photo", canRun = true,
 }) {
   const photo = mode === "photo";
+  const isPdf = mode === "pdf";
+  const hasUpload = photo || isPdf;
   const [confirmClear, setConfirmClear] = useState(false);
 
   return (
     <section className="card" aria-labelledby="ai-h">
       <h2 className="card-title" id="ai-h">
-        {photo ? "عکسِ برگهٔ آزمایش" : "تفسیر آزمایش"}
+        {isPdf ? "فایل PDF برگهٔ آزمایش" : photo ? "عکسِ برگهٔ آزمایش" : "تفسیر آزمایش"}
       </h2>
       <p className="hint">
-        {photo
+        {isPdf
+          ? "فایل PDF برگهٔ آزمایش را انتخاب کنید و دکمهٔ پایین را بزنید."
+          : photo
           ? "عکسِ همهٔ صفحه‌های برگه را انتخاب کنید و دکمهٔ پایین را بزنید."
           : "بعد از واردکردنِ مقادیر، دکمهٔ پایین را بزنید."}
       </p>
 
-      {photo && (<>
+      {hasUpload && (<>
       <input
         id="lab-photos"
         type="file"
-        accept="image/*,application/pdf,.pdf"
+        accept={isPdf ? "application/pdf,.pdf" : "image/*,application/pdf,.pdf"}
         multiple
         onChange={onFile}
         className="sr-only"
@@ -60,12 +64,14 @@ export default function UploadCard({
       <label htmlFor="lab-photos" className="dropzone">
         {images.length === 0 ? (
           <>
-            <span className="dropzone-icon" aria-hidden="true">📄</span>
+            <span className="dropzone-icon" aria-hidden="true">{isPdf ? "📑" : "📄"}</span>
             <span className="dropzone-main">
-              {imgBusy ? busyText(imgProgress) : "عکس یا PDF برگهٔ آزمایش را انتخاب کنید"}
+              {imgBusy ? busyText(imgProgress) : isPdf ? "فایل PDF برگهٔ آزمایش را انتخاب کنید" : "عکس یا PDF برگهٔ آزمایش را انتخاب کنید"}
             </span>
             <span className="dropzone-sub">
-              اگر برگه چند صفحه است، همه را با هم انتخاب کنید (حداکثر {toFaDigits(MAX_IMAGES)} صفحه)
+              {isPdf
+                ? `فایل دانلودی از آزمایشگاه را انتخاب کنید (حداکثر ${toFaDigits(MAX_IMAGES)} صفحه)`
+                : `اگر برگه چند صفحه است، همه را با هم انتخاب کنید (حداکثر ${toFaDigits(MAX_IMAGES)} صفحه)`}
             </span>
           </>
         ) : (
@@ -73,6 +79,8 @@ export default function UploadCard({
             <span className="dropzone-main">
               {imgBusy
                 ? busyText(imgProgress)
+                : isPdf
+                ? `${toFaDigits(images.length)} صفحه استخراج شد — برای افزودن فایل دیگر کلیک کنید`
                 : `${toFaDigits(images.length)} صفحه انتخاب شد — برای افزودن کلیک کنید`}
             </span>
             {(() => {
@@ -199,14 +207,20 @@ export default function UploadCard({
       >
         {aiLoading
           ? "در حال تحلیل…"
-          : !photo
+          : !hasUpload
           ? `تفسیر آزمایش · ${etaText(0)}`
           : images.length > 1
           ? `تفسیر ${toFaDigits(images.length)} صفحه · ${etaText(images.length)}`
           : `تفسیر آزمایش · ${etaText(images.length)}`}
       </button>
       {!canRun && !aiLoading && (
-        <p className="hint" role="status">{photo ? "اول حداقل یک عکس انتخاب کنید." : "حداقل یک مقدار وارد کنید."}</p>
+        <p className="hint" role="status">
+          {hasUpload
+            ? isPdf
+              ? "اول فایل PDF برگهٔ آزمایش را انتخاب کنید."
+              : "اول حداقل یک عکس انتخاب کنید."
+            : "حداقل یک مقدار وارد کنید."}
+        </p>
       )}
 
       {/* حالتِ انتظار: پیشرفتِ واقعیِ صفحه‌به‌صفحه، نه نوارِ ساختگی.

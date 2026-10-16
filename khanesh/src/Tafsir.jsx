@@ -6,6 +6,7 @@ import { MAX_IMAGES, looksLikeImage, looksLikePdf, compressImage } from "./image
 import { LabMateLogo } from "./LabMateLogo.jsx";
 import EntryGrid from "./EntryGrid.jsx";
 import PhotoGuide from "./onboarding/PhotoGuide.jsx";
+import PdfGuide from "./onboarding/PdfGuide.jsx";
 import { loadProfile, clearProfile, intakeStep, patientFromProfile, profileSummary } from "./onboarding/profileStore.js";
 import "./onboarding/onboarding.css";
 import LabHelix from "./onboarding/LabHelix.jsx";
@@ -40,7 +41,7 @@ import {
 //   نه از فرمِ همین صفحه (ProfileCard کنار رفت) — یک منبع برای یک تصمیم.
 export default function Tafsir() {
   const { mode: rawMode } = useParams();
-  const mode = rawMode === "photo" || rawMode === "manual" ? rawMode : null;
+  const mode = rawMode === "photo" || rawMode === "pdf" || rawMode === "manual" ? rawMode : null;
   const [profile, setProfile] = useState(null);
   const [profileErr, setProfileErr] = useState("");
   // ⚠️ بازبینیِ کد #5: پیش‌تر خطای بارگذاری پروفایلِ خالی می‌ساخت و تحلیل بی‌سن/جنس/بارداری/بیماری می‌رفت —
@@ -255,9 +256,12 @@ export default function Tafsir() {
   async function runAI(ignoreMismatch = false) {
     setAiError(""); setMismatchError(false); setAiResult(null);
     if (!profileReady) { setAiError(profileErr || "پروفایل هنوز بارگذاری نشده است."); return; }
-    // specs/011: هر حالت فقط ورودیِ خودش را می‌فرستد — عکس در حالتِ عکس، اعداد در حالتِ دستی.
-    const usePhotos = mode === "photo";
-    if (usePhotos && images.length === 0) { setAiError("ابتدا عکسِ برگهٔ آزمایش را انتخاب کنید."); return; }
+    // specs/011: هر حالت فقط ورودیِ خودش را می‌فرستد — عکس یا PDF در حالتِ فایل، اعداد در حالتِ دستی.
+    const usePhotos = mode === "photo" || mode === "pdf";
+    if (usePhotos && images.length === 0) {
+      setAiError(mode === "pdf" ? "ابتدا فایل PDF برگهٔ آزمایش را انتخاب کنید." : "ابتدا عکسِ برگهٔ آزمایش را انتخاب کنید.");
+      return;
+    }
     if (!usePhotos && rows.length === 0 && urineRows.length === 0) { setAiError("حداقل یک مقدار وارد کنید."); return; }
     setAiLoading(true);
     setAiProgress(null);
@@ -506,9 +510,12 @@ export default function Tafsir() {
 
         <div className="mode-bar">
           {profile && <span>تفسیر برای: <b>{profileSummary(profile)}</b> · <Link to="/profile">ویرایش</Link></span>}
-          {mode === "photo"
-            ? <Link to="/app/manual">عکس ندارم؛ دستی وارد می‌کنم ←</Link>
-            : <Link to="/app/photo">عکسِ برگه را دارم ←</Link>}
+          <div className="mode-bar-links" style={{ display: 'flex', gap: 'var(--s4)', alignItems: 'center' }}>
+            <span>تغییر روش ورود:</span>
+            {mode !== "photo" && <Link to="/app/photo">عکسِ برگه</Link>}
+            {mode !== "pdf" && <Link to="/app/pdf">فایل PDF</Link>}
+            {mode !== "manual" && <Link to="/app/manual">ورود دستی</Link>}
+          </div>
         </div>
 
         {mode === "manual" && (
@@ -548,6 +555,7 @@ export default function Tafsir() {
         )}
 
         {mode === "photo" && <PhotoGuide />}
+        {mode === "pdf" && <PdfGuide />}
 
         {/* specs/011: هر حالت فقط ورودیِ خودش را می‌فرستد، پس هشدارِ «مقادیرِ تایپ‌شده فرستاده نمی‌شوند»
             دیگر معنا ندارد (typedCount=0). داده‌های حالتِ دیگر پاک نمی‌شوند — با برگشتن سرِ جایشان‌اند. */}
@@ -564,7 +572,7 @@ export default function Tafsir() {
           onIgnoreMismatch={() => runAI(true)}
           onCancelMismatch={() => { setAiError(""); setMismatchError(false); }}
           typedCount={0}
-          canRun={profileReady && (mode === "photo" ? images.length > 0 : rows.length + urineRows.length > 0)}
+          canRun={profileReady && (usePhotos ? images.length > 0 : rows.length + urineRows.length > 0)}
           runAI={() => runAI(false)}
           onCancel={() => abortRef.current?.abort()}
           resultRef={resultRef}
