@@ -52,6 +52,10 @@ systemctl reload nginx
 
 # فایروال: فقط SSH و وب
 ufw allow OpenSSH >/dev/null
-ufw allow 'Nginx Full' >/dev/null
+# ⚠️ پشتِ Cloudflare، ۸۰/۴۴۳ فقط برای رنج‌های Cloudflare باز است (cloudflare-sync.sh، قاعده‌های با comment «Cloudflare»).
+#   «Nginx Full» آن را به Anywhere برمی‌گرداند — پس فقط وقتی هنوز هیچ قاعدهٔ Cloudflareای نیست (نصبِ اول).
+if ! ufw status | grep -q Cloudflare; then
+  ufw allow 'Nginx Full' >/dev/null
+fi
 ufw --force enable >/dev/null
 echo "setup OK"
