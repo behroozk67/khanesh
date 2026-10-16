@@ -224,6 +224,8 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   unconjugatedbili: "BILI_I", بیلیروبینغیرمستقیم: "BILI_I",
   ferritin: "FERRITIN", فریتین: "FERRITIN",
   iron: "IRON", serumiron: "IRON", آهن: "IRON",
+  // P109 (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): «Fe» نمادِ آهن است — فقط شکلِ کامل («Fe»، «Serum Fe»)؛ «Ferritin» کلیدِ خودش را دارد.
+  fe: "IRON", serumfe: "IRON", feserum: "IRON",
   tibc: "TIBC",
   transferrinsaturation: "TSAT", tsat: "TSAT",
   b12: "B12", vitaminb12: "B12", serumvitaminb12: "B12",
@@ -235,6 +237,9 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   // ═══ specs/004: ویتامین‌ها و عناصرِ کمیاب — شناخته‌شده، بی‌بازه (noRef) تا تأییدِ P49 ═══
   // فقط نامِ کامل. مخففِ دوحرفی (zn/cu/se) فقط با واحدِ سازگار — UNIT_GATED_ALIASES پایین‌تر.
   // mn/co/cr/mo هرگز: «Cr» روی برگهٔ ایرانی کراتینین است (N2).
+  // P109: eAG — «Estimated Average Gl» همان ستونِ بریده‌شدهٔ «Estimated Average Glucose» است.
+  estimatedaverageglucose: "EAG", estimatedaveragegl: "EAG", estimatedavgglucose: "EAG", eag: "EAG",
+  atherosclerosisindex: "ATHERO_INDEX", atherogenicindex: "ATHERO_INDEX", atherogenicindexofplasma: "ATHERO_INDEX", aip: "ATHERO_INDEX",
   zinc: "ZINC", serumzinc: "ZINC", zincserum: "ZINC", plasmazinc: "ZINC", روی: "ZINC", رویسرم: "ZINC", زینک: "ZINC",
   copper: "COPPER", serumcopper: "COPPER", copperserum: "COPPER", مس: "COPPER", مسسرم: "COPPER",
   ceruloplasmin: "CERULOPLASMIN", سرولوپلاسمین: "CERULOPLASMIN",
@@ -265,6 +270,7 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   urineiodine: "U_IODINE", urinaryiodine: "U_IODINE", iodineurine: "U_IODINE", یدادرار: "U_IODINE",
   "25ohd": "VIT_D", "25ohvitamind": "VIT_D", "25hydroxyvitamind": "VIT_D",
   vitamind25oh: "VIT_D", "ویتامیند": "VIT_D",
+  vitd25oh: "VIT_D", "25ohvitd": "VIT_D", vitd25hydroxy: "VIT_D",   // P109: «Vit D (25 OH)»
   tsh: "TSH",
   ft4: "FT4", freet4: "FT4",
   ft3: "FT3", freet3: "FT3",
@@ -295,6 +301,7 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   ldh: "LDH",
   haptoglobin: "HAPTO",
   pt: "PT", prothrombintime: "PT",
+  ptpatient: "PT", patientpt: "PT",   // P109: «PT Patient» کنارِ «PT Control» (کنترل در کانالِ hemostasis است)
   // ۲۰۲۶-۱۰-۰۳ (ممیزیِ پوشش): این پنج «تفسیر نشدند» می‌شدند.
   myoglobin: "MYOGLOBIN", serummyoglobin: "MYOGLOBIN", میوگلوبین: "MYOGLOBIN",
   transferrin: "TRANSFERRIN", serumtransferrin: "TRANSFERRIN", trf: "TRANSFERRIN", ترانسفرین: "TRANSFERRIN",
@@ -474,7 +481,7 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   //   «Creat 6» / «Alk Phos 900» / «Glycated Hemoglobin 11» ⇒ هیچ یافته‌ای. «Ca++» (کلسیمِ یونیزه، mmol/L) و «Globulin» عمداً
   //   نگاشت نشده‌اند: کلیدِ موتور ندارند، و نگاشتِ Ca++ به کلسیمِ تام عددِ ۱٫۲ را «کلسیمِ بحرانی» می‌کرد.
   creat: "CREAT", phosphate: "PHOS", inorganicphosphorus: "PHOS", inorganicphosphate: "PHOS",
-  alkphos: "ALP", alkphosphatase: "ALP", got: "AST", gpt: "ALT",
+  alkphos: "ALP", alkphosphatase: "ALP", alkph: "ALP", got: "AST", gpt: "ALT",
   tlc: "WBC", totalleukocytecount: "WBC",
   freethyroxine: "FT4", thyroidstimulatinghormone: "TSH", tshultra: "TSH", ultrasensitivetsh: "TSH",
   glycatedhemoglobin: "HBA1C", glycatedhaemoglobin: "HBA1C", glycosylatedhemoglobin: "HBA1C",
@@ -714,7 +721,9 @@ const UNIT_KEPT = new Set(["PDW", "PLT_CRIT", "P_LCR", "CERULOPLASMIN", "U_COPPE
   // P46 بندهای ۵–۱۰: سه کلیدِ بی‌بازه که قاعدهٔ adrenalAxis عددشان را از ungraded می‌خواند. حدِ UFC و بزاق به روشِ سنجش بستگی دارد.
   "UFC", "CORTISOL_SAL", "ACTH",
   // P47 (AMH، DHEA-S) و P49 (MMA، مس، روی): قاعده‌ها فقط با واحدِ چاپ‌شده حکم می‌دهند (N3)، پس واحد باید با عدد بماند.
-  "AMH", "DHEAS", "MMA", "COPPER", "ZINC"]);
+  "AMH", "DHEAS", "MMA", "COPPER", "ZINC",
+  // P109: eAG (مشتق از HbA1c) و شاخصِ آتروژنیک (نسبتِ چربی‌ها) — بی‌بازه؛ خواننده‌ها در patterns_p109.js.
+  "EAG", "ATHERO_INDEX"]);
 
 // ═══ specs/008 — ردیف‌های الکتروفورزِ هموگلوبین (R4) ═══
 const HB_AMBIGUOUS = { hbs: "HBS", hbc: "HBC", hbe: "HBE",       // هم‌نامِ نشانگرهای هپاتیتِ B
@@ -1755,6 +1764,28 @@ export function ocrToEngineInput(ocr) {
       }
     }
 
+    // ═══ P109 (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): ردیف‌های ادراری با نامِ صریح ═══
+    // «Blood (RBC/Hgb)» نامِ پدِ خونِ نوار است (پد هم گلبولِ قرمز و هم هموگلوبین را می‌بیند) — سرم هرگز این نام را ندارد؛
+    //   فقط با مقدارِ نواری (فهرستِ بسته، N6)، وگرنه «تفسیر نشدند».
+    if (/^(urine)?blood(rbchgb|rbchb|hgbrbc|hbrbc|rbchemoglobin|hemoglobinrbc)$/.test(key)) {
+      const raw = String(t.value ?? "").trim();
+      if (DIPSTICK_VALUE_RE.test(raw)) qual["Urine Blood"] = raw; else unmapped.push(t.name);
+      continue;
+    }
+    // «U/C» = کشتِ ادرار (Urine Culture)؛ «U/C First»، «U/C Final». ردیفِ «Culture (after 48 hrs)» فقط کنارِ یک ردیفِ U/C یا کشتِ ادرار
+    //   روی همان صفحه ادراری است (N25: کشتِ خون هم «۴۸ ساعت» دارد) — وگرنه «تفسیر نشدند». نامِ قانونی با «Urine Culture» شروع می‌شود تا
+    //   خوانندهٔ urine_culture_result (qualRows /^urineculture/) همهٔ نوبت‌ها را ببیند.
+    {
+      const isUc = /^uc(first|final|second|1st|2nd|prelim|preliminary)?$/.test(key);
+      const isTimedCulture = /^culture(after)?(24|48|72)(h|hr|hrs|hour|hours)$/.test(key);
+      if (isUc || isTimedCulture) {
+        const raw = String(t.value ?? "").trim();
+        const ucOnPage = (ocr?.tests ?? []).some((x) => (x._page ?? 0) === (t._page ?? 0) && /^(uc(first|final|second|1st|2nd|prelim|preliminary)?|urineculture.*)$/.test(norm(x.name)));
+        if (raw && (isUc || ucOnPage)) qual[`Urine Culture (${t.name})`] = raw; else unmapped.push(t.name);
+        continue;
+      }
+    }
+
     // ═══ P91 ([38]): رنگِ مدفوع — شناخته، بی‌بازه (noReader ⇒ ungraded.STOOL_COLOR). خواننده: melena_microcytic_anemia، که
     //   با explains آن را از خطِ «تفسیر نشدند» بیرون می‌برد؛ بی‌آن یافته، همان خط با نامِ فارسی می‌ماند. فقط نامِ صریحِ مدفوع —
     //   «Color»ِ برهنه روی برگهٔ ترکیبی رنگِ ادرار هم می‌تواند باشد (N25) و دست نمی‌خورد.
@@ -2403,6 +2434,7 @@ function inferGestWeeks(ocr) {
 //        ocr.sampleDate = تاریخِ نمونهٔ فعلی (پیش‌فرض: اکنون).
 // خروجی: { weeks, ALT?, AST? } — فقط کلیدهایی که در نوبتِ قبلی سنجیده شده‌اند. تاریخِ نامعتبر یا آینده ⇒ null (نوبتِ قبلی نداریم).
 const PRIOR_KEYS = ["ALT", "AST"];
+const PRIOR_AGE_TOLERANCE_Y = 1.5;
 /** تاریخِ نمونهٔ فعلی: ocr.sampleDate (سرور از برگه خوانده) یا patient.sample_date (رشتهٔ چاپ‌شده) ⇒ ISO یا null. */
 function sampleDateOf(ocr) {
   if (ocr?.sampleDate && Number.isFinite(Date.parse(ocr.sampleDate))) return String(ocr.sampleDate);
@@ -2416,6 +2448,12 @@ function priorVisit(ocr, sex, age) {
   if (!Number.isFinite(t0) || !Number.isFinite(t1) || t0 >= t1) return null;
   // یک حساب ممکن است برگهٔ عضوِ دیگرِ خانواده را هم بفرستد: جنسِ متفاوت ⇒ همان شخص نیست ⇒ نوبتِ قبلی نداریم.
   if (p.sex && sex && p.sex !== sex) return null;
+  // و سن (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): سنِ امروز باید با سنِ نوبتِ قبلی + فاصلهٔ دو نوبت بخواند. سن روی برگه به سالِ کامل چاپ می‌شود ⇒
+  //   ۱٫۵ سال رواداری (گرد کردن + تولدِ میانِ دو نوبت). ناهمخوان ⇒ شخصِ دیگر ⇒ نوبتِ قبلی نداریم.
+  if (typeof p.age === "number" && typeof age === "number") {
+    const years = (t1 - t0) / (365.25 * 24 * 3600 * 1000);
+    if (Math.abs(age - (p.age + years)) > PRIOR_AGE_TOLERANCE_Y) return null;
+  }
   let graded = Array.isArray(p.graded) ? p.graded : null;
   if (!graded && Array.isArray(p.tests)) graded = runEngine({ patient: { sex, age, ...(ocr.patient ?? {}) }, tests: p.tests }).graded;
   if (!graded) return null;

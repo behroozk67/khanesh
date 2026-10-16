@@ -1496,10 +1496,16 @@ export function bandNeutDiscordance(e) {
 const RBC_MORPH_NAME = [
   [/^(schistocytes?|schizocytes?|fragmentedr?bcs?|fragmentedredcells?|fragmentedredbloodcells?|fragmentocytes?|helmetcells?|rbcfragments?|شیستوسیت(ها)?|گلبولقرمزقطعهقطعه|قطعاتگلبولقرمز)$/, "schistocytes"],
   [/^(spherocytes?|microspherocytes?|spherocytosis|اسفروسیت(ها)?|اسفروسیتوز)$/, "spherocytes"],
+  // P109: اندازه/رنگ/شکلِ گلبولِ قرمز در لام — خواننده: smear_rbc_size (patterns_p109.js)، کنارِ MCV/MCH/RDW.
+  [/^(microcytosis|microcytes?|microcytic|میکروسیتوز|میکروسیت)$/, "microcytosis"],
+  [/^(hypochromia|hypochromic|hypochromasia|هیپوکرومی|هیپوکروم)$/, "hypochromia"],
+  [/^(macrocytosis|macrocytes?|macrocytic|ماکروسیتوز|ماکروسیت)$/, "macrocytosis"],
+  [/^(anisocytosis|آنیزوسیتوز)$/, "anisocytosis"],
+  [/^(poikilocytosis|پویکیلوسیتوز)$/, "poikilocytosis"],
 ];
 const RBC_MORPH_QTY = [   // [regex روی مقدارِ نرمال‌شده, state, qty]
   [/^(none|nil|absent|negative|neg|notseen|noneseen|notdetected|undetected|منفی|دیدهنشد|مشاهدهنشد|ندارد|نیست|-)$/, "absent", null],
-  [/^(few|rare|occasional|trace|scanty|1\+|\+|\+1|کم|نادر|اندک)$/, "present", "minor"],
+  [/^(few|rare|occasional|trace|scanty|slight|mild|1\+|\+|\+1|کم|نادر|اندک|خفیف)$/, "present", "minor"],
   [/^(moderate|many|numerous|frequent|marked|increased|abundant|significant|2\+|3\+|4\+|\+\+|\+\+\+|\+\+\+\+|\+2|\+3|\+4|متوسط|زیاد|فراوان|متعدد)$/, "present", "significant"],
   [/^(present|seen|positive|pos|detected|yes|دیدهشد|مشاهدهشد|مثبت|وجوددارد|دارد)$/, "present", "unquantified"],
 ];

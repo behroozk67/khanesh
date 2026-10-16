@@ -176,3 +176,86 @@ test("V13: فاصلهٔ دو نوبت با تاریخِ نمونهٔ چاپ‌ش
   const old = runEngine({ patient: { ...M36, sample_date: "1405/04/01" }, tests: ALT48, prior });   // 2026-06-22 < 2026-08-11
   assert.equal(old.prior, undefined);
 });
+
+// ── P109 (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): ردیف‌هایی که خوانده می‌شدند و تفسیر نمی‌شدند ──
+const allOf = (tests, patient = M36) => { const e = runEngine({ patient, tests }); return { e, p: runPatterns(e) }; };
+const byId = (p, id) => p.findings.find((f) => f.rule_id === id);
+
+test("V14: روی — مرزهای IZiNCG (مرد ۶۱/۷۴، کودک ۵۷/۶۵)؛ µmol/L تبدیل؛ بی‌واحد و بارداری بی‌حکم؛ از خطِ «تفسیر نشدند» بیرون", () => {
+  const z = (v, u, pt) => byId(allOf([r("Zinc", v, u)], pt).p, "zinc_status");
+  assert.equal(z("60", "ug/dl").pattern, "zinc_low");
+  assert.equal(z("72", "µg/dL").pattern, "zinc_borderline");
+  assert.equal(z("90", "µg/dL").pattern, "zinc_ok");
+  assert.equal(z("130", "µg/dL").pattern, "zinc_high");
+  assert.equal(z("9", "µmol/L").pattern, "zinc_low");   // ۹ × ۶٫۵۴ ≈ ۵۸٫۸
+  assert.equal(z("60", "µg/dL", { sex: "M", age: 8 }).pattern, "zinc_borderline");   // کودک: ۵۷–۶۵
+  assert.equal(z("60", "µg/dL", { sex: "F", age: 28, pregnant: true }).pattern, "zinc_nojudge");
+  assert.equal(z("60", null), undefined, "بی‌واحد حکم نمی‌گیرد");
+  for (const v of ["60", "72", "90", "130"]) assert.equal(z(v, "µg/dL").urgency, "routine");
+  assert.match(z("60", "ug/dl").must_say, /\(61 میکروگرم در دسی‌لیتر، مربوط به نمونهٔ بعدازظهر\)/);
+});
+
+test("V15: H. pylori IgM — به qual و یافتهٔ بی‌حکم؛ h_pylori_result نمی‌خواندش؛ کنارِ آنتی‌ژنِ مدفوع پیشنهادِ تکراری ندارد", () => {
+  const { e, p } = allOf([r("H.Pylori IgM", "Positive")]);
+  assert.ok("H.Pylori IgM" in e.qual && !e.unmapped.includes("H.Pylori IgM"));
+  const f = byId(p, "hpylori_igm_result");
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /اعتبارِ کافی ندارد: چه مثبت باشد چه منفی/);
+  assert.ok(!byId(p, "h_pylori_result"));
+  const both = byId(allOf([r("H.Pylori IgM", "Positive"), r("H. pylori Ag (stool)", "Negative")]).p, "hpylori_igm_result");
+  assert.deepEqual(both.suggest, []);
+  assert.match(both.must_say, /روی همین برگه هست و تصمیم بر پایهٔ همان است/);
+});
+
+test("V16: لام — میکروسیتوز با MCVِ پایین/طبیعی/بالا/غایب چهار جملهٔ جدا؛ آنیزوسیتوز با RDW؛ «Negative» = دیده نشد", () => {
+  const s = (rows) => byId(allOf(rows).p, "smear_rbc_size")?.must_say ?? "";
+  assert.match(s([r("Microcytosis", "+"), r("MCV", "74", "fL")]), /هم‌خوان است/);
+  assert.match(s([r("Microcytosis", "+"), r("MCV", "88", "fL")]), /در محدوده است؛ توصیفِ لام کیفی است/);
+  assert.match(s([r("Microcytosis", "+"), r("MCV", "104", "fL")]), /هم‌جهت نیست/);
+  assert.match(s([r("Microcytosis", "+")]), /MCV روی این برگه نیست/);
+  assert.match(s([r("Anisocytosis", "++"), r("RDW-CV", "16.5", "%")]), /RDW.*هم‌خوان است/);
+  assert.match(s([r("Hypochromia", "Negative")]), /هیپوکرومی در لام دیده نشده است/);
+});
+
+test("V17: eAG — کنارِ HbA1c بی‌حکم؛ تنها: معادلِ HbA1c با ADAG (۱۵۴ ⇒ ۷٪ ⇒ this_week)؛ mmol/L؛ بی‌واحدِ مبهم بی‌حکم", () => {
+  const f = (rows) => byId(allOf(rows).p, "eag_result");
+  assert.match(f([r("Estimated Average Gl", "126", "mg/dl"), r("HbA1c", "6.0", "%")]).must_say, /جداگانه حکم نمی‌گیرد/);
+  const alone = f([r("Estimated Average Gl", "154", "mg/dl")]);
+  assert.equal(alone.urgency, "this_week");
+  assert.match(alone.must_say, /HbA1c ِ حدودِ 7٪/);
+  assert.match(f([r("eAG", "8.6", "mmol/L")]).must_say, /حدودِ 7٪/);   // (8.6 + 2.59) / 1.59 ≈ 7.0
+  assert.equal(f([r("eAG", "110", "mg/dL")]).urgency, "routine");          // ≈ 5.5٪
+  assert.match(f([r("eAG", "40")]).must_say, /واحدِ این عدد هم معلوم نشد/);
+});
+
+test("V18: شاخصِ آتروژنیک — فرمول از هویتِ عددی با چربی‌های همان برگه؛ AIPِ مولی با مرزِ Dobiášová؛ AIPِ mg/dL تبدیل؛ بی‌چربی بی‌حکم", () => {
+  const lip = [r("Cholesterol", "230", "mg/dL"), r("HDL", "50", "mg/dL"), r("TG", "150", "mg/dL")];
+  const a = (v, rows = lip) => byId(allOf([r("Atherosclerosis index", v), ...rows]).p, "atherogenic_index").must_say;
+  assert.match(a("4.6"), /شاخصِ کاستلیِ ۱/);
+  assert.doesNotMatch(a("4.6"), /گروهِ «/);
+  assert.match(a("0.12"), /نسبتِ مولی.*گروهِ «متوسط»/);           // log10((150/88.57)/(50/38.67)) ≈ 0.117
+  assert.match(a("0.48"), /با واحدِ mg\/dL حساب شده؛ AIP ِ استاندارد.*0\.12/);   // log10(150/50) = 0.477
+  assert.match(a("4.6", []), /معلوم نشد کدام است/);
+});
+
+test("V19: املاها — Alk.Ph، Fe، Vit D (25 OH)، PT Patient سنجیده می‌شوند؛ «Blood (RBC/Hgb)» خونِ ادرار؛ «U/C» کشتِ ادرار با نوبتِ بدتر؛ «Total» و کشتِ بی‌U/C حدس زده نمی‌شوند", () => {
+  const { e } = allOf([r("Alk.Ph", "350", "U/L"), r("Fe", "40", "ug/dl"), r("Vit D (25 OH)", "15", "ng/ml"), r("PT Patient", "13.6", "sec")]);
+  for (const k of ["ALP", "IRON", "VIT_D", "PT"]) assert.ok(e.graded.some((x) => x.test === k), `${k}: ${e.unmapped}`);
+  const blood = allOf([r("Blood (RBC/Hgb)", "2+")]);
+  assert.equal(blood.e.qual["Urine Blood"], "2+");
+  assert.ok(blood.p.findings.some((f) => /hematuria/.test(f.rule_id)), blood.p.findings.map((f) => f.rule_id).join());
+  assert.ok(allOf([r("Blood (RBC/Hgb)", "12")]).e.unmapped.includes("Blood (RBC/Hgb)"));
+  const uc = byId(allOf([r("U/C First", "Negative"), r("Culture(after 48 hrs)", "E. coli >100000 CFU/ml")]).p, "urine_culture_result");
+  assert.equal(uc.urgency, "this_week", "مثبتِ ۴۸ ساعته زیرِ منفیِ نوبتِ اول گم نشود");
+  assert.ok(allOf([r("Culture(after 48 hrs)", "No growth")]).e.unmapped.includes("Culture(after 48 hrs)"));
+  assert.ok(allOf([r("Total", "6.8", "g/dl")]).e.unmapped.includes("Total"));
+});
+
+test("V20: همان شخص — سنِ امروز باید با سنِ نوبتِ قبلی + فاصله بخواند (رواداری ۱٫۵ سال)", () => {
+  const pr = (age) => ({ ...priorAlt(46, "2026-08-11"), age });
+  const at = (age, prior) => runEngine({ patient: { sex: "M", age }, tests: ALT48, prior, sampleDate: "2026-10-16" }).prior;
+  assert.ok(at(36, pr(36)), "همان سن، ۹ هفته بعد");
+  assert.ok(at(37, pr(36)), "تولد میانِ دو نوبت");
+  assert.equal(at(36, pr(62)), undefined, "سنِ دیگر ⇒ شخصِ دیگر");
+  assert.ok(at(36, priorAlt(46, "2026-08-11")), "سنِ قبلی نامعلوم ⇒ فقط جنس سنجیده می‌شود");
+});

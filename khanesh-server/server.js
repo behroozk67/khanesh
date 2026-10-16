@@ -98,7 +98,9 @@ export function priorFromStoredResult(row) {
   const c = String(row.created_at);
   const date = eng.context?.sample_date ?? (/[zZ]|[+-]\d\d:?\d\d$/.test(c) ? c : c.replace(" ", "T") + "Z");
   const sex = eng.context?.sex === "مرد" ? "M" : eng.context?.sex === "زن" ? "F" : null;
-  return { date, graded, ...(sex ? { sex } : {}) };
+  // سن از همان متنِ context («۳۸ سال»، «۶ ماه») با همان خواننده‌ای که برگه را می‌خواند.
+  const age = eng.context?.age_text ? inferAge({ patient: { age: eng.context.age_text } }) : null;
+  return { date, graded, ...(sex ? { sex } : {}), ...(typeof age === "number" ? { age } : {}) };
 }
 
 export function engineContext(engineOut, patternOut) {

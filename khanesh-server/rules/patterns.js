@@ -11,6 +11,7 @@ import { RULES_ENDOCRINE_PITUITARY } from "./patterns_endocrine_pituitary.js";
 import { RULES_REPRODUCTIVE } from "./patterns_reproductive.js";
 import { RULES_UNIT_UNKNOWN } from "./patterns_unit_unknown.js";
 import { RULES_TRACE_ELEMENTS } from "./patterns_trace_elements.js";
+import { RULES_P109 } from "./patterns_p109.js";
 import { RULES_URINE_CASTS } from "./patterns_urine_casts.js";
 import { RULES_URINALYSIS } from "./patterns_urinalysis.js";
 import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
@@ -67,7 +68,9 @@ export const RULES = [
   // بازبینیِ چندعاملیِ ۲۰۲۶-۱۰-۱۳ (P104): بیلی‌روبینِ نوزاد با نمودارِ ساعتی، HELLP/پره‌اکلامپسیِ شدید در بارداری.
   ...RULES_REVIEW1013,
   // specs/013: دابل/کوآد مارکر — از کانالِ جدای e.prenatal، بی‌نمره.
-  ...RULES_PRENATAL
+  ...RULES_PRENATAL,
+  // P109: eAG، شاخصِ آتروژنیک، IgMِ هلیکوباکتر، اندازه/رنگِ گلبول در لام.
+  ...RULES_P109
 ];
 bindP73Owners(RULES);
 // specs/016 (P100): متنِ تخصصیِ کادرِ درمان روی شیءِ قاعده. فقط rules/expert.js آن را می‌خواند؛ به حکم، فوریت و پرامپت نمی‌رسد.

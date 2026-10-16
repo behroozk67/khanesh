@@ -370,8 +370,13 @@ function cultureState(raw, kind = "urine") {
   return "unknown";
 }
 function urineCultureBuild(e) {
-  const r = qualRows(e, /^urineculture/)[0];
-  const st = cultureState(r.raw);
+  // P109: برگه گاهی دو نوبت چاپ می‌کند («U/C First» و «Culture (after 48 hrs)»). نوبتِ بدتر ملاک است — مثبتِ ۴۸ ساعته زیرِ منفیِ
+  //   نوبتِ اول گم نمی‌شود (پیش‌تر فقط ردیفِ اول خوانده می‌شد).
+  const RANK = { pos: 3, contaminated: 2, unknown: 1, neg: 0 };
+  const r = qualRows(e, /^urineculture/)
+    .map((x) => ({ ...x, st: cultureState(x.raw) }))
+    .reduce((a, b) => (RANK[b.st] > RANK[a.st] ? b : a));
+  const st = r.st;
   const urgency = st === "pos" ? "this_week" : "routine";
   const body = {
     pos: `کشت ادرار «${r.raw}» گزارش شده است؛ یعنی باکتری یا قارچی در نمونه رشد کرده. اینکه این عفونتِ واقعی است یا نه به تعدادِ کلنی، علائمِ شما (سوزش، تکررِ ادرار، تب، دردِ پهلو) و روشِ نمونه‌گیری بستگی دارد؛ در خانمِ باردار حتی بدونِ علامت مهم است. آنتی‌بیوگرامِ همین کشت نشان می‌دهد کدام دارو اثر دارد.`,

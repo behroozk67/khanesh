@@ -231,6 +231,9 @@ khanesh-project/
 │   │   ├── patterns_serology.js # specs/012 (P68): VDRL/RPR، سرخجه IgG، کومبس غیرمستقیم، هلیکوباکتر — بی‌هیچ آستانهٔ ثابت (C1):
 │   │   │                        #   فقط مرز/واژهٔ چاپ‌شده؛ Anti-Tg/TRAb در قاعدهٔ thyroid (patterns_endocrine_rheum.js)
 │   │   ├── patterns_prenatal.js # specs/013 (P81): دابل/کوآد مارکر از کانالِ جدای e.prenatal — ۱۴ قاعده، فقط آستانه‌های ✅؛ خطرِ چاپ‌شدهٔ آزمایشگاه مقدم
+│   │   ├── patterns_p109.js     # P109: eAG (ADAG)، شاخصِ آتروژنیک (فرمول از هویتِ عددی؛ مرز فقط AIP)، IgMِ هلیکوباکتر (بی‌حکم)، لامِ گلبولِ قرمز کنارِ MCV/RDW
+│   │   ├── minor.js             # P108-ب: جدولِ سه‌ردهٔ «انحرافِ جزئی» (EFLM) و سقفِ routine برای برگهٔ تقریباً سالم
+│   │   ├── sampledate.js        # P108-ج: تاریخِ نمونهٔ چاپ‌شده (شمسی/میلادی) ⇒ ISO؛ فاصلهٔ دو نوبتِ ALT/AST
 │   │   ├── specimen.js          # specs/014 (P87، مرحلهٔ الف): هویتِ ادرارِ ۲۴ساعته/مایعِ بدن، پیش از NAME_MAP ⇒ e.specimen؛ تنها خواننده patterns_specimen.js (U14)
 │   │   ├── patterns_specimen.js # specs/014 مرحلهٔ ب (P87 بند ۱۴): ۴ قاعده: csf_glucose_low (emergency)، pleural_glucose_low (soon)، ascites_runyon_pattern (soon)، pregnancy_proteinuria_24h (soon/emergency، فقط با بارداریِ اعلام‌شده) (کلسیمِ ۲۴ساعته از ۲۰۲۶-۱۰-۰۶ همان U_CA است ⇒ urine_calcium_abnormal، P87 تصمیمِ ۸)؛ واحدِ مبهم نمره نمی‌گیرد؛ پروتئین/اوره/اسید اوریکِ ۲۴ساعته و CSFِ شیرخوار بی‌قاعده
 │   │   ├── prenatal.js          # specs/013: هویتِ ردیف (ادعای دوگذری: نامِ قوی یا MoM ⇒ AFP/hCGِ ضعیف هم) — مشترکِ adapter و قاعده‌ها

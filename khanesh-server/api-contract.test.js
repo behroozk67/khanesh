@@ -737,7 +737,9 @@ test("T21: برگه‌ای که فقط آنالیتِ بی‌بازهٔ فصلِ
   assert.equal(body.has_critical, false);
   assert.doesNotMatch(`${body.summary} ${body.interpretation}`, /در محدوده طبیعی است/);
   const warn = (body.ocr_warnings || []).join(" ");
-  for (const fa of ["روی", "سرولوپلاسمین"]) assert.ok(warn.includes(fa), `«${fa}» در هشدار نیست: ${warn}`);
+  // P109 (عمدی): رویِ با واحد حالا خوانندهٔ zinc_status (IZiNCG) دارد و از خطِ «تفسیر نشدند» بیرون می‌رود؛ سرولوپلاسمینِ ۲۵ می‌ماند.
+  assert.ok(warn.includes("سرولوپلاسمین"), `«سرولوپلاسمین» در هشدار نیست: ${warn}`);
+  assert.ok(body._engine.patterns.includes("zinc_status"), JSON.stringify(body._engine.patterns));
   assert.doesNotMatch(JSON.stringify(body), /"(ZINC|CERULOPLASMIN|ANTI_IF)"|\b(ZINC|CERULOPLASMIN|ANTI_IF)\b(?!")/, "کلیدِ خام به پاسخ رسید");
 });
 
@@ -749,7 +751,8 @@ test("T22: سرولوپلاسمینِ پایین یافتهٔ ویلسون می�
   assert.ok(body?._engine?.patterns?.includes("wilson_evaluation"), JSON.stringify(body?._engine?.patterns));
   assert.equal(body.has_critical, false);
   const warn = (body.ocr_warnings || []).find((w) => /محدوده مرجع نداریم/.test(w)) ?? "";
-  assert.ok(warn.includes("روی"), `«روی» در هشدار نیست: ${warn}`);
+  // P109 (عمدی): رویِ ۸۰ µg/dL حالا zinc_status می‌گیرد (کمبود را نشان نمی‌دهد) و دیگر «تفسیر نشدند» نیست.
+  assert.ok(!warn.includes("روی"), `رویِ تفسیرشده هنوز «تفسیر نشدند» است: ${warn}`);
   assert.ok(!warn.includes("سرولوپلاسمین"), `سرولوپلاسمینِ تفسیرشده هنوز «تفسیر نشدند» است: ${warn}`);
   assert.doesNotMatch(JSON.stringify(body), /\b(ZINC|CERULOPLASMIN|U_COPPER_24H)\b/, "کلیدِ خام به پاسخ رسید");
 });
@@ -1422,4 +1425,11 @@ test("T61: P108-ج — mergePages تاریخِ نمونه را از هر صفح�
   const row = { created_at: "2026-10-16 08:00:00", result: { _engine: { context: { sample_date: "2026-08-11" },
     tests: [{ key: "ALT", value: 46, abnormal: true, dir: "high", range: "0–41" }] } } };
   assert.equal(priorFromStoredResult(row).date, "2026-08-11");
+});
+
+test("T62: P109 — priorFromStoredResult سن را از context.age_text می‌خواند («۳۸ سال» ⇒ 38)", async () => {
+  const { priorFromStoredResult } = await import("./server.js");
+  const p = priorFromStoredResult({ created_at: "2026-08-21 10:00:00", result: { _engine: { context: { sex: "مرد", age_text: "۳۸ سال" },
+    tests: [{ key: "ALT", value: 46, abnormal: true, dir: "high", range: "0–41" }] } } });
+  assert.equal(p.age, 38);
 });

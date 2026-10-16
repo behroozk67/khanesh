@@ -58,7 +58,8 @@ test("S01: مسیریابیِ سرولوژی — هر ردیف به کانالِ
   }
   // عمداً unmapped: خواننده ندارند (N28) — نامشان در «تفسیر نشدند» می‌آید، نه سکوت
   for (const [name, value] of [
-    ["Rubella IgM", "Positive"], ["H. pylori IgA", "Positive"], ["H. pylori IgM", "Negative"],
+    // P109 (عمدی): «H. pylori IgA/IgM» حالا به qual می‌رود و hpylori_igm_result (بی‌حکم) می‌خواندش — V15 در review1016.test.js.
+    ["Rubella IgM", "Positive"],
     ["Direct Coombs", "Positive"], ["DAT", "Positive"], ["Coombs", "Positive"],
   ]) {
     const r = run([{ name, value }]);

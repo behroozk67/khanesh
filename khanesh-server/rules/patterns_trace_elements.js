@@ -81,8 +81,69 @@ function urineCopperClause(e) {
 }
 
 const wilsonAgeOk = (e) => !(e.age != null && e.age < WILSON_MIN_AGE_Y);
+// مالکِ رویِ سرم وقتی مسِ پایین هم هست copper_deficiency است (روی را در متنش سه‌حالته می‌گوید)؛ zinc_status کنار می‌رود (N20).
+const copperDeficiencyFires = (e) => {
+  const cu = ugdlOf(noRangeOf(e, "COPPER"), CU_UGDL_PER_UMOLL);
+  return cu != null && cu < COPPER_LOW_UGDL && wilsonAgeOk(e);
+};
+
+// ── P109 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): رویِ سرم با مرزهای IZiNCG ──
+// IZiNCG Technical Brief No. 2 (2012؛ برگرفته از Hotz 2003، صدکِ ۲٫۵ ِ NHANES II): حدِ پایینِ رویِ سرم (µg/dL) بر حسبِ زمان و ناشتایی.
+//   کودک < ۱۰ سال: صبحِ غیرناشتا ۶۵، بعدازظهر ۵۷ (ناشتا ندارد)؛ زنِ غیرباردار ≥ ۱۰: صبحِ ناشتا ۷۰، صبحِ غیرناشتا ۶۶، بعدازظهر ۵۹؛
+//   مرد ≥ ۱۰: ۷۴ / ۷۰ / ۶۱. ⚠️ عددها از بازتولیدِ جدولِ IZiNCG خوانده شد، نه خودِ PDF (MEDICAL_RULES.md P109).
+// زمان و ناشتایی روی برگه نیست ⇒ زیرِ مرزِ بعدازظهر «پایین»، تا مرزِ بالاترین حالت «مرزی»، بالاتر «کمبود را نشان نمی‌دهد».
+// جنسِ نامعلوم ⇒ مرزهای زن (کمتر؛ «پایین» کمتر گفته می‌شود). بارداری و زیرِ یک سال ⇒ بی‌حکم (مرزِ جدا دارند و این‌جا نیست).
+const ZINC_CUTOFFS = { child: { top: 65, low: 57 }, F: { top: 70, low: 59 }, M: { top: 74, low: 61 } };
+function zincCutoffs(e) {
+  if (e.pregnant || (e.age != null && e.age < 1)) return null;
+  if (e.age != null && e.age < 10) return ZINC_CUTOFFS.child;
+  return e.sex === "M" ? ZINC_CUTOFFS.M : ZINC_CUTOFFS.F;
+}
 
 export const RULES_TRACE_ELEMENTS = [
+  {
+    id: "zinc_status",
+    match: (e) => ugdlOf(noRangeOf(e, "ZINC"), ZN_UGDL_PER_UMOLL) != null && !copperDeficiencyFires(e),
+    build: (e) => {
+      const entry = noRangeOf(e, "ZINC");
+      const zn = ugdlOf(entry, ZN_UGDL_PER_UMOLL);
+      const shown = shownWith(entry, zn, "µg/dL");
+      const c = zincCutoffs(e);
+      const infl = hasInflammation(e)
+        ? " نشانگرِ التهاب (CRP/ESR) روی همین برگه بالاست؛ در التهاب و عفونت رویِ سرم به‌طورِ موقت پایین می‌آید، پس این عدد را باید بعد از رفعِ التهاب دوباره سنجید."
+        : "";
+      let state, text;
+      if (zn > ZINC_HIGH_UGDL) {
+        state = "high";
+        text = `رویِ سرمِ شما ${shown} است و از حدِ بالای معمولِ آزمایشگاه‌ها (حدودِ ${ZINC_HIGH_UGDL}) بیشتر است. رویِ زیاد اغلب از مکمل می‌آید و مصرفِ طولانیِ آن می‌تواند جذبِ مس را کم کند؛ مصرفِ مکملِ روی را به پزشک بگویید.`;
+      } else if (!c) {
+        state = "nojudge";
+        text = `رویِ سرمِ شما ${shown} است. برای ${e.pregnant ? "بارداری" : "زیرِ یک سال"} مرزِ جداگانه‌ای لازم است که این‌جا نداریم، پس درباره‌اش حکم نمی‌دهیم.`;
+      } else if (zn < c.low) {
+        state = "low";
+        text = `رویِ سرمِ شما ${shown} است و حتی از پایین‌ترین مرزِ گروهِ بین‌المللیِ مشاورهٔ تغذیهٔ روی (IZiNCG) برای سن و جنسِ شما (${c.low} میکروگرم در دسی‌لیتر، مربوط به نمونهٔ بعدازظهر) کمتر است؛ این با کمبودِ روی می‌خواند.${infl} کمبودِ روی می‌تواند با کندیِ ترمیمِ زخم، ریزشِ مو، کاهشِ اشتها و حسِ چشایی، یا عفونت‌های مکرر همراه باشد.`;
+      } else if (zn < c.top) {
+        state = "borderline";
+        text = `رویِ سرمِ شما ${shown} است. مرزِ پایینِ رویِ سرم به زمانِ نمونه‌گیری و ناشتابودن بستگی دارد (برای سن و جنسِ شما بین ${c.low} و ${c.top} میکروگرم در دسی‌لیتر، طبقِ IZiNCG) و این عدد در همین فاصله است؛ پس مرزی است و به‌تنهایی کمبود را ثابت نمی‌کند.${infl}`;
+      } else {
+        state = "ok";
+        text = `رویِ سرمِ شما ${shown} است و از مرزِ پایینِ IZiNCG برای سن و جنسِ شما (${c.top} میکروگرم در دسی‌لیتر) کمتر نیست؛ کمبودِ روی را نشان نمی‌دهد.`;
+      }
+      return {
+        pattern: `zinc_${state}`,
+        urgency: "routine",
+        key_number: zn,
+        headline: { high: "رویِ سرمِ شما بالاتر از حدِ معمول است", low: "رویِ سرمِ شما پایین است", borderline: "رویِ سرمِ شما مرزی است", ok: "رویِ سرم", nojudge: "رویِ سرم" }[state],
+        must_say: text,
+        action: state === "low" || state === "high"
+          ? "در نوبتِ عادی با پزشک مطرح کنید؛ خودسرانه مکملِ روی با دوزِ بالا شروع یا قطع نکنید."
+          : "در نوبتِ عادی با پزشک مطرح کنید.",
+        suggest: state === "low" || state === "borderline" ? ["تکرار روی سرم، صبح و ناشتا"] : [],
+        warnings: [],
+        explains: ["ZINC"],
+      };
+    },
+  },
   {
     id: "copper_deficiency",
     // مسِ سرمِ پایین، فقط با واحدِ چاپ‌شده. زیرِ یک سال مس به‌طورِ طبیعی پایین است (همان مرزِ ویلسون).

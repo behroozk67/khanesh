@@ -7522,7 +7522,8 @@ const NEW_ANALYTES = [
 
 test("M146: آنالیت‌های تازهٔ فصلِ ویتامین/عناصرِ کمیاب شناخته می‌شوند، بی‌قضاوت (FR-007، FR-008، FR-011b)", () => {
   // 🔴 روی 2d32dd3 همه unmapped بودند — بیمار هیچ نشانی نمی‌دید که عددش خوانده شده.
-  for (const [name, v, unit, key] of [...NEW_ANALYTES, ["Zinc", "80", null, "ZINC"]]) {
+  // P109 (عمدی): «Zinc» از این فهرست بیرون آمد — حالا zinc_status (IZiNCG) دارد؛ گاردش V14 در review1016.test.js.
+  for (const [name, v, unit, key] of NEW_ANALYTES.filter(([, , , k]) => k !== "ZINC")) {
     const e = uuu([[name, v, null, unit]]);
     const p = runPatterns(e);
     assert.deepEqual(e.unmapped, [], `${name} نگاشت نشد`);
@@ -7579,7 +7580,8 @@ test("M149: فولاتِ گلبولِ قرمز و مسِ ادرارِ ۲۴ساع
 
 test("M150: آنالیتِ تازه کنارِ CBC یافته‌های CBC را عوض نمی‌کند (سناریوی ۵)", () => {
   const cbc = [["Hb", "9.5", null, "g/dL"], ["MCV", "70", null, "fL"], ["Ferritin", "6", null, "ng/mL"]];
-  const strip = (p) => JSON.stringify(p.findings.map(({ pattern, urgency, must_say }) => ({ pattern, urgency, must_say })));
+  // P109: یافتهٔ خودِ روی (zinc_status) کنار گذاشته می‌شود؛ ادعای آزمون این است که یافته‌های CBC عوض نشوند.
+  const strip = (p) => JSON.stringify(p.findings.filter((f) => !/^zinc_/.test(f.pattern)).map(({ pattern, urgency, must_say }) => ({ pattern, urgency, must_say })));
   assert.equal(strip(uuuRun([...cbc, ["Zinc", "50", null, "µg/dL"], ["Anti-Intrinsic Factor", "Positive"]])), strip(uuuRun(cbc)));
 });
 
@@ -7720,7 +7722,8 @@ test("M151d: سرولوپلاسمین فقط با واحدِ چاپ‌شده س�
 
 test("M151e: مقداری که یافته‌ای توضیحش داده از خطِ «تفسیر نشدند» بیرون می‌رود (P49، N20)", () => {
   // وگرنه بیمار زیرِ یافتهٔ ویلسون می‌خواند «برای سرولوپلاسمین محدوده مرجع نداریم، تفسیر نشدند».
-  const e = uuu([["Ceruloplasmin", "10", null, "mg/dL"], ["Urine Copper 24h", "150", null, "µg/24h"], ["Zinc", "80", null, "µg/dL"]]);
+  // P109: رویِ *بی‌واحد* (حکم ندارد) — رویِ با واحد حالا zinc_status دارد و در خط نمی‌ماند.
+  const e = uuu([["Ceruloplasmin", "10", null, "mg/dL"], ["Urine Copper 24h", "150", null, "µg/24h"], ["Zinc", "80", null, null]]);
   const p = runPatterns(e);
   assert.deepEqual(unexplainedNoRef(e.noRef, p.findings), ["ZINC"]);
   // وقتی یافته فعال نیست (بی‌واحد)، سرولوپلاسمین در خط می‌ماند
@@ -10422,7 +10425,8 @@ test("M202g: کنارِ acute_leukemia_suspicion فقط یک یافته از ب�
 test("M202h: قفل — «Band» و «Anisocytosis» همان «تفسیر نشدند» می‌مانند؛ واژگانِ لام بسته است نه اسکنرِ عمومی", () => {
   // روی هر دو درخت سبز.
   // ۲۰۲۶-۱۰-۰۳ (P67): «Band» از این فهرست بیرون آمد — حالا BAND_PCT/BAND_ABS است و bandemia/differential_without_wbc می‌خوانندش (M290).
-  for (const [n, v, u] of [["Anisocytosis", "++", null], ["Myelocyte", 7, "%"]]) {
+  // P109 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶، عمدی): «Anisocytosis» حالا در rbcMorph است و smear_rbc_size کنارِ RDW می‌خواندش (V16).
+  for (const [n, v, u] of [["Myelocyte", 7, "%"]]) {
     const { e } = s9Run("M", 40, s9CBC(9, [s9T(n, v, u)]));
     assert.ok(e.unmapped.includes(n), `«${n}» دیگر در «تفسیر نشدند» نیست`);
     assert.deepEqual(s9Present(e), []);

@@ -24,7 +24,6 @@ const HP_PREFIX = /^(hpylori|helicobacterpylori|helicobacter|هلیکوباکت�
 // ── ردیف‌هایی که عمداً خواننده ندارند → unmapped («تفسیر نشدند»)، نه qual (N28: کانالِ بی‌خواننده سکوت است) ──
 const UNREAD_RE = [
   /^(anti)?(rubella|سرخجه)(igm|igmantibody|igmab|antibodyigm|abigm)?$/,   // IgM، یا سرخجهٔ بی‌نوع (IgG یا IgM؟)
-  /^(hpylori|helicobacter|هلیکوباکتر|hp(?=(ag|ab|igg|iga|igm|antigen|antibody|stool|sa))).*(iga|igm)/,
   /^(directcoombs(test)?|coombsdirect(test)?|directantiglobulin(test)?|dat|dct|کومبسمستقیم)$/,
   /^(coombs(test)?|کومبس)$/,                                      // کومبسِ بی‌نوع: مستقیم؟ غیرمستقیم؟ رایت؟
 ];
@@ -37,6 +36,11 @@ const TRAB_RE = /^(trab|tsi|tbii|tshreceptorab|tshreceptorantibody|tshreceptoran
 // خودِ تیروگلوبولین (نشانگرِ پیگیریِ سرطانِ تیروئید) — نه آنتی‌بادی‌اش. «Tg»ِ تنها عمداً این‌جا نیست: تری‌گلیسیرید است (N25).
 const THYROGLOBULIN_RE = /^(thyroglobulin|serumthyroglobulin|tgthyroglobulin|تیروگلوبولین)$/;
 
+// P109 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): IgM/IgAِ هلیکوباکتر پیش‌تر عمداً بی‌خواننده (unmapped) بود. حالا به qual می‌رود و تنها خواننده‌اش
+//   hpylori_igm_result است — بی‌حکم (مثبت/منفی عفونتِ فعال را نشان نمی‌دهد) و با معرفیِ آزمایشِ معتبر. h_pylori_result آن را نمی‌خواند
+//   (isHpyloriKey همچنان iga/igm را بیرون می‌گذارد).
+const HP_IGM_RE = /^(hpylori|helicobacterpylori|helicobacter|هلیکوباکترپیلوری|هلیکوباکتر|hp(?=(ag|ab|igg|iga|igm|antigen|antibody|stool|sa))).*(iga|igm)/;
+export const isHpyloriIgmKey = (key) => HP_IGM_RE.test(k0(key));
 export const isSyphilisKey = (key) => SYPH_RE.test(k0(key));
 export const isRubellaIggKey = (key) => RUBELLA_IGG_RE.test(k0(key));
 export const isIctKey = (key) => ICT_RE.test(k0(key));
@@ -331,6 +335,7 @@ export function autoAbState(e, id) {
 export function routeSerology(key, t, sexHint = null) {
   const k = k0(key);
   if (UNREAD_RE.some((re) => re.test(k))) return { to: "unmapped" };
+  if (HP_IGM_RE.test(k)) return String(t.value ?? "").trim() ? { to: "qual" } : { to: "unmapped" };
 
   const aiKey = autoKeyOf(k);
   if (aiKey) {
