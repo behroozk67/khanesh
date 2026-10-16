@@ -184,18 +184,18 @@ const byId = (p, id) => p.findings.find((f) => f.rule_id === id);
 // P110: یافتهٔ بی‌اقدام در runPatterns به یک خط تبدیل می‌شود؛ متنِ کاملِ قاعده را مستقیم از build می‌خوانیم.
 const fullOf = (rows, id) => { const e = runEngine({ patient: M36, tests: rows }); return RULES.find((x) => x.id === id).build(e); };
 
-test("V14: روی — مرزهای IZiNCG (مرد ۶۱/۷۴، کودک ۵۷/۶۵)؛ µmol/L تبدیل؛ بی‌واحد و بارداری بی‌حکم؛ از خطِ «تفسیر نشدند» بیرون", () => {
+test("V14: روی — بی‌بازهٔ چاپی فقط مرزِ صبحِ غیرناشتای IZiNCG (مرد ۷۰، کودک ۶۵) (P110-ب، پیش‌تر سه مرز)؛ µmol/L تبدیل؛ بی‌واحد و بارداری بی‌حکم", () => {
   const z = (v, u, pt) => byId(allOf([r("Zinc", v, u)], pt).p, "zinc_status");
   assert.equal(z("60", "ug/dl").pattern, "zinc_low");
-  assert.equal(z("72", "µg/dL").pattern, "zinc_borderline");
+  assert.equal(z("72", "µg/dL").pattern, "zinc_ok");   // پیش‌تر «مرزی» (۷۰–۷۴)؛ تصمیمِ بازبین: یک مرز
   assert.equal(z("90", "µg/dL").pattern, "zinc_ok");
   assert.equal(z("130", "µg/dL").pattern, "zinc_high");
   assert.equal(z("9", "µmol/L").pattern, "zinc_low");   // ۹ × ۶٫۵۴ ≈ ۵۸٫۸
-  assert.equal(z("60", "µg/dL", { sex: "M", age: 8 }).pattern, "zinc_borderline");   // کودک: ۵۷–۶۵
+  assert.equal(z("60", "µg/dL", { sex: "M", age: 8 }).pattern, "zinc_low");   // کودک: ۶۵
   assert.equal(z("60", "µg/dL", { sex: "F", age: 28, pregnant: true }).pattern, "zinc_nojudge");
   assert.equal(z("60", null), undefined, "بی‌واحد حکم نمی‌گیرد");
   for (const v of ["60", "72", "90", "130"]) assert.equal(z(v, "µg/dL").urgency, "routine");
-  assert.match(z("60", "ug/dl").must_say, /\(61 میکروگرم در دسی‌لیتر، مربوط به نمونهٔ بعدازظهر\)/);
+  assert.match(z("60", "ug/dl").must_say, /آزمایشگاه بازه‌ای چاپ نکرده؛ .*صبحِ غیرناشتا 70 میکروگرم/);
 });
 
 test("V15: H. pylori IgM — به qual و یافتهٔ بی‌حکم؛ h_pylori_result نمی‌خواندش؛ کنارِ آنتی‌ژنِ مدفوع پیشنهادِ تکراری ندارد", () => {
@@ -377,7 +377,7 @@ test("V29: خوانش — «Total» ِ جمعِ فرمول، Microcytosis ِ خ�
   assert.ok(Object.keys(e.qual).some((k) => /Ep\.cell/.test(k)));
   assert.ok(g(e, "CRP_Q"), "CRP-Q");
   const zn = byId(p, "zinc_status");
-  assert.match(zn.must_say, /واحد روی برگه چاپ نشده؛ بازهٔ چاپ‌شدهٔ 72–127/);
+  assert.match(zn.must_say, /^رویِ سرم 95: داخلِ بازهٔ چاپ‌شدهٔ آزمایشگاه \(72–127\)$/);   // P110-ب: حکم از بازهٔ چاپی
   const plt = run([r("PLT", "120", "x10^3/uL"), r("PDW", "16.2", "%", "9-20")]).p;
   const pi = byId(plt, "platelet_indices_context");
   assert.match(pi.must_say, /PDW.* 16\.2 \(بازهٔ چاپ‌شدهٔ آزمایشگاه 9-20\)/);
@@ -392,4 +392,69 @@ test("V30: بی‌اقدام فقط routine است — یافتهٔ فوری‌�
   assert.equal(f.urgency, "this_week");
   assert.ok(!f.minor);
   assert.ok(f.suggest.length > 0);
+});
+
+// ═══ P110-ب (تصمیمِ بازبینِ کاربر ۲۰۲۶-۱۰-۱۶): معیارِ کشوریِ تالاسمی، آهنِ تنها، روی با بازهٔ چاپی، eAG با HbA1c، AIP، جنس از عنوان ═══
+test("V31: آهنِ سرمِ پایینِ تنها ⇒ iron_low_alone (بی‌«توضیحِ آماده نداریم»)؛ با فریتینِ ۸۵ یک خط؛ کنارِ کم‌خونیِ میکروسیتیک کنار می‌رود", () => {
+  const alone = run([r("Fe", "40", "ug/dL"), r("Hb", "15", "g/dL")]).p;
+  const f = byId(alone, "iron_low_alone");
+  assert.ok(f, alone.findings.map((x) => x.rule_id).join());
+  assert.ok(!byId(alone, "unmatched_abnormal") && !byId(alone, "unexplained_abnormal"));
+  assert.match(f.must_say, /^آهنِ سرمِ شما 40 است \(حد طبیعی .+\)\. آهنِ سرم به‌تنهایی کمبودِ آهن را نشان نمی‌دهد/);
+  assert.deepEqual(f.suggest, ["فریتین"]);
+  const withFer = byId(run([r("Fe", "40", "ug/dL"), r("Ferritin", "85", "ng/mL"), r("Hb", "15", "g/dL")]).p, "iron_low_alone");
+  assert.equal(withFer.minor, true);
+  assert.match(withFer.must_say, /فریتینِ 85/);
+  assert.ok(!byId(run([r("Fe", "40", "ug/dL"), r("Hb", "9", "g/dL"), r("MCV", "70", "fL")]).p, "iron_low_alone"), "N20: مالکِ کم‌خونی");
+});
+
+test("V32: معیارِ کشوری — MCH < ۲۷ با MCVِ طبیعی دیگر «توضیحِ آماده نداریم» نیست؛ جملهٔ مشروطِ غربالگری، نه درخواستِ مستقیم", () => {
+  const p = run([r("Hb", "15", "g/dL"), r("MCV", "82", "fL"), r("MCH", "26.5", "pg"), r("RBC", "5.6", "x10^6/uL")]).p;
+  const f = byId(p, "microcytosis_no_anemia");
+  assert.ok(f && !byId(p, "unmatched_abnormal"), p.findings.map((x) => x.rule_id).join());
+  assert.match(f.must_say, /^اندازهٔ متوسط گلبول‌ها \(MCV\) 82 در محدوده است، ولی MCH شما 26\.5/);
+  assert.ok(!f.suggest.includes("الکتروفورز هموگلوبین"));
+  assert.ok(f.warnings.some((w) => /یا تا حالا غربالگریِ تالاسمی نشده‌اید/.test(w)));
+});
+
+test("V33: MCV < ۷۸ و MCH < ۲۶ ⇒ الکتروفورزِ مستقیم حتی با فریتینِ ۸۵؛ هشدارِ آهن فقط با فریتین، نه منتزر", () => {
+  const f = byId(run([r("Hb", "15", "g/dL"), r("MCV", "76", "fL"), r("MCH", "25", "pg"), r("RBC", "5.2", "x10^6/uL"), r("Ferritin", "85", "ng/mL")]).p, "microcytosis_no_anemia");
+  assert.ok(f.suggest.includes("الکتروفورز هموگلوبین"));
+  assert.ok(!f.warnings.some((w) => /قرص آهن/.test(w)));
+  // منتزرِ ۱۲٫۳ (thal_trait) با فریتینِ ۸۵: پیش‌تر «قرص آهن نخورید» بی‌شرط و الکتروفورزِ مستقیم؛ MCV ۷۹ ⇒ مشروط
+  const t = byId(run([r("Hb", "14.5", "g/dL"), r("MCV", "79", "fL"), r("MCH", "26.5", "pg"), r("RBC", "6.4", "x10^6/uL"), r("Ferritin", "85", "ng/mL")]).p, "thal_trait_no_anemia");
+  assert.ok(!t.warnings.some((w) => /قرص آهن/.test(w)), t.warnings.join(" | "));
+  assert.ok(!t.suggest.includes("الکتروفورز هموگلوبین"));
+  assert.ok(t.warnings.some((w) => /غربالگریِ تالاسمی نشده‌اید/.test(w)));
+});
+
+test("V34: روی با بازهٔ چاپ‌شده — ۶۵ کنارِ ۷۲–۱۲۷ «پایین» است (پیش‌تر با IZiNCG ۷۰–۷۴ «پایین» نبود)", () => {
+  const f = byId(run([r("Zinc", "65", null, "72-127")]).p, "zinc_status");
+  assert.equal(f.pattern, "zinc_low");
+  assert.match(f.must_say, /از حدِ پایینِ بازهٔ چاپ‌شدهٔ آزمایشگاه \(72–127\) کمتر است/);
+});
+
+test("V35: eAG ِ بی‌واحد — واحد با HbA1c ِ همان برگه تأیید می‌شود؛ بی‌HbA1c حدس از بزرگی نه (بی‌حکم)", () => {
+  const ok = byId(run([r("Estimated Average Gl", "91.06"), r("HbA1c", "4.8", "%")]).p, "eag_result");
+  assert.match(ok.must_say, /^میانگینِ تخمینیِ قند \(eAG\) 91\.06 mg\/dL: برگردانِ همان HbA1c/);
+  const bad = byId(run([r("Estimated Average Gl", "150"), r("HbA1c", "4.8", "%")]).p, "eag_result");
+  assert.match(bad.must_say, /جور نیست/);
+  const none = byId(run([r("Estimated Average Gl", "154")]).p, "eag_result");
+  assert.equal(none.urgency, "routine", "۱۵۴ ِ بی‌واحد پیش‌تر از بزرگی mg/dL ⇒ HbA1c ۷ ⇒ this_week");
+  assert.ok(none.minor);
+});
+
+test("V36: AIP ِ «بیشتر» هم یک خطِ بی‌پیگیری است", () => {
+  const f = byId(run([r("Atherosclerosis index", "0.44"), r("Triglycerides", "250", "mg/dL"), r("HDL", "40", "mg/dL")]).p, "atherogenic_index");
+  assert.equal(f.minor, true);
+  assert.match(f.must_say, /«بیشتر»/);
+});
+
+test("V37: جنس از عنوانِ پیش از نام (آقای/خانم/Mr/Mrs) وقتی OCR خودِ عنوان را برمی‌گرداند", () => {
+  const sx = (s) => runEngine({ patient: { sex: s, age: "40" }, tests: [r("Hb", "13", "g/dL")] }).sex;
+  assert.equal(sx("آقای"), "M");
+  assert.equal(sx("خانم"), "F");
+  assert.equal(sx("Mrs."), "F");
+  assert.equal(sx("Mr"), "M");
+  assert.equal(sx("Miss"), "F");
 });

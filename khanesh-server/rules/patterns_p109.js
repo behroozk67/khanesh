@@ -26,13 +26,12 @@ const EAG_MGDL = { a: 28.7, b: 46.7 };
 const EAG_MMOL = { a: 1.59, b: 2.59 };
 // مرزهای HbA1c ِ ADA (همان‌هایی که glycemia می‌خواند): ۵٫۷ پیش‌دیابت، ۶٫۵ دیابت.
 const A1C_PRE = 5.7, A1C_DM = 6.5;
-// بی‌واحد فقط وقتی یک واحد ممکن است (P48، «magnitude»): eAG ≥ ۶۰ نمی‌تواند mmol/L باشد (= HbA1c > ۳۹٪)؛
-//   ≤ ۲۵ نمی‌تواند mg/dL باشد (= HbA1c < ۲٫۵٪). میانه ⇒ نامعلوم.
+// P110-ب (تصمیمِ بازبینِ کاربر ۲۰۲۶-۱۰-۱۶): واحد از بزرگیِ عدد حدس زده نمی‌شود (پیش‌تر P48 «magnitude»). بی‌واحد و بی‌HbA1c ⇒ بی‌حکم؛
+//   با HbA1c ِ همان برگه، واحد با بازمحاسبه تأیید می‌شود (eagUnitFromA1c) — و در آن حالت هم eAG حکمِ جدا نمی‌گیرد.
 function eagA1c(entry) {
   if (!entry || typeof entry.value !== "number") return null;
   const u = unitKey(entry.unit), v = entry.value;
-  const sys = /^mg\/dl$|^mg%$/.test(u) ? EAG_MGDL : /^mmol\/l$/.test(u) ? EAG_MMOL
-    : !u ? (v >= 60 ? EAG_MGDL : v <= 25 ? EAG_MMOL : null) : null;
+  const sys = /^mg\/dl$|^mg%$/.test(u) ? EAG_MGDL : /^mmol\/l$/.test(u) ? EAG_MMOL : null;
   if (!sys) return null;
   const a1c = +((v + sys.b) / sys.a).toFixed(1);
   return a1c >= 3 && a1c <= 20 ? a1c : null;   // بیرون از این، عدد یا واحد اشتباه خوانده شده
@@ -43,6 +42,13 @@ function eagA1c(entry) {
 const TG_MGDL_PER_MMOL = 88.57, HDL_MGDL_PER_MMOL = 38.67;
 // مرزهای AIP (Dobiášová M, Frohlich J. Clin Biochem 2001؛ ماشین‌حسابِ خودِ نویسنده در biomed.cas.cz): < ۰٫۱۱ کم، ۰٫۱۱–۰٫۲۱ متوسط، > ۰٫۲۱ زیاد.
 const AIP_LOW = 0.11, AIP_HIGH = 0.21;
+// eAG ِ برگه از HbA1c ِ همان برگه با کدام فرمولِ ADAG (±۲٪) درمی‌آید: "mg/dL" | "mmol/L" | null (هیچ‌کدام).
+const EAG_MATCH_TOL = 0.02;
+function eagUnitFromA1c(v, a1c) {
+  if (typeof v !== "number" || !(a1c > 0)) return null;
+  const near = (x) => Math.abs(v - x) <= EAG_MATCH_TOL * Math.abs(x);
+  return near(EAG_MGDL.a * a1c - EAG_MGDL.b) ? "mg/dL" : near(EAG_MMOL.a * a1c - EAG_MMOL.b) ? "mmol/L" : null;
+}
 function atheroFormula(e, v) {
   const tc = g(e, "CHOL")?.value, hdl = g(e, "HDL")?.value, ldl = g(e, "LDL")?.value, tg = g(e, "TG")?.value;
   if (!(hdl > 0)) return null;
@@ -102,11 +108,18 @@ export const RULES_P109 = [
       const a1cG = g(e, "HBA1C");
       const lead = `میانگینِ تخمینیِ قندِ خون (eAG) روی برگهٔ شما ${shown} است. این عدد جداگانه اندازه‌گیری نمی‌شود؛ آزمایشگاه آن را از روی HbA1c با فرمولِ مطالعهٔ ADAG حساب می‌کند تا HbA1c را به زبانِ قندِ روزانه بگوید. `;
       if (a1cG) {
+        // P110-ب: بازمحاسبه از HbA1c ِ همین برگه — واحد تأیید می‌شود، یا ناهمخوانی گفته می‌شود (یکی از دو عدد ممکن است غلط خوانده شده باشد).
+        const mu = eagUnitFromA1c(entry.value, a1cG.value);
+        const check = mu
+          ? `با فرمولِ ADAG از HbA1c ِ ${a1cG.value}٪ ِ همین برگه همین عدد به واحدِ ${mu} درمی‌آید، پس دو عدد با هم جورند. `
+          : `این عدد با هیچ‌یک از دو شکلِ فرمولِ ADAG از HbA1c ِ ${a1cG.value}٪ ِ همین برگه درنمی‌آید؛ ممکن است یکی از دو عدد اشتباه خوانده شده باشد. `;
         return {
           pattern: "eag_result", urgency: "routine",
           headline: "میانگینِ تخمینیِ قند (eAG)",
-          must_say: lead + `پس تفسیرش همان تفسیرِ HbA1c ِ شما (${a1cG.value}٪) است و جداگانه حکم نمی‌گیرد.`,
-          info: true, minor_line: `میانگینِ تخمینیِ قند (eAG) ${shown}: برگردانِ همان HbA1c ِ ${a1cG.value}٪ است و جداگانه حکم ندارد`,
+          must_say: lead + check + `تفسیرش همان تفسیرِ HbA1c ِ شما (${a1cG.value}٪) است و جداگانه حکم نمی‌گیرد.`,
+          info: true, minor_line: mu
+            ? `میانگینِ تخمینیِ قند (eAG) ${entry.value} ${mu}: برگردانِ همان HbA1c ِ ${a1cG.value}٪ است و جداگانه حکم ندارد`
+            : `میانگینِ تخمینیِ قند (eAG) ${shown}: با HbA1c ِ ${a1cG.value}٪ ِ همین برگه جور نیست (ممکن است یکی اشتباه خوانده شده باشد)؛ جداگانه حکم ندارد`,
           action: ACTION.routine, suggest: [], warnings: [], explains: ["EAG"],
         };
       }
@@ -157,8 +170,9 @@ export const RULES_P109 = [
         const aip = f.id === "aip" ? v : v + Math.log10(HDL_MGDL_PER_MMOL / TG_MGDL_PER_MMOL);
         const conv = f.id === "aip_mg" ? `این عدد با واحدِ mg/dL حساب شده؛ AIP ِ استاندارد (با غلظتِ مولی) برابرِ ${fmt2(aip)} است. ` : "";
         const band = aip < AIP_LOW ? "کم" : aip <= AIP_HIGH ? "متوسط" : "بیشتر";
-        // P110: گروهِ «کم/متوسط» اقدامی جدا از خودِ چربی‌ها ندارد ⇒ یک خط؛ «بیشتر» یافتهٔ کامل می‌ماند.
-        return { ...base, ...(band === "بیشتر" ? {} : { info: true, minor_line: `شاخصِ آتروژنیک (AIP) ${fmt2(aip)}: گروهِ خطرِ «${band}» در تقسیم‌بندیِ Dobiášová` }),
+        // P110-ب (تصمیمِ بازبینِ کاربر): AIP حکم می‌گیرد ولی خبرِ تازه‌ای جز TG و HDL ندارد ⇒ همیشه یک خط، بی‌پیگیری و بی‌فوریت؛
+        //   مرزِ Dobiášová جهت‌دهنده است، نه الزامِ راهنما.
+        return { ...base, info: true, minor_line: `شاخصِ آتروژنیک (AIP) ${fmt2(aip)}: گروهِ خطرِ «${band}» در تقسیم‌بندیِ Dobiášová (جهت‌دهنده؛ خبرش همان تری‌گلیسرید و HDL است)`,
           must_say: head + `این عدد با ${f.fa} از چربی‌های همین برگه جور است. ` + conv +
           `در تقسیم‌بندیِ پیشنهادیِ سازندگانِ این شاخص (Dobiášová)، زیرِ ${AIP_LOW} خطرِ کم، ${AIP_LOW} تا ${AIP_HIGH} متوسط و بالای ${AIP_HIGH} خطرِ بیشتر برای بیماریِ قلب‌وعروق است؛ عددِ شما در گروهِ «${band}» است. ` +
           "این شاخص جایگزینِ ارزیابیِ کاملِ خطرِ قلبی (سن، فشارِ خون، دیابت، سیگار) نیست." };

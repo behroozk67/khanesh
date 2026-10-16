@@ -103,7 +103,8 @@ function zincRangeUgdl(entry) {
   return lo >= 40 && hi <= 250 && hi > lo ? { lo, hi } : null;
 }
 const zincUgdl = (entry) => ugdlOf(entry, ZN_UGDL_PER_UMOLL) ?? (zincRangeUgdl(entry) ? entry.value : null);
-const ZINC_CUTOFFS = { child: { top: 65, low: 57 }, F: { top: 70, low: 59 }, M: { top: 74, low: 61 } };
+// P110-ب: بی‌بازهٔ چاپ‌شده فقط مرزِ صبحِ غیرناشتا (nonfasting) به کار می‌رود؛ top/low برای سابقه نگه داشته شده‌اند.
+const ZINC_CUTOFFS = { child: { top: 65, low: 57, nonfasting: 65 }, F: { top: 70, low: 59, nonfasting: 66 }, M: { top: 74, low: 61, nonfasting: 70 } };
 function zincCutoffs(e) {
   if (e.pregnant || (e.age != null && e.age < 1)) return null;
   if (e.age != null && e.age < 10) return ZINC_CUTOFFS.child;
@@ -119,36 +120,54 @@ export const RULES_TRACE_ELEMENTS = [
       const zn = zincUgdl(entry);
       const byRange = ugdlOf(entry, ZN_UGDL_PER_UMOLL) == null ? zincRangeUgdl(entry) : null;
       // N5: واحدی که چاپ نشده «روی برگه» نوشته نمی‌شود؛ می‌گوییم از بازهٔ خودِ برگه تعیین شد.
-      const shown = byRange
-        ? `${entry.value} (واحد روی برگه چاپ نشده؛ بازهٔ چاپ‌شدهٔ ${byRange.lo}–${byRange.hi} نشان می‌دهد میکروگرم در دسی‌لیتر است)`
-        : shownWith(entry, zn, "µg/dL");
+      // P110-ب: حکم از خودِ بازهٔ چاپ‌شده است (هم‌واحدِ عدد)، پس رویِ بی‌واحد فقط عددِ خودش را نشان می‌دهد.
+      const shown = byRange ? `${entry.value}` : shownWith(entry, zn, "µg/dL");
       const c = zincCutoffs(e);
       const infl = hasInflammation(e)
         ? " نشانگرِ التهاب (CRP/ESR) روی همین برگه بالاست؛ در التهاب و عفونت رویِ سرم به‌طورِ موقت پایین می‌آید، پس این عدد را باید بعد از رفعِ التهاب دوباره سنجید."
         : "";
+      const deficitText = " کمبودِ روی می‌تواند با کندیِ ترمیمِ زخم، ریزشِ مو، کاهشِ اشتها و حسِ چشایی، یا عفونت‌های مکرر همراه باشد.";
+      const highText = " رویِ زیاد اغلب از مکمل می‌آید و مصرفِ طولانیِ آن می‌تواند جذبِ مس را کم کند؛ مصرفِ مکملِ روی را به پزشک بگویید.";
+      // P110-ب (تصمیمِ بازبینِ کاربر ۲۰۲۶-۱۰-۱۶): برچسب از بازهٔ چاپ‌شدهٔ آزمایشگاه؛ IZiNCG فقط وقتی بازه‌ای چاپ نشده.
+      //   مرزهای IZiNCG از NHANES II است و داده‌های بزرگسالانِ ایران ناهمگن‌اند (بازهٔ مرجعِ مردان ۹٫۶–۳۱٫۶ µmol/L در ۲۶۳۲ نفر).
+      //   بازه هم‌واحدِ عددِ چاپ‌شده است ⇒ عددِ خام با بازهٔ خام (N12: بازه با واحدِ چاپ‌شده سفر می‌کند).
+      const pr = String(entry.printed_range ?? "").match(/^\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*$/);
+      const printed = c && pr && Number(pr[2]) > Number(pr[1]) ? { lo: Number(pr[1]), hi: Number(pr[2]), raw: `${pr[1]}–${pr[2]}` } : null;
+      // بی‌بازه: زمان و ناشتایی معلوم نیست ⇒ مرزِ صبحِ غیرناشتا (کودک ۶۵، زن ۶۶، مرد ۷۰).
       let state, text;
-      if (zn > ZINC_HIGH_UGDL) {
+      if (printed) {
+        const v = entry.value;
+        if (v < printed.lo) {
+          state = "low";
+          text = `رویِ سرمِ شما ${shown} است و از حدِ پایینِ بازهٔ چاپ‌شدهٔ آزمایشگاه (${printed.raw}) کمتر است.${infl}${deficitText}`;
+        } else if (v > printed.hi) {
+          state = "high";
+          text = `رویِ سرمِ شما ${shown} است و از حدِ بالای بازهٔ چاپ‌شدهٔ آزمایشگاه (${printed.raw}) بیشتر است.${highText}`;
+        } else {
+          state = "ok";
+          text = `رویِ سرمِ شما ${shown} است و داخلِ بازهٔ چاپ‌شدهٔ آزمایشگاه (${printed.raw}) است؛ کمبودِ روی را نشان نمی‌دهد.`;
+        }
+      } else if (zn > ZINC_HIGH_UGDL) {
         state = "high";
-        text = `رویِ سرمِ شما ${shown} است و از حدِ بالای معمولِ آزمایشگاه‌ها (حدودِ ${ZINC_HIGH_UGDL}) بیشتر است. رویِ زیاد اغلب از مکمل می‌آید و مصرفِ طولانیِ آن می‌تواند جذبِ مس را کم کند؛ مصرفِ مکملِ روی را به پزشک بگویید.`;
+        text = `رویِ سرمِ شما ${shown} است و از حدِ بالای معمولِ آزمایشگاه‌ها (حدودِ ${ZINC_HIGH_UGDL}) بیشتر است.${highText}`;
       } else if (!c) {
         state = "nojudge";
         text = `رویِ سرمِ شما ${shown} است. برای ${e.pregnant ? "بارداری" : "زیرِ یک سال"} مرزِ جداگانه‌ای لازم است که این‌جا نداریم، پس درباره‌اش حکم نمی‌دهیم.`;
-      } else if (zn < c.low) {
+      } else if (zn < c.nonfasting) {
         state = "low";
-        text = `رویِ سرمِ شما ${shown} است و حتی از پایین‌ترین مرزِ گروهِ بین‌المللیِ مشاورهٔ تغذیهٔ روی (IZiNCG) برای سن و جنسِ شما (${c.low} میکروگرم در دسی‌لیتر، مربوط به نمونهٔ بعدازظهر) کمتر است؛ این با کمبودِ روی می‌خواند.${infl} کمبودِ روی می‌تواند با کندیِ ترمیمِ زخم، ریزشِ مو، کاهشِ اشتها و حسِ چشایی، یا عفونت‌های مکرر همراه باشد.`;
-      } else if (zn < c.top) {
-        state = "borderline";
-        text = `رویِ سرمِ شما ${shown} است. مرزِ پایینِ رویِ سرم به زمانِ نمونه‌گیری و ناشتابودن بستگی دارد (برای سن و جنسِ شما بین ${c.low} و ${c.top} میکروگرم در دسی‌لیتر، طبقِ IZiNCG) و این عدد در همین فاصله است؛ پس مرزی است و به‌تنهایی کمبود را ثابت نمی‌کند.${infl}`;
+        text = `رویِ سرمِ شما ${shown} است. آزمایشگاه بازه‌ای چاپ نکرده؛ مرزِ پایینِ گروهِ بین‌المللیِ مشاورهٔ تغذیهٔ روی (IZiNCG) برای سن و جنسِ شما در نمونهٔ صبحِ غیرناشتا ${c.nonfasting} میکروگرم در دسی‌لیتر است و این عدد کمتر است؛ این با کمبودِ روی می‌خواند، ولی زمانِ نمونه‌گیری و ناشتابودن روی برگه نیست.${infl}${deficitText}`;
       } else {
         state = "ok";
-        text = `رویِ سرمِ شما ${shown} است و از مرزِ پایینِ IZiNCG برای سن و جنسِ شما (${c.top} میکروگرم در دسی‌لیتر) کمتر نیست؛ کمبودِ روی را نشان نمی‌دهد.`;
+        text = `رویِ سرمِ شما ${shown} است. آزمایشگاه بازه‌ای چاپ نکرده؛ این عدد از مرزِ پایینِ IZiNCG برای سن و جنسِ شما (${c.nonfasting} میکروگرم در دسی‌لیتر، صبحِ غیرناشتا) کمتر نیست و کمبودِ روی را نشان نمی‌دهد.`;
       }
       return {
         pattern: `zinc_${state}`,
         urgency: "routine",
         key_number: zn,
         // P110: رویِ کافی ⇒ یک خط در «موارد دیگر».
-        ...(state === "ok" ? { info: true, minor_line: `رویِ سرم ${shown}: از مرزِ پایینِ IZiNCG برای سن و جنسِ شما کمتر نیست؛ کمبودی نشان نمی‌دهد` } : {}),
+        ...(state === "ok" ? { info: true, minor_line: printed
+          ? `رویِ سرم ${shown}: داخلِ بازهٔ چاپ‌شدهٔ آزمایشگاه (${printed.raw})`
+          : `رویِ سرم ${shown}: از مرزِ پایینِ IZiNCG (${c.nonfasting}، صبحِ غیرناشتا) کمتر نیست؛ کمبودی نشان نمی‌دهد` } : {}),
         headline: { high: "رویِ سرمِ شما بالاتر از حدِ معمول است", low: "رویِ سرمِ شما پایین است", borderline: "رویِ سرمِ شما مرزی است", ok: "رویِ سرم", nojudge: "رویِ سرم" }[state],
         must_say: text,
         action: state === "low" || state === "high"

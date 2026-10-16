@@ -10,7 +10,7 @@
 //    مالک‌ها صریحاً فهرست شده‌اند، نه با «قاعده این کلید را خواند» (N18: خواندن ≠ گفتن) — `M313` وجودشان را می‌سنجد.
 // ⚠️ هر جمله‌ای که از آزمایشِ دیگر حرف می‌زند سه‌حالته است (بالا/پایین/طبیعی/غایب) — `comp()` (N4، M156).
 // ============================================================
-import { levelGrade, anemiaSeverityFa, infantAnemiaNoGrade, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION } from "./patterns_utils.js";
+import { levelGrade, anemiaSeverityFa, infantAnemiaNoGrade, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION, ungradedFa } from "./patterns_utils.js";
 import { isNeonate } from "./neonatal.js";
 import { faName } from "./names.js";
 
@@ -255,7 +255,7 @@ const albuminLowAlone = {
 };
 
 // ── P110: آلبومین↑ تنها — گزارشِ کاربر ۲۰۲۶-۱۰-۱۶ (آلبومینِ ۵٫۳ با حدِ ۵ به «توضیحِ آماده نداریم» می‌رفت، N1/N18) ──
-// آلبومینِ بالا علتِ بیماری‌زای مستقلی ندارد: تقریباً همیشه از غلیظ‌شدنِ خون است (کم‌آبی، یا بستنِ طولانیِ تورنیکه هنگامِ خون‌گیری؛
+// آلبومینِ بالا علتِ بیماری‌زای مستقلی ندارد: معمولاً از غلیظ‌شدنِ خون است (کم‌آبی، یا بستنِ طولانیِ تورنیکه هنگامِ خون‌گیری؛
 //   همان stasis_protein در preanalytical.js). پروتئینِ تامِ غیرطبیعی مالکِ خودش را دارد (total_protein_abnormal). فوریت = کفِ تور (N29).
 const albuminHighAlone = {
   id: "albumin_high_alone",
@@ -267,12 +267,44 @@ const albuminHighAlone = {
       pattern: "albumin_high_alone",
       urgency,
       headline: "آلبومینِ شما کمی بالاتر از حد طبیعی است",
-      must_say: `آلبومین شما ${a.value} است (حد طبیعی ${a.range}). آلبومینِ بالا تقریباً همیشه از غلیظ‌شدنِ خون است — کم‌آبی هنگامِ نمونه‌گیری یا بستنِ طولانیِ بند (تورنیکه) — و به‌تنهایی نشانهٔ بیماری نیست.`,
+      must_say: `آلبومین شما ${a.value} است (حد طبیعی ${a.range}). آلبومینِ بالا معمولاً از غلیظ‌شدنِ خون است — کم‌آبی هنگامِ نمونه‌گیری، بستنِ طولانیِ بند (تورنیکه)، ورزشِ اخیر یا ناشتاییِ طولانی — و به‌تنهایی نشانهٔ بیماری نیست.`,
       ...(urgency === "routine" ? { info: true, minor_line: `آلبومین ${a.value} (حد طبیعی ${a.range}): کمی بالا؛ معمولاً از کم‌آبیِ هنگامِ نمونه‌گیری است و به‌تنهایی معنای بیماری ندارد` } : {}),
       action: ACT[urgency],
       suggest: [],
       warnings: [],
       explains: ["ALB"],
+    };
+  },
+};
+
+// ── P110-ب: آهنِ سرمِ پایینِ تنها — تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶ («پیشنهادِ آهن اجرا کن») ──
+// «Fe 40، Hb 15» به «برای این ترکیب توضیح آماده‌ای نداریم» می‌رفت (N1/N18). آهنِ سرم به‌تنهایی کمبود را نشان نمی‌دهد: در طولِ روز
+// و بعد از غذا زیاد نوسان دارد و در التهاب پایین می‌آید؛ ذخیره را فریتین می‌گوید. بی‌عدد و بی‌آستانهٔ تازه — «پایین» از refs.js.
+// مالکانِ آهن و کم‌خونی (iron_deficiency_panel، anemia_chronic_disease، قاعده‌های کم‌خونی) اولویت دارند (N20). فوریت = کفِ تور (N29).
+const ironLowAlone = {
+  id: "iron_low_alone",
+  match: (e) => lo(g(e, K.IRON)) && !anyFires(e, [...P73_OWNERS.iron, ...P73_OWNERS.anemia]),
+  build: (e) => {
+    const fe = g(e, K.IRON), fer = g(e, K.FERRITIN);
+    const urgency = netUrgency(e, fe);
+    // فریتینِ نمره‌دار اینجا پایین نیست (وگرنه iron_deficiency_panel مالک بود)؛ چاپ‌شدهٔ بی‌نمره ⇒ ungradedFa (N4)؛ غایب ⇒ درخواست.
+    const ferU = !fer ? ungradedFa(e, K.FERRITIN, "فریتین") : null;
+    const ferSentence = fer
+      ? `فریتینِ همین برگه ${fer.value} است (حد طبیعی ${fer.range}) و ذخیرهٔ آهن را کم نشان نمی‌دهد؛ آهنِ سرمِ پایین کنارِ فریتینِ غیرِپایین بیشتر از نوسانِ روزانه، نمونهٔ غیرناشتا یا التهاب و عفونتِ اخیر است.`
+      : ferU ? `${ferU}؛ فریتین ذخیرهٔ آهن را نشان می‌دهد و برای قضاوت لازم است.`
+        : "فریتین (ذخیرهٔ آهن) روی این برگه نیست؛ همان است که روشن می‌کند واقعاً کمبودِ آهن هست یا نه.";
+    const needFer = !fer;
+    const quiet = !needFer && urgency === "routine";
+    return {
+      pattern: "iron_low_alone",
+      urgency,
+      headline: "آهنِ سرمِ شما پایین‌تر از حد طبیعی است",
+      must_say: `آهنِ سرمِ شما ${fe.value} است (حد طبیعی ${fe.range}). آهنِ سرم به‌تنهایی کمبودِ آهن را نشان نمی‌دهد: در طولِ روز و بعد از غذا زیاد بالا و پایین می‌رود و در التهاب یا عفونت هم پایین می‌آید. ${ferSentence}`,
+      ...(quiet ? { info: true, minor_line: `آهنِ سرم ${fe.value} (حد طبیعی ${fe.range}): پایین، ولی فریتینِ ${fer.value} ِ همین برگه کمبودِ ذخیره را نشان نمی‌دهد` } : {}),
+      action: needFer ? (urgency === "routine" ? "در نوبتِ عادی با پزشک مطرح کنید و آزمایش فریتین را بخواهید." : ACT[urgency]) : ACT[urgency],
+      suggest: needFer && !ferU ? ["فریتین"] : [],
+      warnings: needFer ? ["بدون تجویز پزشک قرص آهن نخورید؛ تا فریتین معلوم نشود، معلوم نیست کمبودی هست."] : [],
+      explains: ["IRON"],
     };
   },
 };
@@ -628,6 +660,6 @@ const bloodPhAbnormal = {
 
 export const RULES_P73_GAPS = [
   hctRbcHigh, bilirubinTotalAlone, ckElevatedAlone, albuminLowAlone, albuminHighAlone, ironMarkersHigh,
-  totalT4Abnormal, bicarbonateLow, pctIntermediate, ammoniaMildHigh, anemiaHbAlone,
+  totalT4Abnormal, bicarbonateLow, pctIntermediate, ammoniaMildHigh, anemiaHbAlone, ironLowAlone,
   rdwHigh, tibcHigh, tibcLow, biliDirectHigh, biliIndirectHigh, bloodPhAbnormal,
 ];
