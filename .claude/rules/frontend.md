@@ -42,6 +42,11 @@
   - **Photo upload** — `imageIntake.js` holds the intake and canvas compression (~400KB target,
     since mobile photos can be 8MB+) and the HEIC `<img>` decode fallback for iPhones, where
     `createImageBitmap` often fails. `UploadCard.jsx` is the UI.
+    **PDFs (specs/017):** `pdfIntake.js` is a lazy `import()` chunk (pdf.js + its `.mjs` module worker),
+    loaded only when a PDF is picked. Each page is rendered to the same JPEG caps as a photo (vector
+    pages are upscaled to the 1200-px width; photos never are) and joins the same page list. The
+    `MAX_IMAGES` limit counts **pages**, checked against a PDF's page count before rendering; a file
+    is added whole or refused whole with a named Persian message. The server sees no difference.
   - **The request is asynchronous now.** `analyzeJob.js` starts a job (`POST /api/analyze/start`),
     polls (`GET /api/analyze/job/:id`), and keeps the job id in `localStorage` so a locked phone or a
     backgrounded tab no longer destroys a 90–150s analysis. The id never leaves the device; the

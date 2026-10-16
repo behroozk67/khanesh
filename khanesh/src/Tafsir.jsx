@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { toNumber, toFaDigits } from "./digits.js";
 import { REF, ALL, ageInMonths, statusOf, URINE_FIELDS } from "./labRefs.js";
-import { MAX_IMAGES, looksLikeImage, compressImage } from "./imageIntake.js";
+import { MAX_IMAGES, looksLikeImage, looksLikePdf, compressImage } from "./imageIntake.js";
 import { LabMateLogo } from "./LabMateLogo.jsx";
 import EntryGrid from "./EntryGrid.jsx";
 import PhotoGuide from "./onboarding/PhotoGuide.jsx";
@@ -72,6 +72,7 @@ export default function Tafsir() {
   const [ioError, setIoError] = useState("");   // خطای واردات/خروجی JSON
   const [images, setImages] = useState([]);      // [{id, dataUrl, sizeKB, origKB}]
   const [imgBusy, setImgBusy] = useState(false);
+  const [imgProgress, setImgProgress] = useState(null);   // {i, n} حینِ رندرِ صفحه‌های PDF (specs/017)
   const [aiProgress, setAiProgress] = useState(null);   // پیشرفتِ واقعیِ صفحه‌به‌صفحه
   const [resumed, setResumed] = useState(null);         // نتیجهٔ ذخیره‌شدهٔ بازدید قبلی
   const abortRef = useRef(null);      // برای لغو fetch در حال اجرا
@@ -322,47 +323,122 @@ export default function Tafsir() {
     }
   }
 
+  // specs/017 — سقف بر حسبِ «صفحه» است، نه «فایل»: عکس یک صفحه، PDF به تعدادِ
+  // صفحه‌هایش. هر فایل به ترتیبِ انتخاب یا کامل اضافه می‌شود یا کامل رد می‌شود؛
+  // هیچ PDFی نصفه وارد نمی‌شود (FR-006) و هیچ فایلِ ردشده‌ای بی‌نام نمی‌ماند.
+  // تعدادِ صفحهٔ PDF پیش از رندرِ اولین صفحه با سقف مقایسه می‌شود (FR-004).
   async function onFile(e) {
     const picked = Array.from(e.target.files || []);
     e.target.value = "";   // تا بشود همان فایل را دوباره انتخاب کرد
     if (!picked.length) return;
 
-    if (images.length + picked.length > MAX_IMAGES) {
-      // شمارشِ داخلِ جملهٔ فارسی با رقم فارسی — سیاستِ دو دستگاهِ عددی.
-      setAiError(`حداکثر ${toFaDigits(MAX_IMAGES)} عکس. الان ${toFaDigits(images.length)} صفحه انتخاب شده.`);
-      return;
-    }
     setAiError("");
     setImgBusy(true);
 
-    const out = [], failed = [];
+    const fa = toFaDigits;
+    const max = fa(MAX_IMAGES);
+    const nameOf = (f) => f.name || "بدون نام";
+    const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    const out = [];
+    const msgs = [];              // هر علت یک جمله (contracts/pdf-intake.md)
+    const overPhotos = [];        // عکس‌هایی که از سقف رد شدند
+    const failedImages = [];      // عکس‌هایی که دیکود نشدند (پیامِ موجودِ آیفون)
+    let used = images.length;
+    let pdfMod = null;
+
     try {
       for (const f of picked) {
-        if (!looksLikeImage(f)) { failed.push(f.name || "بدون نام"); continue; }
+        if (looksLikePdf(f)) {
+          // ماژولِ PDF فقط همین‌جا بار می‌شود (FR-013)
+          if (!pdfMod) {
+            try {
+              pdfMod = await import("./pdfIntake.js");
+            } catch {
+              msgs.push("ابزارِ خواندنِ PDF بارگیری نشد. اتصالِ اینترنت را بررسی کنید و دوباره امتحان کنید.");
+              continue;
+            }
+          }
+          let pdf = null;
+          try {
+            pdf = await pdfMod.openPdf(f);
+            const n = pdf.numPages;
+            if (used + n > MAX_IMAGES) {
+              msgs.push(
+                `فایل «${nameOf(f)}» ${fa(n)} صفحه دارد و الان ${fa(used)} صفحه انتخاب شده؛ ` +
+                `حداکثر ${max} صفحه می‌شود. چند صفحه را حذف کنید یا فقط صفحه‌های لازم را جدا کنید.`
+              );
+              continue;
+            }
+            const pages = [];
+            for (let i = 1; i <= n; i++) {
+              if (mountedRef.current) setImgProgress({ i, n });
+              const dataUrl = await pdf.renderPage(i);
+              pages.push({
+                id: newId(),
+                dataUrl,
+                sizeKB: Math.round((dataUrl.length * 0.75) / 1024),
+                origKB: Math.round(f.size / 1024 / n),
+                source: "pdf",
+                label: `${nameOf(f)} — صفحهٔ ${fa(i)} از ${fa(n)}`,
+              });
+            }
+            // فقط وقتی همهٔ صفحه‌ها رندر شدند — نه زودتر (FR-006)
+            out.push(...pages);
+            used += n;
+          } catch (err) {
+            const code = err?.name === "PdfIntakeError" ? err.code : "unreadable";
+            msgs.push(
+              code === "password"
+                ? `فایل «${nameOf(f)}» رمز دارد و باز نشد. رمزش را بردارید یا از صفحه‌های برگه عکس بگیرید.`
+                : code === "empty"
+                  ? `فایل «${nameOf(f)}» هیچ صفحه‌ای ندارد.`
+                  : `فایل «${nameOf(f)}» به‌عنوان PDF باز نشد؛ شاید خراب باشد. از صفحه‌های برگه عکس بگیرید.`
+            );
+          } finally {
+            if (pdf) await pdf.close();
+            if (mountedRef.current) setImgProgress(null);
+          }
+          continue;
+        }
+
+        if (!looksLikeImage(f)) { failedImages.push(nameOf(f)); continue; }
+        if (used + 1 > MAX_IMAGES) { overPhotos.push(nameOf(f)); continue; }
         try {
           const dataUrl = await compressImage(f);
           out.push({
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            id: newId(),
             dataUrl,
             sizeKB: Math.round((dataUrl.length * 0.75) / 1024),
             origKB: Math.round(f.size / 1024),
+            source: "photo",
           });
+          used += 1;
         } catch {
           // یک فایل خراب نباید بقیه را از بین ببرد
-          failed.push(f.name || "بدون نام");
+          failedImages.push(nameOf(f));
         }
       }
+
+      // نامتغیرِ data-model: هر چه اضافه شد دقیقاً همان صفحه‌هایی است که شمردیم
+      console.assert(images.length + out.length === used, "pdf/photo page count drift");
+
+      if (!mountedRef.current) return;
       if (out.length) setImages((prev) => [...prev, ...out]);
 
       // فایل رد‌شده نباید بی‌صدا ناپدید شود
-      if (failed.length) {
-        setAiError(
-          `${toFaDigits(failed.length)} فایل خوانده نشد (${failed.join("، ")}). ` +
+      if (overPhotos.length) {
+        msgs.push(`حداکثر ${max} صفحه. این فایل‌ها اضافه نشدند: ${overPhotos.join("، ")}.`);
+      }
+      if (failedImages.length) {
+        msgs.push(
+          `${fa(failedImages.length)} فایل خوانده نشد (${failedImages.join("، ")}). ` +
           `اگر عکس از آیفون است، در تنظیمات دوربین «سازگارترین» را انتخاب کنید یا اسکرین‌شات بگیرید.`
         );
       }
+      if (msgs.length) setAiError(msgs.join(" "));
     } finally {
-      setImgBusy(false);
+      if (mountedRef.current) { setImgBusy(false); setImgProgress(null); }
     }
   }
 
@@ -477,7 +553,7 @@ export default function Tafsir() {
             دیگر معنا ندارد (typedCount=0). داده‌های حالتِ دیگر پاک نمی‌شوند — با برگشتن سرِ جایشان‌اند. */}
         <UploadCard
           mode={mode}
-          images={images} imgBusy={imgBusy} onFile={onFile}
+          images={images} imgBusy={imgBusy} imgProgress={imgProgress} onFile={onFile}
           removeImage={removeImage} moveImage={moveImage}
           resumed={resumed}
           onResume={() => { setAiResult(resumed.result); setResumed(null); }}

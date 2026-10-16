@@ -1,0 +1,53 @@
+017-pdf-upload — measurements (working tree, branch recovery)
+
+T001 baseline, 2026-10-16, before any 017 change:
+  khanesh-server  npm test   → tests 1434 · pass 1433 · fail 0 · todo 1 (exit 0, ~30 s)
+  khanesh         npm run lint (oxlint) → no output, exit 0 (0 warnings · 0 errors)
+
+T002: pdfjs-dist 6.3.289 exact (lock resolves 6.3.289). npm audit: 1 high = source-map-js (vite dev
+  dependency, pre-existing, not from pdfjs). pdfjs pulls optional @napi-rs/canvas (Node-only, never bundled).
+
+T006/T018 build (vite 8), after all changes:
+  dist/assets/pdf.worker.min-BmVo14Nb.mjs  1,317.03 kB
+  dist/assets/index-ef1eYvg8.js              398.01 kB (entry; was 395.82 kB before 017)
+  dist/assets/pdfIntake-C2oM2i3M.js          488.16 kB (lazy chunk)
+  grep -c PasswordException on the entry chunk → 0 (pdf.js not in entry)  → Q6 PASS
+
+Browser runs (Playwright MCP, Chromium, dev server + node server.js), synthetic fixtures built by
+scratchpad/mkfixtures.py (no real lab sheet exists in the repo):
+  Q1  two-page.pdf → 2 previews in order, progress «صفحهٔ ۱ از ۲…» / «۲ از ۲…»; analysis ran:
+      pages total 2 · read 2 · failed []; extracted_tests 14/14 rows, exact values+units vs the
+      fixture's known contents.                                                      PASS
+      DEFECT FOUND + FIXED: first run rendered A4 at 595×842 (72 dpi; fitScale never upscales).
+      fitScale gained {upscale:true} for vector pages → 1200×1698.
+  Q2  photo-vs-PDF on real sheets (SC-002, ≥5 labs): NOT RUN — no real sheets available. Q1's
+      14/14 against ground truth is the substitute; SC-002 still needs real sheets.
+  Q3  3 photos + four-page.pdf → nothing added; «… ۴ صفحه دارد و الان ۳ صفحه انتخاب شده؛ حداکثر ۵ …»  PASS
+  Q4  1 photo + four-page.pdf → 5 pages in order; photo4.png → «حداکثر ۵ صفحه. این فایل‌ها اضافه نشدند: photo4.png.»  PASS
+  C1  one pick [four-page.pdf, two-page.pdf, photo5.png] → 5 pages (4 PDF + photo); two-page.pdf refused whole  PASS
+  Q5  locked → pdf_password; broken → pdf_unreadable; fake → pdf_unreadable; empty → pdf_empty;
+      chunk blocked (route abort) → pdf_lib_failed, the photo in the same pick still added; 0 pages
+      added in every PDF failure.                                                   PASS
+  Q7  photo-only flow: no pdf* resource requested (dev and vite preview).          PASS
+  Q8  landscape.pdf → 1200×848, pixel (10,10) = 255,255,255 (white, not black).   PASS
+  Q9  request body: no "%PDF"/"JVBERi0", no text-layer strings; field is imageDataUrls.  PASS
+  prod  vite preview: pdfIntake-*.js and pdf.worker.min-*.mjs served 200 text/javascript; pages 1200×1698.
+  console: 0 errors (except the deliberately aborted import in Q5), no console.assert failure.
+  UI DEFECT FOUND + FIXED: size line read «0.0 مگابایت ← 0.1 مگابایت پس از فشرده‌سازی» for a
+      digital PDF (rendered JPEG > PDF file). Now shows «… مگابایت برای ارسال» when nothing shrank.
+
+T019 photo path neutrality: pre-017 compressImage (verbatim) vs current, three generated PNGs
+  3000×4000 (area cap), 1200×12000 (area cap), 800×600 (no scale) → data URLs identical in all 3.  PASS
+
+T018 final gates (servers stopped):
+  khanesh  oxlint → exit 0, 0 lines;  build → exit 0
+  khanesh-server  npm test → tests 1441 · pass 1440 · fail 0 · todo 1 (exit 0, 47 s)
+    +7 tests vs T001 come from a concurrent session's uncommitted khanesh-server work
+    (auth.js, auth-contract.test.js modified; smsir.js new). 017 changes no khanesh-server file
+    (git status: none of 017's files are under khanesh-server/).
+  Note: one earlier npm test run hung >600 s while node server.js + two vite servers were running;
+  re-run with them stopped completed normally. Not reproduced, cause not isolated.
+
+Deploy: deploy/nginx.conf gained a `location ~* \.mjs$` with application/javascript — pdf.js starts a
+  module worker (pdf.mjs:22844, type:"module"); older nginx mime.types lack mjs. Not tested on the
+  server itself.

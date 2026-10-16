@@ -158,6 +158,8 @@ khanesh-project/
 │   │   ├── LocalPreview.jsx     # manual-entry preview — the only clinical text with no engine
 │   │   ├── analyzeJob.js        # async job client: start, poll, resume from localStorage
 │   │   ├── imageIntake.js       # photo intake + compression (was inline in Tafsir.jsx)
+│   │   ├── pdfIntake.js         # specs/017: PDF page → JPEG (pdfjs-dist legacy, exact pin), lazy import() only;
+│   │   │                        #   the 5-image limit counts pages; worker is .mjs ⇒ deploy/nginx.conf maps its MIME
 │   │   ├── ResultView.jsx       # result screen: states, category groups, derived values
 │   │   ├── ResultErrorBoundary.jsx  # keeps a malformed response off a white screen
 │   │   ├── ExtractedTests.jsx / Scorecard.jsx / RangeBand.jsx / Num.jsx / Segmented.jsx

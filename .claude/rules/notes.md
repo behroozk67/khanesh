@@ -9,6 +9,10 @@
   `compressImage()` in `imageIntake.js` resizes, it does not crop or redact. So "we never send
   identifiers" is true of the OCR output and false of the upload. Don't repeat the short version in
   user-facing copy or a privacy policy without this caveat.
+  **The same holds for PDFs (specs/017).** `pdfIntake.js` renders each PDF page to a JPEG on the
+  device and uploads it exactly like a photo, with every name, national ID and stamp printed on it.
+  The PDF's text layer is never read or sent (`getTextContent` is not called); only the rendered
+  page images leave the device.
 - Raw OCR text is attacker-controlled (whoever supplies the photo chooses what it says). It must
   never be interpolated into a prompt as instructions. The engine path only forwards structured,
   already-graded findings; the MedlinePlus block deliberately dropped its `sourceLine` echo for

@@ -5,6 +5,15 @@ import ExtractedTests from "./ExtractedTests.jsx";
 import { asText, asList } from "./safeText.js";
 import { toFaDigits } from "./digits.js";
 import { progressText, etaText } from "./analyzeJob.js";
+import { MAX_IMAGES } from "./imageIntake.js";
+
+// پیشرفتِ آماده‌سازیِ صفحه‌های PDF (specs/017) — بی‌آن، تبدیلِ چندثانیه‌ایِ
+// یک PDF روی گوشی شبیهِ هنگ کردن است و کاربر دوباره دست می‌زند.
+function busyText(p) {
+  return p
+    ? `در حال آماده‌سازیِ صفحهٔ ${toFaDigits(p.i)} از ${toFaDigits(p.n)}…`
+    : "در حال آماده‌سازی…";
+}
 
 // ============================================================
 // کارتِ تفسیر — آپلود عکس، اجرا، انتظار، و خودِ نتیجه.
@@ -18,7 +27,7 @@ import { progressText, etaText } from "./analyzeJob.js";
 // ============================================================
 
 export default function UploadCard({
-  images, imgBusy, onFile, removeImage, moveImage,
+  images, imgBusy, imgProgress = null, onFile, removeImage, moveImage,
   resumed, onResume, onClearResumed,
   aiLoading, aiProgress, aiError, aiResult,
   mismatchError, onIgnoreMismatch, onCancelMismatch,
@@ -43,7 +52,7 @@ export default function UploadCard({
       <input
         id="lab-photos"
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf,.pdf"
         multiple
         onChange={onFile}
         className="sr-only"
@@ -53,27 +62,35 @@ export default function UploadCard({
           <>
             <span className="dropzone-icon" aria-hidden="true">📄</span>
             <span className="dropzone-main">
-              {imgBusy ? "در حال آماده‌سازی…" : "عکس برگهٔ آزمایش را انتخاب کنید"}
+              {imgBusy ? busyText(imgProgress) : "عکس یا PDF برگهٔ آزمایش را انتخاب کنید"}
             </span>
             <span className="dropzone-sub">
-              اگر برگه چند صفحه است، همه را با هم انتخاب کنید
+              اگر برگه چند صفحه است، همه را با هم انتخاب کنید (حداکثر {toFaDigits(MAX_IMAGES)} صفحه)
             </span>
           </>
         ) : (
           <>
             <span className="dropzone-main">
-              {toFaDigits(images.length)} صفحه انتخاب شد — برای افزودن کلیک کنید
+              {imgBusy
+                ? busyText(imgProgress)
+                : `${toFaDigits(images.length)} صفحه انتخاب شد — برای افزودن کلیک کنید`}
             </span>
-            <span className="dropzone-sub">
-              <span className="num">
-                {(images.reduce((a, b) => a + b.origKB, 0) / 1024).toFixed(1)}
-              </span>{" "}
-              مگابایت ←{" "}
-              <span className="num">
-                {(images.reduce((a, b) => a + b.sizeKB, 0) / 1024).toFixed(1)}
-              </span>{" "}
-              مگابایت پس از فشرده‌سازی
-            </span>
+            {(() => {
+              const origMB = images.reduce((a, b) => a + b.origKB, 0) / 1024;
+              const sizeMB = images.reduce((a, b) => a + b.sizeKB, 0) / 1024;
+              // PDFِ دیجیتال از تصویرِ رندرشده‌اش کوچک‌تر است (specs/017)؛ آنجا «قبل ← بعد»
+              // رشد را «فشرده‌سازی» می‌نامید. فقط وقتی واقعاً کوچک شده، مقایسه را نشان بده.
+              return origMB >= sizeMB ? (
+                <span className="dropzone-sub">
+                  <span className="num">{origMB.toFixed(1)}</span> مگابایت ←{" "}
+                  <span className="num">{sizeMB.toFixed(1)}</span> مگابایت پس از فشرده‌سازی
+                </span>
+              ) : (
+                <span className="dropzone-sub">
+                  <span className="num">{sizeMB.toFixed(1)}</span> مگابایت برای ارسال
+                </span>
+              );
+            })()}
           </>
         )}
       </label>
@@ -82,9 +99,10 @@ export default function UploadCard({
         <ul className="page-list">
           {images.map((img, idx) => (
             <li key={img.id} className="page-row">
-              <img src={img.dataUrl} alt="" className="page-thumb" />
+              <img src={img.dataUrl} alt={img.label || ""} className="page-thumb" />
               <span className="page-meta">
                 <span className="page-label">صفحهٔ {toFaDigits(idx + 1)}</span>
+                {img.label && <span className="page-size">{img.label}</span>}
                 <span className="page-size">
                   <span className="num">{img.sizeKB}</span> کیلوبایت
                 </span>
