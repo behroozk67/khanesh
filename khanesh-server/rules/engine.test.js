@@ -4950,7 +4950,8 @@ test("M85c: کنترلِ منفی — دو لبهٔ پنجره هیچ‌کدام
 test("M85d: قاعدهٔ hs-CRP هرگز خودِ CRP را پیشنهاد نمی‌دهد", () => {
   const f = findPat(runPatterns(runEngine({ tests: [{ name: "CRP", value: "3", unit: "mg/L" }] })), "hscrp_ascvd_risk");
   assert.ok(!f.suggest.some((s) => /CRP/i.test(s)), `CRP نباید پیشنهاد شود: ${JSON.stringify(f.suggest)}`);
-  assert.ok(f.warnings.some((w) => /برای همه توصیه نمی‌شود/.test(w)), "هشدارِ «غربالگری برای همه نیست» جا افتاد");
+  // P110 (۲۰۲۶-۱۰-۱۶، عمداً عوض شد): CRPِ داخلِ محدوده یافتهٔ بی‌اقدام (minor) است و هشدارهایش در همان یک خط می‌آید، نه در warnings.
+  assert.ok([f.must_say, ...f.warnings].some((w) => /برای همه توصیه نمی‌شود/.test(w)), "هشدارِ «غربالگری برای همه نیست» جا افتاد");
 });
 
 // ---------- M86: کات‌آفِ سن‌تعدیل‌شدهٔ D-dimer ----------
@@ -9999,10 +10000,11 @@ test("M191c: RDW-SD و RDW-CV دو نامِ جدا دارند؛ اقدامِ ت�
   // 🔴 پیش‌تر: «RDW 64.2 (طبیعی 35–56)، RDW 23.2 (طبیعی 11.5–14.5)» و «این موارد را هم … مرور کنید» بی‌مرجع در فهرستِ توصیه‌ها.
   assert.notEqual(faName("RDW_SD"), faName("RDW_CV"));
   // P108 (۲۰۲۶-۱۰-۱۶): MCHِ پایین حالا جملهٔ microcytosis_no_anemia را دارد؛ موضوعِ آزمون (عبارتِ اقدامِ تور) با ردیفی بی‌قاعده سنجیده می‌شود.
-  const p = uuuRun([["MCV", "72", null, "fL"], ["Albumin", "5.6", null, "g/dL"]], M40);
+  // P110 (۲۰۲۶-۱۰-۱۶): آلبومینِ بالا حالا قاعدهٔ خودش را دارد (albumin_high_alone)؛ ردیفِ بی‌قاعدهٔ آزمون کلر شد.
+  const p = uuuRun([["MCV", "72", null, "fL"], ["Chloride", "112", null, "mmol/L"]], M40);
   const un = findPat(p, "unexplained_abnormal");
   assert.equal(un?.urgency, "routine");
-  assert.match(un.action, /آلبومین/);
+  assert.match(un.action, /کلر/);
   assert.doesNotMatch(un.action, /این موارد/);
 });
 

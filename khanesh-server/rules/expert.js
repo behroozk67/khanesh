@@ -14,7 +14,7 @@ import { faName } from "./names.js";
 import { getUnit } from "./refs.js";
 import { sourceList } from "./guidelines.js";
 import { RULES, HIDDEN_FINDINGS, alreadyMeasured } from "./patterns.js";
-import { dropSubsumedTests, URGENCY_FA, buildEngineRecommendations } from "./prompt.js";
+import { dropSubsumedTests, URGENCY_FA, buildEngineRecommendations, phraseSuggestion } from "./prompt.js";
 import { findingKeys } from "./score.js";
 import { printedOf } from "./printed.js";
 
@@ -144,6 +144,9 @@ export function buildExpertView(engineOut, patternOut, score) {
       urgency: su ?? null,
       urgency_fa: URGENCY_FA[su] ?? null,
       supplementary: f.supplementary === true,
+      // P110: یافتهٔ بی‌اقدام — فرانت آن‌ها را در یک گروهِ جمع‌شده نشان می‌دهد؛ متنش همان یک خطِ موتور است.
+      minor: f.minor === true,
+      ...(f.minor === true && typeof f.must_say === "string" ? { note: f.must_say } : {}),
       briefed: typeof f.brief === "string" && f.must_say === f.brief,
       triggers: triggersOf(f),
       // تورِ «بی‌قاعده» دربارهٔ همهٔ ردیف‌هاست؛ «زمینه»‌اش کلِ برگه می‌شد که اطلاعاتی نمی‌دهد.
@@ -167,9 +170,23 @@ export function buildExpertView(engineOut, patternOut, score) {
   // دستورِ عمل یک‌جا و همان فهرستِ نمای ساده: یک دستورِ نهایی (pickFinalAction) + محتوای دستورهای دیگر + هشدارها، با
   //   فیلترِ forbid. actionِ تک‌تکِ یافته‌ها عمداً نمی‌آید — زمان‌بندی‌های رقیب («این هفته» زیرِ «همین حالا اورژانس»)
   //   همان چیزی است که N7/N20/M188 برداشتند (بازبینیِ کد، X27).
-  const recommendations = patternOut ? buildEngineRecommendations(patternOut, engineOut) : [];
+  let recommendations = patternOut ? buildEngineRecommendations(patternOut, engineOut) : [];
+  // نمای تخصصی: وقتی اولین مورد فقط «نوبت/وقت با پزشک بگیرید» است و مورد دیگری هم خودش به پزشک ارجاع می‌دهد،
+  //   همان دستور دوبار می‌آید (درخواستِ کاربر، ۲۰۲۶-۱۰-۱۵). فقط برای فوریتِ کم؛ دستورِ اورژانس/۲۴–۴۸ ساعت دست نمی‌خورد.
+  if (recommendations.length > 1 && !["emergency", "soon"].includes(patternOut?.overall_urgency)) {
+    const first = String(recommendations[0]);
+    const bareVisit = first.length <= 90 && /پزشک/.test(first) && /(وقت|نوبت)\s*(بگیرید|عادی)|مراجعه کنید|مطرح کنید/.test(first)
+      && !/تکرار|بخواهید|دارو|درمان|اگر|اورژانس/.test(first);
+    if (bareVisit && recommendations.slice(1).some((r) => /پزشک/.test(String(r)))) recommendations = recommendations.slice(1);
+  }
 
   const suggested = dropSubsumedTests([...new Set(findings.flatMap((f) => f.suggest))]);
+  // P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): «آزمایش‌های پیشنهادی» عینِ «درخواستِ … از پزشک»‌های فهرستِ دستور بود. در نمای تخصصی فهرستِ
+  //   آزمایش‌ها جدا آمده، پس همان درخواست‌ها از دستورها برداشته می‌شوند (نمای ساده دست نمی‌خورد).
+  if (suggested.length) {
+    const asRequest = new Set(suggested.map((s) => phraseSuggestion(s)));
+    recommendations = recommendations.filter((r) => !asRequest.has(String(r)));
+  }
 
   const tests = [
     ...graded.filter((g) => g.abnormal).map((g) => testRow(g, engineOut)),

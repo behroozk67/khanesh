@@ -336,7 +336,7 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   procalcitonin: "PCT_SEPSIS",
   // ⚠️ مخفف برهنهٔ «pct» اینجا نیست — با پلاکت‌کریت (شاخص پلاکتیِ CBC، برگه‌های Sysmex) تصادم دارد.
   //    گیت‌شده روی واحد است: pctKey() پایین‌تر.
-  crpquant: "CRP_Q", hscrp: "CRP_Q", crpquantitative: "CRP_Q",
+  crpquant: "CRP_Q", hscrp: "CRP_Q", crpquantitative: "CRP_Q", crpq: "CRP_Q", quantitativecrp: "CRP_Q", qcrp: "CRP_Q",
   ammonia: "NH3", nh3: "NH3",
   hco3: "HCO3", bicarbonate: "HCO3", co2: "HCO3",
   ph: "PH",
@@ -1469,6 +1469,10 @@ export function ocrToEngineInput(ocr) {
   // باگِ ۲ (LIS ۲۰۲۶-۱۰-۰۵): WBC/RBCِ دوقلو روی یک صفحه — ادراری ⇒ /hpf؛ نامعلوم ⇒ «تفسیر نشدند».
   const twinRoutes = cellTwinRoutes(ocr?.tests || []);
 
+  // «Total 100 %» زیرِ فرمولِ گلبولِ سفید جمعِ درصدهاست که دستگاه چاپ می‌کند، نه آزمایش (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶: هشدارِ «Total را
+  //   تفسیر نمی‌کند» نویز بود). فقط با ردیفِ ٪ِ افتراقی روی برگه و مقدارِ ۹۸ تا ۱۰۲ کنار گذاشته می‌شود؛ «Total» ِ دیگر (پروتئین؟ بیلی‌روبین؟)
+  //   در «تفسیر نشدند» می‌ماند — حدس‌زدنِ «تامِ چه؟» همان خطایی است که پیش‌تر به بیمار رسیده بود.
+  const diffPctOnSheet = (ocr?.tests || []).some((x) => /^(neut|neutrophils?|lymph|lymphocytes?|mono|monocytes?|eos|eosinophils?|baso|basophils?|seg|segmented)/.test(norm(x.name)));
   for (let t of ocr?.tests || []) {
     if (!t?.name) continue;
     curRow = { name: t.name };
@@ -1553,6 +1557,7 @@ export function ocrToEngineInput(ocr) {
       if (NAME_MAP[key]) unreadableKeys.add(NAME_MAP[key]);
       continue;
     }
+    if (key === "total" && diffPctOnSheet && Math.abs(toNum(t.value) - 100) <= 2) continue;
     // «Hémoglobine 14 g/dL» / «Hemoglobina 6.1 g/dL»: خودِ هموگلوبین — به مسیرِ عادیِ HGB (CR9/CR10).
     if (HB_TOTAL_WITH_MASS_UNIT.has(key) && HB_MASS_UNIT.test(String(t.unit || ""))) {
       t = { ...t, name: "Hemoglobin" };
@@ -1617,7 +1622,7 @@ export function ocrToEngineInput(ocr) {
     //    می‌شود ولی نامش در «تفسیر نشدند» می‌ماند تا بقیهٔ متنِ آزادش گم نشود.
     if (!onUrinePage && !semenPages.has(t._page ?? 0)) {
       const mr = rbcMorphRow(t.name, t.value, t.unit);
-      if (mr) { rbcMorphItems.push(mr); continue; }
+      if (mr) { if (mr.state !== "blank") rbcMorphItems.push(mr); continue; }
       const sr = smearRow(t.name, t.value, t.unit);
       if (sr) {
         smearItems.push(...sr.items);
@@ -2751,7 +2756,8 @@ export function runEngine(ocr) {
     // P57 پرسش ۶: شاخص‌های پلاکتی بازهٔ استاندارد ندارند و به‌تنهایی هشدار نمی‌سازند — نه noRef («تفسیر نشدند»، «حتماً با پزشک»)،
     //   نه حکم. خواننده: platelet_indices_context، فقط کنارِ پلاکت/MPVِ غیرطبیعی.
     if (PLATELET_INDEX_KEYS.has(key)) {
-      ungraded[key] = { value, reason: "platelet_index", unit: printedUnits[key] ?? null };
+      // P110: بازهٔ چاپ‌شدهٔ همان دستگاه همراهش — plateletIndicesText آن را بر «بازهٔ معمول» مقدم می‌کند (PDW ِ ۳۵–۵۵٪ کنارِ ۹–۲۰ِ برگه).
+      ungraded[key] = { value, reason: "platelet_index", unit: printedUnits[key] ?? null, ...(printedRefsAll[key] ? { printed_range: printedRefsAll[key] } : {}) };
       continue;
     }
     // P93: قندِ یک‌ساعتهٔ OGTT بیرونِ بارداری معیار ندارد ⇒ noRef، ولی مقدار برای gestational_diabetes_range نگه داشته می‌شود.
@@ -2788,7 +2794,8 @@ export function runEngine(ocr) {
     if (!ref) {
       noRef.push(key);
       if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range", ...(UNIT_KEPT.has(key) ? { unit: printedUnits[key] ?? null } : {}) };
-      else if (UNIT_KEPT.has(key)) ungraded[key] = { value, reason: "no_range", unit: printedUnits[key] ?? null };
+      // P110: بازهٔ چاپ‌شدهٔ رویِ سرم همراهش می‌رود — بی‌واحد، واحد از همین بازه تعیین می‌شود (zinc_status).
+      else if (UNIT_KEPT.has(key)) ungraded[key] = { value, reason: "no_range", unit: printedUnits[key] ?? null, ...(key === "ZINC" && printedRefsAll[key] ? { printed_range: printedRefsAll[key] } : {}) };
       continue;
     }
 

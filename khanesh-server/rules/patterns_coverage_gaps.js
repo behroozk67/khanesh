@@ -10,6 +10,7 @@ import { bandNeutDiscordance, serologyReactive, urinePositive, urineCellCount, u
 import { utiFires, bacteriuriaFires, bacteriaSignificant } from "./patterns_nephrology.js";
 import { RULES_BIOCHEM } from "./patterns_biochem.js";
 import { netUrgency, ALBUMIN_LOW_WARNING } from "./patterns_p73_gaps.js";
+import { parseReference } from "./units.js";
 
 const normK = (s) => String(s).toLowerCase().replace(/[\s.\-_()/%#:]/g, "");
 const g = (e, k) => e.graded?.find((x) => x.test === k);
@@ -163,9 +164,17 @@ function mpvBuild(e) {
     low: "پلاکتِ همین برگه پایین است و MPV باید در کنارِ آن خوانده شود (پلاکتِ جوان‌تر و بزرگ‌تر معمولاً نشانهٔ تولیدِ جبرانیِ مغز استخوان است، پلاکتِ کوچک‌تر نشانهٔ کم‌کاریِ تولید). ",
     high: "پلاکتِ همین برگه بالاست و MPV باید در کنارِ آن خوانده شود. ",
   }[pltState];
+  // P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): MPV کارت و بندِ جدا داشت. کنارِ پلاکتِ طبیعی حرفِ تازه‌ای ندارد ⇒ یک خط در «موارد دیگر».
+  //   MPV به دستگاه وابسته است؛ اگر عدد داخلِ بازهٔ چاپ‌شدهٔ همان آزمایشگاه است، همین گفته می‌شود.
+  const printed = parseReference(e.printedRanges?.MPV ?? "");
+  const inPrinted = printed && printed.lo != null && printed.hi != null && m.value >= printed.lo && m.value <= printed.hi;
+  const quiet = pltState === "normal";
   return {
     pattern: "mpv_result",
     urgency: "routine",
+    ...(quiet ? { info: true, minor_line: inPrinted
+      ? `MPV ${m.value} fL: داخلِ بازهٔ چاپ‌شدهٔ آزمایشگاه (${e.printedRanges.MPV}) و کمی بیرون از بازهٔ مرجعِ عمومی (${m.range})؛ پلاکتِ همین برگه طبیعی است، پس به‌تنهایی معنای بالینی ندارد`
+      : `MPV ${m.value} fL (بازهٔ مرجع ${m.range}): پلاکتِ همین برگه طبیعی است، پس MPV به‌تنهایی معنای بالینی ندارد` } : {}),
     headline: hi ? "اندازهٔ متوسطِ پلاکت‌ها (MPV) بزرگ‌تر از حد طبیعی است" : "اندازهٔ متوسطِ پلاکت‌ها (MPV) کوچک‌تر از حد طبیعی است",
     must_say: `MPV ${m.value} fL است (بازهٔ مرجع ${m.range}). MPV میانگینِ اندازهٔ پلاکت‌هاست و به‌تنهایی تشخیص نمی‌دهد؛ دستگاه‌ها و نگهداریِ نمونه بر آن اثر می‌گذارند. ` + pltSentence,
     action: ACTION.routine,
@@ -387,6 +396,8 @@ function urineCultureBuild(e) {
   return {
     pattern: "urine_culture_result",
     urgency,
+    // P110: کشتِ منفی اقدامی ندارد ⇒ یک خط در «موارد دیگر».
+    ...(st === "neg" ? { info: true, minor_line: `کشتِ ادرار «${r.raw}»: رشدِ باکتری گزارش نشده` } : {}),
     headline: st === "pos" ? "در کشتِ ادرارِ شما رشدِ میکروب گزارش شده است" : "نتیجهٔ کشتِ ادرار",
     must_say: body,
     action: ACTION[urgency],

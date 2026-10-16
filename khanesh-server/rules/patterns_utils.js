@@ -92,7 +92,13 @@ export function applyPrintedRange(findings, e) {
     const printed = pr[g.test];
     if (!printed || !g.range) continue;
     const re = new RegExp(`(${escRe(g.value)}[^.؛\\n]{0,60}?حد طبیعی\\s*)${escRe(g.range)}(?=\\))`, "g");
-    const fix = (s) => (typeof s === "string" ? s.replace(re, (_m, p1) => `${p1}${g.range}؛ روی برگهٔ شما ${printed}`) : s);
+    // P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶: «بازهٔ موتور و بازهٔ برگه در هر جمله تکرار می‌شود»): وقتی بازهٔ برگه همان حکمِ موتور را می‌دهد،
+    //   فقط بازهٔ برگه گفته می‌شود (همان که روی کاغذ است، N5). دو بازه فقط وقتی می‌آیند که حکمشان فرق دارد (اسید اوریکِ ۸٫۲ با سقفِ
+    //   ۷٫۲ِ موتور و ۸٫۲ِ برگه) — آن‌جا گفتنِ هر دو همان صداقتی است که این تابع برایش ساخته شد.
+    const pr2 = parseReference(printed, e.sex ?? null);
+    const pv = !pr2 ? null : pr2.lo != null && g.value < pr2.lo ? "low" : pr2.hi != null && g.value > pr2.hi ? "high" : "normal";
+    const same = pv != null && pv === (g.abnormal ? g.dir : "normal");
+    const fix = (s) => (typeof s === "string" ? s.replace(re, (_m, p1) => (same ? `${p1}${printed}` : `${p1}${g.range}؛ روی برگهٔ شما ${printed}`)) : s);
     for (const f of findings) {
       for (const k of ["must_say", "brief"]) if (typeof f[k] === "string") f[k] = fix(f[k]);
       for (const k of ["warnings", "brief_warnings"]) if (Array.isArray(f[k])) f[k] = f[k].map(fix);
@@ -1035,7 +1041,7 @@ function crystalAxis(e) {
 //    سلولِ سنگفرشیِ زیاد (≥۱۵ در میدانِ پربزرگ‌نمایی، یا «Many») یعنی نمونه هنگامِ جمع‌آوری آلوده شده.
 const RTEC_UPPER_HPF = 2;
 const SQUAMOUS_CONTAM_HPF = 15;
-const EPI_KEY_RE = /epithel|\bepi\.?\s*cells?\b|اپی\s*تلیال|اپیتلیال|squam|سنگفرش|\brtec?\b|renal\s*tubular\s*cell/i;
+const EPI_KEY_RE = /epithel|\bepi?\.?\s*cells?\b|اپی\s*تلیال|اپیتلیال|squam|سنگفرش|\brtec?\b|renal\s*tubular\s*cell/i;
 /** "renal_tubular" | "transitional" | "squamous" | null. برگه‌های ایرانی سنگفرشی را «Epithelial cells» می‌نویسند. */
 function epithelialKind(name) {
   const s = String(name);
@@ -1504,7 +1510,7 @@ const RBC_MORPH_NAME = [
   [/^(poikilocytosis|پویکیلوسیتوز)$/, "poikilocytosis"],
 ];
 const RBC_MORPH_QTY = [   // [regex روی مقدارِ نرمال‌شده, state, qty]
-  [/^(none|nil|absent|negative|neg|notseen|noneseen|notdetected|undetected|منفی|دیدهنشد|مشاهدهنشد|ندارد|نیست|-)$/, "absent", null],
+  [/^(none|nil|absent|negative|neg|notseen|noneseen|notdetected|undetected|normal|nl|منفی|دیدهنشد|مشاهدهنشد|ندارد|نیست|طبیعی|-)$/, "absent", null],
   [/^(few|rare|occasional|trace|scanty|slight|mild|1\+|\+|\+1|کم|نادر|اندک|خفیف)$/, "present", "minor"],
   [/^(moderate|many|numerous|frequent|marked|increased|abundant|significant|2\+|3\+|4\+|\+\+|\+\+\+|\+\+\+\+|\+2|\+3|\+4|متوسط|زیاد|فراوان|متعدد)$/, "present", "significant"],
   [/^(present|seen|positive|pos|detected|yes|دیدهشد|مشاهدهشد|مثبت|وجوددارد|دارد)$/, "present", "unquantified"],
@@ -1516,6 +1522,9 @@ export function rbcMorphRow(name, value, unit) {
   const v = String(value ?? "").trim();
   const u = String(unit ?? "").trim();
   const nv = rbcMorphNorm(v);
+  // خانهٔ خالیِ فرمِ لام («Microcytosis: ‏‌» یا «-»): آزمایشگاه چیزی ننوشته. نه «دیده نشد» است (N4) نه ردیفِ «تفسیرنشده»
+  //   (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶: «Microcytosis را تفسیر نمی‌کند» نویز بود). adapter بی‌صدا رهایش می‌کند.
+  if (!nv) return { kind, state: "blank", qty: null, pct: null, raw: v };
   // «<1%»، «کمتر از ۱٪» — زیرِ مرز، کمیتِ نامعلومِ کوچک.
   if (/^[<≤]\s*\d/.test(v) || /^(کمتراز)/.test(nv)) return { kind, state: "present", qty: "minor", pct: null, raw: v };
   const num = v.match(/^(\d+(?:[.,٫]\d+)?)\s*%?$/);

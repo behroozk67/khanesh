@@ -850,7 +850,42 @@ export function runPatterns(engineOut) {
     });
   });
 
-  shown.sort((a, b) => rank(a.urgency) - rank(b.urgency));
+  // ═══ P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): یافتهٔ «بی‌اقدام» ═══
+  // روی یک برگهٔ تقریباً سالم ۱۲ کارت و یک تفسیرِ ۸۰۰ کلمه‌ای ساخته می‌شد که فقط ۵ موردش اقدامی داشت (eAG، شاخصِ آتروژنیک، کشتِ منفی،
+  //   IgMِ منفی، B12ِ مرزیِ بی‌علامت …). قاعده‌ای که خودش می‌داند حرفش اقدامی ندارد `info: true` و یک `minor_line` (با عددِ خودش) می‌دهد؛
+  //   اینجا آن یافته به همان یک خط تبدیل می‌شود، به مدل نمی‌رود (prompt.js) و موتور آن را در پاراگرافِ «موارد دیگر، بی‌اقدام» می‌نویسد
+  //   (printed.js). حذف نمی‌شود (N18): عددش در همان خط هست. فقط routine؛ یافتهٔ فوری‌تر هرگز جمع نمی‌شود.
+  for (let i = 0; i < shown.length; i++) {
+    const f = shown[i];
+    if (!f.info || f.urgency !== "routine" || f.supplementary) continue;
+    const { key_number: _kn, ...rest } = f;
+    // action هم خالی: «در فرصتِ مناسب با پزشک مطرح کنید»ِ یافتهٔ بی‌اقدام در فهرست تکرارِ دستورِ دیگر بود (buildEngineRecommendations
+    //   برای برگه‌ای که *همه*‌اش بی‌اقدام است minor_action را می‌گذارد — همان دستورِ خودِ یافته که applyInpatientVoice بالاتر بازنویسی کرده، X18).
+    shown[i] = { ...rest, must_say: f.minor_line ?? f.must_say, action: "", minor_action: f.action ?? "", warnings: withSafety([], f), suggest: [], protected: [], minor: true };
+  }
+
+  // ترتیب: فوریت، سپس یافته‌های اقدام‌دار پیش از بی‌اقدام، سپس — فقط در routine — بزرگیِ انحرافِ عددی که خودِ یافته نقل می‌کند
+  //   (CK ۳۵۷ با سقفِ ۱۹۰ پیش از TG ۱۵۳ با سقفِ ۱۵۰). نسبتِ انحراف میانِ دو آزمایشِ متفاوت شدتِ بالینی نیست (پلاکتِ ۹۰ در برابرِ ASTِ ۹۰)،
+  //   پس بالاتر از routine ترتیبِ قاعده‌ها می‌ماند؛ pickFinalAction هم تساوی را با همین ترتیب می‌شکند.
+  const devOf = (f) => {
+    let m = 0;
+    const text = String(f.must_say ?? "");
+    for (const g of engineOut.graded ?? []) {
+      if (!g.abnormal || !text.includes(String(g.value))) continue;
+      const [lo, hi] = String(g.range ?? "").split("–").map(Number);
+      const r = g.dir === "high" && hi > 0 ? g.value / hi : g.dir === "low" && g.value > 0 && lo > 0 ? lo / g.value : 1;
+      if (Number.isFinite(r) && r > m) m = r;
+    }
+    return m;
+  };
+  const lowTier = (u) => u === "routine";
+  // یافتهٔ تکمیلی ترتیبِ خودش را دارد («۱ از n»، M241) و بیرون از این مرتب‌سازی است.
+  //   تورهای «بی‌توضیح» (unexplained/unmatched) آخرِ ردهٔ خودشان می‌مانند: جملهٔ «این‌ها توضیح داده نشدند» پیش از یافتهٔ نام‌دار نمی‌آید.
+  const NETS = new Set(["unexplained_abnormal", "unmatched_abnormal"]);
+  const dev = new Map(shown.map((f) => [f, !lowTier(f.urgency) || f.supplementary ? 0 : NETS.has(f.rule_id) ? -1 : devOf(f)]));
+  shown.sort((a, b) => rank(a.urgency) - rank(b.urgency)
+    || (a.minor === true) - (b.minor === true)
+    || (lowTier(a.urgency) ? dev.get(b) - dev.get(a) : 0));
 
   // ═══ CLSI — هشدارهای پیش‌تحلیلی ═══
   // بعد از انتخابِ یافته‌ها اجرا می‌شود، نه قبلش: هشداری که به یافتهٔ

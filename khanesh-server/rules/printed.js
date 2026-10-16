@@ -60,6 +60,18 @@ export function supplementaryParagraph(patterns) {
 }
 
 /**
+ * P110: بلوکِ «موارد دیگر، بی‌اقدام» — یافته‌هایی که قاعده‌شان خودش گفته اقدامی ندارند (info ⇒ minor در runPatterns)، هر کدام یک خط با عددِ
+ * خودش. مدل این‌ها را نمی‌بیند؛ پس نه حذف می‌شوند نه بازنویسی (N7/N18).
+ */
+export function minorParagraph(patterns) {
+  const items = (patterns?.findings ?? [])
+    .filter((f) => f.minor && f.must_say)
+    .map((f) => String(f.must_say).trim().replace(/[.؛]+$/, ""));
+  if (!items.length) return "";
+  return `موارد دیگرِ این برگه که اقدامِ جداگانه‌ای لازم ندارند: ${items.join("؛ ")}.`;
+}
+
+/**
  * پاراگرافِ مواردِ در محدوده. فقط ردیف‌های graded و غیرغیرطبیعی (N4: ungraded و unit_unknown هرگز «طبیعی» نمی‌شوند)،
  * با عددِ چاپ‌شدهٔ برگه (N5) و نامِ فارسی (N8: کلیدی که نامِ فارسی ندارد نمی‌آید).
  */
@@ -88,5 +100,5 @@ export function normalRangeParagraph(engineOut, { max = 20 } = {}) {
 
 /** دو بلوکِ پایانی با \n\n؛ رشتهٔ خالی اگر چیزی نبود. */
 export function engineClosingBlocks(engineOut, patterns) {
-  return [supplementaryParagraph(patterns), normalRangeParagraph(engineOut)].filter(Boolean).join("\n\n");
+  return [supplementaryParagraph(patterns), minorParagraph(patterns), normalRangeParagraph(engineOut)].filter(Boolean).join("\n\n");
 }

@@ -615,6 +615,22 @@ export const RULES_ENDOCRINE_NEW = [
       const b12 = val(e).B12;
       const mcv = val(e).MCV;
       const mm = mmaClause(e, true);
+      // P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): B12ِ ۲۵۱ در بازهٔ برگه (۲۰۰–۸۳۵)، بی‌کم‌خونی و بی‌گلبولِ درشت، MMA را سه بار می‌آورد (متن، دستور،
+      //   فهرست) و فولات را هم. BSH 2014 آزمونِ دوم (MMA) را برای B12ِ نامعین فقط با شکِ بالینی می‌خواهد ⇒ مشروط به علامت، بی‌پیشنهاد.
+      const hgbLow = e.graded.some((g) => g.test === "HGB" && g.abnormal && g.dir === "low");
+      if (!(mcv != null && mcv > 95) && !hgbLow && !mm.text) {
+        return {
+          pattern: "borderline_b12_deficiency",
+          urgency: "routine",
+          info: true,
+          headline: "سطح مرزی ویتامین B12",
+          must_say: `سطح B12 شما ${b12} است که در ناحیهٔ مرزی (۱۵۰ تا ۳۹۹) قرار دارد؛ گاهی بافت‌ها در این سطح کمبود دارند، ولی بی‌علامت و بی‌کم‌خونی معمولاً اقدامی لازم نیست. اگر گزگز یا بی‌حسیِ دست و پا، خستگیِ بی‌دلیل یا زخمِ زبان دارید، پزشک ممکن است آزمایشِ MMA و فولات را بخواهد.`,
+          minor_line: `ویتامین B12 ${b12}: مرزی؛ فقط اگر گزگز یا بی‌حسیِ دست و پا یا خستگیِ بی‌دلیل دارید پیگیری شود`,
+          action: "در نوبتِ عادی با پزشک مطرح کنید.",
+          suggest: [],
+          warnings: [],
+        };
+      }
       return {
         pattern: "borderline_b12_deficiency",
         urgency: "routine",

@@ -172,7 +172,10 @@ export default function ExpertView({ eng, asText }) {
     );
   }
 
-  const findings = list(x.findings).filter(obj);
+  const allFindings = list(x.findings).filter(obj);
+  // P110: یافتهٔ بی‌اقدام (minor) کارتِ جدا نمی‌گیرد؛ یک گروهِ جمع‌شده با متنِ یک‌خطیِ موتور (note).
+  const findings = allFindings.filter((f) => f.minor !== true);
+  const minor = allFindings.filter((f) => f.minor === true);
   const hidden = list(x.hidden).filter(obj);
   const indices = list(x.indices).filter(obj);
 
@@ -199,10 +202,21 @@ export default function ExpertView({ eng, asText }) {
 
       <section className="xv-block">
         <h3 className="block-title">یافته‌ها</h3>
-        {findings.length === 0 ? (
+        {allFindings.length === 0 ? (
           <p className="xv-muted">موتور برای این برگه یافته‌ای نساخت.</p>
         ) : (
           findings.map((f, i) => <Finding key={i} f={f} asText={asText} open={i === 0} />)
+        )}
+        {minor.length > 0 && (
+          <details className="card xv-block">
+            <summary className="block-title">موارد بی‌اقدام ({num(minor.length)})</summary>
+            <p className="xv-muted">قاعده‌شان خودش گفته اقدامِ جداگانه‌ای لازم ندارند؛ عددشان در جدولِ آزمایش‌ها هم هست.</p>
+            <ul className="bullet-list">
+              {minor.map((f, i) => (
+                <li key={i}>{asText(f.note || f.label)}</li>
+              ))}
+            </ul>
+          </details>
         )}
       </section>
 

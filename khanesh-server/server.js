@@ -40,7 +40,7 @@ import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
 import { healthScore } from "./rules/score.js";
-import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, closingSuffix, buildEngineRecommendations, condenseRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines, keyNumberAppears } from "./rules/prompt.js";
+import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, closingSuffix, engineSummary, buildEngineRecommendations, condenseRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines, keyNumberAppears } from "./rules/prompt.js";
 import { glossQualText } from "./rules/patterns_utils.js";
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
@@ -192,7 +192,7 @@ export function qualAllReadNegative(engineOut, patternOut, { ignoreUnmapped = fa
 
 /**
  * specs/011 (FR-017): جنس/سنِ پروفایل با آنچه روی برگه چاپ شده فرق دارد → یک جملهٔ فارسی، وگرنه null.
- * mergePatient پیش‌تر پروفایل را برنده کرده؛ این فقط *گفتنِ* آن است. اختلافِ سن: بیش از یک سال، یا هر اختلاف زیرِ یک سال.
+ * mergePatient پیش‌تر برنده را انتخاب کرده (جنسیت: پروفایل؛ سن: برگه در همان گروهِ سنی)؛ این فقط *گفتنِ* آن است. اختلافِ سن: بیش از یک سال، یا هر اختلاف زیرِ یک سال.
  */
 export function profileMismatchNotes(sheet, form) {
   const notes = [];
@@ -204,7 +204,8 @@ export function profileMismatchNotes(sheet, form) {
   const sA = inferAge({ patient: sheet }), fA = inferAge({ patient: form });
   if (sA != null && fA != null) {
     const differ = Math.min(sA, fA) < 1 ? Math.abs(sA - fA) * 365.25 >= 1 : Math.abs(sA - fA) > 1;
-    if (differ) notes.push(`سنِ چاپ‌شده روی برگه (${ageText(sA)}) با سنِ پروفایل (${ageText(fA)}) فرق دارد؛ تفسیر با سنِ پروفایل انجام شد.`);
+    const used = ageBand(sA) === ageBand(fA) ? "سنِ چاپ‌شده روی برگه" : "سنِ پروفایل";
+    if (differ) notes.push(`سنِ چاپ‌شده روی برگه (${ageText(sA)}) با سنِ پروفایل (${ageText(fA)}) فرق دارد؛ تفسیر با ${used} انجام شد.`);
   }
   return notes;
 }
@@ -916,6 +917,13 @@ function refRange(ref) {
 export function mergePatient(sheet, form) {
   const filled = Object.fromEntries(Object.entries(form ?? {}).filter(([, v]) => v != null && v !== ""));
   const out = { ...(sheet ?? {}), ...filled };
+  // P110 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶، «سن هنوز ۳۵ است و برگه ۳۶ می‌گوید»): سنِ چاپ‌شده سنِ روزِ نمونه‌گیری است و بر سنِ پروفایل
+  //   (که با هر تولد کهنه می‌شود) مقدم است — فقط وقتی هر دو در یک گروهِ سنی‌اند. گروهِ متفاوت ⇒ ۴۲۲ِ ageBandMismatch و پروفایل (FR-017).
+  //   جنسیت همچنان مالِ پروفایل است.
+  if (sheet?.age != null && sheet.age !== "" && filled.age != null) {
+    const sA = inferAge({ patient: sheet }), fA = inferAge({ patient: filled });
+    if (sA != null && fA != null && ageBand(sA) === ageBand(fA)) out.age = sheet.age;
+  }
   return Object.keys(out).length ? out : null;
 }
 
@@ -1538,7 +1546,7 @@ const analyzeHandler = async (req, res) => {
       //    جمله‌های افتاده اینجا برگردند، عدد هم با آن‌ها برمی‌گردد و تضمینِ بعدی
       //    دیگر فعال نمی‌شود — پس یک جمله دو بار اضافه نمی‌شود.
       const numbered = patternOut.findings.filter(
-        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary
+        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary || f.minor
       );
       if (numbered.length) {
         const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;
@@ -1739,6 +1747,11 @@ const analyzeHandler = async (req, res) => {
       // ⚠️ ترتیب عمدی است: این تور *پیش از* تضمینِ عددِ کلیدی اجرا می‌شود. اگر
       //    جمله‌های افتاده اینجا برگردند، عدد هم با آن‌ها برمی‌گردد و تضمینِ بعدی
       //    دیگر فعال نمی‌شود — پس یک جمله دو بار اضافه نمی‌شود.
+      // P110: جمع‌بندیِ برگهٔ routine از شمارشِ موتور، نه از مدل (مدل «چندین مورد نیاز به توجه دارند» می‌نوشت). null ⇒ متنِ مدل می‌ماند.
+      {
+        const es = engineSummary(engineOut, patternOut);
+        if (es) { tr.net("engineSummary", parsed.summary, es, {}); parsed.summary = es; }
+      }
       // ── forbid روی متنِ مدل (N9، بازبینی ۱۰-۱۳ یافتهٔ ۲۲) ── پیش از تورهای افزودن، تا اگر جملهٔ آلوده بخشی از must_say بود،
       //    همان بخش با متنِ موتور برگردد. جزئیات: replaceForbiddenSentences در rules/coverage.js.
       for (const field of ["summary", "interpretation"]) {
@@ -1762,7 +1775,7 @@ const analyzeHandler = async (req, res) => {
       }
       
 const numbered = patternOut.findings.filter(
-        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary
+        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary || f.minor
       );
       if (numbered.length) {
         const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;

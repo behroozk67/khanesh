@@ -220,6 +220,10 @@ export function plateletIndicesText(e) {
   const items = Object.entries(e.ungraded)
     .filter(([, u]) => u.reason === "platelet_index")
     .map(([k, u]) => {
+      // P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): «PDW 16.2 (بازهٔ معمول ۳۵–۵۵٪)» کنارِ بازهٔ چاپ‌شدهٔ ۹–۲۰ِ همان برگه. PDW دو فرمول و چند
+      //   دستگاه دارد؛ بازهٔ خودِ آزمایشگاه همان دستگاه است، پس اول آن، و فقط بی‌بازهٔ چاپی «بازهٔ معمول».
+      const printed = u.printed_range ?? e.printedRanges?.[k];
+      if (printed) return `${faName(k)} ${u.value} (بازهٔ چاپ‌شدهٔ آزمایشگاه ${printed})`;
       const t = typical(k, u.unit);
       return `${faName(k)} ${u.value}${t ? ` (بازهٔ معمول ${t})` : ""}`;
     });

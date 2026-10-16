@@ -311,8 +311,14 @@ export default function ResultDashboard({
   // روند: همیشه نمایش داده می‌شود. نقطه‌های قبلی یا از prop `history` می‌آیند، یا از تاریخچهٔ همین دستگاه
   // (scoreHistory.js). نقطهٔ فعلی بی‌تاریخچه تنهاست و کارت می‌گوید با نوبتِ بعد خط کشیده می‌شود.
   const sig = useMemo(
-    () => (overall == null ? null : hashStr(`${overall}|${all.map((t) => `${t.key ?? t.name}:${t.value}`).sort().join('|')}`)),
-    [all, overall]
+    // امضا فقط از ردیف‌های خوانده‌شدهٔ برگه (extracted_tests، مستقیم از OCR)؛ نه امتیاز و نه فهرستِ سنجیده‌شدهٔ موتور. هر دو با
+    //   موتورِ تازه عوض می‌شوند و همان برگه «نوبتِ دیگر» می‌شد: «۸۲ ← ۹۰، ۱۰٪ بهتر از نوبتِ قبل» (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶؛ scoreHistory.js، v3).
+    () => {
+      if (overall == null) return null;
+      const rows = Array.isArray(result?.extracted_tests) && result.extracted_tests.length ? result.extracted_tests : all;
+      return hashStr(rows.map((t) => `${t.name ?? t.key}:${t.value}`).sort().join('|'));
+    },
+    [result, all, overall]
   );
   const [stored, setStored] = useState(null);
   useEffect(() => {

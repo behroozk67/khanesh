@@ -115,7 +115,8 @@ const X0_FREEZE = {
   k55: ["1a75602774814a44", "cddfedd36e0af236"], ida: ["a2144e5b55692b2d", "6aaf1159b8f64fe5"],
   // بازپایهٔ عمدی (P108، ۲۰۲۶-۱۰-۱۶): سقفِ کراتینینِ مرد ۱٫۳ ⇒ فقط نمرهٔ کراتینینِ ۲٫۱ (فاصله تا حد) عوض شد؛ runPatterns همان. قبلی b30ca0c8e67fc1fb.
   caalb: ["ddda5e14c655cee5", "d15391d327996497"], urea: ["e801d2e94bd4e5d7", "d4652c8d35931739"],
-  cbc: ["d4116a0c2bedb3c1", "f1317c856c6d3301"], lipid: ["4f7830d11e2096df", "8ca6f6261a0158eb"],
+  // بازپایهٔ عمدی (P110، ۲۰۲۶-۱۰-۱۶): lipid — جملهٔ ناشتای lipid_profile جایش را به هشدارِ پیش‌آزمایشیِ TG داد (یک ناشتا، نه دو)؛ diffِ کامل فقط همین. قبلی 8ca6f6261a0158eb.
+  cbc: ["d4116a0c2bedb3c1", "f1317c856c6d3301"], lipid: ["4f7830d11e2096df", "6664c6d55c8c9730"],
   thyroid: ["40c5918c3652f561", "a4e8587d3736ca6b"], liver: ["a56db527c0987166", "329702a096cd3292"] /* P108-ج عمدی: فقط جملهٔ «تک‌نوبت» به must_sayِ liver_pattern افزوده شد (diff کامل) */,
   // بازپایهٔ عمدی (P108): همان علتِ caalb — فقط نمرهٔ کراتینینِ ۱٫۸ و رشتهٔ بازه؛ runPatterns همان (diffِ کامل). قبلی bc3a5f60a0f2d0a9.
   kidney: ["9a022704445ec4bb", "f7f33ea438235fe1"], normal: ["a49525941325f4a7", "f1317c856c6d3301"],
@@ -299,11 +300,13 @@ test("X26: فیلترِ forbid روی پیشنهادهای نمای تخصصی �
 });
 
 test("X27: دستورها یک‌جا، همان فهرستِ نمای ساده — یافته‌ها action ندارند، تا دستورِ رقیب کنارِ اورژانس ننشیند (N7/N20)", async () => {
-  const { buildEngineRecommendations } = await import("./prompt.js");
+  const { buildEngineRecommendations, phraseSuggestion } = await import("./prompt.js");
   for (const tests of [[...P.k7, ...P.ida], P.ptinr, P.lipid]) {
     const { e, p, x } = run(tests);
     for (const f of [...x.findings, ...x.hidden]) assert.ok(!("action" in f), `${f.label}: action`);
-    assert.deepEqual(x.recommendations, buildEngineRecommendations(p, e));
+    // P110 (۲۰۲۶-۱۰-۱۶، عمداً عوض شد): درخواست‌هایی که «آزمایش‌های پیشنهادی» جداگانه نشان می‌دهد از دستورها برداشته می‌شوند؛ بقیه همان فهرستِ نمای ساده.
+    const asked = new Set(x.suggested.map((s) => phraseSuggestion(s)));
+    assert.deepEqual(x.recommendations, buildEngineRecommendations(p, e).filter((r) => !asked.has(r)));
   }
 });
 

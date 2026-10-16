@@ -107,7 +107,7 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
   //    کلید خام مثل HGB/BILI_T هرگز نباید به بیمار برسد.
   // آزمایشی که یافتهٔ تکمیلی دربارهٔ آن حرف می‌زند در پاراگرافِ جدای «موارد دیگر» می‌آید (printed.js)؛ اگر در این فهرست بماند مدل
   //   دوباره دربارهٔ آن می‌نویسد و بیمار همان پلاکت/MCV/لنفوسیت را دو بار می‌خواند (گزارشِ کاربر ۲۰۲۶-۱۰-۱۳).
-  const supText = (patterns.findings ?? []).filter((f) => f.supplementary).map((f) => `${f.headline ?? ""} ${f.must_say ?? ""}`).join(" ");
+  const supText = (patterns.findings ?? []).filter((f) => f.supplementary || f.minor).map((f) => `${f.headline ?? ""} ${f.must_say ?? ""}`).join(" ");
   const inSupplementary = (g) => !!supText && (supText.includes(faName(g.test)) || (/^[A-Za-z0-9]{2,6}$/.test(g.test) && supText.includes(`(${g.test})`)));
   const abnormal = engineOut.graded
     .filter((g) => g.abnormal && !inSupplementary(g))
@@ -150,7 +150,8 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
     //    همان فیلدهایی بودند که هیچ توری بررسی نمی‌کرد. چیزی که مدل نبیند، نمی‌تواند بیندازد.
     // یافتهٔ تکمیلی (supplementary) به مدل نمی‌رود: server.js آن را عیناً در پاراگرافِ جدای «موارد دیگر» می‌گذارد (printed.js)؛
     // مدل نمی‌تواند برچسب/جداسازی را بیندازد یا با یافته‌های اصلی قاطی کند.
-    findings: patterns.findings.filter((f) => !f.supplementary).map((f) => ({
+    // P110: یافتهٔ بی‌اقدام (minor) هم نمی‌رود — موتور آن را عیناً در پاراگرافِ «موارد دیگر، بی‌اقدام» می‌نویسد (printed.js).
+    findings: patterns.findings.filter((f) => !f.supplementary && !f.minor).map((f) => ({
       headline: f.headline,
       must_say: f.must_say,
       urgency: f.urgency,
@@ -430,7 +431,9 @@ export function buildEngineRecommendations(patterns, engineOut) {
   //    microcytic_anemia احتیاطِ اسید فولیکِ overt_b12_deficiency را (M155) از گزارش برداشت. هر مورد منبعش را
   //    با خود دارد: هشدار هرگز فیلتر نمی‌شود، و یافته‌ای که خودش دربارهٔ آن واژه است (headline/must_say) از forbidِ
   //    یافتهٔ *دیگر* معاف است.
-  const built = final ? [{ text: final.action, src: final }] : [];
+  // P110: یافته‌های بی‌اقدام action ندارند؛ برگه‌ای که فقط همین‌ها را دارد بی‌دستور نمی‌ماند.
+  const onlyMinor = !final && patterns.findings.find((f) => f.minor && f.minor_action);
+  const built = final ? [{ text: final.action, src: final }] : onlyMinor ? [{ text: onlyMinor.minor_action, src: onlyMinor }] : [];
   const texts = () => built.map((b) => b.text);
   // وقتی دستورِ نهایی «همین حالا اورژانس» است، «اگر تب دارید به اورژانس» از actionهای دیگر
   // چیزی اضافه نمی‌کند و کنارِ آن گیج‌کننده است. warnings دست نمی‌خورند.
@@ -574,10 +577,27 @@ export function buildEngineFallbackResult(engineOut, patterns) {
   return isNeonate(engineOut?.age) ? neonatalResultVoice(r) : r;
 }
 
+/**
+ * P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): مدل برای برگهٔ تقریباً سالم «چندین مورد نیاز به توجه دارند» می‌نوشت. جمع‌بندیِ برگهٔ routine
+ * را موتور از شمارشِ خودش می‌سازد — فقط آنچه سنجیده شده (graded؛ ungraded «طبیعی» شمرده نمی‌شود، N4). برگهٔ فوری‌تر، یا برگه‌ای که
+ * بیشترش طبیعی نیست، null می‌گیرد و جمع‌بندیِ مدل می‌ماند.
+ */
+export function engineSummary(engineOut, patterns) {
+  if (patterns?.overall_urgency !== "routine") return null;
+  const graded = engineOut?.graded ?? [];
+  const normal = graded.filter((g) => !g.abnormal).length;
+  if (graded.length < 5 || normal < 2 * (graded.length - normal)) return null;
+  const fa = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
+  const action = (patterns.findings ?? []).filter((f) => !f.minor && !f.supplementary).length;
+  return `بیشترِ نتایج (${fa(normal)} از ${fa(graded.length)}) در محدودهٔ طبیعی است و هیچ موردی فوری نیست` +
+    (action ? `؛ ${fa(action)} موردِ جزئی در ادامه آمده که در نوبتِ عادی با پزشک مرور می‌شوند.` : ".");
+}
+
 function buildEngineFallbackResultAdult(engineOut, patterns) {
   const findings = patterns.findings;
-  const headlines = findings.map((f) => f.headline).filter(Boolean);
-  const mustSay = findings.filter((f) => !f.supplementary).map((f) => f.must_say).filter(Boolean);
+  // P110: یافتهٔ بی‌اقدام (minor) فقط در پاراگرافِ پایانیِ «موارد دیگر» می‌آید (closingSuffix)، نه دو بار.
+  const headlines = findings.filter((f) => !f.minor).map((f) => f.headline).filter(Boolean);
+  const mustSay = findings.filter((f) => !f.supplementary && !f.minor).map((f) => f.must_say).filter(Boolean);
   // N8: این متن مستقیم به بیمار می‌رسد (هیچ LLM‌ای در این مسیر نیست)،
   // پس کلید موتور باید از faName() رد شود وگرنه «HGB: 9.2» روی صفحه می‌نشیند.
   const abnormalText = engineOut.abnormal
@@ -585,11 +605,11 @@ function buildEngineFallbackResultAdult(engineOut, patterns) {
     .join("، ");
   const recs = buildEngineRecommendations(patterns, engineOut);
   return {
-    summary: headlines.length
+    summary: engineSummary(engineOut, patterns) ?? (headlines.length
       ? headlines.join("؛ ")
       : (engineOut.abnormal.length
           ? "چند مقدار خارج از محدوده طبیعی است."
-          : "نتایج آزمایش شما بررسی شد."),
+          : "نتایج آزمایش شما بررسی شد.")),
     interpretation: (mustSay.length
       ? mustSay.join(" ")
       : (abnormalText ? `مقادیر خارج از محدوده: ${abnormalText}.` : "")) + (findings.length ? closingSuffix(engineOut, patterns) : ""),

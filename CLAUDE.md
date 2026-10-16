@@ -2390,6 +2390,15 @@ not by a test.
 - **Deleting a `PED_REFS` row is not free:** `CRP` and `TROPONIN_T` have no engine producer, but `score.js` names them and `score.test.js` enumerates `PED_REFS` keys. Removing them turned a test red; they were put back. **Decision (2026-10-14): keep both.** They exist only in `PED_REFS` (no adult row, no `NAME_MAP` producer), so they are inert in grading; `score.js` groups name them and `score.test.js` derives its key set from `PED_REFS`. Remove them only together with those two references.
 - **Fixed afterwards (`R13b-5`):** `inferSex` now reads a Persian-digit printed reference range («۱۳٫۵-۱۷٫۵») when `patient.sex` is empty.
 
+### N35 — A rule that "closes a gap" can over-instruct, and the score history compared a sheet with itself
+2026-10-16, P110. The user re-ran the same real sheet after P109 and pasted a review. Three of the defects were mine from the same day.
+
+- **P109's H. pylori IgM rule over-suggested.** A *negative* IgM (13.8, cutoff <40) got «تستِ تنفسیِ اوره … PPI را دو هفته قطع کنید». Closing an N28 gap is not a licence to order tests: a negative non-diagnostic result needs one line, and a positive one only a conditional («اگر علامتِ گوارشی دارید»). Guard `V23`.
+- **The score signature included the score.** `ResultDashboard.jsx` built the visit `sig` from the result *and* its score, so after a scoring change the same sheet looked like a new visit and read «۱۰٪ بهتر از نوبتِ قبل». The signature is now the extracted rows only; a matching sig replaces the stored score.
+- **A blank smear row was noise.** «Microcytosis» with an empty value went to «تفسیر نشدند», and «Total 100 %» (the differential sum) to an unmapped warning. Both are now skipped by identity, not by suppression.
+- **The shape that generalizes:** 12 findings on a near-normal sheet, of which 5 carried an action. Every routine finding was rendered as a paragraph and every one sent its own `suggest`. A hard cap (the review proposed 5 findings / 4 follow-ups) is N7/N18 again; the fix is the `minor` channel (`info: true` + `minor_line` quoting the number, engine-rendered, never sent to the model, routine only). **Rule:** when a report is long, first ask which findings have nothing for the patient to *do*, and give them one line with their number. Don't cap the list.
+- Guards `V21`–`V30`, `T27`. Register `P110`.
+
 Detailed instructions are split across `.claude/rules/`:
 
 - [architecture.md](.claude/rules/architecture.md) — core architecture decision (engine vs. LLM), the 9-step `/api/analyze` request flow, the legacy non-engine path. Describes the **classic path**, which is still the default and the only one with safety nets; the graph path is documented in this file instead.

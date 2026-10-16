@@ -96,6 +96,12 @@ function liveBuild(e, id) {
   try { return r.match(e) ? r.build(e) : null; } catch { return null; }
 }
 
+// P110: liver_pattern CKِ «کمی» بالا را خودش گفته (ck_folded) ⇒ کارتِ جدای CK تکرار است. از قاعدهٔ زنده می‌پرسیم (M91e).
+function liverFoldsCk(e) {
+  const r = ALL.find((x) => x?.id === "liver_pattern");
+  if (!r) return false;
+  try { return !!r.match(e) && r.build(e)?.ck_folded === true; } catch { return false; }
+}
 function livePatternIsMuscle(e) {
   const r = ALL.find((x) => x?.id === "liver_pattern");
   if (!r) return false;
@@ -186,7 +192,7 @@ const ckElevatedAlone = {
   id: "ck_elevated_alone",
   // بازبینی ۲۰۲۶-۱۰-۱۳ (N21/N4): liver_pattern فقط وقتی مالکِ CK است که شاخهٔ «از عضله نه کبد» ساخته شود؛ وگرنه (CK بالا + ALT هم بالا)
   //   رابدومیولیز زیرِ «سلول‌های کبد» می‌رفت و CK هیچ‌جا گفته نمی‌شد. شاخه را از خودِ قاعدهٔ زنده می‌پرسیم، آستانه را کپی نمی‌کنیم.
-  match: (e) => hi(g(e, "CK")) && !anyFires(e, P73_OWNERS.ck.filter((id) => id !== "liver_pattern")) && !livePatternIsMuscle(e),
+  match: (e) => hi(g(e, "CK")) && !anyFires(e, P73_OWNERS.ck.filter((id) => id !== "liver_pattern")) && !livePatternIsMuscle(e) && !liverFoldsCk(e),
   build: (e) => {
     const ck = g(e, "CK");
     const ul = upperLimit(ck);
@@ -244,6 +250,29 @@ const albuminLowAlone = {
       action: ACT[urgency],
       suggest: ["CRP", "AST"],
       warnings: [ALBUMIN_LOW_WARNING],
+    };
+  },
+};
+
+// ── P110: آلبومین↑ تنها — گزارشِ کاربر ۲۰۲۶-۱۰-۱۶ (آلبومینِ ۵٫۳ با حدِ ۵ به «توضیحِ آماده نداریم» می‌رفت، N1/N18) ──
+// آلبومینِ بالا علتِ بیماری‌زای مستقلی ندارد: تقریباً همیشه از غلیظ‌شدنِ خون است (کم‌آبی، یا بستنِ طولانیِ تورنیکه هنگامِ خون‌گیری؛
+//   همان stasis_protein در preanalytical.js). پروتئینِ تامِ غیرطبیعی مالکِ خودش را دارد (total_protein_abnormal). فوریت = کفِ تور (N29).
+const albuminHighAlone = {
+  id: "albumin_high_alone",
+  match: (e) => hi(g(e, "ALB")) && !anyFires(e, ["total_protein_abnormal"]),
+  build: (e) => {
+    const a = g(e, "ALB");
+    const urgency = netUrgency(e, a);
+    return {
+      pattern: "albumin_high_alone",
+      urgency,
+      headline: "آلبومینِ شما کمی بالاتر از حد طبیعی است",
+      must_say: `آلبومین شما ${a.value} است (حد طبیعی ${a.range}). آلبومینِ بالا تقریباً همیشه از غلیظ‌شدنِ خون است — کم‌آبی هنگامِ نمونه‌گیری یا بستنِ طولانیِ بند (تورنیکه) — و به‌تنهایی نشانهٔ بیماری نیست.`,
+      ...(urgency === "routine" ? { info: true, minor_line: `آلبومین ${a.value} (حد طبیعی ${a.range}): کمی بالا؛ معمولاً از کم‌آبیِ هنگامِ نمونه‌گیری است و به‌تنهایی معنای بیماری ندارد` } : {}),
+      action: ACT[urgency],
+      suggest: [],
+      warnings: [],
+      explains: ["ALB"],
     };
   },
 };
@@ -598,7 +627,7 @@ const bloodPhAbnormal = {
 };
 
 export const RULES_P73_GAPS = [
-  hctRbcHigh, bilirubinTotalAlone, ckElevatedAlone, albuminLowAlone, ironMarkersHigh,
+  hctRbcHigh, bilirubinTotalAlone, ckElevatedAlone, albuminLowAlone, albuminHighAlone, ironMarkersHigh,
   totalT4Abnormal, bicarbonateLow, pctIntermediate, ammoniaMildHigh, anemiaHbAlone,
   rdwHigh, tibcHigh, tibcLow, biliDirectHigh, biliIndirectHigh, bloodPhAbnormal,
 ];

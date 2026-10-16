@@ -93,6 +93,16 @@ const copperDeficiencyFires = (e) => {
 //   مرد ≥ ۱۰: ۷۴ / ۷۰ / ۶۱. ⚠️ عددها از بازتولیدِ جدولِ IZiNCG خوانده شد، نه خودِ PDF (MEDICAL_RULES.md P109).
 // زمان و ناشتایی روی برگه نیست ⇒ زیرِ مرزِ بعدازظهر «پایین»، تا مرزِ بالاترین حالت «مرزی»، بالاتر «کمبود را نشان نمی‌دهد».
 // جنسِ نامعلوم ⇒ مرزهای زن (کمتر؛ «پایین» کمتر گفته می‌شود). بارداری و زیرِ یک سال ⇒ بی‌حکم (مرزِ جدا دارند و این‌جا نیست).
+// P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶: «زینک بدون محدوده است، در حالی که برگه ۷۲–۱۲۷ چاپ کرده»): رویِ بی‌واحد با بازهٔ چاپ‌شده.
+//   بازه هم‌واحدِ عدد است؛ بازه‌ای بینِ ۴۰ و ۲۵۰ فقط µg/dL می‌تواند باشد (µmol/L حدودِ ۱۰–۲۰، µg/L حدودِ ۷۰۰–۱۲۰۰). بیرون از آن ⇒ null (حدس نمی‌زنیم، N3/P48).
+function zincRangeUgdl(entry) {
+  if (!entry || typeof entry.value !== "number" || String(entry.unit ?? "").trim()) return null;
+  const m = String(entry.printed_range ?? "").match(/(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  const lo = Number(m[1]), hi = Number(m[2]);
+  return lo >= 40 && hi <= 250 && hi > lo ? { lo, hi } : null;
+}
+const zincUgdl = (entry) => ugdlOf(entry, ZN_UGDL_PER_UMOLL) ?? (zincRangeUgdl(entry) ? entry.value : null);
 const ZINC_CUTOFFS = { child: { top: 65, low: 57 }, F: { top: 70, low: 59 }, M: { top: 74, low: 61 } };
 function zincCutoffs(e) {
   if (e.pregnant || (e.age != null && e.age < 1)) return null;
@@ -103,11 +113,15 @@ function zincCutoffs(e) {
 export const RULES_TRACE_ELEMENTS = [
   {
     id: "zinc_status",
-    match: (e) => ugdlOf(noRangeOf(e, "ZINC"), ZN_UGDL_PER_UMOLL) != null && !copperDeficiencyFires(e),
+    match: (e) => zincUgdl(noRangeOf(e, "ZINC")) != null && !copperDeficiencyFires(e),
     build: (e) => {
       const entry = noRangeOf(e, "ZINC");
-      const zn = ugdlOf(entry, ZN_UGDL_PER_UMOLL);
-      const shown = shownWith(entry, zn, "µg/dL");
+      const zn = zincUgdl(entry);
+      const byRange = ugdlOf(entry, ZN_UGDL_PER_UMOLL) == null ? zincRangeUgdl(entry) : null;
+      // N5: واحدی که چاپ نشده «روی برگه» نوشته نمی‌شود؛ می‌گوییم از بازهٔ خودِ برگه تعیین شد.
+      const shown = byRange
+        ? `${entry.value} (واحد روی برگه چاپ نشده؛ بازهٔ چاپ‌شدهٔ ${byRange.lo}–${byRange.hi} نشان می‌دهد میکروگرم در دسی‌لیتر است)`
+        : shownWith(entry, zn, "µg/dL");
       const c = zincCutoffs(e);
       const infl = hasInflammation(e)
         ? " نشانگرِ التهاب (CRP/ESR) روی همین برگه بالاست؛ در التهاب و عفونت رویِ سرم به‌طورِ موقت پایین می‌آید، پس این عدد را باید بعد از رفعِ التهاب دوباره سنجید."
@@ -133,6 +147,8 @@ export const RULES_TRACE_ELEMENTS = [
         pattern: `zinc_${state}`,
         urgency: "routine",
         key_number: zn,
+        // P110: رویِ کافی ⇒ یک خط در «موارد دیگر».
+        ...(state === "ok" ? { info: true, minor_line: `رویِ سرم ${shown}: از مرزِ پایینِ IZiNCG برای سن و جنسِ شما کمتر نیست؛ کمبودی نشان نمی‌دهد` } : {}),
         headline: { high: "رویِ سرمِ شما بالاتر از حدِ معمول است", low: "رویِ سرمِ شما پایین است", borderline: "رویِ سرمِ شما مرزی است", ok: "رویِ سرم", nojudge: "رویِ سرم" }[state],
         must_say: text,
         action: state === "low" || state === "high"

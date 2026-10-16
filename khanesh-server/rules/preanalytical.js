@@ -126,6 +126,8 @@ export const PREANALYTICAL_RULES = [
   {
     id: 'fasting_triglyceride',
     attachTo: ['lipid_profile'],
+    // P110: lipid_profile خودش جملهٔ «ناشتا (۱۲ ساعت)» دارد؛ بیمار هر دو را پشتِ سرِ هم می‌خواند. این متن (دقیق‌تر، ۹ تا ۱۲ ساعت) جایش می‌نشیند.
+    supersedes: /ناشتا \(۱۲ ساعت\) گرفته شده باشد/,
     // TG بیشترین وابستگی را به ناشتایی دارد؛ زیرِ ۴۰۰ به‌راحتی می‌تواند
     // اثرِ وعدهٔ غذایی باشد. بالای ۴۰۰ دیگر با «شام دیشب» توضیح داده نمی‌شود.
     match: (e) => {
@@ -207,7 +209,7 @@ export function preanalyticalCaveats(engineOut) {
   for (const r of PREANALYTICAL_RULES) {
     try {
       if (!r.match(engineOut)) continue;
-      out.push({ id: r.id, attachTo: r.attachTo, text: r.text, sources: S });
+      out.push({ id: r.id, attachTo: r.attachTo, text: r.text, sources: S, ...(r.supersedes ? { supersedes: r.supersedes } : {}) });
     } catch {
       /* یک قاعدهٔ خراب نباید موتور را بخواباند — همان قرارداد runPatterns */
     }
@@ -232,7 +234,8 @@ export function attachPreanalytical(findings, caveats) {
     }
     for (const f of targets) {
       f.warnings = Array.isArray(f.warnings) ? f.warnings : [];
-      // تکرارِ متن ممنوع — همان مشکلی که تورِ ایمنیِ N7 ساخت.
+      // تکرارِ متن ممنوع — همان مشکلی که تورِ ایمنیِ N7 ساخت. «supersedes»: جملهٔ هم‌موضوعِ خودِ یافته جایش را به این می‌دهد.
+      if (c.supersedes) f.warnings = f.warnings.filter((w) => !c.supersedes.test(w));
       if (!f.warnings.includes(c.text)) f.warnings.push(c.text);
       f.sources = [...new Set([...(f.sources ?? []), ...c.sources])];
     }

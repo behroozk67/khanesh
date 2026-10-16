@@ -92,7 +92,10 @@ test("S3b: دو آزمایشِ مستقل ⇒ سرتیترِ بی‌«تکرار
 test("S4: بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور؛ بی‌تفاوت یا ناهم‌مقیاس ⇒ هیچ", () => {
   const { e, p } = run(SHAFA);
   assert.equal(e.printedRanges.PLT, "150–450");
-  assert.match(find(p, "thrombocytopenia").must_say, /\(حد طبیعی 150–400؛ روی برگهٔ شما 150–450\)/);
+  // P110 (۲۰۲۶-۱۰-۱۶، عمداً عوض شد): هر دو بازه پلاکتِ ۱۲۷ را «پایین» می‌گویند ⇒ فقط بازهٔ برگه (همان که روی کاغذ است). دو بازه فقط
+  //   وقتی حکمشان فرق دارد (V21: اسید اوریکِ ۸٫۲).
+  assert.match(find(p, "thrombocytopenia").must_say, /\(حد طبیعی 150–450\)/);
+  assert.ok(!/روی برگهٔ شما/.test(find(p, "thrombocytopenia").must_say));
   assert.ok(e.graded.some((g) => g.test === "PLT" && g.abnormal && g.dir === "low"), "حکم عوض نشده: پلاکت ۱۲۷ همچنان پایین است");
   // کنترلِ منفی: بازهٔ چاپی همان بازهٔ موتور
   const same = run([r("WBC", "6"), r("Hb", "13", "g/dL"), r("Platelet", "127", "x1000/mm3", "150-400")]);

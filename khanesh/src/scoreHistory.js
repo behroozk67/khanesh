@@ -11,7 +11,9 @@
 const KEY = 'azmayar_score_history_v1';
 const MAX_PER_OWNER = 30;
 // ۲: specs/015 — فاصلهٔ پیوسته، سطل‌ها، دستگاه‌ها، سقفِ دستگاهی (score.js v2). نقطه‌های v1 با v2 قابلِ مقایسه نیستند.
-export const SCORE_VERSION = 2;
+// ۳: امضای برگه فقط از مقدارها ساخته می‌شود، نه از امتیاز (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶). امضای v2 امتیاز را داشت، پس همان برگه بعد از
+//    عوض‌شدنِ موتور «نوبتِ تازه» می‌شد و «۱۰٪ بهتر از نوبتِ قبل» می‌گفت. نقطه‌های v2 امضای ناسازگار دارند و کنار گذاشته می‌شوند.
+export const SCORE_VERSION = 3;
 
 /** هشِ کوتاهِ پایدار (djb2) — برای امضای برگه و کلیدِ هر نفر، نه رمزنگاری. */
 export function hashStr(s) {
@@ -32,7 +34,8 @@ function readAll() {
 
 /**
  * امتیازِ همین برگه را (اگر قبلاً ثبت نشده) ثبت می‌کند و نقطه‌های قبلیِ همان نفر را برمی‌گرداند.
- * هر بار فراخوانی با همان `sig` تکراری ثبت نمی‌کند (StrictMode، بازشدنِ دوبارهٔ همان نتیجه).
+ * هر بار فراخوانی با همان `sig` تکراری ثبت نمی‌کند (StrictMode، بازشدنِ دوبارهٔ همان نتیجه، یا تفسیرِ دوبارهٔ همان برگه
+ * با موتورِ تازه — آن‌وقت فقط امتیازِ همان نقطه به‌روز می‌شود).
  * @returns {{ prev: {date:string, score:number}[], date: string|null }}
  */
 export function recordScore(owner, score, sig) {
@@ -42,6 +45,8 @@ export function recordScore(owner, score, sig) {
       (e) => e && e.v === SCORE_VERSION && typeof e.date === 'string' && Number.isFinite(e.score)
     );
     let cur = list.find((e) => e.sig === sig);
+    // همان برگه دوباره تفسیر شد (مثلاً با موتورِ تازه): امتیازش جایگزین می‌شود، نوبتِ تازه نیست.
+    if (cur) cur.score = score;
     if (!cur) {
       cur = { date: new Date().toISOString(), score, sig, v: SCORE_VERSION };
       list.push(cur);

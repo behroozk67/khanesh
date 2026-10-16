@@ -836,8 +836,11 @@ test("T27: بازهٔ درصدیِ جابه‌جا روی شمارشِ مطلق 
   assert.equal(ref("EO"), "0 - 0.3", "بازهٔ ممکن برای شمارشِ مطلق دست نمی‌خورد");
   assert.equal(ref("WBC"), "4.0 - 10.0");
   // جنسیت
+  // P110 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): سنِ برگه در همان گروهِ سنی برنده است — پیش‌تر این‌جا «46»ِ پروفایل انتظار می‌رفت (FR-017)؛ عمداً عوض شد.
   assert.deepEqual(mergePatient({ sex: "زن", age: "45" }, { age: "46", sex: null, conditions: [] }),
-    { sex: "زن", age: "46", conditions: [] });
+    { sex: "زن", age: "45", conditions: [] });
+  assert.equal(mergePatient({ age: "36 سال" }, { age: "35" }).age, "36 سال", "برگهٔ ۳۶ و پروفایلِ ۳۵ ⇒ ۳۶");
+  assert.equal(mergePatient({ age: "3 روز" }, { age: "35" }).age, "35", "گروهِ سنیِ متفاوت ⇒ پروفایل (۴۲۲ جداگانه می‌پرسد)");
   assert.equal(mergePatient({ sex: "زن" }, { sex: "مرد" }).sex, "مرد", "انتخابِ صریحِ کاربر برنده است");
 });
 
