@@ -96,7 +96,10 @@ test("R4: «ALT طبیعی مانده» فقط وقتی ALT سنجیده و طب
   assert.doesNotMatch(text(p), /ALT طبیعی مانده/);
   assert.match(text(p), /ALT روی این برگه اندازه‌گیری نشده است/);
   // 🔴 بی‌ALT، «از عضله است» ثابت نیست: فوریتِ ASTِ تنها (this_week) کف است — پیش‌تر routine.
-  assert.equal(run([row("AST", "52", "U/L"), row("CK", "221", "U/L")]).p.overall_urgency, "this_week");
+  // P108-ب (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): AST ۵۲ (۱٫۳×ULN) + CK ۲۲۱ (۱٫۳×ULN) هر دو «انحرافِ جزئی»اند (ACG < ۲×، CK < ۳×) ⇒ سقفِ routine.
+  //   کفِ N29 همچنان برای ASTِ بیرون از نوار سنجیده می‌شود (۹۰ = ۲٫۲۵×ULN).
+  assert.equal(run([row("AST", "52", "U/L"), row("CK", "221", "U/L")]).p.overall_urgency, "routine");
+  assert.equal(run([row("AST", "90", "U/L"), row("CK", "221", "U/L")]).p.overall_urgency, "this_week");
   assert.match(text(run([row("AST", "160", "U/L"), row("CK", "680", "U/L"), row("ALT", "30", "U/L")]).p), /ALT طبیعی مانده/);
 });
 

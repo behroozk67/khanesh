@@ -27,6 +27,7 @@ import { rankOf, applyQualGloss, applyPrintedRange } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { rowQuoteFa, absOnlyQuoteFa, printedOf } from "./printed.js";
 import { applyInpatientVoice } from "./inpatient.js";
+import { applyMinorCap } from "./minor.js";
 import { PRO_TEXT } from "./pro_text.js";
 import { applyNeonatalFloor, applyNeonatalVoice, applyChildVoice, isNeonate } from "./neonatal.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
@@ -755,6 +756,10 @@ export function runPatterns(engineOut) {
       (top.urgency_floor_from ??= []).push(a.test);
     }
   }
+
+  // ═══ سقفِ «انحرافِ جزئی» (P108-ب، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶) ═══ — برگهٔ تقریباً سالم (هر عددِ غیرطبیعی در ردهٔ ۲/۳ و داخلِ نوارِ
+  //   جزئیِ minor.js) «این هفته» نمی‌گیرد. بعد از کفِ تور (که فقط marked/critical را بالا می‌برد، پس با این تداخل ندارد).
+  applyMinorCap(findings, engineOut);
 
   // ═══ کفِ فوریتِ نوزادی (P57 پرسش ۵) ═══ — پیش از انتخاب، تا blocks_others و ترتیب با فوریتِ نهایی کار کنند.
   applyNeonatalFloor(findings, engineOut);

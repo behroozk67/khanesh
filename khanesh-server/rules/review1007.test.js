@@ -137,7 +137,9 @@ test("S6: ترومبوسیتوپنی جملهٔ شرطیِ بستری/هپاری
   const { p } = run([r("WBC", "6"), r("Hb", "14.5", "g/dL"), r("Platelet", "127", "x1000/mm3")]);
   const f = find(p, "thrombocytopenia");
   assert.ok(f);
-  assert.equal(f.urgency, "this_week");
+  // P108-ب: پلاکتِ ۱۲۷ داخلِ نوارِ EFLMِ پلاکت (۲۰٪ زیرِ ۱۵۰ = ۱۲۰) و تنها عددِ غیرطبیعی است ⇒ سقفِ routine. جملهٔ شرطی می‌ماند.
+  assert.equal(f.urgency, "routine");
+  assert.equal(f.minor_cap, true);
   assert.ok(f.warnings.some((w) => /بستری هستید یا هپارین/.test(w)));
 });
 

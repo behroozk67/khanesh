@@ -411,7 +411,9 @@ test("M354: منیزیمِ بالا — بالای مرجع this_week، ≥ ۴٫
 test("M355: لیپازِ ≥ ۳×ULN soon است نه اورژانس؛ زیرِ آن this_week (P77-۳)", () => {
   assert.equal(urg(run([row("Lipase", "2000", "U/L")]), "pancreas_pattern"), "soon");
   assert.equal(run([row("Lipase", "2000", "U/L")]).p.has_critical, false);
-  assert.equal(urg(run([row("Lipase", "500", "U/L")]), "pancreas_pattern"), "this_week");
+  // P108-ب (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): لیپازِ زیرِ ۳×ULN تنها روی برگه «انحرافِ جزئی» است (Atlanta) ⇒ routine؛ کنارِ عددی بیرون از نوار همان this_week.
+  assert.equal(urg(run([row("Lipase", "500", "U/L")]), "pancreas_pattern"), "routine");
+  assert.equal(urg(run([row("Lipase", "500", "U/L"), row("ALT", "200", "U/L")]), "pancreas_pattern"), "this_week");
 });
 
 test("M356: اورهٔ ۱۵۰–۱۹۹ با کراتینینِ طبیعی this_week؛ ۱۴۹ routine؛ ۲۰۰ اورژانس (P77-۴)", () => {
