@@ -132,7 +132,8 @@ export const PREANALYTICAL_RULES = [
     // اثرِ وعدهٔ غذایی باشد. بالای ۴۰۰ دیگر با «شام دیشب» توضیح داده نمی‌شود.
     match: (e) => {
       const tg = g(e, 'TG');
-      return isHigh(tg) && tg.value < 400;
+      // P110-ج: تکرارِ ناشتا فقط بالای ۴۴۰ (EAS/EFLM)؛ زیرِ آن lipid_profile هم جمله‌ای ندارد. ≥۵۰۰ شاخهٔ جدا دارد.
+      return isHigh(tg) && tg.value > 440 && tg.value < 500;
     },
     text:
       'تری‌گلیسرید بیش از هر آزمایشِ دیگری به ناشتا بودن حساس است و پس از غذا ' +

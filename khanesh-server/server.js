@@ -203,9 +203,9 @@ export function profileMismatchNotes(sheet, form) {
   }
   const sA = inferAge({ patient: sheet }), fA = inferAge({ patient: form });
   if (sA != null && fA != null) {
-    const differ = Math.min(sA, fA) < 1 ? Math.abs(sA - fA) * 365.25 >= 1 : Math.abs(sA - fA) > 1;
+    const differ = Math.min(sA, fA) < 1 ? Math.abs(sA - fA) * 365.25 >= 1 : Math.abs(sA - fA) >= 1;   // P110-ج: ۳۶ کنارِ ۳۵ (یک سال، معمولاً تولدِ گذشته) هم گفته می‌شود
     const used = ageBand(sA) === ageBand(fA) ? "سنِ چاپ‌شده روی برگه" : "سنِ پروفایل";
-    if (differ) notes.push(`سنِ چاپ‌شده روی برگه (${ageText(sA)}) با سنِ پروفایل (${ageText(fA)}) فرق دارد؛ تفسیر با ${used} انجام شد.`);
+    if (differ) notes.push(`سنِ چاپ‌شده روی برگه (${ageText(sA)}) با سنِ پروفایل (${ageText(fA)}) فرق دارد؛ تفسیر با ${used} انجام شد.${used === "سنِ چاپ‌شده روی برگه" ? " اگر سنِ پروفایل‌تان قدیمی است، آن را در پروفایل به‌روز کنید." : ""}`);
   }
   return notes;
 }

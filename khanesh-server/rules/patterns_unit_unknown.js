@@ -27,7 +27,6 @@ const UNITS_FA = { 2: "دو", 3: "سه" };
 
 const CLAUSE = {
   base: (n) => `واحد روی برگه خوانده نشد و این آزمایش با ${UNITS_FA[n] ?? "چند"} واحدِ رایج گزارش می‌شود که عددشان خیلی فرق دارد؛ برای همین دربارهٔ آن قضاوت نمی‌کنیم.`,
-  some: "بسته به واحد، ممکن است خارج از محدودهٔ طبیعی باشد.",
   all: (n) => `با هر کدام از ${UNITS_FA[n] ?? "چند"} واحد که خوانده شود، خارج از محدودهٔ طبیعی است.`,
   danger: "واحد روی برگه خوانده نشد، ولی با هر واحدی که خوانده شود، این عدد در محدودهٔ خطرناک است.",
   impossible: "واحد روی برگه خوانده نشد و این عدد با هیچ واحدِ رایجی جور درنمی‌آید؛ ممکن است عدد درست خوانده نشده باشد.",
@@ -61,7 +60,14 @@ function rangeText(p) {
   return p.hi != null ? `کمتر از ${fmt(p.hi)}` : `بیشتر از ${fmt(p.lo)}`;
 }
 
+// P110-ج (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): واحدی که *چاپ شده* ولی برای این آزمایش شناخته نیست («CRP 5 IU/ml»، «T3 1.2 mmol/L») «خوانده نشد»
+//   نیست — همان املا نقل می‌شود (adapter فقط شکلِ واحد را می‌پذیرد).
+const UNREAD = "واحد روی برگه خوانده نشد";
 function clauseFor(u, urgency) {
+  const text = clauseCore(u, urgency);
+  return u.printedUnit ? text.replace(UNREAD, `واحدِ چاپ‌شده («${u.printedUnit}») برای این آزمایش شناخته‌شده نیست`) : text;
+}
+function clauseCore(u, urgency) {
   // `urgency` = فوریتِ نهاییِ یافته (همان که action را می‌سازد)، نه فوریتِ این ردیف.
   const neo = u.neonatal ? ` ${CLAUSE.neonatal}` : "";
   if (u.basis === "printed_range") {
@@ -73,7 +79,9 @@ function clauseFor(u, urgency) {
   if (u.worstReading && urgency === "emergency") return CLAUSE.worstNeonatal + neo;
   if (u.possible === 1 && u.level === "all") return (u.urgency === "emergency" ? CLAUSE.onlyOneDanger : CLAUSE.onlyOne) + neo;
   if (u.urgency === "emergency") return CLAUSE.danger + neo;
-  const tail = u.level === "some" ? ` ${CLAUSE.some}` : u.level === "all" ? ` ${CLAUSE.all(u.possible ?? u.units)}` : "";
+  // P110-ج (تصمیمِ کاربر): «بسته به واحد، ممکن است خارج از محدوده باشد» دیگر نوشته نمی‌شود — جمله‌ای که نه حکم است نه اقدام.
+  //   فوریت دست نمی‌خورد (کمینهٔ خوانش‌ها، همان که بود).
+  const tail = u.level === "all" ? ` ${CLAUSE.all(u.possible ?? u.units)}` : "";
   return CLAUSE.base(u.units) + tail + neo;
 }
 
@@ -86,6 +94,25 @@ export const RULES_UNIT_UNKNOWN = [
       // یک تصمیم → هم فیلدِ urgency هم جملهٔ action (N20)
       const top = rows.map(([, u]) => u.urgency ?? "routine").reduce((a, b) => (RANK[a] >= RANK[b] ? a : b), "routine");
       const urgency = top === "none" ? "routine" : top;
+      // P110-ج (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶، تصمیمِ کاربر): واحدی که نگاشت نشد ولی بازهٔ چاپ‌شدهٔ همان ردیف هم‌واحدِ عدد است و عدد داخلِ آن
+      //   است («T3 1.2 mmol/L» کنارِ «0.52 - 2.1») ⇒ با همان بازه «طبیعی» قضاوت می‌شود، یک خطِ بی‌اقدام؛ نه یافتهٔ «واحد خوانده نشد».
+      if (rows.every(([, u]) => u.basis === "printed_range" && u.position === "within" && !u.neonatal)) {
+        const line = rows.map(([k, u]) => `${faName(k)} ${fmt(u.value)}: داخلِ بازهٔ مرجعِ چاپ‌شدهٔ آزمایشگاه (${rangeText(u.printed)}) است` +
+          (u.printedUnit ? `؛ واحدِ چاپ‌شده («${u.printedUnit}») برای این آزمایش شناخته‌شده نیست` : "؛ واحدش روی برگه چاپ نشده")).join("؛ ");
+        return {
+          pattern: "unit_unknown_values",
+          urgency: "routine",
+          info: true,
+          minor_line: line,
+          headline: "واحدِ بعضی از آزمایش‌های برگهٔ شما مشخص نبود",
+          must_say: line + ".",
+          action: ACTION.routine,
+          warnings: [],
+          suggest: [],
+          always_show: true,
+          sources: ["AMA_SI_UNITS", "LOINC"],
+        };
+      }
       const clauses = rows.map(([k, u]) => `${faName(k)} (${fmt(u.value)}): ${clauseFor(u, urgency)}`);
       const warnings = rows.some(([k]) => k === "TROPONIN_I") ? [TROPONIN_WARNING] : [];
       // 🔴 بازبینیِ LIS ۲۰۲۶-۱۰-۰۵ (باگِ ۴، N18/N5): نسخهٔ کوتاه فقط نام‌ها را داشت — زیرِ اورژانسِ پتاسیم «اوره ۱۴۹، کراتینین ۲٫۸»

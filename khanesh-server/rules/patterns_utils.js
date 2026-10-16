@@ -1511,7 +1511,8 @@ const RBC_MORPH_NAME = [
 ];
 const RBC_MORPH_QTY = [   // [regex روی مقدارِ نرمال‌شده, state, qty]
   [/^(none|nil|absent|negative|neg|notseen|noneseen|notdetected|undetected|normal|nl|منفی|دیدهنشد|مشاهدهنشد|ندارد|نیست|طبیعی|-)$/, "absent", null],
-  [/^(few|rare|occasional|trace|scanty|slight|mild|1\+|\+|\+1|کم|نادر|اندک|خفیف)$/, "present", "minor"],
+  // P110-ج (برگهٔ واقعی): «Microcytosis: Slightly» به «تفسیر نشدند» می‌رفت.
+  [/^(few|rare|occasional|trace|scanty|slight|slightly|mild|mildly|1\+|\+|\+1|کم|نادر|اندک|خفیف|مختصر)$/, "present", "minor"],
   [/^(moderate|many|numerous|frequent|marked|increased|abundant|significant|2\+|3\+|4\+|\+\+|\+\+\+|\+\+\+\+|\+2|\+3|\+4|متوسط|زیاد|فراوان|متعدد)$/, "present", "significant"],
   [/^(present|seen|positive|pos|detected|yes|دیدهشد|مشاهدهشد|مثبت|وجوددارد|دارد)$/, "present", "unquantified"],
 ];

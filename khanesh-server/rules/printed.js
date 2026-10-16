@@ -65,7 +65,8 @@ export function supplementaryParagraph(patterns) {
  */
 export function minorParagraph(patterns) {
   const items = (patterns?.findings ?? [])
-    .filter((f) => f.minor && f.must_say)
+    // P110-ج: table_only = عددش در جدولِ «همهٔ آزمایش‌ها» می‌آید و خطِ جدا نمی‌خواهد (آلبومینِ کمتر از ۱۰٪ بالای حد، شاخصِ آتروژنیک).
+    .filter((f) => f.minor && f.must_say && !f.table_only)
     .map((f) => String(f.must_say).trim().replace(/[.؛]+$/, ""));
   if (!items.length) return "";
   return `موارد دیگرِ این برگه که اقدامِ جداگانه‌ای لازم ندارند: ${items.join("؛ ")}.`;

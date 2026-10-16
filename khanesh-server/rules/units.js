@@ -218,6 +218,8 @@ export function normUnit(u) {
   let s = String(u ?? '').toLowerCase().replace(/[\s‌‏‎]+/g, '')
     .replace(/[()[\]{}]/g, '').replace(/\.+$/, '').trim();
   for (const [re, en] of FA_UNITS) if (re.test(s)) return en;
+  // P110-ج (برگهٔ واقعی): «micg/dl» (T4) و «microg/dl» همان mcg ⇒ µg/dL؛ پیش‌تر ناشناخته بود و واحد «چاپ‌نشده» گزارش می‌شد.
+  s = s.replace(/^(micg|microg(?:ram)?s?)(?=\/)/, 'mcg');
   s = s.replace(/^(mg|g|µg|μg|ug|mcg|ng|pg)\/di$/, '$1/dl')
     .replace(/^(mg|g|µg|μg|ug|mcg|ng|pg)(dl|ml)$/, '$1/$2')
     .replace(/^(mmol|µmol|μmol|umol|nmol|pmol)l$/, '$1/l');
@@ -480,7 +482,8 @@ const LOWER_RE = new RegExp(`^(?:>|≥|>=)\\s*${N}\\D*$`);
 /** یک قطعهٔ تمیز (بدونِ برچسبِ جنس) → {lo, hi} یا null. */
 function parseSegment(seg) {
   const s = seg
-    .replace(/up\s*to|less\s*than|کمتر\s*از/g, '<').replace(/more\s*than|greater\s*than|بیشتر\s*از/g, '>')
+    // P110-ج (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): «Up to: 6» با دونقطه null می‌شد ⇒ CRPِ ۵ کنارِ «Up to: 6» «ممکن است خارج از محدوده» می‌خواند.
+    .replace(/(up\s*to|less\s*than|کمتر\s*از)\s*:?/g, '<').replace(/(more\s*than|greater\s*than|بیشتر\s*از)\s*:?/g, '>')
     .replace(/[()[\]]/g, ' ').replace(/^[^\d<>≤≥]+/, '').trim();
   let m;
   if ((m = s.match(RANGE_RE))) { const lo = +m[1], hi = +m[2]; return lo < hi ? { lo, hi } : null; }

@@ -45,6 +45,11 @@ const INDEX_INFO = {
     method_fa: "اسمولالیتهٔ اندازه‌گیری‌شده منهای اسمولالیتهٔ محاسبه‌شده." },
   non_hdl: { label: "کلسترولِ غیر-HDL", unit: "mg/dL", inputs: ["CHOL", "HDL"],
     method_fa: "کلسترولِ تام منهای HDL." },
+  // P110-ج: فقط اطلاعاتی — هیچ قاعده‌ای نمی‌خواند، پیگیری و فوریت نمی‌سازد.
+  fib4: { label: "FIB-4", unit: "", inputs: ["AST", "ALT", "PLT", "سن"],
+    method_fa: "سن × AST تقسیم بر (پلاکت × جذرِ ALT) (Sterling 2006؛ AASLD 2023). زیرِ ۱٫۳ احتمالِ فیبروزِ پیشرفتهٔ کبد پایین است؛ در سنِ ۳۵ سال و کمتر دقتش پایین است. فقط اطلاعاتی." },
+  aip: { label: "شاخصِ آتروژنیکِ پلاسما (AIP)", unit: "", inputs: ["TG", "HDL"],
+    method_fa: "لگاریتمِ نسبتِ تری‌گلیسرید به HDL با غلظتِ مولی (Dobiášová 2001). زیرِ ۰٫۱۱ کم، ۰٫۱۱ تا ۰٫۲۱ متوسط، بالای ۰٫۲۱ بیشتر — مرزها جهت‌دهنده‌اند، نه الزامِ راهنما؛ خبرش همان تری‌گلیسرید و HDL است. فقط اطلاعاتی." },
 };
 const inputFa = (k) => (/^[A-Z0-9_]+$/.test(k) ? nameOf(k) : k);
 
@@ -125,9 +130,11 @@ export function buildExpertView(engineOut, patternOut, score) {
   // شناسهٔ منبع (WHO_ANAEMIA) سریالایز نمی‌شود — همان کلاسِ کلیدِ خام (X3).
   const cite = (ids) => sourceList(asStrings(ids)).map(({ id, ...rest }) => rest);
   const sourcesOf = (f) => cite(f.sources);
-  const proOf = (rule) => (rule?.pro
-    ? { cautions: asStrings(rule.pro.cautions), differential: asStrings(rule.pro.differential), workup: asStrings(rule.pro.workup), sources: cite(rule.pro.sources) }
-    : null);
+  // P110-ج: یافته می‌تواند متنِ تخصصیِ همین برگه را خودش بسازد (f.pro، مثلاً liver_pattern: افتراقیِ «کم‌احتمال» و پیگیریِ مرحله‌ای)؛ مقدم بر rule.pro.
+  const proOf = (rule, f) => {
+    const p = f?.pro && typeof f.pro === "object" ? f.pro : rule?.pro;
+    return p ? { cautions: asStrings(p.cautions), differential: asStrings(p.differential), workup: asStrings(p.workup), sources: cite(p.sources) } : null;
+  };
 
   // قندِ بسیار بالا زیرِ صاحبِ اورژانسی (DKA/HHS/>500) پنهان می‌شود و فوریتِ موتورش عمداً emergency نیست (M91c: دو emergency برای
   //   یک عدد نه). در نمای تخصصی بیمار کنارِ «اورژانس» برچسبِ «این هفته» نبیند: فقط برچسبِ نمایشی بالا می‌رود، فیلدِ موتور دست‌نخورده.
@@ -155,7 +162,7 @@ export function buildExpertView(engineOut, patternOut, score) {
       suggest: suggestOf(f),
       sources,
       no_source: sources.length === 0,
-      pro: proOf(rule),
+      pro: proOf(rule, f),
     };
   });
 

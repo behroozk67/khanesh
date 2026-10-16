@@ -119,14 +119,14 @@ const FREEZE = {
   cbc_ida: [{ sex: "F", age: 30 }, [row("Hb", "9.5", "g/dL"), row("MCV", "70", "fL"), row("Ferritin", "6", "ng/mL"), row("WBC", "6.1"), row("PLT", "250")], "5aea52ee4a5253ff"],
   // بازپایهٔ عمدی (P108، ۲۰۲۶-۱۰-۱۶): فقط رشتهٔ بازهٔ کراتینینِ مرد «0.6–1.2» ⇒ «0.6–1.3» (diffِ کامل). قبلی a25b0d7b6c56186a.
   bmp: [{ sex: "M", age: 55 }, [row("Na", "138"), row("K", "4.2"), row("Creatinine", "1.0", "mg/dL"), row("Urea", "30", "mg/dL"), row("FBS", "95", "mg/dL")], "204e0d93ecb7bb4b"],
-  lipid_dm: [{ sex: "M", age: 50 }, [row("Cholesterol", "210", "mg/dL"), row("LDL", "114", "mg/dL"), row("HDL", "38", "mg/dL"), row("TG", "240", "mg/dL"), row("FBS", "209", "mg/dL")], "903a5947ff69beb5"],   // بازپایهٔ عمدی P110 (۲۰۲۶-۱۰-۱۶): یک جملهٔ ناشتا به‌جای دو (diffِ کامل فقط همین). قبلی 7daeb3138c9d7c90.   // بازپایهٔ عمدی ۲۰۲۶-۱۰-۰۷: فقط headline/must_sayِ diabetes_range (FBS 209). اثبات: برگرداندنِ همان دو hunk در یک کپی ⇒ 2065fd25af68fbf4.
+  lipid_dm: [{ sex: "M", age: 50 }, [row("Cholesterol", "210", "mg/dL"), row("LDL", "114", "mg/dL"), row("HDL", "38", "mg/dL"), row("TG", "240", "mg/dL"), row("FBS", "209", "mg/dL")], "d650a6979b47a0fb"],   // بازپایهٔ عمدی P110 (۲۰۲۶-۱۰-۱۶): یک جملهٔ ناشتا به‌جای دو (diffِ کامل فقط همین). قبلی 7daeb3138c9d7c90.   // بازپایهٔ عمدی ۲۰۲۶-۱۰-۰۷: فقط headline/must_sayِ diabetes_range (FBS 209). اثبات: برگرداندنِ همان دو hunk در یک کپی ⇒ 2065fd25af68fbf4.
   // بازپایهٔ عمدی (باگِ ۶): فقط پیشوندِ عددیِ تازهٔ liver_pattern؛ بی‌آن همان 3547cf8469405703.
-  liver: [{ sex: "F", age: 45 }, [row("AST", "120"), row("ALT", "150"), row("ALP", "200"), row("Total Bilirubin", "2.1", "mg/dL")], "c15d1c6516e1a8cf"], // P108-ج (عمدی): فقط جملهٔ «تک‌نوبت» در must_sayِ liver_pattern (diff کامل ۲۰۲۶-۱۰-۱۶)
+  liver: [{ sex: "F", age: 45 }, [row("AST", "120"), row("ALT", "150"), row("ALP", "200"), row("Total Bilirubin", "2.1", "mg/dL")], "75dabb4973e74e7a"], // P108-ج (عمدی): فقط جملهٔ «تک‌نوبت» در must_sayِ liver_pattern (diff کامل ۲۰۲۶-۱۰-۱۶)
   thyroid: [{ sex: "F", age: 35 }, [row("TSH", "8.2"), row("FT4", "0.9")], "5fa44e1713a9ec1d"],
   urinalysis: [{ sex: "F", age: 28 }, [row("Urine Protein", "+1"), row("Nitrite", "Positive"), row("WBC", "10-12", "/hpf"), row("RBC", "2-3", "/hpf")], "3f28e6213d7b156b"],
   coag: [{ sex: "M", age: 60 }, [row("PT", "19"), row("PTT", "42"), row("PT INR", "1.7")], "6583cf22c1f12265"],
   lis_ldh: [{ sex: "F", age: 32 }, [row("AST", "35"), row("ALT", "26"), row("LDH", "864"), row("T. Bilirubin(Clot)", "0.41"), row("Direct Bili.", "0.1")], "cb6e1b255fd08014"],
-  lis_serum: [{ sex: "F", age: 40 }, [row("Serum Ca", "9.1"), row("serum Mg", "2"), row("serum p", "4"), row("Serum Protein", "7")], "4cffffe6d0a72fc1"],
+  lis_serum: [{ sex: "F", age: 40 }, [row("Serum Ca", "9.1"), row("serum Mg", "2"), row("serum p", "4"), row("Serum Protein", "7")], "9159183844ddacfe"],
   fluid_bare: [{ sex: "F", age: 46 }, [row("Glucose", "122"), row("LDH", "306"), row("Total Protein", "6.6")], "8531fb546310bbb6"],
   // بازپایهٔ عمدی (P104، ۲۰۲۶-۱۰-۱۳): بیلی‌روبینِ ۱۲ِ نوزادِ < ۱۴ روز دیگر «طبیعی» graded نیست ⇒ ungraded (neonatal_hour_chart) +
   //   یافتهٔ neonatal_bilirubin_hour_chart (soon). اثبات: با غیرفعال‌کردنِ همان شاخه در adapter همان 3f4ef5adc6e6c72b ِ قبلی به دست آمد

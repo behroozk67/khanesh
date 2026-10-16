@@ -65,7 +65,24 @@ const INDEX_LABELS = {
   mentzer: "شاخص منتزر",
   nlr: "نسبت نوتروفیل به لنفوسیت",
   r_ratio: "نسبت R (الگوی کبدی)",
+  fib4: "FIB-4 (برآوردِ فیبروزِ کبد)",
+  aip: "شاخصِ آتروژنیکِ پلاسما (AIP)",
 };
+
+// P110-ج: جملهٔ اطلاعاتیِ زیرِ دو شاخص — مرزها از سرور نیست، عیناً همان که در expert.js و MEDICAL_RULES.md (P110-ج) آمده.
+//   هیچ‌کدام پیگیری یا فوریت نمی‌سازند.
+function indexNote(k, indices) {
+  const v = indices[k];
+  if (k === "fib4") {
+    const base = v < 1.3 ? "زیرِ ۱٫۳ است: احتمالِ فیبروزِ پیشرفتهٔ کبد پایین است." : "از ۱٫۳ کمتر نیست؛ تفسیرش با پزشک است.";
+    return base + (indices.fib4_low_accuracy ? " در سنِ ۳۵ سال و کمتر دقتِ این شاخص پایین است." : "") + " فقط اطلاعاتی است.";
+  }
+  if (k === "aip") {
+    const band = v < 0.11 ? "کم" : v <= 0.21 ? "متوسط" : "بیشتر";
+    return `در تقسیم‌بندیِ جهت‌دهندهٔ Dobiášová گروهِ «${band}» است (زیرِ ۰٫۱۱ کم، ۰٫۱۱ تا ۰٫۲۱ متوسط، بالای ۰٫۲۱ بیشتر)؛ خبرش همان تری‌گلیسرید و HDL است و پیگیریِ جدا ندارد.`;
+  }
+  return null;
+}
 
 // جفتِ «اندازه‌گیری‌شده ← محاسبه‌شده»: عددِ تصحیح‌شده هرگز بدونِ عددِ
 // روی برگه نمایش داده نمی‌شود (N5).
@@ -102,6 +119,7 @@ function DerivedValues({ indices }) {
                 <Num>{indices[k]}</Num>
                 <span className="mini-chip st-unmatched">محاسبه‌شده</span>
               </span>
+              {indexNote(k, indices) && <span className="hint">{indexNote(k, indices)}</span>}
             </li>
           );
         })}
@@ -143,7 +161,10 @@ function UnitConversions({ rows, asText, asList }) {
             <li key={`${r.test}-${i}`} className="derived-row">
               {/* ⚠️ واحدِ تعیین‌شده «روی برگه» نبود — نوشتنِ «روی برگهٔ شما ۸۰ µmol/L» ادعای غلط است (N5). */}
               <span className="derived-parent">
-                {r.basis && r.basis !== "printed" ? (
+                {r.basis && r.basis !== "printed" && r.printedUnit ? (
+                  // P110-ج: واحد چاپ شده بود ولی برای این آزمایش شناخته نیست («CRP 5 IU/ml») — «بدونِ واحد» ادعای غلط است (N5).
+                  <>{asText(r.name)}: روی برگهٔ شما <Num>{r.raw}</Num> {asText(r.printedUnit)} (واحدی که برای این آزمایش شناخته‌شده نیست) — واحدِ تعیین‌شده: {r.from}</>
+                ) : r.basis && r.basis !== "printed" ? (
                   <>{asText(r.name)}: روی برگهٔ شما <Num>{r.raw}</Num> بدونِ واحد — واحدِ تعیین‌شده: {r.from}</>
                 ) : (
                   <>{asText(r.name)}: روی برگهٔ شما <Num>{r.raw}</Num> {r.from}</>
@@ -155,7 +176,7 @@ function UnitConversions({ rows, asText, asList }) {
                   <Num>{r.value}</Num> <span>{r.to}</span>
                 </span>
               )}
-              <span className="hint">{BASIS_TEXT[r.basis] ?? BASIS_TEXT.printed}</span>
+              <span className="hint">{r.printedUnit && r.basis === "reference" ? "واحدِ چاپ‌شده برای این آزمایش شناخته‌شده نیست؛ از محدودهٔ مرجعی که آزمایشگاه کنارِ این عدد چاپ کرده تعیین شد." : (BASIS_TEXT[r.basis] ?? BASIS_TEXT.printed)}</span>
             </li>
           );
         })}

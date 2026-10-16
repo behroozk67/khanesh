@@ -161,7 +161,8 @@ export const RULES_P109 = [
       const v = e.ungraded.ATHERO_INDEX.value;
       const head = `شاخصِ آتروژنیکِ برگهٔ شما ${v} است. `;
       const f = typeof v === "number" ? atheroFormula(e, v) : null;
-      const base = { pattern: "atherogenic_index", urgency: "routine", headline: "شاخصِ آتروژنیک (نسبتِ چربی‌های خون)", action: ACTION.routine, suggest: [], warnings: [], explains: ["ATHERO_INDEX"] };
+      // P110-ج (تصمیمِ کاربر): فقط در جدول (table_only) — AIP در «مقادیرِ محاسبه‌شده» هم هست.
+      const base = { pattern: "atherogenic_index", urgency: "routine", table_only: true, headline: "شاخصِ آتروژنیک (نسبتِ چربی‌های خون)", action: ACTION.routine, suggest: [], warnings: [], explains: ["ATHERO_INDEX"] };
       if (!f) {
         return { ...base, info: true, minor_line: `شاخصِ آتروژنیک ${v}: معلوم نشد با کدام فرمول حساب شده، پس حکم ندارد؛ قضاوتِ چربی از خودِ کلسترول، HDL و تری‌گلیسرید می‌آید`,
           must_say: head + "آزمایشگاه‌ها این نام را برای چند فرمولِ متفاوت به کار می‌برند (کلسترولِ تام ÷ HDL، LDL ÷ HDL، یا لگاریتمِ تری‌گلیسرید به HDL) و از روی چربی‌های همین برگه معلوم نشد کدام است؛ پس درباره‌اش حکم نمی‌دهیم. قضاوتِ چربیِ خون از خودِ کلسترول، LDL، HDL و تری‌گلیسرید می‌آید." };

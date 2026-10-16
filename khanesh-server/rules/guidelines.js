@@ -573,6 +573,16 @@ export const GUIDELINES = {
     scope: 'مثبتِ کم (≤۳×ULN) در برابر مثبتِ زیاد (>۳×ULN) برای RF',
   },
 
+  ACR_GOUT_2020: {
+    org: 'ACR',
+    fa: 'کالج روماتولوژی آمریکا',
+    title: '2020 American College of Rheumatology Guideline for the Management of Gout',
+    year: 2020,
+    url: 'https://pubmed.ncbi.nlm.nih.gov/32390306/',
+    access: 'open',
+    scope: 'حدِ انحلالِ اورات ≈ ۶٫۸ mg/dL؛ در هیپراوریسمیِ بی‌علامت شروعِ داروی کاهندهٔ اسید اوریک توصیه نمی‌شود (توصیهٔ مشروط)',
+  },
+
   ENDO_VIT_D: {
     org: 'Endocrine Society',
     fa: 'انجمن غدد آمریکا',

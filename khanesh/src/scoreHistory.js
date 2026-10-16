@@ -38,24 +38,26 @@ function readAll() {
  * با موتورِ تازه — آن‌وقت فقط امتیازِ همان نقطه به‌روز می‌شود).
  * @returns {{ prev: {date:string, score:number}[], date: string|null }}
  */
-export function recordScore(owner, score, sig) {
+// P110-ج (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): «برگهٔ تکراری» با تاریخِ نمونهٔ چاپ‌شده هم شناخته می‌شود — همان تاریخِ نمونه یعنی همان نوبت،
+//   حتی اگر OCR یک ردیف را این بار کمی متفاوت خوانده باشد (امضا فرق کند). شمارهٔ پذیرش عمداً خوانده نمی‌شود (فقط سن و جنس از برگه).
+export function recordScore(owner, score, sig, sampleDate = null) {
   try {
     const all = readAll();
     const list = (Array.isArray(all[owner]) ? all[owner] : []).filter(
       (e) => e && e.v === SCORE_VERSION && typeof e.date === 'string' && Number.isFinite(e.score)
     );
-    let cur = list.find((e) => e.sig === sig);
+    let cur = list.find((e) => e.sig === sig) ?? (sampleDate ? list.find((e) => e.sampleDate === sampleDate) : undefined);
     // همان برگه دوباره تفسیر شد (مثلاً با موتورِ تازه): امتیازش جایگزین می‌شود، نوبتِ تازه نیست.
-    if (cur) cur.score = score;
+    if (cur) { cur.score = score; cur.sig = sig; if (sampleDate) cur.sampleDate = sampleDate; }
     if (!cur) {
-      cur = { date: new Date().toISOString(), score, sig, v: SCORE_VERSION };
+      cur = { date: new Date().toISOString(), score, sig, v: SCORE_VERSION, ...(sampleDate ? { sampleDate } : {}) };
       list.push(cur);
     }
     const kept = list.slice(-MAX_PER_OWNER);
     all[owner] = kept;
     localStorage.setItem(KEY, JSON.stringify(all));
     const prev = kept
-      .filter((e) => e !== cur && Date.parse(e.date) < Date.parse(cur.date))
+      .filter((e) => e !== cur && Date.parse(e.date) < Date.parse(cur.date) && !(sampleDate && e.sampleDate === sampleDate))
       .map((e) => ({ date: e.date, score: e.score }));
     return { prev, date: cur.date };
   } catch {

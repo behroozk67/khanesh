@@ -924,7 +924,8 @@ test("M16: پروفایل چربی عددِ LDL و هدف درمانی و قید
   assert.ok(f.must_say.includes("190"), "باید مقدار LDL را بیاورد");
   assert.ok(/مطلوب زیر ۱۰۰/.test(f.must_say), "باید هدف مطلوب LDL را بگوید");
   assert.ok(/رسوب|پلاک/.test(f.must_say), "باید مکانیسم آترواسکلروز را بگوید");
-  assert.ok(f.warnings.some((w) => /ناشتا/.test(w)), "باید قید ناشتا بودن نمونه را بدهد");
+  // P110-ج (تصمیمِ کاربر، EAS/EFLM): LDL با نمونهٔ غیرناشتا هم معتبر است؛ قیدِ ناشتا فقط برای TG > ۴۴۰ می‌آید.
+  assert.ok(!f.warnings.some((w) => /ناشتا/.test(w)), "بی TG بالای ۴۴۰ قیدِ ناشتا نمی‌آید");
   assert.equal(f.key_number, 190, "key_number باید LDL باشد");
 });
 
@@ -11601,7 +11602,8 @@ test("M276: اسید اوریکِ بالا مالک دارد — دیگر به �
   assert.equal(f.urgency, "routine");
   // سه حالتِ کراتینین
   const ok = run("50 سال", "M", [["Uric Acid", "10", "mg/dL"], ["Creatinine", "0.9", "mg/dL"]]).p.findings.find((x) => x.pattern === "hyperuricemia");
-  assert.ok(ok.must_say.includes("کراتینین (0.9) بالا نیست"), ok.must_say);
+  // P110-ج (تصمیمِ کاربر): «کراتینین بالا نیست ⇒ نقشِ کلیه کمتر محتمل» حذف شد (استنباطِ بیش از حد).
+  assert.ok(!ok.must_say.includes("کراتینین (0.9)") && !/کمتر محتمل/.test(ok.must_say), ok.must_say);
   const none = run("50 سال", "M", [["Uric Acid", "10", "mg/dL"]]).p.findings.find((x) => x.pattern === "hyperuricemia");
   assert.match(none.must_say, /کراتینین روی این برگه نیست/); assert.deepEqual(none.suggest, ["کراتینین"]);
   // نرمال یا پایین ⇒ بی‌یافته؛ کودک ⇒ قاعده نمی‌گیرد

@@ -1335,6 +1335,7 @@ function possibleValue(key, v) {
 }
 
 export function ocrToEngineInput(ocr) {
+  ocr = splitHpfFromName(ocr);
   // ═══ دو ردیف، دو عدد، یک آزمایش (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر) ═══
   // 🔴 اندازه‌گیری‌شده: «Potassium 7.0» + «K 4.2» ⇒ K=4.2؛ اورژانسِ هیپرکالمی بی‌صدا گم می‌شد. هر نقطهٔ نوشتن «آخری برنده» بود
   //    و mergePages فقط نام‌های یکسان را می‌گرفت. این ردیاب همهٔ نوشتن‌های حلقهٔ اصلی را می‌بیند (یک گلوگاه، نه بیست ویرایش).
@@ -1440,8 +1441,11 @@ export function ocrToEngineInput(ocr) {
     let d = decideUnit(key, v, row.reference, sexHint, ageHint);
     // باگِ ۳ (P89): Hb بی‌واحد ⇒ واحد از MCHC/MCHِ همان برگه، فقط اگر decideUnit نتوانست.
     if (!d.system && key === "HGB" && hgbFromIndices) d = { system: hgbFromIndices, basis: "indices" };
-    if (!d.system) { unitUnknown[key] = { value: v, reference: row.reference ?? null }; return null; }
-    unitResolved[key] = { basis: d.basis, raw: v, from: d.system.unit };
+    // P110-ج (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): واحدی *چاپ شده* ولی شناخته نشد («CRP 5 IU/ml»، «T3 1.2 mmol/L») — متن نباید بگوید «واحد خوانده
+    //   نشد». املای چاپ‌شده (فقط اگر شکلِ واحد دارد؛ متنِ خامِ OCR به پرامپت می‌رود) همراهِ ردیف می‌ماند.
+    const printedUnit = printedUnitText(row.unit);
+    if (!d.system) { unitUnknown[key] = { value: v, reference: row.reference ?? null, ...(printedUnit ? { printedUnit } : {}) }; return null; }
+    unitResolved[key] = { basis: d.basis, raw: v, from: d.system.unit, ...(printedUnit ? { printedUnit } : {}) };
     // `_basis` روی *همین ردیف* — تا تبدیلِ ردیفِ واحددارِ هم‌کلید برچسبِ «بدونِ واحد» نگیرد (N5).
     return { ...row, unit: d.system.unit, _basis: d.basis };
   };
@@ -2307,6 +2311,8 @@ export function ocrToEngineInput(ocr) {
     if (tests[k] == null || unitConversions.some((c) => c.test === k)) continue;
     unitConversions.push({ test: k, raw: r.raw, from: r.from, value: tests[k], to: getUnit(k), basis: r.basis });
   }
+  // P110-ج: واحدِ چاپ‌شدهٔ ناشناخته روی سطرِ «واحدها» — تا «بدونِ واحد» نوشته نشود (N5).
+  for (const c of unitConversions) if (unitResolved[c.test]?.printedUnit && c.basis !== "printed") c.printedUnit = unitResolved[c.test].printedUnit;
 
   // ═══ تشخیص شکست دیف دستگاه ═══
   // ⚠️ نکته‌ی کارشناس آزمایشگاه:
@@ -2586,7 +2592,7 @@ export function runEngine(ocr) {
     const printed = parseReference(reference, sex);
     const neonatalBili = /^BILI_/.test(key) && age != null && age < 1;
     const entry = { value, reason: "unit_unknown", alt: verdictsAcrossSystems(key, value, sex, age),
-      units: UNIT_PROFILE[key].systems.length };
+      units: UNIT_PROFILE[key].systems.length, ...(unitUnknown[key].printedUnit ? { printedUnit: unitUnknown[key].printedUnit } : {}) };
     // 🔴 بازبینیِ پزشکی B7: OCR گاهی محدودهٔ ردیفِ *کناری* را به عدد می‌چسباند («Urea 40» کنارِ «0.6-1.4»ِ
     //    کراتینین ⇒ ×۳۲ ⇒ اورژانسِ کاذب). پس محدوده فقط وقتی مقیاس می‌دهد که (۱) با بازهٔ موتور در دست‌کم یک
     //    سیستمِ واحد هم‌خانواده باشد (≤ ×۳)، و (۲) عددِ مقیاس‌شده ممکن باشد (SURVIVAL_LIMITS).
@@ -2919,6 +2925,17 @@ export function runEngine(ocr) {
   if (tests.CHOL != null && tests.HDL != null) {
     idx.non_hdl = +(tests.CHOL - tests.HDL).toFixed(0);
   }
+  // P110-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): دو شاخصِ «فقط محاسبه‌شده و اطلاعاتی» — هیچ قاعده‌ای آن‌ها را نمی‌خواند، فوریت و پیگیری نمی‌سازند.
+  //   FIB-4 = سن × AST ÷ (پلاکت[10⁹/L] × √ALT) (Sterling 2006؛ AASLD 2023): < ۱٫۳ احتمالِ پایینِ فیبروزِ پیشرفته؛ در ≤ ۳۵ سال دقتِ پایین.
+  //   فقط بزرگسال؛ پلاکت در موتور K/µL = 10⁹/L.
+  if (tests.AST > 0 && tests.ALT > 0 && tests.PLT > 0 && age != null && age >= 18) {
+    idx.fib4 = +((age * tests.AST) / (tests.PLT * Math.sqrt(tests.ALT))).toFixed(2);
+    if (age <= 35) idx.fib4_low_accuracy = true;
+  }
+  //   AIP = log10(TG/HDL) با غلظتِ مولی (Dobiášová 2001؛ TG ÷ ۸۸٫۵۷، HDL ÷ ۳۸٫۶۷ ⇒ mmol/L). مرزهای جهت‌دهنده: < ۰٫۱۱ / ۰٫۱۱–۰٫۲۱ / > ۰٫۲۱.
+  if (tests.TG > 0 && tests.HDL > 0) {
+    idx.aip = +Math.log10((tests.TG / 88.57) / (tests.HDL / 38.67)).toFixed(2);
+  }
   // تصحیح‌های مشتق را برای مصرف الگوها در indices بگذار
   Object.assign(idx, derived);
 
@@ -2989,4 +3006,23 @@ export function runEngine(ocr) {
     abnormal: graded.filter((g) => g.abnormal),
     ...(tests._ddimer_ratio != null ? { _ddimer_uln_ratio: tests._ddimer_ratio } : {}),
   };
+}
+
+/** P110-ج: املای واحدِ چاپ‌شده برای نقل در متن — فقط اگر شکلِ واحد دارد (حرف/عدد/«/»/«%»، حداکثر ۱۶ نویسه). متنِ خامِ OCR
+ *  به پرامپت و به بیمار می‌رود؛ هر چیزِ دیگر نقل نمی‌شود (notes.md: متنِ OCR دستور نیست). */
+function printedUnitText(u) {
+  const t = String(u ?? "").trim();
+  return t && t.length <= 16 && /^[A-Za-zµμ0-9%/*^.\s-]+$/.test(t) && /[A-Za-zµμ%]/.test(t) ? t : null;
+}
+
+/** P110-ج (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): OCR گاهی واحدِ میکروسکوپیِ ادرار را به نام می‌چسباند («Bacteria /hpf»، «Mucus threads /hpf») و ستونِ
+ *  واحد را خالی می‌گذارد ⇒ نام شناخته نمی‌شد و «Not seen» در «تفسیر نشدند» می‌آمد. فقط /hpf و /lpf، فقط وقتی واحدی چاپ نشده. */
+function splitHpfFromName(ocr) {
+  if (!Array.isArray(ocr?.tests)) return ocr;
+  const re = /^(.*\S)\s*\/\s*(hpf|lpf)\.?$/i;
+  if (!ocr.tests.some((t) => !t?.unit && re.test(String(t?.name ?? "")))) return ocr;
+  return { ...ocr, tests: ocr.tests.map((t) => {
+    const m = !t?.unit && String(t?.name ?? "").match(re);
+    return m ? { ...t, name: m[1], unit: `/${m[2].toLowerCase()}` } : t;
+  }) };
 }

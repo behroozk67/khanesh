@@ -44,7 +44,7 @@ test("V0: برگهٔ نمونه — فوریتِ کل routine؛ نه کلیه، 
     assert.ok(!ids(p).includes(id), `${id} نباید فعال شود: ${ids(p)}`);
   }
   const all = JSON.stringify(p.findings);
-  assert.doesNotMatch(all, /مرحلهٔ ۲/);
+  assert.doesNotMatch(all, /(کلیه|CKD)[^"]{0,40}مرحلهٔ ۲/);   // P110-ج: «مرحلهٔ ۲» حالا پیگیریِ ALT در نمای تخصصی است
   assert.doesNotMatch(all, /بیشتر به حالت ارثی می‌خورد/);
   assert.ok(!(find(p, "unexplained_abnormal")?.uncovered ?? []).includes("MCH"), "MCHِ پایین جملهٔ خودش را دارد");
 });
@@ -56,7 +56,7 @@ test("V1: T3 — ng/mL ×۱۰۰؛ بی‌واحد با بازهٔ «0.52-2.1» �
   const bare = run([r("T3", "1.2", "", "0.52-2.1"), r("TSH", "3.0", "mIU/L")]);
   assert.equal(g(bare.e, "T3"), undefined, "T3ِ بی‌واحدِ مبهم نباید سنجیده شود");
   assert.ok(!ids(bare.p).includes("thyroid_nonthyroidal_illness"));
-  assert.match(find(bare.p, "unit_unknown_values")?.must_say ?? "", /در محدودهٔ مرجعی است که خودِ آزمایشگاه کنارش چاپ کرده/);
+  assert.match(find(bare.p, "unit_unknown_values")?.must_say ?? "", /داخلِ بازهٔ مرجعِ چاپ‌شدهٔ آزمایشگاه \(0\.52 تا 2\.1\)/);   // P110-ج: با بازهٔ چاپی «طبیعی»، یک خط
   const conv = run([r("T3", "120", "", "80-200"), r("TSH", "3.0", "mIU/L")]);
   assert.equal(g(conv.e, "T3")?.value, 120, "ng/dL از نامزدهای دیگر دور است و هنوز تعیین می‌شود");
   const si = run([r("T3", "1.2", "nmol/L"), r("TSH", "3.0", "mIU/L")]);
@@ -120,7 +120,10 @@ test("V7: ALT ۴۸ تک‌نوبت ⇒ routine، برچسبِ «تک‌نوبت�
   const f = liver(ALT48);
   assert.equal(f.urgency, "routine");
   assert.match(f.must_say, /\(تک‌نوبت\)/);
-  assert.match(f.action, /۴ تا ۱۲ هفته بعد تکرار کنید؛ تا آن موقع از ورزشِ سنگین، الکل، استامینوفن و مکملِ گیاهی پرهیز کنید/);
+  // P110-ج: «پرهیز تا ۴ تا ۱۲ هفته» حذف؛ الکل/استامینوفن/مکمل فقط یک بار، در هشدار.
+  assert.match(f.action, /آزمایشِ کبد را ۴ تا ۱۲ هفته بعد تکرار کنید/);
+  assert.doesNotMatch(f.action, /استامینوفن|پرهیز/);
+  assert.equal([f.action, ...f.warnings].filter((x) => /استامینوفن/.test(x)).length, 1);
   assert.deepEqual(f.suggest, ["تکرار ALT و AST"]);
   assert.doesNotMatch(f.must_say, /ALP هم لازم است/);
   // کنترل: ALT ≥ ۲×ULN (۱۰۰) تک‌نوبت ⇒ همان بررسیِ کامل
@@ -141,10 +144,11 @@ test("V8: ALT ۴۸ با قبلیِ ۴۶ پس از ۸ هفته ⇒ soon «پای�
 });
 
 test("V9: ALT بالا + CK بالا ⇒ «منشأ عضلانی محتمل است» و تکرار حذف نمی‌شود", () => {
-  const f = liver([...ALT48, r("CK", "400", "U/L")]);
+  const f = liver([...ALT48, r("AST", "33", "U/L"), r("CK", "400", "U/L")]);
   // P110: CKِ کمی بالا (< ۵×سقف) در همین یافته با عدد گفته و تکرارش خواسته می‌شود؛ کارتِ جدای CK نمی‌آید (V22).
-  assert.match(f.must_say, /منشأ عضلانی محتمل است؛.*تکرارِ آزمایشِ کبد و CK لازم است/);
-  assert.match(f.action, /آزمایشِ کبد و CK را .* تکرار کنید/);
+  // P110-ج: AST ِ طبیعی کنارِ CK ِ بالا ⇒ «کبدِ چرب یا دارو هم محتمل است»؛ تکرار ≈ یک هفته بعد، بی‌ورزشِ سنگین.
+  assert.match(f.must_say, /CK ِ بالا اغلب از ورزشِ سنگین.*AST \(33\) طبیعی است، پس کبدِ چرب یا اثرِ دارو و مکمل هم محتمل است/);
+  assert.match(f.action, /آزمایشِ کبد و CK را حدودِ یک هفته بعد تکرار کنید/);
 });
 
 test("V10: Na ۱۴۷ هرگز «جزئی» نیست (ردهٔ ۱)", () => {
@@ -329,7 +333,7 @@ test("V25: چربی — TGِ مرزیِ ۱۵۳ با LDLِ طبیعی بی‌پا
   const f = byId(run(SHEET2).p, "lipid_profile");
   assert.ok(!/پلاک/.test(f.must_say), f.must_say);
   assert.match(f.must_say, /تری‌گلیسرید بیش از همه از قند/);
-  assert.equal(f.warnings.filter((w) => /ناشتا/.test(w)).length, 1, f.warnings.join(" | "));
+  assert.equal(f.warnings.filter((w) => /ناشتا/.test(w)).length, 0, f.warnings.join(" | "));   // P110-ج: TG ۱۵۳ ⇒ بی‌قیدِ ناشتا (فقط > ۴۴۰)
   assert.ok(!f.suggest.some((s) => /پروفایل چربی ناشتا/.test(s)));
   assert.match(byId(run([r("LDL", "150", "mg/dL"), r("Cholesterol", "240", "mg/dL")]).p, "lipid_profile").must_say, /پلاک/);
 });
@@ -357,7 +361,10 @@ test("V27: آلبومین ۵٫۳ قاعدهٔ خودش را دارد (بی‌«�
   const sent = JSON.parse(buildEnginePrompt(e, p).content).findings.map((f) => f.headline);
   assert.equal(sent.length, p.findings.filter((f) => !f.minor).length, "یافتهٔ بی‌اقدام به مدل نمی‌رود");
   const para = minorParagraph(p);
-  for (const n of ["5.3", "251", "108", "4.6", "13.8"]) assert.ok(para.includes(n), `عددِ ${n} در پاراگرافِ موارد دیگر نیست (N18)`);
+  for (const n of ["251", "108", "13.8"]) assert.ok(para.includes(n), `عددِ ${n} در پاراگرافِ موارد دیگر نیست (N18)`);
+  // P110-ج (تصمیمِ کاربر): آلبومینِ کمتر از ۱۰٪ بالای حد و شاخصِ آتروژنیک فقط در جدول (table_only)؛ یافته‌شان هست ولی خطِ جدا نه.
+  for (const n of ["5.3", "4.6"]) assert.ok(!para.includes(n), `عددِ ${n} باید فقط در جدول باشد`);
+  assert.ok(byId(p, "albumin_high_alone").table_only && byId(p, "atherogenic_index").table_only);
   assert.match(engineSummary(e, p), /^بیشترِ نتایج \(.+ از .+\) در محدودهٔ طبیعی است و هیچ موردی فوری نیست/);
   assert.equal(engineSummary(e, { ...p, overall_urgency: "this_week" }), null);
 });
@@ -457,4 +464,83 @@ test("V37: جنس از عنوانِ پیش از نام (آقای/خانم/Mr/Mrs
   assert.equal(sx("Mrs."), "F");
   assert.equal(sx("Mr"), "M");
   assert.equal(sx("Miss"), "F");
+});
+
+// ═══ P110-ج (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶ + قواعدِ بالینیِ بازبینِ کاربر) ═══
+test("V38: «Up to: 6» با دونقطه خوانده می‌شود؛ CRP ۵ IU/ml ⇒ سنجیده با بازهٔ چاپی (mg/L)، واحدِ چاپ‌شده در سطرِ «واحدها»، بی‌«ممکن است خارج از محدوده»", () => {
+  const { e, p } = run([r("CRP(quantitative)", "5.0", "IU/ml", "Up to: 6"), r("Hb", "15", "g/dL")]);
+  assert.ok(g(e, "CRP_Q"), "CRP گرفته شد");
+  const uc = e.unitConversions.find((c) => c.test === "CRP_Q");
+  assert.equal(uc?.printedUnit, "IU/ml");
+  assert.ok(!JSON.stringify(p.findings).includes("ممکن است خارج از محدودهٔ طبیعی باشد"));
+  const t3 = run([r("T3", "1.2", "mmol/L", "0.52 - 2.1"), r("TSH", "3.0", "mIU/L")]);
+  const u = find(t3.p, "unit_unknown_values");
+  assert.equal(u.minor, true);
+  assert.match(u.must_say, /^T3 تام 1\.2: داخلِ بازهٔ مرجعِ چاپ‌شدهٔ آزمایشگاه \(0\.52 تا 2\.1\) است؛ واحدِ چاپ‌شده \(«mmol\/L»\)/);
+  // خارج از بازهٔ چاپی: جملهٔ قدیمی نمی‌آید ولی یافتهٔ کامل می‌ماند
+  const out = find(run([r("T3", "3.2", "mmol/L", "0.52 - 2.1"), r("TSH", "3.0", "mIU/L")]).p, "unit_unknown_values");
+  assert.ok(!out.minor);
+  assert.match(out.must_say, /واحدِ چاپ‌شده \(«mmol\/L»\) برای این آزمایش شناخته‌شده نیست.*بیرون از محدودهٔ مرجعی/);
+});
+
+test("V39: micg/dl = µg/dL (T4، آهن، TIBC، روی)؛ /hpf چسبیده به نام؛ Microcytosis «Slightly»", () => {
+  const { e } = run([r("T4", "9.5", "micg/dl", "4.5 - 12.5"), r("Fe", "92", "mcg/dl", "50 - 150"), r("Bacteria /hpf", "Not seen"), r("Mucus threads /hpf", "Not seen"), r("Microcytosis", "Slightly"), r("MCV", "79.4", "fL")]);
+  assert.equal(g(e, "T4")?.value, 9.5);
+  assert.ok(!e.unitConversions.some((c) => c.test === "T4" && c.basis !== "printed"), "micg/dl شناخته می‌شود، نه بی‌واحد");
+  assert.deepEqual(e.unmapped, [], String(e.unmapped));
+  assert.equal(e.rbcMorph[0].qty, "minor");
+});
+
+test("V40: ALT ۴۸ + CK ۳۵۷ + AST ۳۳ ⇒ «AST ِ طبیعی ⇒ کبدِ چرب/دارو هم محتمل»؛ تکرارِ ≈ یک هفته؛ الکل/استامینوفن/مکمل فقط یک بار؛ pro: افتراقیِ مرحله‌ای", () => {
+  const f = liver([...ALT48, r("AST", "33", "U/L"), r("CK", "357", "U/L"), r("Ferritin", "85", "ng/mL"), r("Fe", "92", "ug/dL"), r("TIBC", "347", "ug/dL"), r("ALP", "140", "U/L"), r("INR", "1.0")]);
+  assert.match(f.must_say, /AST \(33\) طبیعی است، پس کبدِ چرب یا اثرِ دارو و مکمل هم محتمل است/);
+  assert.match(f.action, /حدودِ یک هفته بعد/);
+  assert.doesNotMatch(f.action, /۴ تا ۱۲ هفته|استامینوفن/);
+  assert.equal([f.action, ...f.warnings].filter((x) => /استامینوفن/.test(x)).length, 1);
+  assert.ok(f.pro.differential[0].startsWith("منشأ عضلانی") && /MASLD/.test(f.pro.differential[1]));
+  assert.ok(f.pro.differential.some((d) => /هموکروماتوز — کم‌احتمال/.test(d)) && f.pro.differential.some((d) => /کلستاز\) — کم‌احتمال/.test(d)));
+  assert.ok(/مرحلهٔ ۰/.test(f.pro.workup[0]) && /فقط اگر ALT در تکرار بالا ماند \(مرحلهٔ ۱\): HBsAg، Anti-HCV و سونوگرافی/.test(f.pro.workup[1]) && /مرحلهٔ ۲.*ANA.*سرولوپلاسمین/.test(f.pro.workup[2]));
+  // AST روی برگه نیست ⇒ جملهٔ جدا (N4)
+  assert.match(liver([...ALT48, r("CK", "357", "U/L")]).must_say, /AST روی این برگه نیست/);
+});
+
+test("V41: FIB-4 و AIP فقط محاسبه‌شده (indices)؛ هیچ یافته‌ای نمی‌سازند؛ FIB-4 در ≤ ۳۵ سال برچسبِ دقتِ پایین", () => {
+  const { e, p } = run([r("AST", "33", "U/L"), r("ALT", "48", "U/L"), r("PLT", "239", "x10^3/uL"), r("Triglyceride", "153", "mg/dL"), r("HDL", "46", "mg/dL")]);
+  assert.equal(e.indices.fib4, +((36 * 33) / (239 * Math.sqrt(48))).toFixed(2));
+  assert.equal(e.indices.aip, 0.16);
+  assert.ok(!e.indices.fib4_low_accuracy);
+  assert.equal(run([r("AST", "33", "U/L"), r("ALT", "48", "U/L"), r("PLT", "239", "x10^3/uL")], { age: 30, sex: "M" }).e.indices.fib4_low_accuracy, true);
+  assert.ok(!ids(p).some((x) => /fib|aip/i.test(x)));
+});
+
+test("V42: اسید اوریک — بی‌جملهٔ «کراتینین بالا نیست ⇒ کلیه کمتر»؛ حدِ انحلال ۶٫۸؛ دارو برای بی‌علامت لازم نیست (ACR 2020)", () => {
+  const f = find(run([r("Uric Acid", "8.2", "mg/dL", "3.6 - 8.2"), r("Creatinine", "1.23", "mg/dL")]).p, "hyperuricemia");
+  assert.doesNotMatch(f.must_say, /کراتینین \(1\.23\)|کمتر محتمل/);
+  assert.match(f.must_say, /۶٫۸/);
+  assert.match(f.must_say, /داروی کاهندهٔ اسید اوریک لازم نیست/);
+  assert.deepEqual(f.sources, ["ACR_GOUT_2020"]);
+});
+
+test("V43: TG — قیدِ ناشتا و «پروفایل چربی ناشتا» فقط بالای ۴۴۰ (EAS/EFLM)", () => {
+  const lip = (tg) => run([r("Triglyceride", String(tg), "mg/dL"), r("HDL", "46", "mg/dL"), r("LDL", "112", "mg/dL")]).p.findings.find((f) => f.rule_id === "lipid_profile");
+  for (const tg of [153, 300, 440]) {
+    const f = lip(tg);
+    assert.ok(!f.warnings.some((w) => /ناشتا/.test(w)) && !f.suggest.some((x) => /ناشتا/.test(x)), `TG ${tg}`);
+  }
+  const hi = lip(460);
+  assert.ok(hi.warnings.some((w) => /از ۴۴۰ بالاتر است/.test(w)) && hi.suggest.some((x) => /ناشتا/.test(x)));
+});
+
+test("V44: میکروسیتوز — بی‌هشدارِ ⚠️ِ بارداری؛ MCV ۷۶ و MCH ۲۵ مستقیم، بی‌«قرص آهن» با فریتینِ ۸۵", () => {
+  const f = run([r("Hb", "15", "g/dL"), r("MCV", "76", "fL"), r("MCH", "25", "pg"), r("RBC", "6.4", "x10^6/uL"), r("Ferritin", "85", "ng/mL")]).p.findings.find((x) => x.rule_id === "thal_trait_no_anemia");
+  assert.ok(f.suggest.includes("الکتروفورز هموگلوبین"));
+  assert.ok(!f.warnings.some((w) => /⚠️|قرص آهن/.test(w)), f.warnings.join(" | "));
+});
+
+test("V45: آلبومین کمتر از ۱۰٪ بالای حد ⇒ table_only؛ بیشتر ⇒ خطِ «موارد دیگر»", () => {
+  const near = find(run([r("Albumin", "5.3", "g/dL", "3.5 - 5.2")]).p, "albumin_high_alone");
+  assert.ok(near.minor && near.table_only);
+  const far = find(run([r("Albumin", "5.9", "g/dL", "3.5 - 5.2")]).p, "albumin_high_alone");
+  assert.ok(far.minor && !far.table_only);
+  assert.match(far.must_say, /معمولاً/);
 });

@@ -821,7 +821,7 @@ test("T25:برگه‌ای که فقط «Hgb S 40 %» دارد مسیرِ موت�
 
 test("T27: بازهٔ درصدیِ جابه‌جا روی شمارشِ مطلق به ردیفِ ٪ برمی‌گردد؛ جنسیتِ برگه با فیلدِ خالیِ فرم پاک نمی‌شود (برگهٔ واقعی ۲۰۲۶-۰۹-۲۴)", async () => {
   // 🔴 پیش‌تر: «NEUT 1.38 10^3/uL — 42.2–75.2» در فهرستِ اعداد؛ و patientِ فرم (پیش‌فرضِ «مرد») کلِ patientِ برگه را جایگزین می‌کرد.
-  const { fixShiftedDiffRefs, mergePatient } = await import("./server.js");
+  const { fixShiftedDiffRefs, mergePatient, profileMismatchNotes } = await import("./server.js");
   const rows = fixShiftedDiffRefs([
     { name: "NEUT", value: "1.38", unit: "10^3/uL", reference: "42.2 - 75.2" },
     { name: "NEUT%", value: "39.5", unit: "%", reference: "—" },
@@ -840,6 +840,8 @@ test("T27: بازهٔ درصدیِ جابه‌جا روی شمارشِ مطلق 
   assert.deepEqual(mergePatient({ sex: "زن", age: "45" }, { age: "46", sex: null, conditions: [] }),
     { sex: "زن", age: "45", conditions: [] });
   assert.equal(mergePatient({ age: "36 سال" }, { age: "35" }).age, "36 سال", "برگهٔ ۳۶ و پروفایلِ ۳۵ ⇒ ۳۶");
+  // P110-ج: اختلافِ یک سال هم گفته می‌شود و نحوهٔ عمل را می‌گوید.
+  assert.match(profileMismatchNotes({ age: "36 سال" }, { age: "35" })[0], /تفسیر با سنِ چاپ‌شده روی برگه انجام شد\. اگر سنِ پروفایل‌تان قدیمی است/);
   assert.equal(mergePatient({ age: "3 روز" }, { age: "35" }).age, "35", "گروهِ سنیِ متفاوت ⇒ پروفایل (۴۲۲ جداگانه می‌پرسد)");
   assert.equal(mergePatient({ sex: "زن" }, { sex: "مرد" }).sex, "مرد", "انتخابِ صریحِ کاربر برنده است");
 });

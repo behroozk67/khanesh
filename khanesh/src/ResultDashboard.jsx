@@ -320,11 +320,13 @@ export default function ResultDashboard({
     },
     [result, all, overall]
   );
+  // تاریخِ نمونهٔ چاپ‌شده (ISO، از موتور) — همان تاریخ یعنی همان نوبت (scoreHistory.js).
+  const sampleDate = typeof engine?.context?.sample_date === 'string' ? engine.context.sample_date : null;
   const [stored, setStored] = useState(null);
   useEffect(() => {
     if (!profileReady || overall == null || !sig) return;
-    setStored(recordScore(hashStr(profileName), overall, sig));
-  }, [profileReady, profileName, overall, sig]);
+    setStored(recordScore(hashStr(profileName), overall, sig, sampleDate));
+  }, [profileReady, profileName, overall, sig, sampleDate]);
   const trend = useMemo(() => {
     if (overall == null) return [];
     const src = Array.isArray(history) ? history : stored?.prev ?? [];
