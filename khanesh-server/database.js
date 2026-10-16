@@ -226,6 +226,17 @@ export async function getUserJobs(userId) {
   return db.all(`SELECT id, status, created_at FROM jobs WHERE user_id = ? ORDER BY created_at DESC`, [userId]);
 }
 
+/** P108-ج: آخرین نتیجهٔ کامل‌شدهٔ همین کاربر (غیر از کارِ جاری) — منبعِ «نوبتِ قبلی» برای پایداریِ ALT/AST. */
+export async function getLatestCompletedJob(userId, excludeJobId) {
+  const db = await dbConn();
+  const row = await db.get(
+    `SELECT id, created_at, result_json FROM jobs WHERE user_id = ? AND id != ? AND status = 'completed' AND result_json IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+    [userId, excludeJobId]
+  );
+  if (!row) return null;
+  try { return { id: row.id, created_at: row.created_at, result: JSON.parse(row.result_json) }; } catch { return null; }
+}
+
 export async function getJobById(jobId, userId) {
   const db = await dbConn();
   const row = await db.get(`SELECT * FROM jobs WHERE id = ? AND user_id = ?`, [jobId, userId]);

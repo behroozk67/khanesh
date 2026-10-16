@@ -77,6 +77,37 @@ function liverMarked(e) {
   return (alt != null && alt.value > 360) || (ast != null && ast.value > 330);
 }
 
+// ═══ P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): پایداریِ ALT/AST ═══
+// نوبتِ قبلی از e.prior (adapter.js، priorVisit) — فقط وقتی سرور نتیجهٔ ذخیره‌شدهٔ کاربرِ واردشده را دارد.
+//   هر دو نوبت بالا و فاصله ≥ ۴ هفته ⇒ «افزایشِ پایدار» (فوریت soon در خودِ قاعده)؛ قبلی طبیعی ⇒ «افزایشِ تازه»؛
+//   قبلی بالا ولی < ۴ هفته ⇒ هنوز «پایدار» نیست؛ بی‌نوبتِ قبلی ⇒ «تک‌نوبت».
+// کودک (< ۱۶) و بارداری بیرون‌اند (HELLP/کبدِ چربِ حاملگی؛ همان مرزِ liverBorderline).
+export const LIVER_PERSIST_WEEKS = 4;
+const LIVER_REPEAT_FA = "۴ تا ۱۲ هفته بعد";
+const faDigits = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
+const PERSIST_FA = faDigits(LIVER_PERSIST_WEEKS);
+function liverVisit(e, current) {
+  if ((typeof e.age === "number" && e.age < 16) || e.pregnant) return null;
+  const highs = current.filter((g) => g?.abnormal && g.dir === "high");
+  if (!highs.length) return null;
+  const p = e.prior;
+  const prev = (g) => p?.[g.test];
+  const wk = p ? faDigits(Math.round(p.weeks)) : null;
+  const fa = (g) => faName(g.test);
+  const persistent = highs.filter((g) => prev(g)?.abnormal && prev(g).dir === "high");
+  if (persistent.length && p.weeks >= LIVER_PERSIST_WEEKS) {
+    return { kind: "persistent", sentence: `در آزمایشِ قبلیِ شما (حدودِ ${wk} هفته پیش) هم ${persistent.map((g) => `${fa(g)} بالا بود (${prev(g).value})`).join(" و ")}؛ یعنی این افزایش دست‌کم ${PERSIST_FA} هفته پایدار مانده و باید بررسی شود.` };
+  }
+  if (persistent.length) {
+    return { kind: "early", sentence: `در آزمایشِ قبلیِ شما (حدودِ ${wk} هفته پیش) هم ${persistent.map((g) => `${fa(g)} بالا بود (${prev(g).value})`).join(" و ")}، ولی فاصلهٔ دو آزمایش کمتر از ${PERSIST_FA} هفته است؛ «پایدار» نامیدنِ افزایش به تکرارِ دست‌کم ${PERSIST_FA} هفته بعد از اولین نتیجه نیاز دارد.` };
+  }
+  const prevNormal = highs.filter((g) => prev(g) && !prev(g).abnormal);
+  if (prevNormal.length) {
+    return { kind: "new", sentence: `در آزمایشِ قبلیِ شما (حدودِ ${wk} هفته پیش) ${prevNormal.map((g) => `${fa(g)} طبیعی بود (${prev(g).value})`).join(" و ")}؛ پس این افزایشِ تازه است و تکرارِ آزمایش نشان می‌دهد ماندگار است یا نه.` };
+  }
+  return { kind: "single", sentence: "این تنها نتیجهٔ آنزیم‌های کبدِ شماست که در دست داریم (تک‌نوبت)؛ یک بار بالا بودن هنوز «افزایشِ پایدار» نیست." };
+}
+
 // P77-۲ (تصمیمِ بازبین؛ منبع: جدولِ panicِ APSA، وابسته به آزمایشگاه): منیزیمِ ≥ ۴٫۹ mg/dL پنیک است.
 const MG_PANIC_HIGH_MGDL = 4.9;
 
@@ -1637,7 +1668,13 @@ export const RULES_BIOCHEM = [
       //   ULN همان سقفِ بازهٔ درجه‌بندی است (بی‌عددِ تازه).
       const hy = hyLawPattern(e);
       const borderline = !hy && liverBorderline(e);
-      const urgency = maxG >= 4 ? "emergency" : marked || hy ? "soon" : borderline ? "routine" : "this_week";
+      // P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): پایداریِ ALT/AST — فقط زیرِ آسیبِ شدید (نه Hy، نه ~۱۰×، نه درجهٔ ۴).
+      const visit = !hy && !marked && maxG < 4 ? liverVisit(e, [alt, ast]) : null;
+      const baseUrgency = maxG >= 4 ? "emergency" : marked || hy ? "soon" : borderline ? "routine" : "this_week";
+      const urgency = visit?.kind === "persistent" ? "soon" : baseUrgency;
+      // هپاتیت/سونوگرافی/ALP/GGT فقط برای ALTِ تأییدشده (پایدار) یا ≥ ۲×ULN — یعنی نه برای تک‌نوبتِ مرزی.
+      const narrowWorkup = visit != null && visit.kind !== "persistent" && borderline;
+      const ckHigh = ck?.abnormal && ck.dir === "high";
       // باگِ ۶ (LIS ۲۰۲۶-۱۰-۰۶، [38]): «این اعداد نشان می‌دهند…» بی‌آنکه هیچ عددی گفته شود (N5). فقط آنزیمِ سنجیده و بالا نقل می‌شود.
       const liverNums = ["ALT", "AST", "ALP"]
         .map((k) => e.graded.find((g) => g.test === k && g.abnormal && g.dir === "high"))
@@ -1659,11 +1696,17 @@ export const RULES_BIOCHEM = [
           (borderline
             ? "این افزایش کمتر از دو برابرِ حدِ بالای طبیعی است (در راهنمای کالج گوارش آمریکا «مرزی» نامیده می‌شود)؛ شایع است و اغلب با چربیِ کبد، وزن، الکل یا دارو مربوط است، ولی باید تکرار و پیگیری شود. "
             : "") +
+          (visit ? visit.sentence + " " : "") +
+          (visit && ckHigh
+            ? `CK (آنزیم مخصوص عضله) هم بالاست (${ck.value})، پس منشأ عضلانی محتمل است؛ با این حال تکرارِ آزمایشِ کبد لازم است. `
+            : "") +
           (marked
             ? "آنزیم‌های کبدی خیلی بالا هستند، که می‌تواند نشانه‌ی یک آسیب فعال و قابل‌توجه کبد باشد (مثلاً التهاب حاد کبد). این حتماً و سریع باید بررسی شود. "
             : "") +
           (kind === "cholestatic"
             ? "این الگو بیشتر به مسیر خروج صفرا مربوط است تا خود سلول‌های کبد."
+            : narrowWorkup
+              ? (liverNums.length > 1 ? "این اعداد نشان می‌دهند" : "این عدد نشان می‌دهد") + " سلول‌های کبد تحریک شده‌اند."
             : kind === "unspecified"
               ? "این اعداد نشان می‌دهند سلول‌های کبد تحریک شده‌اند. برای تعیین دقیق‌تر نوع درگیری، آنزیم ALP هم لازم است."
               : "این اعداد نشان می‌دهند سلول‌های کبد تحریک شده‌اند. علت‌های زیادی دارد."),
@@ -1671,11 +1714,14 @@ export const RULES_BIOCHEM = [
           ? "همین امروز به اورژانس مراجعه کنید و لیست کامل داروها و مکمل‌هایتان را همراه ببرید."
           : urgency === "soon"
             ? "در اسرع وقت، حداکثر ظرفِ ۲۴ تا ۴۸ ساعتِ آینده، به پزشک مراجعه کنید و لیست کامل داروها و مکمل‌هایتان را همراه ببرید. اگر زردی چشم/پوست، گیجی یا استفراغ دارید، به اورژانس بروید."
+            : urgency === "routine" && visit
+              ? `در نوبتِ عادی با پزشک مطرح کنید و آزمایشِ کبد را ${LIVER_REPEAT_FA} تکرار کنید؛ تا آن موقع از ورزشِ سنگین، الکل، استامینوفن و مکملِ گیاهی پرهیز کنید. لیست کامل داروها و مکمل‌هایتان را همراه ببرید.`
             : urgency === "routine"
               ? "در نوبتِ عادی با پزشک مطرح کنید و بخواهید آزمایشِ کبد تکرار شود. لیست کامل داروها و مکمل‌هایتان را همراه ببرید."
               : "این هفته وقت بگیرید. لیست کامل داروها و مکمل‌هایتان را همراه ببرید.",
-        suggest:
-          kind === "cholestatic"
+        suggest: narrowWorkup
+          ? ["تکرار ALT و AST"]
+          : kind === "cholestatic"
             ? ["GGT", "بیلی‌روبین مستقیم و غیرمستقیم", "سونوگرافی شکم"]
             : kind === "unspecified"
               ? ["ALP", "GGT", "هپاتیت B و C", "سونوگرافی شکم"]

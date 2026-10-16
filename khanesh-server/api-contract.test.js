@@ -1395,3 +1395,20 @@ test("T58b: mergePages — ناخواناشدنی («unknown»، «1990») وق�
   assert.equal(mergePages([page(1, { age: "35", sex: "unknown" }), page(2, { age: "1990", sex: "Male" })]).mismatch, null);
   assert.ok(mergePages([page(1, { age: "35", sex: "Male" }), page(2, { age: "40", sex: "Male" })]).mismatch);
 });
+
+test("T60: P108-ج — priorFromStoredResult: فقط ALT/AST از _engine.tests، تاریخِ SQLite ⇒ UTC، جنس از context؛ بی‌_engine ⇒ null", async () => {
+  const { priorFromStoredResult } = await import("./server.js");
+  const row = { created_at: "2026-08-21 10:00:00", result: { _engine: { context: { sex: "مرد" }, tests: [
+    { key: "ALT", value: 46, abnormal: true, dir: "high", range: "0–41" }, { key: "HGB", value: 15, abnormal: false, dir: null, range: "14–17.5" }] } } };
+  const p = priorFromStoredResult(row);
+  assert.equal(p.date, "2026-08-21T10:00:00Z");
+  assert.equal(p.sex, "M");
+  assert.deepEqual(p.graded.map((g) => g.test), ["ALT"]);
+  assert.equal(priorFromStoredResult({ created_at: "2026-08-21 10:00:00", result: { summary: "x" } }), null);
+  // سرتاسر: همین prior + ALT ِ ۴۸ پس از ۸ هفته ⇒ soon
+  const e = runEngine({ patient: { sex: "M", age: 36 }, tests: [{ name: "ALT", value: "48", unit: "U/L" }], prior: p, sampleDate: "2026-10-16T10:00:00Z" });
+  assert.equal(runPatterns(e).findings.find((f) => f.rule_id === "liver_pattern").urgency, "soon");
+  // جنسِ دیگر (برگهٔ عضوِ دیگرِ خانواده) ⇒ نوبتِ قبلی حساب نمی‌شود
+  const e2 = runEngine({ patient: { sex: "F", age: 36 }, tests: [{ name: "ALT", value: "40", unit: "U/L" }], prior: p, sampleDate: "2026-10-16T10:00:00Z" });
+  assert.equal(e2.prior, undefined);
+});

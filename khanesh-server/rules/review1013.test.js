@@ -749,7 +749,8 @@ test("P107h-5/11/15/16/17: گاردهای بی‌تغییر — soon فقط بز
   const hy = (r) => /دفعِ بیلی‌روبین هم مختل شده/.test(msOf(urg(r), "liver_pattern")?.must_say ?? "");
   assert.ok(!hy([["ALT", 80, "U/L"], ["Total Bilirubin", 3, "mg/dL"]]), "ALT ≈ ۲×ULN < ۳× ⇒ Hy نیست");
   assert.ok(!hy([["ALT", 200, "U/L"], ["ALP", 700, "U/L"], ["Total Bilirubin", 4, "mg/dL"]]), "ALP ≥ ۲×ULN (ULN ۳۰۰) ⇒ Hy نیست");
-  assert.match(msOf(urg([["ALT", 60, "U/L"]]), "liver_pattern").action, /آزمایشِ کبد تکرار شود/);
+  // P108-ج (عمدی): routineِ تک‌نوبت حالا زمانِ تکرار را می‌گوید («… ۴ تا ۱۲ هفته بعد تکرار کنید»)؛ «تکرار» همچنان هست.
+  assert.match(msOf(urg([["ALT", 60, "U/L"]]), "liver_pattern").action, /آزمایشِ کبد را ۴ تا ۱۲ هفته بعد تکرار کنید/);
 });
 
 // P107i (بازبین، ردیف ۱۹): HCO3ِ بیوشیمیِ سرم شاهدِ گازِ خون نیست. pHِ ناهم‌جهت با HCO3 (۷٫۰ با ۲۵) pHِ ادرار می‌ماند؛ با pCO2 یا هم‌جهت همان خون.

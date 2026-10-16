@@ -2396,6 +2396,30 @@ function inferGestWeeks(ocr) {
  * اجرای موتور روی خروجی OCR
  * @returns خروجی ساختاریافته برای پرامپت
  */
+// ═══ نوبتِ قبلی (P108-ج) ═══
+// ورودی: ocr.prior = { date, graded: [{ test, value, abnormal, dir, range }] }   (از `_engine.tests` ِ نتیجهٔ ذخیره‌شده)
+//                   یا { date, tests: [ردیف‌های خام] }                             (همان قالبِ برگه؛ با همان بیمار درجه‌بندی می‌شود)
+//        ocr.sampleDate = تاریخِ نمونهٔ فعلی (پیش‌فرض: اکنون).
+// خروجی: { weeks, ALT?, AST? } — فقط کلیدهایی که در نوبتِ قبلی سنجیده شده‌اند. تاریخِ نامعتبر یا آینده ⇒ null (نوبتِ قبلی نداریم).
+const PRIOR_KEYS = ["ALT", "AST"];
+function priorVisit(ocr, sex, age) {
+  const p = ocr?.prior;
+  if (!p || typeof p !== "object") return null;
+  const t0 = Date.parse(p.date), t1 = ocr.sampleDate ? Date.parse(ocr.sampleDate) : Date.now();
+  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t0 >= t1) return null;
+  // یک حساب ممکن است برگهٔ عضوِ دیگرِ خانواده را هم بفرستد: جنسِ متفاوت ⇒ همان شخص نیست ⇒ نوبتِ قبلی نداریم.
+  if (p.sex && sex && p.sex !== sex) return null;
+  let graded = Array.isArray(p.graded) ? p.graded : null;
+  if (!graded && Array.isArray(p.tests)) graded = runEngine({ patient: { sex, age, ...(ocr.patient ?? {}) }, tests: p.tests }).graded;
+  if (!graded) return null;
+  const out = { weeks: +((t1 - t0) / (7 * 24 * 3600 * 1000)).toFixed(1) };
+  for (const k of PRIOR_KEYS) {
+    const g = graded.find((x) => (x.test ?? x.key) === k && typeof x.value === "number");
+    if (g) out[k] = { value: g.value, abnormal: !!g.abnormal, dir: g.dir ?? null, range: g.range ?? null };
+  }
+  return PRIOR_KEYS.some((k) => out[k]) ? out : null;
+}
+
 export function runEngine(ocr) {
   const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, printedRefsAll, derivedAbs, derivedAbsRefs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, ambiguousPh, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
@@ -2857,7 +2881,12 @@ export function runEngine(ocr) {
     printedRanges[g.test] = `${pr.lo}–${pr.hi}`;
   }
 
+  // P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): نوبتِ قبلیِ ALT/AST برای «پایداری». فقط وقتی ورودی دارد (سرور از نتیجهٔ ذخیره‌شدهٔ
+  //   کاربرِ واردشده می‌سازد) ⇒ بی‌آن خروجی بایت‌به‌بایت همان.
+  const prior = priorVisit(ocr, sex, age);
+
   return {
+    ...(prior ? { prior } : {}),
     sex, age,
     pregnant: pregnantF,
     // specs/011: همهٔ شناسه‌های گزارش‌شده؛ قاعده‌ها فقط شناسه‌های ACTIVE_CONDITIONS را می‌خوانند.

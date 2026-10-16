@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { runEngine } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
 import { healthScore, SCORE_TABLE } from "./score.js";
+import { isMinorDeviation } from "./minor.js";
 
 const r = (name, value, unit, reference) => ({ name, value, ...(unit ? { unit } : {}), ...(reference ? { reference } : {}) });
 const M36 = { age: 36, sex: "M" };
@@ -107,4 +108,53 @@ test("V6: CK و میوگلوبین در دستگاهِ «قلب» نیستند؛
     r("Hb", "15", "g/dL"), r("WBC", "6"), r("PLT", "250"), r("Creatinine", "0.9", "mg/dL"), r("ALT", "20")];
   const heart = (tests) => { const { e, p } = run(tests); return healthScore(e, p).systems?.find((s) => s.id === "heart")?.score; };
   assert.equal(heart([...lip, r("CK", "357", "U/L")]), heart(lip));
+});
+
+// ── P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): پایداریِ ALT/AST با نوبتِ قبلی ──
+const ALT48 = [r("ALT", "48", "U/L")];
+const priorAlt = (v, date) => ({ date, graded: [{ test: "ALT", value: v, abnormal: v > 41, dir: v > 41 ? "high" : null, range: "0–41" }] });
+const liver = (tests, extra = {}) => runPatterns(runEngine({ patient: M36, tests, ...extra })).findings.find((f) => f.rule_id === "liver_pattern");
+
+test("V7: ALT ۴۸ تک‌نوبت ⇒ routine، برچسبِ «تک‌نوبت»، تکرارِ ۴–۱۲ هفته با پرهیزها، بی هپاتیت/سونو/ALP/GGT", () => {
+  const f = liver(ALT48);
+  assert.equal(f.urgency, "routine");
+  assert.match(f.must_say, /\(تک‌نوبت\)/);
+  assert.match(f.action, /۴ تا ۱۲ هفته بعد تکرار کنید؛ تا آن موقع از ورزشِ سنگین، الکل، استامینوفن و مکملِ گیاهی پرهیز کنید/);
+  assert.deepEqual(f.suggest, ["تکرار ALT و AST"]);
+  assert.doesNotMatch(f.must_say, /ALP هم لازم است/);
+  // کنترل: ALT ≥ ۲×ULN (۱۰۰) تک‌نوبت ⇒ همان بررسیِ کامل
+  assert.ok(liver([r("ALT", "100", "U/L")]).suggest.includes("هپاتیت B و C"));
+});
+
+test("V8: ALT ۴۸ با قبلیِ ۴۶ پس از ۸ هفته ⇒ soon «پایدار» + بررسیِ کامل؛ قبلیِ طبیعی ⇒ routine «تازه»؛ قبلیِ بالا ولی ۲ هفته ⇒ routine", () => {
+  const per = liver(ALT48, { prior: priorAlt(46, "2026-08-21"), sampleDate: "2026-10-16" });
+  assert.equal(per.urgency, "soon");
+  assert.match(per.must_say, /حدودِ ۸ هفته پیش\) هم ALT \(آنزیم کبدی\) بالا بود \(46\)؛ یعنی این افزایش دست‌کم ۴ هفته پایدار/);
+  assert.ok(per.suggest.includes("هپاتیت B و C") && per.suggest.includes("سونوگرافی شکم"));
+  const fresh = liver(ALT48, { prior: priorAlt(30, "2026-08-21"), sampleDate: "2026-10-16" });
+  assert.equal(fresh.urgency, "routine");
+  assert.match(fresh.must_say, /طبیعی بود \(30\)؛ پس این افزایشِ تازه است/);
+  const early = liver(ALT48, { prior: priorAlt(46, "2026-10-02"), sampleDate: "2026-10-16" });
+  assert.equal(early.urgency, "routine");
+  assert.match(early.must_say, /کمتر از ۴ هفته است/);
+});
+
+test("V9: ALT بالا + CK بالا ⇒ «منشأ عضلانی محتمل است» و تکرار حذف نمی‌شود", () => {
+  const f = liver([...ALT48, r("CK", "400", "U/L")]);
+  assert.match(f.must_say, /منشأ عضلانی محتمل است؛ با این حال تکرارِ آزمایشِ کبد لازم است/);
+  assert.match(f.action, /تکرار کنید/);
+});
+
+test("V10: Na ۱۴۷ هرگز «جزئی» نیست (ردهٔ ۱)", () => {
+  const g147 = runEngine({ patient: M36, tests: [r("Na", "147", "mmol/L")] }).graded.find((x) => x.test === "NA");
+  assert.equal(g147.abnormal, true);
+  assert.equal(isMinorDeviation(g147), false);
+  const p = runPatterns(runEngine({ patient: M36, tests: [r("Na", "147", "mmol/L"), r("Cholesterol", "210", "mg/dL")] }));
+  assert.ok(!p.findings.some((f) => f.minor_cap));
+});
+
+test("V11: بی prior خروجیِ موتور کلیدِ prior ندارد؛ تاریخِ نامعتبر/آینده ⇒ نوبتِ قبلی نداریم", () => {
+  assert.equal(runEngine({ patient: M36, tests: ALT48 }).prior, undefined);
+  assert.equal(runEngine({ patient: M36, tests: ALT48, prior: priorAlt(46, "x"), sampleDate: "2026-10-16" }).prior, undefined);
+  assert.equal(runEngine({ patient: M36, tests: ALT48, prior: priorAlt(46, "2026-11-01"), sampleDate: "2026-10-16" }).prior, undefined);
 });

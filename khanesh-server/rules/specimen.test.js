@@ -121,7 +121,7 @@ const FREEZE = {
   bmp: [{ sex: "M", age: 55 }, [row("Na", "138"), row("K", "4.2"), row("Creatinine", "1.0", "mg/dL"), row("Urea", "30", "mg/dL"), row("FBS", "95", "mg/dL")], "204e0d93ecb7bb4b"],
   lipid_dm: [{ sex: "M", age: 50 }, [row("Cholesterol", "210", "mg/dL"), row("LDL", "114", "mg/dL"), row("HDL", "38", "mg/dL"), row("TG", "240", "mg/dL"), row("FBS", "209", "mg/dL")], "7daeb3138c9d7c90"],   // بازپایهٔ عمدی ۲۰۲۶-۱۰-۰۷: فقط headline/must_sayِ diabetes_range (FBS 209). اثبات: برگرداندنِ همان دو hunk در یک کپی ⇒ 2065fd25af68fbf4.
   // بازپایهٔ عمدی (باگِ ۶): فقط پیشوندِ عددیِ تازهٔ liver_pattern؛ بی‌آن همان 3547cf8469405703.
-  liver: [{ sex: "F", age: 45 }, [row("AST", "120"), row("ALT", "150"), row("ALP", "200"), row("Total Bilirubin", "2.1", "mg/dL")], "183b6086556d28e0"],
+  liver: [{ sex: "F", age: 45 }, [row("AST", "120"), row("ALT", "150"), row("ALP", "200"), row("Total Bilirubin", "2.1", "mg/dL")], "c15d1c6516e1a8cf"], // P108-ج (عمدی): فقط جملهٔ «تک‌نوبت» در must_sayِ liver_pattern (diff کامل ۲۰۲۶-۱۰-۱۶)
   thyroid: [{ sex: "F", age: 35 }, [row("TSH", "8.2"), row("FT4", "0.9")], "5fa44e1713a9ec1d"],
   urinalysis: [{ sex: "F", age: 28 }, [row("Urine Protein", "+1"), row("Nitrite", "Positive"), row("WBC", "10-12", "/hpf"), row("RBC", "2-3", "/hpf")], "3f28e6213d7b156b"],
   coag: [{ sex: "M", age: 60 }, [row("PT", "19"), row("PTT", "42"), row("PT INR", "1.7")], "6583cf22c1f12265"],

@@ -52,7 +52,7 @@ import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
 import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "./jobStore.js";
 import authRouter, { requireAuth, authBootReport, AUTH_REQUIRED, otpSenderStatus } from "./auth.js";
 import profileRouter from "./profile.js";
-import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById } from "./database.js";
+import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById, getLatestCompletedJob } from "./database.js";
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
 //
@@ -83,6 +83,22 @@ export function ageText(years) {
  *   • بقیه — وقتی یافته‌ای نمایش‌داده‌شده آن را در applied_conditions اعلام کرد (مثلاً شاخهٔ dm2 در lipid_profile).
  * بازبینیِ کد: پیش‌تر هر dm2ِ گزارش‌شده «لحاظ‌شده» نوشته می‌شد، حتی روی برگهٔ فقط-CBC.
  */
+/**
+ * P108-ج: ردیفِ ذخیره‌شدهٔ jobs ⇒ `prior` ِ موتور ({ date, graded, sex }). فقط ALT/AST؛ نتیجهٔ بی‌_engine ⇒ null.
+ * created_at ِ SQLite به وقتِ UTC و بی‌منطقه است ⇒ «Z». تاریخِ بارگذاری جایِ تاریخِ نمونه است (برگه تاریخِ نمونه را نمی‌دهد).
+ */
+export function priorFromStoredResult(row) {
+  const eng = row?.result?._engine;
+  if (!Array.isArray(eng?.tests)) return null;
+  const graded = eng.tests.filter((t) => t.key === "ALT" || t.key === "AST")
+    .map((t) => ({ test: t.key, value: t.value, abnormal: t.abnormal, dir: t.dir, range: t.range }));
+  if (!graded.length || !row.created_at) return null;
+  const c = String(row.created_at);
+  const date = /[zZ]|[+-]\d\d:?\d\d$/.test(c) ? c : c.replace(" ", "T") + "Z";
+  const sex = eng.context?.sex === "مرد" ? "M" : eng.context?.sex === "زن" ? "F" : null;
+  return { date, graded, ...(sex ? { sex } : {}) };
+}
+
 export function engineContext(engineOut, patternOut) {
   const reported = new Set(activeConditionIds(engineOut.conditions));
   const used = new Set((patternOut?.findings ?? []).flatMap((f) => f.applied_conditions ?? []));
@@ -1201,7 +1217,8 @@ const analyzeHandler = async (req, res) => {
     let recognizedAtFallback = null;   // specs/014: خطِ «شناخته شد»ِ برگهٔ فقط-ادرارِ ۲۴ساعته/مایع (پیش از null شدنِ engineCandidate)
     let routedByQual = false;   // specs/011: برگه فقط به‌خاطرِ ردیف‌های کیفیِ صاحب‌دار در مسیرِ موتور ماند
     if (lastMergedOcr) {
-      engineCandidate = runEngine(lastMergedOcr);
+      // P108-ج: نوبتِ قبلیِ کاربرِ واردشده (فقط /start، فقط کاربرِ غیرناشناس) برای پایداریِ ALT/AST.
+      engineCandidate = runEngine(req.priorLabs ? { ...lastMergedOcr, prior: req.priorLabs } : lastMergedOcr);
       // job c138671c (D10): برای نوزاد، فهرستِ «برای مطالعهٔ بیشتر» فقط صفحه‌های عمومیِ شمارشِ خونِ بزرگسال بود.
       //   صفحهٔ نوزادیِ MedlinePlus (وجودش ۲۰۲۶-۰۹-۲۸ بررسی شد) اضافه می‌شود — همان فهرست، نه منبعِ نتیجه‌گیری.
       if (isNeonate(engineCandidate.age) && !medlineSources.includes(NEWBORN_MEDLINE_URL)) {
@@ -1902,7 +1919,14 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
     setHeader() { return shim; },
   };
 
-  analyzeHandler(req, shim).catch((err) => {
+  // P108-ج: آخرین نتیجهٔ ذخیره‌شدهٔ همین کاربر ⇒ نوبتِ قبلیِ ALT/AST. ناشناس (AUTH خاموش) هرگز: همه userId=1اند.
+  const priorP = req.user && req.user.userId && !req.user.anonymous
+    ? getLatestCompletedJob(req.user.userId, jobId).then(priorFromStoredResult).catch(() => null)
+    : Promise.resolve(null);
+  priorP.then((prior) => {
+    if (prior) req.priorLabs = prior;
+    return analyzeHandler(req, shim);
+  }).catch((err) => {
     console.error("Job failed:", err.name, err.message);
     finishJob(jobId, 500, { error: "خطای داخلی سرور." });
     updateJobResult(jobId, 'failed', { error: "خطای داخلی سرور." }).catch(e => {});
