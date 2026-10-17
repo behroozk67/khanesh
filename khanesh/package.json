@@ -7,6 +7,8 @@
     "dev": "vite",
     "prebuild": "node scripts/gen-sitemap.mjs",
     "build": "vite build",
+    "postbuild": "node scripts/gen-static-heads.mjs",
+    "indexnow": "node scripts/indexnow.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
