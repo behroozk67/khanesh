@@ -1583,6 +1583,13 @@ export const RULES_HEMATOLOGY = [
       if (e.age != null && isPediatricRCPCH(e.age)) return false;   // آستانهٔ WHO بزرگسال است؛ Hb ۱۵–۲۱ در نوزاد طبیعی است (N3، 61-f)
       const who = e.sex === "M" ? 16.5 : 16.0;
       if (hgb.value < who) return false;
+      // P116 (بازبینیِ بالینی ۲۰۲۶-۱۰-۲۷): Hb تنها کافی نیست. مردِ ۴۴ ساله با «Hb 17.3» و «Hct 47.7» (هر دو در بازهٔ
+      //   برگه) هشدارِ «غربالگریِ پرخونیِ مغزِ استخوان» می‌گرفت — اضطرابِ بی‌مورد؛ هماتوکریتِ نرمال یعنی هموکانسنتراسیون/
+      //   سیگار محتمل‌تر از اریتروسیتوزِ راستین است. آستانهٔ WHO دو معیارِ هم‌ارز دارد (Hb > ۱۶٫۵ **یا** Hct > ۴۹)؛
+      //   وقتی Hct روی برگه است، همان معیارِ Hct دروازه است: زیرِ آستانه ⇒ غربالگری لازم نیست.
+      const whoHct = e.sex === "M" ? 49 : 48;
+      const hctRow = e.graded.find((g) => g.test === "HCT");
+      if (hctRow?.value != null && hctRow.value < whoHct) return false;
       // erythrocytosisِ خودش (بالای بازهٔ موتور + RBC بالا + MCV≥80) فوریت و متنِ خودش را دارد؛
       // هم‌پوشانیِ دو یافته روی یک هموگلوبین ممنوع است (N20) — واگذاری از رویِ matchِ زنده‌اش، نه کپیِ آستانه.
       return !RULES_HEMATOLOGY.some((x) => x.id === "erythrocytosis" && x.match(e));

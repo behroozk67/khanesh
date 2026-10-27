@@ -742,6 +742,22 @@ const HB_VARIANT_KEYS = new Set(["HBA", "HBA2", "HBF", "HBS", "HBC", "HBE", "SIC
 const HB_ELECTRO_EVIDENCE = new Set(["HBA2", "HBF", "HBA"]);        // نام‌های بی‌ابهام = شاهدِ صفحه
 // کلیدهایی که بازهٔ تأییدشده ندارند (P53) — در هر سنی noRef ⇒ «تفسیر نشدند».
 const NO_RANGE_KEYS = new Set(["RETIC_ABS", "HBA", "HBS", "HBC", "HBE", "SICKLE", "ZPP", "STFR", "EPO"]);
+
+// ═══ P116 (بازبینی ۲۰۲۶-۱۰-۲۷) ═══
+// ۱) دو شاخصِ تیروئیدی که موتور برایشان مرجعِ داخلی ندارد ولی برگه بازه چاپ می‌کند: بازهٔ خودِ برگه سنجه است.
+//    ⚠️ نگاشتِ نامِ «T3 Uptake»/«FTI» در کامیتِ موازیِ P111 است؛ بی‌آن این مجموعه بی‌اثر می‌ماند (تست P116-۵ skip).
+const PRINTED_REF_ONLY_KEYS = new Set(["T3UP", "FTI"]);
+// ۲) سنجه‌هایی که «تخفیفِ» بازهٔ چاپ‌شده هرگز به آن‌ها نمی‌رسد (خطرِ بالا: پتاسیم، سدیم، قند، تروپونین، انعقاد، CBC).
+const PRINTED_RELAX_EXEMPT = new Set([
+  "K", "NA", "CA", "MG", "PHOS", "GLU_F", "GLU_RANDOM", "TROPONIN_I", "TROPONIN_T", "INR", "PT", "PTT", "D_DIMER",
+  "HGB", "HCT", "PLT", "WBC", "CREAT", "LACTATE", "PH", "DIGOXIN", "LITHIUM", "AMMONIA", "BILI_T",
+  // URIC: تصمیمِ مستندِ Y24 (review1020) — اسید اوریک روی «سقفِ بازهٔ آزمایشگاه» خودِ قاعده با متنِ
+  //   «سقفِ بازهٔ آزمایشگاه» می‌آید و بازهٔ چاپی را نقل می‌کند؛ تخفیفِ عمومی آن یافته را کامل حذف می‌کرد.
+  "URIC",
+  // MPV/PDW: قاعدهٔ platelet_indices_context خودش «بازهٔ چاپ‌شدهٔ آزمایشگاه» را نقل می‌کند (V29)؛
+  //   تخفیفِ عمومی یافته را کامل حذف می‌کرد.
+  "MPV", "PDW",
+]);
 /** 🔴 دور ۲ (CR6): صفحه‌ای که الکتروفورزِ هموگلوبین دارد — mergePages کلیدِ نام‌های دوپهلو را با آن جدا می‌کند. */
 export function isHbElectroPage(tests) {
   return (tests || []).some((t) => t?.name && (HB_ELECTRO_EVIDENCE.has(NAME_MAP[norm(t.name)]) ||
@@ -2806,6 +2822,16 @@ export function runEngine(ocr, opts = {}) {
     }
     const ref = (NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF });
     if (!ref) {
+      // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): T3 Uptake و FTI موتور برایشان مرجعِ داخلی ندارد، ولی خودِ آزمایشگاه بازه
+      //   چاپ کرده (۲۴–۳۵٪ و ۱٫۴–۳٫۴). پیش‌تر «محدوده مرجع ندارد — تفسیر نشد» می‌شدند. حالا بازهٔ چاپ‌شده
+      //   (بی‌هیچ تبدیلِ واحد؛ عدد و بازه از یک ستون‌اند) سنجه است و منبعش صریح نوشته می‌شود.
+      const ownRef = PRINTED_REF_ONLY_KEYS.has(key) && printedRefsAll[key] ? parseReference(printedRefsAll[key], sex) : null;
+      const ownPrinted = ownRef && ownRef.hi > 0 ? [ownRef.lo ?? 0, ownRef.hi] : null;
+      if (ownPrinted) {
+        graded.push({ test: key, value, range: `${ownPrinted[0]}–${ownPrinted[1]}`,
+          refSource: "بازهٔ چاپ‌شدهٔ همین برگه", ...evaluate(key, value, ownPrinted[0], ownPrinted[1], isCancerPatient) });
+        continue;
+      }
       noRef.push(key);
       if (REPRO_HORMONE_KEYS.has(key)) ungraded[key] = { value, reason: "no_range", ...(UNIT_KEPT.has(key) ? { unit: printedUnits[key] ?? null } : {}) };
       // P110: بازهٔ چاپ‌شدهٔ رویِ سرم همراهش می‌رود — بی‌واحد، واحد از همین بازه تعیین می‌شود (zinc_status).
@@ -2970,6 +2996,34 @@ export function runEngine(ocr, opts = {}) {
     printedRanges[g.test] = `${pr.lo}–${pr.hi}`;
   }
 
+  // ═══ P116 (بازبینی بالینی ۲۰۲۶-۱۰-۲۷): بازهٔ چاپ‌شدهٔ برگه حقِ «تخفیف» دارد، نه «تشدید» ═══
+  //   «GGT 46.2» با برگهٔ «up to 49» و «MCHC 36.3» با برگهٔ «30-37» خارج از محدوده خوانده می‌شدند
+  //   (بازهٔ موتور باریک‌تر است) و بیمار هشدارِ بی‌مورد می‌گرفت. اگر خودِ آزمایشگاه عدد را در بازهٔ
+  //   چاپی‌اش طبیعی می‌داند و انحرافِ موتور خفیف است (بی‌درجه یا mild) و دو بازه هم‌مقیاس‌اند، برچسب
+  //   «خارج از محدوده» برداشته می‌شود و دلیلش روی ردیف می‌مانَد (printedNormal + note).
+  //   ⚠️ سنجه‌های پرخطر (PRINTED_RELAX_EXEMPT) و شدتِ moderate+ هرگز تخفیف نمی‌گیرند.
+  const relaxed = [];
+  for (const g of graded) {
+    if (!g.abnormal || PRINTED_RELAX_EXEMPT.has(g.test)) continue;
+    if (g.level && g.level !== "mild") continue;
+    if (g.ctcaeGrade != null && g.ctcaeGrade > 1) continue;
+    const raw = printedRefsAll?.[g.test];
+    if (!raw) continue;
+    const pr = parseReference(raw, sex);
+    const band = getRef(g.test, sex, age ?? 40, { pregnant: pregnantF });
+    if (!pr || !band) continue;
+    const near = (a, b) => !(a > 0 && b > 0) || (a / b <= 1.5 && b / a <= 1.5);
+    if (pr.hi != null && !near(pr.hi, band[1])) continue;
+    if (pr.lo != null && !near(pr.lo, band[0])) continue;
+    if (printedVerdict(raw, g.value, sex) !== "within") continue;
+    Object.assign(g, {
+      abnormal: false, dir: null, patient: null, tag: "normal",
+      fa: "در محدودهٔ چاپ‌شدهٔ برگه", printedNormal: true, printedRange: String(raw),
+      note: "بازهٔ چاپ‌شدهٔ برگه این مقدار را طبیعی می‌داند؛ بازهٔ مرجعِ سامانه باریک‌تر است.",
+    });
+    relaxed.push(g.test);
+  }
+
   // P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): نوبتِ قبلیِ ALT/AST برای «پایداری». فقط وقتی ورودی دارد (سرور از نتیجهٔ ذخیره‌شدهٔ
   //   کاربرِ واردشده می‌سازد) ⇒ بی‌آن خروجی بایت‌به‌بایت همان.
   const prior = priorVisit(ocr, sex, age);
@@ -3003,6 +3057,8 @@ export function runEngine(ocr, opts = {}) {
     indices: idx,
     // P113: اگر سنِ زیستی ساخته نشد، دلیلش همین‌جاست (وضعیت + مارکرهای غایب). فقط با `diagnostics: true`.
     ...(wantDiag && enginePhenoDiag ? { phenoAgeDiag: enginePhenoDiag } : {}),
+    // P116: ردیف‌هایی که بازهٔ چاپ‌شدهٔ برگه «تخفیف» داد (فقط با diagnostics؛ برای حسابرسی).
+    ...(wantDiag && relaxed.length ? { printedRelaxed: relaxed } : {}),
     unmapped,
     // دو عددِ متفاوت برای یک آزمایش (۲۰۲۶-۱۰-۰۶): server.js هشدار می‌سازد. فقط وقتی هست، تا فریزها دست نخورند.
     ...(valueConflicts.length ? { valueConflicts } : {}),

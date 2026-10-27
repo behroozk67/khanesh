@@ -76,7 +76,7 @@ function testRow(g, engineOut) {
     graded: { value: g.value, unit: getUnit(g.test) ?? null },
     derived_from,
     engine_range: g.range ?? null,
-    printed_range: engineOut.printedRanges?.[g.test] ?? null,
+    printed_range: engineOut.printedRanges?.[g.test] ?? g.printedRange ?? null,
     range_source: g.refSource ?? null,
     status_fa: g.fa ?? null,
     level: g.level ?? null,

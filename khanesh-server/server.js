@@ -795,7 +795,13 @@ export function mergePages(pageResults) {
 
       if (seen.has(key)) {
         const prev = tests[seen.get(key)];
-        if (String(prev.value) !== String(t.value)) {
+        // P116 (بازبینی ۲۰۲۶-۱۰-۲۷، N25): «Color» ادرار (Yellow) و مدفوع (Brown) روی یک برگه، و
+        //   «W.B.C /hpf 2» کنارِ «No Seen» — پیامِ «با مقادیر متفاوت خوانده شد» می‌ساختند و رنگِ مدفوع را
+        //   به ادرار نسبت می‌دادند. وقتی یکی از دو مقدار **متن** است (نه عدد)، این‌ها دو ردیفِ دو بخشِ
+        //   مختلف‌اند نه دو خوانشِ متناقضِ یک سنجه: هشدار ساخته نمی‌شود (ردیفِ اول می‌مانَد، مثلِ پیش).
+        //   ⚠️ عدد در برابرِ عدد همچنان هشدار می‌گیرد (K 4.0 و 7.2 — P105).
+        const numericish = (v) => /^[<>]?\s*\d+(?:[.,]\d+)?$/.test(String(v ?? "").trim());
+        if (String(prev.value) !== String(t.value) && numericish(prev.value) && numericish(t.value)) {
           dupes.push({
             name: t.name,
             pages: [prev._page, p.page],
@@ -1383,11 +1389,27 @@ const analyzeHandler = async (req, res) => {
       if (mxLine) ocrWarnings.push(mxLine);
       // P49: مقداری که یافته‌ای تفسیرش کرده (ویلسون، آنتی‌بادی کنارِ B12ِ پایین) در این خط نمی‌آید.
       const noRefShown = unexplainedNoRef(engineOut.noRef, patternOut.findings);
-      if (noRefShown.length) {
-        console.warn(`موتور: محدوده مرجع ندارد → ${noRefShown.join(", ")}`);
+      // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): «رنگِ مدفوع» یک مشاهدهٔ توصیفی است، نه سنجه‌ای که «محدودهٔ مرجع ندارد».
+      //   پیش‌تر در همان خطِ «محدوده مرجع نداریم … تفسیر نشدند» می‌نشست و غیرحرفه‌ای خوانده می‌شد.
+      const OBSERVATION_KEYS = new Set(["STOOL_COLOR"]);
+      const obsShown = noRefShown.filter((k) => OBSERVATION_KEYS.has(k));
+      const rangeShown = noRefShown.filter((k) => !OBSERVATION_KEYS.has(k));
+      if (obsShown.length) {
+        const parts = obsShown.map((k) => {
+          const v = engineOut.ungraded?.[k]?.value;
+          return `${faName(k)}${v != null ? ` — ${v}` : ""}`;
+        });
+        console.warn(`موتور: مشاهدهٔ توصیفی → ${obsShown.join(", ")}`);
+        ocrWarnings.push(
+          `مشاهدهٔ چاپ‌شدهٔ برگه: ${parts.join("، ")}. ` +
+          `این‌ها ظاهرِ نمونه را توصیف می‌کنند و عددی نیستند که با بازهٔ مرجع سنجیده شود.`
+        );
+      }
+      if (rangeShown.length) {
+        console.warn(`موتور: محدوده مرجع ندارد → ${rangeShown.join(", ")}`);
         ocrWarnings.push(
           // ⚠️ faName: noRef کلیدِ موتور است، نه نامِ چاپی (N8، آزمونِ T17).
-          `برای این تست‌ها محدوده مرجع نداریم: ${noRefShown.map(faName).join("، ")}. ` +
+          `برای این تست‌ها محدوده مرجع نداریم: ${rangeShown.map(faName).join("، ")}. ` +
           `تفسیر نشدند. ` +
           // همان جملهٔ هشدارِ unmapped: این ردیف ممکن است کنارِ خلاصهٔ «طبیعی» بنشیند،
           // و تنها چیزی است که بیمار را به پزشک می‌فرستد (T17).
