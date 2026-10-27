@@ -716,6 +716,89 @@ export const GUIDELINES = {
     scope:
       'طبقه‌بندی شدت هموفیلی بر پایهٔ سطح فاکتور انعقادی (جدول ۲-۱: شدید <۱٪، متوسط ۱–۵٪، خفیف >۵ تا <۴۰٪)؛ پایش و سنجش مهارکننده‌ها (تست نایمیخن-بتسدا، عیار مثبت ≥۰.۶ BU/mL)',
   },
+
+  // ── P112 (۲۰۲۶-۱۰-۲۱، درخواستِ کاربر: «قواعدِ خونِ مخفی در مدفوع را از گایدلاین‌ها و مقالات پیدا کن و در تفسیر اعمال کن») ──
+  //    هر شش منبع متن/چکیده‌شان در همان جلسه باز و خوانده شد؛ استخراجِ قاعده‌ها در MEDICAL_RULES.md §P112 ثبت است.
+  //    ⚠️ هیچ آستانهٔ عددیِ تازه‌ای در کد ننشست: مثبت/منفی همچنان فقط با مرز/بازهٔ *چاپ‌شدهٔ همان ردیف* است (C1).
+  //       اعدادِ زیر فقط در متنِ بیمار به‌عنوانِ «مرزِ رایجِ راهنماها» می‌آیند، نه ملاکِ حکمِ موتور.
+  USPSTF_CRC_2021: {
+    org: 'USPSTF',
+    fa: 'کارگروه خدمات پیشگیرانهٔ آمریکا — غربالگری سرطان رودهٔ بزرگ (۲۰۲۱)',
+    title: 'Screening for Colorectal Cancer: US Preventive Services Task Force Recommendation Statement (JAMA 2021;325(19):1965-1977)',
+    year: 2021,
+    url: 'https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/colorectal-cancer-screening',
+    access: 'open',
+    scope:
+      'غربالگری از ۴۵ تا ۷۵ سالگی؛ FIT سالی یک بار (نمونهٔ واحد، بدونِ محدودیتِ غذایی/دارویی)؛ ' +
+      'هر نتیجهٔ مثبتِ آزمایشِ مدفوع برای کامل‌شدنِ فایدهٔ غربالگری کولونوسکوپیِ پیگیری لازم دارد؛ ' +
+      'gFOBTِ حساسیت‌بالا سه نمونهٔ جدا و محدودیتِ غذایی/دارویی می‌خواهد (FIT ندارد)؛ ' +
+      'مدلِ CISNET آستانهٔ ۲۰ µg Hb/g مدفوع را به‌کار برد',
+  },
+
+  ACPGBI_BSG_FIT_2022: {
+    org: 'ACPGBI/BSG',
+    fa: 'انجمن کولوپروکتولوژی بریتانیا و ایرلند + انجمن گوارش بریتانیا — راهنمای مشترکِ FIT در بیمارِ علامت‌دار (۲۰۲۲)',
+    title: 'Faecal immunochemical testing (FIT) in patients with signs or symptoms of suspected colorectal cancer (CRC): a joint guideline from the ACPGBI and the BSG (Gut 2022;71(10):1939-1953; PMID 35820780)',
+    year: 2022,
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9484376/',
+    access: 'open',
+    scope:
+      'آستانهٔ fHb ≥ ۱۰ µg Hb/g برای مسیرِ ارجاعِ فوری (توصیهٔ قوی)؛ FIT ابزارِ تریاژ است و ' +
+      '«بیمار نباید تنها بر پایهٔ نتیجهٔ FIT از ارجاع محروم شود»؛ FIT در کمخونیِ فقر آهن برای تعیینِ فوریتِ ارجاع؛ ' +
+      'خونریزیِ مقعدیِ پایدار با fHb زیرِ آستانه ⇒ سیگموئیدوسکوپیِ فلکسابل؛ FIT برای بیمارانِ زیرِ ۵۰ سال با علائمِ مشکوک؛ ' +
+      'شواهد برای تغییرِ آستانه بر پایهٔ دارو یا ویژگی‌های بیمار ناکافی است',
+  },
+
+  BSG_ACPGBI_FIT_IDA_2025: {
+    org: 'BSG/ACPGBI',
+    fa: 'انجمن گوارش بریتانیا + انجمن کولوپروکتولوژی بریتانیا و ایرلند — نقشِ FIT در بررسیِ کمخونیِ فقر آهن (۲۰۲۵)',
+    title: 'BSG and ACPGBI guidelines on the role of faecal immunochemical testing (FIT) in the endoscopic investigation of iron deficiency anaemia (IDA) (Frontline Gastroenterology 2025; doi:10.1136/flgastro-2025-103329)',
+    year: 2025,
+    url: 'https://fg.bmj.com/content/early/2025/10/14/flgastro-2025-103329.full',
+    access: 'open',
+    scope:
+      'همهٔ بیمارانِ کمخونیِ فقر آهن باید برای بررسیِ همزمانِ گوارشِ فوقانی و تحتانی ارجاع شوند؛ ' +
+      'FIT بالای آستانه + IDA ⇒ ارجاع از مسیرِ سرطانِ مشکوک برای هر دو بخش؛ FIT زیرِ آستانه + IDA بدونِ علامتِ هشدار ⇒ ' +
+      'ارزیابیِ بالینیِ غیرِسرطانی (نه حذفِ بررسی)؛ سرطانِ گوارشِ فوقانی در ۲٫۱–۳٪ بیمارانِ IDA با FIT/FOBT مثبت گزارش شده',
+  },
+
+  NIEWENBURG_2019_FIT_DRUGS: {
+    org: 'Gut',
+    fa: 'متاآنالیزِ اثرِ ضدانعقادهای خوراکی و آسپیرین/NSAID بر دقتِ FIT (۲۰۱۹)',
+    title: 'Effect of anticoagulants and NSAIDs on accuracy of faecal immunochemical tests (FITs) in colorectal cancer screening: a systematic review and meta-analysis (Gut 2019;68(5):866-872; PMID 29871970)',
+    year: 2019,
+    url: 'https://pubmed.ncbi.nlm.nih.gov/29871970/',
+    access: 'paywalled',
+    // متنِ کاملِ Gut باز نشد؛ عددها از چکیدهٔ آزادِ PubMed است (۸ مطالعه، ۳۵۶۳ بیمارِ FIT-مثبت).
+    substitutedBy: 'Nieuwenburg SA et al., Gut 2019;68(5):866-872 — چکیدهٔ آزادِ PubMed (PPVِ نئوپلازیِ پیشرفته در مصرف‌کنندگانِ ضدانعقاد ۳۷٫۶٪ در برابرِ ۴۰٫۳٪؛ آسپیرین/NSAID ۳۸٫۲٪ در برابرِ ۳۹٫۴٪)',
+    substitutedUrl: 'https://pubmed.ncbi.nlm.nih.gov/29871970/',
+    scope: 'دقتِ FIT با مصرفِ ضدانعقادِ خوراکی و آسپیرین/NSAID به‌طورِ معناداری تغییر نمی‌کند و قطعِ دارو پیش از FIT توصیه نمی‌شود',
+  },
+
+  CORLEY_2017_FIT_DELAY: {
+    org: 'JAMA',
+    fa: 'مطالعهٔ هم‌گروهیِ ۷۰٬۱۲۴ بیمارِ FIT-مثبت — فاصلهٔ زمانی تا کولونوسکوپی (۲۰۱۷)',
+    title: 'Association Between Time to Colonoscopy After a Positive Fecal Test Result and Risk of Colorectal Cancer and Cancer Stage at Diagnosis (JAMA 2017;317(16):1631-1641; PMID 28444278)',
+    year: 2017,
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6343838/',
+    access: 'open',
+    scope:
+      'در مقایسه با کولونوسکوپیِ ۸ تا ۳۰ روز پس از FIT مثبت، تأخیرِ بیش از ۱۰ ماه با سرطانِ بیشتر (OR 1.48 برای ۱۰–۱۲ ماه و 2.25 برای بیش از ۱۲ ماه) ' +
+      'و مرحلهٔ پیشرفته‌تر (OR 1.97 و 3.22) همراه بود؛ تا ۹ ماه اختلافِ معناداری دیده نشد',
+  },
+
+  FIT_UNIT_CONVERSION_2013: {
+    org: 'Clin Chem Lab Med',
+    fa: 'واحدهای FIT — ناسازگاریِ کیت‌ها و تبدیلِ ng/mL به µg Hb/g مدفوع (۲۰۱۳)',
+    title: 'Diagnostic inconsistency of faecal immunochemical tests for haemoglobin in population screening of colorectal cancer (Clin Chem Lab Med 2013;51(11):2173-2180; PMID 24145058)',
+    year: 2013,
+    url: 'https://pubmed.ncbi.nlm.nih.gov/24145058/',
+    access: 'paywalled',
+    // متنِ کاملِ De Gruyter باز نشد؛ عددِ تبدیل از چکیدهٔ آزاد و محاسبهٔ خودِ مقاله (۱۰ mg مدفوع در ۲ mL بافر) است.
+    substitutedBy: 'چکیدهٔ آزادِ PubMed: حدِ مثبتِ کیت ۱۰۰ ng/mL ⇒ ۲۰ µg Hb/g و ۲۰۰ ng/mL ⇒ ۴۰ µg/g (یعنی هر ۵ ng/mL ≈ ۱ µg Hb در گرمِ مدفوع)',
+    substitutedUrl: 'https://pubmed.ncbi.nlm.nih.gov/24145058/',
+    scope: 'تبدیلِ واحدِ کیت (غلظت در محلول، ng/mL) به µg Hb/g مدفوع و تفاوتِ آستانهٔ کیت‌ها — مبنای جملهٔ واحد در یافتهٔ FIT',
+  },
   // ── P113 (۲۰۲۶-۱۰-۲۷): منابعِ شاخصِ سنِ زیستیِ فنوتیپی (PhenoAge) ──
   //    هر دو مقاله در همان جلسه باز و خوانده شدند (متنِ کاملِ دسترس‌پذیر)؛ جدولِ ۱ مقالهٔ لوین واحدِ
   //    هر بیومارکر را می‌دهد و تصحیحِ ۲۰۱۹ مرحلهٔ گم‌شدهٔ تبدیلِ مورتالیتی به سال را برمی‌گرداند.

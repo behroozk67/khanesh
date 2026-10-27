@@ -5,7 +5,7 @@ import { repeatDeltaFa } from "./biovar.js";
 import { ADULT_REFS } from "./refs.js";
 import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 import { isNeonate } from "./neonatal.js";
-import { SURVIVAL_LIMITS } from "./units.js";
+import { SURVIVAL_LIMITS, parseReference } from "./units.js";
 import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION } from "./patterns_utils.js";
 import { hemolysisRuleFires } from "./patterns_hematology.js";   // P105 (M7): ژیلبرِ «بی‌خطرترین» کنارِ همولیزِ فعال گفته نمی‌شود
 
@@ -149,7 +149,6 @@ export const RULES_BIOCHEM = [
       const trop = e.graded.find((g) => g.test === "TROPONIN_I");
       const ck = e.graded.find((g) => g.test === "CK");
       const creat = e.graded.find((g) => g.test === "CREAT");
-      const egfr = e.indices?.egfr;
 
       // سه‌شاخه روی هر آزمایشی که *همین برگه* دربارهٔ آن حرفی دارد — نه فقط
       // شاخهٔ «بالا». نوشتنِ تنها شاخهٔ بالا یعنی «طبیعی» و «اندازه‌گیری‌نشده»
@@ -160,9 +159,9 @@ export const RULES_BIOCHEM = [
       } else if (ck && !ck.abnormal) {
         clues.push("کراتین‌کینازِ (CK) شما روی همین برگه طبیعی است، که کمی به نفعِ منشأِ قلبی است تا آسیبِ عضلهٔ اسکلتی — ولی این تفکیک را تروپونین بهتر از CK انجام می‌دهد و تصمیم با پزشک است");
       }
-      if (egfr != null && egfr < 60) {
-        clues.push(`کارِ کلیهٔ شما پایین است (eGFR ${egfr})، و نارساییِ کلیه یکی از علت‌های شناخته‌شدهٔ بالا ماندنِ تروپونین بدونِ حملهٔ قلبی است — این را حتماً به پزشک بگویید`);
-      } else if (egfr == null && !creat) {
+      if (creat?.abnormal && creat.dir === "high") {
+        clues.push("کراتینین شما بالاست، و نارساییِ کلیه یکی از علت‌های شناخته‌شدهٔ بالا ماندنِ تروپونین بدونِ حملهٔ قلبی است — این را حتماً به پزشک بگویید");
+      } else if (!creat) {
         clues.push("کراتینین روی این برگه نیست، پس نمی‌توان گفت نارساییِ کلیه — که یکی از علت‌های بالا ماندنِ تروپونین است — نقشی دارد یا نه");
       }
 
@@ -835,8 +834,7 @@ export const RULES_BIOCHEM = [
       //    اختراعِ عدد، تشدید از خودِ موتور گرفته می‌شود: کلیه‌ای که منیزیم را
       //    کمتر دفع می‌کند، همان چیزی است که منیزیمِ بالا را خطرناک می‌کند.
       const creat = e.graded.find((g) => g.test === "CREAT");
-      const renal = (creat?.abnormal && creat.dir === "high") ||
-                    (e.indices.egfr != null && e.indices.egfr < 60);
+      const renal = creat?.abnormal && creat.dir === "high";
       // تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴ (P77-۲، جدولِ panicِ APSA): منیزیمِ بالا هر مقداری بالای مرجع ⇒ this_week، و ≥ ۴٫۹ mg/dL ⇒ اورژانس.
       //    (پیش‌تر بی‌نارسایی کلیه routine بود و ۶٫۵ هم اورژانس نمی‌شد.) renal دیگر فوریت را تعیین نمی‌کند، فقط جمله را.
       const urgency = high
@@ -1979,6 +1977,12 @@ export const RULES_BIOCHEM = [
     },
     build: (e) => {
       const u = e.graded.find((g) => g.test === "URIC");
+      // P113 (۲۰۲۶-۱۰-۲۷، گزارشِ ۲۰ تفسیر): عددی که *داخلِ بازهٔ چاپ‌شدهٔ خودِ آزمایشگاه* است نباید
+      //   «بالاتر از حد طبیعی است» اعلام شود. اسید اوریکِ ۸٫۲ با بازهٔ برگهٔ ۳٫۶–۸٫۲ دقیقاً روی سقف است؛
+      //   متن قبلی هم بازهٔ برگه را نقل می‌کرد و هم حکمِ «بالا» می‌داد — تناقضِ رو-به-روی بیمار (N3/N8).
+      //   سقفِ عمومی (۷٫۲) و سقفِ برگه هر دو گفته می‌شوند و حکم به «روی سقفِ آزمایشگاه» نرم می‌شود.
+      const pr = e.printedRanges?.URIC ? parseReference(e.printedRanges.URIC, null) : null;
+      const withinPrinted = !!(pr && pr.hi != null && u.value <= pr.hi && (pr.lo == null || u.value >= pr.lo));
       const cr = e.graded.find((g) => g.test === "CREAT");
       const kidney = !cr
         ? "کراتینین روی این برگه نیست؛ برای دیدنِ نقشِ کلیه بهتر است اندازه‌گیری شود."
@@ -1989,9 +1993,13 @@ export const RULES_BIOCHEM = [
       return {
         pattern: "hyperuricemia",
         urgency: "routine",
-        headline: "اسید اوریک خون بالاتر از حد طبیعی است",
+        headline: withinPrinted
+          ? "اسید اوریک شما روی سقفِ بازهٔ آزمایشگاه است"
+          : "اسید اوریک خون بالاتر از حد طبیعی است",
         must_say:
-          `اسید اوریک ${u.value} است (حد طبیعی ${u.range}) و بالاتر از حد طبیعی قرار دارد. ` +
+          (withinPrinted
+            ? `اسید اوریک ${u.value} است (حد طبیعی ${u.range}) و داخلِ بازهٔ چاپ‌شدهٔ خودِ آزمایشگاه است، یعنی آزمایشگاه آن را بالا ندانسته؛ با این حال از سقفِ عمومیِ مرجع بیشتر است و همان سقفِ ۶٫۸ برای بلورسازی مهم است. `
+            : `اسید اوریک ${u.value} است (حد طبیعی ${u.range}) و بالاتر از حد طبیعی قرار دارد. `) +
           "اسید اوریک ماده‌ای است که بدن هنگامِ تجزیهٔ پورین‌ها می‌سازد و کلیه دفعش می‌کند. بالاتر از حدودِ ۶٫۸ (حدِ انحلالش در خون) " +
           "می‌تواند بلور بسازد و باعثِ نقرس (درد و التهابِ ناگهانیِ مفاصل، به‌ویژه شستِ پا) یا سنگ کلیه شود. " +
           "شایع‌ترین علت‌ها کم‌شدنِ دفعِ کلیوی، رژیمِ پرپورین (گوشتِ قرمز، احشا، نوشیدنیِ شیرین و الکل)، اضافه‌وزن و بعضی داروهای ادرارآور است. " +

@@ -53,6 +53,8 @@ export const FA_NAMES = {
   TSH: "TSH", FT4: "T4 آزاد", FT3: "T3 آزاد", T3: "T3 تام", T4: "T4 تام", ANTI_TPO: "آنتی‌بادی TPO",
   // specs/012 (P68): آنتی‌بادی‌های تیروئید — فقط در برابرِ بازهٔ چاپ‌شده سنجیده می‌شوند (ungraded، assay_printed).
   ANTI_TG: "آنتی‌بادی ضد تیروگلوبولین (Anti-Tg)", TRAB: "آنتی‌بادی گیرندهٔ TSH (TRAb/TSI)",
+  // P111: دو ردیفِ تیروئیدِ برگه‌های ایرانی — بی نامِ فارسی، فهرستِ «تفسیر نشدند» کلیدِ خام نشان می‌داد (N8).
+  T3UP: "جذبِ T3 (T3 Uptake)", FTI: "شاخصِ تیروکسینِ آزاد (FTI)",
   // P76: خودایمنی — بی‌نمره، فقط در برابرِ مرزِ چاپ‌شدهٔ همان ردیف (ungraded، assay_printed)
   ANA: "آنتی‌بادی ضدهسته‌ای (ANA)", ANTI_DSDNA: "آنتی‌بادی anti-dsDNA", ANTI_RO: "آنتی‌بادی Ro (SSA)", ANTI_LA: "آنتی‌بادی La (SSB)",
   C_ANCA: "c-ANCA", P_ANCA: "p-ANCA", ANCA: "ANCA", MPO: "آنتی‌بادی MPO", PR3: "آنتی‌بادی PR3", HLA_B27: "HLA-B27",

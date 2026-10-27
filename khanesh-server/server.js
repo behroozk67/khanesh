@@ -22,6 +22,8 @@
 
 import express from "express";
 import cors from "cors";
+import fs from "node:fs";
+import path from "node:path";
 import "dotenv/config";
 
 // ---- موتور قواعد ----
@@ -43,6 +45,22 @@ import { runPatterns } from "./rules/patterns.js";
 import { healthScore } from "./rules/score.js";
 import { ENGINE_SYSTEM_PROMPT, NEONATAL_PROMPT_ADDENDUM, INPATIENT_PROMPT_ADDENDUM, buildEnginePrompt, buildNormalResult, buildUninterpretedResult, buildEngineFallbackResult, closingSuffix, engineSummary, buildEngineRecommendations, condenseRecommendations, tidyRecommendations, missingSuggestions, unexplainedNoRef, specimenLine, mixedLine, buildAllNegativeResult, valueConflictLines, keyNumberAppears } from "./rules/prompt.js";
 import { glossQualText } from "./rules/patterns_utils.js";
+import { isFecalBloodName } from "./rules/serology.js";
+
+// ═══ P113 (۲۰۲۶-۱۰-۲۷): ردِ حسابرسیِ تحلیل‌ها، بی‌دادهٔ بیمار ═══
+// 🔴 ۲۰ تفسیر آخر روی سرور قابلِ بازبینی نبود: با AUTH_REQUIRED خاموش، نتیجهٔ کاربرِ ناشناس در جدولِ
+//    jobs ذخیره نمی‌شود (۰ ردیف) و تنها منبع، لاگِ systemd بود که هر deploy می‌چرخد.
+//    این تابع فقط *سنجه‌های موتور* را در یک فایلِ JSONL کنارِ پایگاه‌داده می‌نویسد: زمان، تعداد صفحه/تست،
+//    تعداد ارزیابی‌شده/غیرطبیعی، شناسهٔ الگوها، فوریت و نامِ ردیف‌های نگاشت‌نشده.
+//    ⚠️ هیچ مقدارِ آزمایش، نام، سن یا شناسهٔ کاربر نوشته نمی‌شود.
+function auditAnalysis(rec) {
+  try {
+    const dir = process.env.DB_FILE ? path.dirname(process.env.DB_FILE) : process.cwd();
+    fs.appendFileSync(path.join(dir, "analysis-audit.jsonl"), JSON.stringify({ ts: new Date().toISOString(), ...rec }) + "\n");
+  } catch (e) {
+    console.error("audit write failed:", e?.message ?? e);   // هرگز درخواست را نمی‌شکند
+  }
+}
 import { faName } from "./rules/names.js";
 import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
@@ -130,7 +148,7 @@ const QUAL_WORDS = [
   // P76: خودایمنی — همین N28: بی‌این جفت‌ها ردیفِ ANA/ANCA «ردیفِ ادرارِ توضیح‌داده‌نشده» گزارش می‌شد.
   [/\bana\b|antinuclear|dsdna|ds ?dna|\bssa\b|\bssb\b|anti.?(ro|la)\b/i, /ANA|هسته‌ای|anti-dsDNA|Ro|La/], [/anca|\bmpo\b|\bpr3\b/i, /ANCA|MPO|PR3/], [/b27/i, /HLA-B27/], [/ccp|acpa/i, /CCP/],
   [/\bsm\b|smith|rnp|scl.?70|jo.?1|centromere/i, /Sm|RNP|Scl|Jo|سانترومر/], [/cardiolipin|\bacl\b|glycoprotein|b2gpi|lupus ?anticoag|drvvt/i, /آنتی‌فسفولیپید|کاردیولیپین|لوپوس‌آنتی‌کوآگولان/],
-  [/\bcea\b|\bafp\b|ca ?125|ca ?19|ca ?15|b2m|microglobulin|calcitonin|chromogranin|\bcga\b|\bpsa\b/i, /تومورمارکر|PSA|Free PSA|CEA|AFP|CA|بتا|کلسی‌تونین|کروموگرانین/], [/calprotectin|\bfit\b|fobt|occult|خون مخفی/i, /کالپروتکتین|خونِ مخفی|FIT/],
+  [/\bcea\b|\bafp\b|ca ?125|ca ?19|ca ?15|b2m|microglobulin|calcitonin|chromogranin|\bcga\b|\bpsa\b/i, /تومورمارکر|PSA|Free PSA|CEA|AFP|CA|بتا|کلسی‌تونین|کروموگرانین/],  [/calprotectin|\bfit\b|fobt|fob|\bob\b|\bobt\b|occult|خون مخفی/i, /کالپروتکتین|خونِ مخفی|FIT|FOBT/],
   [/pylori|helicobacter|\bubt\b|breath|هلیکوباکتر/i, /هلیکوباکتر/], [/thyroglobulin|anti.?tg|trab|\btsi\b|tbii|tsh ?receptor|تیروگلوبولین/i, /تیروگلوبولین|TRAb/],
   [/nitrit/i, /نیتریت/], [/leuk|wbc|pus/i, /گلبول سفید|لکوسیت|چرک|عفونت/], [/rbc|blood|hgb|hemo/i, /خون|گلبول قرمز/],
   [/protein|alb/i, /پروتئین|آلبومین/], [/glu|sugar/i, /قند/], [/keton/i, /کتون/], [/gravity|\bsg\b/i, /وزن مخصوص|غلظت/],
@@ -258,11 +276,11 @@ function engineDebug(engineOut, patternOut) {
     critical_banner: inpatientBanner(engineOut, patternOut) ?? childBanner(engineOut, patternOut),   // بستری (۲۰۲۶-۱۰-۰۸): بنرِ «اورژانس/۱۱۵»ِ فرانت برای بیمارِ بیمارستانی غلط است
     // specs/011 (FR-016/FR-019): آنچه موتور *واقعاً* به کار برد — از engineOut، نه از درخواست. بیماریِ غیرفعال اینجا نمی‌آید.
     context: engineContext(engineOut, patternOut),
+    indices: engineOut.indices,
     // P113: کارتِ «سنِ زیستی» در نمای ساده — سه عددِ ساخته‌شده (سالِ زیستی، سالِ شناسنامه‌ای،
     //   اختلاف). کلاینت فقط می‌چیند؛ هیچ فرمولی سمتِ فرانت نیست. null ⇒ کارت رندر نمی‌شود
     //   (برگه‌ای که هر ۹ مارکر را ندارد یا سنش زیرِ ۲۰/نامشخص است).
     phenoAge: phenoAgeCard(engineOut),
-    indices: engineOut.indices,
     tests: serializeGraded(engineOut),
     // «امتیازِ این برگه» v2 (P97، specs/015) — فقط از حکمِ خودِ موتور. نمرهٔ هر دستگاه همین‌جا ساخته می‌شود (فرانت فرمول ندارد)؛
     // سقفِ اورژانس سراسری؛ بقیهٔ سقف‌ها روی دستگاهِ کلیدهای یافته، و اگر یافته به هیچ کلیدِ graded نسبت داده نشد، روی کلِ برگه.
@@ -1180,20 +1198,28 @@ const analyzeHandler = async (req, res) => {
       const manualTests = tests
         .map((t) => {
           const urine = t?.kind === "urine";
+          const nm = String(t?.name ?? t?.key ?? "").trim();
+          // P113 (۲۰۲۶-۱۰-۲۷): ردیفِ کیفیِ غیرادرار («خونِ مخفیِ مدفوع: Positive») با parseFloat به NaN
+          //   می‌رسید و در فیلترِ بعدی بی‌صدا حذف می‌شد — نه یافته، نه «تفسیر نشدند» (N2/N4). پس مقدارِ
+          //   متنیِ همان آزمایش با دستهٔ خودش می‌ماند.
+          const qual = isFecalBloodName(nm);
+          const val = qual || urine
+            ? String(t?.value ?? "").trim()
+            : typeof t?.value === "number" ? t.value : parseFloat(t?.value);
           return {
-            name: String(t?.name ?? t?.key ?? "").trim(),
-            value: urine ? String(t?.value ?? "").trim() : typeof t?.value === "number" ? t.value : parseFloat(t?.value),
+            name: nm,
+            value: val,
             unit: t?.unit ?? "",
+            urine,
             // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): بازهٔ چاپ‌شدهٔ برگه در ورودِ دستی گم می‌شد و کلِ منطقِ
             //   «بازهٔ برگه حقِ تخفیف دارد» و «T3UP/FTI با بازهٔ چاپی سنجیده شوند» بی‌اثر بود.
             //   فقط وقتی فرستاده شود که واقعاً آمده باشد (N4: بی‌شاهد، بی‌ادعا).
             ...(t?.reference ? { reference: String(t.reference) } : {}),
-            urine,
             // همان شاهدِ سرتیترِ عکس (adapter.sectionKind): ردیفِ ادرارِ فرم «Glucose» ادرار است، ردیفِ عددی سرم.
-            section: urine ? "Urinalysis" : null,
+            section: urine ? "Urinalysis" : qual ? "Stool" : null,
           };
         })
-        .filter((t) => t.name && (t.urine ? t.value !== "" : Number.isFinite(t.value)))
+        .filter((t) => t.name && (t.urine || typeof t.value === "string" ? t.value !== "" : Number.isFinite(t.value)))
         .map(({ urine: _u, ...t }) => t);
 
       if (manualTests.length) {
@@ -1360,8 +1386,21 @@ const analyzeHandler = async (req, res) => {
         `الگو: ${patternOut.findings.map((f) => f.rule_id).join(", ") || "هیچ"} | ` +
         `فوریت: ${patternOut.overall_urgency}`
       );
-      // P113 (۲۰۲۶-۱۰-۲۷): «چرا سنِ زیستی نیامد» نباید بی‌صدا بمانَد — فقط وضعیت و نامِ مارکرهای غایب،
-      //   بی‌هیچ دادهٔ شناسایی و بی‌هیچ متنی برای بیمار.
+      // P113: ردِ حسابرسی — بی‌دادهٔ بیمار (فقط سنجه و نامِ ردیف‌های نگاشت‌نشده).
+      auditAnalysis({
+        pages: images.length,
+        tests: lastMergedOcr?.tests?.length ?? 0,
+        graded: engineOut.graded.length,
+        abnormal: engineOut.abnormal.length,
+        patterns: patternOut.findings.map((f) => f.rule_id),
+        urgency: patternOut.overall_urgency,
+        has_critical: !!patternOut.has_critical,
+        unmapped: engineOut.unmapped,
+        no_ref: engineOut.noRef,
+        // P113 (۲۰۲۶-۱۰-۲۷): چرا سنِ زیستی نیامد؟ «نداشتن» بی‌صدا نماند.
+        pheno: engineOut.phenoAgeDiag ?? (engineOut.indices?.pheno_age != null ? "ok" : "—"),
+      });
+      // P113: خطِ لاگِ جدا تا «چرا سنِ زیستی نیامد» از ژورنال هم خوانده شود (بی‌هیچ دادهٔ شناسایی).
       if (engineOut.phenoAgeDiag) {
         const d = engineOut.phenoAgeDiag;
         console.warn(`PhenoAge: ساخته نشد (${d.status})${d.missing?.length ? " — مفقود: " + d.missing.join(", ") : ""}`);

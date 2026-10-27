@@ -208,6 +208,18 @@ export const RULES_CARDIAC = [
   //    CDC/AHA «خطرِ بالا»ست — امروز هیچ یافته‌ای نمی‌سازد. عددِ ۲.۵ هم که
   //    ACC/AHA ۲۰۱۹ آن را «تقویت‌کنندهٔ خطر» می‌نامد، همین‌طور.
   //
+  // 🔴 گیتِ سنجه (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶، کلاسِ N3): جدولِ ۳ خطِ ۲۰۱۹
+  //    ACC/AHA صریح است — «Elevated *high-sensitivity* C-reactive protein
+  //    (≥2.0 mg/L)» — و بیانیهٔ CDC/AHA هم همین را می‌گوید («inflammatory
+  //    markers other than hsCRP should not be measured for the determination
+  //    of coronary risk»). یعنی این رده فقط برای *سنجهٔ hs* تعریف شده.
+  //    برگهٔ ایرانیِ رایج («CRP(quantitative)»، بازهٔ چاپیِ «Up to: 6»)
+  //    سنجهٔ معمولیِ التهاب است؛ عددِ ۵ آن نه «خطرِ بالا» است نه «داخلِ
+  //    محدودهٔ مرجعِ التهاب». بدونِ این گیت، خودِ موتور در متن می‌نویسد
+  //    «داخلِ محدودهٔ مرجعِ التهاب است» و بلافاصله «در ردهٔ خطرِ بالا» —
+  //    دو ادعای ناسازگار روی تستی که هیچ‌کدام را نمی‌سنجد (N4/N18).
+  //    همان الگوی `troponin_hs_above_99th` که به `trop_hs_assay` گیت شده.
+  //
   // ⚠️ و چیزی که این قاعده عمداً *نمی‌کند*: CRP را پیشنهاد نمی‌دهد. همان
   //    کادرِ ۱۹.۲ صریح است — «غربالگریِ همگانیِ hs-CRP در جمعیتِ بزرگسال
   //    توجیه ندارد». پس گزارشِ عددی که *اندازه‌گیری شده* درست است، و
@@ -216,6 +228,8 @@ export const RULES_CARDIAC = [
   {
     id: "hscrp_ascvd_risk",
     match: (e) => {
+      // فقط سنجهٔ hs. سنجهٔ معمولیِ CRP ردهٔ خطرِ ASCVD نمی‌سازد.
+      if (e.indices?.crp_hs_assay !== true) return false;
       const crp = g(e, "CRP_Q");
       if (!crp || crp.value == null) return false;
       if (e.age != null && e.age < 16) return false;   // منبع فقط بزرگسال را پوشش می‌دهد؛ نوزاد/کودک «خطر قلبی‌عروقی» نمی‌گیرد
@@ -301,12 +315,9 @@ export const RULES_CARDIAC = [
       // هر کدام سه‌شاخه است: بالا / طبیعی / روی برگه نیست.
       const confounders = [];
 
-      const egfr = e.indices?.egfr;
       const creat = statusOf(e, "CREAT");
-      if (egfr != null && egfr < 60) {
-        confounders.push(`کارِ کلیهٔ شما (eGFR ${egfr}) پایین‌تر از حد طبیعی است، و نارساییِ کلیه خودش این عدد را بالا می‌برد — پس بخشی از این افزایش می‌تواند کلیوی باشد`);
-      } else if (egfr != null) {
-        confounders.push(`کارِ کلیهٔ شما (eGFR ${egfr}) طبیعی است، پس نارساییِ کلیه — که یکی از علت‌های شایعِ بالا رفتنِ این عدد است — اینجا توضیحش نمی‌دهد`);
+      if (creat === "high") {
+        confounders.push("کراتینینِ شما بالا است، و نارساییِ کلیه خودش این عدد را بالا می‌برد — پس بخشی از این افزایش می‌تواند کلیوی باشد");
       } else if (creat === "normal") {
         confounders.push("کراتینینِ شما طبیعی است، که نشانهٔ اولیهٔ خوبی است که کلیه علتِ این افزایش نیست");
       } else if (creat === "absent" && ungradedFa(e, "CREAT", "کراتینین")) {

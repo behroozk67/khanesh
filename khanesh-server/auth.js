@@ -15,6 +15,7 @@ import rateLimit from 'express-rate-limit';
 import { randomInt } from 'node:crypto';
 import { getUser, createUser, getUserById, getUserByEmail, createUserWithEmail, getProfile, deleteUserCascade } from './database.js';
 import { dropJobsForUser } from './jobStore.js';
+import { makeSmsIrSender } from './smsir.js';
 
 const router = express.Router();
 
@@ -84,6 +85,9 @@ export function setOtpSenders({ sms, email, live = {} } = {}) {
   if (email) emailSender = email;
   sendersLive = { ...sendersLive, ...live };
 }
+// فرستندهٔ واقعیِ پیامک: فقط با SMSIR_API_KEY و SMSIR_TEMPLATE_ID روشن می‌شود.
+const smsIr = makeSmsIrSender({ apiKey: process.env.SMSIR_API_KEY, templateId: process.env.SMSIR_TEMPLATE_ID, paramName: process.env.SMSIR_PARAM || 'Code' });
+if (smsIr) setOtpSenders({ sms: smsIr, live: { sms: true } });
 export const otpSenderStatus = () => ({ smsOtp: sendersLive.sms ? 'live' : 'mock', emailOtp: sendersLive.email ? 'live' : 'mock' });
 
 /** شمارشِ داخلِ جملهٔ فارسی با رقمِ فارسی (سیاستِ digits.js در فرانت). */
@@ -124,6 +128,18 @@ function issueCode(key, ttlMs) {
   lastSent.set(key, now);
   return { code };
 }
+
+/**
+ * ارسالِ کد و گزارشِ نتیجه. فرستنده‌ای که false برگرداند یا بیندازد شکست‌خورده است (undefined = موفق، مثل mock).
+ * در شکست، کدِ ساخته‌شده و فاصلهٔ ارسالِ دوباره پاک می‌شود تا کاربر بتواند فوراً دوباره بخواهد.
+ */
+async function deliver(sender, key, to, code) {
+  let ok = true;
+  try { ok = (await sender(to, code)) !== false; } catch { ok = false; }
+  if (!ok) { otpStore.delete(key); lastSent.delete(key); }
+  return ok;
+}
+const SEND_FAILED = { error: 'ارسالِ کد انجام نشد. چند دقیقهٔ دیگر دوباره تلاش کنید.' };
 
 /** null یعنی کد درست بود و مصرف شد؛ در غیر این صورت پیامِ فارسیِ خطا. */
 function checkCode(key, code) {
@@ -190,12 +206,12 @@ const otpVerifyLimiter = rateLimit({
 });
 
 // 1. درخواست ارسال کد — پیامک
-router.post('/request-otp', otpRequestLimiter, (req, res) => {
+router.post('/request-otp', otpRequestLimiter, async (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   if (!phone) return res.status(400).json({ error: 'شماره موبایل نامعتبر است. شماره را مثل ۰۹۱۲۱۲۳۴۵۶۷ وارد کنید.' });
   const r = issueCode(`phone:${phone}`, OTP_TTL_MS);
   if (r.wait) return res.status(429).json({ error: `کد قبلاً فرستاده شده. ${faDigits(r.wait)} ثانیهٔ دیگر دوباره تلاش کنید.`, retryAfterSec: r.wait });
-  smsSender(phone, r.code);
+  if (!(await deliver(smsSender, `phone:${phone}`, phone, r.code))) return res.status(502).json(SEND_FAILED);
   return res.json({ success: true, message: 'کد با موفقیت ارسال شد.', retryAfterSec: RESEND_COOLDOWN_MS / 1000 });
 });
 
@@ -215,12 +231,12 @@ router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
 });
 
 // 1ب/2ب. همان دو مرحله با ایمیل (specs/011). حسابِ ایمیلی و حسابِ موبایلی دو حسابِ جدایند (پیوند خارج از دامنه).
-router.post('/request-email-otp', otpRequestLimiter, (req, res) => {
+router.post('/request-email-otp', otpRequestLimiter, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   if (!email) return res.status(400).json({ error: 'نشانیِ ایمیل نامعتبر است.' });
   const r = issueCode(`email:${email}`, EMAIL_OTP_TTL_MS);
   if (r.wait) return res.status(429).json({ error: `کد قبلاً فرستاده شده. ${faDigits(r.wait)} ثانیهٔ دیگر دوباره تلاش کنید.`, retryAfterSec: r.wait });
-  emailSender(email, r.code);
+  if (!(await deliver(emailSender, `email:${email}`, email, r.code))) return res.status(502).json(SEND_FAILED);
   return res.json({ success: true, message: 'کد به ایمیلِ شما فرستاده شد.', retryAfterSec: RESEND_COOLDOWN_MS / 1000 });
 });
 

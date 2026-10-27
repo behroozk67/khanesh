@@ -5,7 +5,7 @@ import { runEngine } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
 import { buildEngineFallbackResult, buildEnginePrompt } from "./prompt.js";
 import { childBanner } from "./neonatal.js";
-import { supplementaryParagraph, normalRangeParagraph } from "./printed.js";
+import { supplementaryParagraph, normalRangeParagraph, minorParagraph } from "./printed.js";
 
 const r = (name, value, unit = "") => ({ name, value, unit });
 const CHILD = [r("WBC", "1.8", "10^3/uL"), r("RBC", "4.4", "10^6/uL"), r("Hb", "12.5", "g/dL"), r("HCT", "37", "%"), r("MCV", "92", "fL"),
@@ -142,9 +142,83 @@ test("CB11 — نمای تخصصی: یافتهٔ پنهانِ قند زیرِ DK
   }
 });
 
+const RLM = "\u200F";
+
+test("CB13 — چیدمانِ نام/عددِ لاتین در «موارد طبیعی»: نشانگرِ RLM سرِ جای خودش (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶)", () => {
+  // 🔴 پیش از اصلاح، «ویتامین B12 251» با UBA به «ویتامین ← 251 B12» می‌رفت؛
+  //    یعنی عدد سمتِ راستِ نامِ لاتین می‌افتاد. اندازه‌گیریِ headless Chrome روی
+  //    همین متن: بدونِ نشانگر ‎#B12.left < #251.left‎ (غلط)، با نشانگر ‎#251.right ≤ #B12.left‎ (درست).
+  const { e } = run([r("Hb", "15.5", "g/dL"), r("HCT", "45", "%"), r("B12", "251", "pg/mL"),
+    r("Vitamin D", "36", "ng/mL"), r("HDL", "46", "mg/dL"), r("TSH", "2.1", "mIU/L")], { sex: "M", age: 36 });
+  const t = normalRangeParagraph(e);
+
+  // ۱) نام‌هایی که با لاتین/رقم تمام می‌شوند: نشانگر لازم دارند.
+  for (const [name, val] of [["ویتامین B12", "251"], ["ویتامین D", "36"], ["HDL", "46"], ["TSH", "2.1"]]) {
+    assert.ok(t.includes(`${name}${RLM} ${val}`), `نشانگرِ «${name} ${val}» جا افتاد: ${JSON.stringify(t)}`);
+    assert.ok(!t.includes(`${name} ${val}`), `نسخهٔ بی‌نشانگرِ «${name} ${val}» نباید بماند`);
+  }
+  // ۲) نامِ کاملاً فارسی: نشانگر نمی‌گیرد (برگه‌های سالم بایت‌به‌بایت عوض نشوند).
+  assert.ok(t.includes("هموگلوبین 15.5"), `نامِ فارسی نباید نشانگر بگیرد: ${JSON.stringify(t)}`);
+  assert.ok(!t.includes(`هموگلوبین${RLM}`), "نامِ فارسی نباید نشانگر بگیرد");
+  // ۳) هیچ نشانگرِ سرگردانی در متن نیست (فقط سرِ جاهای لازم، دقیقاً ۴ تا).
+  assert.equal((t.match(new RegExp(RLM, "g")) ?? []).length, 4, JSON.stringify(t));
+  assert.ok(!t.includes(` ${RLM} `), "نشانگر نباید وسطِ متن بی‌جا باشد");
+});
+
+test("CB13b — joinFaNumber: قاعدهٔ نشانگر و بینام‌نشدنِ متن", async () => {
+  const { joinFaNumber, RLM } = await import("./faText.js");
+  assert.equal(joinFaNumber("ویتامین B12", "251"), `ویتامین B12${RLM} 251`);
+  assert.equal(joinFaNumber("ویتامین D", "36"), `ویتامین D${RLM} 36`);
+  assert.equal(joinFaNumber("هموگلوبین", "15.5"), "هموگلوبین 15.5");
+  assert.equal(joinFaNumber("T4 آزاد", "1.2"), "T4 آزاد 1.2", "پایانِ فارسی ⇒ بی‌نشانگر");
+  assert.equal(joinFaNumber("", "5"), "5", "نامِ خالی متن را نمی‌شکند");
+  assert.equal(joinFaNumber("HDL", ""), "HDL", "عددِ خالی متن را نمی‌شکند");
+});
+
 test("CB12 — نمای تخصصی: کتونِ ادرار کنارِ dka_pattern هم «فوری» است؛ بدونِ DKA همان «این هفته» می‌ماند", async () => {
   const { buildExpertView } = await import("./expert.js");
   const k = (rows) => { const { e, p } = run(rows, { sex: "F", age: 58 }); return buildExpertView(e, p, null).findings.find((f) => /کتون/.test(f.label)); };
   assert.equal(k([r("FBS", "520", "mg/dL"), r("Ketone", "Large")]).urgency, "emergency");
   assert.notEqual(k([r("Ketone", "Large")])?.urgency, "emergency");
+});
+
+// ═══ CB14 — نشان‌گذاریِ جهت در بلوکِ minor (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶) ═══
+// خطِ minor متنِ دست‌نویسِ خودِ قاعده است («MPV 7 fL …»)، پس joinFaNumber کار نمی‌کند و
+// markFaNumbers مرزِ دوجهته‌ای را بعد از «واژهٔ لاتین/رقم‌پایان + عدد» می‌گذارد.
+// اثباتِ لازم‌بودنش با اندازه‌گیریِ مرورگر: بدونِ نشانگر ۶ از ۸ جفت غلط (rules/faText.js).
+test("CB14 — markFaNumbers: مرزِ درست، بی‌اثری بر فارسیِ خالص، خودتوانی", async () => {
+  const { markFaNumbers, RLM } = await import("./faText.js");
+  // مرزِ لازم: واژهٔ لاتین/رقم‌پایان + فاصله + عدد
+  assert.equal(markFaNumbers("MPV 7 fL (بازهٔ مرجع 7.5–11.5): پلاکت طبیعی است"), `MPV${RLM} 7 fL (بازهٔ مرجع 7.5–11.5): پلاکت طبیعی است`);
+  assert.equal(markFaNumbers("ویتامین B12 251: مرزی"), `ویتامین B12${RLM} 251: مرزی`);
+  assert.equal(markFaNumbers("شاخصِ آتروژنیک AIP 1.23"), `شاخصِ آتروژنیک AIP${RLM} 1.23`);
+  // بی‌مرز: نامِ فارسی، و پرانتزِ پایانی (اندازه‌گیری: «(AIP) 1.23» از پیش درست رندر می‌شود)
+  assert.equal(markFaNumbers("هموگلوبین 15.5 g/dL طبیعی است"), "هموگلوبین 15.5 g/dL طبیعی است");
+  assert.equal(markFaNumbers("شاخصِ آتروژنیک (AIP) 1.23"), "شاخصِ آتروژنیک (AIP) 1.23", "پرانتز پایانی نشانگر نمی‌گیرد");
+  assert.equal(markFaNumbers("کشتِ ادرار «No growth»: رشدِ باکتری گزارش نشده"), "کشتِ ادرار «No growth»: رشدِ باکتری گزارش نشده");
+  assert.equal(markFaNumbers(""), "");
+  // خودتوانی: اجرای دوباره نشانگرِ دوباره نمی‌گذارد (RLM در دستهٔ واژه نیست)
+  const once = markFaNumbers("MPV 7 fL و B12 251");
+  assert.equal(markFaNumbers(once), once);
+  assert.equal((once.match(/\u200f/g) ?? []).length, 2);
+});
+
+test("CB15 — بلوکِ minor واقعی: خطِ MPV نشانگر دارد، خطِ نامِ فارسیِ خالص ندارد، و پاراگرافِ کاربر همان متن را می‌آورد", () => {
+  const { p } = run([r("MPV", "7", "fL"), r("PLT", "239", "10^3/uL"), r("B12", "251", "pg/mL"),
+    r("Zinc", "107", "ug/dL"), r("Urine Culture", "No growth")], { sex: "M", age: 36 });
+  const minor = p.findings.filter((f) => f.minor);
+  assert.ok(minor.length >= 2, "این برگه باید یافتهٔ بی‌اقدام داشته باشد");
+  // خطِ لاتین‌پایان ⇒ نشانگر سرِ جای خودش (بینِ نام و عدد)
+  const mpv = minor.find((f) => f.must_say.includes("MPV"));
+  assert.ok(mpv, "خطِ MPV باید در بلوکِ minor باشد");
+  assert.match(mpv.must_say, /MPV\u200f 7/, "نشانگر باید بلافاصله پس از MPV و پیش از عدد بیاید");
+  // نامِ فارسیِ خالص ⇒ بی‌نشانگر (متنِ برگه‌های سالم بایت‌به‌بایت نمی‌عوضد)
+  const zinc = minor.find((f) => f.must_say.includes("107"));
+  assert.ok(zinc, "خطِ رویِ سرم باید در بلوکِ minor باشد");
+  assert.ok(!zinc.must_say.includes("\u200f"), "نامِ فارسیِ خالص نشانگر نمی‌گیرد");
+  // پاراگرافِ نهایی — همان چیزی که سرور به کاربر می‌دهد — هم متنِ نشان‌دار را می‌آورد.
+  const para = minorParagraph(p);
+  assert.match(para, /موارد دیگرِ این برگه/);
+  assert.match(para, /MPV\u200f 7/, "نشانگر تا پاراگرافِ کاربر می‌رسد");
+  assert.ok(!/MPV 7/.test(para), "گونهٔ بی‌نشانگرِ خط نباید باقی بماند");
 });

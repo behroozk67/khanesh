@@ -209,7 +209,7 @@ function titreFa(v) {
 // specs/012: از patterns_coverage_gaps.js به این‌جا آمد (بی‌تغییر) تا patterns_serology.js هم همین یک فهرست را بخواند — دو فهرست drift می‌کنند.
 export function qualState(raw) {
   const s = String(raw).toLowerCase().replace(/\s+/g, " ").trim();
-  if (/^(neg|negative|non[- ]?reactive|nonreactive|not[- ]reactive|not[- ]positive|not detected|undetected|nondetected|undetectable|not detectable|absent|nil|none|منفی|غیر ?واکنش[‌ ]?گر|واکنش[‌ ]?گر نیست|مثبت نیست|نگاتیو|منفی است|-ve|-)$/.test(s)) return { state: "neg" };
+  if (/^(neg|negative|non[- ]?reactive|nonreactive|not[- ]?reactive|not[- ]?positive|not detected|undetected|nondetected|undetectable|not detectable|absent|nil|none|دیده[‌ ]?نشد|مشاهده[‌ ]?نشد|یافت[‌ ]?نشد|وجود ندارد|ندارد|منفی|غیر ?واکنش[‌ ]?گر|واکنش[‌ ]?گر نیست|مثبت نیست|نگاتیو|منفی است|-ve|-)$/.test(s)) return { state: "neg" };
   if (/^(pos|positive|reactive|detected|present|\+ve|repeat(?:ed)?[- ]reactive)$|^(مثبت|مثبت است|پوزیتیو|واکنش[‌ ]?گر|پازیتیو|\+{1,4}|[1-4]\+)$/.test(s)) return { state: "pos" };
   // «+/-»، «±»، مرزی، نامشخص: نه مثبت نه منفی — جدا از «unknown» تا خواننده‌ها نتوانند آن را مثبت بخوانند (N6)
   if (/^(\+\/-|±|\+-|borderline|equivocal|indeterminate|inconclusive|trace|مرزی|نامشخص|نامعین)$/.test(s)) return { state: "equiv" };
@@ -231,6 +231,11 @@ export function qualVerdict(raw) {
   // «1.5 (Reactive)» — شاخصِ عددی بیرونِ پرانتز و واژهٔ نتیجه داخلِ آن: واژهٔ داخلِ پرانتز نتیجه است، نه عددِ بیرون.
   const inParen = s.match(/^[<>≥≤]?\s*\d+(?:[.,]\d+)?\s*\(([^)]*)\)\s*$/);
   if (inParen) { const q = qualState(inParen[1].trim()); if (q.state !== "unknown" && q.state !== "num") return q; }
+  // P112 (۲۰۲۶-۱۰-۲۳): «(-)» و «(+)» و «(±)» — برگه‌های ایرانی نتیجه را فقط داخلِ پرانتز می‌نویسند
+  //   («خونِ مخفی: (+)»). پیش‌تر خطِ بعد همهٔ پرانتزها را پاک می‌کرد و رشتهٔ خالی به «نامشخص» می‌رسید،
+  //   یعنی این ردیف‌ها بی‌دلیل در «تفسیر نشدند» می‌نشستند.
+  const onlyParen = String(raw ?? "").trim().match(/^\(\s*([^)]*?)\s*\)$/);
+  if (onlyParen) { const q = qualState(onlyParen[1].trim()); if (q.state !== "unknown" && q.state !== "num") return q; }
   s = s.replace(/\(.*?\)/g, " ").replace(/\s*[,;،؛].*$/, "").trim();
   // «POSITIVE.»، «Positive: 1/160»، «Positive for troponin»، «Positive ++»، «مثبت ۳+» — دُمِ نقطه‌گذاری/درجه/«for …» مثبت را منفی یا ناشناخته نمی‌کند.
   if (/^[a-z؀-ۿ]/.test(s)) {
@@ -1507,6 +1512,10 @@ const RBC_MORPH_NAME = [
   [/^(hypochromia|hypochromic|hypochromasia|هیپوکرومی|هیپوکروم)$/, "hypochromia"],
   [/^(macrocytosis|macrocytes?|macrocytic|ماکروسیتوز|ماکروسیت)$/, "macrocytosis"],
   [/^(anisocytosis|آنیزوسیتوز)$/, "anisocytosis"],
+  // P113 (۲۰۲۶-۱۰-۲۷): شکل‌های نامنظمِ گلبولِ قرمز که روی برگه‌های واقعی می‌آیند و «تفسیر نشدند» می‌شدند
+  //   (رانِ ۴۶: Elliptocyte/Ovalocyte/Target Cells/Tear Drops). همه زیرِ چترِ «پویکیلوسیتوز» می‌روند —
+  //   همان کانالِ موجودِ smear_rbc_size، بی‌آستانه یا ادعای تازه (N2: هیچ حدسِ تشخیصی).
+  [/^(elliptocytes?|ovalocytes?|pencilcells?|cigarcells?|elliptocytosis|ovalocytosis|targetcells?|targetcell|codocytes?|teardrops?|teardropcell|dacrocytes?|stomatocytes?)$/, "poikilocytosis"],
   [/^(poikilocytosis|پویکیلوسیتوز)$/, "poikilocytosis"],
 ];
 const RBC_MORPH_QTY = [   // [regex روی مقدارِ نرمال‌شده, state, qty]
@@ -1514,7 +1523,8 @@ const RBC_MORPH_QTY = [   // [regex روی مقدارِ نرمال‌شده, sta
   // P110-ج (برگهٔ واقعی): «Microcytosis: Slightly» به «تفسیر نشدند» می‌رفت.
   [/^(few|rare|occasional|trace|scanty|slight|slightly|mild|mildly|1\+|\+|\+1|کم|نادر|اندک|خفیف|مختصر)$/, "present", "minor"],
   [/^(moderate|many|numerous|frequent|marked|increased|abundant|significant|2\+|3\+|4\+|\+\+|\+\+\+|\+\+\+\+|\+2|\+3|\+4|متوسط|زیاد|فراوان|متعدد)$/, "present", "significant"],
-  [/^(present|seen|positive|pos|detected|yes|دیدهشد|مشاهدهشد|مثبت|وجوددارد|دارد)$/, "present", "unquantified"],
+  // P114: برگه‌ها اغلب «Were seen» / «Was seen» می‌نویسند (نه «Seen» تنها) — پیش‌تر unmapped می‌شد.
+  [/^(present|seen|wereseen|wasseen|isseen|werenoted|areseen|positive|pos|detected|yes|دیده‌شد|مشاهده‌شد|مثبت|وجوددارد|دارد)$/, "present", "unquantified"],
 ];
 const rbcMorphNorm = (s) => String(s ?? "").toLowerCase().replace(/[\s_\-./()]+/g, "").replace(/[\u200c\u200f]/g, "");
 export function rbcMorphRow(name, value, unit) {

@@ -56,7 +56,7 @@ const rangeTxt = (x) => (x?.range ? ` (حد طبیعی ${x.range})` : "");
 const dialysis = (e) => Array.isArray(e.conditions) && e.conditions.includes("dialysis");
 function renalImpaired(e) {
   const creat = g(e, "CREAT");
-  return dialysis(e) || hi(creat) || (e.indices?.egfr != null && e.indices.egfr < 60);
+  return dialysis(e) || hi(creat);
 }
 
 /**
@@ -437,8 +437,7 @@ export const RULES_MINERAL_BONE = [
     match: axisIs("hpt_secondary_renal"),
     build: (e) => {
       const ca = g(e, "CA"), pth = g(e, "PTH");
-      const egfr = e.indices?.egfr;
-      const egfrTxt = dialysis(e) ? " (شما دیالیز می‌شوید)" : egfr != null ? ` (eGFR محاسبه‌شدهٔ شما ${egfr})` : "";
+      const egfrTxt = dialysis(e) ? " (شما دیالیز می‌شوید)" : "";
       return {
         pattern: "secondary_hyperparathyroidism_renal",
         urgency: "this_week",

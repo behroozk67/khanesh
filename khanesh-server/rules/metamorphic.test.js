@@ -185,9 +185,19 @@ test("MM3: قالبِ عدد — ارقامِ فارسی، فاصله، صفرِ
 });
 
 test("MM4: املا — هر نامِ NAME_MAP برای یک کلید همان خروجیِ نامِ مرجع را می‌دهد (N2)", (t) => {
+  // 🔴 استثنای صریح و خودسنجِ MM4 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶، کلاسِ N3):
+  //    «hs-CRP» فقط یک *املای دیگر* برای CRPِ کمّی نیست — یک سنجهٔ متفاوت است.
+  //    جدولِ ۳ گایدلاینِ ۲۰۱۹ ACC/AHA خطِ «Elevated *high-sensitivity* C-reactive
+  //    protein (≥2.0 mg/L)» را دارد و بیانیهٔ CDC/AHA می‌گوید نشانگرهای التهابیِ
+  //    غیرِ hsCRP برای تعیینِ خطرِ کرونری سنجیده نشوند. پس CRP ۵ با نامِ
+  //    «CRP quantitative» هیچ ردهٔ خطری نمی‌سازد و با نامِ «hs-CRP» می‌سازد —
+  //    این تفاوت عمدی است، نه شکستِ N2 (اسم و معنا اینجا دو چیزند).
+  //    خودسنجی: اگر روزی hs دیگر رفتارِ متفاوتی ندهد، همین تست قرمز می‌شود و
+  //    استثنا باید پاک شود (استثنای بی‌صدا همان N15 است).
+  const ASSAY_DISTINCT = (key, alias) => key === "CRP_Q" && /(^|[^a-z])hs|high.?sensitiv/i.test(alias);
   const byKey = {};
   for (const [alias, key] of Object.entries(NAME_MAP)) (byKey[key] ??= []).push(alias);
-  const bad = []; let n = 0;
+  const bad = []; const usedExempt = new Set(); let n = 0;
   for (const key of KEYS) {
     const lv = levels(key)[0]; if (!lv || !byKey[key]) continue;
     const row = rowOf(key, lv[1]);
@@ -196,10 +206,13 @@ test("MM4: املا — هر نامِ NAME_MAP برای یک کلید همان �
       n++;
       const x = run(M45, [{ ...row, name: alias }]);
       if (!graded(x, key)) bad.push(`${alias}: به ${key} نرسید (unmapped=${JSON.stringify(x.e.unmapped)})`);
-      else if (sig(x) !== sig(base)) bad.push(`${alias} ≠ ${row.name} (${key}=${row.value}): ${x.p.overall_urgency}[${x.ids}] / ${base.p.overall_urgency}[${base.ids}]`);
+      else if (sig(x) !== sig(base) && ASSAY_DISTINCT(key, alias)) {
+        usedExempt.add(`${alias}`);
+        assert.notEqual(sig(x), sig(base), "استثنا دیگر لازم نیست — از ASSAY_DISTINCT پاکش کنید");
+      } else if (sig(x) !== sig(base)) bad.push(`${alias} ≠ ${row.name} (${key}=${row.value}): ${x.p.overall_urgency}[${x.ids}] / ${base.p.overall_urgency}[${base.ids}]`);
     }
   }
-  t.diagnostic(`${n} املا`);
+  t.diagnostic(`${n} املا؛ استثنای سنجه (hs ≠ معمولی) رخ داد برای: ${[...usedExempt].join("، ") || "هیچ"}`);
   assert.ok(n >= 300, `فقط ${n} املا سنجیده شد`);
   assert.deepEqual(bad, []);
 });

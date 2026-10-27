@@ -8,7 +8,7 @@
 //   ۴. استنتاج سن و جنسیت
 // ============================================================
 
-import { getRef, getRefSource, getUnit, ckdEpiEgfr, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE,
+import { getRef, getRefSource, getUnit, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE,
   inNeonatalRedCellPeriod, NEONATAL_NO_ADULT_FALLBACK } from "./refs.js";
 import { evaluate } from "./grade.js";
 import { getPedRef } from "./refs_ped.js";
@@ -22,7 +22,7 @@ import { conditionIds } from "./conditions.js";
 import { faName } from "./names.js";
 import { computePhenoAge } from "./pheno_age.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
-import { routeSerology } from "./serology.js";
+import { routeSerology, isFecalBloodName } from "./serology.js";
 import { isPrenatalSheet, prenatalClaim, prenatalItem, parseRiskDenominator, parseRiskCategory, parseGaDays } from "./prenatal.js";
 import { specimenSheetEvidence, specimenClaim, BARE_FLUID_LOOKALIKES } from "./specimen.js";
 import { parseSampleDate } from "./sampledate.js";
@@ -36,8 +36,16 @@ function maxGlucose(tests) {
 }
 
 // ---------- نرمال‌سازی نام ----------
+// P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰، پیشنهادِ کاربر): پسوندِ روشِ دستگاه بخشی از نامِ آزمایش نیست.
+//   «TSH (CL)»، «25 OH-Vit D (CLIA)»، «Bilirubin T (ECL)» — متد (کمی‌لومینسانس، الایزا، IFA…) روی برگه
+//   چاپ می‌شود ولی هویتِ تست را عوض نمی‌کند. پیش‌تر برای هر کلید یک املاي چسبیدهٔ جداگانه ساخته می‌شد
+//   (tshcl، tbilirubinclot …) و هر نامِ تازه‌ای که می‌رسید دوباره unmapped می‌شد. حالا یک قاعده: پسوندِ
+//   داخلِ پرانتز/براکت در انتهای نام حذف می‌شود تا «TSH (CL)» همان TSH دیده شود.
+const METHOD_PAREN_RE = /\s*[\(\[]\s*(cl|clia|ecl|eclia|elisa|ifa|cmia|icma|hplc|ria|fpia|eia|lia|petia|enzymatic|immunoassay|chemiluminescence)\s*[\)\]]\s*$/i;
 function norm(s) {
-  return String(s || "")
+  let str = String(s || "");
+  for (let i = 0; i < 3 && METHOD_PAREN_RE.test(str); i++) str = str.replace(METHOD_PAREN_RE, "");
+  return str
     .toLowerCase()
     .replace(/[\s._\-\/()%#,]/g, "")   // «،»/«,» هم: «Glucose, Fasting»، «Potassium, Serum»
     .replace(/[يی]/g, "ی")
@@ -96,6 +104,13 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N2): «ANC» و «Absolute Neutrophil Count» unmapped بودند. ANCA (آنتی‌بادی) دست نمی‌خورد — R9.
   anc: "NEUT_ABS", absoluteneutrophilcount: "NEUT_ABS", absoluteneutrophils: "NEUT_ABS", neutrophilsabsolute: "NEUT_ABS",
   // بازبینیِ medium ۲۰۲۶-۱۰-۱۳ (M27، N2): املاهای رایجِ «abs» ⇒ unmapped بودند.
+  // P113 (۲۰۲۶-۱۰-۲۷): پارامترهای دستگاهِ CBC که روی برگه‌ها چاپ می‌شوند. NRBC (گلبولِ قرمزِ هسته‌دار)
+  //   عددِ بالینی است و باید *نام ببرد*، نه «تفسیر نشد». بازهٔ عمومی موتور برایش ادعا نمی‌شود؛ فقط اگر
+  //   آزمایشگاه بازه چاپ کرده باشد همان سنجیده می‌شود (absPrintedRange)، وگرنه «محدوده مرجع ندارد».
+  nrbc: "NRBC_ABS", nrbcabs: "NRBC_ABS", nucleatedrbc: "NRBC_ABS", nucleatedredcells: "NRBC_ABS",
+  nrbcpct: "NRBC_PCT", nrbcr: "NRBC_PCT",
+  img: "IMG_ABS", imgabs: "IMG_ABS", immaturegranulocytes: "IMG_ABS", imgpct: "IMG_PCT",
+  plcc: "P_LCC", plcr: "P_LCR",
   neutrophilsabs: "NEUT_ABS", neutrophilabs: "NEUT_ABS", absneutrophil: "NEUT_ABS", absneutrophils: "NEUT_ABS",
   absoluteneutrophil: "NEUT_ABS",
   lymphocytesabs: "LYMPH_ABS", lymphocyteabs: "LYMPH_ABS", abslymphocyte: "LYMPH_ABS", abslymphocytes: "LYMPH_ABS",
@@ -191,7 +206,8 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   ast: "AST", sgot: "AST", astsgot: "AST",
   alt: "ALT", sgpt: "ALT", altsgpt: "ALT",
   alkp: "ALP", alp: "ALP", alkalinephosphatase: "ALP",
-  ggt: "GGT", gammagt: "GGT",
+  bilit: "BILI_T", bilid: "BILI_D",   // P111: املاي واقعیِ برگه («BILIT»/«BILID» چاپ می‌شود)
+  ggt: "GGT", gammagt: "GGT", gamagt: "GGT",   // P111: «Gama GT» با یک m
   ckmb: "CK_MB", cpkmb: "CK_MB", ckmbfraction: "CK_MB", ckmbmass: "CK_MB",
   // همان LIS: «CK-MB II» و «CK MB 1» (شمارهٔ کیت/نوبت، نه آزمایشِ دیگر) — گارد L1. «ckmb2» عمداً نیست: «CK-MB2» نامِ
   //   ایزوفرمِ MB2 هم هست (نسبتِ MB2/MB1، مقدارش ~۱ U/L) و خواندنش به‌عنوانِ CK-MBِ کل یعنی اطمینانِ کاذب.
@@ -283,8 +299,10 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   chol: "CHOL", cholesterol: "CHOL", totalcholesterol: "CHOL",
   cholestrol: "CHOL", cholestrole: "CHOL", colesterol: "CHOL",
   cholesterole: "CHOL", cholestérol: "CHOL", کلسترول: "CHOL",
-  hdl: "HDL", hdlc: "HDL", hdlcholesterol: "HDL", "hdl-c": "HDL", hdlcholestrol: "HDL",
-  ldl: "LDL", ldlc: "LDL", ldlcholesterol: "LDL", "ldl-c": "LDL", ldlcholestrol: "LDL",
+  // P113 (۲۰۲۶-۱۰-۲۷): برگه‌ها «HDL-chol/LDL-chol/VLDL-chol» چاپ می‌کنند (norm نقطه‌خط را می‌زد ⇒ hdlchol).
+  //   بی‌این، LDL و HDLِ واقعیِ بیمار نادیده می‌رفت و در «تفسیر نشدند» می‌نشست (پنلِ چربیِ رانِ ۴۶).
+  hdl: "HDL", hdlc: "HDL", hdlcholesterol: "HDL", "hdl-c": "HDL", hdlcholestrol: "HDL", hdlchol: "HDL", hdlcholest: "HDL",
+  ldl: "LDL", ldlc: "LDL", ldlcholesterol: "LDL", "ldl-c": "LDL", ldlcholestrol: "LDL", ldlchol: "LDL", ldlcholest: "LDL",
   // ⚠️ norm() خط تیره و فاصله را می‌اندازد، پس «Apo-B» و «Apo B» هر دو «apob»
   //    می‌شوند و کلیدِ جدایی لازم ندارند. فارسی هم ي→ی و نیم‌فاصله نرمال می‌شود.
   apob: "APOB", apob100: "APOB", apolipoproteinb: "APOB", apolipoproteinb100: "APOB",
@@ -488,6 +506,24 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   glycatedhemoglobin: "HBA1C", glycatedhaemoglobin: "HBA1C", glycosylatedhemoglobin: "HBA1C",
   cholesteroltotal: "CHOL", totalironbindingcapacity: "TIBC", reticulocytecount: "RETIC",
   urate: "URIC", serumurate: "URIC", thrombocyte: "PLT",
+  // ═══ P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰، برگه‌های واقعی): هر نگاشت صریح است، نه حدسِ فازی (N2) ═══
+  //  • «Platlet» — غلطِ املاییِ رایجِ LIS؛ بی‌آن پلاکتِ ۳۰۹ هرگز وارد CBC نمی‌شد (N28: ردیفِ شناخته‌شدهٔ بی‌خواننده = افتِ خاموش).
+  platlet: "PLT", platlets: "PLT", plts: "PLT",
+  //  • «U.AC» = Uric Acid؛ بی‌آن اسید اوریکِ ۸٫۰ بالای برگه «تفسیر نشد».
+  uac: "URIC", uacid: "URIC",
+  //  • «Phosphorus.P» و «Mg +2»: نقطه و بارِ یونی بخشی از *نام* تست است، نه شناسه‌اش. norm() نقطه را برمی‌دارد
+  //    ولی «+» را نه؛ هر دو صریح نگاشت می‌شوند تا با «P»ِ تنها (=PHOS، NAME_MAP بالا) یا «Mg» قاطی نشوند.
+  phosphorusp: "PHOS", phosphorousp: "PHOS", serumphosphorusp: "PHOS", inorganicphosphorusp: "PHOS",
+  mg2: "MG", "mg+2": "MG", mgplus2: "MG", magnesium2: "MG", serummagnesium2: "MG",
+  ca2: "CA", "ca+2": "CA", calcium2: "CA",
+  //  • «Serum Albumin» — بی‌آن قاعدهٔ پروتئینِ تام می‌گفت «آلبومین روی این برگه نیست» (ادعای کاذب، N4) و
+  //    گلوبولینِ ۴٫۹ (هایپرگاماگلوبولینمی) پنهان می‌ماند.
+  serumalbumin: "ALB", albuminserum: "ALB",
+  //  • پسوندِ روشِ اندازه‌گیری (کمی‌لومینسانس) که به نام می‌چسبد: «TSH CL»، «T4 CL»، «T3 CL».
+  tshcl: "TSH", t4cl: "T4", t3cl: "T3", ft4cl: "FT4", ft3cl: "FT3",
+  //  • «T3UP» (T3 uptake) و «FTI»: شناخته‌شده ⇒ «تفسیر نشدند» با نامِ فارسی، نه ادعای «موتور نمی‌فهمد».
+  t3up: "T3UP", t3uptake: "T3UP", t3resin: "T3UP", t3resinuptake: "T3UP",
+  fti: "FTI", freethyroxineindex: "FTI",
 };
 
 // ═══════════ آنالیزِ مایع منی (P47) ═══════════
@@ -526,7 +562,7 @@ function isSemenUnit(unit) {
 const WEAK_SEMEN_MARKERS = new Set(["sperm", "اسپرم", "morphology", "مورفولوژی", "مرفولوژی"]);
 // رنگ/ظاهر/پاس‌سل روی برگهٔ منی هم هست، پس شاهدِ «ادرار» نیستند.
 const URINE_EVIDENCE = new Set([
-  "specificgravity", "sg", "turbidity", "nitrite", "nitrites", "leukocyteesterase", "urobilinogen",
+  "specificgravity", "sg", "turbidity", "nitrite", "nitrites", "nitrit", "leukocyteesterase", "urobilinogen",
   "casts", "crystals", "yeasts", "epithelialcells", "epithelial", "mucus", "bacteria", "urinalysis", "ua",
 ]);
 
@@ -587,9 +623,21 @@ function detectSemenPages(ocrTests) {
 //
 // اینجا فقط قاعده‌هایی می‌آیند که *مبهم نیستند* — حدسِ فازی عمداً نداریم،
 // چون نگاشتِ اشتباه در متنِ بالینی از نگاشت‌نشدن بدتر است.
+// P111: پسوندِ چسبیدهٔ روشِ دستگاه («vitdcl»، «tshclia») — اگر با حذفِ پسوند، کلیدِ شناخته‌ای بماند همان را برمی‌گردانیم.
+//   فقط پسوندهایی که در NAME_MAP به‌عنوانِ روش ثبت شده‌اند و فقط وقتی باقیِ نام دست‌کم سه نویسه باشد؛
+//   «cl» تنها (کلرید) هرگز به کلیدِ خالی تبدیل نمی‌شود چون طولش کافی نیست. این جای املاهای بی‌پایانِ per-key را می‌گیرد.
+const GLUED_METHOD_SUFFIXES = ["clia", "eclia", "elisa", "cmia", "icma", "hplc", "ecl", "ifa", "cl"];
 function resolveAlias(key) {
   // هیچ تستِ دیگری با esr شروع نمی‌شود؛ «ESR 1hrs»، «ESR 1st hour»، «ESR 2hrs»
   if (/^esr/.test(key)) return "ESR";
+  // P111: پسوندِ چسبیدهٔ متد — پیش از قاعده‌های املایی، چون «vitdcl» باید VIT_D شود نه چیزِ دیگر.
+  for (const sfx of GLUED_METHOD_SUFFIXES) {
+    if (key.length > sfx.length + 2 && key.endsWith(sfx)) {
+      const base = key.slice(0, -sfx.length);
+      const hit = NAME_MAP[base] ?? NAME_MAP[base.replace(/e$/, "")] ?? NAME_MAP[base + "e"];
+      if (hit) return hit;
+    }
+  }
   // «Vitamin» تنها ویتامینِ خاصی نیست؛ بدونِ این، قاعدهٔ «e پایانی» پایین آن را VIT_E می‌کرد (specs/004، M148).
   if (key === "vitamin" || key === "ویتامین") return undefined;
   // جمعِ انگلیسی و «e» پایانیِ اختیاری: cholesterols → cholesterol
@@ -621,6 +669,33 @@ function resolveAlias(key) {
 // «Cu»/«Zn» در کشت یا میکروسکوپیِ ادرار بی‌واحد یا /hpf می‌آیند؛ نگاشتِ غلط بدتر از نگاشت‌نکردن است (N2).
 const TRACE_CONC_UNIT = /^(µg|μg|ug|mcg|ng|mg)\/(dl|l|ml)$|^(µmol|μmol|umol|nmol)\/l$/;
 const UNIT_GATED_ALIASES = { zn: "ZINC", cu: "COPPER", se: "SELENIUM" };
+
+// ═══ P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): ردیف‌های *مشتق* که برگه کنارِ اجزای خودشان چاپ می‌کند ═══
+//   «VLDL»، «LDL/HDL»، «BUN/Cr»، «A/G Ratio»، «Serum Globulin»، «FBS(SI)» هیچ اطلاعِ مستقلی ندارند:
+//   همه از ردیف‌های همان برگه ساخته می‌شوند. پیش‌تر unmapped می‌شدند و ته جدولِ تخصصی با «بدون حکم»
+//   می‌نشستند (N28-وار: ردیفِ شناخته‌شدهٔ بی‌مصرف). قاعده: فقط وقتی کنار گذاشته می‌شوند که *همهٔ* اجزایشان
+//   با مقدار روی همان برگه باشند؛ وگرنه ردیف تنهاست و باید در «تفسیر نشدند» بماند (N4: سکوت ممنوع).
+const DERIVED_ROW_BASES = {
+  vldl: ["TG"], vldlcholesterol: ["TG"], vldlc: ["TG"], vldlchol: ["TG"],
+  ldlhdl: ["LDL", "HDL"], ldlhdlratio: ["LDL", "HDL"], cholhdlratio: ["CHOL", "HDL"],
+  totalcholesterolhdl: ["CHOL", "HDL"], cholesterolhdlratio: ["CHOL", "HDL"],
+  buncr: ["UREA|UREA_N", "CREAT"], buncreat: ["UREA|UREA_N", "CREAT"], buncreatinine: ["UREA|UREA_N", "CREAT"],
+  buncreatinineratio: ["UREA|UREA_N", "CREAT"],
+  agratio: ["ALB", "TP"], aglobulinratio: ["ALB", "TP"], albuminoglobulinratio: ["ALB", "TP"],
+  albumenglobulin: ["ALB", "TP"], albuminglobulin: ["ALB", "TP"], albuminaglobulin: ["ALB", "TP"],   // P113: norm «/» را می‌زند ⇒ albuminglobulin
+  astalt: ["AST", "ALT"], sgotgptratio: ["AST", "ALT"], sgotgpt: ["AST", "ALT"],   // P113: رانِ ۳۳/۴۵
+  globulin: ["ALB", "TP"], serumglobulin: ["ALB", "TP"],
+  fbssi: ["GLU_F"], glucosefastingsi: ["GLU_F"], fastingbloodsugarsi: ["GLU_F"],
+};
+
+// متنِ چاپیِ غیرآزمایش روی برگه (سلبِ مسئولیت، پانویسِ آزمایشگاه) — ردیفِ آزمایش نیست و نباید در
+// «تفسیر نشدند» به بیمار نشان داده شود. فقط عبارت‌های صریح؛ هر جملهٔ دیگر همان مسیرِ unmapped را دارد.
+const BOILERPLATE_RE = /بر\s*عهده|تفسیر\s*نتایج|نتیجه\s*آزمایش\s*فقط|فقط\s*جهت\s*اطلاع|جهت\s*اطلاع\s*پزشک|نظر\s*پزشک\s*معالج|interpreted\s*by|for\s*physician\s*use|results?\s*should\s*be\s*(correlated|interpreted)|this\s*report\s*is\s*not\s*a\s*diagnosis/i;
+
+// واژگانِ لامِ خون در متنِ آزاد — متنِ دارای این‌ها مالِ خوانندهٔ لام است (specs/009)، نه یادداشتِ عمومی.
+const SMEAR_VOCAB_RE = /\b(blasts?|myeloblasts?|lymphoblasts?|auer|toxic\s*gran|d[oö]hle|pelger|may[\s-]*hegglin|alder[\s-]*reilly|ch[eé]diak|immature\s+mononuclear)\b|بلاست|پلگر/i;
+
+
 function unitGatedKey(key, unit) {
   const k = UNIT_GATED_ALIASES[key];
   return k && TRACE_CONC_UNIT.test(normUnit(unit)) ? k : undefined;
@@ -745,7 +820,6 @@ const NO_RANGE_KEYS = new Set(["RETIC_ABS", "HBA", "HBS", "HBC", "HBE", "SICKLE"
 
 // ═══ P116 (بازبینی ۲۰۲۶-۱۰-۲۷) ═══
 // ۱) دو شاخصِ تیروئیدی که موتور برایشان مرجعِ داخلی ندارد ولی برگه بازه چاپ می‌کند: بازهٔ خودِ برگه سنجه است.
-//    ⚠️ نگاشتِ نامِ «T3 Uptake»/«FTI» در کامیتِ موازیِ P111 است؛ بی‌آن این مجموعه بی‌اثر می‌ماند (تست P116-۵ skip).
 const PRINTED_REF_ONLY_KEYS = new Set(["T3UP", "FTI"]);
 // ۲) سنجه‌هایی که «تخفیفِ» بازهٔ چاپ‌شده هرگز به آن‌ها نمی‌رسد (خطرِ بالا: پتاسیم، سدیم، قند، تروپونین، انعقاد، CBC).
 const PRINTED_RELAX_EXEMPT = new Set([
@@ -819,7 +893,7 @@ const QUALITATIVE = new Set([
   "leukocyteesterase", "لکوسیتاستراز",
   "urinewbc", "wbcurine", "urwbc", "wbchpf", "puscell", "puscells", "پوسسل",
   // نیتریت
-  "nitrite", "nitrites", "urinenitrite", "نیتریت",
+  "nitrite", "nitrites", "nitrit", "urinenitrite", "نیتریت",   // P113: «Nitrit» غلطِ املاییِ رایجِ LIS
   // باکتری (کیفی: many/moderate/few/negative)
   "bacteria", "bacteriuria", "باکتری",
   // موارد تکمیلی
@@ -839,7 +913,7 @@ const QUALITATIVE = new Set([
 // نشانگرهایی که فقط روی برگهٔ ادرار می‌آیند
 const URINE_ONLY_MARKERS = new Set([
   "specificgravity", "sg", "color", "appearance", "turbidity",
-  "nitrite", "nitrites", "leukocyteesterase", "urobilinogen",
+  "nitrite", "nitrites", "nitrit", "leukocyteesterase", "urobilinogen",
   "casts", "crystals", "yeasts", "epithelialcells", "epithelial",
   "mucus", "puscell", "puscells", "bacteria", "urinalysis", "ua",
   "leukoestr", "leukoesterase", "leucoesterase",   // باگِ ۵: املاهای LIS ِ استراز
@@ -872,8 +946,11 @@ const ABG_MARKERS = new Set([
 ]);
 
 // کلیدهایی که هم روی برگهٔ خون و هم روی برگهٔ ادرار دیده می‌شوند
+// P114 (۲۰۲۶-۱۰-۲۷، گزارشِ برگهٔ مرد ۵۵ ساله): «Hemoglobin» هم نامِ CBC است و هم پدِ خونِ نوارِ ادرار.
+//   نبودنش در این فهرست یعنی هر دو ردیف هویتِ یکسان می‌گرفتند و mergePages هشدارِ
+//   «Hemoglobin در صفحهٔ ۲ و ۲ با مقادیرِ متفاوت (6.4 و Negative)» می‌ساخت (N25).
 const AMBIGUOUS_URINE_KEYS = new Set([
-  "ph", "wbc", "rbc", "glucose", "hgb", "hb", "protein", "bilirubin", "blood", "ketone",
+  "ph", "wbc", "rbc", "glucose", "hgb", "hb", "hemoglobin", "protein", "bilirubin", "blood", "ketone", "ob",
 ]);
 
 // ═══ سرتیترِ بخشِ برگه (بازبینی ۲۰۲۶-۱۰-۱۳، N25، پیشنهادِ کاربر) ═══
@@ -881,11 +958,16 @@ const AMBIGUOUS_URINE_KEYS = new Set([
 //   `section` می‌آورد (فرمِ دستی ردیفِ ادرار را «Urinalysis» می‌فرستد). برای کلیدِ مبهم (Glucose، Protein، pH، WBC، …) این شاهدِ
 //   مستقیم است و بر حدسِ صفحه‌ای مقدم است: «Glucose 106 mg/dL» زیرِ بیوشیمی، کنارِ نوارِ ادرار، قندِ خون می‌ماند.
 //   فهرستِ بسته؛ سرتیترِ ناشناخته (یا نبودنش) ⇒ null ⇒ همان منطقِ صفحه‌ای قبلی. ادرار اول سنجیده می‌شود («Urine Chemistry»).
+const SECTION_STOOL_RE = /stool|feces|faeces|fa?eces?|occult|calprotectin|\b(ob|fob|fobt|fit)\b|مدفوع|خون\s*مخفی/i;
 const SECTION_URINE_RE = /urin|\bu\s*[\/.]?\s*a\b|dipstick|strip|sediment|ادرار|رسوب/i;
 const SECTION_BLOOD_RE = /bioch|chem|serum|plasma|hemat|haemat|\bcbc\b|blood|lipid|liver|renal|kidney|electrolyt|hormon|endocrin|thyroid|immuno|serolog|coag|بیوشیمی|سرم|پلاسما|خون|هماتولوژی|چربی|هورمون|تیروئید|سرولوژی|ایمونولوژی|انعقاد/i;
 export function sectionKind(section) {
   const s = String(section ?? "").trim();
   if (!s) return null;
+  // P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): مدفوع پیش از ادرار سنجیده می‌شود چون سرتیترِ برگهٔ ترکیبی
+  //   «Urine Analysis … Stool» است و سطرِ دوم باید برنده باشد. بی‌این شاخه، «Color: Brown» و «WBC /hpf»
+  //  ِ مدفوع هم‌کلیدِ ردیفِ ادرار می‌شدند ⇒ «دو مقادیر متفاوت» و هشدارِ «رنگِ ادرارِ قهوه‌ای» (N25).
+  if (SECTION_STOOL_RE.test(s)) return "stool";
   if (SECTION_URINE_RE.test(s)) return "urine";
   if (SECTION_BLOOD_RE.test(s)) return "blood";
   return null;
@@ -911,6 +993,29 @@ function isBloodOnlyUnit(unit) {
  * شرط محافظه‌کارانه: حداقل ۲ نشانگر ادرار و هیچ نشانگر خون (CBC یا بیوشیمی).
  * (اگر صفحه‌ای شاهد خون داشته باشد، دست نمی‌زنیم تا تستِ خون از بین نرود.)
  */
+// ═══ P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): رنگِ مدفوع ≠ رنگِ ادرار ═══
+// 🔴 روی برگهٔ بیمارِ ۴۰ ساله، «Color: Brown»ِ بخشِ مدفوع صفحه به «رنگِ ادرار» تبدیل شد و موتور به بیمار
+//    هشدارِ «رنگِ ادرارِ شما قهوه‌ای است» داد — در حالی که ردیف مالِ مدفوع بود (N25: حدسِ مالکیت ممنوع).
+//    قاعده: صفحه‌ای که نشانگرِ صریحِ مدفوع دارد (FOBT/FIT/کالپروتکتین/Stool …) صاحبِ «Color»ِ برهنه است؛
+//    ردیف با نامِ صریحِ «Urine …» همچنان مسیرِ خودش را دارد، چون آن شاخه پیش از این است.
+const STOOL_PAGE_RE = /^(stool|feces|faeces|fecal|faecal|(fecal|faecal|stool)?calprotectin|مدفوع|دفع)/;
+// P112 (۲۰۲۶-۱۰-۲۱): ردیف‌های بخشِ مدفوع که *خوانندهٔ خودشان را دارند*: خونِ مخفی (همهٔ املاها از یک منبع:
+//   isFecalBloodName در serology.js)، کالرکتانتین/کالپروتکتین و رنگ. ردیف‌های دیگر (W.B.C، RBC، مخاط …) خواننده
+//   ندارند و باید در «تفسیر نشدند» بنشینند، نه در ادرار یا CBC (N25/N4).
+//   پیش‌تر این فهرست جدا از AI_IDSِ سروالوژی نگه‌داری می‌شد و دو بار از هم جدا افتاد (N3).
+const STOOL_OTHER_ROW_RE = /^(calprotectin|fecalcalprotectin|faecalcalprotectin|stoolcalprotectin|colou?r|رنگ)/;
+const isStoolReaderRow = (key) => isFecalBloodName(key) || STOOL_OTHER_ROW_RE.test(key);
+function detectStoolPages(ocrTests) {
+  const pages = new Set();
+  for (const t of ocrTests) {
+    if (!t?.name) continue;
+    const k = norm(t.name);
+    if (isFecalBloodName(k) || STOOL_PAGE_RE.test(k)) pages.add(t._page ?? 0);
+  }
+  return pages;
+}
+
+
 function detectUrineOnlyPages(ocrTests) {
   const urineCount = new Map();
   const bloodCount = new Map();
@@ -955,8 +1060,12 @@ const isPlainNumber = (v) => /^\s*[\d۰-۹٠-٩]+(?:[.,٫][\d۰-۹٠-٩]+)?\s*$/
  */
 export function mergeIdentityTag(name, value, section) {
   const k = norm(name);
-  if (!AMBIGUOUS_URINE_KEYS.has(k)) return "";
   const sk = sectionKind(section);
+  // P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): صفحهٔ دومی که هم‌زمان ادرار و مدفوع دارد، «Color»، «WBC /hpf» و «RBC /hpf»
+  //   را دو بار چاپ می‌کند. بی‌پسوندِ بخش، این دو یکی شمرده می‌شدند و موتور پیامِ «در صفحهٔ ۲ و ۲ با مقادیرِ
+  //   متفاوت خوانده شد (Yellow و Brown)» می‌ساخت و رنگِ مدفوع را به ادرار نسبت می‌داد (N25).
+  if (sk === "stool") return ":stool";
+  if (!AMBIGUOUS_URINE_KEYS.has(k)) return "";
   if (sk) return `:${sk}`;
   return DIPSTICK_VALUE_RE.test(String(value ?? "").trim()) ? ":strip" : "";
 }
@@ -1379,6 +1488,12 @@ export function ocrToEngineInput(ocr) {
   const ambigComma = new Set();   // P86: کلیدهایی که مقدارشان «1,200»ِ مبهم بود
   // کلیدهای QUAL_NO_READER که روی برگه بودند — در runEngine به noRef می‌روند (specs/004).
   const noReader = [];
+  // ═══ P111: یادداشتِ چاپیِ آزمایشگاه/پاتولوژیست («Comment») ═══
+  //   پیش‌تر این ردیف یا unmapped می‌شد یا متنش گم می‌شد؛ روی برگهٔ واقعی جملهٔ «Minor thalassemia is suspected»
+  //   و «persistent absolute lymphocytosis» در همین فیلد بود و به گزارش نرسید. عینِ متن نگه داشته می‌شود و
+  //   قاعدهٔ lab_comment_note آن را بی‌هیچ ترجمه/حکمی نقل می‌کند (تفسیرِ آزمایشگاه ≠ تفسیرِ موتور).
+  const labComments = [];
+
   const noReaderValues = {};   // متنِ خامِ همان کلیدها («Positive»، «منفی»، «25») — P49-ج
   const printedUnits = {};     // واحدِ چاپ‌شدهٔ UNIT_KEPT — P49-الف
   let ckmbUnitless = null;     // بند ۵: CK-MBِ بی‌واحد ⇒ ungraded (unit_unknown) در runEngine
@@ -1394,6 +1509,7 @@ export function ocrToEngineInput(ocr) {
   const abgPages = detectAbgPages(ocr?.tests || []);
   const hco3OnlyPages = detectHco3OnlyPages(ocr?.tests || []);
   let ambiguousPh = null;   // P107j
+  const stoolPages = detectStoolPages(ocr?.tests || []);   // P111: صاحبِ «Color»ِ برهنه روی صفحهٔ مدفوع
   const dipstickPages = detectDipstickPages(ocr?.tests || []);   // باگِ ۵
   // آنالیزِ منی (P47): ردیف‌های این صفحه‌ها نه ادرارند نه CBC. کانالِ جدا، نه qual (بالا).
   const semenQual = {};
@@ -1420,6 +1536,11 @@ export function ocrToEngineInput(ocr) {
   const unitResolved = {};
   // P96: بازهٔ چاپ‌شدهٔ ردیفِ کراتینین — برای «شیرخوار بی‌بازهٔ چاپ‌شده ⇒ بی‌پرچم».
   const printedRefs = {};
+  // P113 (۲۰۲۶-۱۰-۲۷): بازهٔ چاپ‌شدهٔ شمارش‌های مطلقِ افتراقی (Monocyte/Lymphocyte/…) روی برگه به واحدِ
+  //   ۱۰³/µL است، در حالی که مقدار به /µL تبدیل می‌شود. پیش‌تر این بازه عمداً دور ریخته می‌شد و بازهٔ
+  //   *داخلی* سنجیده می‌شد: مونوسیتِ ۰٫۱۷ (مرجعِ برگه ۰٫۱۰–۱٫۲۰) با بازهٔ ۲۰۰–۸۰۰ «پایین» اعلام و
+  //   monocytopenia ساخته می‌شد — تشخیصِ کاذب روی عددِ نرمال. مرجعِ خودِ آزمایشگاه بر بازهٔ عمومی مقدم است.
+  const absRefs = {};
   // ۲۰۲۶-۱۰-۰۷: بازهٔ چاپ‌شدهٔ هر ردیف (کلید → رشتهٔ خام) — فقط برای نمایش کنارِ بازهٔ موتور (printedRangesFor)؛ هیچ درجه‌بندی‌ای از آن نمی‌آید.
   const printedRefsAll = {};
   // کلیدهای *_ABS که از «درصد × WBC» ساخته شدند ⇒ درصدِ چاپ‌شده. عددِ مطلق روی برگه نیست (N5).
@@ -1583,6 +1704,32 @@ export function ocrToEngineInput(ocr) {
       continue;
     }
     if (key === "total" && diffPctOnSheet && Math.abs(toNum(t.value) - 100) <= 2) continue;
+    // ═══ P111: متنِ چاپیِ غیرآزمایش (سلبِ مسئولیتِ آزمایشگاه) ردیفِ آزمایش نیست ═══
+    //   «تفسیر نتایج آزمایشات بر عهده پزشک معالج می باشد» پیش‌تر unmapped می‌شد و در فهرستِ «تفسیر نشدند»
+    //   به‌عنوان یک آزمایشِ ناخوانا به بیمار نشان داده می‌شد. نامِ جمله‌ای با این نشانه‌ها، ردیف نیست.
+    if (BOILERPLATE_RE.test(String(t.name ?? ""))) continue;
+    // ═══ P111: فیلدِ Comment/Note — متنِ آزمایشگاه، نه ردیفِ آزمایش ═══
+    //   قاعدهٔ lab_comment_note عینِ آن را در گزارش نقل می‌کند (بی‌ترجمه، بی‌حکم).
+    //   ⚠️ اگر متن واژگانِ لامِ خون دارد («Blasts»، «Toxic granulation»، «Pelger»…)، مالکش خوانندهٔ لام است
+    //   (specs/009: M202i/M203d) — اینجا دست نمی‌زنیم، وگرنه «Blasts not evaluated» به‌جای «تفسیر نشدند» یک
+    //   یادداشتِ خوش‌خط می‌شد. فقط متنِ آزادی که هیچ نشانگرِ لام ندارد (تشخیصِ پاتولوژیست) اینجا گرفته می‌شود.
+    if (/^(comments?|remarks?|notes?|labcomments?|pathologistcomment|interpretation|نظر|توضیح|توضیحات|یادداشت)$/.test(key)
+        && String(t.value ?? "").trim().length >= 4
+        && !SMEAR_VOCAB_RE.test(String(t.value ?? ""))) {
+      labComments.push({ name: String(t.name ?? "").trim(), text: String(t.value).trim() });
+      continue;
+    }
+
+
+    // ═══ P111: ردیف‌های مشتق، وقتی اجزایشان روی همین برگه‌اند ═══
+    if (DERIVED_ROW_BASES[key]) {
+      const present = (k) => (ocr?.tests ?? []).some((x) => {
+        const xk = norm(x?.name ?? "");
+        return (NAME_MAP[xk] ?? resolveAlias(xk)) === k && String(x?.value ?? "").trim() !== "";
+      });
+      if (DERIVED_ROW_BASES[key].every((spec) => spec.split("|").some(present))) continue;
+    }
+
     // «Hémoglobine 14 g/dL» / «Hemoglobina 6.1 g/dL»: خودِ هموگلوبین — به مسیرِ عادیِ HGB (CR9/CR10).
     if (HB_TOTAL_WITH_MASS_UNIT.has(key) && HB_MASS_UNIT.test(String(t.unit || ""))) {
       t = { ...t, name: "Hemoglobin" };
@@ -1590,11 +1737,28 @@ export function ocrToEngineInput(ocr) {
     }
     // سرتیترِ بخش بر حدسِ صفحه مقدم است، فقط برای کلیدِ مبهم و رنگ/ظاهر (نامِ صریحِ «Urine …»/«Serum …» مسیرِ خودش را دارد).
     const secKind = AMBIGUOUS_URINE_KEYS.has(key) || /^(colou?r|appearance|turbidity|clarity)$/.test(key) ? sectionKind(t.section) : null;
+    // P111: بخشِ مدفوع برای *همهٔ* کلیدها سنجیده می‌شود، چون ردیف‌های میکروسکوپیِ مدفوع هم‌نامِ ادرارند
+    //   («W.B.C /hpf»، «R.B.C»، «Color») و بی‌این پرچم به موتورِ CBC/ادرار می‌رفتند (N25).
+    const secStool = sectionKind(t.section) === "stool";
+    // P111: ردیف‌های بخشِ مدفوع باید *پیش از* لایه‌های ادرار/CBC کنار بروند، چون «W.B.C /hpf» و «R.B.C»ِ
+    //   مدفوع هم‌نامِ ادرارند و پیش‌تر به qualِ ادرار می‌رفتند (مقدارِ مدفوع جای ادرار می‌نشست: «No Seen»).
+    //   فقط ردیف‌هایی که خوانندهٔ خودشان را دارند می‌گذرند (خونِ مخفی/FIT، کالپروتکتین، رنگ)؛ بقیه با
+    //   نامِ خودشان در «تفسیر نشدند» می‌مانند — نه سکوت (N4)، نه خواندن به‌عنوانِ ادرار/CBC (N25).
+    if (secStool && !isStoolReaderRow(key)) {
+      unmapped.push(t.name);
+      continue;
+    }
     // بی‌سرتیتر: «Glucose 106» (عددِ ساده) کنارِ «Glucose Negative» (مقدارِ نوار) روی همان صفحه — نوار کیفی است، پس عدد مالِ سرم است.
     //   پیش‌تر هر دو «Urine Glucose» می‌شدند و قندِ خون بی‌صدا گم می‌شد (آخری می‌برد).
     const serumTwin = !secKind && stripTwinKeys.has(`${t._page ?? 0}|${key}`) && isPlainNumber(t.value);
-    const onUrinePage = secKind === "urine" ? true : secKind === "blood" || serumTwin ? false : urineOnlyPages.has(t._page ?? 0);
-    const onStripPage = secKind === "blood" || serumTwin ? false : secKind === "urine" || dipstickPages.has(t._page ?? 0);
+    const onUrinePage = secStool ? false
+      : secKind === "urine" ? true
+      : secKind === "blood" || serumTwin ? false
+      // P111: ردیفی که خودش «Urine …»/«ادرار …» نام دارد صاحبِ صفحه‌اش را لازم ندارد. پیش‌تر
+      //   «Urine Color: Yellow» روی صفحه‌ای با کمتر از دو نشانگرِ ادرار به «تفسیر نشدند» می‌رفت (N4/N25).
+      : /^(urine|ادرار)/.test(norm(t.name)) ? true
+      : urineOnlyPages.has(t._page ?? 0);
+    const onStripPage = secStool ? false : secKind === "blood" || serumTwin ? false : secKind === "urine" || dipstickPages.has(t._page ?? 0);
 
     // ═══ specs/008: لایهٔ الکتروفورزِ هموگلوبین — پیش از qual، چون «hbs» را الگوی anti-HBs می‌گرفت ═══
     //  • hbs/hbc/hbe فقط با واحدِ ٪ یا شاهدِ الکتروفورز روی برگه واریانتِ هموگلوبین‌اند؛ بی‌شاهد ⇒ «تفسیر نشدند».
@@ -1647,7 +1811,12 @@ export function ocrToEngineInput(ocr) {
     //    می‌شود ولی نامش در «تفسیر نشدند» می‌ماند تا بقیهٔ متنِ آزادش گم نشود.
     if (!onUrinePage && !semenPages.has(t._page ?? 0)) {
       const mr = rbcMorphRow(t.name, t.value, t.unit);
-      if (mr) { if (mr.state !== "blank") rbcMorphItems.push(mr); continue; }
+      if (mr) {
+        // P114: نامِ چاپ‌شدهٔ ردیف را همراه ببر — «Elliptocyte»، «Target Cells»، «Tear Drops» همه زیرِ
+        //   چترِ «پویکیلوسیتوز» می‌روند و اگر نام‌ها گم شوند، متن به بیمار می‌گوید «نوعِ شکل در این ردیف نیامده».
+        if (mr.state !== "blank") rbcMorphItems.push({ ...mr, name: String(t.name ?? "") });
+        continue;
+      }
       const sr = smearRow(t.name, t.value, t.unit);
       if (sr) {
         smearItems.push(...sr.items);
@@ -1802,6 +1971,19 @@ export function ocrToEngineInput(ocr) {
       if (DIPSTICK_VALUE_RE.test(raw)) qual["Urine Blood"] = raw; else unmapped.push(t.name);
       continue;
     }
+    // OB در بخشِ ادرار («Urine OB» یا «OB» زیرِ سرتیترِ Urinalysis) خونِ ادرار (نوار) است، نه مدفوع.
+    if ((key === "ob" || key === "urineob") && (secKind === "urine" || /^(urine|ادرار)/.test(norm(t.name)))) {
+      const raw = String(t.value ?? "").trim();
+      if (DIPSTICK_VALUE_RE.test(raw)) qual["Urine Blood"] = raw; else unmapped.push(t.name);
+      continue;
+    }
+    // P114 (برگهٔ مرد ۵۵ ساله): پدِ خونِ نوار روی برگه‌های ایرانی گاهی «Hemoglobin»/«Hb» نام دارد، نه «Blood».
+    //   پیش‌تر زیرِ نامِ خودش در qual می‌نشست و هیچ قاعدهٔ ادراری نمی‌خواندش ⇒ هماچوریِ مثبت بی‌یافته می‌ماند.
+    if ((key === "hemoglobin" || key === "hb" || key === "hgb") && (secKind === "urine" || /^(urine|ادرار)/.test(norm(t.name)))) {
+      const raw = String(t.value ?? "").trim();
+      if (DIPSTICK_VALUE_RE.test(raw)) qual["Urine Blood"] = raw; else unmapped.push(t.name);
+      continue;
+    }
     // «U/C» = کشتِ ادرار (Urine Culture)؛ «U/C First»، «U/C Final». ردیفِ «Culture (after 48 hrs)» فقط کنارِ یک ردیفِ U/C یا کشتِ ادرار
     //   روی همان صفحه ادراری است (N25: کشتِ خون هم «۴۸ ساعت» دارد) — وگرنه «تفسیر نشدند». نامِ قانونی با «Urine Culture» شروع می‌شود تا
     //   خوانندهٔ urine_culture_result (qualRows /^urineculture/) همهٔ نوبت‌ها را ببیند.
@@ -1824,6 +2006,23 @@ export function ocrToEngineInput(ocr) {
       if (noReaderValues.STOOL_COLOR == null) noReaderValues.STOOL_COLOR = String(t.value).trim();
       continue;
     }
+    // P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): «Color: Brown»ِ برهنه روی صفحه‌ای که نشانگرِ صریحِ مدفوع دارد (FOBT/FIT/
+    //   کالپروتکتین/Stool …) مالِ مدفوع است. پیش‌تر روی صفحهٔ ترکیبی به «رنگِ ادرار» تبدیل می‌شد و موتور به
+    //   بیمار هشدارِ «رنگِ ادرارِ شما قهوه‌ای است» می‌داد؛ حالا خوانندهٔ رنگِ مدفوع (melena) صاحبش است (N25).
+    //   ⚠️ اگر خودِ ردیف سرتیترِ «Urine …» دارد مالِ ادرار است؛ پس fallbackِ صفحه‌ای فقط وقتی به کار می‌رود
+    //   که ردیف هیچ سرتیترِ شناخته‌شده‌ای ندارد (secKind خالی).
+    if (/^(colou?r|رنگ)$/.test(key) && (secStool || (!secKind && stoolPages.has(t._page ?? 0))) && String(t.value ?? "").trim()) {
+      if (!noReader.includes("STOOL_COLOR")) noReader.push("STOOL_COLOR");
+      if (noReaderValues.STOOL_COLOR == null) noReaderValues.STOOL_COLOR = String(t.value).trim();
+      continue;
+    }
+    // P111: بقیهٔ ردیف‌های بخشِ مدفوع خوانندهٔ موتور ندارند (W.B.C /hpf، R.B.C، Ova، Fat globules، Consistency…).
+    //   فقط ردیف‌هایی که خوانندهٔ خودشان را دارند از این‌جا می‌گذرند (خونِ مخفی/FIT، کالپروتکتین، رنگ)؛
+    //   بقیه با نامِ خودشان در «تفسیر نشدند» می‌مانند — نه سکوت (N4)، نه خواندن به‌عنوانِ ادرار یا CBC (N25).
+    if (secStool && !isStoolReaderRow(key)) {
+      unmapped.push(t.name);
+      continue;
+    }
     // ═══ لایه ۲ب (باگِ ۵): استرازِ لکوسیتی با هر املا، و نوار/میکروسکوپیِ برگهٔ ترکیبی ═══
     //   استراز واژگانِ فقط‌ادرار است ⇒ روی هر صفحه‌ای؛ نامِ قانونی می‌گیرد تا LE_RE ِ قاعده‌ها («leukocyte|esterase») و
     //   PAD_ROW_RE (کنارگذاشتن از شمارشِ WBC) آن را بشناسند. مقدارِ بیرون از فهرستِ بسته ⇒ «تفسیر نشدند» (N6).
@@ -1838,6 +2037,14 @@ export function ocrToEngineInput(ocr) {
       diffMixed ??= { name: t.name, value: toNum(t.value), unit: String(t.unit ?? "").trim() || null, reference: t.reference ?? null };
       continue;
     }
+    // ═══ P111: مخاطِ ادرار («Mucus»، «Mucus threads») فقط-ادرار است ═══
+    //   روی برگهٔ واقعی، «Mucus: Not seen» از qual جا می‌ماند و unmapped می‌شد، در حالی که Bacteria/Casts/Crystals
+    //   همان ستون خوانده می‌شدند (شکستِ یک ردیف از هفت ردیفِ میکروسکوپی). این نام‌ها در هیچ برگهٔ خونی/سرمی نمی‌آیند.
+    if (URINE_MICRO_ONLY_RE.test(key) && String(t.value ?? "").trim()) {
+      qual[/urine|ادرار/i.test(t.name) ? t.name : `Urine ${t.name}`] = String(t.value).trim();
+      continue;
+    }
+
     if (onStripPage || onUrinePage) {
       const raw = String(t.value ?? "").trim();
       // بند ۵ (تصمیمِ «الف»): رنگ/ظاهرِ ادرار روی صفحهٔ ادرار — شناخته، بی‌خواننده. در qual با نامِ قانونی، تا شبکهٔ unreadQualRows
@@ -1963,6 +2170,14 @@ export function ocrToEngineInput(ocr) {
     //    حالا مثل تروپونین: عدد → کلیدِ عددی، کلمه/پلاس → کیفی.
     if (["CRP_Q", "RF"].includes(mapKey(key)) || key === "crp" || key === "rf") {
       const ek = mapKey(key) ?? (key === "crp" ? "CRP_Q" : "RF");
+      // 🔴 تشخیصِ سنجهٔ hs برای CRP (کلاسِ N3، تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): ردهٔ
+      //    خطرِ ASCVD (ACC/AHA 2019، جدولِ ۳) فقط برای *hs-CRP* تعریف شده
+      //    («Elevated high-sensitivity C-reactive protein (≥2.0 mg/L)»). برگه‌ای
+      //    که «CRP(quantitative)» با بازهٔ چاپیِ «Up to: 6» می‌دهد سنجهٔ معمولیِ
+      //    التهاب است، نه hs؛ عددِ ۵ آن هیچ ردهٔ خطری نمی‌سازد. قاعدهٔ
+      //    hscrp_ascvd_risk همین پرچم را می‌خواند. ⚠️ key همین‌جا عوض نمی‌شود،
+      //    پس نامِ خام در دست است (mapKey(key) === "CRP_Q" برای هر دو hs و غیرِ آن).
+      if (ek === "CRP_Q" && /^hs|highsensitiv|highsensetiv/.test(key)) tests._crp_hs = true;
       const nv = toNum(t.value);
       // «3+» و «+++» عدد نیستند حتی اگر toNum رقمی از آن‌ها دربیاورد.
       const looksGraded = /\+/.test(String(t.value));
@@ -2006,6 +2221,12 @@ export function ocrToEngineInput(ocr) {
     if (engineKey && isAbs && engineKey.endsWith("_PCT")) {
       engineKey = engineKey.replace("_PCT", "_ABS");
     }
+    // P113 (۲۰۲۶-۱۰-۲۷): برعکسش هم لازم است — norm «%» را می‌زند، پس «NRBC%» و «NRBC#» هر دو
+    //   به یک کلید می‌رسند و درصد به‌عنوان شمارشِ مطلق (×۱۰۰۰) خوانده می‌شد («NRBC% 1.2» ⇒ 1200).
+    //   اگر نامِ ردیف درصدی است و «#» ندارد، درصد بماند.
+    if (engineKey && engineKey.endsWith("_ABS") && isPct && !isAbs) {
+      engineKey = engineKey.replace("_ABS", "_PCT");
+    }
 
     // ⚠️ برگه‌های Sysmex بدون # می‌نویسند: "NEUT 4.31 [10^3/uL]"
     //    اگر واحد 10^3 بود یا عدد < 100 و درصد نبود → مطلق است نه درصد.
@@ -2037,6 +2258,7 @@ export function ocrToEngineInput(ocr) {
     if (UNIT_KEPT.has(engineKey) && !(engineKey in printedUnits)) printedUnits[engineKey] = t.unit ?? null;
     // بازهٔ ردیفِ درصدی (۲–۵٪) مالِ کلیدِ *_ABS نیست؛ فقط ردیف‌های غیرِ دیفرانسیل.
     if (t.reference && !/_ABS$|_PCT$/.test(engineKey) && !(engineKey in printedRefsAll)) printedRefsAll[engineKey] = String(t.reference);
+    if (t.reference && /(_ABS|_PCT)$/.test(engineKey) && !(engineKey in absRefs)) absRefs[engineKey] = String(t.reference);   // P113
     if (t.reference && /_PCT$/.test(engineKey) && !(engineKey in pctRefs)) pctRefs[engineKey] = String(t.reference);
 
     let v = toNum(t.value);
@@ -2416,6 +2638,7 @@ export function ocrToEngineInput(ocr) {
     hemostasis,
     prenatal,
     specimen,
+    labComments,
     serologyRef,
     serologyAssay,
     unitUnknown,
@@ -2426,6 +2649,7 @@ export function ocrToEngineInput(ocr) {
     ckmbUnitless,
     printedRefs,
     printedRefsAll,
+    absRefs,
     derivedAbs,
     derivedAbsRefs,
     diffMixed,
@@ -2497,11 +2721,31 @@ function priorVisit(ocr, sex, age) {
   return PRIOR_KEYS.some((k) => out[k]) ? out : null;
 }
 
+/** P113: بازهٔ چاپ‌شدهٔ ردیفِ *_ABS را به واحدِ موتور (/µL) می‌برد.
+ *  برگه‌ها این بازه را در ۱۰³/µL می‌چاپند («0.10 - 1.20») و موتور مقدار را در /µL نگه می‌دارد؛
+ *  اگر هر دو کران زیرِ ۱۰۰ باشند مقیاس ۱۰³ است. بی‌بازه یا نامعتبر ⇒ null (بازهٔ داخلی می‌ماند). */
+function absPrintedRange(printed, key = "") {
+  const p = printedRangePair(printed);
+  if (!p) return null;
+  // درصد هرگز مقیاس نمی‌خورد؛ ۱۰³/µL فقط وقتی هر دو کران زیرِ ۱۰۰ باشند.
+  const scale = /_PCT$/.test(key) ? 1 : (p[1] < 100 ? 1000 : 1);
+  return [p[0] * scale, p[1] * scale];
+}
+
+/** P114: بازهٔ چاپ‌شدهٔ یک ردیف → [lo, hi] در واحدِ موتور؛ یک‌طرفهٔ «< 530» با کفِ ۰.
+ *  برای LDH که سقفِ کیت‌ها ۲۴۰–۵۳۰ است، مرجعِ خودِ آزمایشگاه سنجهٔ درست است. */
+function printedRangePair(printed) {
+  if (!printed) return null;
+  const p = parseReference(String(printed), null);
+  if (!p || p.hi == null || !(p.hi > 0)) return null;
+  return [p.lo ?? 0, p.hi];
+}
+
 export function runEngine(ocr, opts = {}) {
   // P113 (۲۰۲۶-۱۰-۲۷): `{ diagnostics: true }` کلیدِ `phenoAgeDiag` را اضافه می‌کند (چرا سنِ زیستی ساخته نشد).
   //   ⚠️ پیش‌فرض خاموش است تا خروجیِ موتور برای همهٔ فراخوان‌های دیگر — و همهٔ فریزهای بایت‌به‌بایت — دست‌نخورده بمانَد.
   const wantDiag = opts?.diagnostics === true;
-  const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, printedRefsAll, derivedAbs, derivedAbsRefs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, ambiguousPh, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
+  const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, labComments, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, printedRefsAll, absRefs, derivedAbs, derivedAbsRefs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, ambiguousPh, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
   const gestWeeksF = pregnantF ? gestWeeks : null;
 
@@ -2524,7 +2768,12 @@ export function runEngine(ocr, opts = {}) {
   //    هایپوکلسمی را بزرگ‌تر از واقع و هایپرکلسمی را کوچک‌تر از واقع نشان می‌داد.
   //    نمونهٔ تستِ engine.test.js (Ca 8.0 + Alb 2.0): ۹.۶ → ۹.۹.
   const CA_CORR_NORMAL_ALB = 4.4;
-  if (tests.CA != null && tests.ALB != null) {
+  // ═══ P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): تصحیح فقط در هیپوآلبومینمی ═══
+  //   فرمول برای حالتی ساخته شده که آلبومینِ پایین کلسیمِ توتال را کاذب پایین می‌آورد. وقتی آلبومین *بالای*
+  //   ۴٫۴ است، همان فرمول کلسیمِ واقعیِ ۹٫۹ را به ۹٫۲ «تصحیح» می‌کند — یعنی یک هیپوکلسمیِ ساختگی روی برگهٔ
+  //   مردی با آلبومین ۵٫۳. با آلبومینِ ۴٫۴ و بالاتر هیچ تصحیحی لازم نیست و عددِ چاپ‌شده همان است که سنجیده می‌شود.
+  if (tests.CA != null && tests.ALB != null && tests.ALB < CA_CORR_NORMAL_ALB) {
+
     const caCorr = +(tests.CA + 0.8 * (CA_CORR_NORMAL_ALB - tests.ALB)).toFixed(1);
     derived.ca_measured = tests.CA;
     derived.ca_corrected = caCorr;
@@ -2553,6 +2802,8 @@ export function runEngine(ocr, opts = {}) {
   //    این خط پرچم به قاعده نمی‌رسد. (`_ddimer_raw` دقیقاً همین‌طور نوشته شد و
   //    تا امروز هیچ‌کس نمی‌خواندش — نمونهٔ زندهٔ همین تله.)
   if (tests._trop_hs) derived.trop_hs_assay = true;
+  // همان تلهٔ `_trop_hs`: پرچم روی `tests` است ولی الگوها فقط `indices` را می‌بینند.
+  if (tests._crp_hs) derived.crp_hs_assay = true;
   if (tests._trop_uln != null) derived.trop_uln_ugl = tests._trop_uln;
   if (tests._trop_uln_tnt) derived.trop_uln_source = "tnt_default";   // M24: حدِ پیش‌فرضِ hs-cTnT، نه چاپِ برگه
 
@@ -2570,7 +2821,7 @@ export function runEngine(ocr, opts = {}) {
   const ungraded = {};
   for (const k of noReader) ungraded[k] = { value: noReaderValues[k], reason: "no_range" };
   // specs/012 (P68، C1): Anti-Tg/TRAb فقط در برابرِ بازهٔ چاپ‌شدهٔ همان ردیف — دلیلِ یکتا «assay_printed» (N25: هیچ خوانندهٔ دیگری این دلیل را نمی‌خواند).
-  for (const [k, a] of Object.entries(serologyAssay ?? {})) ungraded[k] = { value: a.value, cmp: a.cmp, shown: a.shown, unit: a.unit, state: a.state, raw: a.raw, reference: a.reference, reason: "assay_printed" };
+  for (const [k, a] of Object.entries(serologyAssay ?? {})) ungraded[k] = { value: a.value, cmp: a.cmp, shown: a.shown, unit: a.unit, state: a.state, raw: a.raw, reference: a.reference, ...(a.name ? { name: a.name } : {}), reason: "assay_printed" };
   const hcgPositive = (tests.HCG != null && tests.HCG > HCG_POSITIVE_ABOVE) ||
     Object.entries(qual).some(([k, v]) => HCG_QUAL_NAME_RE.test(k) && /pos|positive|مثبت|\+/i.test(String(v)));
   const FEMALE_CYCLE_KEYS = new Set(["LH", "FSH", "E2", "PROG"]);
@@ -2710,6 +2961,13 @@ export function runEngine(ocr, opts = {}) {
     if (key.startsWith("_")) continue;
     // ۲۰۲۶-۱۰-۰۳: درصدِ افتراقیِ بی‌WBC بی‌صدا حذف می‌شد (نه graded، نه ungraded، نه unmapped) و برگه «طبیعی» می‌شد (N2/N4).
     //   با WBC به مطلق تبدیل شده؛ بی‌آن به ungraded می‌رود و differential_without_wbc می‌خواندش.
+    // P113: NRBC%/IMG% درصدِ افتراقیِ WBC نیستند — بازهٔ چاپیِ خودشان (یا «بی‌بازه») دارند.
+    if (/^(NRBC|IMG)_PCT$/.test(key)) {
+      const nr = absPrintedRange(absRefs?.[key], key);
+      if (nr) graded.push({ test: key, value, range: `${nr[0]}–${nr[1]}`, refSource: "بازهٔ چاپ‌شدهٔ همین برگه", ...evaluate(key, value, nr[0], nr[1], isCancerPatient) });
+      else { ungraded[key] = { value, reason: "no_range" }; if (!noRef.includes(key)) noRef.push(key); }
+      continue;
+    }
     if (key.endsWith("_PCT")) {
       if (tests[key.replace("_PCT", "_ABS")] == null) ungraded[key] = { value, reason: "diff_pct_no_wbc" };
       continue;
@@ -2820,7 +3078,14 @@ export function runEngine(ocr, opts = {}) {
         ...evaluate(key, value, 0, hi, isCancerPatient) });
       continue;
     }
-    const ref = (NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF });
+    // P113: مرجعِ چاپ‌شدهٔ برگه برای شمارشِ مطلقِ افتراقی (واحدِ ۱۰³/µL ⇒ ×۱۰۰۰) بر بازهٔ داخلی مقدم است.
+    const absRef = /(_ABS|_PCT)$/.test(key) ? absPrintedRange(absRefs?.[key], key) : null;
+    // P114 (برگهٔ مرد ۵۵ ساله): سقفِ LDH کیت‌به‌کیت از ۲۴۰ تا ۵۳۰ فرق می‌کند. «LDH 275» با برگهٔ «< 530»
+    //   پیش‌تر «بالاتر از حد طبیعی» و یافتهٔ همولیز می‌شد.
+    //   ⚠️ فقط بزرگسال: در کودک، قاعدهٔ P96 عمداً درجه‌بندی را با بازهٔ موتور نگه می‌دارد و سقفِ چاپ‌شده را
+    //   فقط برای فوریت به کار می‌برد (p96.test.js) — این تصمیم دست‌نخورده می‌ماند.
+    const printedOwn = key === "LDH" && !(age != null && age < 16) ? printedRangePair(printedRefs.LDH) : null;
+    const ref = absRef ?? printedOwn ?? ((NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF }));
     if (!ref) {
       // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): T3 Uptake و FTI موتور برایشان مرجعِ داخلی ندارد، ولی خودِ آزمایشگاه بازه
       //   چاپ کرده (۲۴–۳۵٪ و ۱٫۴–۳٫۴). پیش‌تر «محدوده مرجع ندارد — تفسیر نشد» می‌شدند. حالا بازهٔ چاپ‌شده
@@ -2845,7 +3110,9 @@ export function runEngine(ocr, opts = {}) {
       value,
       // بازهٔ یک‌طرفه (فقط حدِ پایین، P47) «≥ حد» نمایش داده می‌شود، نه «16–null».
       range: ref[1] == null ? `≥ ${ref[0]}` : `${ref[0]}–${ref[1]}`,
-      refSource: getRefSource(key, age),
+      // P114: بازهٔ نمایش هم همان بازهٔ سنجیده‌شده است، نه بازهٔ داخلی.
+      //   (پیش‌تر «LDH 275» با بازهٔ ۲۴۰–۴۸۰ نمایش داده می‌شد در حالی که برگه «< 530» چاپ کرده بود.)
+      refSource: absRef ? "بازهٔ چاپ‌شدهٔ همین برگه" : printedOwn ? "بازهٔ چاپ‌شدهٔ همین برگه" : getRefSource(key, age),
       ...e,
     });
   }
@@ -2901,7 +3168,10 @@ export function runEngine(ocr, opts = {}) {
 
   // شاخص‌ها
   const idx = {};
-  if (tests.MCV && tests.RBC) idx.mentzer = +(tests.MCV / tests.RBC).toFixed(1);
+  // ═══ P111: شاخص‌ها فقط جایی که معنا دارند ═══
+  //   منتزر (MCV/RBC) فقط برای تفکیکِ علتِ *میکروسیتوز* اعتبار دارد. روی برگهٔ ماکروسیتوزِ شدید (MCV 106.6)
+  //   عددِ ۲۸٫۸ ساخته می‌شد و در نمای تخصصی به‌عنوان شاخصِ افتراقی نمایش داده می‌شد — عددی بی‌معنا.
+  if (tests.MCV && tests.RBC && tests.MCV < 80) idx.mentzer = +(tests.MCV / tests.RBC).toFixed(1);
   if (tests.NEUT_PCT && tests.LYMPH_PCT) idx.nlr = +(tests.NEUT_PCT / tests.LYMPH_PCT).toFixed(1);
   // BUN/Cr: از BUNِ اندازه‌گیری‌شده؛ اگر فقط اوره داریم، BUN را داخلی (اوره÷۲.۱۴) برای همین شاخص می‌سازیم.
   const bunForRatio = tests.UREA_N != null ? tests.UREA_N
@@ -2910,8 +3180,13 @@ export function runEngine(ocr, opts = {}) {
   if (tests.ALT && tests.ALP) {
     const ALT_ULN = getRef("ALT", sex, age)?.[1];
     const ALP_ULN = getRef("ALP", sex, age)?.[1];
-    if (ALT_ULN && ALP_ULN) idx.r_ratio = +((tests.ALT / ALT_ULN) / (tests.ALP / ALP_ULN)).toFixed(1);
+    //   R = (ALT/ULN) ÷ (ALP/ULN) برای تفکیکِ الگوی هپاتوسلولار از کولستاتیک است؛ وقتی هر دو آنزیم در محدوده‌اند
+    //   عدد هیچ اطلاعاتی ندارد (۰٫۷ روی برگهٔ کاملاً نرمال). فقط با انحرافِ دست‌کم یکی از دو آنزیم ساخته می‌شود.
+    if (ALT_ULN && ALP_ULN && (tests.ALT > ALT_ULN || tests.ALP > ALP_ULN)) {
+      idx.r_ratio = +((tests.ALT / ALT_ULN) / (tests.ALP / ALP_ULN)).toFixed(1);
+    }
   }
+
   // R2 — آنیون‌گپ: Na − (Cl + HCO3). با سدیمِ اندازه‌گیری‌شده (نه تصحیح‌شده) محاسبه می‌شود.
   if (tests.NA != null && tests.CL != null && tests.HCO3 != null) {
     const naForAg = derived.na_measured ?? tests.NA;
@@ -2945,10 +3220,6 @@ export function runEngine(ocr, opts = {}) {
       idx.osm_gap = +(tests.OSM - idx.osm_calc).toFixed(0);
     }
   }
-  // R3 — eGFR با CKD-EPI 2021 (فقط بزرگسال؛ اطفال فرمول متفاوت دارند)
-  if (tests.CREAT != null && age != null && age >= 18 && sex) {
-    idx.egfr = ckdEpiEgfr(tests.CREAT, age, sex);
-  }
   // non-HDL کلسترول = کلسترول تام − HDL (Kenwright, «Lipids and Lipoproteins»).
   //   همهٔ ذرات آتروژنِ حاوی ApoB را پوشش می‌دهد، در حالت غیرناشتا هم معتبر است،
   //   و برخلاف LDLِ فریدوالد با تری‌گلیسریدِ بالا خراب نمی‌شود. هدف ≈ هدفِ LDL + ۳۰.
@@ -2959,9 +3230,16 @@ export function runEngine(ocr, opts = {}) {
   //   FIB-4 = سن × AST ÷ (پلاکت[10⁹/L] × √ALT) (Sterling 2006؛ AASLD 2023): < ۱٫۳ احتمالِ پایینِ فیبروزِ پیشرفته؛ در ≤ ۳۵ سال دقتِ پایین.
   //   فقط بزرگسال؛ پلاکت در موتور K/µL = 10⁹/L.
   if (tests.AST > 0 && tests.ALT > 0 && tests.PLT > 0 && age != null && age >= 18) {
-    idx.fib4 = +((age * tests.AST) / (tests.PLT * Math.sqrt(tests.ALT))).toFixed(2);
-    if (age <= 35) idx.fib4_low_accuracy = true;
+    //   P111: FIB-4 یک شاخصِ غربالگریِ فیبروز است، نه عددِ تزئینی. روی برگهٔ خانمِ ۲۵ سالهٔ نورموسیتیک با
+    //   ALT 12 و AST 20 (هر دو نرمال) ۰٫۵۸ ساخته می‌شد. فقط با انحرافِ دست‌کم یکی از دو آنزیم ساخته می‌شود.
+    const AST_ULN = getRef("AST", sex, age)?.[1];
+    const ALT_ULN_F = getRef("ALT", sex, age)?.[1];
+    if ((AST_ULN && tests.AST > AST_ULN) || (ALT_ULN_F && tests.ALT > ALT_ULN_F)) {
+      idx.fib4 = +((age * tests.AST) / (tests.PLT * Math.sqrt(tests.ALT))).toFixed(2);
+      if (age <= 35) idx.fib4_low_accuracy = true;
+    }
   }
+
   //   AIP = log10(TG/HDL) با غلظتِ مولی (Dobiášová 2001؛ TG ÷ ۸۸٫۵۷، HDL ÷ ۳۸٫۶۷ ⇒ mmol/L). مرزهای جهت‌دهنده: < ۰٫۱۱ / ۰٫۱۱–۰٫۲۱ / > ۰٫۲۱.
   if (tests.TG > 0 && tests.HDL > 0) {
     idx.aip = +Math.log10((tests.TG / 88.57) / (tests.HDL / 38.67)).toFixed(2);
@@ -2974,8 +3252,9 @@ export function runEngine(ocr, opts = {}) {
   //   (CRP_Q بر حسبِ mg/L)؛ تبدیل به واحدهای معادله داخلِ pheno_age.js انجام می‌شود.
   const pheno = computePhenoAge({ tests, age, sex });
   if (pheno.status === "CALCULATED") idx.pheno_age = pheno.phenoAge;
-  // P113 (۲۰۲۶-۱۰-۲۷): چرا ساخته نشد؟ — وضعیتِ خودِ ماژول، بی‌هیچ منطقِ دوم.
-  //   فقط با `diagnostics: true` در خروجی می‌آید (فریزها دست‌نخورده). مصرف: لاگِ سرور و ردِّ حسابرسی.
+  // P113 (۲۰۲۶-۱۰-۲۷): چرا ساخته نشد؟ — همان وضعیتِ ماژول، بی‌هیچ منطقِ دوم.
+  //   ⚠️ فقط وقتی ساخته نشده نوشته می‌شود؛ تا خروجیِ برگه‌های کامل بایت‌به‌بایت همان بماند (فریزها).
+  //   مصرف: لاگِ سرور و ردِّ حسابرسی (analysis-audit.jsonl) — به بیمار و به مدل نمی‌رود.
   const enginePhenoDiag = pheno.status !== "CALCULATED"
     ? { status: pheno.status, ...(pheno.missing ? { missing: pheno.missing } : {}) }
     : null;
@@ -3043,6 +3322,9 @@ export function runEngine(ocr, opts = {}) {
     semenQual,
     // specs/009: آیتم‌های لامِ خون — خواننده: smearAxis. ⚠️ متنِ چاپ‌شده دارد؛ به مدل و به گراف نمی‌رود (N13).
     smear,
+    // P111: متنِ چاپیِ Comment/Note (آزمایشگاه/پاتولوژیست) — خواننده: lab_comment_note. عینِ متن، بی‌ترجمه.
+    //   ⚠️ به مدل و گراف نمی‌رود (N13). فقط وقتی هست، تا فریزهای برگه‌های بی‌کامنت دست نخورند.
+    ...(labComments.length ? { labComments } : {}),
     // P96: شیستوسیت/اسفروسیت — خواننده‌ها: patterns_malignancy.js. ⚠️ به مدل و گراف نمی‌رود (N13).
     ...(rbcMorph?.length ? { rbcMorph } : {}),   // فقط وقتی ردیفی هست — بی‌آن خروجیِ همهٔ برگه‌های بی‌شیستوسیت بایت‌به‌بایت همان می‌ماند (فریزها)
     // specs/010: فاکتور ۸/۹، vWF، مهارکننده، PTِ کنترل — خواننده: patterns_hemostasis.js و isthScore. به مدل و گراف نمی‌رود (N13).

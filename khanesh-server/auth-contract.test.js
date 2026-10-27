@@ -221,3 +221,17 @@ test("T34: مهاجرتِ users — پایگاهِ قدیمی (phone NOT NULL) �
   assert.ok((await chk.all("PRAGMA table_info(profiles)")).some((c) => c.name === "age_recorded_at"));
   await chk.close();
 });
+
+// ارسالِ ناموفقِ کد نباید «موفق» گزارش شود، و فاصلهٔ ارسالِ دوباره نباید کاربر را قفل کند.
+test("SF1: فرستندهٔ شکست‌خورده ⇒ ۵۰۲ با جملهٔ فارسی، و تلاشِ فوریِ بعدی ۴۲۹ نیست", async () => {
+  const auth = await import("./auth.js");
+  let fail = true;
+  auth.setOtpSenders({ sms: (phone, code) => { if (fail) return false; sent.sms.set(phone, code); } });
+  const r1 = await call("POST", "/api/auth/request-otp", { phone: "09123334455" });
+  assert.equal(r1.status, 502, JSON.stringify(r1.body));
+  assert.match(r1.body.error, /ارسالِ کد انجام نشد/);
+  fail = false;
+  const r2 = await call("POST", "/api/auth/request-otp", { phone: "09123334455" });
+  assert.equal(r2.status, 200, JSON.stringify(r2.body));
+  assert.ok(sent.sms.get("09123334455"));
+});

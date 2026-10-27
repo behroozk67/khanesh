@@ -257,7 +257,10 @@ test("X9: کلسیمِ اصلاح‌شده با آلبومین ⇒ «روی بر
   assert.equal(ca.derived_from, "albumin_correction");
   assert.equal(ca.printed_range, "8.5–10.5");
   const labels = x.indices.map((i) => i.label);
-  for (const l of ["eGFR", "شکافِ آنیونی", "شکافِ آنیونیِ اصلاح‌شده با آلبومین", "کلسیمِ اصلاح‌شده با آلبومین"]) assert.ok(labels.includes(l), `${l} نیست: ${labels}`);
+  // 🔴 ۲۰۲۶-۱۰-۱۶: «eGFR» از فهرستِ انتظار حذف شد — موتور دیگر تخمینِ کار کلیه نمی‌سازد
+  //    (تصمیمِ کاربر: کراتینینِ یک برگه + جنس/سن برای آن کافی نیست). سه شاخصِ دیگر دست‌نخورده‌اند.
+  for (const l of ["شکافِ آنیونی", "شکافِ آنیونیِ اصلاح‌شده با آلبومین", "کلسیمِ اصلاح‌شده با آلبومین"]) assert.ok(labels.includes(l), `${l} نیست: ${labels}`);
+  assert.ok(!labels.includes("eGFR"), `eGFR نباید باشد: ${labels}`);
   for (const i of x.indices) { assert.ok(/[؀-ۿ]/.test(i.method_fa), i.label); assert.ok(i.inputs.length > 0, i.label); }
 });
 

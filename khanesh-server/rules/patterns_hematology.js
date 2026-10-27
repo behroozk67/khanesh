@@ -17,6 +17,7 @@ const printedUngraded = (e, k) => !!(e.ungraded?.[k] || e.noRef?.includes(k));
 // P107m: سقفِ «خفیف» برای رتیکولوسیتِ ۱۵ روز تا ۲ ماهگی (٪) — پیشنهادِ بازبین (سقفِ Beebe ۵–۷ هفته ≈ ۳٫۴۷)، تأییدِ پزشک لازم.
 const NEONATAL_RETIC_MILD_MAX = 3.5;
 // P91: «سیاه» ِ رنگِ مدفوع — فهرستِ بسته روی کلِ مقدار (N6).
+
 const STOOL_BLACK_RE = /^(black|blackish|tarry|tar[\s-]*like|melena|melaena|سیاه|سیاه‌رنگ|سیاه رنگ|قیری|قیرمانند|قیری‌شکل)$/i;
 
 const LEUK_CYTO_IDS = new Set(["leukocytosis_with_cytopenia", "reactive_leukocytosis_with_cytopenia"]);
@@ -56,6 +57,19 @@ const microMchClause = (mch) => !mch?.abnormal ? ""
   : mch.dir === "low"
     ? ` MCH شما ${mch.value} (حد طبیعی ${mch.range}) هم پایین است، یعنی هر گلبول هموگلوبینِ کمتری دارد؛ این بخشی از همین الگوی گلبولِ کوچک است.`
     : ` MCH شما ${mch.value} بالاتر از حد طبیعی (${mch.range}) است و با کوچکیِ گلبول‌ها هم‌خوان نیست؛ پزشک آن را کنارِ بقیهٔ نتایج می‌سنجد.`;
+/** P114 (برگهٔ مرد ۵۵ ساله): MCHCِ پایین در کم‌خونیِ میکروسیتیک توضیح می‌خواهد.
+ *  MCHC = Hb ÷ Hct؛ پایین‌بودنش همان «کمرنگیِ» گلبول است و باید کنارِ MCV/MCH گفته شود،
+ *  نه اینکه به تورِ «توضیحِ آماده نداریم» بیفتد. آستانهٔ تازه‌ای نیست (همان بازهٔ موتور). */
+/** P114: آیا این بحرانِ کم‌خونی الگوی گلبولِ کوچک دارد؟ (⇒ بررسیِ خونریزیِ پنهانِ گوارشی مطرح است) */
+const microcyticForCrisis = (e) => {
+  const mcv = e.graded.find((g) => g.test === "MCV");
+  const mch = e.graded.find((g) => g.test === "MCH");
+  return !!((mcv?.abnormal && mcv.dir === "low") || (mch?.abnormal && mch.dir === "low"));
+};
+const microMchcClause = (mchc) => !mchc?.abnormal ? ""
+  : mchc.dir === "low"
+    ? ` MCHC شما ${mchc.value} (حد طبیعی ${mchc.range}) هم پایین است؛ MCHC یعنی غلظتِ هموگلوبین داخلِ هر گلبول، و پایین‌بودنش همان کم‌رنگیِ گلبول است که در لام هم گزارش شده.`
+    : ` MCHC شما ${mchc.value} بالاتر از بازهٔ ${mchc.range} است؛ این عدد از Hb ÷ Hct می‌آید و بالا بودنش بیشتر به خطای نمونه یا اسفروسیتوز مربوط است، نه به این الگو.`;
 const carrierWarnings = (e) => (["trait", "very_high"].includes(hba2State(e)) ? [HBA2_CARRIER_WARNING] : []);
 
 // ─── P110-ب (تصمیمِ بازبینِ کاربر ۲۰۲۶-۱۰-۱۶): الکتروفورز با معیارِ غربالگریِ کشوریِ تالاسمی، نه با منتزر ───
@@ -288,10 +302,20 @@ function neutHighGraded(e) {
 }
 function neutHighClause(e) {
   const n = neutHighGraded(e);
-  return n
-    ? ` نوتروفیلِ مطلق ${n.value} است (حد طبیعی ${n.range}) و بخشِ اصلیِ این افزایش از نوتروفیل‌هاست — سلول‌هایی که در پاسخ به عفونتِ باکتریایی و التهاب زیاد می‌شوند.` + NEUT_DERIVED_NOTE
-    : "";
+  if (!n) return "";
+  // ═══ P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): «بخشِ اصلیِ این افزایش از نوتروفیل‌هاست» فقط با شاهدِ سهمِ نوتروفیل ═══
+  //   روی برگهٔ واقعی WBC ۳۹هزار با لنفوسیتِ ۲۷٫۲۹۰ (۷۰٪) و نوتروفیلِ ۷٫۸۵۰ (کمی بالاتر از سقفِ ۷٫۸۰۰):
+  //   متن می‌گفت «بخشِ اصلیِ افزایش از نوتروفیل است — سلول‌هایی که در عفونتِ باکتریایی زیاد می‌شوند»،
+  //   یعنی ذهنِ بیمار را از لنفوسیتوزِ غالب (که همان یافتهٔ CLL است) به عفونت می‌برد (N12/N3).
+  //   «بخشِ اصلی» یک ادعای نسبی است و باید با مقایسهٔ دو شمارشِ همان برگه ساخته شود، نه از «بالای سقف بودن»ِ یکی.
+  const l = e.graded.find((g) => g.test === "LYMPH_ABS");
+  const dominant = l?.value == null || n.value > l.value;
+  if (dominant) {
+    return ` نوتروفیلِ مطلق ${n.value} است (حد طبیعی ${n.range}) و بخشِ اصلیِ این افزایش از نوتروفیل‌هاست — سلول‌هایی که در پاسخ به عفونتِ باکتریایی و التهاب زیاد می‌شوند.` + NEUT_DERIVED_NOTE;
+  }
+  return ` نوتروفیلِ مطلق ${n.value} است (حد طبیعی ${n.range}) — فقط کمی بالاتر از سقفِ بازه، و بیشترِ گلبول‌های سفیدِ این برگه لنفوسیت‌اند (${l.value})؛ توضیحِ این الگو در یافتهٔ مربوط به لنفوسیت آمده است.` + NEUT_DERIVED_NOTE;
 }
+
 // «آیا leukocytosis فعال می‌شود» — یک تعریف برای match و برای neutrophilia (M91e: آستانه را دوباره ننویس).
 function leukocytosisOwns(e) {
   const w = e.graded.find((g) => g.test === "WBC");
@@ -1142,6 +1166,7 @@ export const RULES_HEMATOLOGY = [
           (mi != null ? ` (شاخص Mentzer = ${mi})` : "") +
           // P107 (L8): MCHِ پایین بخشِ همین الگوست ولی به «توضیحِ آماده نداریم» می‌رفت. هر جهت جمله دارد (M156).
           microMchClause(e.graded.find((g) => g.test === "MCH")) +
+          microMchcClause(e.graded.find((g) => g.test === "MCHC")) +
           (fc ? ` ${fc.text}.` + (["low", "masked"].includes(fc.state) ? " کمبودِ آهن و این ویژگیِ ارثی می‌توانند هم‌زمان باشند." : "") : "") +
           hba2Clause(e, { owner: true }),
         // P110-ب: درخواستِ الکتروفورز با معیارِ کشوری (thalScreenTier)، هشدارِ آهن با فریتین — منتزر هیچ‌کدام را تعیین نمی‌کند.
@@ -1208,7 +1233,8 @@ export const RULES_HEMATOLOGY = [
       const sizeSentence = mcvSmall
         ? `اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} است که کوچک‌تر از حد طبیعی${mcv?.range ? ` (${mcv.range})` : ""} است. ` +
           // ۲۰۲۶-۱۰-۱۶ (P108): منتزرِ ≥ ۱۳ حالا از thal_trait_no_anemia به این‌جا می‌آید و MCHِ پایین به «توضیح داده نشدند» می‌افتاد (N18).
-          hbSentence + microMchClause(mchG).trimStart() + (mchG?.abnormal ? " " : "")
+          hbSentence + microMchClause(mchG).trimStart() + (mchG?.abnormal ? " " : "") +
+          microMchcClause(e.graded.find((g) => g.test === "MCHC")).trimStart()
         : (t.MCV != null
             ? `اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} در محدوده است، ولی MCH شما ${mchG.value} (حد طبیعی ${mchG.range}) کمتر از ۲۷ است، یعنی هر گلبول هموگلوبینِ کمتری دارد. `
             : `MCH شما ${mchG.value} (حد طبیعی ${mchG.range}) کمتر از ۲۷ است، یعنی هر گلبول هموگلوبینِ کمتری دارد؛ اندازهٔ گلبول‌ها (MCV) روی این برگه نمره نگرفته است. `) +
@@ -1655,7 +1681,9 @@ export const RULES_HEMATOLOGY = [
         action: "فوراً و بدون اتلاف وقت به بخش اورژانس بیمارستان مراجعه کنید (احتمال نیاز فوری به تزریق خون وجود دارد).",
         // N8 (P72، بازبینی): «تزریق خون (Blood Transfusion)» درمان است نه آزمایش — «درخواست آزمایش تزریق خون (Blood Transfusion)
         //   از پزشک» می‌شد، با انگلیسی. نیازِ احتمالی به تزریق در action هست.
-        suggest: ["CBC"],
+        // P114 (گزارشِ برگهٔ Hb 6.4): «تکرار CBC» برای بیماری که همین حالا CBC روی برگه دارد و باید
+        //   علتِ خونریزی بررسی شود، توصیهٔ بی‌ربطی بود. جای آن: فریتین (تأییدِ فقر آهن) و بررسیِ گوارشی.
+        suggest: ["فریتین", ...(microcyticForCrisis(e) ? ["کولونوسکوپی"] : [])],
       };
       // specs/007 (Q2=A): بازوی هماتوکریت — Hb سنجیده نشده و Hct زیرِ Hb۷×۳. همان دستور، همان فوریت؛
       // متن باید بگوید هموگلوبین روی برگه نیست و فوریت *برآورد* شده (N4، N5). گلبول قرمزِ پایین هم اینجا
@@ -1837,6 +1865,8 @@ export const RULES_HEMATOLOGY = [
         rbc?.abnormal && rbc.dir === "low" ? `تعداد گلبول قرمز ${rbc.value} (حد طبیعی ${rbc.range})` : null,
       ].filter(Boolean);
       const mch = e.graded.find((g) => g.test === "MCH");
+      // P114: MCHCِ پایین در تابلوی میکروسیتیک باید همین‌جا توضیح داده شود، نه در تورِ «توضیح آماده نداریم».
+      const mchc = e.graded.find((g) => g.test === "MCHC");
       // ⚠️ خواندنِ یک کلید در این سورس آن را برای تورِ unexplained_abnormal «پوشش‌داده»
       //    می‌کند، در هر جهتی (M156). پس هر جهتی که این کلیدها می‌توانند بگیرند جمله دارد:
       //    RBCِ بالا و RDWِ پایین (RDW-SD با گلبولِ کوچک به‌طور طبیعی کم می‌شود).
@@ -1852,6 +1882,7 @@ export const RULES_HEMATOLOGY = [
             (sameDrop.length ? `. ${sameDrop.join(" و ")} شما هم پایین است — همان افتِ گلبولِ قرمز است، نه یک مشکلِ جدا` : "") +
             // 🔴 بازبینیِ دور ۲ (R2-B3، N12): جهت از dir، نه از abnormal — MCHِ بالا کوچکی را «تأیید» نمی‌کند.
             (mch?.abnormal && mch.dir === "low" ? ` (MCH هم ${mch.value} است که همین کوچکی را تأیید می‌کند)` : "") +
+            (mchc?.abnormal && mchc.dir === "low" ? `. MCHC شما ${mchc.value} است (حد طبیعی ${mchc.range}) — MCHC یعنی غلظتِ هموگلوبین داخلِ گلبول، و پایین بودنش همان کم‌رنگیِ گلبول است که در لام هم گزارش می‌شود` : "") +
             (mch?.abnormal && mch.dir === "high" ? `. MCH شما ${mch.value} است که بالاتر از حد طبیعی (${mch.range}) است و با کوچکیِ گلبول‌ها هم‌خوان نیست؛ پزشک باید آن را در کنارِ بقیهٔ نتایج بسنجد` : "") +
             (hct?.abnormal && hct.dir === "high" ? `. هماتوکریت شما ${hct.value} است که بالاتر از حد طبیعی (${hct.range}) است و با هموگلوبینِ پایین هم‌خوان نیست؛ پزشک باید آن را در کنارِ بقیهٔ نتایج بسنجد` : "") +
             (rbcHigh ? `. تعداد گلبول قرمز شما ${rbc.value} است که بالاتر از حد طبیعی (${rbc.range}) است؛ پزشک این را در کنارِ بقیهٔ نتایج می‌سنجد` : "") +

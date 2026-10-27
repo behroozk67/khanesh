@@ -270,15 +270,14 @@ test("R3: ckdEpiEgfr مقدار معقول می‌دهد", () => {
   assert.ok(egfr >= 88 && egfr <= 96, `eGFR باید ~۹۲ باشد، شد ${egfr}`);
 });
 
-test("R3: eGFR پایین با کراتینین طبیعی، الگوی کلیه را فعال می‌کند", () => {
+test("R3: eGFR محاسبه نمی‌شود و کراتینین طبیعی الگوی کلیه فعال نمی‌کند", () => {
   const e = runEngine({ patient: { age: 80, sex: "F" }, tests: [{ name: "Creatinine", value: "1.1", unit: "mg/dL" }] });
   const cr = e.graded.find((g) => g.test === "CREAT");
   assert.equal(cr.abnormal, false, "کراتینین ۱.۱ برای بزرگسال طبیعی است");
-  assert.ok(e.indices.egfr < 60, `eGFR باید < ۶۰ باشد، شد ${e.indices.egfr}`);
+  assert.equal(e.indices.egfr, undefined, "eGFR نباید محاسبه شود");
   const p = runPatterns(e);
   const kidney = p.findings.find((f) => f.pattern === "kidney_impairment" || f.pattern === "prerenal_pattern");
-  assert.ok(kidney, "eGFR پایین باید الگوی کلیه را فعال کند");
-  assert.equal(kidney.urgency, "routine");
+  assert.equal(kidney, undefined, "با کراتینین طبیعی و عدم محاسبهٔ eGFR، الگوی کلیه فعال نمی‌شود");
 });
 
 // ---------- R4: آستانهٔ اورژانس پتاسیم ----------
@@ -804,14 +803,13 @@ test("M42: ناشتای ۲۴۰ + HbA1c ۹ قطعی است و تکرار نمی�
 // باگ واقعی: LLM ارزان جملهٔ eGFR را از تفسیر حذف می‌کرد (آن را «تکراری با
 // کراتینین» می‌دید). تور ایمنی سرور به key_number تکیه می‌کند تا عدد را برگرداند؛
 // پس قاعده‌ها باید این عدد را در finding بگذارند و اولین جملهٔ must_say همان را داشته باشد.
-test("M14: قاعدهٔ کلیه eGFR را به‌عنوان key_number و در جملهٔ اول must_say می‌آورد", () => {
+test("M14: قاعدهٔ کلیه با کراتینینِ بالا فعال می‌شود و کراتینین را در متن می‌آورد", () => {
   const e = runEngine({ patient: { age: 68, sex: "M" }, tests: [{ name: "Creatinine", value: 1.9, unit: "mg/dL" }] });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.pattern === "kidney_impairment");
   assert.ok(f, "باید الگوی کلیه فعال شود");
-  assert.equal(f.key_number, e.indices.egfr, "key_number باید همان eGFR باشد");
-  const firstSent = String(f.must_say).split(/(?<=[.؟!])\s/)[0];
-  assert.ok(firstSent.includes(String(e.indices.egfr)), "جملهٔ اول must_say باید eGFR را داشته باشد");
+  assert.equal(e.indices.egfr, undefined, "eGFR محاسبه نمی‌شود");
+  assert.match(f.must_say, /کراتینین شما 1\.9/);
 });
 
 test("M14: دیابتِ قطعی eAG را به‌عنوان key_number می‌آورد", () => {
@@ -1710,9 +1708,9 @@ test("M26: در رابدومیولیز عددِ eGFR در متن نمی‌آید
             { name: "Creatinine", value: 2.4, unit: "mg/dL" }] });
   const f = runPatterns(e).findings.find((x) => x.pattern === "rhabdomyolysis_pattern");
   assert.ok(/کراتینین شما 2.4/.test(f.must_say), "کراتینینِ بالا باید با عدد بیاید");
-  assert.ok(!/برآوردِ کارِ کلیه/.test(f.must_say),
+  assert.ok(!/برآوردِ کارِ کلیه|eGFR/.test(f.must_say),
     "eGFR در حالتِ ناپایدارِ حاد گمراه‌کننده است و نباید نقل شود");
-  assert.ok(e.indices?.egfr != null, "eGFR محاسبه می‌شود ولی عمداً استفاده نمی‌شود");
+  assert.equal(e.indices?.egfr, undefined, "eGFR محاسبه نمی‌شود");
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -1833,7 +1831,10 @@ test("پوشش/قلبی: با تروپونینِ مثبت، CK-MB زیرِ او�
   assert.equal(ck.urgency, "this_week", "فوریتِ خودِ یافته دست‌نخورده");
   assert.ok(!ck.must_say.includes("یافتهٔ تکمیلی"), "برچسبِ شماره‌دار حذف شد؛ پاراگرافِ «موارد دیگر» جایش را گرفته: " + ck.must_say);
   assert.ok(supplementaryParagraph(p).startsWith("موارد دیگرِ این برگه (جدا از دستور اورژانسیِ بالا): "), supplementaryParagraph(p));
-  assert.ok(ck.must_say.includes("CK-MB 45 (طبیعی 0–25)"), "عدد از گزارش نمی‌افتد: " + ck.must_say);
+  // ⚠️ ۲۰۲۶-۱۰-۱۶: نشانگرِ جهتِ RLM بین «CK-MB» و عدد می‌آید (گزارشِ کاربر — نامِ لاتین باید
+  //   عدد را سمتِ چپِ خود بگیرد؛ rules/faText.js). برای سنجشِ متن، نشانگرها حذف می‌شوند تا
+  //   ادعا همان چیزی بماند که خواننده *می‌بیند*.
+  assert.ok(ck.must_say.replace(/\u200f/g, "").includes("CK-MB 45 (طبیعی 0–25)"), "عدد از گزارش نمی‌افتد: " + ck.must_say);
   assert.equal(ck.action, "", "دستورِ زمان‌دارِ دوم نمی‌آید (N20)");
   assert.deepEqual(p.suppressed_ids, ["ckmb_high"]);
   assert.deepEqual(p.supplementary_ids, ["ckmb_high"]);
@@ -3655,13 +3656,10 @@ test("M56: با ACR بالا و بدونِ کراتینین، ادعای «eGFR 
 
   assert.doesNotMatch(f.must_say, /eGFR شما طبیعی/,
     "دربارهٔ تستِ اندازه‌گیری‌نشده ادعای «طبیعی» نکن (N4)");
-  assert.match(f.must_say, /محاسبه نشده/,
-    "غیبتِ eGFR باید صریح گفته شود، نه با سکوت رد شود");
 });
 
-// M56b — نیمهٔ دومِ همان نقص: وقتی eGFR *هست*، باید عددِ واقعی بیاید.
-// پیش از رفع، val(e).EGFR همیشه undefined بود پس این شاخه هرگز اجرا نمی‌شد.
-test("M56b: وقتی کراتینین هست، عددِ واقعیِ eGFR در متن می‌آید", () => {
+// M56b — نیمهٔ دومِ همان نقص: وقتی کراتینین هست، eGFR محاسبه نمی‌شود
+test("M56b: وقتی کراتینین هست، eGFR محاسبه نمی‌شود و در متنِ albuminuria نمی‌آید", () => {
   const e = runEngine({
     patient: { age: "60", sex: "M" },
     tests: [
@@ -3669,17 +3667,12 @@ test("M56b: وقتی کراتینین هست، عددِ واقعیِ eGFR در �
       { name: "Creatinine", value: "1.9", unit: "mg/dL" },
     ],
   });
-  assert.ok(e.indices.egfr != null, "برای این پنل eGFR باید محاسبه شود");
+  assert.equal(e.indices.egfr, undefined, "برای این پنل eGFR نباید محاسبه شود");
 
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.rule_id === "albuminuria_pattern");   // P107 (L19): قابِ eGFR به این قاعده منتقل شد
   assert.ok(f, `قاعده فعال نشد؛ فعال‌شده‌ها: ${p.findings.map((x) => x.pattern).join("، ") || "هیچ"}`);
-  assert.match(
-    f.must_say,
-    new RegExp(String(e.indices.egfr).replace(".", "\\.")),
-    `عددِ eGFR (${e.indices.egfr}) باید در متن بیاید`,
-  );
-  assert.doesNotMatch(f.must_say, /محاسبه نشده/);
+  assert.doesNotMatch(f.must_say, /eGFR/);
 });
 
 // M57 — persistent_microhematuria روی U_RBC بود که کلید نیست، پس هرگز فعال
@@ -4917,14 +4910,42 @@ test("M84d: تروپونینِ خیلی بالا فقط یکی از دو قاع�
 // 🔴 پیش از اصلاح: CRP=۳ داخلِ [0, 5] mg/L می‌افتاد و هیچ یافته‌ای نمی‌ساخت،
 //    در حالی که CDC/AHA همین عدد را «خطرِ بالا» می‌نامد.
 //    اندازه‌گیری‌شده روی کدِ قدیم: fired = (none).
-test("M85: CRP=۳ زیرِ حدِ التهاب است ولی ردهٔ خطرِ قلبی می‌سازد", () => {
-  const e = runEngine({ patient: { age: 50, sex: "M" }, tests: [{ name: "CRP", value: "3", unit: "mg/L" }] });
+test("M85: hs-CRP=۳ زیرِ حدِ التهاب است ولی ردهٔ خطرِ قلبی می‌سازد", () => {
+  const e = runEngine({ patient: { age: 50, sex: "M" }, tests: [{ name: "hs-CRP", value: "3", unit: "mg/L" }] });
   assert.equal(e.graded.find((g) => g.test === "CRP_Q").abnormal, false,
-    "CRP=۳ نباید به‌عنوانِ التهاب غیرطبیعی باشد");
+    "hs-CRP=۳ نباید به‌عنوانِ التهاب غیرطبیعی باشد");
   const f = findPat(runPatterns(e), "hscrp_ascvd_risk");
   assert.ok(f, "یافتهٔ ردهٔ خطر نیامد");
   assert.equal(f.urgency, "routine");
   assert.match(f.must_say, /تشخیص نیست/, "باید صریح بگوید تشخیص نیست");
+});
+
+// 🔴 M85-n: گیتِ سنجه (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶).
+//    جدولِ ۳ گایدلاینِ ۲۰۱۹ ACC/AHA خطِ «Elevated *high-sensitivity* C-reactive
+//    protein (≥2.0 mg/L)» است، و بیانیهٔ CDC/AHA می‌گوید «inflammatory markers
+//    other than hsCRP should not be measured for the determination of coronary
+//    risk». یعنی ردهٔ خطر روی سنجهٔ معمولیِ CRP بی‌اعتبار است.
+//
+//    برگهٔ واقعیِ ۲۰۲۶-۱۰-۱۶: «CRP(quantitative) 5.0 IU/ml، Up to: 6».
+//    پیش از اصلاح، همین ردیف متنِ زیر را می‌ساخت — دو ادعای ناسازگار روی
+//    تستی که هیچ‌یک را نمی‌سنجد:
+//      «CRP 5 mg/L: داخلِ محدودهٔ مرجعِ التهاب است؛ بر مقیاسِ خطرِ قلبی
+//       (hs-CRP) در ردهٔ «خطرِ بالا» (بالای ۳) است.»
+test("M85n: CRPِ کمّی (غیرِ hs) ردهٔ خطرِ قلبی نمی‌سازد -- با بازهٔ چاپی و بی‌آن", () => {
+  for (const t of [
+    { name: "CRP(quantitative)", value: "5.0", unit: "IU/ml", reference: "Up to: 6" },   // برگهٔ واقعی
+    { name: "CRP", value: "3", unit: "mg/L" },
+    { name: "CRP", value: "5", unit: "mg/dL" },
+  ]) {
+    const e = runEngine({ patient: { age: 36, sex: "M" }, tests: [t] });
+    assert.notEqual(e.indices?.crp_hs_assay, true, `«${t.name}» نباید hs علامت بخورد`);
+    assert.ok(!fired(runPatterns(e)).includes("hscrp_ascvd_risk"),
+      `«${t.name}» نباید ردهٔ خطر بدهد: ${fired(runPatterns(e)).join(", ")}`);
+  }
+  // و سنجهٔ hs همان بازه را باید بدهد (کنترلِ مثبت — گاردِ خالی نباشد).
+  const hs = runEngine({ patient: { age: 36, sex: "M" }, tests: [{ name: "hs-CRP", value: "5", unit: "mg/L" }] });
+  assert.equal(hs.indices?.crp_hs_assay, true, "hs-CRP باید علامت بخورد");
+  assert.ok(fired(runPatterns(hs)).includes("hscrp_ascvd_risk"), "hs-CRP باید ردهٔ خطر بدهد");
 });
 
 test("M85b: بالای ۳ ردهٔ «خطرِ بالا» و بین ۲ و ۳ «تقویت‌کنندهٔ خطر»", () => {
@@ -4936,12 +4957,12 @@ test("M85b: بالای ۳ ردهٔ «خطرِ بالا» و بین ۲ و ۳ «ت
 
 test("M85c: کنترلِ منفی — دو لبهٔ پنجره هیچ‌کدام فعال نمی‌شوند", () => {
   // زیرِ ۲: طبقِ ACC/AHA اصلاً «تقویت‌کنندهٔ خطر» نیست.
-  const low = runPatterns(runEngine({ tests: [{ name: "CRP", value: "1.2", unit: "mg/L" }] }));
+  const low = runPatterns(runEngine({ tests: [{ name: "hs-CRP", value: "1.2", unit: "mg/L" }] }));
   assert.ok(!fired(low).includes("hscrp_ascvd_risk"), `زیرِ ۲ نباید فعال شود: ${fired(low).join(", ")}`);
   // بالای ۱۰: کادرِ ۱۹.۲ می‌گوید این نتیجه باید کنار گذاشته شود و دو هفته بعد
   // تکرار شود — یعنی خواندنش به‌عنوانِ «ردهٔ خطر» غلط است. N19 برعکس: اینجا
   // لبهٔ بالای باند عمداً به قاعدهٔ التهابیِ موجود واگذار شده.
-  const hi = runPatterns(runEngine({ tests: [{ name: "CRP", value: "12", unit: "mg/L" }] }));
+  const hi = runPatterns(runEngine({ tests: [{ name: "hs-CRP", value: "12", unit: "mg/L" }] }));
   assert.ok(!fired(hi).includes("hscrp_ascvd_risk"), `بالای ۱۰ نباید ردهٔ خطر بدهد: ${fired(hi).join(", ")}`);
   assert.ok(fired(hi).length > 0, "بالای ۱۰ باید یافتهٔ التهابیِ خودش را داشته باشد، نه سکوت");
 });
@@ -4949,7 +4970,7 @@ test("M85c: کنترلِ منفی — دو لبهٔ پنجره هیچ‌کدام
 // ⚠️ خودِ منبع می‌گوید «غربالگریِ همگانیِ hs-CRP توجیه ندارد». پس گزارشِ عددی
 //    که اندازه‌گیری *شده* درست است و درخواستِ اندازه‌گیری‌اش نیست.
 test("M85d: قاعدهٔ hs-CRP هرگز خودِ CRP را پیشنهاد نمی‌دهد", () => {
-  const f = findPat(runPatterns(runEngine({ tests: [{ name: "CRP", value: "3", unit: "mg/L" }] })), "hscrp_ascvd_risk");
+  const f = findPat(runPatterns(runEngine({ tests: [{ name: "hs-CRP", value: "3", unit: "mg/L" }] })), "hscrp_ascvd_risk");
   assert.ok(!f.suggest.some((s) => /CRP/i.test(s)), `CRP نباید پیشنهاد شود: ${JSON.stringify(f.suggest)}`);
   // P110 (۲۰۲۶-۱۰-۱۶، عمداً عوض شد): CRPِ داخلِ محدوده یافتهٔ بی‌اقدام (minor) است و هشدارهایش در همان یک خط می‌آید، نه در warnings.
   assert.ok([f.must_say, ...f.warnings].some((w) => /برای همه توصیه نمی‌شود/.test(w)), "هشدارِ «غربالگری برای همه نیست» جا افتاد");
@@ -5178,7 +5199,7 @@ test("M90: هر قاعدهٔ patterns_cardiac با دستِ‌کم یک پنل �
   const { RULES_CARDIAC } = await import("./patterns_cardiac.js");
   const panels = [
     [{ age: 45, sex: "M" }, [{ name: "hs-cTnI", value: "45", unit: "ng/L" }]],
-    [{ age: 50, sex: "M" }, [{ name: "CRP", value: "3", unit: "mg/L" }]],
+    [{ age: 50, sex: "M" }, [{ name: "hs-CRP", value: "3", unit: "mg/L" }]],   // ← hs لازم است (گیتِ سنجه، ACC/AHA 2019)
     [{ age: 70, sex: "M" }, [{ name: "BNP", value: "450", unit: "pg/mL" }]],
     [{ age: 45, sex: "M" }, [{ name: "Homocysteine", value: "22", unit: "umol/L" }]],
   ];
@@ -5964,28 +5985,32 @@ test("M98d: اورژانسِ بیلی‌روبین جزءِ غالب را می�
 //    اطمینان از فقر آهن حرف می‌زد. سیگنالی که دربارهٔ پنل درست است دربارهٔ یک
 //    تست غلط است؛ همان کلاسِ N18/N16 یک لایه بالاتر، روی لایهٔ رندر.
 test("M100: `unexplained_abnormal` فهرستِ ساختاریِ کلیدهای بی‌مالک را می‌آورد", () => {
-  const p = runPatterns(runEngine({
+  const e = runEngine({
     patient: { age: 45, sex: "F" },
     tests: [
       { name: "Hb", value: "9.5", unit: "g/dL" },
       { name: "MCV", value: "70" },
       { name: "Ferritin", value: "6" },
       { name: "MCH", value: "18" },
-      // ⚠️ کلیدِ بی‌مالک MCHC است. تا M187، MCH این نقش را داشت، ولی حالا
-      //    microcytic_anemia آن را می‌خواند و نام می‌برد (بندِ E5). MCHCِ پایین هنوز
-      //    روی این پنل خواننده‌ای ندارد. اندازه‌گیری‌شده.
+      // P114 (۲۰۲۶-۱۰-۲۷): MCHC روی همین پنل حالا خواننده دارد (جملهٔ کم‌رنگیِ گلبول در
+      //   microcytic_ida_likely) و «بی‌مالک» نیست. برای آزمودنِ خودِ تور، یک ردیفِ غیرطبیعیِ
+      //   بی‌مالکِ ساختگی اضافه می‌شود تا قراردادِ uncovered دست‌نخورده قفل بماند.
       { name: "MCHC", value: "28", unit: "g/dL" },
     ],
-  }));
+  });
+  const fake = { test: "ZZZ", value: 9, dir: "high", abnormal: true, level: "mild", range: "1–5", tag: "out_of_range_high" };
+  e.graded = [...e.graded, fake];
+  e.abnormal = [...e.abnormal, fake];
+  const p = runPatterns(e);
 
   const net = p.findings.find((f) => f.rule_id === "unexplained_abnormal");
   assert.ok(net, `تور فعال نشد؛ آمده‌ها: ${p.findings.map((f) => f.pattern).join("، ") || "هیچ"}`);
   assert.ok(Array.isArray(net.uncovered), "فیلدِ uncovered باید آرایه باشد");
-  assert.ok(net.uncovered.includes("MCHC"), `MCHC باید در فهرست باشد، بود: ${net.uncovered.join("، ")}`);
+  assert.ok(net.uncovered.includes("ZZZ"), `ZZZ باید در فهرست باشد، بود: ${net.uncovered.join("، ")}`);
 
   // و مهم‌ترِ این: کلیدهایی که *توضیح داده شده‌اند* نباید در فهرست باشند،
   // وگرنه فرانت دوباره همان تناقض را چاپ می‌کند.
-  for (const covered of ["HGB", "MCV", "FERRITIN", "MCH"]) {
+  for (const covered of ["HGB", "MCV", "FERRITIN", "MCH", "MCHC"]) {
     assert.ok(
       !net.uncovered.includes(covered),
       `${covered} توضیح داده شده بود و نباید «بی‌توضیح» علامت بخورد؛ فهرست: ${net.uncovered.join("، ")}`
@@ -6494,7 +6519,7 @@ test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ ام
     //   پیشوند هش بایت‌به‌بایت همان db536cbb6c334e6e است.
     // بازپایهٔ عمدی (P108، ۲۰۲۶-۱۰-۱۶): کراتینینِ ۱٫۲ِ زن با eGFR ۶۳ ⇒ kidney «routine» + سرتیترِ «کراتینین … کمی بالاتر» + جملهٔ بازهٔ ۶۰–۸۹
     //   به‌جای «مرحلهٔ ۲». diffِ کاملِ خروجی (درختِ HEAD برای همین هفت فایل): فقط همان یافته عوض شد و به‌خاطرِ فوریتِ کمترش جابه‌جا شد. قبلی 3272562e0b81615b.
-    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "2b85ca92ecc8078d"], // P108-ج (عمدی): فقط جملهٔ «تک‌نوبت» در must_sayِ liver_pattern (diff کامل ۲۰۲۶-۱۰-۱۶). ⚠️ بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، عمدی): فقط ترومبوسیتوپنی — thrombocytopenia رفت، isolated عدد/بازه و بی‌«ایزوله» (Hb/WBC روی برگه نیست)؛ فوریت همان
+    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "c8ac18812efb7a28"], // بازپایه عمدی (حذف محاسبه eGFR)
     uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
     thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "0da3c35337661135"],
     // prl_thyroid برداشته شد (۲۰۲۶-۱۰-۰۳): پرولاکتین با تأییدِ P46 بند ۱ بازه و قاعده گرفت (hyperprolactinemia، M101–M101e)،
@@ -7108,8 +7133,11 @@ test("M125: واحدِ چاپ‌شده بایت‌به‌بایت بی‌تغی�
   //   عوض شد («در محدودهٔ دیابت» + نامِ قند و عددش). اثبات: کپیِ درخت با فقط همان دو hunk برگردانده‌شده، هر ۱۵ هشِ قبلی را عیناً می‌دهد
   //   (f665faa0048dbdf5، c1d5e82d7ddbc3e0، 3b49baf122f3ba66)؛ ۱۲ پنلِ دیگر بی‌تغییرند.
   // ⚠️ آخری عمداً بازپایه شد (P107، ۲۰۲۶-۱۰-۱۳): فقط جملهٔ علتِ کمبودِ آهنِ مرد (L7: «قاعدگی» از متنِ مرد حذف شد). اثبات: کپیِ درخت با فقط hunkهای P107 (L7 علت+اقدام، L1 پیروی از liver_pattern، L17 safety_warnings) برگردانده‌شده، هشِ قبلی را عیناً می‌دهد.
+  // ⚠️ دو پنلِ کراتینین عمداً بازپایه شدند (۲۰۲۶-۱۰-۱۶، حذفِ محاسبهٔ eGFR از موتور): متنِ kidney_impairment دیگر
+  //   «eGFR شما …» ندارد و indices.egfr ساخته نمی‌شود. اثباتِ عمدی‌بودن: روی کپیِ درخت با فقط احیای محاسبهٔ eGFR،
+  //   هشِ قبلی عیناً برمی‌گردد؛ بقیهٔ اجزای هش (درجه‌بندی/CREAT 1.9 بالا، UREA 70 بالا، نبودِ هشِ کلیویِ دیگر) بی‌تغییر.
   const EXPECTED = ["6c9c0b13f8bedb08", "64e5d9bacf2b4164", "4cf12f06147a9f54", "bd45550d31afb2f3", "4436e94e10c7ae54",
-    "81ff9d916b808907", "e4d91c9257556a36", "995fad1290b5833e", "edac66e5fd40ebf2", "4231b77939cd3a67",
+    "9f92862b01304e03", "3e42dc52c5b43bdc", "995fad1290b5833e", "edac66e5fd40ebf2", "4231b77939cd3a67",
     "5a3b00c577ab6abf", "c2ef8cb631aa6acb", "09889f9ef3323ae1", "47ef5a64951b1422", "ae34e1364ae42f9c"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
   const snap = (rows) => {
     const e = runEngine({ patient: { age: 50, sex: "M" }, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
@@ -8885,8 +8913,10 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
     ["severe_anemia_crisis", "rbc_indices_implausible"]);
   assert.deepEqual(fired(uuuRun([["Hb", "10.5", null, "g/dL"], ["MCV", "88", null, "fL"], ["MCH", "30", null, "pg"], ["MCHC", "37", null, "g/dL"], ["RDW-CV", "16.5", null, "%"]], F30)),
     ["normocytic_anemia", "spherocytosis_likely"]);
+  // ⚠️ P114 (۲۰۲۶-۱۰-۲۷): MCHC در تابلوی میکروسیتیک حالا خواننده دارد (جملهٔ کم‌رنگی در همان یافته)،
+  //    پس دیگر در تورِ «توضیح نداریم» نمی‌نشیند. عمداً عوض شد.
   assert.deepEqual(fired(uuuRun([["Hb", "9.5", null, "g/dL"], ["Hct", "34", null, "%"], ["MCV", "68", null, "fL"], ["MCHC", "28", null, "g/dL"]], F30)),
-    ["microcytic_ida_likely", "unexplained_abnormal"]);
+    ["microcytic_ida_likely"]);
   assert.deepEqual(fired(uuuRun([["Hb", "12.8", null, "g/dL"], ["Hct", "58", null, "%"], ["MCV", "126", null, "fL"], ["MCHC", "22", null, "g/dL"]], M40)),
     ["macrocytic_anemia", "unexplained_abnormal"]);
 
@@ -8925,7 +8955,14 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   // ⚠️ اندیسِ ۵ (MCHC 37) عمداً عوض شد — P95: spherocytosis_likely جملهٔ «اسفروسیت به‌تنهایی تشخیصِ نوعی کم‌خونی نیست؛ DAT» و پیشنهادِ DAT/رتیکولوسیت/LDH گرفت (proof95، فوریت همان).
   // ⚠️ اندیس ۶ عمداً عوض شد (P105، M6): erythrocytosis گلبولِ قرمزِ 6.3 و هماتوکریتِ 56 را می‌گوید و unexplained_abnormalِ هماتوکریت رفت —
   //   مقایسهٔ خروجیِ کامل با HEAD (630cb3f): فقط همین دو؛ فوریت و اقدام یکسان.
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","7395f6ac9b03b2ba","dc7c4e1e1b6de999","1f07ceaf3545185d","533579b1749fa223","dd3f16a57359abb0","c979a7f9f4e6d5f6","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
+  // ⚠️ اندیسِ ۲ عمداً عوض شد (۲۰۲۶-۱۰-۱۶، گزارشِ کاربر): نشانگرِ جهت سرِ «MCHC 30.5» در خطِ
+  //   unexplained_abnormal. سنجیده شد (diffِ کاملِ همان پنل): تنها فرق، افزودنِ RLM (U+200F)
+  //   به‌جای فاصله بین «MCHC» و عدد است — باقیِ هر ۱۲ پنل بایت‌به‌بایت همان. قبلی 7395f6ac9b03b2ba.
+  //   دلیلِ RLM و اندازه‌گیریِ مرورگر: rules/faText.js.
+  // ⚠️ اندیسِ ۲ باز هم عمداً عوض شد (P114، ۲۰۲۶-۱۰-۲۷): جملهٔ MCHC («غلظتِ هموگلوبین داخلِ گلبول …»)
+  //   به must_sayِ microcytic_ida_likely اضافه شد تا MCHC از خطِ «توضیحِ آماده نداریم» بیرون بیاید.
+  //   سنجیده شد (diffِ همان پنل): تنها فرق، همان یک جمله است؛ یافته‌ها/فوریت/اقدام همان. قبلی a7643510fa9e6ac3.
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","862c661d924acbff","dc7c4e1e1b6de999","1f07ceaf3545185d","533579b1749fa223","dd3f16a57359abb0","c979a7f9f4e6d5f6","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
   // ⚠️ اندیسِ ۸ (PLT 90، Hb/WBCِ طبیعی) عمداً عوض شد — بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، N20): thrombocytopenia کنارِ isolated_thrombocytopenia
   //   کنار رفت؛ isolated عدد/بازه (به‌جای «به زیر ۱۰۰ هزار») و «تکرار CBC» گرفت. فوریت همان this_week (proof4.mjs، کپیِ pre4).
   assert.deepEqual(P.map(snap), EXPECTED);
@@ -11147,7 +11184,6 @@ test("M240c: F4 — اورهٔ بالا با کراتینینِ طبیعی صا�
   // P59 پرسش ۴: با Hbِ پایین (7.1) و BUN/Cr = 33 ⇒ خونریزیِ گوارشی در صدر و فوریتِ soon
   assert.match(u.must_say, /هموگلوبین 7.1 هم پایین است و نسبتِ اوره به کراتینین \(BUN\/Cr\) 33 است.*خونریزی در دستگاه گوارش.*مدفوعِ تیره/);
   assert.match(u.action, /۲۴ تا ۴۸ ساعت/);
-  assert.match(u.must_say, /eGFR\) حدود 80/);
   assert.equal(u.urgency, "soon");
   // نقطهٔ کنترل: همان برگه با Hbِ طبیعی ⇒ متنِ قبلی، routine
   const u2 = fffFind(j40Run(j40NoBlocker(j40With("Hb", "13.5"))).p, "isolated_urea_elevation");
@@ -11410,9 +11446,12 @@ test("M244: LDHِ واقعی زیرِ اورژانس با headlineِ قاعده 
   ]);
   const f = p.findings.find((x) => x.rule_id === "isolated_ldh_elevation");
   assert.ok(f && f.supplementary, "پیش‌شرط: LDH تکمیلی شد");
-  assert.ok(f.must_say.includes("LDH بالاتر از حد طبیعی است؛ این عدد به‌تنهایی یک بیماری را مشخص نمی‌کند"), f.must_say);
-  assert.ok(!f.must_say.includes("آنزیمی است که تقریباً"), f.must_say);
-  assert.ok(f.must_say.includes("LDH 900"), f.must_say);
+  // ⚠️ ۲۰۲۶-۱۰-۱۶: نشانگرِ RLM بین «LDH» و عدد (نامِ لاتین؛ rules/faText.js) — متنِ دیده‌شده
+  //   برای سنجش، بی‌نشانگر مقایسه می‌شود.
+  const shown = f.must_say.replace(/\u200f/g, "");
+  assert.ok(shown.includes("LDH بالاتر از حد طبیعی است؛ این عدد به‌تنهایی یک بیماری را مشخص نمی‌کند"), f.must_say);
+  assert.ok(!shown.includes("آنزیمی است که تقریباً"), f.must_say);
+  assert.ok(shown.includes("LDH 900"), f.must_say);
 });
 
 test("M244b: سه id فهرستِ headline-only به‌جای جملهٔ اولِ تعریفی headline می‌گیرند؛ idِ دیگر جملهٔ اولش را نگه می‌دارد", () => {

@@ -468,7 +468,7 @@ function bhbBuild(e) {
 }
 
 // ── ۱۴) نیتریت/پیوریِ تنها (uti_pattern دو نشانه می‌خواهد؛ N1 بازِ CLAUDE.md) ──
-const NIT_RE = /nitrite|نیتریت/i;
+const NIT_RE = /nitrit|نیتریت/i;   // P113: «Nitrit» (غلطِ املاییِ LIS) هم نیتریت است — بی‌این، مثبتش یافته نمی‌ساخت
 const WBC_RE = /wbc|pus\s*cells?|پوس\s*سل|leukocyt/i;
 const LE_RE = /leukocyte|استراز|esterase/i;
 // IDSA/ACOG/USPSTF: در بارداری باکتری‌ی بی‌علامت هم باید با کشتِ ادرار پیدا و درمان شود؛ نوار (نیتریت/استراز) حساسیتِ کمی دارد
@@ -618,4 +618,30 @@ export const RULES_COVERAGE_GAPS = [
       };
     },
   },
+  // ── P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): یادداشتِ چاپیِ آزمایشگاه/پاتولوژیست ──
+  // روی برگه‌های واقعی، تشخیصِ خودِ پاتولوژیست در فیلدِ Comment بود («Minor thalassemia is suspected»،
+  // «persistent absolute lymphocytosis») و به گزارش نمی‌رسید. متن عیناً نقل می‌شود، بی‌ترجمه و بی‌حکم:
+  // آن جمله کارِ آزمایشگاه است، نه تفسیرِ موتور — و ترجمه/بازنویسی‌اش یعنی حکمِ پزشکیِ ساختگی (N2/N13).
+  {
+    id: "lab_comment_note",
+    match: (e) => Array.isArray(e.labComments) && e.labComments.length > 0,
+    build: (e) => {
+      const quotes = e.labComments
+        .map((c) => `«${String(c.text ?? "").replace(/\s+/g, " ").trim()}»`)
+        .filter((q) => q.length > 3)
+        .join("، ");
+      if (!quotes) return null;
+      return {
+        pattern: "lab_comment_note",
+        urgency: "routine",
+        supplementary: true,
+        headline: "یادداشتی که آزمایشگاه روی برگه نوشته است",
+        must_say: `آزمایشگاه روی همین برگه نوشته است: ${quotes} — این جمله را آزمایشگاه نوشته و تفسیرِ خودکارِ ما نیست؛ برای همین عیناً نقل می‌شود و ترجمه یا حکمِ تازه‌ای روی آن نمی‌گذاریم. آن را با پزشک خود در میان بگذارید.`,
+        action: "در نوبتِ عادی این یادداشت را با پزشک مطرح کنید.",
+        suggest: [],
+        warnings: [],
+      };
+    },
+  },
 ];
+

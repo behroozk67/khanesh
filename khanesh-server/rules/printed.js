@@ -1,7 +1,8 @@
 // عددِ «روی برگه» در برابر عددِ سنجیده‌شده (N5) و دو بلوکِ پایانیِ تفسیر که موتور خودش می‌سازد، نه مدل:
 //   ۱) «موارد دیگر» = یافته‌های تکمیلی (زیرِ blocker)، ۲) «مواردِ در محدودهٔ طبیعی».
-// فقط به names.js وابسته است تا هم patterns.js هم prompt.js هم expert.js بدونِ دور وارد کنند.
+// فقط به names.js و faText.js وابسته است تا هم patterns.js هم prompt.js هم expert.js بدونِ دور وارد کنند.
 import { faName } from "./names.js";
+import { joinFaNumber } from "./faText.js";
 
 /**
  * عددِ روی برگه و دلیلِ تفاوتش با عددِ سنجیده‌شده. فقط وقتی پر می‌شود که موتور عددِ برگه را *واقعاً* نگه داشته و
@@ -33,10 +34,12 @@ export function rowQuoteFa(engineOut, a) {
   const p = printedOf(a.test, a, engineOut);
   const pv = p.printed?.value;
   const showPrinted = pv != null && String(pv) !== String(a.value);
-  if (!showPrinted) return `${name} ${a.value}${a.range ? ` (طبیعی ${a.range})` : ""}`;
+  // نشانگرِ جهت سرِ نام/عدد (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): نام‌هایی که با لاتین/رقم تمام
+  //   می‌شوند (ویتامین B12، HDL) بی‌آن، عدد سمتِ راستِ نام می‌افتاد. جزئیات: faText.js.
+  if (!showPrinted) return joinFaNumber(name, `${a.value}${a.range ? ` (طبیعی ${a.range})` : ""}`);
   const printed = p.printed.unit === "%" ? `٪${pv}` : `${pv}${p.printed.unit ? ` ${p.printed.unit}` : ""}`;
   const measured = p.derived_from === "percent_of_wbc" ? "شمارش مطلق" : "مقدار سنجیده‌شده";
-  return `${name} ${printed} (${measured} ${a.value}${a.range ? `؛ طبیعی ${a.range}` : ""})`;
+  return joinFaNumber(name, `${printed} (${measured} ${a.value}${a.range ? `؛ طبیعی ${a.range}` : ""})`);
 }
 
 const NEONATE_YEARS = 28 / 365.25;
@@ -62,6 +65,9 @@ export function supplementaryParagraph(patterns) {
 /**
  * P110: بلوکِ «موارد دیگر، بی‌اقدام» — یافته‌هایی که قاعده‌شان خودش گفته اقدامی ندارند (info ⇒ minor در runPatterns)، هر کدام یک خط با عددِ
  * خودش. مدل این‌ها را نمی‌بیند؛ پس نه حذف می‌شوند نه بازنویسی (N7/N18).
+ * ⚠️ متنِ خودِ یافته‌ها اینجا بازچینی نمی‌شود؛ فقط جداکنندهٔ «؛» افزوده می‌شود. چیدمانِ نام/عددِ داخلِ
+ *    هر یافته مالِ جای تولیدش است (faText.joinFaNumber) — وگرنه با یک replaceِ کور، RLMهای داخلِ
+ *    متنِ یافته‌ها دوباره‌شمرده می‌شدند.
  */
 export function minorParagraph(patterns) {
   const items = (patterns?.findings ?? [])
@@ -89,7 +95,10 @@ export function normalRangeParagraph(engineOut, { max = 20 } = {}) {
     if (pv == null || pv === "") continue;
     const shown = p.printed?.unit === "%" ? `٪${pv}` : p.printed?.unit ? `${pv} ${p.printed.unit}` : `${pv}`;
     seen.add(name);
-    items.push(`${name} ${shown}`);
+    // 🔴 نام/عدد با نشانگرِ جهت به هم می‌چسبند (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): «ویتامین B12 251»
+    //    بدونِ RLM روی صفحه «ویتامین 251 B12» دیده می‌شد — عدد سمتِ راستِ نامِ لاتین.
+    //    جزئیات و اندازه‌گیریِ مرورگر: rules/faText.js.
+    items.push(joinFaNumber(name, shown));
   }
   if (!items.length) return "";
   const age = engineOut?.age;

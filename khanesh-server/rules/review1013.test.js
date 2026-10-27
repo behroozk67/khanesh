@@ -351,8 +351,12 @@ test("P105-M1: سدیمِ تصحیح‌شده زیرِ HHS عددِ روی بر�
 test("P105-M3: kidney بی eGFR عددِ کراتینین را می‌گوید و «این عدد» مرجع دارد", () => {
   for (const [p, cr] of [[{ sex: "M", age: 10 }, "1.5"], [{}, "1.8"]]) {
     const { all } = texts([["Creatinine", cr, "mg/dL"]], p);
-    assert.match(all, new RegExp(`کراتینین[^.]*${cr.replace(".", "\.")}`), JSON.stringify(p));
-    assert.match(all, /eGFR\) از روی این برگه محاسبه نشد/);
+    assert.match(all, new RegExp(`کراتینین[^.]*${cr.replace(".", "\\.")}`), JSON.stringify(p));
+    // 🔴 ۲۰۲۶-۱۰-۱۶ (حذفِ محاسبهٔ eGFR): پیش‌تر اینجا ادعای «(eGFR) از روی این برگه
+    //    محاسبه نشد» بود. حالا موتور اصلاً eGFR نمی‌سازد، پس همان جمله هم نباید بیاید
+    //    (ادعایی دربارهٔ سنجه‌ای که در سامانه وجود ندارد = N4). متنِ جانشین، خودِ عددِ
+    //    کراتینین است — که سطرِ بالا سنجیده می‌شود.
+    assert.doesNotMatch(all, /eGFR/);
   }
 });
 

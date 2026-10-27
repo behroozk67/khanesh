@@ -347,14 +347,19 @@ test("M348: FBS 300 — یافتهٔ دیابت «این هفته» نمی‌گ�
   assert.match(finding(run([row("FBS", "150", "mg/dL")]), "glycemia").action, /این هفته/);
 });
 
-test("M349: CRP 6 (ULN 5) — hscrp نمی‌گوید «داخلِ محدودهٔ مرجع/نیاز به مراجعهٔ زودهنگام ندارد» کنارِ crp_elevated؛ CRP 3 همان متنِ قبلی", () => {
-  const a = run([row("CRP", "6", "mg/L")]);
+test("M349: hs-CRP 6 (ULN 5) — hscrp نمی‌گوید «داخلِ محدودهٔ مرجع/نیاز به مراجعهٔ زودهنگام ندارد» کنارِ crp_elevated؛ hs-CRP 3 همان متنِ قبلی", () => {
+  const a = run([row("hs-CRP", "6", "mg/L")]);
   assert.ok(ids(a).includes("crp_elevated") && ids(a).includes("hscrp_ascvd_risk"), ids(a).join());
   const h = finding(a, "hscrp_ascvd_risk");
   assert.doesNotMatch(h.must_say, /داخلِ محدودهٔ مرجعِ التهاب است/);
   assert.doesNotMatch(h.action, /نیاز به مراجعهٔ زودهنگام داشته باشد/);
-  const b = finding(run([row("CRP", "3", "mg/L")]), "hscrp_ascvd_risk");
+  const b = finding(run([row("hs-CRP", "3", "mg/L")]), "hscrp_ascvd_risk");
   assert.match(b.must_say, /داخلِ محدودهٔ مرجعِ التهاب است/);
+  // 🔴 M349-n (۲۰۲۶-۱۰-۱۶): سنجهٔ معمولیِ CRP هیچ‌کدام از این دو یافته را نمی‌سازد.
+  //    جدولِ ۳ خطِ ۲۰۱۹ ACC/AHA فقط به *high-sensitivity* CRP اشاره دارد.
+  const c = run([row("CRP", "6", "mg/L")]);
+  assert.ok(ids(c).includes("crp_elevated"), `CRPِ بالای ULN باید crp_elevated بدهد: ${ids(c).join()}`);
+  assert.ok(!ids(c).includes("hscrp_ascvd_risk"), `CRPِ معمولی نباید ردهٔ خطرِ hs بدهد: ${ids(c).join()}`);
 });
 
 test("M350: AST 500 + ALT 200 + GGT بالا — alcoholic_liver_pattern زمان‌بندیِ رقیب («این هفته») نمی‌دهد؛ AST 150 هنوز «این هفته»", () => {

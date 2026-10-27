@@ -2401,6 +2401,15 @@ not by a test.
 - **The shape that generalizes:** 12 findings on a near-normal sheet, of which 5 carried an action. Every routine finding was rendered as a paragraph and every one sent its own `suggest`. A hard cap (the review proposed 5 findings / 4 follow-ups) is N7/N18 again; the fix is the `minor` channel (`info: true` + `minor_line` quoting the number, engine-rendered, never sent to the model, routine only). **Rule:** when a report is long, first ask which findings have nothing for the patient to *do*, and give them one line with their number. Don't cap the list.
 - Guards `V21`–`V30`, `T27`. Register `P110`.
 
+### N36 — A field added to the engine's *state* for one rule is read by shared display code, so P112's `name` rewrote findings it never touched
+2026-10-21, P112 (`name` propagation through `serology.js` → `adapter.js` → `patterns_autoimmune.js`). Caught by a byte-lock, not by the new rule's own tests.
+
+- **Tried:** propagate the row's printed name (`t.name`) onto the auto-antibody assay state so the FIT/FOBT builder can tell a guaiac row (`Hemoccult SENSA`, `Guaiac FOBT`) from an immunochemical one. The field itself is right — the method changes the instructions the patient gets.
+- **Broke:** `label()` in `patterns_autoimmune.js` was `a.name ?? faName(id)`, so *every* assay row started printing its raw sheet name: the tumour-marker panel lost its Persian gloss (`AFP (آلفافتوپروتئین)` → `AFP`). `PN02` (byte-for-byte control over sheets with no prenatal witness) went red on `afp_tm` — nothing to do with FIT, and the new B18–B23 tests were all green.
+- **Fix:** `label = (a, id) => (!a.assay && a.name ? a.name : faName(id))` — the qual convention (printed name) is unchanged, assay rows keep the Persian name, and the internal `name` still reaches `fitMethod`. Bisecting the four touched files inside a copy of `rules/` (revert one group, re-hash) is what located it; re-baselining `PN02` without that would have shipped a silent wording change to every tumour-marker sheet.
+- **Second miss, same rule:** `fitMethod` returned early — a guaiac row with a printed unit got the unit sentence *instead of* the method sentence. Two orthogonal facts (unit, method) must not share one `return`; it now returns `{unit, texts[]}` and all texts are pushed.
+- **Rule:** before adding a field to an engine state object, grep who else reads that object's shape — display helpers (`label`, `lineOf`) are the dangerous readers, not the rule you are writing. And when a byte-lock goes red on an input your change never mentions, bisect; the lock is the only guard that notices a wording change on the other 90% of sheets.
+
 Detailed instructions are split across `.claude/rules/`:
 
 - [architecture.md](.claude/rules/architecture.md) — core architecture decision (engine vs. LLM), the 9-step `/api/analyze` request flow, the legacy non-engine path. Describes the **classic path**, which is still the default and the only one with safety nets; the graph path is documented in this file instead.

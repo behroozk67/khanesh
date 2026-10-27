@@ -16,7 +16,10 @@ import { qualState, qualVerdict } from "./patterns_utils.js";
 import { parseReference } from "./units.js";
 
 // کلیدِ نرمال‌شده (خروجیِ norm در adapter، یا normK در قاعده‌ها) — ZWNJ هم حذف می‌شود چون norm نگهش می‌دارد.
-export const k0 = (key) => String(key).toLowerCase().replace(/[\s.\-_()/%#:‌]/g, "").replace(/[يی]/g, "ی");
+// P112 (۲۰۲۶-۱۰-۲۳): ویرگولِ انگلیسی و فارسی هم جداکنندهٔ نام است، نه بخشی از آن — «Occult Blood, Stool» و
+//   «Occult, Blood» همان ردیف‌اند. پیش‌تر کاما نگه داشته می‌شد و ردیف نه به الگو می‌رسید و نه به «تفسیر نشدندَش»
+//   می‌رفت (N28: ردیفِ شناخته‌شدهٔ بی‌صدا). هیچ الگویی در AI_RE کاما ندارد، پس حذفش تحریفِ هویت نیست.
+export const k0 = (key) => String(key).toLowerCase().replace(/[\s.\-_()/%#:‌,،]/g, "").replace(/[يی]/g, "ی");
 
 // «H.P Ag» / «H.P Ab» (بازبینیِ کد): «hp» فقط وقتی پیشوند است که بلافاصله نوعِ آزمایش بیاید — تا «hp…»ِ دیگر نگیرد.
 const HP_PREFIX = /^(hpylori|helicobacterpylori|helicobacter|هلیکوباکترپیلوری|هلیکوباکتر|hp(?=(ag|ab|igg|iga|igm|antigen|antibody|stool|sa)))/;
@@ -180,6 +183,24 @@ export function abVerdict(value, cmp, reference, sexHint = null) {
 }
 
 /** واحدِ چاپ‌شده با همان شکلِ برگه (CR5): فیلدِ واحد، وگرنه دنبالهٔ متنیِ مقدار («250 IU/mL» ⇒ «IU/mL»). */
+/**
+ * P114 (۲۰۲۶-۱۰-۲۷، برگهٔ PSA): مرجعِ ترکیبی مثل «< 4.0 / 70-90 years: < 4.0» یا
+ * «< 4,0 / 70-80 years: Up to 6.5» در کل یک رشته به parseVerdict نمی‌خورد ⇒ موتور می‌گفت
+ * «بازهٔ چاپ‌شده روی برگه نیست» در حالی که هست. این تابع نخستین بازهٔ خوانا را برمی‌دارد.
+ * ⚠️ مقدارِ داخلِ پرانتزِ سنی را *جایگزین* نمی‌کند؛ فقط اگر بخشِ عمومی قابلِ خواندن بود آن را می‌دهد.
+ */
+export function cleanPrintedRef(raw) {
+  const s0 = String(raw ?? "").trim();
+  if (!s0) return "";
+  if (parseReference(s0, null)) return s0;
+  for (const part of s0.split(/[\/;|،]/)) {
+    const p = part.trim();
+    if (p && parseReference(p, null)) return p;
+  }
+  const upTo = /up\s*to\s*[:<]?\s*([\d.,]+)/i.exec(s0);
+  return upTo ? `< ${upTo[1].replace(",", ".")}` : s0;
+}
+
 function printedUnit(t) {
   const u = String(t.unit ?? "").trim();
   if (u) return u;
@@ -192,7 +213,28 @@ function printedUnit(t) {
 // C1: هیچ آستانهٔ ثابتی نیست. واژه (مثبت/منفی) یا عددِ چاپ‌شده در برابرِ مرز/بازهٔ *همان ردیف*؛ وگرنه unmapped («تفسیر نشدند»).
 //     تیترِ بی‌واژه («1:80») هم قضاوت نمی‌شود — مرزِ مثبت‌بودنِ تیتر بین آزمایشگاه‌ها فرق می‌کند.
 // ⚠️ «ro»/«la» تنها عمداً نیست (کلمهٔ رایج)؛ فقط با پیشوندِ anti یا نامِ SSA/SSB. «CA» (کلسیم) و «Ro» هم‌نام نیستند.
+// ═══════════ P112: خونِ مخفیِ مدفوع — یک نام‌گذاری، یک الگو ═══════════
+// یک آزمایش با نام‌های گوناگون روی برگهٔ ایرانی؛ سه دور اندازه‌گیری روی املاهای واقعی:
+//   دور ۱: FIT/FOBT و ترکیب‌های Occult Blood.
+//   دور ۲: املاهای گچی/کیت‌محور (Guaiac، Hemoccult، Stool Guaiac) — بی‌این‌ها ردیف در allowlistِ بخشِ مدفوع
+//     گیر می‌کرد و به «تفسیر نشدند» می‌رفت.
+//   دور ۳: «OBT»، «Blood Occult» (ترتیبِ LIS)، «FOB (Stool)»، «Quantitative FIT»، «Fecal Immunochemical Test»،
+//     «Occult Blood, Stool» (کاما)، «ازمایش خون مخفی» (الفِ بی‌کلاه، خطای رایج OCR) و آوانگاریِ فارسیِ
+//     Hemoccult («هماکالت/هموکالت»).
+//   ⚠️ adapter.js همین الگو را برای gateِ ردیف/صفحهٔ مدفوع import می‌کند — تک‌منبع، وگرنه ردیف پیش از رسیدن
+//     به AI_RE.FIT در «تفسیر نشدند» می‌ماند (همان driftِ N3).
+const FECAL_BLOOD_RE = /^(fit|fob|fobt|obt|ifobt|gfobt|ob|stoolob|fecalob|faecalob|obstool|fobstool|stoolfob|stoolfit|stoolfobt|stoolifobt|stoolgfobt|quantitativefit|qualitativefit|fecalimmunochemicaltest|faecalimmunochemicaltest|guaiac|guaiacblood|guaiacfobt|fobguaiac|fobtguaiac|stoolguaiac|fecalguaiac|faecalguaiac|hemoccult[a-z]*|(blood|stool|fecal|faecal)?occult(blood)?[a-z]*|oboccultblood[a-z]*|bloodinstool|stoolblood|.{0,12}خونمخفی.*|خونمدفوع|خوندرمدفوع|هماکالت|هموکالت)$/;
+/** آیا نامِ چاپ‌شدهٔ این ردیف خونِ مخفیِ مدفوع است؟ (تک‌منبع؛ adapter هم از همین می‌پرسد)
+ *  P113 (۲۰۲۶-۱۰-۲۷): رقمِ وسطِ نام بخشی از هویت نیست — برگه‌های ایرانی «Occult Blood-1(FOB)»،
+ *  «Occult Blood-2(FOB)»، «FOB-1» چاپ می‌کنند (شمارهٔ نوبت/کیت). پیش‌تر k0 آن‌ها را «occultblood1fob»
+ *  می‌کرد و regex می‌شکست ⇒ ردیف در «تفسیر نشدند» می‌ماند. حذفِ رقم فقط برای همین الگو انجام می‌شود. */
+export const isFecalBloodName = (name) => {
+  const k = k0(name);
+  return FECAL_BLOOD_RE.test(k) || FECAL_BLOOD_RE.test(k.replace(/[0-9٠-٩]/g, ""));
+};
+
 const AI_RE = {
+  FIT: FECAL_BLOOD_RE,
   ANA: /^(ana|antinuclearantibod(y|ies)|antinuclearab|antinuclear|anf|آنتیبادیضدهسته|آنتینوکلئار)(ifa|if|hep2|titer|titre|screen|screening|test|qualitative)?$/,
   ANTI_DSDNA: /^(anti)?(dsdna|doublestrandeddna|dna)(ab|antibody|antibodies|igg|elisa|ifa)?$/,
   ANTI_RO: /^(antiro|antiroab|antirossa|antissaro|antissa|ssa|rossa|antiro52|antiro60)$/,
@@ -233,7 +275,6 @@ const AI_RE = {
   PSA_FREE: /^(freepsa|psafree|fpsa|freeprostatespecificantigen)$/,
   PSA_RATIO: /^(freepsaratio|freepsapercent|freetotalpsa|freetotalpsaratio|psafreetotal|fpsatpsa|psaratio|ratiofreetotalpsa|freepsatotalpsa|percentfreepsa|pfreepsa)$/,
   CALPROTECTIN: /^(calprotectin|fecalcalprotectin|faecalcalprotectin|stoolcalprotectin|calprotectinfecal|calprotectinstool|fcalprotectin)$/,
-  FIT: /^(fit|fecalimmunochemicaltest|fobt|ifobt|fecaloccultblood|occultblood|occultbloodstool|stooloccultblood|stoolocculttest|hemoccult|occultbloodinstool|خونمخفیمدفوع|خونمخفیدرمدفوع)$/,
 };
 export const AI_KEYS = Object.keys(AI_RE);
 // کلیدهایی که بی‌محدودهٔ چاپی هم یافته می‌سازند (state="noref") — به درخواست کاربر «هیچ‌کدام تفسیر نشده نرود»؛ بدون ادعای بالا/پایین.
@@ -242,7 +283,12 @@ export const AI_KEYS = Object.keys(AI_RE);
 export const AI_NOREF = new Set(AI_KEYS.filter((k) => k !== "HLA_B27"));
 const AI_QUAL_ONLY = new Set(["HLA_B27"]);   // ژن/آنتی‌ژن: فقط حاضر/غایب، عددِ مقایسه‌پذیر ندارد
 const AI_RANGE_ONLY = new Set(["C3", "C4"]);  // غلظت: کلمه معنا ندارد (⇒ unmapped)؛ عدد فقط در برابرِ بازهٔ چاپ‌شده: below|within|above
-export const autoKeyOf = (key) => { const k = k0(key); return AI_KEYS.find((id) => AI_RE[id].test(k)) ?? null; };
+export const autoKeyOf = (key) => {
+  const k = k0(key);
+  // P113: FIT با رقم در نام («Occult Blood-1(FOB)») — همان تابعِ تک‌منبع، پیش از حلقهٔ الگوها.
+  if (isFecalBloodName(key)) return "FIT";
+  return AI_KEYS.find((id) => AI_RE[id].test(k)) ?? null;
+};
 
 // ANA — الگوی فلورسانس (ICAP). فقط واژه‌ها/کدهای چاپ‌شده روی همان ردیف خوانده می‌شوند.
 const ANA_PATTERNS = [
@@ -305,21 +351,24 @@ export function rangeVerdict(n, cmp, reference, sexHint = null) {
 
 /** عددِ همان‌طور که چاپ شده نقل می‌شود («3.0»، نه «3» — N5) و حکم در برابرِ مرزِ چاپ‌شدهٔ همان ردیف. unknown ⇒ null. */
 function assayRoute(abKey, t, sexHint, q) {
-  let state = AI_RANGE_ONLY.has(abKey) ? rangeVerdict(q.n, q.cmp, t.reference, sexHint) : abVerdict(q.n, q.cmp, t.reference, sexHint);
+  const refClean = cleanPrintedRef(t.reference);
+  let state = AI_RANGE_ONLY.has(abKey) ? rangeVerdict(q.n, q.cmp, refClean, sexHint) : abVerdict(q.n, q.cmp, refClean, sexHint);
   // P77: تومورمارکر/گوارش بی‌محدودهٔ چاپی (یا مقدارِ سانسورشده) یافتهٔ «بی‌حکمِ بالا/پایین» می‌گیرد، نه unmapped.
   if (state === "unknown" && AI_NOREF.has(abKey)) state = "noref";
   if (state === "unknown") return null;
   const shown = (faDigits(t.value).trim().match(/^[<>≤≥]?\s*[\d.,]+/) ?? [String(q.n)])[0].replace(/\s+/g, "");
-  return { to: "assay", key: abKey, value: q.n, cmp: q.cmp, shown, unit: printedUnit(t), state, raw: String(t.value).trim(), reference: String(t.reference) };
+  return { to: "assay", key: abKey, value: q.n, cmp: q.cmp, shown, unit: printedUnit(t), state, raw: String(t.value).trim(), reference: refClean, ...(t.name ? { name: String(t.name) } : {}) };
 }
 
 /** وضعیتِ یک آزمایشِ خودایمنی روی برگه: absent | pos | neg | above | within (+ raw/shown/unit/titre/name) */
 export function autoAbState(e, id) {
   const u = e.ungraded?.[id];
   if (u?.reason === "assay_printed") {
-    return { state: u.state, value: u.value, cmp: u.cmp, shown: u.shown, unit: u.unit, reference: u.reference, raw: u.raw, assay: true };
+    return { state: u.state, value: u.value, cmp: u.cmp, shown: u.shown, unit: u.unit, reference: u.reference, raw: u.raw, name: u.name, assay: true };
   }
-  const row = Object.entries(e.qual ?? {}).find(([name]) => AI_RE[id].test(k0(name)));
+  // P113: ردیفِ FIT/FOB با رقم در نام («Occult Blood-1(FOB)») از الگوی ساده رد می‌شود؛
+  //   یک منبعِ تصمیم (isFecalBloodName) هم برای qual و هم برای gateِ adapter.
+  const row = Object.entries(e.qual ?? {}).find(([name]) => (id === "FIT" ? isFecalBloodName(name) : AI_RE[id].test(k0(name))));
   if (row) {
     const v = readAutoValue(row[1], id);
     if (v.state === "pos" || v.state === "neg") return { state: v.state, raw: String(row[1]).trim(), name: row[0], titre: v.titre, patterns: v.patterns ?? [], bare: !!v.bare };

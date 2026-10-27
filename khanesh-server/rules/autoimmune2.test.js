@@ -259,3 +259,101 @@ test("B17: AFP با محدودهٔ چاپی (بی‌واحد) یافته می‌
   const bare = run([{ name: "AFP", value: "45" }], { age: 50, sex: "M" });
   assert.equal(byId(bare, "tumor_markers_result").length, 0);
 });
+
+// ═══════════ P112: قواعدِ خونِ مخفی در مدفوع، برگرفته از گایدلاین‌ها و مقالات (۲۰۲۶-۱۰-۲۱، درخواستِ کاربر) ═══════════
+// هر جمله‌ای که این آزمون‌ها می‌سنجند یک منبعِ ثبت‌شده در guidelines.js دارد؛ B23 نبودِ منبعِ معلق را قفل می‌کند.
+test("B18: FIT مثبت + کمخونیِ فقر آهن ⇒ بررسیِ همزمانِ گوارشِ فوقانی و تحتانی + منبعِ IDA/دارو/تأخیر", () => {
+  const rows = [
+    { name: "Occult Blood (FIT)", value: "Positive" },
+    { name: "Hemoglobin", value: "9.8", unit: "g/dL", reference: "12-16" },
+    { name: "Ferritin", value: "8", unit: "ng/mL", reference: "15-150" },
+  ];
+  const x = byId(run(rows, { age: 58, sex: "M" }), "gi_stool_result")[0];
+  assert.equal(x.urgency, "this_week");
+  assert.match(txt(x), /آندوسکوپی/);
+  assert.match(txt(x), /۹٫۸|9.8/);
+  assert.match(txt(x), /۱۰ ماه/);
+  assert.match(txt(x), /آسپیرین/);
+  assert.doesNotMatch(txt(x), /قطعِ (این )?داروها لازم است/);
+  assert.ok((x.suggest ?? []).includes("آندوسکوپیِ فوقانی"), JSON.stringify(x.suggest));
+  for (const id of ["USPSTF_CRC_2021", "ACPGBI_BSG_FIT_2022", "BSG_ACPGBI_FIT_IDA_2025", "NIEWENBURG_2019_FIT_DRUGS", "CORLEY_2017_FIT_DELAY"]) {
+    assert.ok((x.sources ?? []).includes(id), `منبعِ ${id} پیوست نشد: ${JSON.stringify(x.sources)}`);
+  }
+  // بی‌کمخونی: جملهٔ آندوسکوپیِ فوقانی نباید بیاید (شرطی است، نه سراسری).
+  const noAnemia = byId(run([{ name: "FIT", value: "Positive" }], { age: 58, sex: "M" }), "gi_stool_result")[0];
+  assert.doesNotMatch(txt(noAnemia), /آندوسکوپی/);
+  assert.match(txt(noAnemia), /۱۰ ماه/);   // جملهٔ تأخیر مالِ هر FIT مثبت است، نه فقط کمخونی‌دار
+});
+
+test("B19: FIT مثبت زیرِ ۵۰ سال ⇒ جملهٔ سن (IBD محتمل‌تر)؛ بالای ۵۰ سال گفته نمی‌شود", () => {
+  const young = byId(run([{ name: "FIT", value: "Positive" }], { age: 44, sex: "F" }), "gi_stool_result")[0];
+  assert.match(txt(young), /زیرِ ۵۰ سال/);
+  const old = byId(run([{ name: "FIT", value: "Positive" }], { age: 61, sex: "M" }), "gi_stool_result")[0];
+  assert.doesNotMatch(txt(old), /زیرِ ۵۰ سال/);
+});
+
+test("B20: FIT منفی + کمخونیِ فقر آهن ⇒ «بررسی را حذف نمی‌کند» + هر دو بخشِ گوارش", () => {
+  const x = byId(run([
+    { name: "FIT", value: "Negative" },
+    { name: "Hemoglobin", value: "10.4", unit: "g/dL", reference: "12-16" },
+    { name: "MCV", value: "72", unit: "fL", reference: "80-100" },
+  ], { age: 52, sex: "F" }), "gi_stool_result")[0];
+  assert.equal(x.urgency, "routine");
+  assert.match(txt(x), /حذف نمی‌کند/);
+  assert.match(txt(x), /آندوسکوپی/);
+  assert.match(txt(x), /ردِ ارجاع نیست/);
+  // بی‌کمخونی: FIT منفی همان متنِ غربالگری/علائم را دارد، بی‌ادعای گوارشِ فوقانی.
+  const plain = byId(run([{ name: "FIT", value: "Negative" }], { age: 52, sex: "F" }), "gi_stool_result")[0];
+  assert.doesNotMatch(txt(plain), /آندوسکوپی/);
+});
+
+test("B21: نام‌های گایاکی (gFOBT/Hemoccult/Stool Guaiac) هم خوانده می‌شوند و جملهٔ سه‌نمونه/محدودیتِ غذایی می‌گیرند", () => {
+  const rows = [
+    { name: "Guaiac FOBT", value: "Positive" },
+    { name: "Hemoccult SENSA", value: "Negative" },
+    { name: "Stool Guaiac", value: "Positive" },
+  ];
+  const r = run(rows, { age: 60, sex: "M" });
+  assert.deepEqual(r.e.unmapped, [], JSON.stringify(r.e.unmapped));
+  const x = byId(r, "gi_stool_result")[0];
+  assert.match(txt(x), /گایاکی/);
+  assert.match(txt(x), /سه نمونه/);
+  assert.match(txt(x), /محدودیتِ غذایی/);
+  // نامِ چاپ‌شدهٔ برگه در متن می‌آید، نه کلیدِ خامِ موتور.
+  assert.match(txt(x), /Guaiac FOBT/);
+  assert.match(txt(x), /کولونوسکوپی/);
+  assert.ok(!/\b(CALPROTECTIN|HLA_B27|PSA_TOTAL)\b/.test(txt(x)));
+  // ردیفِ عددیِ گایاکی (نامِ چاپ‌شده) هم روش را می‌گیرد؛ نمایشِ نام برای ردیفِ assay عوض نمی‌شود (PN02: متنِ برگه‌های دیگر بایت‌به‌بایت).
+  const num = byId(run([{ name: "Hemoccult SENSA", value: "25", unit: "ug/g", reference: "<20" }], { age: 60, sex: "M" }), "gi_stool_result")[0];
+  assert.match(txt(num), /گایاکی/);
+  assert.match(txt(num), /خونِ مخفی در مدفوع/);
+  assert.doesNotMatch(txt(num), /Hemoccult SENSA/);
+});
+
+test("B22: FITِ عددیِ ng/mL بی‌مرزِ چاپی ⇒ تبدیلِ واحد به µg Hb/g و بی‌حکم بودنِ مثبت/منفی (C1)", () => {
+  const x = byId(run([{ name: "FIT", value: "80", unit: "ng/mL" }], { age: 57, sex: "M" }), "gi_stool_result")[0];
+  assert.equal(x.urgency, "routine");
+  assert.match(txt(x), /16 µg Hb\/g/);
+  assert.match(txt(x), /به کیت و برنامه بستگی دارد/);
+  assert.doesNotMatch(txt(x), /\(مثبت\)|\(منفی\)/);
+  assert.ok((x.sources ?? []).includes("FIT_UNIT_CONVERSION_2013"));
+  // واحدِ µg/g که خودِ راهنماها به کار می‌برند: جملهٔ تبدیل لازم نیست.
+  const ug = byId(run([{ name: "FIT", value: "40", unit: "ug/g", reference: "<20" }], { age: 57, sex: "M" }), "gi_stool_result")[0];
+  assert.equal(ug.urgency, "this_week");
+  assert.doesNotMatch(txt(ug), /معادلِ ۱ µg/);
+  assert.match(txt(ug), /واحدی است که راهنماها با آن کار می‌کنند/);
+});
+
+test("B23: هر شناسهٔ منبعِ FIT/FOBT در guidelines.js رجیستری است (بی‌منبعِ معلق)", async () => {
+  const { guideline } = await import("./guidelines.js");
+  const ids = ["USPSTF_CRC_2021", "ACPGBI_BSG_FIT_2022", "BSG_ACPGBI_FIT_IDA_2025", "NIEWENBURG_2019_FIT_DRUGS", "CORLEY_2017_FIT_DELAY", "FIT_UNIT_CONVERSION_2013"];
+  for (const id of ids) {
+    const g = guideline(id);
+    assert.ok(g, id);
+    assert.ok(g.org && g.fa && g.title && g.url && g.scope, `${id} ناقص است`);
+  }
+  // ⚠️ C1: عدد و واحدِ راهنماها فقط در scope/متنِ بیمار می‌آید، نه به‌عنوانِ آستانهٔ کد.
+  for (const id of ["USPSTF_CRC_2021", "ACPGBI_BSG_FIT_2022", "FIT_UNIT_CONVERSION_2013"]) {
+    assert.ok(/µg|ng\/mL/.test(guideline(id).scope), `${id} واحدِ راهنما را ثبت نکرده`);
+  }
+});

@@ -33,6 +33,7 @@ import { PRO_TEXT } from "./pro_text.js";
 import { applyNeonatalFloor, applyNeonatalVoice, applyChildVoice, isNeonate } from "./neonatal.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
+import { markFaNumbers } from "./faText.js";
 
 
 // حذف‌شده: LEGACY_ANEMIA_IDS — فهرستِ سرکوبِ مهاجرتی که در ba144a7 لغو شد.
@@ -70,7 +71,7 @@ export const RULES = [
   // specs/013: دابل/کوآد مارکر — از کانالِ جدای e.prenatal، بی‌نمره.
   ...RULES_PRENATAL,
   // P109: eAG، شاخصِ آتروژنیک، IgMِ هلیکوباکتر، اندازه/رنگِ گلبول در لام.
-  ...RULES_P109
+  ...RULES_P109,
 ];
 bindP73Owners(RULES);
 // specs/016 (P100): متنِ تخصصیِ کادرِ درمان روی شیءِ قاعده. فقط rules/expert.js آن را می‌خواند؛ به حکم، فوریت و پرامپت نمی‌رسد.
@@ -222,7 +223,16 @@ export const SUGGEST_TESTS = {
 /** آیا این پیشنهاد، آزمایشی است که همین حالا اندازه‌گیری شده؟ */
 export function alreadyMeasured(suggestion, measuredKeys) {
   const keys = SUGGEST_TESTS[suggestion];
-  return !!keys && keys.every((k) => measuredKeys.has(k));
+  if (keys) return keys.every((k) => measuredKeys.has(k));
+  // P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): پیشنهادهای ترکیبی («شمارش خون (CBC) و رتیکولوسیت») در جدولِ یک‌به‌یک
+  //   نیستند، پس alreadyMeasured برایشان false می‌داد و آزمایشی که روی همین برگه بود دوباره پیشنهاد می‌شد.
+  //   قاعده: جمله به بخش‌ها شکسته می‌شود و فقط وقتی حذف می‌شود که *همهٔ* بخش‌ها آزمایشِ شناخته‌شده و
+  //   اندازه‌گیری‌شده باشند. بخشِ ناشناخته («مشاوره با متخصصِ گوارش») جلوی حذف را می‌گیرد — حذفِ محتاطانه، نه جسورانه.
+  const parts = String(suggestion ?? "").split(/\s*(?:،|,|؛|;|\+)\s*|\s+و\s+/).map((s) => s.trim()).filter(Boolean);
+  if (parts.length < 2) return false;
+  const known = parts.filter((p) => SUGGEST_TESTS[p]);
+  if (!known.length || known.length !== parts.length) return false;
+  return known.every((p) => SUGGEST_TESTS[p].every((k) => measuredKeys.has(k)));
 }
 
 /**
@@ -861,7 +871,12 @@ export function runPatterns(engineOut) {
     const { key_number: _kn, ...rest } = f;
     // action هم خالی: «در فرصتِ مناسب با پزشک مطرح کنید»ِ یافتهٔ بی‌اقدام در فهرست تکرارِ دستورِ دیگر بود (buildEngineRecommendations
     //   برای برگه‌ای که *همه*‌اش بی‌اقدام است minor_action را می‌گذارد — همان دستورِ خودِ یافته که applyInpatientVoice بالاتر بازنویسی کرده، X18).
-    shown[i] = { ...rest, must_say: f.minor_line ?? f.must_say, action: "", minor_action: f.action ?? "", warnings: withSafety([], f), suggest: [], protected: [], minor: true };
+    shown[i] = { ...rest, must_say: markFaNumbers(f.minor_line ?? f.must_say), action: "", minor_action: markFaNumbers(f.action ?? ""), warnings: withSafety([], f), suggest: [], protected: [], minor: true };
+    //   ↑ markFaNumbers: خطِ minor متنِ دست‌نویسِ خودِ قاعده است و «نام + شماره» از قبل در آن تنیده
+    //     شده، پس joinFaNumber اینجا کار نمی‌کند. «MPV 7 fL» بدونِ نشانگر «MPV» را چپِ «7» می‌نشاند
+    //     (اندازه‌گیریِ مرورگر: ۶ از ۸ جفت غلط). جزئیات و شواهد: rules/faText.js.
+    //     minor_action هم نشان‌گذاری می‌شود چون برای برگه‌ای که همه‌اش بی‌اقدام است، prompt.js آن را
+    //     به‌عنوان دستورِ نهایی به کاربر نشان می‌دهد (X18).
   }
 
   // ترتیب: فوریت، سپس یافته‌های اقدام‌دار پیش از بی‌اقدام، سپس — فقط در routine — بزرگیِ انحرافِ عددی که خودِ یافته نقل می‌کند

@@ -95,7 +95,8 @@ function flcState(e) {
   const k = e.graded.find((g) => g.test === "KAPPA_FLC");
   const l = e.graded.find((g) => g.test === "LAMBDA_FLC");
   if (!k || !l || !(l.value > 0)) return { ratio: null };
-  const renal = e.indices?.egfr != null && e.indices.egfr < 60;
+  const cr = e.graded.find((g) => g.test === "CREAT");
+  const renal = (cr?.abnormal && cr.dir === "high") || (Array.isArray(e.conditions) && e.conditions.includes("dialysis"));
   const [lo, hi] = renal ? FLC_RATIO_RENAL : FLC_RATIO_NORMAL;
   const ratio = +(k.value / l.value).toFixed(2);
   return { ratio, renal, range: `${lo}–${hi}`, abnormal: ratio < lo || ratio > hi };

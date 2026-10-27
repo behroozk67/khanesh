@@ -91,7 +91,7 @@ function smearClause(e, kind) {
   const idx = kind === "anisocytosis" ? g(e, "RDW_CV") ?? g(e, "RDW_SD") : kind === "hypochromia" ? g(e, "MCH") ?? g(e, "MCHC") : g(e, "MCV");
   const want = kind === "macrocytosis" || kind === "anisocytosis" ? "high" : "low";
   const name = idx ? `${faName(idx.test)} ${idx.value} (حد طبیعی ${idx.range})` : null;
-  if (kind === "poikilocytosis") return "معنای شکل‌های غیرعادی به نوعِ شکل بستگی دارد (مثلاً گلبولِ قطعه‌قطعه، اشکی یا داسی) که در این ردیف نیامده؛ پزشک آن را از گزارشِ کاملِ لام می‌خواند.";
+  if (kind === "poikilocytosis") return "معنای شکل‌های غیرعادی به نوعِ شکل بستگی دارد؛ نوعِ دقیق را آزمایشگاه در همان ردیف نوشته و پزشک از گزارشِ کاملِ لام می‌خواند.";
   if (!idx) return `${kind === "anisocytosis" ? "RDW" : kind === "hypochromia" ? "MCH" : "MCV"} روی این برگه نیست تا توصیفِ لام با عددِ دستگاه مقایسه شود.`;
   if (idx.abnormal && idx.dir === want) return `این با ${name} هم‌خوان است؛ توضیحِ آن در یافته‌های دیگرِ همین گزارش آمده است.`;
   if (!idx.abnormal) return `${name} در محدوده است؛ توصیفِ لام کیفی است و وقتی عددِ دستگاه طبیعی است معمولاً یعنی فقط بخشی از گلبول‌ها چنین‌اند. پزشک آن را کنارِ بقیهٔ نتایج می‌سنجد.`;

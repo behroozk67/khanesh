@@ -144,7 +144,6 @@ export function minorCapApplies(engineOut, findings) {
   if (e.age != null && e.age < 16) return false;
   if (e.pregnant) return false;
   if ((e.conditions ?? []).some((id) => ACTIVE_CONDITIONS.has(id))) return false;
-  if (e.indices?.egfr != null && e.indices.egfr < 60) return false;
   const abn = e.abnormal ?? [];
   if (!abn.length) return false;
   for (const a of abn) {
