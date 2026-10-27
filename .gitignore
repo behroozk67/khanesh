@@ -53,3 +53,10 @@ labmat-prototype/node_modules/
 /khanesh-server/query_db.cjs
 /note-site.md
 /specs/*.mp4
+
+# ── P117 (۲۰۲۶-۱۰-۲۷): محافظتِ دادهٔ بیمار و فایل‌های scratch ────────────────
+# لاگِ حسابرسیِ تحلیل‌ها: JSONL با متادیتای هر درخواست (تعداد ردیف، الگوها، ساعت).
+# دادهٔ عملیاتی است، نه کد — با git add -A داخلِ تاریخ می‌نشست.
+/khanesh-server/analysis-audit.jsonl
+# صفحهٔ ذخیره‌شدهٔ مرورگر (scratch) برای بررسیِ چشمی
+/khanesh/ddg.html
