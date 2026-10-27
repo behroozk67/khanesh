@@ -2417,6 +2417,25 @@ Detailed instructions are split across `.claude/rules/`:
 - [frontend.md](.claude/rules/frontend.md) — routes, the decomposed `Tafsir.jsx`, `labRefs.js`, the async job client, and the `_engine` response shape the UI depends on
 - [environment.md](.claude/rules/environment.md) — backend `.env` variables (including `USE_GRAPH`), tuning warnings, `GET /health`
 - [notes.md](.claude/rules/notes.md) — cross-cutting notes: Persian-only strings, dev vs. prod proxying, patient-privacy rules, the backend regression suite
+### N37 — Two sessions allocated the same ticket number, and the documentation stopped at the code
+
+PhenoAge (`MEDICAL_RULES §P113`, clinically approved) and a parallel session's "real-sheet fixes of 2026-10-27" both
+carry `P113` in code comments. The second session never wrote a `MEDICAL_RULES` entry, so for a while the only trace
+of eight clinical fixes — uric-acid ceiling wording, printed LDH ceiling, MCHC in microcytic anaemia, PSA composite
+reference, NRBC/IMG parameters, printed ranges of absolute differential counts, RBC morphology shapes, LDH/P96
+boundary — was a comment label pointing at someone else's approved rule. The fixes were real and their tests were
+green; what was missing was the record, so a reviewer reading §P113 would have concluded PhenoAge had grown eight
+unrelated behaviours.
+
+Rules that follow:
+
+- Allocate the ticket number from `MEDICAL_RULES.md` **before** writing it in code. One number in two sections is a
+  documentation bug, not a cosmetic one.
+- A `MEDICAL_RULES` entry lands in the **same commit** as the behaviour it describes. A label without an entry is
+  worse than no label: it looks like the rule is documented.
+- On collision, do not mass-rename comments (high-risk edit, zero clinical value). Document under a free number and
+  cross-reference both ways — `§P118` carries the fixes and points at `§P113`; `§P113` points back.
+
 ## Working Agreement
 
 My default is a short prompt then a long unattended run (~1 instruction per hour of session).
@@ -2446,7 +2465,7 @@ Optimize for that, don't fight it:
 
 ## Orientation
 
-- **This file contains 81 ZWNJ characters (U+200C).** ZWNJ is orthographically required in
+- **This file contains 82 ZWNJ characters (U+200C).** ZWNJ is orthographically required in
   Persian (`نیم‌فاصله`) and must never be stripped or "normalized". Some agent-side guards
   classify invisible Unicode as prompt injection and refuse to auto-load this file; the fix is
   to read it with the file tool (`read_file`) and to leave the characters alone — not to edit
