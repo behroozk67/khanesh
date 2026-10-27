@@ -6,6 +6,7 @@ import { Footer, PillNav } from "./Landing.jsx";
 import { GUIDES, tierLabel, catPath } from "./testCatalog.js";
 import GuideCarousel from "./GuideCarousel.jsx";
 import GuideIcon from "./guideIcons.jsx";
+import { useSeoHead } from "./useSeoHead.js";
 import "./site.css";
 
 // ============================================================
@@ -107,13 +108,9 @@ const TONES = ["deep", "soft", "warm"];
 const FEATURED = FEATURED_IDS.map(([id, k1, icon], i) => {
   const g = GUIDES.find((x) => x.id === id);
   if (!g) return null;
-  const form = g.items.filter((it) => it.tier === "form").length;
   return {
     key: id, to: catPath(id), tone: TONES[i % 3], k1, k2: "راهنما", icon,
     t: g.t, d: g.d,
-    meta: form
-      ? `${toFaDigits(g.items.length)} آزمایش · ${toFaDigits(form)} تا در فرمِ ورودِ دستی`
-      : `${toFaDigits(g.items.length)} آزمایش · فقط راهنمای آموزشی`,
   };
 }).filter(Boolean);
 
@@ -141,14 +138,14 @@ const ITEM_BY_ID = (() => {
 const POPULAR = POPULAR_IDS.map(([id, k1, k2, icon], i) => {
   const it = ITEM_BY_ID.get(id);
   if (!it) return null;
-  return { key: id, to: it.to, tone: TONES[(i + 2) % 3], k1, k2, icon, t: it.n, d: it.d, meta: tierLabel(it) };
+  return { key: id, to: it.to, tone: TONES[(i + 2) % 3], k1, k2, icon, t: it.n, d: it.d, mid: true };
 }).filter(Boolean);
 
 // یک کارتِ گرافیکی — مشترکِ هر دو نوار.
 function SlideCard({ c, cta }) {
   return (
     <article className="site-tile gc-card">
-      <Link className={`site-tile-art site-tile-art--${c.tone} gc-art`} to={c.to} aria-hidden="true" tabIndex={-1}>
+      <Link className={`site-tile-art site-tile-art--${c.tone} gc-art${c.mid ? " gc-art--mid" : ""}`} to={c.to} aria-hidden="true" tabIndex={-1}>
         <span className="gc-art-txt">
           <b>{c.k1}</b>
           <span>{c.k2}</span>
@@ -157,7 +154,6 @@ function SlideCard({ c, cta }) {
       </Link>
       <h3><Link to={c.to}>{c.t}</Link></h3>
       {c.d && <p>{c.d}</p>}
-      {c.meta && <small className="gc-meta">{c.meta}</small>}
       <Link className="btn btn--secondary btn--pill" to={c.to}>{cta}</Link>
     </article>
   );
@@ -186,6 +182,21 @@ const colOf = (label) => {
 const bucketOf = (col) => (col === FA_COL ? FA_KEY : col >= "A" ? col : HOME_KEY);
 
 export default function Tests() {
+  useSeoHead({
+    title: "راهنمای آزمایش‌های پزشکی و چکاپ — فهرست کامل",
+    description: "راهنمای جامع بیش از ۳۰۰ آزمایش پزشکی و ۱۷ دسته تخصصی؛ رنج نرمال، علت بالا و پایین بودن مقادیر و شرایط نمونه‌گیری به زبان ساده.",
+    canonical: "/tests",
+    ogType: "website",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": `راهنمای آزمایش‌های پزشکی — ${BRAND_FA}`,
+      "url": "https://azmayarapp.ir/tests",
+      "description": "فهرست و راهنمای آزمایش‌های پزشکی به زبان ساده",
+      "inLanguage": "fa-IR",
+    },
+  });
+
   const [params, setParams] = useSearchParams();
   const azRef = useRef(null);
 

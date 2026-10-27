@@ -6,6 +6,7 @@ import { LabMateLogo } from "./LabMateLogo.jsx";
 import { FAQ_ITEMS } from "./landingFaqData.jsx";
 import { FaqModal } from "./LandingFaq.jsx";
 import HowArt from "./howArt.jsx";
+import { useSeoHead } from "./useSeoHead.js";
 import "./site.css";
 
 // ============================================================
@@ -41,13 +42,219 @@ const BRAND = BRAND_FA;
 
 /* ------------------------------------------------------------------ */
 
+const BLOOD_FACTORS = [
+  {
+    name: "شمارش کامل خون (CBC)",
+    sub: "WBC, RBC, Hb, Plt, MCV",
+    to: "/test/cbc",
+    cat: "خون‌شناسی",
+    purpose: "بررسی کم‌خونی، عفونت فعال و تعداد پلاکت‌ها",
+    synergy: "تحلیل همزمان MCV و هموگلوبین برای افتراق فقر آهن از تالاسمی مینور",
+  },
+  {
+    name: "قند خون ناشتا (FBS)",
+    sub: "Fasting Blood Sugar",
+    to: "/test/fbs",
+    cat: "دیابت و متابولیسم",
+    purpose: "غربالگری دیابت و بررسی سطح گلوکز پلاسما",
+    synergy: "ارزیابی در کنار HbA1c جهت تفکیک نوسان لحظه‌ای از میانگین ۳ ماهه",
+  },
+  {
+    name: "هموگلوبین A1c",
+    sub: "HbA1c",
+    to: "/test/hba1c",
+    cat: "دیابت و متابولیسم",
+    purpose: "میانگین قند خون در ۹۰ تا ۱۲۰ روز گذشته",
+    synergy: "معیار طلایی کنترل دیابت بدون وابستگی به رژیم غذایی روز آزمایش",
+  },
+  {
+    name: "پروفایل چربی (Lipid Panel)",
+    sub: "Chol, TG, LDL, HDL",
+    to: "/test/lipid-panel",
+    cat: "قلب و عروق",
+    purpose: "سنجش کلسترول، تری‌گلیسرید و ریسک رسوب عروقی",
+    synergy: "محاسبه نسبت کلسترول تام به HDL و Non-HDL جهت تخمین ریسک قلبی",
+  },
+  {
+    name: "آنزیم‌های کبدی (ALT و AST)",
+    sub: "SGPT, SGOT",
+    to: "/test/alt",
+    cat: "کبد و گوارش",
+    purpose: "سنجش التهاب و آسیب سلول‌های کبدی و کبد چرب",
+    synergy: "نسبت De Ritis (AST/ALT) در کنار ALP جهت افتراق الگوهای مختلف کبدی",
+  },
+  {
+    name: "کراتینین و اوره (Cr & BUN)",
+    sub: "Creatinine, Blood Urea Nitrogen",
+    to: "/test/cr",
+    cat: "کلیه و مجاری",
+    purpose: "ارزیابی قدرت تصفیه گلومرولی کلیه و دفع سموم نیتروژنی",
+    synergy: "تخمین دقیق eGFR با در نظر گرفتن سن و جنسیت کاربر",
+  },
+  {
+    name: "هورمون محرک تیروئید (TSH)",
+    sub: "Thyroid Stimulating Hormone",
+    to: "/test/tsh",
+    cat: "غدد درون‌ریز",
+    purpose: "غربالگری کم‌کاری و پرکاری تیروئید",
+    synergy: "سنجش در کنار Free T4 جهت تشخیص کم‌کاری اولیه از ساب‌کلینیکال",
+  },
+  {
+    name: "فریتین و آهن (Ferritin)",
+    sub: "Serum Iron, Ferritin",
+    to: "/test/ferritin",
+    cat: "خون‌شناسی",
+    purpose: "سنجش ذخایر آهن کبد و پروتئین ترانسفرین",
+    synergy: "کلید تشخیصی افتراق فقر آهن پیش از افت شدید هموگلوبین",
+  },
+  {
+    name: "ویتامین D3 (25-OH D)",
+    sub: "25-Hydroxy Vitamin D",
+    to: "/test/vitd",
+    cat: "ویتامین‌ها و املاح",
+    purpose: "ارزیابی سلامت اسکلتی، سطح جذب کلسیم و سیستم ایمنی",
+    synergy: "بررسی در کنار کلسیم و فسفر خون جهت تعیین دوز ایمن مکمل",
+  },
+];
+
+function BloodTestFactors() {
+  return (
+    <section className="site-sec site-wrap" id="factors">
+      <div className="site-sec-head">
+        <h2 className="site-h2">راهنمای فاکتورهای کلیدی در تفسیر آزمایش خون</h2>
+        <p className="site-lede">
+          برگهٔ آزمایش خون معمولاً از چندین پنل تخصصی تشکیل شده است. در جدول زیر، پرکاربردترین شاخص‌ها،
+          کاربرد بالینی و دلیل اهمیت ارزیابی ترکیبی آن‌ها را مشاهده می‌کنید:
+        </p>
+      </div>
+
+      <div className="factors-table-wrap">
+        <table className="factors-table">
+          <thead>
+            <tr>
+              <th scope="col">نام شاخص خونی</th>
+              <th scope="col">دسته بالینی</th>
+              <th scope="col">هدف آزمایش</th>
+              <th scope="col">اهمیت بررسی یکپارچه در تفسیر</th>
+            </tr>
+          </thead>
+          <tbody>
+            {BLOOD_FACTORS.map((f, i) => (
+              <tr key={i}>
+                <td>
+                  <Link to={f.to} className="factor-name">
+                    <span>{f.name}</span>
+                    <small>{f.sub}</small>
+                  </Link>
+                </td>
+                <td><span className="factor-cat">{f.cat}</span></td>
+                <td>{f.purpose}</td>
+                <td><span className="factor-synergy">{f.synergy}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', background: 'var(--card)', padding: '1rem 1.25rem', borderRadius: '14px', border: '1px solid var(--line-soft)' }}>
+        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--ink-2)' }}>
+          آیا آزمایش دیگری روی برگه دارید؟ بیش از ۳۰۰ آزمایش در پایگاه داده آزمایار مدلسازی شده‌اند.
+        </p>
+        <Link to="/tests" className="btn btn--secondary btn--pill" style={{ fontWeight: 600 }}>
+          مشاهده فهرست ۳۰۰+ آزمایش ←
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+const LANDING_FAQS = [
+  {
+    q: "تفسیر آزمایش خون در آزمایار چگونه انجام می‌شود؟",
+    a: "کافی است عکس واضحی از برگهٔ آزمایش خود بارگذاری کنید یا مقادیر فاکتورها را به‌صورت دستی وارد نمایید. موتور هوشمند آزمایار بر پایهٔ راهنماهای بالینی معتبر (Henry، WHO و انجمن‌های تخصصی)، فاکتورها را در کنار یکدیگر می‌سنجد، فوریت بالینی را تعیین می‌کند و نتایج را به زبان ساده توضیح می‌دهد.",
+  },
+  {
+    q: "آیا آزمایار می‌تواند عکس برگه آزمایش خون را بخواند؟",
+    a: "بله، با موتور اختصاصی پردازش تصویر و بینایی ماشین، می‌توانید تا ۵ تصویر از صفحات مختلف برگه آزمایش را بارگذاری کنید. سامانه به‌طور خودکار نام آزمایش، مقادیر عددی و بازه‌های مرجع درج‌شده روی برگه را استخراج و تحلیل می‌کند.",
+  },
+  {
+    q: "چرا تفسیر همزمان چند فاکتور دقیق‌تر از خواندن رنج‌های روی برگه است؟",
+    a: "شاخص‌های آزمایشگاهی در بدن به‌هم‌پیوسته‌اند. برای مثال، هموگلوبین پایین به‌تنهایی فقط نشانهٔ کم‌خونی است؛ اما همراه شدن آن با MCV پایین و فریتین پایین نشان‌دهنده کم‌خونی فقر آهن است. برگهٔ آزمایش ارتباط بین این فاکتورها را نشان نمی‌دهد، اما آزمایار الگوی کل برگه را بررسی می‌کند.",
+  },
+  {
+    q: "آیا نتیجهٔ تفسیر آنلاین آزمایش خون جایگزین نظر پزشک است؟",
+    a: "خیر. آزمایار یک ابزار بالینی و آموزشی برای افزایش آگاهی بیمار و آماده‌سازی برای گفت‌وگوی مؤثر با پزشک است و هرگز جایگزین معاینه حضوری، سابقهٔ دارویی و تشخیص پزشک معالج نخواهد بود.",
+  },
+  {
+    q: "چه آزمایش‌هایی در سامانه آزمایار پوشش داده شده‌اند؟",
+    a: "بیش از ۳۰۰ آزمایش شامل شمارش کامل خون (CBC)، قند خون و دیابت (FBS و HbA1c)، چربی‌های خون، سلامت کبد و کلیه، تیروئید، املاح و الکترولیت‌ها، ویتامین‌ها (از جمله ویتامین D و B12)، آزمایش ادرار و نشانگرهای غربالگری در آزمایار مدلسازی شده‌اند.",
+  },
+];
+
+function FaqSection() {
+  return (
+    <section className="site-sec site-wrap" id="faq-section">
+      <div className="site-sec-head">
+        <h2 className="site-h2">پرسش‌های متداول درباره تفسیر آزمایش خون</h2>
+        <p className="site-lede">
+          پاسخ به سوالات متداول درباره نحوه تفسیر آنلاین برگه آزمایش، دقت تحلیل بالینی و امنیت اطلاعات:
+        </p>
+      </div>
+
+      <div className="site-faq-list">
+        {LANDING_FAQS.map((item, idx) => (
+          <details className="site-faq-item" key={idx} open={idx === 0}>
+            <summary>{item.q}</summary>
+            <div className="site-faq-body">{item.a}</div>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function Landing() {
+  useSeoHead({
+    title: `تفسیر آزمایش خون آنلاین | هوشمند و بر پایه منابع بالینی — ${BRAND_FA}`,
+    description: "تفسیر آنلاین برگه آزمایش خون و چکاپ با هوش مصنوعی و بر پایه راهنماهای معتبر بالینی. عکس برگه را بارگذاری کنید یا مقادیر فاکتورها را وارد نمایید تا نتیجه به زبان ساده تحلیل شود.",
+    canonical: "/",
+    ogType: "website",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "name": BRAND_FA,
+          "alternateName": ["AzmayarApp", "LabMate", "تفسیر آزمایش خون آزمایار"],
+          "url": "https://azmayarapp.ir/",
+          "description": "سامانه تفسیر هوشمند برگه آزمایش پزشکی بر پایه قواعد و منابع بالینی",
+          "applicationCategory": "HealthApplication",
+          "operatingSystem": "All",
+          "inLanguage": "fa-IR",
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": LANDING_FAQS.map((item) => ({
+            "@type": "Question",
+            "name": item.q,
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": item.a,
+            },
+          })),
+        },
+      ],
+    },
+  });
+
   return (
     <div className="site" dir="rtl">
       <Hero />
       <HowItWorks />
       <FeaturedGuides />
+      <BloodTestFactors />
       <ReviewBasis />
+      <FaqSection />
       <Resources />
       <Footer />
     </div>
@@ -61,9 +268,11 @@ export default function Landing() {
 // پیوندهای لنگریِ خودش را صریحاً می‌فرستد. صادر نمی‌شود تا صادراتِ فایل
 // فقط کامپوننت بماند (هشدارِ fast-refresh در oxlint).
 const NAV_LINKS = [
+  { to: "/", label: "تفسیر آزمایش خون" },
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
-  { href: "/landing#resources", label: "منابع" },
-  { href: "/landing#basis", label: "استانداردها" },
+  { to: "/methodology", label: "روش‌شناسی" },
+  { href: "/#resources", label: "منابع" },
+  { href: "/#basis", label: "استانداردها" },
 ];
 
 // سرصفحه: نشان در ابتدای ردیف، بعد لینک‌ها، بعد جست‌وجو، و دکمه در انتها.
@@ -180,7 +389,7 @@ export function Nav() {
             اگر این دو از هم جدا بیفتند خطا نمی‌دهند — فقط اندازهٔ رزروشدهٔ
             پیش از رندر غلط می‌شود و نوار یک تکان می‌خورد.
             جفتِ سوم هم هست: --nav-h در site.css از همین ارتفاع ساخته می‌شود. */}
-        <Link to="/landing" className="site-brand" aria-label={BRAND}>
+        <Link to="/" className="site-brand" aria-label={BRAND}>
           <LabMateLogo height={86} />
         </Link>
 
@@ -229,17 +438,19 @@ const HERO_ALT = "مردی روی مبل نشسته و تبلتی در دست د
 
 const HERO_LINKS = [
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
-  { href: "#faq", label: "پرسش‌های متداول" },
-  { href: "#basis", label: "منابع و استانداردها" },
+  { href: "#factors", label: "فاکتورهای آزمایش خون" },
+  { href: "#faq-section", label: "پرسش‌های متداول" },
+  { href: "#basis", label: "منابع بالینی" },
 ];
 
 // منوی تمام‌صفحهٔ کنارِ دکمهٔ نُه‌نقطه: ورقِ سفیدِ گرد، عنوان، دکمه، پیوندهای درشت و دو ستونِ کوچک.
 // ⚠️ فقط به صفحه‌هایی لینک می‌دهد که وجود دارند؛ چیزی از طرحِ مرجع (وبلاگ، فرصت‌های شغلی…) نیامده.
 const MENU_MAIN = [
+  { to: "/", label: "تفسیر آزمایش خون" },
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
-  { href: "#how", label: "چطور کار می‌کند" },
-  { href: "#faq", label: "پرسش‌های متداول" },
-  { href: "#basis", label: "منابع و استانداردها" },
+  { href: "#factors", label: "فاکتورهای آزمایش خون" },
+  { href: "#faq-section", label: "پرسش‌های متداول" },
+  { href: "#basis", label: "منابع بالینی" },
 ];
 const MENU_COLS = [
   {
@@ -335,7 +546,7 @@ export function PillNav({ links = NAV_LINKS, sheetMain = links, withSearch = fal
           <div className="lh-pill-links">{links.map((l) => item(l))}</div>
           {withSearch && <SearchForm id="pill-q" q={q} setQ={setQ} onSubmit={onSearch} />}
         </div>
-        <Link to="/landing" className="lh-pill-brand" aria-label={BRAND}>
+        <Link to="/" className="lh-pill-brand" aria-label={BRAND}>
           {scrolled ? <span className="lh-pill-name">{BRAND}</span> : <LabMateLogo height={83} variant={onDark ? "light" : "dark"} />}
         </Link>
         <Link to="/app" className="lh-pill-cta">
@@ -397,7 +608,7 @@ function Hero() {
         <div className="lh-copy" dir="rtl">
           <h1>آزمایش خود را بهتر بفهمید؛ آگاهانه‌تر پیگیری کنید</h1>
           <p className="lh-sub">
-            برگهٔ آزمایش خود را بارگذاری کنید یا مقدارها را وارد کنید. توضیحی ساده و همراه با منبع دریافت می‌کنید دربارهٔ معنای نتایج و محدوده‌های مرجع، و اینکه کدام نتایج ممکن است به پیگیری نیاز داشته باشند.
+            برگهٔ آزمایش خود را بارگذاری کنید یا مقدارها را وارد کنید. توضیحی ساده دریافت می‌کنید دربارهٔ معنای نتایج و محدوده‌های مرجع، و اینکه کدام نتایج ممکن است به پیگیری نیاز داشته باشند.
           </p>
 
           <div className="lh-faq" id="faq">
@@ -556,6 +767,7 @@ function ReviewBasis() {
           ))}
         </div>
         <Link to="/tests" className="btn btn--secondary btn--pill">راهنمای آزمایش‌ها</Link>
+        <Link to="/methodology" className="site-more" style={{ marginInlineStart: "1rem" }}>روش‌شناسی کامل ←</Link>
       </div>
     </section>
   );
@@ -619,9 +831,25 @@ export function Footer() {
   return (
     <footer className="site-foot">
       <div className="site-foot-in">
-        <Link to="/landing" className="site-brand" aria-label={BRAND}>
+        <Link to="/" className="site-brand" aria-label={BRAND}>
           <LabMateLogo height={52} variant="light" />
         </Link>
+        <p className="site-foot-copy" lang="fa">
+          © ۱۴۰۵ {BRAND} (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آزمایش‌های پزشکی بر پایهٔ قواعد معتبر بالینی.
+        </p>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center', margin: '0.75rem 0', fontSize: '0.9rem' }}>
+          <Link to="/" style={{ color: 'inherit', fontWeight: 600 }}>تفسیر آزمایش خون</Link>
+          <span style={{ opacity: 0.5 }}>•</span>
+          <Link to="/tests" style={{ color: 'inherit' }}>فهرست آزمایش‌ها</Link>
+          <span style={{ opacity: 0.5 }}>•</span>
+          <Link to="/reference-ranges" style={{ color: 'inherit' }}>محدوده مرجع</Link>
+          <span style={{ opacity: 0.5 }}>•</span>
+          <Link to="/units-guide" style={{ color: 'inherit' }}>واحدهای سنجش</Link>
+          <span style={{ opacity: 0.5 }}>•</span>
+          <Link to="/how-to-capture" style={{ color: 'inherit' }}>راهنمای عکس گرفتن</Link>
+          <span style={{ opacity: 0.5 }}>•</span>
+          <Link to="/methodology" style={{ color: 'inherit' }}>روش‌شناسی</Link>
+        </div>
         <p>
           {BRAND} جایگزین مشاورهٔ پزشکی، تشخیص یا درمان نیست؛ برای هر تصمیم درمانی با پزشک مشورت کنید. بخشی از متن‌های آموزشی از{" "}
           <a href="https://medlineplus.gov" target="_blank" rel="noopener noreferrer">MedlinePlus</a>{" "}

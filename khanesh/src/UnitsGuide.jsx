@@ -1,7 +1,15 @@
 import { Nav, Footer } from "./Landing";
+import { useSeoHead } from "./useSeoHead.js";
 import "./site.css";
 
 export default function UnitsGuide() {
+  useSeoHead({
+    title: "واحدهای آزمایشگاهی: SI در برابر واحدهای متعارف",
+    description: "جدول و راهنمای علمی تبدیل واحدهای اندازه‌گیری آزمایشگاهی (SI و متعارف مانند HbA1c و الکترولیت‌ها) بر پایه استانداردهای IFCC و Henry's Clinical Diagnosis.",
+    canonical: "/units-guide",
+    ogType: "article",
+  });
+
   return (
     <div className="site" dir="rtl">
       <Nav />

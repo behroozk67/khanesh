@@ -502,6 +502,10 @@ a.site-tile { display: block; text-decoration: none; color: inherit; }
 
 .site-basis { background: var(--ink); color: var(--on-ink); }
 .site-basis .site-h2 { color: var(--on-ink); }
+/* ۲۰۲۶-۱۰-۱۵: عنوانِ «آزمایش‌های پرکاربرد» ۳۰٪ بالاتر — از فاصلهٔ بالای بخش کم می‌شود */
+.site-basis .site-sec { padding-block-start: calc(var(--s14) * .7); }
+/* فاصلهٔ برداشته‌شده از بالا به زیرِ عنوان برمی‌گردد تا کارت‌ها سرِ جایشان بمانند و عنوان به آن‌ها نچسبد */
+.site-basis .site-h2 { margin-bottom: calc(var(--s10) + var(--s14) * .3); }
 .site-basis .site-lede { color: var(--on-ink-2); }
 .site-basis .site-source-txt i { color: var(--on-ink-2); }
 .site-basis .btn--secondary { background: transparent; color: var(--on-ink); border-color: var(--on-ink); }
@@ -1087,7 +1091,8 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
   transition: background var(--dur) var(--ease);
 }
 .lh-pill-links a:hover { background: rgba(255, 255, 255, .14); }
-.lh-pill-brand { display: inline-flex; justify-self: center; }
+.lh-pill-brand { display: inline-flex; justify-self: center; text-decoration: none; }
+.lh-pill-brand:hover, .lh-pill-brand:focus-visible { text-decoration: none; }
 .lh-pill-brand svg { display: block; height: 44px; width: auto; }   /* بُعد: نشان */
 /* دکمهٔ اصلی: نزدیک‌تر به وسط (کنارِ لوگو، نه لبهٔ راست)، بزرگ‌تر، با پیکانِ خطیِ داخلِ دایره.
    direction: rtl تا متن سمتِ راست و پیکانِ «جلو» سمتِ چپ بنشیند. */
@@ -1568,7 +1573,7 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
    رنگ‌بندی شده تا لبهٔ محوشدنش با زمینه یکی باشد. متنِ سفید روی --lh-jade بیش از ۱۰:۱. */
 .lh { --lh-jade: #073b30; --lh-jade-rgb: 7, 59, 48; background: var(--lh-jade); color: #fff; }
 .lh-bg {
-  filter: grayscale(1) sepia(.7) saturate(2.6) hue-rotate(115deg) brightness(.42) contrast(1.25);
+  filter: grayscale(1) sepia(.7) saturate(2.6) hue-rotate(115deg) brightness(1.21) contrast(1.25);
 }
 .lh::after {
   background:
@@ -1682,6 +1687,11 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 .gc-art::before { width: 62%; aspect-ratio: 1; inset-inline-end: -14%; bottom: -30%; }
 .gc-art::after { width: 36%; aspect-ratio: 1; inset-inline-end: 4%; bottom: -6%; opacity: .2; }
 .gc-card:hover .gc-ic { transform: scale(1.06) rotate(-4deg); }
+/* «آزمایش‌های پرکاربرد»: متن وسطِ کادر، حدود ۲۰٪ بالاتر از مرکز؛ آیکون در گوشه */
+.gc-art--mid .gc-art-txt {
+  position: absolute; top: 30%; inset-inline: var(--s9); transform: translateY(-50%);
+  align-items: center; text-align: center;
+}
 
 .gc-card h3 { margin: var(--s7) 0 var(--s3); font-size: var(--t-xl); }
 .gc-card p {
@@ -1731,3 +1741,122 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 /* کارتِ توپر روی .site-basis: دکمه باید رنگِ عادیِ روی کارت را بگیرد، نه نسخهٔ روی-زمینهٔ-تیره */
 .site-basis .gc-card .btn--secondary { background: var(--card); color: var(--brand); border-color: var(--brand); }
 .site-basis .gc-card .btn--secondary:hover:not(:disabled) { background: var(--brand-soft); color: var(--brand); }
+
+/* ---------- فاکتورهای آزمایش خون در لندینگ (سئو و راهنمای بالینی) ---------- */
+.factors-table-wrap {
+  margin-top: var(--s8);
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--sh-sm);
+}
+.factors-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: right;
+  font-size: var(--t-sm);
+  min-width: 680px;
+}
+.factors-table th, .factors-table td {
+  padding: var(--s5) var(--s6);
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+.factors-table thead th {
+  background: var(--page);
+  color: var(--ink);
+  font-weight: var(--w-bold);
+  font-size: var(--t-xs);
+  letter-spacing: 0.02em;
+}
+.factors-table tbody tr:hover {
+  background: rgba(2, 132, 199, 0.04);
+}
+.factors-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.factor-name {
+  font-weight: var(--w-bold);
+  color: var(--brand-ink);
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.factor-name:hover {
+  color: var(--brand);
+}
+.factor-name small {
+  color: var(--ink-3);
+  font-weight: var(--w-normal);
+  font-size: var(--t-xs);
+  direction: ltr;
+  text-align: right;
+}
+.factor-cat {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: var(--t-xs);
+  font-weight: var(--w-semibold);
+  white-space: nowrap;
+}
+.factor-synergy {
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+  line-height: var(--lh-snug);
+}
+
+/* ---------- پرسش‌های متداول سئو لندینگ ---------- */
+.site-faq-list {
+  display: grid;
+  gap: var(--s4);
+  margin-top: var(--s8);
+}
+.site-faq-item {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.site-faq-item[open] {
+  border-color: var(--brand);
+  box-shadow: var(--sh-sm);
+}
+.site-faq-item summary {
+  list-style: none;
+  cursor: pointer;
+  padding: var(--s5) var(--s7);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  font-size: var(--t-md);
+  font-weight: var(--w-bold);
+  color: var(--ink);
+  user-select: none;
+}
+.site-faq-item summary::-webkit-details-marker { display: none; }
+.site-faq-item summary::after {
+  content: "+";
+  font-size: 1.4rem;
+  font-weight: var(--w-normal);
+  color: var(--ink-3);
+  line-height: 1;
+  transition: transform var(--dur) var(--ease);
+}
+.site-faq-item[open] summary::after {
+  content: "−";
+  color: var(--brand);
+}
+.site-faq-body {
+  padding: 0 var(--s7) var(--s6);
+  font-size: var(--t-sm);
+  line-height: var(--lh-prose);
+  color: var(--ink-2);
+}
+

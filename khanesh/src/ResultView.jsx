@@ -1,13 +1,13 @@
 // ============================================================
 // صفحهٔ نتیجه — بازنویسی‌شده حولِ حکمِ موتور، نه فقط نثرِ مدل.
 //
-// ترتیبِ نمایش (تصمیمِ کاربر، ۲۰۲۶-۱۰-۰۷):
+// ترتیبِ نمایش (تصمیمِ کاربر؛ انتقالِ هشدارهای صفحه/OCR به پایانِ صفحه):
 //   ۱. بنرِ فوریت (قرمز) — فقط وقتی فوریت هست؛ بنرِ سبزِ «همه‌چیز خوب است» هرگز.
-//      بعدش «تفسیر بر پایهٔ …» و هشدارهای صفحه/OCR، چون شرطِ خواندنِ تفسیرند.
+//      بعدش «تفسیر بر پایهٔ …» و سوییچِ نما.
 //   ۲. خلاصه  ۳. تفسیر  ۴. توصیه‌ها
 //   ۵. داشبورد (ResultDashboard.jsx) — جایگاهِ اعداد، امتیازِ برگه، دستگاه‌ها.
 //   ۶. اعدادی که از برگه خواندیم (+ تبدیلِ واحدها).
-//   ۷. مقادیرِ محاسبه‌شده (N5: همیشه با تصریحِ اینکه روی برگه نیستند)، منابع، «این تفسیر چطور ساخته شد؟»، سلبِ مسئولیت.
+//   ۷. مقادیرِ محاسبه‌شده (N5: همیشه با تصریحِ اینکه روی برگه نیستند)، منابع، هشدارهای صفحه/OCR (مواردِ ناقص یا تفسیرنشده)، «این تفسیر چطور ساخته شد؟»، سلبِ مسئولیت.
 // «همهٔ آزمایش‌ها» حذف شد؛ یادداشتِ N5 («روی برگهٔ شما: X») برای کلسیم/سدیمِ تصحیح‌شده به داشبورد رفت.
 // ============================================================
 
@@ -56,7 +56,6 @@ function UnmatchedNote({ rows }) {
 /* ---------- مقادیر محاسبه‌شده ---------- */
 
 const INDEX_LABELS = {
-  egfr: "تخمین عملکرد کلیه (eGFR)",
   ca_corrected: "کلسیم تصحیح‌شده",
   na_corrected: "سدیم تصحیح‌شده",
   anion_gap: "شکاف آنیونی",
@@ -324,19 +323,6 @@ export default function ResultView({ result, asText, asList }) {
         </div>
       )}
 
-      {/* هشدارهای صفحه و OCR */}
-      {result.pages?.failed?.length > 0 && (
-        <div className="warn" role="alert">
-          ⚠️ صفحه {result.pages.failed.map(toFaDigits).join(" و ")} خوانده نشد. تفسیر فقط بر اساس{" "}
-          {toFaDigits(result.pages.read)} صفحه از {toFaDigits(result.pages.total)} صفحه است.
-        </div>
-      )}
-      {asList(result.ocr_warnings).length > 0 && (
-        <div className="warn">
-          {asList(result.ocr_warnings).map((w, i) => <div key={i}>• {asText(w)}</div>)}
-        </div>
-      )}
-
       {/* P113 — کارتِ سنِ زیستی، پیش از تفسیر و فقط در نمای ساده.
              داده‌اش را سرور می‌سازد (`_engine.phenoAge`)؛ نبودش ⇒ کارت رندر نمی‌شود. */}
       {!expert && <PhenoAgeCard data={eng?.phenoAge} />}
@@ -426,8 +412,9 @@ export default function ResultView({ result, asText, asList }) {
       {!expert && <ExtractedTests list={extracted} pages={result.pages} asText={asText} />}
       {hasEngine && <UnitConversions rows={eng?.unitConversions} asText={asText} asList={asList} />}
 
-      {/* ۵. مقادیر محاسبه‌شده */}
-      <DerivedValues indices={eng?.indices} />
+      {/* ۵. مقادیر محاسبه‌شده — P111: در نمای تخصصی، ExpertView همان بلوک را با روشِ محاسبه دارد؛
+          رندرِ دوباره‌اش کلِ باکس را دو بار نشان می‌داد (بازبینیِ ۲۰۲۶-۱۰-۲۰). */}
+      {!expert && <DerivedValues indices={eng?.indices} />}
 
       {/* ۶. منابع، منشأ، سلب مسئولیت */}
       {asList(result.sources).length > 0 && (
@@ -450,6 +437,19 @@ export default function ResultView({ result, asText, asList }) {
             })}
           </ul>
         </section>
+      )}
+
+      {/* هشدارهای صفحه و OCR (موارد ناقص یا تفسیر نشده) */}
+      {result.pages?.failed?.length > 0 && (
+        <div className="warn" role="alert">
+          ⚠️ صفحه {result.pages.failed.map(toFaDigits).join(" و ")} خوانده نشد. تفسیر فقط بر اساس{" "}
+          {toFaDigits(result.pages.read)} صفحه از {toFaDigits(result.pages.total)} صفحه است.
+        </div>
+      )}
+      {asList(result.ocr_warnings).length > 0 && (
+        <div className="warn">
+          {asList(result.ocr_warnings).map((w, i) => <div key={i}>• {asText(w)}</div>)}
+        </div>
       )}
 
       <Provenance hasEngine={hasEngine} />

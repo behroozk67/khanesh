@@ -28,15 +28,24 @@ echo "› آماده‌سازی و نصب روی سرور"
 set -euo pipefail
 mkdir -p /tmp/khdeploy && tar -xzf /tmp/deploy.tgz -C /tmp/khdeploy
 bash /tmp/khdeploy/deploy/setup.sh
+# پایین‌بودنِ سرویس باید کوتاه بماند (هر درخواستِ این فاصله ۵۰۲ می‌گیرد و کارِ در جریان از بین می‌رود):
+# node_modules حفظ می‌شود و فقط وقتی package-lock عوض شده باشد دوباره نصب/کامپایل می‌شود.
+# (npm روی سرور خودِ package-lock را بازنویسی می‌کند؛ پس هش در فایلِ جدا نگه داشته می‌شود)
+OLD_LOCK=$(cat /opt/khanesh/.lock.sha 2>/dev/null || true)
 systemctl stop khanesh 2>/dev/null || true
-rm -rf /opt/khanesh/app/* /opt/khanesh/web/*
+find /opt/khanesh/app -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf {} +
+rm -rf /opt/khanesh/web/*
 tar -xzf /tmp/app.tgz -C /opt/khanesh/app
 tar -xzf /tmp/web.tgz -C /opt/khanesh/web
 chown -R khanesh:khanesh /opt/khanesh
 cd /opt/khanesh/app
-sudo -u khanesh npm ci --omit=dev --no-audit --no-fund || sudo -u khanesh npm install --omit=dev --no-audit --no-fund
-# باینری آمادهٔ sqlite3 به glibc>=2.38 نیاز دارد؛ Ubuntu 22.04 ندارد ⇒ روی خودِ سرور کامپایل می‌شود
-sudo -u khanesh npm rebuild sqlite3 --build-from-source >/dev/null
+NEW_LOCK=$(sha256sum package-lock.json | cut -d' ' -f1)
+if [ "$OLD_LOCK" != "$NEW_LOCK" ] || [ ! -d node_modules ]; then
+  sudo -u khanesh npm ci --omit=dev --no-audit --no-fund || sudo -u khanesh npm install --omit=dev --no-audit --no-fund
+  # باینری آمادهٔ sqlite3 به glibc>=2.38 نیاز دارد؛ Ubuntu 22.04 ندارد ⇒ روی خودِ سرور کامپایل می‌شود
+  sudo -u khanesh npm rebuild sqlite3 --build-from-source >/dev/null
+  echo "$NEW_LOCK" > /opt/khanesh/.lock.sha
+fi
 systemctl restart khanesh
 sleep 4
 systemctl is-active khanesh

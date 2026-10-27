@@ -44,9 +44,13 @@ export function looksLikeImage(file) {
 // pdfIntake.js پیش از باز کردن، امضای «%PDF-» را در بایت‌های اول هم چک می‌کند.
 // این تابع عمداً اینجاست (نه در pdfIntake.js) تا تشخیص، pdf.js را بار نکند.
 export function looksLikePdf(file) {
+  // نام هم معیار است، نه فقط type: فایل‌پیکرِ اندروید (دانلودها/تلگرام/درایو)
+  // گاهی PDF را با typeِ «application/octet-stream» می‌دهد و با اعتمادِ صرف به
+  // type، فایل به مسیرِ عکس می‌افتاد و پیامِ بی‌ربط می‌گرفت. امضای «%PDF-» بعداً
+  // در pdfIntake.js دوباره چک می‌شود، پس این‌جا سخاوتمند بودن ضرری ندارد.
   if (file.type === "application/pdf") return true;
-  if (file.type) return false;
-  return /\.pdf$/i.test(file.name || "");
+  if (/\.pdf$/i.test(file.name || "")) return true;
+  return false;
 }
 
 // دیکود عکس با دو مسیر.

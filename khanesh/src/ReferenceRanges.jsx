@@ -1,7 +1,15 @@
 import { Nav, Footer } from "./Landing";
+import { useSeoHead } from "./useSeoHead.js";
 import "./site.css";
 
 export default function ReferenceRanges() {
+  useSeoHead({
+    title: "مقادیر مرجع (رنج نرمال) در آزمایش‌های پزشکی به چه معناست؟",
+    description: "محدوده مرجع (Reference Range) در برگه آزمایش چگونه تعیین می‌شود؟ بررسی علت تفاوت بازه نرمال در آزمایشگاه‌ها، عوامل موثر مانند سن و جنسیت و آستانه‌های بالینی.",
+    canonical: "/reference-ranges",
+    ogType: "article",
+  });
+
   return (
     <div className="site" dir="rtl">
       <Nav />

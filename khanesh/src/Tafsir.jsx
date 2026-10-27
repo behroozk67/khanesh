@@ -391,13 +391,16 @@ export default function Tafsir() {
             out.push(...pages);
             used += n;
           } catch (err) {
+            console.error("[pdf] intake failed:", err?.name, err?.code || "", err?.message || err);
             const code = err?.name === "PdfIntakeError" ? err.code : "unreadable";
             msgs.push(
               code === "password"
                 ? `فایل «${nameOf(f)}» رمز دارد و باز نشد. رمزش را بردارید یا از صفحه‌های برگه عکس بگیرید.`
                 : code === "empty"
                   ? `فایل «${nameOf(f)}» هیچ صفحه‌ای ندارد.`
-                  : `فایل «${nameOf(f)}» به‌عنوان PDF باز نشد؛ شاید خراب باشد. از صفحه‌های برگه عکس بگیرید.`
+                  : code === "worker"
+                    ? "ابزارِ خواندنِ PDF بارگیری نشد — این عیبِ سایت است، نه فایلِ شما. صفحه را یک‌بار نوسازی کنید؛ اگر درست نشد از صفحه‌های برگه عکس بگیرید."
+                    : `فایل «${nameOf(f)}» به‌عنوان PDF باز نشد؛ شاید خراب باشد. از صفحه‌های برگه عکس بگیرید.`
             );
           } finally {
             if (pdf) await pdf.close();
@@ -579,6 +582,9 @@ export default function Tafsir() {
         />
 
         <footer className="site-footer">
+          <p>
+            © ۱۴۰۵ آزمایار (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آزمایش‌های پزشکی.
+          </p>
           <p>
             محدوده‌ها بر اساس مراجع استاندارد است و ممکن است با کیت آزمایشگاه شما اندکی فرق کند.
             این ابزار آموزشی است و جایگزین پزشک نیست.

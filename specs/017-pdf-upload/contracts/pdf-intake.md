@@ -10,8 +10,11 @@ looksLikePdf(file) -> boolean   // type "application/pdf", or empty type + /\.pd
 
 // In pdfIntake.js (lazy chunk):
 openPdf(file) -> Promise<{ numPages, renderPage(i) -> Promise<dataUrl>, close() }>
-  // throws PdfIntakeError with .code in: "password" | "unreadable" | "empty"
+  // throws PdfIntakeError with .code in: "password" | "unreadable" | "empty" | "worker"
   // checks the %PDF- magic bytes before handing the file to pdf.js
+  // "worker" = the pdf.js worker asset is unusable (missing, or served with a non-JavaScript
+  //   MIME type). A best-effort HEAD preflight reports it so the user is not told their file
+  //   is corrupt when the fault is in the deployment (see the .mjs MIME note in deploy/setup.sh).
 ```
 
 The caller (`Tafsir.jsx onFile`) owns the allowance check. It calls `openPdf`, reads `numPages`, and compares against the allowance **before** the first `renderPage`. It renders the pages sequentially, reporting `i/n` progress, and calls `close()` in `finally`. If any page fails, it discards that PDF's pages and reports `unreadable`.
@@ -30,6 +33,7 @@ The caller (`Tafsir.jsx onFile`) owns the allowance check. It calls `openPdf`, r
 | `pdf_unreadable` | «فایل «{name}» به‌عنوان PDF باز نشد؛ شاید خراب باشد. از صفحه‌های برگه عکس بگیرید.» |
 | `pdf_empty` | «فایل «{name}» هیچ صفحه‌ای ندارد.» |
 | `pdf_lib_failed` | «ابزارِ خواندنِ PDF بارگیری نشد. اتصالِ اینترنت را بررسی کنید و دوباره امتحان کنید.» |
+| `pdf_worker_unusable` | «ابزارِ خواندنِ PDF بارگیری نشد؛ فایلِ شما سالم است. اتصالِ اینترنت را بررسی کنید و دوباره امتحان کنید.» — جدا از `pdf_unreadable`: عیب از فایل نیست، از بارگیریِ کارگرِ pdf.js است. |
 | progress (dropzone) | «در حال آماده‌سازیِ صفحهٔ {i} از {n}…» |
 | dropzone main (empty) | «عکس یا PDF برگهٔ آزمایش را انتخاب کنید» |
 | dropzone sub | «اگر برگه چند صفحه است، همه را با هم انتخاب کنید (حداکثر {max} صفحه)» |

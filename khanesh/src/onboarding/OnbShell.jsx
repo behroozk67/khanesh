@@ -9,7 +9,7 @@ import "./onboarding.css";
 export default function OnbShell({ step, total = 4, onBack, title, lede, variant, children }) {
   return (
     <div className={`onb${variant ? ` onb--${variant}` : ""}`} dir="rtl">
-      {variant === "lab" ? <LabHelix /> : <Backdrop />}
+      {variant === "lab" ? <LabHelix /> : !variant ? <Backdrop /> : null}
       <div className="onb-top">
         {onBack ? (
           <button type="button" className="onb-back" onClick={onBack}>

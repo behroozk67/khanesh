@@ -14,7 +14,7 @@ export function LabMateMark({ size = 44, title }) {
   );
 }
 
-export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA }) {
+export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA, hideText = false }) {
   const ink = variant === "light" ? "#ffffff" : NAVY;
   const sloganInk = variant === "light" ? "#e7ecf8" : "#111111";
 
@@ -34,7 +34,7 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA })
           filter: variant === "light" ? "invert(1) hue-rotate(180deg)" : undefined,
         }}
       />
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '6px' }}>
+      {!hideText && <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingTop: '6px' }}>
         <span style={{ 
           fontFamily: FA_FONT,
           fontSize: `calc(${h} * 0.45)`,
@@ -55,7 +55,7 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA })
         }}>
           {BRAND_SLOGAN}
         </span>
-      </div>
+      </div>}
     </div>
   );
 }

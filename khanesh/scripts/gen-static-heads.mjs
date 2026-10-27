@@ -42,12 +42,14 @@ function cleanDesc(str, max = 175) {
 // ناوبریِ مشترک بالای صفحات
 const navHtml = `
 <header class="site-hdr" style="padding:1rem 1.5rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
-  <a href="/" style="font-weight:700;font-size:1.25rem;color:#0f172a;text-decoration:none">${BRAND_FA}</a>
+  <a href="/" style="font-weight:800;font-size:1.25rem;color:#0f172a;text-decoration:none" title="تفسیر آزمایش خون آنلاین — آزمایار">${BRAND_FA} <span style="font-size:0.85rem;font-weight:600;color:#0284c7">| تفسیر آزمایش خون</span></a>
   <nav style="display:flex;gap:1rem;align-items:center;font-size:0.95rem">
+    <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a>
     <a href="/tests" style="color:#475569;text-decoration:none">فهرست آزمایش‌ها</a>
     <a href="/reference-ranges" style="color:#475569;text-decoration:none">محدوده مرجع</a>
     <a href="/units-guide" style="color:#475569;text-decoration:none">واحدهای سنجش</a>
     <a href="/how-to-capture" style="color:#475569;text-decoration:none">راهنمای عکس گرفتن</a>
+    <a href="/methodology" style="color:#475569;text-decoration:none">روش‌شناسی</a>
     <a href="/app" style="background:#0284c7;color:#fff;padding:0.4rem 0.9rem;border-radius:0.5rem;text-decoration:none">ورود به تفسیر</a>
   </nav>
 </header>
@@ -56,13 +58,16 @@ const navHtml = `
 const footerHtml = `
 <footer class="site-ftr" style="margin-top:3rem;padding:2rem 1.5rem;border-top:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:0.875rem">
   <div style="max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:1rem">
-    <p><strong>${BRAND_FA}</strong> — سامانهٔ ارزیابی و تفسیر آزمایش‌های پزشکی بر پایهٔ قواعد معتبر بالینی.</p>
+    <p><strong><a href="/" style="color:#0f172a;text-decoration:none;font-weight:700">تفسیر آزمایش خون</a> با ${BRAND_FA}</strong> (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آنلاین آزمایش‌های پزشکی بر پایهٔ قواعد معتبر بالینی.</p>
+    <p style="font-size:0.8rem;line-height:1.6">© ۱۴۰۵ ${BRAND_FA} — تمامی حقوق محفوظ است.</p>
     <p style="font-size:0.8rem;line-height:1.6">تذکر مهم پزشکی: آزمایار یک ابزار کمکی آموزشی و بالینی برای درک بهتر برگهٔ آزمایش است و به‌هیچ‌وجه جایگزین معاینه و تصمیم پزشک معالج نیست.</p>
     <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
+      <a href="/" style="color:#0284c7;font-weight:600;text-decoration:none">تفسیر آزمایش خون</a>
       <a href="/tests" style="color:#64748b;text-decoration:none">آزمایش‌ها</a>
       <a href="/reference-ranges" style="color:#64748b;text-decoration:none">مقادیر مرجع</a>
       <a href="/units-guide" style="color:#64748b;text-decoration:none">واحدهای آزمایشگاهی</a>
       <a href="/how-to-capture" style="color:#64748b;text-decoration:none">کیفیت عکس برگه</a>
+      <a href="/methodology" style="color:#64748b;text-decoration:none">روش‌شناسی</a>
     </div>
   </div>
 </footer>
@@ -70,20 +75,92 @@ const footerHtml = `
 
 // ۱. تولید صفحه لندینگ
 function renderLanding() {
+  const bloodFactors = [
+    { n: "شمارش کامل خون (CBC)", sub: "WBC, RBC, Hb, Plt, MCV", to: "/test/cbc", cat: "خون‌شناسی", p: "بررسی کم‌خونی، عفونت فعال و پلاکت‌ها", syn: "تحلیل همزمان MCV و هموگلوبین برای افتراق فقر آهن از تالاسمی مینور" },
+    { n: "قند خون ناشتا (FBS)", sub: "Fasting Blood Sugar", to: "/test/fbs", cat: "دیابت و متابولیسم", p: "غربالگری دیابت و ارزیابی گلوکز پلاسما", syn: "ارزیابی در کنار HbA1c جهت تفکیک نوسان لحظه‌ای از میانگین ۳ ماهه" },
+    { n: "هموگلوبین A1c", sub: "HbA1c", to: "/test/hba1c", cat: "دیابت و متابولیسم", p: "میانگین قند خون در ۹۰ تا ۱۲۰ روز گذشته", syn: "معیار طلایی کنترل دیابت بدون وابستگی به رژیم غذایی روز آزمایش" },
+    { n: "پروفایل چربی (Lipid Panel)", sub: "Chol, TG, LDL, HDL", to: "/test/lipid-panel", cat: "قلب و عروق", p: "سنجش کلسترول، تری‌گلیسرید و رسوب عروقی", syn: "محاسبه نسبت کلسترول به HDL و Non-HDL جهت تخمین ریسک قلبی" },
+    { n: "آنزیم‌های کبدی (ALT و AST)", sub: "SGPT, SGOT", to: "/test/alt", cat: "کبد و گوارش", p: "بررسی التهاب، کبد چرب و آسیب هپاتوسلولار", syn: "نسبت De Ritis (AST/ALT) در کنار ALP برای افتراق علل کبدی" },
+    { n: "کراتینین و اوره (Cr & BUN)", sub: "Creatinine, BUN", to: "/test/cr", cat: "کلیه و مجاری", p: "ارزیابی سلامت فیلتراسیون گلومرولی و تصفیه کلیه", syn: "تخمین دقیق eGFR با در نظر گرفتن سن و جنسیت فرد" },
+    { n: "هورمون محرک تیروئید (TSH)", sub: "TSH", to: "/test/tsh", cat: "غدد درون‌ریز", p: "غربالگری کم‌کاری یا پرکاری غده تیروئید", syn: "سنجش همزمان در کنار Free T4 جهت تشخیص تیروئید ساب‌کلینیکال" },
+    { n: "فریتین و آهن سرم", sub: "Ferritin, Serum Iron", to: "/test/ferritin", cat: "خون‌شناسی", p: "سنجش ذخایر واقعی آهن کبد و پروتئین ترانسفرین", syn: "تشخیص دقیق فقر آهن پیش از بروز کم‌خونی در CBC" },
+    { n: "ویتامین D3 (25-OH D)", sub: "25-Hydroxy Vitamin D", to: "/test/vitd", cat: "ویتامین‌ها و املاح", p: "سلامت استخوان، جذب کلسیم و سیستم ایمنی", syn: "بررسی در کنار کلسیم و فسفر خون جهت تعیین دوز ایمن مکمل" },
+  ];
+
+  const faqs = [
+    { q: "تفسیر آزمایش خون در آزمایار چگونه انجام می‌شود؟", a: "کافی است عکس واضحی از برگهٔ آزمایش خود بارگذاری کنید یا مقادیر فاکتورها را به‌صورت دستی وارد فرم کنید. موتور آزمایار بر پایهٔ قواعد معتبر بالینی، تمامی شاخص‌ها را به‌صورت یکپارچه در کنار یکدیگر می‌سنجد، فوریت بالینی هر یافته را مشخص کرده و توصیه‌های بعدی را به فارسی روان ارائه می‌دهد." },
+    { q: "آیا آزمایار می‌تواند عکس برگه آزمایش خون را بخواند؟", a: "بله، با موتور اختصاصی پردازش تصویر و OCR پزشکی، می‌توانید تا ۵ صفحه از برگه‌های آزمایش خود را بارگذاری نمایید تا نام آزمایش‌ها، مقادیر عددی و بازه‌های نرمال آزمایشگاه به‌صورت خودکار استخراج و تحلیل شوند." },
+    { q: "چرا بررسی همزمان فاکتورها دقیق‌تر از خواندن محدوده مرجع تکی است؟", a: "شاخص‌های آزمایشگاهی در بدن به‌هم‌پیوسته‌اند؛ برای مثال، هموگلوبین پایین به‌تنهایی فقط نشانهٔ کم‌خونی است، اما اگر با MCV پایین و فریتین پایین همراه باشد الگوی کم‌خونی فقر آهن را نشان می‌دهد، در حالی که با MCV بالا ممکن است کمبود ویتامین B12 یا فولات مطرح باشد. آزمایار الگوی چندگانه کل برگه را بررسی می‌کند." },
+    { q: "آیا نتیجهٔ تفسیر آنلاین آزمایش خون جایگزین نظر پزشک است؟", a: "خیر. آزمایار یک ابزار بالینی و آموزشی جهت ارتقای سواد سلامت و آماده‌سازی بیمار برای گفت‌وگوی آگاهانه‌تر با پزشک است و به‌هیچ‌عنوان جایگزین معاینه حضوری، اخذ شرح‌حال و قضاوت پزشک معالج نخواهد بود." },
+    { q: "چه آزمایش‌هایی در سامانه آزمایار پوشش داده شده‌اند؟", a: "بیش از ۳۰۰ آزمایش تخصصی شامل شمارش کامل خون (CBC)، قند خون و دیابت، چربی‌ها، کبد، کلیه، تیروئید، املاح و الکترولیت‌ها، ویتامین‌ها، آزمایش کامل ادرار و مدفوع، و نشانگرهای غربالگری در سامانه تحلیل می‌شوند." },
+  ];
+
   return `
 <div class="site" dir="rtl" style="font-family:system-ui,-apple-system,sans-serif;color:#1e293b;line-height:1.7">
   ${navHtml}
   <main style="max-width:960px;margin:2rem auto;padding:0 1.5rem">
-    <h1 style="font-size:2rem;font-weight:800;color:#0f172a;margin-bottom:1rem">تفسیر هوشمند برگهٔ آزمایش با قواعد بالینی</h1>
-    <p style="font-size:1.15rem;color:#334155;margin-bottom:2rem">عکس برگهٔ آزمایش یا اعدادش را وارد کنید؛ آزمایار با قواعد بالینی مشخص، نتیجه را به فارسی ساده توضیح می‌دهد: چه چیزی خارج از محدوده است، چقدر فوری است و قدم بعدی چیست.</p>
-    <div style="display:flex;gap:1rem;margin-bottom:3rem">
-      <a href="/app" style="background:#0284c7;color:#fff;padding:0.75rem 1.5rem;border-radius:0.5rem;font-weight:600;text-decoration:none">تفسیر برگهٔ آزمایش</a>
-      <a href="/tests" style="background:#e0f2fe;color:#0369a1;padding:0.75rem 1.5rem;border-radius:0.5rem;font-weight:600;text-decoration:none">مشاهده ۳۰۰+ آزمایش</a>
-    </div>
-    <section style="margin-top:2.5rem">
-      <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:1rem">دسته‌بندی‌های آزمایشگاهی</h2>
+    <header style="margin-bottom:3rem">
+      <h1 style="font-size:2.2rem;font-weight:800;color:#0f172a;margin-bottom:1rem;line-height:1.3">تفسیر آزمایش خون آنلاین با هوش مصنوعی و قواعد بالینی</h1>
+      <p style="font-size:1.15rem;color:#334155;margin-bottom:2rem;line-height:1.8">
+        عکس برگهٔ آزمایش خود را بارگذاری کنید یا مقادیر فاکتورها را دستی وارد نمایید؛ آزمایار با بررسی چندفاکتوره بر پایهٔ منابع بالینی معتبر، وضعیت شاخص‌ها، فوریت بالینی و توصیه‌های بعدی را به زبان ساده برای شما تشریح می‌کند.
+      </p>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap">
+        <a href="/app" style="background:#0284c7;color:#fff;padding:0.75rem 1.5rem;border-radius:0.5rem;font-weight:600;text-decoration:none">شروع تفسیر آزمایش خون</a>
+        <a href="/tests" style="background:#e0f2fe;color:#0369a1;padding:0.75rem 1.5rem;border-radius:0.5rem;font-weight:600;text-decoration:none">راهنمای ۳۰۰+ آزمایش پزشکی</a>
+      </div>
+    </header>
+
+    <section style="margin-top:3.5rem">
+      <h2 style="font-size:1.5rem;font-weight:700;color:#0f172a;margin-bottom:0.75rem">راهنمای فاکتورهای کلیدی در تفسیر آزمایش خون</h2>
+      <p style="font-size:1rem;color:#475569;margin-bottom:1.5rem;line-height:1.7">
+        برگهٔ آزمایش خون معمولاً از چند پنل مجزا تشکیل شده است. در جدول زیر، پرکاربردترین شاخص‌های خون، کاربرد بالینی و دلیل اهمیت ارزیابی ترکیبی آن‌ها را مشاهده می‌کنید:
+      </p>
+      <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:0.75rem;background:#fff;margin-bottom:1.5rem">
+        <table style="width:100%;border-collapse:collapse;font-size:0.9rem;text-align:right;min-width:640px">
+          <thead>
+            <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#475569">
+              <th style="padding:0.75rem 1rem">شاخص خونی</th>
+              <th style="padding:0.75rem 1rem">دسته بالینی</th>
+              <th style="padding:0.75rem 1rem">هدف آزمایش</th>
+              <th style="padding:0.75rem 1rem">اهمیت بررسی یکپارچه در تفسیر</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bloodFactors.map(f => `
+              <tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:0.75rem 1rem">
+                  <a href="${f.to}" style="font-weight:700;color:#0284c7;text-decoration:none;display:block">${escapeHtml(f.n)}</a>
+                  <small style="color:#64748b;font-size:0.8rem;direction:ltr;display:block">${escapeHtml(f.sub)}</small>
+                </td>
+                <td style="padding:0.75rem 1rem;color:#475569">${escapeHtml(f.cat)}</td>
+                <td style="padding:0.75rem 1rem;color:#334155">${escapeHtml(f.p)}</td>
+                <td style="padding:0.75rem 1rem;color:#475569;font-size:0.85rem">${escapeHtml(f.syn)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section style="margin-top:3.5rem">
+      <h2 style="font-size:1.5rem;font-weight:700;color:#0f172a;margin-bottom:1rem">دسته‌بندی‌های آزمایشگاهی و چکاپ</h2>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem">
-        ${GUIDES.map(g => `<div style="border:1px solid #e2e8f0;padding:1rem;border-radius:0.5rem"><a href="${catPath(g.id)}" style="font-weight:600;color:#0284c7;text-decoration:none;display:block;margin-bottom:0.4rem">${escapeHtml(g.t)}</a><p style="font-size:0.875rem;color:#64748b;margin:0">${escapeHtml(cleanDesc(g.d, 90))}</p></div>`).join("")}
+        ${GUIDES.map(g => `<div style="border:1px solid #e2e8f0;padding:1rem;border-radius:0.5rem;background:#fff"><a href="${catPath(g.id)}" style="font-weight:600;color:#0284c7;text-decoration:none;display:block;margin-bottom:0.4rem">${escapeHtml(g.t)}</a><p style="font-size:0.875rem;color:#64748b;margin:0">${escapeHtml(cleanDesc(g.d, 90))}</p></div>`).join("")}
+      </div>
+    </section>
+
+    <section style="margin-top:3.5rem">
+      <h2 style="font-size:1.5rem;font-weight:700;color:#0f172a;margin-bottom:0.75rem">پرسش‌های متداول درباره تفسیر آزمایش خون</h2>
+      <p style="font-size:1rem;color:#475569;margin-bottom:1.5rem">
+        پاسخ به سوالات متداول درباره نحوه کار با سامانه آزمایار، نحوه خواندن آزمایش و استانداردهای بالینی:
+      </p>
+      <div style="display:grid;gap:0.75rem">
+        ${faqs.map(item => `
+          <details style="background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.75rem 1rem" open>
+            <summary style="font-weight:700;color:#0f172a;cursor:pointer;margin-bottom:0.5rem">${escapeHtml(item.q)}</summary>
+            <p style="font-size:0.92rem;color:#475569;margin:0;line-height:1.7">${escapeHtml(item.a)}</p>
+          </details>
+        `).join("")}
       </div>
     </section>
   </main>
@@ -99,7 +176,7 @@ function renderTestsIndex() {
   ${navHtml}
   <main style="max-width:960px;margin:2rem auto;padding:0 1.5rem">
     <nav style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem">
-      <a href="/" style="color:#64748b;text-decoration:none">خانه</a> / <span>راهنمای آزمایش‌ها</span>
+      <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a> / <span>راهنمای آزمایش‌ها</span>
     </nav>
     <h1 style="font-size:2rem;font-weight:800;color:#0f172a;margin-bottom:1rem">راهنمای جامع آزمایش‌های پزشکی و چکاپ</h1>
     <p style="font-size:1.1rem;color:#475569;margin-bottom:2.5rem">راهنمای تخصصی بیش از ۳۰۰ آزمایش پزشکی در ۱۶ دسته بالینی؛ رنج نرمال، علت بالا یا پایین بودن مقادیر، شرایط نمونه‌گیری و تفسیر تشخیصی.</p>
@@ -139,7 +216,7 @@ function renderCategoryPage(catId) {
   ${navHtml}
   <main style="max-width:960px;margin:2rem auto;padding:0 1.5rem">
     <nav style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem">
-      <a href="/" style="color:#64748b;text-decoration:none">خانه</a> / 
+      <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a> / 
       <a href="/tests" style="color:#64748b;text-decoration:none">آزمایش‌ها</a> / 
       <span>${escapeHtml(title)}</span>
     </nav>
@@ -187,7 +264,7 @@ function renderTestPage(key) {
   ${navHtml}
   <main style="max-width:840px;margin:2rem auto;padding:0 1.5rem">
     <nav style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem">
-      <a href="/" style="color:#64748b;text-decoration:none">خانه</a> / 
+      <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a> / 
       <a href="/tests" style="color:#64748b;text-decoration:none">آزمایش‌ها</a> / 
       ${cat ? `<a href="${catPath(cat.id)}" style="color:#64748b;text-decoration:none">${escapeHtml(cat.t)}</a> / ` : ""}
       <span>${escapeHtml(testName)}</span>
@@ -233,18 +310,24 @@ function renderTestPage(key) {
 
       <div style="margin-top:2.5rem;padding:1.5rem;background:#f0f9ff;border-radius:0.75rem;border:1px solid #bae6fd;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
         <div>
-          <strong style="color:#0369a1;display:block;font-size:1.05rem">می‌خواهید برگه آزمایش خود را دقیق تحلیل کنید؟</strong>
-          <span style="color:#0284c7;font-size:0.875rem">برگه آزمایش را بارگذاری کنید تا با سایر فاکتورها به‌صورت یکپارچه سنجیده شود.</span>
+          <strong style="color:#0369a1;display:block;font-size:1.05rem">تحلیل جامع برگه و تفسیر آنلاین آزمایش خون</strong>
+          <p style="color:#0284c7;font-size:0.875rem;margin:0.35rem 0 0;line-height:1.6">
+            شاخص ${escapeHtml(testName)} را به‌تنهایی بررسی نکنید؛ وضعیت بالینی آن در ارتباط با سایر فاکتورهای خون مشخص می‌شود. برای تحلیل یکپارچه کل برگه بر پایهٔ منابع بالینی، به سامانهٔ <a href="/" style="color:#0369a1;font-weight:700;text-decoration:underline">تفسیر آزمایش خون</a> آزمایار مراجعه فرمایید یا تصویر برگه را بارگذاری کنید.
+          </p>
         </div>
-        <a href="/app" style="background:#0284c7;color:#fff;padding:0.6rem 1.25rem;border-radius:0.5rem;text-decoration:none;font-weight:600">شروع تفسیر هوشمند</a>
+        <a href="/app" style="background:#0284c7;color:#fff;padding:0.6rem 1.25rem;border-radius:0.5rem;text-decoration:none;font-weight:600">شروع تفسیر این آزمایش</a>
       </div>
+
+      <p style="margin-top:1.5rem;font-size:0.875rem;color:#64748b;line-height:1.7">
+        آزمایار به شما کمک می‌کند تا با <a href="/" style="color:#0284c7;font-weight:600;text-decoration:underline">تفسیر آنلاین آزمایش خون</a> بر پایهٔ منابع معتبر بالینی، نتیجه آزمایش ${escapeHtml(testName)} را در کنار سایر مقادیر بررسی کرده و با آگاهی بیشتر با پزشک معالج مشورت کنید.
+      </p>
 
       ${cat && cat.items && cat.items.length > 1 ? `
       <section style="margin-top:3rem;border-top:1px solid #e2e8f0;padding-top:1.5rem">
         <h2 style="font-size:1.25rem;font-weight:700;color:#0f172a;margin-bottom:1rem">سایر آزمایش‌های مرتبط در دستهٔ ${escapeHtml(cat.t)}</h2>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
           ${cat.items.slice(0, 8).map(it => `
-            <a href="${it.to || testPath(it.k || it.slug)}" style="padding:0.4rem 0.8rem;background:#f8fafc;border:1px solid #cbd5e1;border-radius:0.375rem;font-size:0.875rem;color:#334155;text-decoration:none">${escapeHtml(it.n || it.k)}</a>
+            <a href="${it.to || testPath(it.k || item?.slug || it.slug)}" style="padding:0.4rem 0.8rem;background:#f8fafc;border:1px solid #cbd5e1;border-radius:0.375rem;font-size:0.875rem;color:#334155;text-decoration:none">${escapeHtml(it.n || it.k)}</a>
           `).join("")}
         </div>
       </section>
@@ -263,7 +346,7 @@ function renderStaticArticle(title, description, points = []) {
   ${navHtml}
   <main style="max-width:840px;margin:2rem auto;padding:0 1.5rem">
     <nav style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem">
-      <a href="/" style="color:#64748b;text-decoration:none">خانه</a> / <span>${escapeHtml(title)}</span>
+      <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a> / <span>${escapeHtml(title)}</span>
     </nav>
     <article>
       <h1 style="font-size:2rem;font-weight:800;color:#0f172a;margin-bottom:1rem">${escapeHtml(title)}</h1>
@@ -286,7 +369,7 @@ function renderStaticArticle(title, description, points = []) {
 }
 
 // استخراجِ تمام آدرس‌ها دقیقاً منطبق با sitemap.xml
-const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture"];
+const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology"];
 for (const g of GUIDES) paths.push(catPath(g.id));
 const keys = new Set();
 for (const g of GUIDES) for (const i of g.items) keys.add(i.k || i.slug);
@@ -303,20 +386,69 @@ for (const p of uniquePaths) {
   let bodyHtml = "";
 
   if (p === "/") {
-    title = `${BRAND_FA} — تفسیر هوشمند برگهٔ آزمایش با قواعد بالینی`;
-    description = "عکس برگهٔ آزمایش یا اعدادش را وارد کنید؛ آزمایار با قواعد بالینی مشخص، نتیجه را به فارسی ساده توضیح می‌دهد: چه چیزی خارج از محدوده است، چقدر فوری است و قدم بعدی چیست.";
+    title = `تفسیر آزمایش خون آنلاین | هوشمند و بر پایه منابع بالینی — ${BRAND_FA}`;
+    description = "تفسیر آنلاین برگه آزمایش خون و چکاپ با هوش مصنوعی و بر پایه راهنماهای معتبر بالینی. عکس برگه را بارگذاری کنید یا مقادیر فاکتورها را وارد نمایید تا نتیجه به زبان ساده تحلیل شود.";
     ogType = "website";
     bodyHtml = renderLanding();
     jsonLd = {
       "@context": "https://schema.org",
-      "@type": "WebApplication",
-      name: BRAND_FA,
-      alternateName: "LabMate",
-      url: `${ORIGIN}/`,
-      description,
-      applicationCategory: "HealthApplication",
-      operatingSystem: "All",
-      inLanguage: "fa-IR",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          name: BRAND_FA,
+          alternateName: ["AzmayarApp", "LabMate", "تفسیر آزمایش خون آزمایار"],
+          url: `${ORIGIN}/`,
+          description,
+          applicationCategory: "HealthApplication",
+          operatingSystem: "All",
+          inLanguage: "fa-IR",
+        },
+        {
+          "@type": "FAQPage",
+          mainEntity: [
+            {
+              "@type": "Question",
+              name: "تفسیر آزمایش خون در آزمایار چگونه انجام می‌شود؟",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "کافی است عکس واضحی از برگهٔ آزمایش خود بارگذاری کنید یا مقادیر فاکتورها را به‌صورت دستی وارد فرم کنید. موتور آزمایار بر پایهٔ قواعد معتبر بالینی، تمامی شاخص‌ها را به‌صورت یکپارچه در کنار یکدیگر می‌سنجد، فوریت بالینی هر یافته را مشخص کرده و توصیه‌های بعدی را به فارسی روان ارائه می‌دهد."
+              }
+            },
+            {
+              "@type": "Question",
+              name: "آیا آزمایار می‌تواند عکس برگه آزمایش خون را بخواند؟",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "بله، با موتور پردازش تصویر و OCR اختصاصی، می‌توانید تا ۵ صفحه از برگه‌های آزمایش خود را بارگذاری نمایید تا نام آزمایش‌ها، مقادیر عددی و بازه‌های نرمال آزمایشگاه به‌صورت خودکار استخراج و تحلیل شوند."
+              }
+            },
+            {
+              "@type": "Question",
+              name: "چرا بررسی همزمان فاکتورها دقیق‌تر از خواندن محدوده مرجع تکی است؟",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "فاکتورهای آزمایشگاهی در بدن به هم وابسته‌اند. برای نمونه، هموگلوبین پایین به‌تنهایی فقط با هموگلوبین پایین همراه با فریتین و MCV پایین (الگوی کم‌خونی فقر آهن) یا در کنار پلاکت پایین معنای بالینی کاملاً متفاوتی دارد."
+              }
+            },
+            {
+              "@type": "Question",
+              name: "آیا نتیجه تفسیر آنلاین آزمایش خون جایگزین نظر پزشک است؟",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "خیر. آزمایار ابزار کمکی آموزشی و بالینی برای درک بهتر برگه و آماده‌سازی برای گفت‌وگو با پزشک است و هرگز جایگزین معاینه و تصمیم پزشک معالج نخواهد بود."
+              }
+            },
+            {
+              "@type": "Question",
+              name: "چه آزمایش‌هایی در سامانه آزمایار پوشش داده شده‌اند؟",
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: "بیش از ۳۰۰ آزمایش شامل شمارش کامل خون (CBC)، قند خون و HbA1c، چربی‌ها، کبد، کلیه، تیروئید، الکترولیت‌ها، ویتامین‌ها، آزمایش ادرار و نشانگرهای تشخیصی پوشش داده شده‌اند."
+              }
+            }
+          ]
+        }
+      ]
     };
   } else if (p === "/tests") {
     title = `راهنمای آزمایش‌های پزشکی و چکاپ — فهرست کامل — ${BRAND_FA}`;
@@ -358,6 +490,25 @@ for (const p of uniquePaths) {
       { t: "۳. پرهیز از تاخوردگی برگه", d: "تاخوردگی باعث برش خوردن سطرها و اعداد ستون‌های رنج مرجع می‌شود." },
       { t: "۴. وضوح و خوانایی اعداد", d: "در صورت کم‌رنگ بودن چاپ سوزنی برگه، ترجیحاً اعداد را به صورت دستی در فرم آزمایار وارد کنید." },
     ]);
+  } else if (p === "/methodology") {
+    title = `روش‌شناسی تفسیر آزمایش: از قاعده تا جملهٔ ساده — ${BRAND_FA}`;
+    description = "آزمایار چطور تفسیر می‌کند: هر قاعده پیش از کد در سند قواعد بالینی ثبت می‌شود، منبعش کنار هر یافته می‌آید، واحد ناشناخته تفسیر نمی‌شود و هیچ تشخیصی داده نمی‌شود.";
+    ogType = "article";
+    bodyHtml = renderStaticArticle(title, description, [
+      { t: "هر قاعده پیش از کد ثبت می‌شود", d: "هیچ آستانه‌ای حین کدنویسی اختراع نمی‌شود؛ هر قاعده با بازهٔ مرجع، آستانهٔ بحرانی، توصیهٔ پیگیری، سطح اطمینان، منبع و تاریخ بازبینی ثبت و سپس به موتور راه می‌یابد. منبع هر یافته کنار همان یافته در خروجی نمایش داده می‌شود." },
+      { t: "عدد تا وقتی واحدش معلوم نباشد تفسیر نمی‌شود", d: "مقدار بی‌واحد یا ناخوانا حدس زده نمی‌شود و به فهرست «تفسیر نشدند» می‌رود؛ تبدیل واحد فقط با واحدِ چاپ‌شده روی برگه انجام می‌شود." },
+      { t: "خروجی: یافته + سطح فوریت، نه تشخیص", d: "هر یافتهٔ خارج از محدوده یکی از چهار سطح «فوری — همین امروز»، «ظرفِ ۲۴ تا ۴۸ ساعت»، «این هفته» یا «نوبت عادی» را می‌گیرد. جملهٔ خروجی هرگز تشخیص قطعی نمی‌دهد." },
+      { t: "هر تغییر در موتور از دروازهٔ تست رد می‌شود", d: "بیش از هزار تست خودکار روی موتور اجرا می‌شود تا اصلاح یک قاعده، خروجی موردهای دیگر را بی‌صدا خراب نکند. اگر قاعده‌ای وجود نداشته باشد، آن ردیف تفسیرنشده می‌ماند." },
+      { t: "این سامانه چه کاری نمی‌کند", d: "معاینه و شرح‌حال نمی‌گیرد، تشخیص نمی‌دهد، توصیهٔ دارویی نمی‌دهد و جای پزشک معالج را نمی‌گیرد." },
+    ]);
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "MedicalWebPage",
+      name: `روش‌شناسی تفسیر آزمایش — ${BRAND_FA}`,
+      url: `${ORIGIN}/methodology`,
+      description,
+      inLanguage: "fa-IR",
+    };
   } else if (p.startsWith("/tests/")) {
     const catId = p.replace("/tests/", "");
     const cp = CATEGORY_PAGES[catId] || {};

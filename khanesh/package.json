@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/gen-sitemap.mjs",
+    "predev": "node scripts/copy-pdfjs-assets.mjs",
+    "prebuild": "node scripts/gen-sitemap.mjs && node scripts/copy-pdfjs-assets.mjs",
     "build": "vite build",
     "postbuild": "node scripts/gen-static-heads.mjs",
     "indexnow": "node scripts/indexnow.mjs",

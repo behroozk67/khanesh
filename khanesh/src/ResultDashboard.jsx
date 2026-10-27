@@ -463,11 +463,24 @@ function buildInsights(systems, all, urgency) {
     .forEach((s) => {
       const rows = s.rows.filter((r) => r.state === 'abnormal');
       if (!rows.length) return;
-      const names = rows.map((r) => r.name);
+      // ═══ P111 (بازبینیِ ۲۰۲۶-۱۰-۲۰): جهتِ هر ردیف مالِ خودش است ═══
+      //   پیش‌تر برچسبِ *اولین* ردیف روی همهٔ نام‌ها می‌نشست: «تری‌گلیسرید و HDL؛ بالاتر از حد طبیعی»،
+      //   در حالی که HDL پایین بود؛ و در CBC پسرِ ۱۲ ساله «مونوسیت، گلبول قرمز و هموگلوبین؛ پایین‌تر از
+      //   حد طبیعی!» در حالی که دو موردِ آخر بالا بودند. حالا نام‌ها بر اساسِ برچسبِ خودِ موتور گروه می‌شوند.
+      const byLabel = new Map();
+      for (const r of rows) {
+        const key = String(r.label ?? '');
+        if (!byLabel.has(key)) byLabel.set(key, []);
+        byLabel.get(key).push(r.name);
+      }
+      const parts = [...byLabel.entries()].map(([label, names]) => {
+        const shown = names.length > 3 ? [...names.slice(0, 3), 'موارد دیگر'] : names;
+        return `${listFa(shown)}؛ ${label}`;
+      });
       out.push({
         tone: 'warn',
         title: `${s.title}: ${toFa(rows.length)} مورد خارج از محدوده`,
-        text: `${listFa(names.slice(0, 3))}${names.length > 3 ? ' و موارد دیگر' : ''}؛ ${rows[0].label}.`,
+        text: `${parts.join('، و ')}.`,
       });
     });
   const good = systems.filter((s) => s.state === 'normal');
@@ -647,32 +660,12 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
     : reason ? NO_SCORE_FA[reason] : null;
   const worstFa = (s) => (s.worst?.name ? `پایین‌ترین: ${s.worst.name}` : null);
 
-  // P97-ب: خطِ اولِ کارت، واقعیتِ عینی است نه درصد — «۸ از ۹ در محدوده · ۱ لب‌مرز».
-  //   همهٔ جزءها از `count`ِ سرور می‌آید (هیچ شمارشِ محلی، هیچ آستانهٔ تازه).
-  const cnt = score?.count;
-  const lead = cnt && cnt.scored > 0
-    ? [
-        `${toFa(Math.max(0, cnt.scored - cnt.out))} از ${toFa(cnt.scored)} شاخص در محدوده`,
-        ...(cnt.out > 0 ? [`${toFa(cnt.out)} خارج از محدوده`] : []),
-        ...(cnt.near > 0 ? [`${toFa(cnt.near)} لب‌مرز`] : []),
-        // ردیفِ خوانده‌شده ولی بی‌حکم (بی‌واحد/بی‌محدوده) — N4: نبودِ حکم یعنی «نرمال» نیست.
-        ...(cnt.unread > 0 ? [`${toFa(cnt.unread)} ارزیابی‌نشده`] : []),
-      ]
-    : null;
-
   return (
     <section className="kd-card kd-radar" id={id}>
       <CardHead
         title="خلاصهٔ دستگاه‌های بدن"
-        sub="وضعیتِ عینیِ همین برگه — شمارشِ شاخص‌ها، نه حکمِ پزشکی"
-        info="خطِ اول شمارشِ خودِ برگه است: چند شاخص در محدودهٔ مرجع، چند خارج از آن، چند لب‌مرز (پرچمِ نزدیک‌به‌مرزِ خودِ موتور) و چند ردیف ارزیابی‌نشده (بی‌واحد یا بی‌محدوده — ارزیابی‌نشده یعنی نرمال نیست). عددِ مرور از حکمِ موتور ساخته می‌شود: در محدوده کامل، هرچه دورتر از محدوده (برحسبِ پهنای همان محدوده) کمتر، و هرگز بیشتر از درجهٔ شدت (CTCAE) اگر موتور داده باشد. آزمایش‌های هم‌خانواده (مثل PT و INR) یک‌بار شمرده می‌شوند. دستگاهی که یافته‌ای با فوریتِ مشخص دارد از سقفِ همان فوریت بالاتر نمی‌رود. عددِ کل میانگینِ وزنیِ دستگاه‌هاست و بیش از ۳۰ واحد از ضعیف‌ترین دستگاه بالاتر نمی‌رود. در برگهٔ اورژانسی عددی نشان داده نمی‌شود. این عدد برای مرورِ سریع است، جای نظرِ پزشک را نمی‌گیرد و اعتبارسنجیِ بالینی نشده است."
+        info="عددِ مرور از حکمِ موتور ساخته می‌شود: در محدوده کامل، هرچه دورتر از محدوده (برحسبِ پهنای همان محدوده) کمتر، و هرگز بیشتر از درجهٔ شدت (CTCAE) اگر موتور داده باشد. آزمایش‌های هم‌خانواده (مثل PT و INR) یک‌بار شمرده می‌شوند. دستگاهی که یافته‌ای با فوریتِ مشخص دارد از سقفِ همان فوریت بالاتر نمی‌رود. عددِ کل میانگینِ وزنیِ دستگاه‌هاست و بیش از ۳۰ واحد از ضعیف‌ترین دستگاه بالاتر نمی‌رود. در برگهٔ اورژانسی عددی نشان داده نمی‌شود. این عدد برای مرورِ سریع است، جای نظرِ پزشک را نمی‌گیرد و اعتبارسنجیِ بالینی نشده است."
       />
-      {lead && (
-        <p className="kd-leadline">
-          <b className="kd-leadline__main">{lead[0]}</b>
-          {lead.slice(1).map((t, i) => <span key={i} className="kd-leadline__tag">{t}</span>)}
-        </p>
-      )}
       {why && n > 0 && <p className="kd-countline kd-countline--why">{why}</p>}
       {n >= 3 ? (
         <div className="kd-radar__plot">

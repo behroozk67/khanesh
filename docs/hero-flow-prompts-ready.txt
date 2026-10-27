@@ -1,0 +1,106 @@
+LABMATE — HERO MOTION, READY-TO-PASTE PROMPTS
+=============================================
+Order of use in Google Flow:
+  1) Generate the first frame  (image)
+  2) Frames to Video: First    (Veo 3.1, 8s, 16:9, 1 output)
+  3) Extend videos             (Veo 3.1 Lite only)  -> 16s, cut to 15s
+English prompts on purpose. Never type Persian text into Flow.
+No prompt below asks for text, numbers or logos - that is deliberate.
+
+
+---------------------------------------------
+BLOCK 1 - FIRST FRAME  (image generation)
+---------------------------------------------
+Photorealistic macro product shot, 16:9, of a warm wooden desk in a calm home
+office, seen from a low table-height angle. Objects: a plain printed laboratory
+report sheet with abstract grey ruled lines and NO readable writing, a white
+ceramic coffee cup with a thin wisp of steam, a closed dark tablet at the left
+edge, a softly blurred living-room window and a potted plant in the background.
+Above the sheet floats one clean horizontal translucent band, like a measuring
+ruler seen through glass: mint-teal glass (#2f6f6b tinted), matte, no glow
+bloom, no sci-fi circuitry, no sphere, no brain, no neural network, no graphs.
+A single small solid teal dot hangs on a thin vertical hairline just below the
+band's lower edge. Palette: warm cream, warm wood, sage green, deep teal accents.
+Soft morning window light from the left. Shallow depth of field, 50mm, focus on
+the sheet. Editorial product photography, calm and clinical-warm, not futuristic.
+Absolutely no text, no letters, no numbers, no logos, no user-interface panels,
+no people, no faces anywhere in the frame.
+
+
+-----------------------------------------------------
+BLOCK 2 - MOTION  (Frames to Video: First, 8s, 16:9)
+-----------------------------------------------------
+Use the provided image as the exact first frame; keep its composition, framing,
+colour and lighting unchanged. Add only this motion, in this order:
+[00:00-00:02] Almost imperceptible: the scene breathes. Steam rises from the
+coffee cup and drifts slowly to the right. Fine dust motes float through the
+window light.
+[00:02-00:05] The horizontal band brightens softly as if lit from within, then
+steadies. Its mint-teal edge gains a thin, crisp rim. Nothing else moves.
+[00:05-00:09] The small teal dot slides smoothly to the right along the band,
+crosses the band's lower edge, and comes to rest just below it. The band's lower
+edge warms to a soft amber for a moment, then returns to teal.
+Camera: locked-off tripod, 50mm lens, no movement, no zoom, no handheld shake.
+Lighting: soft and stable; no flicker, no lens flare, no colour shift.
+Audio: quiet room tone, a faint paper rustle, one soft ceramic clink. No music,
+no voice, no whoosh, no riser.
+Negative: no text, letters, numbers, glyphs or logos appear anywhere; no new
+objects; no people or hands; no red flashing; no alarm; no glitch; no glitchy
+hologram; no additional graphs or panels; do not change the shape of the objects.
+NOTE: amber, never red. Red is reserved for emergencies in this product.
+
+
+---------------------------------------
+BLOCK 3 - EXTEND  (Veo 3.1 Lite only)
+---------------------------------------
+Continue from the last frame of the previous clip without any cut. Keep the
+camera locked and the lighting identical. The band lifts gently off the desk by
+a few centimetres, then settles back down and fades into the paper. The dot
+stays where it stopped. The steam above the coffee keeps drifting. In the final
+two seconds the scene returns to complete stillness, with the paper and the cup
+in the same positions they had at the start.
+No text, letters, numbers or logos. No new objects, no people, no red, no alarm.
+
+
+------------------------------------------------------
+BLOCK 4 - SAFE LOOP  (use if you keep the current image)
+------------------------------------------------------
+Using the provided image as the exact first frame, create a subtle seamless
+loop. A locked-off camera, 50mm, shallow depth of field. Only ambient life
+moves: steam rises from the coffee cup in a slow curl, fine dust motes drift
+through the window light on the left, the floating data columns above the sheet
+rise by a couple of pixels and settle, one slow soft pulse travels along the rim
+of the glass sphere, and the near corner of the printed sheet lifts two
+millimetres and settles once. The final frame must match the first frame exactly
+so the clip loops invisibly. Calm, quiet, almost still - the mood of an early
+morning at a desk.
+Audio: soft room tone only, no music, no voice.
+Negative: no camera movement, no zoom, no text, no numbers, no new objects, no
+people, no flicker, no glitch, no red.
+
+
+------------------------------------------------------------------
+BLOCK 5 - FOR THE "HOW IT WORKS" PANEL  (not the hero, 15s max)
+------------------------------------------------------------------
+Using the provided image as the exact first frame: the horizontal ruled rows of
+the printed report sheet detach from the paper and rise ten centimetres into the
+air as thin, clean, matte-cream ribbons. They hover, straighten themselves into
+an orderly stacked list, hold for a moment, then slide back down and settle flat
+onto the sheet, perfectly aligned with the printed lines. The camera slowly
+orbits fifteen degrees around the desk, keeping the sheet centred, with visible
+parallax between the coffee cup in the foreground and the blurred living room
+behind. Warm morning light, shallow depth of field, calm and precise.
+Audio: a soft paper whisper and a low warm hum. No music, no voice.
+Negative: no text, no letters, no numbers, no logos, no readable writing on the
+ribbons; no people, no hands, no faces; no cyan glow; no sparks; no glitch.
+
+
+========================================================
+WHY THERE IS NO PERSIAN TEXT IN ANY OF THESE
+========================================================
+Add the Persian copy as a DOM/CSS layer over the video, with the project font
+(public/fonts/Vazirmatn-VF.woff2). Reason: an invented number baked into a video
+file would be a second source of truth, and this product ships no health score,
+no percentage, no "biological age" and no 0-100 gauge.
+
+FULL REASONING + the other two ideas: docs/hero-motion-flow-prompts.md

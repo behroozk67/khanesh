@@ -1,7 +1,15 @@
 import { Nav, Footer } from "./Landing";
+import { useSeoHead } from "./useSeoHead.js";
 import "./site.css";
 
 export default function HowToCapture() {
+  useSeoHead({
+    title: "چطور از برگهٔ آزمایش عکس بگیریم؟ — راهنمای کیفیت تصویر",
+    description: "۴ اصل ساده برای ثبت عکس واضح و بدون خطای برگه آزمایش جهت تشخیص دقیق اعداد با OCR و هوش بالینی آزمایار.",
+    canonical: "/how-to-capture",
+    ogType: "article",
+  });
+
   return (
     <div className="site" dir="rtl">
       <Nav />

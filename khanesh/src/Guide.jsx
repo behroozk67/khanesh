@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Nav, Footer } from "./Landing.jsx";
 import { SRC } from "./sources.js";
+import { useSeoHead } from "./useSeoHead.js";
 import "./site.css";
 
 // ============================================================
@@ -168,6 +169,57 @@ function SideToc({ items }) {
 
 /* ---------- خودِ صفحه ---------- */
 export default function Guide({ c }) {
+  const loc = useLocation();
+  const pathname = loc.pathname;
+
+  const isCat = pathname.startsWith("/tests/");
+  const isTest = pathname.startsWith("/test/");
+
+  const seoTitle = c.seo?.title || (
+    isCat
+      ? `${c.title} — راهنمای جامع و فهرست آزمایش‌ها`
+      : isTest
+        ? `تفسیر آزمایش ${c.title} — رنج نرمال و علل خطا`
+        : c.title
+  );
+
+  const rawDesc = c.seo?.description || c.card?.p?.[0] || (typeof c.about === "string" ? c.about : null);
+  const seoDesc = rawDesc
+    ? (typeof rawDesc === "string" ? rawDesc : "").replace(/\s+/g, " ").trim()
+    : "راهنمای جامع، محدوده مرجع و تفسیر بالینی آزمایش پزشکی به زبان ساده در آزمایار.";
+
+  const jsonLd = useMemo(() => {
+    if (isTest) {
+      return {
+        "@context": "https://schema.org",
+        "@type": "MedicalWebPage",
+        "name": c.title,
+        "url": `https://azmayarapp.ir${pathname}`,
+        "description": seoDesc,
+        "inLanguage": "fa-IR",
+      };
+    }
+    if (isCat) {
+      return {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "name": c.title,
+        "url": `https://azmayarapp.ir${pathname}`,
+        "description": seoDesc,
+        "inLanguage": "fa-IR",
+      };
+    }
+    return null;
+  }, [isTest, isCat, c.title, pathname, seoDesc]);
+
+  useSeoHead({
+    title: seoTitle,
+    description: seoDesc,
+    canonical: pathname,
+    ogType: isTest || isCat ? "article" : "website",
+    jsonLd,
+  });
+
   // فهرستِ مطالب از خودِ بخش‌ها ساخته می‌شود، نه از یک فهرستِ دستیِ دوم —
   // وگرنه اولین بخشی که اضافه شود، از فهرست جا می‌ماند.
   const toc = useMemo(() => {
@@ -196,6 +248,14 @@ export default function Guide({ c }) {
     // site--lab-bg: همان زمینهٔ صفحهٔ تست‌ها (site.css) — صفحه‌های راهنمای هر آزمایش و هر دسته از همین‌جا رد می‌شوند
     <div className="site site--lab-bg" dir="rtl">
       <Nav />
+
+      <nav className="site-wrap site-wrap--read" aria-label="مسیر راهنما" style={{ paddingTop: '1.25rem', fontSize: '0.875rem' }}>
+        <Link to="/" style={{ color: 'var(--brand-ink)', textDecoration: 'none', fontWeight: 600 }}>تفسیر آزمایش خون</Link>
+        <span style={{ margin: '0 0.5rem', color: 'var(--line-soft)' }}>/</span>
+        <Link to="/tests" style={{ color: 'var(--ink-3)', textDecoration: 'none' }}>راهنمای آزمایش‌ها</Link>
+        <span style={{ margin: '0 0.5rem', color: 'var(--line-soft)' }}>/</span>
+        <span style={{ color: 'var(--ink)' }}>{c.title}</span>
+      </nav>
 
       {/* ---------- سربرگ ---------- */}
       <header className="site-wrap site-wrap--read site-art-hero">
@@ -334,7 +394,10 @@ export default function Guide({ c }) {
             درمان یا تکرار آزمایش با پزشک شماست.
           </p>
 
-          <Link to="/tests" className="site-art-back">→ بازگشت به راهنمای آزمایش‌ها</Link>
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '1.5rem' }}>
+            <Link to="/" className="site-art-back" style={{ fontWeight: 600, color: 'var(--brand-ink)' }}>← سامانهٔ تفسیر آزمایش خون</Link>
+            <Link to="/tests" className="site-art-back">همهٔ آزمایش‌ها →</Link>
+          </div>
         </div>
 
         <SideToc items={mainToc} />

@@ -345,3 +345,7 @@ input, select, textarea, button {
     scroll-behavior: auto !important;
   }
 }
+
+/* هر لینکی که لوگو داخلش است: بی‌زیرخط، در همهٔ حالت‌ها (لینکِ پیش‌فرض زیرخط و رنگِ «بازدیدشده» می‌گیرد) */
+a:has(.lml), a:has(.lml):hover, a:has(.lml):visited, a:has(.lml):focus-visible { text-decoration: none; color: inherit; }
+.lml, .lml * { text-decoration: none; }

@@ -42,7 +42,33 @@ install -m 644 "$HERE/khanesh.service" /etc/systemd/system/khanesh.service
 # ⚠️ اگر certbot بخش 443 را اضافه کرده، بازنویسی آن را پاک می‌کند و HTTPS می‌افتد؛ پس فقط در نصبِ اول.
 if ! grep -q ssl_certificate /etc/nginx/sites-available/khanesh 2>/dev/null; then
   sed "s/__DOMAIN__/${DOMAIN}/g" "$HERE/nginx.conf" > /etc/nginx/sites-available/khanesh
+else
+  # ⚠️ رانشِ پیکربندی (گزارشِ کاربر ۲۰۲۶-۱۰-۱۷): از وقتی certbot بخشِ ۴۴۳ را نوشته، این فایل
+  #   دیگر هرگز از الگو تازه نمی‌شود؛ پس هر directive‌ای که بعداً به deploy/nginx.conf اضافه شود
+  #   روی سرورِ موجود بی‌صدا نادیده می‌ماند (همین اتفاق برای locationِ ‎.mjs افتاد و ورودیِ PDF
+  #   را شکست). اینجا بی‌تخریب فقط هشدار می‌دهیم؛ چیزِ مخصوصِ هر تغییر در conf.d می‌رود.
+  MISSING=""
+  while IFS= read -r loc; do
+    grep -qF "$loc" /etc/nginx/sites-available/khanesh || MISSING="$MISSING\n  $loc"
+  done < <(grep -oE 'location [^{]*\{' "$HERE/nginx.conf")
+  if [ -n "$MISSING" ]; then
+    echo "⚠️ هشدار: این directiveها در الگوی nginx هستند ولی روی سرور نیستند:$(printf "$MISSING")"
+    echo "   (فایلِ sites-available/khanesh را certbot مدیریت می‌کند؛ تغییر را در conf.d بگذار.)"
+  fi
 fi
+
+# ⚠️ MIMEِ پسوندِ .mjs — کارگرِ pdf.js (specs/017) یک module worker است و مرورگر اسکریپتِ ماژول
+#   را با MIMEِ غیرِ JavaScript اجرا نمی‌کند (HTML spec، بررسیِ سختگیرانه). mime.typesِ nginx 1.18
+#   پسوندِ mjs را نمی‌شناسد ⇒ application/octet-stream ⇒ «ابزارِ خواندنِ PDF بارگیری نشد».
+#   عمداً در conf.d و نه در sites-available/khanesh: آن فایل دستِ certbot است و بازنویسی‌اش
+#   HTTPS را می‌اندازد. بلوکِ types در زمینهٔ http با mime.types ادغام می‌شود ⇒ روی همهٔ سرورها اثر دارد.
+cat > /etc/nginx/conf.d/00-mjs-types.conf <<'EOF'
+types {
+    application/javascript mjs;
+    application/wasm wasm;
+}
+EOF
+
 ln -sf /etc/nginx/sites-available/khanesh /etc/nginx/sites-enabled/khanesh
 rm -f /etc/nginx/sites-enabled/default
 nginx -t

@@ -68,7 +68,7 @@ export function useSeoHead({
     // ۱. تیترِ صفحه با پسوندِ برند (بدون تکرار)
     const cleanTitle = (title || "").trim();
     const fullTitle = !cleanTitle
-      ? `${BRAND_FA} — تفسیر آزمایش`
+      ? `${BRAND_FA} (AzmayarApp) — تفسیر آزمایش`
       : cleanTitle.includes(BRAND_FA)
         ? cleanTitle
         : `${cleanTitle} — ${BRAND_FA}`;

@@ -18,9 +18,16 @@ import { getDocument, GlobalWorkerOptions } from "pdfjs-dist/legacy/build/pdf.mj
 import workerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
 import { fitScale, encodeCanvas } from "./imageIntake.js";
 
+// fallback: اگر ساختِ کارگر از Blob ممکن نشد، pdf.js خودش همین URL را بار می‌کند
 GlobalWorkerOptions.workerSrc = workerUrl;
 
-// code: "password" | "unreadable" | "empty"
+// دارایی‌های جانبی (specs/017): wasm برای JBIG2/JPX/ICC و فونت‌های استاندارد.
+// این‌ها با scripts/copy-pdfjs-assets.mjs در public/ گذاشته می‌شوند.
+const assetBase = new URL(import.meta.env.BASE_URL || "/", window.location.href);
+const wasmUrl = new URL("wasm/", assetBase).href;
+const standardFontDataUrl = new URL("standard_fonts/", assetBase).href;
+
+// code: "password" | "unreadable" | "empty" | "worker"
 export class PdfIntakeError extends Error {
   constructor(code, cause) {
     super(code);
@@ -31,6 +38,29 @@ export class PdfIntakeError extends Error {
 }
 
 const MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d]; // "%PDF-"
+
+// ── بارگذاریِ کارگر از Blob (گزارشِ کاربر ۲۰۲۶-۱۰-۲۱) ──
+// کارگرِ pdf.js یک module worker است؛ مرورگر اسکریپتِ ماژول را فقط با MIMEِ
+// JavaScript اجرا می‌کند. nginx 1.18 پسوندِ mjs را نمی‌شناخت ⇒ octet-stream ⇒
+// «ابزارِ خواندنِ PDF بارگیری نشد». هدرِ سرور اصلاح شد، ولی نسخهٔ خرابِ همان فایل
+// با Cache-Control: immutable یک‌ساله در مرورگرِ کاربران ماند و «هنوز خطا می‌دهد»
+// شد. حالا متنِ کارگر را خودمان می‌گیریم و به Blob با typeِ درست تبدیل می‌کنیم:
+// هدرِ Content-Type و کشِ مرورگر هیچ نقشی ندارند و این مسیر یک‌بار برای همیشه بسته است.
+async function makeWorker() {
+  const res = await fetch(workerUrl, { credentials: "same-origin" });
+  if (!res.ok) throw new PdfIntakeError("worker", new Error(`worker HTTP ${res.status}`));
+  const source = await res.text();
+  if (!source || source.length < 1000) {
+    throw new PdfIntakeError("worker", new Error("worker body too small"));
+  }
+  const blobUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
+  try {
+    return { worker: new Worker(blobUrl, { type: "module" }), blobUrl };
+  } catch (e) {
+    URL.revokeObjectURL(blobUrl);
+    throw e;
+  }
+}
 
 export async function openPdf(file) {
   let bytes;
@@ -44,14 +74,28 @@ export async function openPdf(file) {
     throw new PdfIntakeError("unreadable");
   }
 
-  const task = getDocument({ data: bytes });
+  let made = null;
+  try {
+    made = await makeWorker();
+    GlobalWorkerOptions.workerPort = made.worker;
+  } catch (e) {
+    // رها می‌کنیم تا pdf.js با workerSrc تصمیم بگیرد (مسیرِ fallback)
+    console.warn("[pdf] blob worker unavailable, falling back to workerSrc:", e?.message || e);
+  }
+
+  const task = getDocument({ data: bytes, wasmUrl, standardFontDataUrl });
   let doc;
   try {
     doc = await task.promise;
   } catch (e) {
     // task.destroy کارگر را آزاد می‌کند؛ بدونش هر تلاشِ ناموفق یک worker جا می‌گذارد
     try { await task.destroy(); } catch { /* ignore */ }
-    throw new PdfIntakeError(e?.name === "PasswordException" ? "password" : "unreadable", e);
+    console.error("[pdf] open failed:", e?.name, e?.message || e);
+    // تازه وقتی کارگرِ خودمان ساخته نشده، شکست را به گردنِ استقرار می‌نویسیم
+    const code = !made
+      ? "worker"
+      : e?.name === "PasswordException" ? "password" : "unreadable";
+    throw new PdfIntakeError(code, e);
   }
 
   const numPages = doc.numPages || 0;
@@ -86,6 +130,13 @@ export async function openPdf(file) {
 
   async function close() {
     try { await doc.destroy(); } catch { /* ignore */ }
+    // workerPort سراسری است؛ پاک‌نکردنش PDFِ بعدی را به کارگرِ مرده وصل می‌کند
+    GlobalWorkerOptions.workerPort = null;
+    if (made) {
+      try { made.worker.terminate(); } catch { /* ignore */ }
+      URL.revokeObjectURL(made.blobUrl);
+      made = null;
+    }
   }
 
   return { numPages, renderPage, close };

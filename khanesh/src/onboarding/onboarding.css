@@ -380,6 +380,7 @@
 /* ── آیکون‌های خطی ── */
 .onb-back, .onb-seg button, .ik-cap, .ik-chip, .auth-trust { display: inline-flex; align-items: center; justify-content: center; gap: var(--s3); }
 .onb-back svg { flex: none; }
+.onb-top a, .onb-top a:hover { text-decoration: none; }
 .onb-mode-ic svg, .onb-mode-go svg { display: block; }
 .ik-chip svg { width: 0; margin-inline-end: calc(var(--s3) * -1); opacity: 0; transition: width var(--dur) var(--ease), opacity var(--dur) var(--ease), margin var(--dur) var(--ease); }
 .ik-chip[aria-pressed="true"] svg { width: 14px; margin-inline-end: 0; opacity: 1; }
@@ -494,35 +495,45 @@
 .onb--intake .onb-input[aria-invalid="true"] { border-bottom-color: var(--st-emergency-ink); }
 
 /* ── پرسش‌های آغازین: زمینهٔ شنی + کارتِ کرم با گوشهٔ گرد (طرحِ NORÉA) ── */
-.onb--intake {
-  --nr-ink: #1f1a16; --nr-ink-2: #6b5f52; --nr-accent: #b5593a; --nr-card: #f2efe8; --nr-line: #d9cfbf;
-  background: #f2efe8;
+:is(.onb--intake, .onb--auth) {
+  --nr-ink: var(--ink); --nr-ink-2: var(--ink-2); --nr-accent: #b5593a; --nr-card: var(--page); --nr-line: var(--line-input);
+  background: var(--page);
   color: var(--nr-ink);
 }
-.onb--intake .onb-bd-shade { display: none; }
-.onb--intake::after { opacity: .03; }
-.onb--intake > main.onb-card {
-  background: var(--nr-card); border: 1px solid #f3dfb0; border-radius: 36px; padding: var(--s12) var(--s10);
-  -webkit-backdrop-filter: none; backdrop-filter: none;
-  box-shadow: 0 0 0 6px rgba(243, 223, 176, .35), 0 30px 60px -24px rgba(90, 58, 20, .45);
+:is(.onb--intake, .onb--auth) .onb-bd { display: none; }
+/* زمینهٔ صفحهٔ راهنمای آزمایش‌ها (.site--lab-bg در site.css) با نصفِ شدت: لایهٔ ثابتِ نیمه‌شفاف روی زمینهٔ صفحه. */
+:is(.onb--intake, .onb--auth)::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .7;
+  background:
+    linear-gradient(180deg, transparent 0, transparent 560px, var(--page) 1150px),
+    url("/lab/tests-helix.svg") center top / max(1600px, 100%) auto no-repeat,
+    radial-gradient(55% 520px at 85% 120px, rgba(143, 211, 218, 0.45), transparent 70%),
+    radial-gradient(45% 480px at 10% 380px, rgba(196, 236, 240, 0.55), transparent 70%),
+    linear-gradient(180deg, #e9f7f8 0, #f3fbfb 600px, var(--page) 1150px);
 }
-.onb--intake .onb-title { color: var(--nr-ink); font-weight: 800; letter-spacing: -.01em; text-shadow: none; }
-.onb--intake .onb-lede, .onb--intake .onb-note { color: var(--nr-ink-2); }
-.onb--intake .onb-label { color: var(--nr-ink); font-weight: 600; font-size: var(--t-md); }
-.onb--intake .onb-err { color: var(--nr-accent); font-weight: 600; }
-.onb--intake .onb-input { color: var(--nr-ink); caret-color: var(--nr-accent); border: 0; border-bottom: 1.5px solid var(--nr-line); background: transparent; }
-.onb--intake .onb-input::placeholder { color: #b3a898; }
-.onb--intake .onb-input:focus-visible { border-bottom: 2px solid var(--nr-accent); box-shadow: none; background: transparent; }
-.onb--intake .onb-input[aria-invalid="true"] { border-bottom-color: var(--nr-accent); }
-.onb--intake .onb-back { color: var(--nr-ink); }
-.onb--intake .ik-caps { background: #e8e1d3; box-shadow: none; }
-.onb--intake .ik-cap { color: var(--nr-ink-2); }
-.onb--intake .ik-cap[aria-pressed="true"] { background: var(--nr-ink); color: var(--nr-card); box-shadow: none; }
-.onb--intake .ik-chip { background: transparent; border-color: var(--nr-line); color: var(--nr-ink); }
-.onb--intake .ik-chip:hover { border-color: var(--nr-ink); }
-.onb--intake .ik-chip[aria-pressed="true"] { background: var(--nr-ink); border-color: var(--nr-ink); color: var(--nr-card); box-shadow: none; }
-.onb--intake .onb-primary { background: var(--nr-ink); color: var(--nr-card); border-radius: var(--r-pill); box-shadow: none; }
-.onb--intake .onb-primary:hover:not(:disabled) { background: var(--nr-accent); }
+:is(.onb--intake, .onb--auth)::after { display: none; }
+/* بی‌کادر: متن مستقیم روی زمینه */
+:is(.onb--intake, .onb--auth) > main.onb-card {
+  background: none; border: 0; border-radius: 0; padding: var(--s6) 0;
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+}
+:is(.onb--intake, .onb--auth) .onb-title { color: var(--nr-ink); font-weight: 800; letter-spacing: -.01em; text-shadow: none; }
+:is(.onb--intake, .onb--auth) .onb-lede, :is(.onb--intake, .onb--auth) .onb-note { color: var(--nr-ink-2); }
+:is(.onb--intake, .onb--auth) .onb-label { color: var(--nr-ink); font-weight: 600; font-size: var(--t-md); }
+:is(.onb--intake, .onb--auth) .onb-err { color: var(--nr-accent); font-weight: 600; }
+:is(.onb--intake, .onb--auth) .onb-input { color: var(--nr-ink); caret-color: var(--nr-accent); border: 0; border-bottom: 1.5px solid var(--nr-line); background: transparent; }
+:is(.onb--intake, .onb--auth) .onb-input::placeholder { color: #b3a898; }
+:is(.onb--intake, .onb--auth) .onb-input:focus-visible { border-bottom: 2px solid var(--nr-accent); box-shadow: none; background: transparent; }
+:is(.onb--intake, .onb--auth) .onb-input[aria-invalid="true"] { border-bottom-color: var(--nr-accent); }
+:is(.onb--intake, .onb--auth) .onb-back { color: var(--nr-ink); }
+:is(.onb--intake, .onb--auth) .ik-caps { background: #e8e1d3; box-shadow: none; }
+:is(.onb--intake, .onb--auth) .ik-cap { color: var(--nr-ink-2); }
+:is(.onb--intake, .onb--auth) .ik-cap[aria-pressed="true"] { background: var(--nr-ink); color: var(--nr-card); box-shadow: none; }
+:is(.onb--intake, .onb--auth) .ik-chip { background: transparent; border-color: var(--nr-line); color: var(--nr-ink); }
+:is(.onb--intake, .onb--auth) .ik-chip:hover { border-color: var(--nr-ink); }
+:is(.onb--intake, .onb--auth) .ik-chip[aria-pressed="true"] { background: var(--nr-ink); border-color: var(--nr-ink); color: var(--nr-card); box-shadow: none; }
+:is(.onb--intake, .onb--auth) .onb-primary { background: var(--nr-ink); color: var(--nr-card); border-radius: var(--r-pill); box-shadow: none; }
+:is(.onb--intake, .onb--auth) .onb-primary:hover:not(:disabled) { background: var(--nr-accent); }
 
 /* ── انتخاب روشِ ورود (variant="lab"): زمینهٔ آبیِ آزمایشگاهی + مارپیچِ DNA که دورِ محورش می‌چرخد (LabHelix.jsx).
    مثلِ هیروی ویدیوی مرجع، تیتر و متن مستقیم روی زمینه‌اند و کادر ندارند. فقط دو دکمهٔ انتخاب کارتِ نیمه‌شفاف دارند. ── */

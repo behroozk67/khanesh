@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# دارایی‌های pdf.js — با scripts/copy-pdfjs-assets.mjs از node_modules ساخته می‌شوند
+public/wasm
+public/standard_fonts

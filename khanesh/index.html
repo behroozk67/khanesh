@@ -12,8 +12,9 @@
       href="/fonts/Vazirmatn-VF.woff2"
       crossorigin
     />
-    <!-- نامِ برند در تایتل پیش از بوت‌شدنِ React خوانده می‌شود. -->
-    <title>آزمایار — تفسیر آزمایش</title>
+    <!-- نامِ برند در تایتل پیش از بوت‌شدنِ React خوانده می‌شود.
+         (AzmayarApp باید در همین تایتلِ استاتیک باشد چون خزنده‌های بدون JS همین را می‌خوانند) -->
+    <title>آزمایار (AzmayarApp) — تفسیر آنلاین برگه آزمایش خون و پزشکی</title>
     <meta name="google-site-verification" content="r9-q14DwHGBCtozX2m7L7A1DzbzZFOAoX9611WzuP88" />
     <meta name="description" content="عکس برگهٔ آزمایش یا اعدادش را وارد کنید؛ آزمایار با قواعد بالینی مشخص، نتیجه را به فارسی ساده توضیح می‌دهد: چه چیزی خارج از محدوده است، چقدر فوری است و قدم بعدی چیست." />
     <meta name="robots" content="index,follow" />
@@ -21,9 +22,34 @@
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="fa_IR" />
     <meta property="og:site_name" content="آزمایار" />
-    <meta property="og:title" content="آزمایار — تفسیر آزمایش" />
+    <meta property="og:title" content="آزمایار (AzmayarApp) — تفسیر آنلاین برگه آزمایش خون و پزشکی" />
     <meta property="og:description" content="تفسیر فارسی و ساده برگهٔ آزمایش، با قواعد بالینی مشخص." />
     <meta property="og:url" content="https://azmayarapp.ir/" />
+    <!-- هویتِ رسمیِ برند: آزمایار = AzmayarApp (id متفاوت از seo-jsonld تا
+         JSON-LDِ per-route که useSeoHead می‌گذارد، این را بازنویسی نکند) -->
+    <script type="application/ld+json" id="seo-jsonld-identity">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://azmayarapp.ir/#website",
+            "url": "https://azmayarapp.ir/",
+            "name": "آزمایار",
+            "alternateName": ["Azmayar", "AzmayarApp", "آزمایار اپ", "دستیار تفسیر آزمایش آزمایار"],
+            "description": "سامانه هوشمند تفسیر برگه آزمایش پزشکی بر پایه منابع بالینی",
+            "inLanguage": "fa-IR"
+          },
+          {
+            "@type": "MedicalOrganization",
+            "@id": "https://azmayarapp.ir/#organization",
+            "name": "آزمایار (AzmayarApp)",
+            "url": "https://azmayarapp.ir/",
+            "description": "دستیار هوشمند تفسیر آزمایش‌های پزشکی بر پایه قواعد بالینی و استانداردهای آزمایشگاهی"
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
