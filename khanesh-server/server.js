@@ -1184,6 +1184,10 @@ const analyzeHandler = async (req, res) => {
             name: String(t?.name ?? t?.key ?? "").trim(),
             value: urine ? String(t?.value ?? "").trim() : typeof t?.value === "number" ? t.value : parseFloat(t?.value),
             unit: t?.unit ?? "",
+            // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): بازهٔ چاپ‌شدهٔ برگه در ورودِ دستی گم می‌شد و کلِ منطقِ
+            //   «بازهٔ برگه حقِ تخفیف دارد» و «T3UP/FTI با بازهٔ چاپی سنجیده شوند» بی‌اثر بود.
+            //   فقط وقتی فرستاده شود که واقعاً آمده باشد (N4: بی‌شاهد، بی‌ادعا).
+            ...(t?.reference ? { reference: String(t.reference) } : {}),
             urine,
             // همان شاهدِ سرتیترِ عکس (adapter.sectionKind): ردیفِ ادرارِ فرم «Glucose» ادرار است، ردیفِ عددی سرم.
             section: urine ? "Urinalysis" : null,
