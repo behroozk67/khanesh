@@ -1244,7 +1244,7 @@ const analyzeHandler = async (req, res) => {
     let routedByQual = false;   // specs/011: برگه فقط به‌خاطرِ ردیف‌های کیفیِ صاحب‌دار در مسیرِ موتور ماند
     if (lastMergedOcr) {
       // P108-ج: نوبتِ قبلیِ کاربرِ واردشده (فقط /start، فقط کاربرِ غیرناشناس) برای پایداریِ ALT/AST.
-      engineCandidate = runEngine(req.priorLabs ? { ...lastMergedOcr, prior: req.priorLabs } : lastMergedOcr);
+      engineCandidate = runEngine(req.priorLabs ? { ...lastMergedOcr, prior: req.priorLabs } : lastMergedOcr, { diagnostics: true });
       // job c138671c (D10): برای نوزاد، فهرستِ «برای مطالعهٔ بیشتر» فقط صفحه‌های عمومیِ شمارشِ خونِ بزرگسال بود.
       //   صفحهٔ نوزادیِ MedlinePlus (وجودش ۲۰۲۶-۰۹-۲۸ بررسی شد) اضافه می‌شود — همان فهرست، نه منبعِ نتیجه‌گیری.
       if (isNeonate(engineCandidate.age) && !medlineSources.includes(NEWBORN_MEDLINE_URL)) {
@@ -1350,6 +1350,12 @@ const analyzeHandler = async (req, res) => {
         `الگو: ${patternOut.findings.map((f) => f.rule_id).join(", ") || "هیچ"} | ` +
         `فوریت: ${patternOut.overall_urgency}`
       );
+      // P113 (۲۰۲۶-۱۰-۲۷): «چرا سنِ زیستی نیامد» نباید بی‌صدا بمانَد — فقط وضعیت و نامِ مارکرهای غایب،
+      //   بی‌هیچ دادهٔ شناسایی و بی‌هیچ متنی برای بیمار.
+      if (engineOut.phenoAgeDiag) {
+        const d = engineOut.phenoAgeDiag;
+        console.warn(`PhenoAge: ساخته نشد (${d.status})${d.missing?.length ? " — مفقود: " + d.missing.join(", ") : ""}`);
+      }
       // ⚠️ تست‌هایی که موتور نمی‌شناسد نباید بی‌صدا ناپدید شوند.
       //    مثال واقعی: Procalcitonin=12 و Lactate=6.2 (نشانگرهای سپسیس)
       //    در NAME_MAP نبودند → از تفسیر حذف شدند و کاربر هرگز نفهمید.
@@ -2028,7 +2034,7 @@ app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimite
       const patient = patientInfo || { age: 30, sex: "M" };
       const tests = Array.isArray(testResults) ? testResults : [];
 
-      const engineOut = runEngine({ patient, tests });
+      const engineOut = runEngine({ patient, tests }, { diagnostics: true });
       const patternsOut = runPatterns(engineOut);
       // متنِ قطعیِ خودِ موتور — بدونِ LLM، پس مرزِ موتور دست‌نخورده می‌ماند.
       const interpretation = buildEngineFallbackResult(engineOut, patternsOut);

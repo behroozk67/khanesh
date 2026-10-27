@@ -271,6 +271,19 @@ describe("PhenoAge — دادهٔ کارتِ نمای ساده (phenoAgeCard)", 
     assert.equal(phenoAgeCard(e), null);
   });
 
+  it("PA27 — «چرا ساخته نشد» با diagnostics:true می‌آید و پیش‌فرض خاموش است (فریزها دست‌نخورده)", () => {
+    const diag = (tests, age) => runEngine({ tests, patient: { sex: "M", age } }, { diagnostics: true }).phenoAgeDiag;
+    // برگهٔ کامل: هیچ کلیدی — نه در حالتِ پیش‌فرض، نه با diagnostics
+    assert.equal("phenoAgeDiag" in run(FULL_SHEET(), 45), false);
+    assert.equal("phenoAgeDiag" in runEngine({ tests: FULL_SHEET(), patient: { sex: "M", age: 45 } }, { diagnostics: true }), false);
+    // CRP غایب ⇒ نامِ دقیقِ مارکر
+    assert.deepEqual(diag(FULL_SHEET().filter((t) => !/crp/i.test(t.name)), 45), { status: "INSUFFICIENT_DATA", missing: ["HS_CRP"] });
+    // قندِ تصادفی (Q1) ⇒ GLU، نه GLU_RANDOM
+    assert.deepEqual(diag(FULL_SHEET().map((t) => (/^FBS$/i.test(t.name) ? T("BS", 140, "mg/dL") : t)), 45), { status: "INSUFFICIENT_DATA", missing: ["GLU"] });
+    // سنِ زیرِ ۲۰ ⇒ دلیلِ سنی، بی‌فهرستِ مارکر
+    assert.deepEqual(diag(FULL_SHEET(), 17), { status: "NOT_APPLICABLE_PEDIATRIC" });
+  });
+
   it("PA25 — هر دو منبعِ P113 در رجیستریِ guidelines.js هست (بی‌منبعِ معلق)", async () => {
     const { guideline } = await import("./guidelines.js");
     for (const id of PHENO_AGE_SOURCES) {

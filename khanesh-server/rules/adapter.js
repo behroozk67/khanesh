@@ -2481,7 +2481,10 @@ function priorVisit(ocr, sex, age) {
   return PRIOR_KEYS.some((k) => out[k]) ? out : null;
 }
 
-export function runEngine(ocr) {
+export function runEngine(ocr, opts = {}) {
+  // P113 (۲۰۲۶-۱۰-۲۷): `{ diagnostics: true }` کلیدِ `phenoAgeDiag` را اضافه می‌کند (چرا سنِ زیستی ساخته نشد).
+  //   ⚠️ پیش‌فرض خاموش است تا خروجیِ موتور برای همهٔ فراخوان‌های دیگر — و همهٔ فریزهای بایت‌به‌بایت — دست‌نخورده بمانَد.
+  const wantDiag = opts?.diagnostics === true;
   const { tests, qual, semenQual, smear, rbcMorph, hemostasis, prenatal, specimen, serologyRef, serologyAssay, unitUnknown, rawText, unmapped, noReader, noReaderValues, ckmbUnitless, printedRefs, printedRefsAll, derivedAbs, derivedAbsRefs, diffMixed, printedUnits, unitConversions, diffFailed, unreadableKeys, sex, age, pregnant, gestWeeks, valueConflicts, ambiguousPh, glucoseNames, ogtt100g } = ocrToEngineInput(ocr);
   const pregnantF = pregnant && sex === "F";
   const gestWeeksF = pregnantF ? gestWeeks : null;
@@ -2945,6 +2948,11 @@ export function runEngine(ocr) {
   //   (CRP_Q بر حسبِ mg/L)؛ تبدیل به واحدهای معادله داخلِ pheno_age.js انجام می‌شود.
   const pheno = computePhenoAge({ tests, age, sex });
   if (pheno.status === "CALCULATED") idx.pheno_age = pheno.phenoAge;
+  // P113 (۲۰۲۶-۱۰-۲۷): چرا ساخته نشد؟ — وضعیتِ خودِ ماژول، بی‌هیچ منطقِ دوم.
+  //   فقط با `diagnostics: true` در خروجی می‌آید (فریزها دست‌نخورده). مصرف: لاگِ سرور و ردِّ حسابرسی.
+  const enginePhenoDiag = pheno.status !== "CALCULATED"
+    ? { status: pheno.status, ...(pheno.missing ? { missing: pheno.missing } : {}) }
+    : null;
   Object.assign(idx, derived);
 
   // بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور (فقط نمایش — حکمِ «غیرطبیعی» همچنان با بازهٔ موتور است). فقط وقتی هر دو سر خوانده شد، هم‌مقیاس است
@@ -2993,6 +3001,8 @@ export function runEngine(ocr) {
     serologyRef,
     ungraded,
     indices: idx,
+    // P113: اگر سنِ زیستی ساخته نشد، دلیلش همین‌جاست (وضعیت + مارکرهای غایب). فقط با `diagnostics: true`.
+    ...(wantDiag && enginePhenoDiag ? { phenoAgeDiag: enginePhenoDiag } : {}),
     unmapped,
     // دو عددِ متفاوت برای یک آزمایش (۲۰۲۶-۱۰-۰۶): server.js هشدار می‌سازد. فقط وقتی هست، تا فریزها دست نخورند.
     ...(valueConflicts.length ? { valueConflicts } : {}),
