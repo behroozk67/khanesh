@@ -936,6 +936,30 @@ test("T37: ورودِ دستیِ ادرار — مقدارِ رشته‌ایِ �
   assert.ok(r.body?._engine?.patterns?.includes("hematuria_pattern"), JSON.stringify(r.body?._engine?.patterns));
 });
 
+test("P117: ورودِ دستی — مشاهده‌های توصیفیِ مدفوع به موتور می‌رسند و «تفسیرنشده» نمی‌شوند", async () => {
+  // 🔴 مسیرِ دستی هر ردیفِ غیرعددی را با parseFloat به NaN می‌برد و پیش از موتور حذف می‌کرد؛
+  //    نتیجه: کانالِ مشاهدهٔ مدفوع فقط روی مسیرِ عکس کار می‌کرد (P117).
+  const r = await analyze({
+    patient: { age: 44, sex: "M" },
+    tests: [
+      { name: "Occult Blood-1(FOB)", value: "Positive" },
+      { name: "Consistency", value: "Watery" },
+      { name: "Undigested Food", value: "Many" },
+      { name: "Ova Of Parasites", value: "Negative" },
+      { name: "Protozoa Cyst", value: "Negative" },
+      { name: "Color", value: "Black" },
+    ],
+  });
+  assert.equal(r.status, 200);
+  const w = (r.body.ocr_warnings || []).join(" | ");
+  assert.ok(!/تفسیر نشدند/.test(w), `نباید «تفسیر نشدند» داشته باشد: ${w}`);
+  assert.match(w, /مشاهدهٔ چاپ‌شدهٔ برگه:|رنگِ مدفوع|قوامِ مدفوع/, `خطِ مشاهده نیامد: ${w}`);
+  const pats = r.body?._engine?.patterns ?? [];
+  assert.ok(pats.includes("stool_melena"), `stool_melena نیامد: ${JSON.stringify(pats)}`);
+  assert.ok(pats.includes("stool_loose_consistency"), `قوامِ آبکی نیامد: ${JSON.stringify(pats)}`);
+  assert.ok(pats.includes("stool_undigested_food"), `بقایای غذاییِ «Many» نیامد: ${JSON.stringify(pats)}`);
+});
+
 test("T38: _engine.context فقط بیماری‌های فعال را نام می‌برد؛ فشار خون هرگز «لحاظ‌شده» گزارش نمی‌شود (FR-016/FR-019)", async () => {
   const tests = [{ name: "Fasting Blood Sugar", value: "95", unit: "mg/dL" }, { name: "LDL cholesterol", value: "114", unit: "mg/dL" }];
   const a = await analyze({ patient: { age: "45 سال", sex: "زن", conditions: ["htn", "dm2"] }, tests });

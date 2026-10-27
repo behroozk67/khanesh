@@ -35,7 +35,7 @@ import { parseSampleDate } from "./rules/sampledate.js";
 import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue, inferAge, inferSex, mergeIdentityTag } from "./rules/adapter.js";
 import { bareUrineShape } from "./rules/specimen.js";
 // P117: کلیدهای مشاهدهٔ برگهٔ مدفوع (یک منبع با موتور) — برای جداکردنِ خطِ «مشاهدهٔ چاپ‌شده» از «بی‌بازه»ها.
-import { STOOL_OBS_KEYS } from "./rules/stool.js";
+import { STOOL_OBS_KEYS, stoolFieldOf } from "./rules/stool.js";
 import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { onInpatient, inpatientBanner } from "./rules/inpatient.js";
 import { childBanner } from "./rules/neonatal.js";
@@ -1197,6 +1197,12 @@ const analyzeHandler = async (req, res) => {
     if (!hasImage && Array.isArray(tests) && tests.length) {
       // specs/011: ردیفِ ادرار (kind: "urine") رشته می‌ماند («+2»، «Negative»، «10-15») — همان شکلی که از عکس می‌آید و
       //   لایهٔ ادرارِ adapter می‌خواند. پیش‌تر Number.isFinite همه‌شان را بی‌صدا دور می‌ریخت (N2/N18). گارد T37.
+      // P117 (۲۰۲۶-۱۰-۲۷): آیا این پنلِ دستی نشانگرِ مدفوع دارد؟ «Color»ِ برهنه فقط روی چنین پنلی رنگِ
+      //   مدفوع است، نه ادرار (همان قاعدهٔ مسیرِ عکس: N25 — مالکیتِ ردیف حدس زده نمی‌شود).
+      const manualStoolPanel = tests.some((x) => {
+        const k = normName(String(x?.name ?? x?.key ?? "").trim());
+        return isFecalBloodName(k) || stoolFieldOf(k) != null;
+      });
       const manualTests = tests
         .map((t) => {
           const urine = t?.kind === "urine";
@@ -1205,7 +1211,15 @@ const analyzeHandler = async (req, res) => {
           //   می‌رسید و در فیلترِ بعدی بی‌صدا حذف می‌شد — نه یافته، نه «تفسیر نشدند» (N2/N4). پس مقدارِ
           //   متنیِ همان آزمایش با دستهٔ خودش می‌ماند.
           const qual = isFecalBloodName(nm);
-          const val = qual || urine
+          // P117 (۲۰۲۶-۱۰-۲۷): مشاهده‌های توصیفیِ مدفوع («Consistency: Soft»، «Ova Of Parasites: Negative»)
+          //   در ورودِ دستی متن‌اند؛ پیش‌تر `parseFloat` ⇒ NaN ⇒ ردیف پیش از رسیدن به موتور حذف می‌شد
+          //   و کانالِ مشاهده فقط روی مسیرِ عکس کار می‌کرد. حالا متنِ خودِ برگه حفظ می‌شود (N5).
+          const stoolObs = stoolFieldOf(normName(nm)) != null;
+          // «Color»/«رنگ»ِ برهنه در پنلِ دارای نشانگرِ مدفوع، رنگِ مدفوع است (بی‌این، «Black» به رنگِ ادرار می‌رفت).
+          const bareColor = /^(colou?r|رنگ)$/.test(normName(nm));
+          const stoolBare = bareColor && manualStoolPanel && !urine;
+          const textual = qual || stoolObs || stoolBare;
+          const val = textual || urine
             ? String(t?.value ?? "").trim()
             : typeof t?.value === "number" ? t.value : parseFloat(t?.value);
           return {
@@ -1218,7 +1232,7 @@ const analyzeHandler = async (req, res) => {
             //   فقط وقتی فرستاده شود که واقعاً آمده باشد (N4: بی‌شاهد، بی‌ادعا).
             ...(t?.reference ? { reference: String(t.reference) } : {}),
             // همان شاهدِ سرتیترِ عکس (adapter.sectionKind): ردیفِ ادرارِ فرم «Glucose» ادرار است، ردیفِ عددی سرم.
-            section: urine ? "Urinalysis" : qual ? "Stool" : null,
+            section: urine ? "Urinalysis" : qual || stoolObs || stoolBare ? "Stool" : null,
           };
         })
         .filter((t) => t.name && (t.urine || typeof t.value === "string" ? t.value !== "" : Number.isFinite(t.value)))
