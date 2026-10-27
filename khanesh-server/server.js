@@ -34,6 +34,8 @@ import "dotenv/config";
 import { parseSampleDate } from "./rules/sampledate.js";
 import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue, inferAge, inferSex, mergeIdentityTag } from "./rules/adapter.js";
 import { bareUrineShape } from "./rules/specimen.js";
+// P117: کلیدهای مشاهدهٔ برگهٔ مدفوع (یک منبع با موتور) — برای جداکردنِ خطِ «مشاهدهٔ چاپ‌شده» از «بی‌بازه»ها.
+import { STOOL_OBS_KEYS } from "./rules/stool.js";
 import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { onInpatient, inpatientBanner } from "./rules/inpatient.js";
 import { childBanner } from "./rules/neonatal.js";
@@ -1434,7 +1436,8 @@ const analyzeHandler = async (req, res) => {
       const noRefShown = unexplainedNoRef(engineOut.noRef, patternOut.findings);
       // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): «رنگِ مدفوع» یک مشاهدهٔ توصیفی است، نه سنجه‌ای که «محدودهٔ مرجع ندارد».
       //   پیش‌تر در همان خطِ «محدوده مرجع نداریم … تفسیر نشدند» می‌نشست و غیرحرفه‌ای خوانده می‌شد.
-      const OBSERVATION_KEYS = new Set(["STOOL_COLOR"]);
+      //   P117: همین قاعده برای همهٔ مشاهده‌های برگهٔ مدفوع (قوام، بقایای غذایی، مخاط، خونِ آشکار، تخم، کیست).
+      const OBSERVATION_KEYS = STOOL_OBS_KEYS;
       const obsShown = noRefShown.filter((k) => OBSERVATION_KEYS.has(k));
       const rangeShown = noRefShown.filter((k) => !OBSERVATION_KEYS.has(k));
       if (obsShown.length) {

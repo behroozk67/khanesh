@@ -12,6 +12,8 @@ import { RULES_REPRODUCTIVE } from "./patterns_reproductive.js";
 import { RULES_UNIT_UNKNOWN } from "./patterns_unit_unknown.js";
 import { RULES_TRACE_ELEMENTS } from "./patterns_trace_elements.js";
 import { RULES_P109 } from "./patterns_p109.js";
+// P117: مشاهده‌های توصیفیِ برگهٔ مدفوع (رنگ/قوام/بقایای غذایی/مخاط/خونِ آشکار/تخم/کیست).
+import { RULES_STOOL } from "./patterns_stool.js";
 import { RULES_URINE_CASTS } from "./patterns_urine_casts.js";
 import { RULES_URINALYSIS } from "./patterns_urinalysis.js";
 import { RULES_LEUKOCYTE } from "./patterns_leukocyte.js";
@@ -72,6 +74,8 @@ export const RULES = [
   ...RULES_PRENATAL,
   // P109: eAG، شاخصِ آتروژنیک، IgMِ هلیکوباکتر، اندازه/رنگِ گلبول در لام.
   ...RULES_P109,
+  // P117: کانالِ مدفوع — بی‌بازه، از e.ungraded.STOOL_*.
+  ...RULES_STOOL
 ];
 bindP73Owners(RULES);
 // specs/016 (P100): متنِ تخصصیِ کادرِ درمان روی شیءِ قاعده. فقط rules/expert.js آن را می‌خواند؛ به حکم، فوریت و پرامپت نمی‌رسد.

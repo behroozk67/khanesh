@@ -1,4 +1,6 @@
 import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis as actionUnlessAnemiaCrisisBase, urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
+// P117: فهرستِ بستهٔ رنگِ سیاه از یک منبع (stool.js) — قاعدهٔ ملنا و رنگِ مدفوع یک واژگان دارند.
+import { STOOL_BLACK_RE } from "./stool.js";
 import { rbcMorphOf, bandNeutDiscordance, anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
 import { printedVerdict } from "./units.js";
 import { onInpatient } from "./inpatient.js";
@@ -17,8 +19,6 @@ const printedUngraded = (e, k) => !!(e.ungraded?.[k] || e.noRef?.includes(k));
 // P107m: سقفِ «خفیف» برای رتیکولوسیتِ ۱۵ روز تا ۲ ماهگی (٪) — پیشنهادِ بازبین (سقفِ Beebe ۵–۷ هفته ≈ ۳٫۴۷)، تأییدِ پزشک لازم.
 const NEONATAL_RETIC_MILD_MAX = 3.5;
 // P91: «سیاه» ِ رنگِ مدفوع — فهرستِ بسته روی کلِ مقدار (N6).
-
-const STOOL_BLACK_RE = /^(black|blackish|tarry|tar[\s-]*like|melena|melaena|سیاه|سیاه‌رنگ|سیاه رنگ|قیری|قیرمانند|قیری‌شکل)$/i;
 
 const LEUK_CYTO_IDS = new Set(["leukocytosis_with_cytopenia", "reactive_leukocytosis_with_cytopenia"]);
 // P95 (تصمیمِ کاربر، [199]؛ ISTH 2020: شک به TTP بر پایهٔ MAHA + ترومبوسیتوپنی): maha_ttp_suspicion حالا فقط با نشانگرِ همولیز فعال

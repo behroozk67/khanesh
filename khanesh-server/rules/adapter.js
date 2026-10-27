@@ -23,6 +23,8 @@ import { faName } from "./names.js";
 import { computePhenoAge } from "./pheno_age.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
 import { routeSerology, isFecalBloodName } from "./serology.js";
+// P117: کانالِ مشاهده‌های توصیفیِ مدفوع (رنگ/قوام/بقایای غذایی/مخاط/خونِ آشکار/تخم/کیست).
+import { stoolFieldOf } from "./stool.js";
 import { isPrenatalSheet, prenatalClaim, prenatalItem, parseRiskDenominator, parseRiskCategory, parseGaDays } from "./prenatal.js";
 import { specimenSheetEvidence, specimenClaim, BARE_FLUID_LOOKALIKES } from "./specimen.js";
 import { parseSampleDate } from "./sampledate.js";
@@ -1003,7 +1005,7 @@ const STOOL_PAGE_RE = /^(stool|feces|faeces|fecal|faecal|(fecal|faecal|stool)?ca
 //   isFecalBloodName در serology.js)، کالرکتانتین/کالپروتکتین و رنگ. ردیف‌های دیگر (W.B.C، RBC، مخاط …) خواننده
 //   ندارند و باید در «تفسیر نشدند» بنشینند، نه در ادرار یا CBC (N25/N4).
 //   پیش‌تر این فهرست جدا از AI_IDSِ سروالوژی نگه‌داری می‌شد و دو بار از هم جدا افتاد (N3).
-const STOOL_OTHER_ROW_RE = /^(calprotectin|fecalcalprotectin|faecalcalprotectin|stoolcalprotectin|colou?r|رنگ)/;
+const STOOL_OTHER_ROW_RE = /^(calprotectin|fecalcalprotectin|faecalcalprotectin|stoolcalprotectin|colou?r|رنگ|consistency|stoolconsistency|قوام|undigestedfoods?|undigestedfoodstuff|undigestedfibers?|vegetablefibers?|foodremnants?|بقایایغذایی|هضمنشده|mucus|mucous|mucusthreads?|مخاط|blood|grossblood|visibleblood|stoolblood|fecalblood|ova|ovaofparasites|ovaandparasites?|parasiteova|protozoa|protozoacysts?|parasitecysts?|cysts?|تخمانگل|کیست)/;
 const isStoolReaderRow = (key) => isFecalBloodName(key) || STOOL_OTHER_ROW_RE.test(key);
 function detectStoolPages(ocrTests) {
   const pages = new Set();
@@ -2015,6 +2017,24 @@ export function ocrToEngineInput(ocr) {
       if (!noReader.includes("STOOL_COLOR")) noReader.push("STOOL_COLOR");
       if (noReaderValues.STOOL_COLOR == null) noReaderValues.STOOL_COLOR = String(t.value).trim();
       continue;
+    }
+    // ═══ P117 (۲۰۲۶-۱۰-۲۷): مشاهده‌های توصیفیِ مدفوع — کانالِ خودشان ═══
+    //   برگهٔ واقعی (مردِ ۴۴ ساله): «Consistency: Soft»، «Undigested Food: Few»، «Ova Of Parasites: Negative»،
+    //   «Protozoa Cyst: Negative» همه در «تفسیر نشدند» می‌افتادند — یعنی موتور فیلدهای استانداردِ گزارشِ مدفوع
+    //   (WHO 2003: colour/consistency/blood/mucus/food remnants؛ CDC DPDx: ova/cyst) را نمی‌شناخت.
+    //   اکنون به‌جای «تستِ بی‌محدوده» به‌عنوان *مشاهدهٔ چاپ‌شده* ثبت می‌شوند (noReader ⇒ ungraded) و قاعده‌های
+    //   patterns_stool.js آن‌ها را می‌خوانند. ⚠️ هیچ بازه/آستانه‌ای ساخته نمی‌شود؛ متنِ خودِ برگه می‌مانَد.
+    {
+      const field = stoolFieldOf(key);
+      const rawText = String(t.value ?? "").trim();
+      // «Blood»/«Mucus»ِ برهنه فقط با شاهدِ مدفوع (سرتیتر یا صفحهٔ مدفوع) — مالکیتِ ردیف حدس زده نمی‌شود (N25).
+      const needsWitness = field === "STOOL_BLOOD" || field === "STOOL_MUCUS";
+      const hasWitness = secStool || stoolPages.has(t._page ?? 0);
+      if (field && rawText && (!needsWitness || hasWitness)) {
+        if (!noReader.includes(field)) noReader.push(field);
+        if (noReaderValues[field] == null) noReaderValues[field] = rawText;
+        continue;
+      }
     }
     // P111: بقیهٔ ردیف‌های بخشِ مدفوع خوانندهٔ موتور ندارند (W.B.C /hpf، R.B.C، Ova، Fat globules، Consistency…).
     //   فقط ردیف‌هایی که خوانندهٔ خودشان را دارند از این‌جا می‌گذرند (خونِ مخفی/FIT، کالپروتکتین، رنگ)؛

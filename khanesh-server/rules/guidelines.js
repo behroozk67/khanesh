@@ -63,6 +63,36 @@ export const GUIDELINES = {
   },
 
   // ---- گایدلاین‌های بالینی ----
+  WHO_LAB_STOOL_2003: {
+    org: 'WHO',
+    fa: 'سازمان جهانی بهداشت',
+    title: 'Manual of basic techniques for a health laboratory, 2nd ed. — examination of stools (macroscopic: colour, consistency, blood, mucus, food remnants; microscopy: ova, cysts)',
+    year: 2003,
+    url: 'https://www.who.int/publications/i/item/9241545305',
+    access: 'open',
+    scope: 'گزارشِ استانداردِ برگهٔ مدفوع: مشاهدهٔ ماکروسکوپی و میکروسکوپی (P117)',
+  },
+
+  CDC_DPDX_STOOL: {
+    org: 'CDC',
+    fa: 'مرکز کنترل و پیشگیری بیماری‌های آمریکا — DPDx',
+    title: 'DPDx — Stool Specimens: microscopic examination for ova and parasites; artifacts (undigested food, plant cells)',
+    year: 2024,
+    url: 'https://www.cdc.gov/dpdx/diagnosticProcedures/stool/index.html',
+    access: 'open',
+    scope: 'تخمِ انگل/کیستِ پروتوزوآ در مدفوع و تفکیکِ آن از بقایای غذاییِ هضم‌نشده (P117)',
+  },
+
+  STOOL_TESTS_REVIEW_2019: {
+    org: 'Review',
+    fa: 'مرورِ بالینی',
+    title: 'The importance of stool tests in diagnosis and follow-up of gastrointestinal disorders',
+    year: 2019,
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC6776453/',
+    access: 'open',
+    scope: 'معنای بالینیِ رنگِ مدفوع: قهوه‌ای طبیعی؛ گچی/سفید = انسدادِ صفراوی؛ سیاه/قیری = خونریزیِ بالای گوارش یا آهن/بیسموت؛ سرخ = خونریزیِ پایینِ گوارش (P117)',
+  },
+
   WHO_ANAEMIA: {
     org: 'WHO',
     fa: 'سازمان جهانی بهداشت',
