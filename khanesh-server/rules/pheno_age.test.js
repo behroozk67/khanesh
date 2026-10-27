@@ -7,7 +7,7 @@
 //   (پایتون، واحدهای جدولِ ۱ لوین) حساب شده‌اند، نه از خروجیِ خودِ ماژول.
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { computePhenoAge, PHENO_AGE_MIN_AGE, PHENO_AGE_MARKERS, phenoAgeCard } from "./pheno_age.js";
+import { computePhenoAge, PHENO_AGE_MIN_AGE, PHENO_AGE_MARKERS, PHENO_AGE_SOURCES, phenoAgeCard } from "./pheno_age.js";
 import { runEngine } from "./adapter.js";
 
 // ── مقادیر با واحدهای داخلیِ موتور (همان شکلِ tests در adapter) ──
@@ -249,5 +249,15 @@ describe("PhenoAge — دادهٔ کارتِ نمای ساده (phenoAgeCard)", 
     near(full.deltaYears, full.years - 45, 0.05);
     assert.equal(phenoAgeCard(run(FULL_SHEET().filter((t) => !/crp/i.test(t.name)), 45)), null);
     assert.equal(phenoAgeCard(run(FULL_SHEET(), 17)), null);
+  });
+
+  it("PA25 — هر دو منبعِ P113 در رجیستریِ guidelines.js هست (بی‌منبعِ معلق)", async () => {
+    const { guideline } = await import("./guidelines.js");
+    for (const id of PHENO_AGE_SOURCES) {
+      const g = guideline(id);
+      assert.ok(g, `منبعِ ثبت‌نشده: ${id}`);
+      assert.ok(g.org && g.year && g.url, id);
+      assert.ok(/[؀-ۿ]/.test(g.fa), `${id}: نامِ فارسی ندارد`);
+    }
   });
 });

@@ -28,6 +28,9 @@
 /** سنِ اعتبار: مدل روی بزرگسالان (NHANES III/IV، ۲۰ سال و بالاتر) ساخته و اعتبارسنجی شده است. */
 export const PHENO_AGE_MIN_AGE = 20;
 
+/** شناسه‌های منبع در رجیستریِ `guidelines.js` — تستِ PA25 نبودِ ثبت را قفل می‌کند. */
+export const PHENO_AGE_SOURCES = ["LEVINE_2018_PHENOAGE", "LIU_2019_PHENOAGE_CORRECTION"];
+
 // ثابت‌های منتشرشده (PLoS Med 2019 correction)
 const GAMMA = 0.0076927;                          // نرخِ گامپرتز
 const MONTHS_10Y = 120;                           // افقِ ۱۰ ساله بر حسبِ ماه
@@ -37,6 +40,10 @@ const GLU_MGDL_PER_MMOLL = 18.0182;               // تبدیلِ قند (وزن
 const CREAT_UMOLL_PER_MGDL = 88.4;                // تبدیلِ کراتینین (KDIGO)
 
 /** ۹ بیومارکرِ الزامیِ مدل. `keys` = کلیدهای پذیرفته‌شده در شیءِ `tests`؛ اولی نامِ گزارشی است. */
+// ⚠️ پرسشِ بازِ P113-Q1 (docs/reviews/P113-PHENOAGE-REVIEW.md): مدل روی قندِ *ناشتا* ساخته شده و
+//    این‌جا `GLU_RANDOM` هم پذیرفته می‌شود تا برگه‌ای که فقط قندِ تصادفی دارد عدد نگیرد. پذیرشِ قندِ
+//    بعدِ غذا سن را کاذب بالا می‌برد؛ تصمیمش بالینی است و تا تأییدِ بازبین، ترتیبِ کلیدها ناشتا را
+//    مقدم می‌دارد (وقتی هر دو روی برگه‌اند، `GLU_F` انتخاب می‌شود).
 export const PHENO_AGE_MARKERS = [
   { id: "ALB", keys: ["ALB"], engineUnit: "g/dL" },
   { id: "CREAT", keys: ["CREAT"], engineUnit: "mg/dL" },
