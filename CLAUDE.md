@@ -2437,6 +2437,11 @@ Optimize for that, don't fight it:
 
 ## Orientation
 
+- **This file contains 81 ZWNJ characters (U+200C).** ZWNJ is orthographically required in
+  Persian (`نیم‌فاصله`) and must never be stripped or "normalized". Some agent-side guards
+  classify invisible Unicode as prompt injection and refuse to auto-load this file; the fix is
+  to read it with the file tool (`read_file`) and to leave the characters alone — not to edit
+  the text.
 - The project's own `CLAUDE.md` and `.claude/rules/` are the map — trust them. Grep only for
   what they don't answer, not to re-derive structure they already describe.
 - Both Bash and PowerShell are available as separate tools. Pick the right one per task; a
