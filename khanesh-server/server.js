@@ -36,6 +36,7 @@ import { activeConditionIds, conditionFa } from "./rules/conditions.js";
 import { onInpatient, inpatientBanner } from "./rules/inpatient.js";
 import { childBanner } from "./rules/neonatal.js";
 import { buildExpertView } from "./rules/expert.js";
+import { phenoAgeCard } from "./rules/pheno_age.js";
 import { getRef, isNeonate } from "./rules/refs.js";
 const NEWBORN_MEDLINE_URL = "https://medlineplus.gov/infantandnewborncare.html";
 import { runPatterns } from "./rules/patterns.js";
@@ -257,6 +258,10 @@ function engineDebug(engineOut, patternOut) {
     critical_banner: inpatientBanner(engineOut, patternOut) ?? childBanner(engineOut, patternOut),   // بستری (۲۰۲۶-۱۰-۰۸): بنرِ «اورژانس/۱۱۵»ِ فرانت برای بیمارِ بیمارستانی غلط است
     // specs/011 (FR-016/FR-019): آنچه موتور *واقعاً* به کار برد — از engineOut، نه از درخواست. بیماریِ غیرفعال اینجا نمی‌آید.
     context: engineContext(engineOut, patternOut),
+    // P113: کارتِ «سنِ زیستی» در نمای ساده — سه عددِ ساخته‌شده (سالِ زیستی، سالِ شناسنامه‌ای،
+    //   اختلاف). کلاینت فقط می‌چیند؛ هیچ فرمولی سمتِ فرانت نیست. null ⇒ کارت رندر نمی‌شود
+    //   (برگه‌ای که هر ۹ مارکر را ندارد یا سنش زیرِ ۲۰/نامشخص است).
+    phenoAge: phenoAgeCard(engineOut),
     indices: engineOut.indices,
     tests: serializeGraded(engineOut),
     // «امتیازِ این برگه» v2 (P97، specs/015) — فقط از حکمِ خودِ موتور. نمرهٔ هر دستگاه همین‌جا ساخته می‌شود (فرانت فرمول ندارد)؛

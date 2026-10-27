@@ -1,0 +1,173 @@
+/* ==========================================================================
+   P113 — کارتِ «سنِ زیستی» (PhenoAge) در نمای ساده
+   مینیمالِ مدرن: یک عددِ بزرگ، یک مقیاسِ نازک با دو نشانگر، و یک «چرا؟».
+   همهٔ رنگ‌ها از توکن‌های index.css — هیچ رنگِ تازه‌ای ساخته نشد (قاعدهٔ تم).
+   ========================================================================== */
+
+.pheno-card {
+  display: grid;
+  gap: var(--s6);
+  padding: var(--s8) var(--s8) var(--s7);
+  margin-block-end: var(--s8);
+}
+
+/* سرِ کارت: برچسبِ کوچک + چیپِ نامِ مدل */
+.pc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s6);
+}
+.pc-kicker {
+  margin: 0;
+  font-size: var(--t-xs);
+  font-weight: var(--w-semibold);
+  color: var(--ink-3);
+  letter-spacing: 0.01em;
+}
+.pc-chip {
+  font-size: 11px;
+  font-weight: var(--w-semibold);
+  line-height: 1.6;
+  color: var(--brand-ink);
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  border-radius: var(--r-pill);
+  padding: 1px var(--s6);
+  font-variant-numeric: tabular-nums;
+}
+
+/* عددِ اصلی — تک‌عنصرِ غالبِ کارت، با نشانِ تغییر در سمتِ دیگرِ ردیف */
+.pc-figure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s5);
+  flex-wrap: wrap;
+}
+.pc-age {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s4);
+  line-height: 1;
+}
+.pc-value {
+  font-size: clamp(44px, 11vw, 64px);
+  font-weight: var(--w-bold);
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.pc-unit {
+  font-size: var(--t-md);
+  color: var(--ink-2);
+}
+
+/* نشانِ «چقدر جوان‌تر/بالاتر» — یک چیپِ آرام، بی‌فریاد */
+.pc-badge {
+  font-size: var(--t-xs);
+  font-weight: var(--w-semibold);
+  color: var(--ink-2);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  padding: 2px var(--s6);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.pc-badge--good {
+  color: var(--st-normal-fg);
+  background: var(--st-normal-bg);
+  border-color: transparent;
+}
+
+/* مقیاس */
+.pc-scale { margin-block-start: var(--s2); }
+.pc-track {
+  position: relative;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, var(--track), var(--track-warm));
+  direction: ltr;
+}
+.pc-span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--r-pill);
+  background: var(--brand-soft);
+  box-shadow: inset 0 0 0 1px var(--brand-line);
+}
+.pc-dot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.pc-dot--chrono {
+  width: 11px;
+  height: 11px;
+  background: var(--card);
+  border: 2px solid var(--ink-3);
+}
+.pc-dot--bio {
+  width: 13px;
+  height: 13px;
+  background: var(--brand);
+  box-shadow: 0 0 0 4px var(--brand-soft);
+}
+
+/* راهنمای دو نشانگر */
+.pc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s4) var(--s8);
+  margin-block-start: var(--s7);
+  font-size: var(--t-xs);
+  color: var(--ink-2);
+}
+.pc-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s4);
+}
+.pc-key b { color: var(--ink); font-weight: var(--w-semibold); }
+.pc-key-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+}
+.pc-key-dot--bio { background: var(--brand); }
+.pc-key-dot--chrono { background: var(--card); border: 2px solid var(--ink-3); }
+
+/* «این عدد از کجا می‌آید؟» — بسته و بی‌سر‌و‌صدا */
+.pc-more {
+  border-block-start: 1px solid var(--line-soft);
+  padding-block-start: var(--s6);
+}
+.pc-more > summary {
+  cursor: pointer;
+  font-size: var(--t-xs);
+  font-weight: var(--w-semibold);
+  color: var(--brand);
+  list-style: none;
+}
+.pc-more > summary::-webkit-details-marker { display: none; }
+.pc-more > summary::before {
+  content: "+";
+  display: inline-block;
+  width: 1em;
+  color: var(--ink-3);
+}
+.pc-more[open] > summary::before { content: "−"; }
+.pc-more-body { padding-block-start: var(--s6); }
+.pc-more-body .hint { margin-bottom: var(--s5); }
+.pc-more-body .hint:last-child { margin-bottom: 0; }
+
+@media (max-width: 420px) {
+  .pheno-card { padding: var(--s7); }
+  .pc-value { font-size: 44px; }
+}

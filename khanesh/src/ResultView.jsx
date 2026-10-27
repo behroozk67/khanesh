@@ -14,6 +14,7 @@
 import { useState } from "react";
 import Num from "./Num.jsx";
 import ResultDashboard from "./ResultDashboard.jsx";
+import PhenoAgeCard from "./PhenoAgeCard.jsx";
 import ExpertView from "./ExpertView.jsx";
 import Segmented from "./Segmented.jsx";
 import ExtractedTests from "./ExtractedTests.jsx";
@@ -335,6 +336,10 @@ export default function ResultView({ result, asText, asList }) {
           {asList(result.ocr_warnings).map((w, i) => <div key={i}>• {asText(w)}</div>)}
         </div>
       )}
+
+      {/* P113 — کارتِ سنِ زیستی، پیش از تفسیر و فقط در نمای ساده.
+             داده‌اش را سرور می‌سازد (`_engine.phenoAge`)؛ نبودش ⇒ کارت رندر نمی‌شود. */}
+      {!expert && <PhenoAgeCard data={eng?.phenoAge} />}
 
       {/* ۳. خروجی گراف LabMat (بیمار و پزشک) */}
       {result.labmat && (

@@ -7,7 +7,7 @@
 //   (پایتون، واحدهای جدولِ ۱ لوین) حساب شده‌اند، نه از خروجیِ خودِ ماژول.
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { computePhenoAge, PHENO_AGE_MIN_AGE, PHENO_AGE_MARKERS } from "./pheno_age.js";
+import { computePhenoAge, PHENO_AGE_MIN_AGE, PHENO_AGE_MARKERS, phenoAgeCard } from "./pheno_age.js";
 import { runEngine } from "./adapter.js";
 
 // ── مقادیر با واحدهای داخلیِ موتور (همان شکلِ tests در adapter) ──
@@ -218,5 +218,36 @@ describe("PhenoAge — اتصال به موتور (adapter)", () => {
     const e = run(sheet, 45);
     assert.equal(typeof e.indices.pheno_age, "number");
     near(e.indices.pheno_age, run(FULL_SHEET(), 45).indices.pheno_age, 0.1);
+  });
+});
+
+describe("PhenoAge — دادهٔ کارتِ نمای ساده (phenoAgeCard)", () => {
+  it("PA23 — سه عدد می‌دهد و هیچ متنِ بالینی نمی‌سازد؛ نبودِ عدد یا سن ⇒ null", () => {
+    assert.deepEqual(
+      phenoAgeCard({ indices: { pheno_age: 36.7 }, age: 45 }),
+      { years: 36.7, chronoAge: 45, deltaYears: -8.3 }
+    );
+    // پیریِ تسریع‌شده هم مثبت می‌شود، نه صفر
+    assert.equal(phenoAgeCard({ indices: { pheno_age: 51.2 }, age: 45 }).deltaYears, 6.2);
+    // هر ورودیِ بی‌عدد/بی‌سن ⇒ کارت رندر نمی‌شود (نه عددِ صفر، نه NaN)
+    for (const bad of [
+      { indices: {}, age: 45 },
+      { indices: { pheno_age: 36.7 }, age: null },
+      { indices: { pheno_age: NaN }, age: 45 },
+      { indices: { pheno_age: "36.7" }, age: 45 },
+      {},
+    ]) {
+      assert.equal(phenoAgeCard(bad), null, JSON.stringify(bad));
+    }
+    assert.equal(phenoAgeCard(), null);
+  });
+
+  it("PA24 — از خروجیِ موتور: پنلِ کامل کارت دارد، برگهٔ ناقص و اطفال ندارند", () => {
+    const full = phenoAgeCard(run(FULL_SHEET(), 45));
+    assert.deepEqual(Object.keys(full).sort(), ["chronoAge", "deltaYears", "years"]);
+    assert.equal(full.chronoAge, 45);
+    near(full.deltaYears, full.years - 45, 0.05);
+    assert.equal(phenoAgeCard(run(FULL_SHEET().filter((t) => !/crp/i.test(t.name)), 45)), null);
+    assert.equal(phenoAgeCard(run(FULL_SHEET(), 17)), null);
   });
 });

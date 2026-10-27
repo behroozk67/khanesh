@@ -165,3 +165,18 @@ export function computePhenoAge({ tests, age, sex = null, units = {} } = {}) {
     },
   };
 }
+
+/**
+ * دادهٔ کارتِ «سنِ زیستی» برای نمای سادهٔ کلاینت — فقط سه عددِ ساخته‌شده، بی‌هیچ متنِ بالینی.
+ * ⚠️ چرا سمتِ سرور: فرانت قرارداد دارد فرمول/اشتقاق نداشته باشد (همان قاعدهٔ `score` در
+ *    specs/015). کلاینت این سه عدد را می‌چیند و بس؛ جمله‌های بالینی از rules می‌آیند.
+ * @param {{indices?: object, age?: number|null}} engineOut خروجیِ runEngine
+ * @returns {{years:number, chronoAge:number, deltaYears:number}|null}
+ */
+export function phenoAgeCard({ indices, age } = {}) {
+  const years = indices?.pheno_age;
+  const chronoAge = age;
+  if (typeof years !== "number" || !Number.isFinite(years)) return null;
+  if (typeof chronoAge !== "number" || !Number.isFinite(chronoAge)) return null;
+  return { years, chronoAge, deltaYears: +(years - chronoAge).toFixed(1) };
+}
