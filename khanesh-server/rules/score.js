@@ -165,7 +165,7 @@ export function healthScore(engineOut, patternOut) {
   const graded = Array.isArray(engineOut?.graded) ? engineOut.graded : [];
 
   const points = {};
-  const count = { scored: 0, out: 0, levels: { mild: 0, moderate: 0, marked: 0, critical: 0 }, no_level: 0, excluded: 0, unread: 0 };
+  const count = { scored: 0, out: 0, near: 0, levels: { mild: 0, moderate: 0, marked: 0, critical: 0 }, no_level: 0, excluded: 0, unread: 0 };
   const abnormalKeys = new Set();
   const critical = new Set();
   for (const g of graded) {
@@ -174,6 +174,8 @@ export function healthScore(engineOut, patternOut) {
     if (!SCORE_TABLE[g.test]) { count.excluded++; continue; }
     points[g.test] = p;
     count.scored++;
+    // P97-ب: «لب‌مرز» = در محدوده ولی نزدیکِ لبه (پرچمِ خودِ موتور، نه آستانهٔ تازه). برای خطِ اولِ کارت.
+    if (!g.abnormal && g.nearLimit) count.near++;
     if (g.abnormal) {
       count.out++;
       abnormalKeys.add(g.test);
@@ -234,9 +236,15 @@ export function healthScore(engineOut, patternOut) {
     version: 2, value: null, band: null, reason: null,
     cap: sheetCap < 100 ? sheetCap : null, capped: false,
     covered, systems, count, points,
-    counted: count.scored, total: graded.length,
+    counted: count.scored,
+    // P97-ب: کلیدهای عمداً بیرون از امتیاز (EXCLUDED) در مخرجِ «از چند تا» شمرده نمی‌شوند.
+    total: Math.max(0, graded.length - count.excluded),
   };
   if (neonate) return { ...out, reason: 'neonate' };
+  // P97-ب (۲۰۲۶-۱۰-۲۷): در اورژانس هیچ عددی داده نمی‌شود. «۳۵» کنارِ بنرِ ۱۱۵ دعوت به خواندنِ
+  //   «۶۵٪ سالم» می‌کرد؛ پیامِ اورژانس را بنر می‌رساند و عدد در آن وضعیت هیچ اطلاعاتِ مفیدی ندارد.
+  //   شمارش‌ها (count) می‌مانند تا کارت بتواند بگوید «۳ از ۸ در محدوده» و دستگاهِ بحرانی را نشان دهد.
+  if (urgency === 'emergency') return { ...out, reason: 'emergency' };
   if (nBuckets < MIN_BUCKETS) return { ...out, reason: 'too_few' };
   if (covered.length < MIN_SYSTEMS) return { ...out, reason: 'one_system' };
 
@@ -250,5 +258,8 @@ export function healthScore(engineOut, patternOut) {
   // ⚠️ برگه‌ای که یافتهٔ soon/this_week دارد هرگز «high» (سبز، «مطلوب») نمی‌شود، هرچند عددش بالا باشد:
   //    سقفِ هر دستگاه عمداً محلی است، ولی رنگِ «مطلوب» کنارِ «این هفته به پزشک» تناقض است (بازبینیِ کد، P97).
   if (band === 'high' && (urgency === 'soon' || urgency === 'this_week')) band = 'mid';
+  // P97-ب: ردیفِ ارزیابی‌نشده (بی‌واحد/بی‌محدوده) هم «مطلوب» نمی‌سازد — عددِ خوانده‌نشده نه نرمال است نه بد،
+  //   ولی ادعای «مطلوب» روی داده‌ای که نخوانده‌ایم همان سبزِ کاذب است. عدد می‌ماند، برچسب پایین می‌آید.
+  if (band === 'high' && count.unread > 0) band = 'mid';
   return { ...out, value, band };
 }

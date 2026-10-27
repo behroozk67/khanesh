@@ -234,6 +234,8 @@ const NO_SCORE_FA = {
   one_system: (names) =>
     `امتیازِ کل فقط وقتی داده می‌شود که برگه دست‌کم دو دستگاهِ بدن را پوشش دهد. امتیاز فقط برای: ${names}.`,
   neonate: 'برای نوزادِ زیرِ ۲۸ روز امتیاز نمی‌دهیم؛ محدوده‌های نوزادی هنوز کامل نیست.',
+  // P97-ب: در اورژانس عدد داده نمی‌شود؛ «۳۵» کنارِ بنرِ ۱۱۵ به «۶۵٪ سالم» خوانده می‌شد.
+  emergency: 'در این برگه یافتهٔ اورژانسی هست؛ در این وضعیت عدد نمی‌دهیم. دستورِ فوریِ بالای صفحه را دنبال کنید.',
 };
 
 /* ==========================================================================
@@ -645,13 +647,32 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
     : reason ? NO_SCORE_FA[reason] : null;
   const worstFa = (s) => (s.worst?.name ? `پایین‌ترین: ${s.worst.name}` : null);
 
+  // P97-ب: خطِ اولِ کارت، واقعیتِ عینی است نه درصد — «۸ از ۹ در محدوده · ۱ لب‌مرز».
+  //   همهٔ جزءها از `count`ِ سرور می‌آید (هیچ شمارشِ محلی، هیچ آستانهٔ تازه).
+  const cnt = score?.count;
+  const lead = cnt && cnt.scored > 0
+    ? [
+        `${toFa(Math.max(0, cnt.scored - cnt.out))} از ${toFa(cnt.scored)} شاخص در محدوده`,
+        ...(cnt.out > 0 ? [`${toFa(cnt.out)} خارج از محدوده`] : []),
+        ...(cnt.near > 0 ? [`${toFa(cnt.near)} لب‌مرز`] : []),
+        // ردیفِ خوانده‌شده ولی بی‌حکم (بی‌واحد/بی‌محدوده) — N4: نبودِ حکم یعنی «نرمال» نیست.
+        ...(cnt.unread > 0 ? [`${toFa(cnt.unread)} ارزیابی‌نشده`] : []),
+      ]
+    : null;
+
   return (
     <section className="kd-card kd-radar" id={id}>
       <CardHead
         title="خلاصهٔ دستگاه‌های بدن"
-        sub="امتیازِ این برگه — خلاصهٔ مرورِ سریعِ همین برگه، نه حکمِ پزشکی"
-        info="امتیازِ هر آزمایش از حکمِ خودِ موتور می‌آید: در محدوده کامل، و هرچه دورتر از محدوده (برحسبِ پهنای همان محدوده) کمتر؛ اگر موتور برای آزمایش درجهٔ شدت داده باشد، امتیاز از آن درجه بیشتر نمی‌شود. آزمایش‌های هم‌خانواده (مثل PT و INR) یک‌بار شمرده می‌شوند. دستگاهی که یافته‌ای با فوریتِ مشخص دارد از سقفِ همان فوریت بالاتر نمی‌رود، و برگهٔ اورژانسی هرگز بیش از ۳۵ نمی‌گیرد. امتیازِ کل میانگینِ وزنیِ دستگاه‌هاست و بیش از ۳۰ واحد از ضعیف‌ترین دستگاه بالاتر نمی‌رود. این عدد برای مرورِ سریع است و جای نظرِ پزشک را نمی‌گیرد."
+        sub="وضعیتِ عینیِ همین برگه — شمارشِ شاخص‌ها، نه حکمِ پزشکی"
+        info="خطِ اول شمارشِ خودِ برگه است: چند شاخص در محدودهٔ مرجع، چند خارج از آن، چند لب‌مرز (پرچمِ نزدیک‌به‌مرزِ خودِ موتور) و چند ردیف ارزیابی‌نشده (بی‌واحد یا بی‌محدوده — ارزیابی‌نشده یعنی نرمال نیست). عددِ مرور از حکمِ موتور ساخته می‌شود: در محدوده کامل، هرچه دورتر از محدوده (برحسبِ پهنای همان محدوده) کمتر، و هرگز بیشتر از درجهٔ شدت (CTCAE) اگر موتور داده باشد. آزمایش‌های هم‌خانواده (مثل PT و INR) یک‌بار شمرده می‌شوند. دستگاهی که یافته‌ای با فوریتِ مشخص دارد از سقفِ همان فوریت بالاتر نمی‌رود. عددِ کل میانگینِ وزنیِ دستگاه‌هاست و بیش از ۳۰ واحد از ضعیف‌ترین دستگاه بالاتر نمی‌رود. در برگهٔ اورژانسی عددی نشان داده نمی‌شود. این عدد برای مرورِ سریع است، جای نظرِ پزشک را نمی‌گیرد و اعتبارسنجیِ بالینی نشده است."
       />
+      {lead && (
+        <p className="kd-leadline">
+          <b className="kd-leadline__main">{lead[0]}</b>
+          {lead.slice(1).map((t, i) => <span key={i} className="kd-leadline__tag">{t}</span>)}
+        </p>
+      )}
       {why && n > 0 && <p className="kd-countline kd-countline--why">{why}</p>}
       {n >= 3 ? (
         <div className="kd-radar__plot">
@@ -673,7 +694,9 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
           {overall != null && (
             <div className="kd-radar__center">
               <b className={`kd-tone-${overallTone}`}>{toFa(overall)}</b>
-              <span>امتیازِ این برگه</span>
+              <span>مرورِ سریع</span>
+              {/* P97-ب: واژهٔ وضعیت کنارِ رنگ — خوانا برای کوررنگی و چاپِ سیاه‌وسفید (WCAG 1.4.1) */}
+              <small className={`kd-toneword kd-tone-${overallTone}`}>{TONE_WORD[overallTone]}</small>
             </div>
           )}
           {scored.map((s, i) => {
@@ -693,6 +716,7 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
                 onClick={() => onSelect(s.key)}>
                 <span>{s.title}</span>
                 <b className={`kd-tone-${tone}`}>{toFa(s.score)}</b>
+                <small className={`kd-toneword kd-tone-${tone}`}>{TONE_WORD[tone]}</small>
                 {w && <small className="kd-worst">{w}</small>}
               </button>
             );
@@ -701,7 +725,10 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
       ) : n > 0 ? (
         <>
           {overall != null && (
-            <p className="kd-overall"><b className={`kd-tone-${overallTone}`}>{toFa(overall)}</b> <span>امتیازِ این برگه</span></p>
+            <p className="kd-overall">
+              <b className={`kd-tone-${overallTone}`}>{toFa(overall)}</b> <span>مرورِ سریع از ۱۰۰</span>{" "}
+              <small className={`kd-toneword kd-tone-${overallTone}`}>{TONE_WORD[overallTone]}</small>
+            </p>
           )}
           <ul className="kd-scorebars">
             {scored.map((s) => {
@@ -712,6 +739,7 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
                   <span>{s.title}{w && <small className="kd-worst">{w}</small>}</span>
                   <i><em className={`kd-bgtone-${tone}`} style={{ width: `${s.score}%` }} /></i>
                   <b className={`kd-tone-${tone}`}>{toFa(s.score)}</b>
+                  <small className={`kd-toneword kd-tone-${tone}`}>{TONE_WORD[tone]}</small>
                 </li>
               );
             })}
@@ -719,7 +747,7 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
         </>
       ) : overall != null ? (
         // سرورِ قدیمی (بی‌score.systems): فقط عددِ کل، بی‌فرمولِ محلی
-        <p className="kd-overall"><b className={`kd-tone-${overallTone}`}>{toFa(overall)}</b> <span>امتیازِ این برگه</span></p>
+        <p className="kd-overall"><b className={`kd-tone-${overallTone}`}>{toFa(overall)}</b> <span>مرورِ سریع از ۱۰۰</span></p>
       ) : (
         <div className="kd-empty">{why ?? 'برای محاسبهٔ امتیاز، آزمایش با محدودهٔ مرجع لازم است.'}</div>
       )}

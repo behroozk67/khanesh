@@ -390,3 +390,37 @@
 .kd-countline { margin: 4px 0 2px; font-size: 14px; line-height: 1.7; }
 .kd-countline--why { color: var(--kd-sub); font-size: 13px; }
 .kd-worst { display: block; font-size: 11px; font-weight: 400; color: var(--kd-sub); }
+
+/* P97-ب — خطِ عینیِ سرِ کارت: «۸ از ۹ شاخص در محدوده · ۱ لب‌مرز».
+   عددِ مرور پایین‌تر و کم‌رنگ‌تر است؛ ادعای درجه‌اول، شمارش است. */
+.kd-leadline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 2px 0 10px;
+}
+.kd-leadline__main {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--kd-ink);
+  line-height: 1.6;
+}
+.kd-leadline__tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--kd-text);
+  background: rgba(27, 32, 64, 0.05);
+  border-radius: 999px;
+  padding: 1px 9px;
+  white-space: nowrap;
+}
+/* واژهٔ وضعیت کنارِ رنگ — مستقل از درکِ رنگ (WCAG 1.4.1) */
+.kd-toneword {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  opacity: 0.95;
+}
+.kd-overall .kd-toneword { display: inline; }

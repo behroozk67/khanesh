@@ -153,19 +153,48 @@ describe("SC-001 و سقفِ هر دستگاه (US1)", () => {
 });
 
 describe("خطرناک هرگز میانگین نمی‌شود (US2)", () => {
-  // FR-011/FR-020: سقفِ کلِ برگه برای soon/this_week/routine عمداً بازنشسته شد؛ فقط emergency ⇒ ≤ ۳۵ سراسری است.
-  it("emergency ⇒ ≤ ۳۵، با پتاسیم ۷ از موتورِ واقعی", () => {
+  // FR-011/FR-020: سقفِ کلِ برگه برای soon/this_week/routine عمداً بازنشسته شد.
+  // P97-ب (۲۰۲۶-۱۰-۲۷): در اورژانس اصلاً عدد داده نمی‌شود — «۳۵» کنارِ بنرِ ۱۱۵ «۶۵٪ سالم» خوانده می‌شد.
+  it("emergency ⇒ بدونِ عدد (value === null، reason = emergency)، با شمارشِ دست‌نخورده", () => {
     const { s, p } = run([...BASE(), T("K", 7.0, "mmol/L")]);
     assert.equal(p.overall_urgency, "emergency");
-    assert.ok(s.value != null && s.value <= URGENCY_CAP.emergency, `value=${s.value}`);
-    assert.equal(s.capped, true);
+    assert.equal(s.value, null);
+    assert.equal(s.band, null);
+    assert.equal(s.reason, "emergency");
+    assert.ok(s.count.out >= 1, "شمارش باید بماند تا کارت «چند از چند» را بگوید");
+    assert.ok(s.points.K != null, "نمرهٔ ردیف‌ها برای نمایشِ دستگاه می‌ماند");
   });
 
-  it("یک بحرانی بینِ ۱۹ طبیعی — اورژانس ⇒ ≤ ۳۵", () => {
+  it("یک بحرانی بینِ ۱۹ طبیعی — اورژانس ⇒ بدونِ عدد", () => {
     const g = [...NORMAL(), HI("K", 7.5, "3.5–5", { mode: "severity", level: "critical" })];
     const s = healthScore({ graded: g }, "emergency");
-    assert.ok(s.value <= 35, `value=${s.value}`);
-    assert.equal(s.band, "low");
+    assert.equal(s.value, null);
+    assert.equal(s.band, null);
+    assert.equal(s.reason, "emergency");
+  });
+
+  it("P97-ب: تعدادِ «لب‌مرز» از پرچمِ nearLimitِ خودِ موتور شمرده می‌شود (نه آستانهٔ تازه)", () => {
+    const g = [G("ALT", 40, "0–41", { nearLimit: true }), G("HGB", 14.5, "13.7–17.5")];
+    assert.equal(healthScore({ graded: g }, "none").count.near, 1);
+    const clean = [G("ALT", 20, "0–41"), G("HGB", 14.5, "13.7–17.5")];
+    assert.equal(healthScore({ graded: clean }, "none").count.near, 0);
+  });
+
+  it("P97-ب: total کلیدهای عمداً بیرون از امتیاز (EXCLUDED) را در مخرج نمی‌شمارد", () => {
+    const g = [...NORMAL(), HI("CK", 357, "0–200")];
+    const s = healthScore({ graded: g }, "none");
+    assert.equal(s.count.excluded, 1);
+    assert.equal(s.total, g.length - 1);
+    assert.equal(s.counted, s.count.scored);
+  });
+
+  it("P97-ب: ردیفِ ارزیابی‌نشده «مطلوب» را به «نیاز به توجه» پایین می‌آورد، ولی عدد را عوض نمی‌کند", () => {
+    const clean = healthScore({ graded: NORMAL(), unmapped: [] }, "none");
+    assert.equal(clean.band, "high");
+    const unread = healthScore({ graded: NORMAL(), unmapped: ["ردیفِ ناشناخته"] }, "none");
+    assert.equal(unread.count.unread, 1);
+    assert.equal(unread.value, clean.value);
+    assert.equal(unread.band, "mid");
   });
 
   it("کل ≤ بدترین دستگاه + ۳۰ (هفت دستگاهِ سالم و یک دستگاهِ ۴۰، بی‌اورژانس)", () => {
@@ -183,12 +212,20 @@ describe("خطرناک هرگز میانگین نمی‌شود (US2)", () => {
     ];
     for (const [name, unit, from, step] of walks) {
       let prev = Infinity;
+      let emergencySeen = false;
       // از خودِ مرز (i=0، درونِ بازه و نزدیکِ مرز) شروع می‌شود تا لحظهٔ عبور هم آزموده شود (بازبینیِ کد).
       for (let i = 0; i <= 10; i++) {
         const v = +(from + step * i).toFixed(3);
         const tests = [...BASE().filter((t) => t.name !== name), T(name, v, unit)];
         const { s } = run(tests);
-        assert.ok(s.value != null, `${name} ${v}: ${s.reason}`);
+        // P97-ب: گذر به اورژانس عدد را برمی‌دارد (value null). از آن نقطه به بعد «بدترشدن» فقط می‌تواند
+        //   همان‌جا بماند — عددی که برنگردد، نقضِ یکنوایی نمی‌سازد.
+        if (s.value == null) {
+          assert.equal(s.reason, "emergency", `${name} ${v}: ${s.reason}`);
+          emergencySeen = true;
+          continue;
+        }
+        assert.ok(!emergencySeen, `${name} ${v}: عدد پس از اورژانس برگشت (${s.value})`);
         assert.ok(s.value <= prev, `${name} ${v}: ${s.value} > ${prev}`);
         prev = s.value;
       }

@@ -31,7 +31,7 @@ healthScore(engineOut, patternOut) -> SheetScore
       "score": null, "capped": false, "critical": false, "worst": null }
     // … always 8 entries, in table order
   ],
-  "count": { "scored": 9, "out": 2,
+  "count": { "scored": 9, "out": 2, "near": 1,
              "levels": { "mild": 0, "moderate": 0, "marked": 0, "critical": 0 },
              "no_level": 2, "excluded": 0, "unread": 0 },
   "points": { "PT": 0.96, "INR": 0.8, "HGB": 1 },
@@ -43,7 +43,7 @@ healthScore(engineOut, patternOut) -> SheetScore
 ## Invariants (each one is a test)
 
 1. `value != null` ⇒ `reason === null`, and `reason != null` ⇒ `value === null && band === null`.
-2. `overall_urgency === "emergency"` ⇒ `value === null || value <= 35`.
+2. `overall_urgency === "emergency"` ⇒ `value === null && band === null && reason === "emergency"` (P97-ب: در اورژانس عدد داده نمی‌شود).
 3. `value != null` ⇒ `value <= min(systems[].score) + 30`.
 4. `systems.length === 8`. Every `worst.name` is `faName(worst.key)` and is never equal to a raw key, except where `FA_NAMES` deliberately uses the abbreviation (`INR`, `MCH`, `LDL`, …; see `M32`).
 5. `count.out === count.levels.mild + moderate + marked + critical + count.no_level` (excluded keys are not in `out`).
@@ -52,6 +52,9 @@ healthScore(engineOut, patternOut) -> SheetScore
 8. *(After code review.)* `overall_urgency ∈ {soon, this_week}` ⇒ `band !== "high"`.
 9. *(After code review.)* Each shown finding with urgency `soon`, `this_week` or `routine` caps either the systems of the keys it is about (source reads ∪ `uncovered` ∪ keys its text names), or, when none can be attributed, the whole sheet (`cap`). `cap` is therefore no longer emergency-only: it is the smallest whole-sheet cap that applied.
 10. Every out-of-range row's points are ≤ 0.9.
+11. *(P97-ب.)* `total === graded.length - count.excluded` — کلیدهای عمداً بیرون از امتیاز (منی، CK، میوگلوبین) در مخرجِ «از چند تا» شمرده نمی‌شوند.
+12. *(P97-ب.)* `count.near` = تعدادِ ردیف‌های **در محدوده** با `nearLimit === true` (پرچمِ خودِ موتور؛ هیچ آستانهٔ تازه).
+13. *(P97-ب.)* `count.unread > 0` ⇒ `band !== "high"` — ردیفِ ارزیابی‌نشده (بی‌واحد/بی‌محدوده) «مطلوب» نمی‌سازد، هرچند عدد دست‌نخورده می‌ماند.
 
 ## Persian strings introduced (shown verbatim for review)
 
