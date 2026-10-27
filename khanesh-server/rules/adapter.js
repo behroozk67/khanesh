@@ -20,6 +20,7 @@ import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcros
 import { runPatterns } from "./patterns.js";
 import { conditionIds } from "./conditions.js";
 import { faName } from "./names.js";
+import { computePhenoAge } from "./pheno_age.js";
 // سیلندرِ ادرار (specs/005). patterns_utils.js هم چیزی از adapter.js نمی‌خواند.
 import { routeSerology } from "./serology.js";
 import { isPrenatalSheet, prenatalClaim, prenatalItem, parseRiskDenominator, parseRiskCategory, parseGaDays } from "./prenatal.js";
@@ -2937,6 +2938,13 @@ export function runEngine(ocr) {
     idx.aip = +Math.log10((tests.TG / 88.57) / (tests.HDL / 38.67)).toFixed(2);
   }
   // تصحیح‌های مشتق را برای مصرف الگوها در indices بگذار
+  // P113 — سن زیستی فنوتیپی (Levine PhenoAge، MEDICAL_RULES): فقط عدد، بدونِ قاعده.
+  //   ماژول خودش گیت می‌زند: نبودِ هر یک از ۹ مارکر، واحدِ ناشناخته یا سنِ زیرِ ۲۰ ⇒ هیچ عددی.
+  //   هیچ قاعده‌ای این کلید را نمی‌خواند (پیگیری/فوریت نمی‌سازد). فقط وقتی CALCULATED است
+  //   نوشته می‌شود تا برگه‌های ناقص کلیدِ بی‌مقدار نگیرند. ورودی همان واحدهای داخلیِ موتور است
+  //   (CRP_Q بر حسبِ mg/L)؛ تبدیل به واحدهای معادله داخلِ pheno_age.js انجام می‌شود.
+  const pheno = computePhenoAge({ tests, age, sex });
+  if (pheno.status === "CALCULATED") idx.pheno_age = pheno.phenoAge;
   Object.assign(idx, derived);
 
   // بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور (فقط نمایش — حکمِ «غیرطبیعی» همچنان با بازهٔ موتور است). فقط وقتی هر دو سر خوانده شد، هم‌مقیاس است
