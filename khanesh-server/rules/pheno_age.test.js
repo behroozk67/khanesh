@@ -175,12 +175,19 @@ describe("PhenoAge — واحدها", () => {
     assert.deepEqual(notNumber.invalid, ["WBC"]);
   });
 
-  it("PA17 — قندِ ناشتا یا قندِ تصادفی، هر کدام که روی برگه باشد پذیرفته است", () => {
+  it("PA17 — قند: فقط ناشتا پذیرفته است؛ قندِ تصادفیِ تنها ⇒ INSUFFICIENT_DATA (P113-Q1)", () => {
     const { GLU_F, ...rest } = NORMAL45;
     assert.equal(computePhenoAge({ tests: rest, age: 45 }).status, "INSUFFICIENT_DATA");
-    const withRandom = computePhenoAge({ tests: { ...rest, GLU_RANDOM: 90 }, age: 45 });
-    assert.equal(withRandom.status, "CALCULATED");
-    assert.equal(withRandom.phenoAge, computePhenoAge({ tests: NORMAL45, age: 45 }).phenoAge);
+    // ⚠️ قندِ تصادفی جایگزینِ ناشتا نیست: مدل روی قندِ ناشتا ساخته شده و قندِ بعدِ غذا سن را کاذب بالا می‌برد.
+    const withRandom = computePhenoAge({ tests: { ...rest, GLU_RANDOM: 140 }, age: 45 });
+    assert.equal(withRandom.status, "INSUFFICIENT_DATA");
+    assert.deepEqual(withRandom.missing, ["GLU"]);
+    assert.equal(withRandom.phenoAge, null);
+    // ناشتا ⇒ عدد، همان عددِ پنلِ مرجع
+    assert.equal(
+      computePhenoAge({ tests: NORMAL45, age: 45 }).phenoAge,
+      computePhenoAge({ tests: { ...rest, GLU_F: 90 }, age: 45 }).phenoAge
+    );
   });
 });
 
@@ -222,13 +229,18 @@ describe("PhenoAge — اتصال به موتور (adapter)", () => {
 });
 
 describe("PhenoAge — دادهٔ کارتِ نمای ساده (phenoAgeCard)", () => {
-  it("PA23 — سه عدد می‌دهد و هیچ متنِ بالینی نمی‌سازد؛ نبودِ عدد یا سن ⇒ null", () => {
+  it("PA23 — سه عدد + نشانِ سقف می‌دهد و هیچ متنِ بالینی نمی‌سازد؛ نبودِ عدد یا سن ⇒ null", () => {
     assert.deepEqual(
       phenoAgeCard({ indices: { pheno_age: 36.7 }, age: 45 }),
-      { years: 36.7, chronoAge: 45, deltaYears: -8.3 }
+      { years: 36.7, chronoAge: 45, deltaYears: -8.3, capped: false }
     );
     // پیریِ تسریع‌شده هم مثبت می‌شود، نه صفر
     assert.equal(phenoAgeCard({ indices: { pheno_age: 51.2 }, age: 45 }).deltaYears, 6.2);
+    // P113-Q4: عددِ زیرِ ۲۰ سال ⇒ capped (کارت به‌جای عدد «کمتر از ۲۰» می‌نویسد)
+    const low = phenoAgeCard({ indices: { pheno_age: 15.4 }, age: 25 });
+    assert.equal(low.capped, true);
+    assert.equal(low.years, 15.4, "عددِ محاسبه‌شده باید حفظ شود، فقط نمایش سقف می‌خورد");
+    assert.equal(phenoAgeCard({ indices: { pheno_age: 20 }, age: 40 }).capped, false);
     // هر ورودیِ بی‌عدد/بی‌سن ⇒ کارت رندر نمی‌شود (نه عددِ صفر، نه NaN)
     for (const bad of [
       { indices: {}, age: 45 },
@@ -244,11 +256,19 @@ describe("PhenoAge — دادهٔ کارتِ نمای ساده (phenoAgeCard)", 
 
   it("PA24 — از خروجیِ موتور: پنلِ کامل کارت دارد، برگهٔ ناقص و اطفال ندارند", () => {
     const full = phenoAgeCard(run(FULL_SHEET(), 45));
-    assert.deepEqual(Object.keys(full).sort(), ["chronoAge", "deltaYears", "years"]);
+    assert.deepEqual(Object.keys(full).sort(), ["capped", "chronoAge", "deltaYears", "years"]);
     assert.equal(full.chronoAge, 45);
+    assert.equal(full.capped, false);
     near(full.deltaYears, full.years - 45, 0.05);
     assert.equal(phenoAgeCard(run(FULL_SHEET().filter((t) => !/crp/i.test(t.name)), 45)), null);
     assert.equal(phenoAgeCard(run(FULL_SHEET(), 17)), null);
+  });
+
+  it("PA26 — برگه‌ای که فقط قندِ تصادفی دارد: نه عدد در indices، نه کارت", () => {
+    const sheet = FULL_SHEET().map((t) => (/^FBS$/i.test(t.name) ? T("BS", 140, "mg/dL") : t));
+    const e = run(sheet, 45);
+    assert.equal(e.indices.pheno_age, undefined);
+    assert.equal(phenoAgeCard(e), null);
   });
 
   it("PA25 — هر دو منبعِ P113 در رجیستریِ guidelines.js هست (بی‌منبعِ معلق)", async () => {

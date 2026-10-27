@@ -20,26 +20,32 @@ import "./PhenoAgeCard.css";
 const fmt1 = (n) => String(Math.round(n * 10) / 10);
 
 const BIOMARKERS_FA = [
-  "آلبومین", "کراتینین", "قندِ خون", "CRP", "درصدِ لنفوسیت",
+  "آلبومین", "کراتینین", "قندِ ناشتا", "CRP", "درصدِ لنفوسیت",
   "MCV", "RDW-CV", "آلکالین فسفاتاز و WBC",
 ];
 
 export default function PhenoAgeCard({ data }) {
   if (!data || typeof data.years !== "number" || typeof data.chronoAge !== "number") return null;
   const { years, chronoAge, deltaYears } = data;
+  // P113-Q4: عددِ زیرِ ۲۰ سال نمایش داده نمی‌شود — «کمتر از ۲۰» جایش می‌نشیند.
+  //   (خودِ عدد سمتِ سرور در `years` می‌ماند؛ بیمار عددِ دو‌رقمیِ بی‌پشتوانه نمی‌بیند.)
+  const capped = data.capped === true;
+  const shown = capped ? 20 : years;
 
   // مقیاس: چند سال حاشیه در دو طرف، تا دو نشانگر هرگز روی لبه نچسبند.
-  const lo = Math.floor(Math.min(years, chronoAge) - 4);
-  const hi = Math.ceil(Math.max(years, chronoAge) + 4);
+  const lo = Math.floor(Math.min(shown, chronoAge) - 4);
+  const hi = Math.ceil(Math.max(shown, chronoAge) + 4);
   const span = hi - lo || 1;
   const pos = (v) => Math.min(100, Math.max(0, ((v - lo) / span) * 100));
-  const bioP = pos(years);
+  const bioP = pos(shown);
   const chronoP = pos(chronoAge);
   const younger = deltaYears < 0;
-  const same = Math.abs(deltaYears) < 0.05;
+  const same = !capped && Math.abs(deltaYears) < 0.05;
   const delta = fmt1(Math.abs(deltaYears));
 
-  const aria = `سنِ زیستی ${fmt1(years)} سال در برابرِ سنِ شناسنامه‌ای ${fmt1(chronoAge)} سال`;
+  const aria = capped
+    ? `سنِ زیستی کمتر از ۲۰ سال در برابرِ سنِ شناسنامه‌ای ${fmt1(chronoAge)} سال`
+    : `سنِ زیستی ${fmt1(years)} سال در برابرِ سنِ شناسنامه‌ای ${fmt1(chronoAge)} سال`;
 
   return (
     <section className="card pheno-card" aria-labelledby="pheno-age-title">
@@ -50,12 +56,18 @@ export default function PhenoAgeCard({ data }) {
 
       <div className="pc-figure">
         <span className="pc-age">
-          <span className="pc-value"><Num>{fmt1(years)}</Num></span>
+          {capped ? (
+            <span className="pc-value pc-value--lt">کمتر از <Num>20</Num></span>
+          ) : (
+            <span className="pc-value"><Num>{fmt1(years)}</Num></span>
+          )}
           <span className="pc-unit">سال</span>
         </span>
-        <span className={same ? "pc-badge" : younger ? "pc-badge pc-badge--good" : "pc-badge"}>
-          {same ? "هم‌سال" : <><Num>{delta}</Num> سال {younger ? "جوان‌تر" : "بالاتر"}</>}
-        </span>
+        {!capped && (
+          <span className={same ? "pc-badge" : younger ? "pc-badge pc-badge--good" : "pc-badge"}>
+            {same ? "هم‌سال" : <><Num>{delta}</Num> سال {younger ? "جوان‌تر" : "بالاتر"}</>}
+          </span>
+        )}
       </div>
 
       {/* مقیاسِ نازک: محورِ سن عمداً LTR است (سن به سمتِ راست زیاد می‌شود) */}
@@ -71,7 +83,7 @@ export default function PhenoAgeCard({ data }) {
         <div className="pc-legend">
           <span className="pc-key">
             <i className="pc-key-dot pc-key-dot--bio" aria-hidden="true" />
-            سنِ زیستی <b><Num>{fmt1(years)}</Num></b>
+            سنِ زیستی <b>{capped ? <>کمتر از <Num>20</Num></> : <Num>{fmt1(years)}</Num>}</b>
           </span>
           <span className="pc-key">
             <i className="pc-key-dot pc-key-dot--chrono" aria-hidden="true" />
@@ -86,6 +98,8 @@ export default function PhenoAgeCard({ data }) {
           <p className="hint">
             از ۹ آزمایشِ همین برگه ساخته می‌شود: {BIOMARKERS_FA.join("، ")}.
             اگر یکی از این‌ها روی برگه نباشد، عدد ساخته نمی‌شود — هیچ مقداری جای آن گذاشته نمی‌شود.
+            قند باید ناشتا باشد؛ قندِ بعد از غذا این عدد را کاذب بالا می‌برد، پس برگه‌ای که فقط قندِ
+            تصادفی دارد عدد نمی‌گیرد.
           </p>
           <p className="hint">
             روش: معادلهٔ منتشرشدهٔ Levine (۲۰۱۸) با تصحیحِ ۲۰۱۹ — همان شاخصی که در مطالعاتِ جمعیتی

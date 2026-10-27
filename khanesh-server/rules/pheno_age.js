@@ -40,14 +40,15 @@ const GLU_MGDL_PER_MMOLL = 18.0182;               // تبدیلِ قند (وزن
 const CREAT_UMOLL_PER_MGDL = 88.4;                // تبدیلِ کراتینین (KDIGO)
 
 /** ۹ بیومارکرِ الزامیِ مدل. `keys` = کلیدهای پذیرفته‌شده در شیءِ `tests`؛ اولی نامِ گزارشی است. */
-// ⚠️ پرسشِ بازِ P113-Q1 (docs/reviews/P113-PHENOAGE-REVIEW.md): مدل روی قندِ *ناشتا* ساخته شده و
-//    این‌جا `GLU_RANDOM` هم پذیرفته می‌شود تا برگه‌ای که فقط قندِ تصادفی دارد عدد نگیرد. پذیرشِ قندِ
-//    بعدِ غذا سن را کاذب بالا می‌برد؛ تصمیمش بالینی است و تا تأییدِ بازبین، ترتیبِ کلیدها ناشتا را
-//    مقدم می‌دارد (وقتی هر دو روی برگه‌اند، `GLU_F` انتخاب می‌شود).
+// ⚠️ P113-Q1 (تصمیمِ پیاده‌ساز، ۲۰۲۶-۱۰-۲۷): فقط **قندِ ناشتا** پذیرفته می‌شود. مدل روی NHANES با
+//    قندِ ناشتا ساخته شده است؛ پذیرشِ قندِ تصادفی سن را کاذب بالا می‌برد (قندِ بعدِ غذا ۱۴۰ روی برگه‌ای
+//    که ناشتا ۹۰ است). پس اگر برگه فقط `GLU_RANDOM` داشته باشد، عدد ساخته **نمی‌شود** و کارت رندر
+//    نمی‌شود — همان اصلِ «بدونِ داده، بدونِ عدد». تصمیمِ نهایی با بازبینِ بالینی است
+//    (docs/reviews/P113-PHENOAGE-REVIEW.md، Q1).
 export const PHENO_AGE_MARKERS = [
   { id: "ALB", keys: ["ALB"], engineUnit: "g/dL" },
   { id: "CREAT", keys: ["CREAT"], engineUnit: "mg/dL" },
-  { id: "GLU", keys: ["GLU_F", "GLU_RANDOM"], engineUnit: "mg/dL" },
+  { id: "GLU", keys: ["GLU_F"], engineUnit: "mg/dL" },
   { id: "HS_CRP", keys: ["HS_CRP", "CRP_QUANT", "CRP_Q"], engineUnit: "mg/L" },
   { id: "LYMPH_PCT", keys: ["LYMPH_PCT"], engineUnit: "%" },
   { id: "MCV", keys: ["MCV"], engineUnit: "fL" },
@@ -174,16 +175,25 @@ export function computePhenoAge({ tests, age, sex = null, units = {} } = {}) {
 }
 
 /**
- * دادهٔ کارتِ «سنِ زیستی» برای نمای سادهٔ کلاینت — فقط سه عددِ ساخته‌شده، بی‌هیچ متنِ بالینی.
+ * دادهٔ کارتِ «سنِ زیستی» برای نمای سادهٔ کلاینت — فقط عددهای ساخته‌شده، بی‌هیچ متنِ بالینی.
  * ⚠️ چرا سمتِ سرور: فرانت قرارداد دارد فرمول/اشتقاق نداشته باشد (همان قاعدهٔ `score` در
- *    specs/015). کلاینت این سه عدد را می‌چیند و بس؛ جمله‌های بالینی از rules می‌آیند.
+ *    specs/015). کلاینت این عددها را می‌چیند و بس؛ جمله‌های بالینی از rules می‌آیند.
+ * ⚠️ P113-Q4 (تصمیمِ پیاده‌ساز، ۲۰۲۶-۱۰-۲۷): عدد می‌تواند برای بزرگسالِ سالم خیلی پایین بیفتد
+ *    (۱۵ سال برای فردِ ۲۵ ساله). نمایشِ عددِ دو‌رقمی آن‌جا ادعای بی‌پشتوانه است، پس `capped: true`
+ *    برمی‌گردد و کارت به‌جای عدد می‌نویسد «کمتر از ۲۰» — خودِ عددِ محاسبه‌شده در `years` می‌ماند
+ *    (برای بازبینی/لاگ)، ولی به بیمار نمایش داده نمی‌شود.
  * @param {{indices?: object, age?: number|null}} engineOut خروجیِ runEngine
- * @returns {{years:number, chronoAge:number, deltaYears:number}|null}
+ * @returns {{years:number, chronoAge:number, deltaYears:number, capped:boolean}|null}
  */
 export function phenoAgeCard({ indices, age } = {}) {
   const years = indices?.pheno_age;
   const chronoAge = age;
   if (typeof years !== "number" || !Number.isFinite(years)) return null;
   if (typeof chronoAge !== "number" || !Number.isFinite(chronoAge)) return null;
-  return { years, chronoAge, deltaYears: +(years - chronoAge).toFixed(1) };
+  return {
+    years,
+    chronoAge,
+    deltaYears: +(years - chronoAge).toFixed(1),
+    capped: years < PHENO_AGE_MIN_AGE,
+  };
 }

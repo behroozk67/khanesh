@@ -58,6 +58,14 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
+/* P113-Q4: «کمتر از ۲۰» — متنِ جایگزینِ عدد، پس از عددِ ۶۴ پیکسلی کوچک‌تر و آرام‌تر */
+.pc-value--lt {
+  font-size: clamp(28px, 7vw, 40px);
+  letter-spacing: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s3);
+}
 .pc-unit {
   font-size: var(--t-md);
   color: var(--ink-2);
