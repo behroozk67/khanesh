@@ -4182,8 +4182,16 @@ PhenoAge = 141.50 + ln( -0.00553 · ln(1 - M) ) / 0.09165
 | سقفِ TSH در ۱–۱۶ سال: ۴٫۵ (RCPCH) در برابر ۵٫۰ (هنری و بازهٔ چاپیِ برگه) | **۵٫۰** — تعارضِ ثبت‌شده در جدولِ «سه تعارضِ اندازه‌گیری‌شده» حل شد | `refs_ped.js` → `TSH: { maxAge: 16, range: [0.5, 5.0], source: TSH_PED_ULN_SOURCE }`. حدِ پایین دست‌نخورده؛ TSHِ بالغِ `refs.js` عمداً دست‌نخورده (۴٫۵) |
 | هورمون‌های جنسیِ بی‌بازه در کودک (LH ۰٫۱، تستوسترون ۱۰ ng/dL): جملهٔ آرامش‌بخش؟ | **بله، فقط زیرِ ۱۰ سال** (کودکِ قطعاً پیش از بلوغ) | `patterns_reproductive.js` → `PREPUBERTAL_SENTENCE` پیش از متنِ `reproductive_hormone_context`. حکم/فوریت عوض نمی‌شود و بالای ۱۰ سال هیچ ادعایی دربارهٔ بلوغ نمی‌شود (شروعِ بلوغِ دختران از ۸–۹ سال) |
 
-**عمداً باز ماند:** سقفِ کراتینین/TSH برای گروه‌های سنیِ دیگر و بازهٔ LH/FSH/تستوسترونِ اطفال — منبعِ منتشرشده در مخزن نیست و عددی ساخته نشد. `creatinine_low` هم آستانهٔ تازه ندارد (فقط صاحب و توضیح).
+**بازهٔ کراتینینِ کودک — تصمیمِ کاربر (۲۰۲۶-۱۰-۲۸):** بازهٔ ۹ ساله همان **۰٫۶–۱٫۰ mg/dL** می‌ماند (Ghasemi/TLGS) و به ۰٫۴–۰٫۷ عوض **نشد**؛ پس ۰٫۵۹ در موتور «پایین» می‌ماند و همان یافتهٔ `creatinine_low` را می‌گیرد — با متنِ آرام، `routine`، و بی‌آزمایشِ پیشنهادی. آزمونِ Z07 این تصمیم را قفل می‌کند تا سشنِ بعدی دوباره «رفعِ باگ» نکند.
+
+**الگوی کراتینینِ پایین از گایدلاین (نه از شهود):** Merck Manual Professional، «Evaluation of the Patient With Renal Issues» (Full Review: Mar 2025) — همین جلسه باز و خوانده شد. سه گزارهٔ نقل‌شده:
+> «Serum creatinine depends on creatinine generation as well as renal creatinine excretion. Because creatinine turnover increases with higher muscle mass, muscular people have higher serum creatinine levels and older and undernourished people have lower levels.»
+> «In general, serum creatinine alone is not a good indicator of kidney function. The recommendation is to use the CKD-EPI 2021 calculators… optimally with both serum creatinine and cystatin C as inputs.»
+> «The protein/creatinine ratio is less accurate when creatinine excretion is significantly decreased (eg, in cachexia).»
+
+قاعده روی همین الگو بازنویسی شد: کراتینینِ پایین = تولیدِ کمتر (تودهٔ عضلانیِ کم، سالمندی، کم‌تغذیه‌گی/کاخکسی، تحلیلِ عضله) و **نه** بیماریِ کلیه (بیماریِ کلیه آن را بالا می‌برد)؛ کراتینین تنها شاخصِ کفایتِ عملکردِ کلیه نیست و اگر نگرانیِ واقعی باشد eGFR (CKD-EPI 2021، بهتر + سیستاتین C) سنجیده می‌شود — ولی برای کودک این فرمول معتبر نیست و متنِ کودک به «فرمولِ مخصوصِ کودکان» ارجاع می‌دهد، نه به CKD-EPI. در بیماریِ کبدیِ پیشرفته/تحلیلِ عضله، کراتینین کمتر از عملکردِ واقعیِ کلیه به نظر می‌رسد (همان صفحه، بندِ سیستاتین C). `sources: ["MERCK_PRO"]` و `scope`ِ همان منبع در `guidelines.js` با همین الگو به‌روز شد. عددی از این صفحه در کد ننشست (آستانه‌ها از قبل بودند) — فقط مکانیسم و توصیهٔ اندازه‌گیری. آزمون: Z04.
+**عمداً باز ماند:** سقفِ TSH برای گروه‌های سنیِ دیگر و بازهٔ LH/FSH/تستوسترونِ اطفال — منبعِ منتشرشده در مخزن نیست و عددی ساخته نشد.
 
 
-**آزمون‌ها:** `rules/review1028.test.js` (سری Z: Z01–Z06، هر کدام با کنترلِ مثبت/منفی). کلِ سوئیت: ۱۵۴۵ تست، `fail 0`؛ دروازهٔ پوشش سبز.
+**آزمون‌ها:** `rules/review1028.test.js` (سری Z: Z01–Z07، هر کدام با کنترلِ مثبت/منفی). کلِ سوئیت: ۱۵۴۶ تست، `fail 0`؛ دروازهٔ پوشش سبز.
 **تاریخ:** ۲۰۲۶-۱۰-۲۸.

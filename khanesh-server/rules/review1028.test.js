@@ -7,7 +7,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { runEngine } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
-import { buildExpertView } from "./expert.js";
+import { GUIDELINE_IDS as REGISTERED_SOURCES } from "./guidelines.js";
+import { getRef } from "./refs.js";
 
 const r = (name, value, unit, reference) => ({ name, value, ...(unit ? { unit } : {}), ...(reference ? { reference } : {}) });
 const BOY9 = { age: 9, sex: "M" };
@@ -53,6 +54,17 @@ test("Z04: کراتینینِ پایین صاحب دارد و در «توضیح 
   assert.equal(f.urgency, "routine");
   assert.match(f.must_say, /تودهٔ عضلانی/, "متن باید فیزیولوژیِ تودهٔ عضلانی را بگوید");
   assert.match(f.must_say, /بیماریِ کلیه کراتینین را بالا می‌برد/, "متن نباید پایین بودن را به بیماریِ کلیه بچسباند");
+  // الگو باید به گایدلاین ارجاع دهد، نه به شهود (M36: منبعِ ثبت‌شده)
+  assert.ok(Array.isArray(f.sources) && f.sources.includes("MERCK_PRO"), `منبعِ ثبت‌شده نیامد: ${JSON.stringify(f.sources)}`);
+  assert.ok(REGISTERED_SOURCES.has("MERCK_PRO"), "MERCK_PRO در دفترِ منابع نیست");
+  assert.match(f.must_say, /تنها شاخصِ خوبی برای عملکردِ کلیه نیست/, "توصیهٔ گایدلاین (کراتینین تنها شاخصِ کفایت نیست) نیامد");
+  assert.match(f.must_say, /کم‌تغذیه‌گی|تحلیلِ عضله/, "الگوی کم‌تغذیه‌گی/تحلیلِ عضله از گایدلاین نیامد");
+  // کودک: فرمولِ بزرگسال (CKD-EPI) پیشنهاد نمی‌شود؛ بالغ: پیشنهاد می‌شود
+  assert.doesNotMatch(f.must_say, /CKD-EPI/, "برای کودک نباید فرمولِ eGFRِ بزرگسال پیشنهاد شود");
+  assert.match(f.must_say, /فرمولِ مخصوصِ کودکان/, "برای کودک باید ارجاعِ فرمولِ کودکان بیاید");
+  const adultLow = run([r("Creatinine", "0.55", "mg/dL", "0.7 - 1.2")], M40).p.findings.find((x) => x.pattern === "creatinine_low");
+  assert.ok(adultLow, "بالغِ ۴۰ ساله با ۰٫۵۵ باید همان یافته را بگیرد");
+  assert.match(adultLow.must_say, /CKD-EPI/, "برای بالغ توصیهٔ eGFR با CKD-EPI باید بیاید");
   assert.equal(g(low.e, "CREAT").abnormal, true, "M26: حکمِ غیرطبیعی دست‌نخورده می‌ماند");
 
   // بیمارِ دیالیزی: قاعده مالِ او نیست (P72)
@@ -82,4 +94,13 @@ test("Z06: جملهٔ آرامش‌بخشِ پیش از بلوغ فقط زیرِ
   const boy12 = run(horm, { age: 12, sex: "M" }).p.findings.find((f) => f.pattern === "reproductive_hormone_context");
   assert.ok(boy12, "۱۲ ساله هم باید بدونِ حکم بماند");
   assert.doesNotMatch(boy12.must_say, /هنوز بلوغ شروع نشده/, "برای ۱۲ ساله ادعای پیش از بلوغ نداریم");
+});
+
+test("Z07: بازهٔ کراتینینِ ۹ ساله همان ۰٫۶–۱٫۰ می‌ماند (تصمیمِ کاربر ۲۰۲۶-۱۰-۲۸) و ۰٫۵۹ همچنان «پایین» است", () => {
+  const band = getRef("CREAT", "M", 9);
+  assert.deepEqual(band, [0.6, 1.0], `بازهٔ ثبت‌شده عوض شده: ${JSON.stringify(band)}`);
+  const { e } = run([r("Creatinine", "0.59", "mg/dL", "0.7 - 1.4")]);
+  const cr = g(e, "CREAT");
+  assert.equal(cr.dir, "low", "۰٫۵۹ زیرِ کفِ ۰٫۶ است");
+  assert.match(cr.range, /0\.6–1/, `بازهٔ سنجش: ${cr.range}`);
 });
