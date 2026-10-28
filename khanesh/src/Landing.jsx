@@ -123,7 +123,7 @@ function BloodTestFactors() {
       <div className="site-sec-head">
         <h2 className="site-h2">راهنمای فاکتورهای کلیدی در تفسیر آزمایش خون</h2>
         <p className="site-lede">
-          برگهٔ آزمایش خون معمولاً از چندین پنل تخصصی تشکیل شده است. در جدول زیر، پرکاربردترین شاخص‌ها،
+          برگهٔ آزمایش خون معمولاً از چندین پنل تخصصی تشکیل شده است. در فهرست زیر، پرکاربردترین شاخص‌ها،
           کاربرد بالینی و دلیل اهمیت ارزیابی ترکیبی آن‌ها را مشاهده می‌کنید:
         </p>
       </div>
@@ -268,7 +268,6 @@ export default function Landing() {
 // پیوندهای لنگریِ خودش را صریحاً می‌فرستد. صادر نمی‌شود تا صادراتِ فایل
 // فقط کامپوننت بماند (هشدارِ fast-refresh در oxlint).
 const NAV_LINKS = [
-  { to: "/", label: "تفسیر آزمایش خون" },
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
   { to: "/methodology", label: "روش‌شناسی" },
   { href: "/#resources", label: "منابع" },
@@ -436,9 +435,13 @@ export function Nav() {
 // ⚠️ تصویر تولیدِ مدل است و رابطِ روی تبلتش ساختگی است (جزئیات در public/lab/CREDITS.md).
 const HERO_ALT = "مردی روی مبل نشسته و تبلتی در دست دارد که نمایی از شاخص‌های آزمایش را نشان می‌دهد";
 
+// ⚠️ «فاکتورهای آزمایش خون» از نوارِ بالا و از منوی نُه‌نقطه برداشته شد
+// (درخواستِ صریح): چهار پیوند در قابِ ۱۲۰۰ پیکسلی از ستونِ خودشان سرریز
+// می‌کردند و «راهنمای آزمایش‌ها» می‌رفت زیرِ نشان. بخشِ #factors روی خودِ
+// صفحه مانده است (محتوای سئو) و از طریقِ لینکِ «راهنمای آزمایش‌ها» و فهرستِ
+// پایینِ همان بخش در دسترس است.
 const HERO_LINKS = [
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
-  { href: "#factors", label: "فاکتورهای آزمایش خون" },
   { href: "#faq-section", label: "پرسش‌های متداول" },
   { href: "#basis", label: "منابع بالینی" },
 ];
@@ -446,9 +449,7 @@ const HERO_LINKS = [
 // منوی تمام‌صفحهٔ کنارِ دکمهٔ نُه‌نقطه: ورقِ سفیدِ گرد، عنوان، دکمه، پیوندهای درشت و دو ستونِ کوچک.
 // ⚠️ فقط به صفحه‌هایی لینک می‌دهد که وجود دارند؛ چیزی از طرحِ مرجع (وبلاگ، فرصت‌های شغلی…) نیامده.
 const MENU_MAIN = [
-  { to: "/", label: "تفسیر آزمایش خون" },
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
-  { href: "#factors", label: "فاکتورهای آزمایش خون" },
   { href: "#faq-section", label: "پرسش‌های متداول" },
   { href: "#basis", label: "منابع بالینی" },
 ];
@@ -602,7 +603,7 @@ function Hero() {
     <header className="lh" dir="ltr">
       <img className="lh-bg" src="/lab/labmate_hero_mockup.webp" alt={HERO_ALT}
            width="2752" height="1929" fetchPriority="high" decoding="async" />
-      <PillNav links={HERO_LINKS} sheetMain={MENU_MAIN} onDark />
+      <PillNav links={HERO_LINKS} sheetMain={MENU_MAIN} />
 
       <div className="lh-body">
         <div className="lh-copy" dir="rtl">
@@ -838,8 +839,6 @@ export function Footer() {
           © ۱۴۰۵ {BRAND} (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آزمایش‌های پزشکی بر پایهٔ قواعد معتبر بالینی.
         </p>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center', margin: '0.75rem 0', fontSize: '0.9rem' }}>
-          <Link to="/" style={{ color: 'inherit', fontWeight: 600 }}>تفسیر آزمایش خون</Link>
-          <span style={{ opacity: 0.5 }}>•</span>
           <Link to="/tests" style={{ color: 'inherit' }}>فهرست آزمایش‌ها</Link>
           <span style={{ opacity: 0.5 }}>•</span>
           <Link to="/reference-ranges" style={{ color: 'inherit' }}>محدوده مرجع</Link>

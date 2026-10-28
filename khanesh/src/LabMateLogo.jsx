@@ -16,7 +16,7 @@ export function LabMateMark({ size = 44, title }) {
 
 export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA, hideText = false }) {
   const ink = variant === "light" ? "#ffffff" : NAVY;
-  const sloganInk = variant === "light" ? "#e7ecf8" : "#111111";
+  const sloganInk = variant === "light" ? "#e7ecf8" : "#1e293b";
 
   // اندازه از متغیرِ CSS (--lml-h / --lml-gap) با پیش‌فرضِ همین prop: نوارِ کپسولی روی گوشی کوچکش می‌کند
   // (site.css)، وگرنه inline style بر هر قاعدهٔ CSS می‌چربید و دکمهٔ «تحلیل نتایج من» از کادر بیرون می‌زد.
@@ -48,7 +48,7 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA, h
         <span className="lml-slogan" style={{ 
           fontFamily: FA_FONT, 
           fontSize: `calc(${h} * 0.18)`, 
-          fontWeight: "600", 
+          fontWeight: "700", 
           color: sloganInk,
           direction: "rtl",
           marginTop: '4px'

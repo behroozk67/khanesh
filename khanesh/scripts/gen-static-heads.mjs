@@ -42,9 +42,8 @@ function cleanDesc(str, max = 175) {
 // ناوبریِ مشترک بالای صفحات
 const navHtml = `
 <header class="site-hdr" style="padding:1rem 1.5rem;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
-  <a href="/" style="font-weight:800;font-size:1.25rem;color:#0f172a;text-decoration:none" title="تفسیر آزمایش خون آنلاین — آزمایار">${BRAND_FA} <span style="font-size:0.85rem;font-weight:600;color:#0284c7">| تفسیر آزمایش خون</span></a>
+  <a href="/" style="font-weight:800;font-size:1.25rem;color:#0f172a;text-decoration:none" title="${BRAND_FA} — دستیار تفسیر آزمایش">${BRAND_FA} <span style="font-size:0.85rem;font-weight:600;color:#0284c7">| دستیار تفسیر آزمایش</span></a>
   <nav style="display:flex;gap:1rem;align-items:center;font-size:0.95rem">
-    <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a>
     <a href="/tests" style="color:#475569;text-decoration:none">فهرست آزمایش‌ها</a>
     <a href="/reference-ranges" style="color:#475569;text-decoration:none">محدوده مرجع</a>
     <a href="/units-guide" style="color:#475569;text-decoration:none">واحدهای سنجش</a>
@@ -62,7 +61,6 @@ const footerHtml = `
     <p style="font-size:0.8rem;line-height:1.6">© ۱۴۰۵ ${BRAND_FA} — تمامی حقوق محفوظ است.</p>
     <p style="font-size:0.8rem;line-height:1.6">تذکر مهم پزشکی: آزمایار یک ابزار کمکی آموزشی و بالینی برای درک بهتر برگهٔ آزمایش است و به‌هیچ‌وجه جایگزین معاینه و تصمیم پزشک معالج نیست.</p>
     <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
-      <a href="/" style="color:#0284c7;font-weight:600;text-decoration:none">تفسیر آزمایش خون</a>
       <a href="/tests" style="color:#64748b;text-decoration:none">آزمایش‌ها</a>
       <a href="/reference-ranges" style="color:#64748b;text-decoration:none">مقادیر مرجع</a>
       <a href="/units-guide" style="color:#64748b;text-decoration:none">واحدهای آزمایشگاهی</a>
@@ -176,7 +174,7 @@ function renderTestsIndex() {
   ${navHtml}
   <main style="max-width:960px;margin:2rem auto;padding:0 1.5rem">
     <nav style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem">
-      <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a> / <span>راهنمای آزمایش‌ها</span>
+      <span>راهنمای آزمایش‌ها</span>
     </nav>
     <h1 style="font-size:2rem;font-weight:800;color:#0f172a;margin-bottom:1rem">راهنمای جامع آزمایش‌های پزشکی و چکاپ</h1>
     <p style="font-size:1.1rem;color:#475569;margin-bottom:2.5rem">راهنمای تخصصی بیش از ۳۰۰ آزمایش پزشکی در ۱۶ دسته بالینی؛ رنج نرمال، علت بالا یا پایین بودن مقادیر، شرایط نمونه‌گیری و تفسیر تشخیصی.</p>
@@ -216,7 +214,6 @@ function renderCategoryPage(catId) {
   ${navHtml}
   <main style="max-width:960px;margin:2rem auto;padding:0 1.5rem">
     <nav style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem">
-      <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a> / 
       <a href="/tests" style="color:#64748b;text-decoration:none">آزمایش‌ها</a> / 
       <span>${escapeHtml(title)}</span>
     </nav>
@@ -264,7 +261,6 @@ function renderTestPage(key) {
   ${navHtml}
   <main style="max-width:840px;margin:2rem auto;padding:0 1.5rem">
     <nav style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem">
-      <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a> / 
       <a href="/tests" style="color:#64748b;text-decoration:none">آزمایش‌ها</a> / 
       ${cat ? `<a href="${catPath(cat.id)}" style="color:#64748b;text-decoration:none">${escapeHtml(cat.t)}</a> / ` : ""}
       <span>${escapeHtml(testName)}</span>
@@ -312,7 +308,7 @@ function renderTestPage(key) {
         <div>
           <strong style="color:#0369a1;display:block;font-size:1.05rem">تحلیل جامع برگه و تفسیر آنلاین آزمایش خون</strong>
           <p style="color:#0284c7;font-size:0.875rem;margin:0.35rem 0 0;line-height:1.6">
-            شاخص ${escapeHtml(testName)} را به‌تنهایی بررسی نکنید؛ وضعیت بالینی آن در ارتباط با سایر فاکتورهای خون مشخص می‌شود. برای تحلیل یکپارچه کل برگه بر پایهٔ منابع بالینی، به سامانهٔ <a href="/" style="color:#0369a1;font-weight:700;text-decoration:underline">تفسیر آزمایش خون</a> آزمایار مراجعه فرمایید یا تصویر برگه را بارگذاری کنید.
+            شاخص ${escapeHtml(testName)} را به‌تنهایی بررسی نکنید؛ وضعیت بالینی آن در ارتباط با سایر فاکتورهای خون مشخص می‌شود. برای تحلیل یکپارچه کل برگه بر پایهٔ منابع بالینی، به سامانهٔ <a href="/app" style="color:#0369a1;font-weight:700;text-decoration:underline">تحلیل برگهٔ آزمایش</a> آزمایار مراجعه فرمایید یا تصویر برگه را بارگذاری کنید.
           </p>
         </div>
         <a href="/app" style="background:#0284c7;color:#fff;padding:0.6rem 1.25rem;border-radius:0.5rem;text-decoration:none;font-weight:600">شروع تفسیر این آزمایش</a>
@@ -346,7 +342,7 @@ function renderStaticArticle(title, description, points = []) {
   ${navHtml}
   <main style="max-width:840px;margin:2rem auto;padding:0 1.5rem">
     <nav style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem">
-      <a href="/" style="color:#0284c7;text-decoration:none;font-weight:600">تفسیر آزمایش خون</a> / <span>${escapeHtml(title)}</span>
+      <span>${escapeHtml(title)}</span>
     </nav>
     <article>
       <h1 style="font-size:2rem;font-weight:800;color:#0f172a;margin-bottom:1rem">${escapeHtml(title)}</h1>

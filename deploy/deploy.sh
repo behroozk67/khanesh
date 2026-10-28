@@ -15,7 +15,7 @@ echo "› بیلد فرانت"
 
 TMP="$(mktemp -d)"
 tar -C "$ROOT/khanesh-server" --exclude=node_modules --exclude=.env --exclude='database.sqlite*' \
-    --exclude=promptfoo --exclude='*.test.js' -czf "$TMP/app.tgz" .
+    --exclude=promptfoo --exclude='*.test.js' --exclude='_p*.mjs' --exclude='probe-*.mjs' -czf "$TMP/app.tgz" .
 tar -C "$ROOT/khanesh/dist" -czf "$TMP/web.tgz" .
 tar -C "$ROOT" -czf "$TMP/deploy.tgz" deploy
 

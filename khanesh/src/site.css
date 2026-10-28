@@ -188,8 +188,7 @@
 /* جست‌وجو */
 .site-search { position: relative; display: flex; align-items: center; }
 .site-search svg {
-  position: absolute; inset-inline-start: var(--s6);
-  width: 17px; height: 17px;      /* بُعد: آیکن */
+  width: 18px; height: 18px;      /* بُعد: آیکن */
   color: var(--ink-3); pointer-events: none;
 }
 .site-search input {
@@ -1077,14 +1076,19 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 }
 .lh-pill {
   flex: 1; min-width: 0;
-  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--s6);
+  /* minmax(0, 1fr) — نه 1fr: ستونِ 1fr کفِ خودش را «min-content» می‌گیرد، پس
+     وقتی پیوندها از ستون پهن‌تر بودند به‌جای جمع‌شدن از ستون بیرون می‌زدند و
+     روی نشان می‌افتادند («راهنمای آزمایش‌ها» زیرِ لوگو). با minmax(0, …) کفِ
+     ستون صفر است و سرریز ممکن نیست. */
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center; column-gap: var(--s8);
   padding: var(--s3) var(--s4) var(--s3) var(--s10);
   background: rgba(34, 36, 38, .62);
   backdrop-filter: blur(var(--glass-blur-lg)); -webkit-backdrop-filter: blur(var(--glass-blur-lg));
   border: 1px solid rgba(255, 255, 255, .14);
   border-radius: 999px; color: #fff;
 }
-.lh-pill-links { display: flex; align-items: center; gap: var(--s2); direction: rtl; justify-self: start; }
+.lh-pill-links { display: flex; align-items: center; gap: var(--s2); direction: rtl; justify-self: start; min-width: 0; }
 .lh-pill-links a {
   color: rgba(255, 255, 255, .92); font-size: var(--t-sm); font-weight: var(--w-semibold);
   padding: var(--s3) var(--s6); border-radius: 999px; white-space: nowrap;
@@ -1094,10 +1098,10 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 .lh-pill-brand { display: inline-flex; justify-self: center; text-decoration: none; }
 .lh-pill-brand:hover, .lh-pill-brand:focus-visible { text-decoration: none; }
 .lh-pill-brand svg { display: block; height: 44px; width: auto; }   /* بُعد: نشان */
-/* دکمهٔ اصلی: نزدیک‌تر به وسط (کنارِ لوگو، نه لبهٔ راست)، بزرگ‌تر، با پیکانِ خطیِ داخلِ دایره.
+/* دکمهٔ اصلی: لبهٔ راست کپسول با پیکانِ خطیِ داخلِ دایره.
    direction: rtl تا متن سمتِ راست و پیکانِ «جلو» سمتِ چپ بنشیند. */
 .lh-pill .lh-pill-cta {
-  justify-self: start; margin-left: var(--s11); display: inline-flex; align-items: center; gap: var(--s5);
+  justify-self: end; margin-left: 0; display: inline-flex; align-items: center; gap: var(--s5);
   direction: rtl; background: var(--card); color: var(--ink);
   font-size: var(--t-lg); font-weight: var(--w-bold); line-height: 1;
   padding: var(--s3) var(--s9) var(--s3) var(--s3); border-radius: 999px; white-space: nowrap;
@@ -1214,6 +1218,21 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
   .lh-pill-brand { --lml-h: 38px; --lml-gap: 8px; }
   .lh-pill-brand .lml-slogan { display: none; }
 }
+/* گوشی: «نشان + دکمهٔ اصلی» کنارِ هم جا نمی‌شود. اندازه‌گیریِ CDP: در ۳۲۰ دکمه
+   ۴۰ پیکسل از کپسول بیرون می‌زد و متنِ «تحلیل نتایج من» بریده می‌شد. اینجا
+   هر دو یک پله کوچک‌تر می‌شوند (نشان ۳۴، دکمه با پدینگِ کمتر)؛ دایرهٔ پیکان
+   فقط زیرِ ۳۶۰ حذف می‌شود، چون در ۳۹۰ با آیکن هم جا هست. */
+@media (max-width: 400px) {
+  .lh-pill { column-gap: var(--s4); padding-inline: var(--s5) var(--s4); }
+  .lh-pill-brand { --lml-h: 34px; --lml-gap: 6px; }
+  .lh-pill .lh-pill-cta { font-size: var(--t-sm); gap: var(--s3); padding: var(--s2) var(--s5) var(--s2) var(--s2); }
+  .lh-pill-cta-ic { width: 30px; height: 30px; }
+  .lh-pill-name { font-size: var(--t-md); }
+}
+@media (max-width: 359px) {
+  .lh-pill-cta-ic { display: none; }
+  .lh-pill .lh-pill-cta { font-size: var(--t-xs); gap: 0; padding: var(--s2) var(--s4); }
+}
 @media (prefers-reduced-motion: reduce) {
   .lh-acc summary i::before, .lh-acc summary i::after { transition: none; }
 }
@@ -1315,12 +1334,13 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
    که از همین خانه باز می‌شود می‌برید. */
 .lh-pill .lh-pill-start {
   grid-column: 1; justify-self: stretch; min-width: 0;
-  display: flex; align-items: center; gap: var(--s4);
+  display: flex; align-items: center; justify-content: flex-start; gap: var(--s4);
+  direction: rtl;
 }
 .lh-pill .site-search {
   /* padding-blockِ s8 مالِ سرچِ بخشِ جدا بود؛ اینجا کپسول را دو برابر می‌کرد. */
   padding-block: 0;
-  flex: 1 1 auto; min-width: 0;
+  flex: 0 1 220px; min-width: 140px;
 }
 .lh-pill .site-search input { width: 100%; min-width: 0; min-height: 44px; }
 /* لینک‌های داخلِ کپسول با این سرچ هم‌جُثه‌اند؛ padding کمتر تا ستون جا شود. */
@@ -1328,10 +1348,15 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 .lh-sheet-search .site-search input { width: 100%; }
 .lh-sheet-search { margin-bottom: var(--s5); }
 
-/* از ۱۳۰۰ به پایین جا برای «لینک + سرچ» نیست (سرچ به زیرِ ۱۶۰ پیکسل می‌رسد)؛
-   اول لینک‌ها به منوی نُه‌نقطه می‌روند — سرچ همیشه سرِ جایش می‌ماند. */
-@media (max-width: 1299px) {
+/* لینک‌های صفحهٔ محتوا (/tests): با حذف «تفسیر آزمایش خون» و جابه‌جایی دکمه به لبهٔ راست،
+   پیوندها تا ۱۱۰۰px راحت جا می‌شوند و فقط زیرِ ۱۱۰۰ به منوی نُه‌نقطه می‌روند. */
+@media (max-width: 1100px) {
   .lh-nav--page .lh-pill-links { display: none; }
+}
+
+/* لندینگ (بدونِ سرچ): ۳ پیوند تا ۹۸۰ جا می‌شوند؛ زیرِ ۹۸۰ منوی موبایل فعال است. */
+@media (max-width: 979px) {
+  .lh-nav:not(.lh-nav--page) .lh-pill-links { display: none; }
 }
 
 /* ---------- دکمهٔ ذره‌بین و پیشنهادهای زندهٔ جست‌وجو ---------- */
@@ -1339,9 +1364,17 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 /* خودِ ذره‌بین باید کلیک‌پذیر باشد؛ روی svg سایه‌انداز بود و کلیک از آن
    عبور می‌کرد. دکمه دقیقاً جای همان آیکنِ مطلق را می‌گیرد. */
 .site-search-go {
-  position: absolute; inset-inline-start: 0; top: 0; bottom: 0;
+  position: absolute; inset-inline-start: 2px; top: 0; bottom: 0;
   width: var(--s12); padding: 0; border: 0; background: none;
   color: var(--ink-3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.site-search-go svg {
+  position: static;
+  width: 18px; height: 18px;
+  color: var(--ink-3); pointer-events: none;
+  display: block;
+  transform: translateY(1px);
 }
 .site-search-go:hover { color: var(--ink); }
 .site-search-go:focus-visible { outline: 2px solid var(--brand); outline-offset: -4px; border-radius: var(--r-pill); }
@@ -1808,6 +1841,44 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
   font-size: var(--t-xs);
   color: var(--ink-2);
   line-height: var(--lh-snug);
+}
+
+/* زیرِ ۸۰۰ جدول به کارت‌های عمودی می‌شکند. دلیل: min-width: 680px روی جدول یعنی
+   در گوشیِ ۳۹۰ فقط ستونِ اول خوانده می‌شود و بقیه بیرونِ قاب می‌افتد (اندازه‌گیری:
+   عرضِ ۶۸۰ در قابِ ۳۷۴، «هدف آزمایش» و «اهمیت بررسی یکپارچه» بریده). هر ردیف
+   اینجا یک کارت است: نام و دسته در یک ردیف، هدف و تفسیرِ ترکیبی زیرِ هم با
+   برچسبِ کوچک. جدول در HTML می‌ماند تا معناشناسی و ایندکسِ متن حفظ شود. */
+@media (max-width: 800px) {
+  .factors-table-wrap {
+    margin-top: var(--s7); overflow: visible;
+    border: 0; border-radius: 0; background: none; box-shadow: none;
+  }
+  .factors-table { display: block; min-width: 0; font-size: var(--t-sm); }
+  .factors-table thead { display: none; }
+  .factors-table tbody { display: grid; gap: var(--s4); }
+  .factors-table tbody tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start; gap: var(--s3) var(--s4);
+    padding: var(--s6) var(--s6) var(--s7);
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  }
+  .factors-table tbody tr:hover { background: var(--card); }
+  .factors-table th, .factors-table td { padding: 0; border: 0; }
+  .factors-table td:nth-child(1) { grid-column: 1; grid-row: 1; min-width: 0; }
+  .factors-table td:nth-child(2) { grid-column: 2; grid-row: 1; justify-self: end; }
+  .factors-table td:nth-child(3) { grid-column: 1 / -1; grid-row: 2; }
+  .factors-table td:nth-child(4) {
+    grid-column: 1 / -1; grid-row: 3;
+    margin-top: var(--s2); padding-top: var(--s5);
+    border-top: 1px dashed var(--line-soft);
+  }
+  .factors-table td:nth-child(3)::before {
+    content: "هدف: "; color: var(--ink-3); font-weight: var(--w-semibold);
+  }
+  .factors-table td:nth-child(4)::before {
+    content: "تفسیر ترکیبی: "; color: var(--ink-3); font-weight: var(--w-semibold);
+  }
+  .factor-synergy { font-size: var(--t-sm); }
 }
 
 /* ---------- پرسش‌های متداول سئو لندینگ ---------- */

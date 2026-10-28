@@ -250,9 +250,7 @@ export default function Guide({ c }) {
       <Nav />
 
       <nav className="site-wrap site-wrap--read" aria-label="مسیر راهنما" style={{ paddingTop: '1.25rem', fontSize: '0.875rem' }}>
-        <Link to="/" style={{ color: 'var(--brand-ink)', textDecoration: 'none', fontWeight: 600 }}>تفسیر آزمایش خون</Link>
-        <span style={{ margin: '0 0.5rem', color: 'var(--line-soft)' }}>/</span>
-        <Link to="/tests" style={{ color: 'var(--ink-3)', textDecoration: 'none' }}>راهنمای آزمایش‌ها</Link>
+        <Link to="/tests" style={{ color: 'var(--brand-ink)', textDecoration: 'none', fontWeight: 600 }}>راهنمای آزمایش‌ها</Link>
         <span style={{ margin: '0 0.5rem', color: 'var(--line-soft)' }}>/</span>
         <span style={{ color: 'var(--ink)' }}>{c.title}</span>
       </nav>
@@ -395,7 +393,7 @@ export default function Guide({ c }) {
           </p>
 
           <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '1.5rem' }}>
-            <Link to="/" className="site-art-back" style={{ fontWeight: 600, color: 'var(--brand-ink)' }}>← سامانهٔ تفسیر آزمایش خون</Link>
+            <Link to="/app" className="site-art-back" style={{ fontWeight: 600, color: 'var(--brand-ink)' }}>← ورود به برنامهٔ تحلیل نتایج</Link>
             <Link to="/tests" className="site-art-back">همهٔ آزمایش‌ها →</Link>
           </div>
         </div>
