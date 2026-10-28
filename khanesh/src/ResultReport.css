@@ -1,0 +1,412 @@
+/* ==========================================================================
+   خوانش — گزارشِ چاپیِ A4 (ResultReport.jsx)
+
+   طرحِ رنگی (بازطراحیِ ۱۴۰۵): نواری رنگی در سربرگ، کارت‌های سایه‌دار،
+   نوارهای رنگیِ محدوده و «نکاتِ کلیدی» با آیکنِ رنگی — همان زبانِ بصریِ
+   داشبوردِ نتیجه، نه سندِ سیاه‌وسفید.
+
+   فقط در چاپ دیده می‌شود. روی صفحه `display:none` است و در @media print
+   با کلاسِ body.is-printing-report تنها فرزندِ دیده‌شدهٔ <body> می‌شود.
+   واحدها: mm برای فاصله‌ها، pt برای فونت — سند برای A4 تنظیم شده است.
+   ⚠️ هر رنگ/سایه‌ای که اضافه می‌شود باید با print-color-adjust: exact چاپ شود،
+      وگرنه مرورگرِ کاربر پس‌زمینه‌ها را حذف می‌کند و طرح دوباره سفید می‌شود.
+   ⚠️ red فقط برای بحرانی/اورژانس (قاعدهٔ پروژه)؛ بقیه کهربایی یا آبی/سبز.
+   ========================================================================== */
+
+#krep-root.krep { display: none; }
+
+/* ---------- نوارِ ابزارِ نتیجه روی صفحه (دکمهٔ «دریافت PDF» + سوییچِ نما) ---------- */
+.result-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4, 12px);
+  flex-wrap: wrap;
+  margin-block: var(--s4, 12px) var(--s5, 16px);
+}
+.result-tools__pdf { display: inline-flex; align-items: center; gap: 6px; }
+.result-tools__pdf svg { flex: none; }
+
+@media print {
+  @page { size: A4; margin: 8mm 9mm 7mm; }
+
+  /* کلِ اپ پنهان، فقط گزارش چاپ می‌شود */
+  body.is-printing-report > *:not(#krep-root) { display: none !important; }
+  body.is-printing-report #krep-root.krep { display: block !important; }
+  /* ⚠️ زمینهٔ صفحهٔ اپ (page--lab) روی کاغذ چاپ می‌شد و صفحهٔ آخر را رنگی می‌کرد */
+  html, body { background: #fff !important; }
+  body.is-printing-report {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* ---------- پایهٔ سند ---------- */
+.krep {
+  --krep-ink: #101a35;
+  --krep-text: #1e2744;
+  --krep-sub: #5a6488;
+  --krep-hair: #e2e8f7;
+  --krep-blue: #3d5bf5;
+  --krep-indigo: #2f46e6;
+  --krep-violet: #7a55ee;
+  --krep-soft: #e7ecff;
+  --krep-mid: #a9b9ff;
+  --krep-good: #127a52;
+  --krep-good-bg: #e7f7ef;
+  --krep-warn: #b45309;
+  --krep-warn-bg: #fff3e0;
+  --krep-bad: #dc2626;
+  --krep-bad-bg: #fdeced;
+
+  direction: rtl;
+  color: var(--krep-text);
+  background: linear-gradient(180deg, #eef3ff 0, #f4f7ff 60mm, #ffffff 110mm);
+  border-radius: 3mm;
+  padding: 3mm 3.6mm 2.4mm;
+  font-family: 'Vazirmatn', 'Shabnam', Tahoma, system-ui, sans-serif;
+  font-size: 8.1pt;
+  line-height: 1.56;
+  -webkit-font-smoothing: antialiased;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.krep * { box-sizing: border-box; }
+.krep p { margin: 0 0 1.3mm; text-align: justify; text-align-last: start; }
+.krep h1, .krep h2, .krep h3 { margin: 0; font-weight: 700; }
+.krep-ico { width: 3mm; height: 3mm; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- سربرگِ رنگی ---------- */
+.krep__hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5mm;
+  padding: 2.8mm 3.6mm;
+  border-radius: 3mm;
+  color: #fff;
+  overflow: hidden;
+  background: linear-gradient(115deg, #2739d6 0%, #4356f2 46%, #7a55ee 100%);
+  box-shadow: 0 1mm 2.6mm rgba(39, 57, 214, 0.22);
+  break-inside: avoid;
+  margin-bottom: 2.4mm;
+}
+.krep__hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 12% 118%, rgba(255, 255, 255, 0.22), transparent 46%),
+    radial-gradient(circle at 88% -18%, rgba(255, 255, 255, 0.18), transparent 44%);
+  pointer-events: none;
+}
+.krep__hero-main { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 0.8mm; }
+.krep__brand { display: flex; align-items: center; gap: 1.6mm; }
+.krep__brand b { font-size: 8.4pt; letter-spacing: -0.01em; color: rgba(255, 255, 255, 0.92); }
+.krep__hero h1 { font-size: 14pt; letter-spacing: -0.02em; color: #fff; }
+.krep__who { margin: 0.4mm 0 0; font-size: 7.4pt; color: rgba(255, 255, 255, 0.84); text-align: right; }
+.krep__chips { display: flex; flex-wrap: wrap; gap: 1.2mm; margin-top: 1.4mm; }
+.krep__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 1mm;
+  padding: 0.7mm 2mm;
+  border-radius: 999px;
+  border: 0.4pt solid rgba(255, 255, 255, 0.36);
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 6.5pt;
+  color: #fff;
+  white-space: nowrap;
+}
+.krep__chip--warn { background: rgba(255, 190, 92, 0.28); border-color: rgba(255, 214, 150, 0.55); }
+.krep__chip--bad { background: rgba(255, 120, 120, 0.3); border-color: rgba(255, 176, 176, 0.6); }
+
+.krep__hero-score {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4mm;
+  padding-inline-start: 4mm;
+  border-inline-start: 0.5pt solid rgba(255, 255, 255, 0.28);
+  text-align: center;
+}
+.krep__ring { width: 17mm; height: 17mm; display: block; }
+.krep__ring-bg { fill: none; stroke: rgba(255, 255, 255, 0.26); stroke-width: 5; }
+.krep__ring-arc { fill: none; stroke-width: 5; stroke-linecap: round; }
+.krep-ring-good { stroke: #7ff0c0; }
+.krep-ring-warn { stroke: #ffd166; }
+.krep-ring-bad { stroke: #ff9b9b; }
+.krep-ring-none { stroke: rgba(255, 255, 255, 0.5); }
+.krep__ring-num { fill: #fff; font-size: 19px; font-weight: 700; font-family: 'Vazirmatn', Tahoma, sans-serif; }
+.krep__hero-score span { font-size: 5.8pt; color: rgba(255, 255, 255, 0.78); }
+.krep__hero-score b { font-size: 7pt; }
+.krep-ring-tone-good { color: #8ff0c4; }
+.krep-ring-tone-warn { color: #ffd98a; }
+.krep-ring-tone-bad { color: #ffb3b3; }
+.krep-ring-tone-none { color: rgba(255, 255, 255, 0.8); }
+
+/* ---------- هشدارِ فوریت ---------- */
+.krep__alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 2.4mm;
+  border: 0.6pt solid #f4baba;
+  border-inline-start: 1.6mm solid var(--krep-bad);
+  background: linear-gradient(180deg, #fdeff0, #fdf6f6);
+  border-radius: 2.4mm;
+  padding: 2mm 2.6mm;
+  margin-bottom: 2.4mm;
+  break-inside: avoid;
+}
+.krep__alert-ico {
+  flex: none;
+  width: 6mm;
+  height: 6mm;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fde0e1;
+  color: var(--krep-bad);
+}
+.krep__alert-ico .krep-ico { width: 3.6mm; height: 3.6mm; }
+.krep__alert b { display: block; font-size: 8.8pt; color: var(--krep-bad); margin-bottom: 0.6mm; }
+.krep__alert span { font-size: 7.6pt; }
+
+/* ---------- «خلاصهٔ کوتاه» ---------- */
+.krep__brief {
+  display: flex;
+  gap: 3mm;
+  align-items: flex-start;
+  padding: 2.4mm 3mm;
+  margin-bottom: 2.4mm;
+  border-radius: 2.8mm;
+  border: 0.6pt solid #d9e2ff;
+  background: linear-gradient(120deg, #eaf0ff 0%, #f5f1ff 100%);
+  break-inside: avoid;
+}
+.krep__brief-tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 1.2mm;
+  padding: 1mm 2.2mm;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--krep-indigo), var(--krep-violet));
+  color: #fff;
+  font-size: 6.4pt;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.krep__brief p { margin: 0; font-size: 8.4pt; line-height: 1.6; color: var(--krep-ink); text-align: justify; text-align-last: start; }
+
+/* ---------- کارت‌ها ---------- */
+.krep__grid {
+  display: grid;
+  grid-template-columns: 1fr 62mm;
+  gap: 2.6mm;
+  align-items: start;
+  margin-bottom: 2.6mm;
+}
+.krep__card {
+  background: #fff;
+  border: 0.6pt solid var(--krep-hair);
+  border-radius: 3mm;
+  padding: 2.2mm 2.6mm;
+  box-shadow: 0 0.7mm 1.8mm rgba(23, 37, 84, 0.07);
+  /* ⚠️ break-inside:avoid روی کارتِ متنیِ بلند، کلِ بخش را به صفحهٔ بعد پرت می‌کرد
+     و صفحهٔ اول فقط سربرگ می‌شد (دیده‌شده در PDFِ آزمایشی). متن باید بشکند. */
+  break-inside: auto;
+}
+/* کارتی که باید یک‌تکه بماند (نمودارِ نتایج): شکستنِ نوارها بینِ دو صفحه
+   نیمهٔ دوم را بی‌سر می‌کند — کلِ نمودار می‌رود صفحهٔ بعد. */
+.krep__card--keep { break-inside: avoid; }
+
+.krep__h2 {
+  display: flex;
+  align-items: center;
+  gap: 1.8mm;
+  font-size: 8.8pt;
+  color: var(--krep-ink);
+  margin-bottom: 1.3mm;
+}
+.krep__h2 small { margin-inline-start: auto; font-size: 6.5pt; font-weight: 400; color: var(--krep-sub); }
+.krep__h2--sm { font-size: 8.2pt; }
+.krep__h2--tight { margin-top: 2.6mm; }
+.krep__h2--tight:first-child { margin-top: 0; }
+.krep__h2-ico {
+  flex: none;
+  width: 5.2mm;
+  height: 5.2mm;
+  border-radius: 1.5mm;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #4356f2, #7a55ee);
+}
+.krep__h2-ico--violet { background: linear-gradient(135deg, #7a55ee, #b45cf0); }
+.krep__h2-ico--teal { background: linear-gradient(135deg, #0e9f8e, #34c58b); }
+.krep__h2--sm .krep__h2-ico { width: 4.6mm; height: 4.6mm; border-radius: 1.3mm; }
+.krep__h2--sm .krep__h2-ico .krep-ico { width: 2.7mm; height: 2.7mm; }
+
+.krep__main p { font-size: 7.6pt; line-height: 1.5; }
+.krep__recs { margin: 0; padding-inline-start: 4.2mm; }
+.krep__recs li { font-size: 7.5pt; margin-bottom: 0.7mm; break-inside: avoid; }
+.krep__recs li::marker { color: var(--krep-blue); }
+.krep__recs--2col { columns: 2; column-gap: 5mm; }
+.krep__empty { font-size: 7.6pt; color: var(--krep-sub); }
+
+.krep__side { display: flex; flex-direction: column; gap: 2.6mm; }
+
+/* ---------- سنِ زیستی ---------- */
+.krep__pheno { break-inside: avoid; }
+.krep__pheno-num { margin: 0; line-height: 1; }
+.krep__pheno-num b { font-size: 16.5pt; font-weight: 700; color: var(--krep-indigo); font-variant-numeric: tabular-nums; }
+.krep__pheno-num span { font-size: 7.4pt; color: var(--krep-sub); }
+.krep__pheno-delta { font-size: 7pt; color: var(--krep-sub); margin: 0.8mm 0 1.2mm; }
+.krep__scale {
+  position: relative;
+  height: 2.2mm;
+  border-radius: 1.2mm;
+  background: #edf0fa;
+  margin: 0 1.6mm 1.4mm;
+}
+.krep__scale-span { position: absolute; top: 0; bottom: 0; border-radius: 1.2mm; background: linear-gradient(90deg, var(--krep-soft), var(--krep-mid)); }
+.krep__scale-dot {
+  position: absolute; top: 50%; width: 2.4mm; height: 2.4mm; margin: -1.2mm 0 0 -1.2mm;
+  border-radius: 50%; background: var(--krep-blue); border: 0.5pt solid #fff;
+}
+.krep__scale-dot--chrono { background: #98a0bd; }
+.krep__pheno-foot { font-size: 6.4pt; color: var(--krep-sub); margin: 0; text-align: right; }
+
+/* ---------- امتیاز / رادار ---------- */
+.krep__score { break-inside: avoid; }
+.krep__radar { display: block; width: 80%; height: auto; max-height: 25mm; margin: 0 auto 1mm; }
+.krep-ring { fill: none; stroke: #dfe4f5; stroke-width: 0.6; }
+.krep-spoke { stroke: #e9ecf8; stroke-width: 0.5; }
+.krep-area { fill: url(#krep-radar-fill); stroke: var(--krep-blue); stroke-width: 0.9; stroke-linejoin: round; }
+.krep-dot { stroke: #fff; stroke-width: 0.4; }
+.krep-big { font-size: 13; font-weight: 700; font-variant-numeric: tabular-nums; }
+.krep-bg-good { background: var(--krep-good); }
+.krep-bg-warn { background: #e08a1e; }
+.krep-bg-bad { background: var(--krep-bad); }
+.krep-t-good { color: var(--krep-good); fill: var(--krep-good); }
+.krep-t-warn { color: var(--krep-warn); fill: var(--krep-warn); }
+.krep-t-bad { color: var(--krep-bad); fill: var(--krep-bad); }
+.krep-t-none { color: var(--krep-sub); fill: var(--krep-sub); }
+.krep__overall { margin: 0 0 1.2mm; font-size: 7.4pt; text-align: right; }
+.krep__overall b { font-size: 13pt; }
+
+.krep__scores { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.9mm; }
+.krep__scores li { display: flex; align-items: center; gap: 1.4mm; font-size: 6.6pt; break-inside: avoid; }
+.krep__score-name { flex: none; width: 17mm; color: var(--krep-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.krep__score-bar { flex: 1; height: 1.6mm; border-radius: 1mm; background: #edf0fa; overflow: hidden; }
+.krep__score-bar i { display: block; height: 100%; border-radius: 1mm; }
+.krep__scores li b { flex: none; width: 6mm; text-align: left; font-variant-numeric: tabular-nums; }
+
+/* ---------- نمودارِ نتایج (نوارهای محدوده) ---------- */
+.krep__rows {
+  list-style: none;
+  margin: 0.8mm 0 1.2mm;
+  padding: 0;
+  column-count: 2;
+  column-gap: 5mm;
+}
+.krep__rows--3 { column-count: 3; column-gap: 4mm; }
+.krep__rows li {
+  display: flex;
+  align-items: center;
+  gap: 1.2mm;
+  padding: 0.3mm 0;
+  break-inside: avoid;
+  font-size: 6.8pt;
+}
+.krep__row-name { width: 20mm; flex: none; color: var(--krep-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.krep__track {
+  position: relative;
+  flex: 1;
+  min-width: 9mm;
+  height: 1.7mm;
+  background: #eff2fb;
+  border-radius: 1mm;
+}
+.krep__track--none { background: transparent; }
+.krep__band { position: absolute; top: 0; bottom: 0; left: 29%; width: 42%; background: var(--krep-soft); border-radius: 1mm; }
+.krep__band--mid { left: 39.5%; width: 21%; background: var(--krep-mid); }
+.krep__mark {
+  position: absolute;
+  top: -0.9mm;
+  width: 1.1mm;
+  height: 3.5mm;
+  margin-left: -0.55mm;
+  border-radius: 0.6mm;
+  box-shadow: 0 0 0 0.4pt #fff;
+}
+.krep__val { flex: none; width: 16mm; text-align: left; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.krep__val small { font-size: 5.4pt; color: var(--krep-sub); margin-inline-start: 0.8mm; }
+.krep__flag { flex: none; width: 12mm; font-size: 5.7pt; }
+.krep__flag--ok { color: #8a93b2; }
+.krep__legend { font-size: 6.4pt; color: var(--krep-sub); margin: 0; text-align: right; }
+
+/* ---------- چیپِ وضعیت ---------- */
+.krep__pill {
+  display: inline-block;
+  padding: 0.35mm 1.5mm;
+  border-radius: 999px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+.krep__pill--good { color: #0f7a52; background: var(--krep-good-bg); }
+.krep__pill--warn { color: #a2560a; background: var(--krep-warn-bg); }
+.krep__pill--bad { color: #c02626; background: var(--krep-bad-bg); }
+
+/* ---------- نکاتِ کلیدی ---------- */
+.krep__insights { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1.6mm; }
+.krep__insights li {
+  display: flex;
+  align-items: center;
+  gap: 1.6mm;
+  padding: 1.1mm 1.6mm;
+  border-radius: 2.2mm;
+  border: 0.5pt solid #e8ecf9;
+  background: #fbfcff;
+  break-inside: avoid;
+}
+.krep__insight-ico {
+  flex: none;
+  width: 5.6mm;
+  height: 5.6mm;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.krep__insight-ico .krep-ico { width: 3.4mm; height: 3.4mm; }
+.krep__insight-ico--warn { background: var(--krep-warn-bg); border: 0.5pt solid #fbd9a5; color: var(--krep-warn); }
+.krep__insight-ico--bad { background: var(--krep-bad-bg); border: 0.5pt solid #f6c2c2; color: var(--krep-bad); }
+.krep__insight-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.krep__insight-body b { font-size: 7.2pt; color: var(--krep-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.krep__insight-body small { font-size: 6.2pt; color: var(--krep-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- پاورقی ---------- */
+.krep__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 5mm;
+  margin-top: 2mm;
+  padding: 1.8mm 2.6mm;
+  border-radius: 2.2mm;
+  background: #f5f8ff;
+  border: 0.5pt solid #e6ebf9;
+  font-size: 6.3pt;
+  color: var(--krep-sub);
+  break-inside: avoid;
+}
+.krep__foot-brand { flex: none; white-space: nowrap; font-weight: 600; color: var(--krep-indigo); }
