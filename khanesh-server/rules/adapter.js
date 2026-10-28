@@ -3191,7 +3191,12 @@ export function runEngine(ocr, opts = {}) {
   // ═══ P111: شاخص‌ها فقط جایی که معنا دارند ═══
   //   منتزر (MCV/RBC) فقط برای تفکیکِ علتِ *میکروسیتوز* اعتبار دارد. روی برگهٔ ماکروسیتوزِ شدید (MCV 106.6)
   //   عددِ ۲۸٫۸ ساخته می‌شد و در نمای تخصصی به‌عنوان شاخصِ افتراقی نمایش داده می‌شد — عددی بی‌معنا.
-  if (tests.MCV && tests.RBC && tests.MCV < 80) idx.mentzer = +(tests.MCV / tests.RBC).toFixed(1);
+  // ۲۰۲۶-۱۰-۲۸ (برگهٔ واقعی، N23): مرزِ میکروسیتوز باید *همان بازهٔ سنیِ همان ردیف* باشد، نه ۸۰ِ بزرگسال.
+  //   پسرِ ۹ ساله با MCV 78.2 (بازهٔ اطفال ۷۷–۹۵ ⇒ طبیعی) منتزرِ ۱۵٫۵ می‌گرفت که در نمای تخصصی شاخصِ
+  //   افتراقیِ تالاسمی/کمبودِ آهن خوانده می‌شد؛ کودک هیچ کم‌خونی و هیچ میکروسیتوزی نداشت. بازهٔ اطفال از
+  //   getRef می‌آید (منبعِ ثبت‌شدهٔ همان سن)، پس هیچ آستانهٔ تازه‌ای ساخته نمی‌شود.
+  const mcvLower = getRef("MCV", sex, age)?.[0];
+  if (tests.MCV && tests.RBC && tests.MCV < (mcvLower ?? 80)) idx.mentzer = +(tests.MCV / tests.RBC).toFixed(1);
   if (tests.NEUT_PCT && tests.LYMPH_PCT) idx.nlr = +(tests.NEUT_PCT / tests.LYMPH_PCT).toFixed(1);
   // BUN/Cr: از BUNِ اندازه‌گیری‌شده؛ اگر فقط اوره داریم، BUN را داخلی (اوره÷۲.۱۴) برای همین شاخص می‌سازیم.
   const bunForRatio = tests.UREA_N != null ? tests.UREA_N
@@ -3283,17 +3288,33 @@ export function runEngine(ocr, opts = {}) {
   // بازهٔ چاپ‌شدهٔ برگه کنارِ بازهٔ موتور (فقط نمایش — حکمِ «غیرطبیعی» همچنان با بازهٔ موتور است). فقط وقتی هر دو سر خوانده شد، هم‌مقیاس است
   // (هر سر در ×۱٫۵ِ سرِ بازهٔ موتور؛ بازهٔ رایجِ «۷۰۰۰–۱۰۰۰۰» برای WBC یا بازهٔ واحدِ دیگر رد می‌شود) و با بازهٔ موتور فرق دارد.
   const printedRanges = {};
+  // ۲۰۲۶-۱۰-۲۸ (برگهٔ واقعی، N5): ردیفی که واحدش تبدیل شده (T4 ‏ng/mL → µg/dL، T3 ‏ng/mL → ng/dL،
+  //   کراتینین µmol/L → mg/dL) بازهٔ چاپ‌شده‌اش هنوز در واحدِ *برگه* است؛ مقایسهٔ خامِ ۴۵–۱۲۰ با بازهٔ
+  //   موتور ۶٫۱۶–۱۰٫۳۲ همیشه «ناهم‌مقیاس» می‌شد و ستونِ بازهٔ برگه در نمای تخصصی برای همان ردیف «—» می‌ماند.
+  //   ضریب از خودِ unitConversions گرفته می‌شود (value/raw) — یک عدد، یک منبع. تبدیل‌های *غیرخطی* (HbA1c
+  //   mmol/mol ↔ ٪NGSP) عمداً کنار گذاشته می‌شوند: نسبتِ دو عدد در آن‌ها ضریب نیست.
+  const convFactor = new Map();
+  for (const c of unitConversions) {
+    if (!(typeof c.raw === "number" && typeof c.value === "number" && c.raw > 0) || c.test === "HBA1C") continue;
+    convFactor.set(c.test, c.value / c.raw);
+  }
   for (const g of graded) {
     const raw = printedRefsAll[g.test];
     const m = /^(-?[\d.]+)–(-?[\d.]+)$/.exec(String(g.range ?? ""));
     if (!raw || !m) continue;
-    const pr = parseReference(raw, sex);
+    const pr0 = parseReference(raw, sex);
+    if (!pr0) continue;
+    const f = convFactor.get(g.test) ?? 1;
+    const pr = { lo: pr0.lo == null ? null : pr0.lo * f, hi: pr0.hi == null ? null : pr0.hi * f };
     const lo = Number(m[1]), hi = Number(m[2]);
     if (!pr || pr.lo == null || pr.hi == null || !(lo > 0) || !(hi > 0) || !(pr.lo > 0) || !(pr.hi > 0)) continue;
     const near = (a, b) => a / b <= 1.5 && b / a <= 1.5;
     if (!near(pr.lo, lo) || !near(pr.hi, hi) || (pr.lo === lo && pr.hi === hi)) continue;
-    printedRanges[g.test] = `${pr.lo}–${pr.hi}`;
+    // همان واحدِ سنجیده‌شده (متعارف) تا با engine_range قابلِ مقایسه بماند؛ عددِ برگه در «تأیید اعداد» آمده است.
+    const round = (x) => (Math.abs(x) >= 100 ? Math.round(x) : Math.abs(x) >= 10 ? +x.toFixed(1) : +x.toFixed(2));
+    printedRanges[g.test] = `${round(pr.lo)}–${round(pr.hi)}`;
   }
+
 
   // ═══ P116 (بازبینی بالینی ۲۰۲۶-۱۰-۲۷): بازهٔ چاپ‌شدهٔ برگه حقِ «تخفیف» دارد، نه «تشدید» ═══
   //   «GGT 46.2» با برگهٔ «up to 49» و «MCHC 36.3» با برگهٔ «30-37» خارج از محدوده خوانده می‌شدند

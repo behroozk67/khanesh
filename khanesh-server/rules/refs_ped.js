@@ -55,6 +55,9 @@ export const PEDIATRIC_CALIPER_USER_SOURCE = 'CALIPER (Colantonio 2012؛ Bailey 
 export const CALIPER_SOURCE = 'CALIPER 2020 (Am J Clin Pathol, DxH 900), PMC7403759';
 // Ghasemi A, et al. Arch Iran Med 2015;18(11):753–9 (TLGS)، جدولِ ۲، متنِ باز: https://journalaim.com/PDF/67_Nov2015_005.pdf (این جلسه باز کرد، ۲۰۲۶-۱۰-۰۵)
 export const GHASEMI_JAFFE_SOURCE = 'Ghasemi 2015 (Arch Iran Med, TLGS, conventional Jaffe), Table 2';
+// P119 (تصمیمِ کاربر ۲۰۲۶-۱۰-۲۸): سقفِ TSHِ ۱–۱۶ سال ۴٫۵ ⇒ ۵٫۰. برچسب صریح است تا در `refSource` به بیمار هم
+//   همین برسد و ادعای «RCPCH» روی عددی که از RCPCH نیست، تکرار نشود.
+export const TSH_PED_ULN_SOURCE = "Henry A5 (upper limit 5.0) — user decision 2026-10-28, P119";
 
 export const PED_REFS = {
 
@@ -397,7 +400,11 @@ export const PED_REFS = {
   TSH: [                                    // mU/L = µU/mL
     { maxAge: D(3),   range: [5.2, 14.6] },
     { maxAge: 1,      range: [0.6,  8.1] },
-    { maxAge: 16,     range: [0.5,  4.5] },
+    // P119 (تصمیمِ کاربر ۲۰۲۶-۱۰-۲۸): سقفِ ۱–۱۶ سال از ۴٫۵ (RCPCH) به ۵٫۰ رفت. برگهٔ واقعیِ پسرِ ۹ ساله
+    //   «0.3–5.0» چاپ کرده بود و TSH 4.65 با بازهٔ ۴٫۵ «بالا» و «کم‌کاریِ تیروئید» می‌شد — یعنی تشخیصِ کاذب روی
+    //   عددی که خودِ آزمایشگاه طبیعی می‌داند. ۵٫۰ همان حدِ بالای هنری است (تعارضِ ثبت‌شده در MEDICAL_RULES،
+    //   جدولِ «سه تعارضِ اندازه‌گیری‌شده»، تا امروز باز بود). حدِ پایین دست‌نخورده ماند: عددِ تازه‌ای ساخته نشد.
+    { maxAge: 16,     range: [0.5,  5.0], source: TSH_PED_ULN_SOURCE },
   ],
   // P107g (M10): T4 تام — Bailey 2013 (Abbott i2000 CMIA)؛ زیر ۷ روز ردیفِ بی‌بازه ⇒ سنجیده نمی‌شود (NEONATE_NO_ADULT_FALLBACK).
   // P107m (بازبین ۲۰۲۶-۱۰-۱۴): ۷–۲۷ روز هم بی‌بازه — T4 در دو هفتهٔ اول فیزیولوژیک بالاست (جدولِ ۲–۴ هفتگی ≈ ۷–۱۶ µg/dL، غیرِ روش‌اختصاصی)

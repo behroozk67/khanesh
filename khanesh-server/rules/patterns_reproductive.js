@@ -162,6 +162,12 @@ const CONTEXT_REASONS = {
 
 // کفِ سنیِ «بارداری» در محصول ۱۰ سال است (conditions/Intake، specs/011) — عدد تازه‌ای نیست.
 const PREGNANCY_FLOOR_AGE = 10;
+// P119 (تصمیمِ کاربر ۲۰۲۶-۱۰-۲۸): زیرِ این سن، برای هورمون‌های جنسیِ بی‌بازه یک جملهٔ آرامش‌بخش اضافه می‌شود.
+//   عدد فقط برای «کودکِ قطعاً پیش از بلوغ» است، نه بازهٔ بلوغ؛ بالاتر از آن هیچ ادعایی نمی‌شود چون شروعِ بلوغ
+//   در دخترها از ۸–۹ سال ممکن است. حکم/فوریت عوض نمی‌شود — فقط متنِ همان یافته.
+const PREPUBERTAL_CONTEXT_BELOW_AGE = 10;
+const PREPUBERTAL_SENTENCE =
+  "در این سن که هنوز بلوغ شروع نشده، این هورمون‌ها به‌طورِ طبیعی در پایین‌ترین حدِ خود هستند و علامتِ رو به پایین کنارشان معمولاً از بازهٔ بزرگسالانِ چاپ‌شده می‌آید، نه از یک نتیجهٔ غیرطبیعی؛ اگر فرزندتان هنوز واردِ مرحلهٔ بلوغ نشده، این اعداد انتظارِ طبیعیِ همین سن است. ";
 const prepubertalGirl = (e) => e.sex === "F" && e.age != null && e.age < PREGNANCY_FLOOR_AGE;
 // P77-۱۳ (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۴؛ Snyder/WUSTL): زنِ بالای ۵۵ سال — hCGِ < ۱۴ IU/L تولیدِ طبیعیِ هیپوفیز است؛ ≥ ۱۴ باید بارداری/تومورِ ترشح‌کننده رد شود.
 const POSTMENOPAUSAL_FROM_AGE = 55;
@@ -573,11 +579,13 @@ export const RULES_REPRODUCTIVE = [
         (byReason[u.reason] ??= []).push(`${faName(k)} (${fmt(u.value)})`);
       }
       const lines = Object.entries(byReason).map(([r, names]) => `${names.join("، ")}: ${CONTEXT_REASONS[r]}`);
+      // P119: جملهٔ آرامش‌بخشِ پیش از بلوغ، فقط برای کودکِ قطعاً پیش از بلوغ (نه بازهٔ بلوغ، نه بزرگسال).
+      const prepubertalAdd = byReason.pediatric && e.age != null && e.age < PREPUBERTAL_CONTEXT_BELOW_AGE ? PREPUBERTAL_SENTENCE : "";
       return {
         pattern: "reproductive_hormone_context",
         urgency: "routine",
         headline: "بعضی از هورمون‌های برگهٔ شما بدونِ قضاوت گزارش شده‌اند",
-        must_say: lines.join(" "),
+        must_say: prepubertalAdd + lines.join(" "),
         action: "این مقادیر را در نوبتِ عادی به پزشک نشان دهید.",
         suggest: [],
         sources: ["HENRY_REPRO"],

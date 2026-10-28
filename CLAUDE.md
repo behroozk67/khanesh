@@ -2436,6 +2436,23 @@ Rules that follow:
 - On collision, do not mass-rename comments (high-risk edit, zero clinical value). Document under a free number and
   cross-reference both ways — `§P118` carries the fixes and points at `§P113`; `§P113` points back.
 
+### N39 — A healthy 9-year-old came out with four abnormalities, because a unit, an age band and an owner were each assumed
+
+A clinician reviewed the engine's output for a boy of 9 (TSH 4.65, total T4 74.2 ng/mL, T3 0.90 ng/mL, LH 0.10, testosterone 0.10 ng/mL, creatinine 0.59 mg/dL, normal CBC). Four of the reported problems were real engine defects, and each had the same shape: a value that was normal for that child was graded against something an adult would have had.
+
+- **T4 total printed in `ng/mL` was not a known unit.** `decideUnit` fell back to the printed range, chose `nmol/l`, and 74.2 became 5.77 µg/dL — below the paediatric band — so `total_t4_abnormal` fired and the sheet said "your child's thyroid is slow". The correct conversion is definitional (1 ng/mL = 0.1 µg/dL), and the printed range itself (45–120) was the evidence that the unit was mass-based.
+- **The printed-range column in the expert view showed "—" for every converted row**, because the lab's range was compared, unconverted, with the engine's range in conventional units. Nothing was wrong with the data; the two numbers were in different units.
+- **Mentzer was computed for MCV 78.2**, because the microcytosis gate was a hard-coded adult 80. The paediatric band for that age is 77–95, so the child had no microcytosis and no anaemia, yet the expert view offered a thalassaemia/iron-deficiency discriminator.
+- **Low creatinine had no owner at all.** 0.59 against a lower bound of 0.6 (Iranian Jaffe, 9–12 y) sat in `unexplained_abnormal` with "the engine did not conclude anything about it" — technically honest, and useless to a parent.
+
+Rules that follow:
+
+- A unit the lab actually prints is never "unknown" for long: check `EXTRA_PRINTED_UNITS`/`PRINTED_ONLY_CONVERSIONS` before letting `decideUnit` guess from the reference range. A mass-based unit whose factor is definitional (ng/mL ↔ µg/dL, ng/mL ↔ ng/dL) belongs there, not in `SI_CONVERSIONS` — entry into `UNIT_PROFILE` also re-enables magnitude guessing for the *unitless* value (P48/M177).
+- Any place that compares the printed range with an engine range must first put both in the same unit — take the factor from `unitConversions`, not from a second table. Non-linear conversions (HbA1c mmol/mol ↔ %) must be excluded: a ratio of two values is not a factor there.
+- Age-dependent thresholds inside index gates must be read from `getRef`, not typed as the adult number. "MCV < 80" is an adult statement; in this engine it is `getRef("MCV", sex, age)[0]`.
+- Every abnormal row needs an owner. "The engine did not conclude anything" is a bug report about the engine, not a finding for the patient — either a rule owns the row or the grading is wrong. A new owner rule may quote physiology already recorded in `MEDICAL_RULES` (U24-C for creatinine and muscle mass); it may not invent a threshold.
+- When a review lists a clinical threshold (here: paediatric TSH upper limit 4.5 vs the lab's 5.0), that item is a clinical decision, not a bug to be quietly patched. Fix the code defects, put the threshold to the user as a named choice with both sources, and implement only the answer — never the "obvious" one. `§P119` records both answers (paediatric TSH 4.5 → 5.0 for 1–16 y; a prepubertal reassurance sentence only below age 10).
+
 ## Working Agreement
 
 My default is a short prompt then a long unattended run (~1 instruction per hour of session).
