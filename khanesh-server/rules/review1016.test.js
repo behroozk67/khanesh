@@ -327,14 +327,21 @@ test("V23: H. pylori IgM ۱۳٫۸ (مرز <۴۰) ⇒ منفی، بی‌پیشن�
   assert.match(pos.warnings.join(" "), /^اگر علامتِ گوارشی دارید/);
 });
 
-test("V24: گلبولِ کمی کوچک با فریتینِ ۸۵ ⇒ بی‌«قرص آهن نخورید»، الکتروفورز فقط مشروط؛ بی‌فریتین هر دو مثلِ قبل", () => {
+test("V24: گلبولِ کمی کوچک با فریتینِ ۸۵ ⇒ بی‌«قرص آهن نخورید»؛ تالاسمی فقط با شاهدِ RBC/منتزر (P119)", () => {
+  // 🔵 P119 (تصمیمِ کاربر ۲۰۲۶-۱۰-۲۸) — این آزمون عمداً بازپایه شد. برگهٔ V24: MCV 79.4، RBC 5.84 (نرمال)،
+  //    منتزر ۱۳٫۶ ⇒ سمتِ کمبودِ آهن. پیش‌تر جملهٔ «اگر قصدِ ازدواج یا بچه‌دار شدن دارید… الکتروفورز» می‌آمد؛
+  //    کاربر گفت «MCV ۷۹ با گلبولِ قرمزِ نرمال نباید توصیهٔ تالاسمی بگیرد». حالا فقط فریتین مطرح می‌شود.
   const f = byId(run(SHEET2).p, "microcytosis_no_anemia");
   assert.ok(!f.warnings.some((w) => /قرص آهن/.test(w)), f.warnings.join(" | "));
-  assert.ok(!f.suggest.includes("الکتروفورز هموگلوبین"));
-  assert.ok(f.warnings.some((w) => /اگر قصدِ ازدواج.*الکتروفورز/.test(w)));
+  assert.ok(!f.suggest.includes("الکتروفورز هموگلوبین"), `بی‌شاهدِ RBC نباید الکتروفورز بخواهد: ${f.suggest}`);
+  assert.ok(!f.warnings.some((w) => /غربالگریِ تالاسمی/.test(w)), `جملهٔ غربالگری نباید بیاید: ${f.warnings.join(" | ")}`);
   const noFer = byId(run([r("Hb", "15", "g/dL"), r("MCV", "76", "fL"), r("RBC", "5.2", "x10^6/uL")]).p, "microcytosis_no_anemia");
   assert.ok(noFer.warnings.some((w) => /قرص آهن/.test(w)));
-  assert.ok(noFer.suggest.includes("الکتروفورز هموگلوبین"));
+  assert.ok(!noFer.suggest.includes("الکتروفورز هموگلوبین"), "منتزر ۱۴٫۶ (سمتِ آهن) ⇒ الکتروفورز نه");
+  // کنترلِ مثبت: همان MCV با گلبولِ قرمزِ *بالا* (منتزر ۱۲٫۳) ⇒ thal_trait_no_anemia مالک است و الکتروفورز می‌خواهد
+  const highRbc = byId(run([r("Hb", "15", "g/dL"), r("MCV", "76", "fL"), r("RBC", "6.2", "x10^6/uL")]).p, "thal_trait_no_anemia");
+  assert.ok(highRbc, "RBC بالا + منتزر < ۱۳ باید قاعدهٔ تالاسمی را فعال کند");
+  assert.ok(highRbc.suggest.includes("الکتروفورز هموگلوبین"), `منتزر ۱۲٫۳ ⇒ الکتروفورز لازم است: ${highRbc.suggest}`);
 });
 
 test("V25: چربی — TGِ مرزیِ ۱۵۳ با LDLِ طبیعی بی‌پاراگرافِ «پلاک»، یک جملهٔ ناشتا، بی‌«پروفایل چربی ناشتا»؛ LDLِ ۱۵۰ پلاک دارد", () => {
@@ -433,9 +440,13 @@ test("V32: معیارِ کشوری — MCH < ۲۷ با MCVِ طبیعی دیگر
 });
 
 test("V33: MCV < ۷۸ و MCH < ۲۶ ⇒ الکتروفورزِ مستقیم حتی با فریتینِ ۸۵؛ هشدارِ آهن فقط با فریتین، نه منتزر", () => {
+  // 🔵 P119: «مستقیم» فقط با شاهدِ تالاسمی (RBC بالا / منتزر < ۱۳). اینجا منتزر ۱۴٫۶ ⇒ فریتین اول.
   const f = byId(run([r("Hb", "15", "g/dL"), r("MCV", "76", "fL"), r("MCH", "25", "pg"), r("RBC", "5.2", "x10^6/uL"), r("Ferritin", "85", "ng/mL")]).p, "microcytosis_no_anemia");
-  assert.ok(f.suggest.includes("الکتروفورز هموگلوبین"));
+  assert.ok(!f.suggest.includes("الکتروفورز هموگلوبین"), `بی‌شاهدِ تالاسمی: ${f.suggest}`);
   assert.ok(!f.warnings.some((w) => /قرص آهن/.test(w)));
+  const fHigh = byId(run([r("Hb", "15", "g/dL"), r("MCV", "76", "fL"), r("MCH", "25", "pg"), r("RBC", "6.2", "x10^6/uL"), r("Ferritin", "85", "ng/mL")]).p, "thal_trait_no_anemia");
+  assert.ok(fHigh, "RBC بالا (منتزر ۱۲٫۳) ⇒ مالکِ تالاسمی");
+  assert.ok(fHigh.suggest.includes("الکتروفورز هموگلوبین"), "RBC بالا (منتزر ۱۲٫۳) ⇒ الکتروفورزِ مستقیم");
   // منتزرِ ۱۲٫۳ (thal_trait) با فریتینِ ۸۵: پیش‌تر «قرص آهن نخورید» بی‌شرط و الکتروفورزِ مستقیم؛ MCV ۷۹ ⇒ مشروط
   const t = byId(run([r("Hb", "14.5", "g/dL"), r("MCV", "79", "fL"), r("MCH", "26.5", "pg"), r("RBC", "6.4", "x10^6/uL"), r("Ferritin", "85", "ng/mL")]).p, "thal_trait_no_anemia");
   assert.ok(!t.warnings.some((w) => /قرص آهن/.test(w)), t.warnings.join(" | "));

@@ -130,7 +130,15 @@ export function ageInYears(p) {
   return p.ageUnit === "month" ? v / 12 : p.ageUnit === "day" ? v / 365.25 : v;
 }
 
-export const pregnancyEligible = (p) => p?.sex === "female" && (ageInYears(p) ?? 0) >= 10;
+// P119 (تصمیمِ کاربر ۲۰۲۶-۱۰-۲۸): گزینهٔ بارداری برای زنِ ۵۰ سال و بالاتر فعال نمی‌شود. تا پیش از این فقط کفِ سن
+//   (۱۰ سال) بود و زنِ ۵۵ ساله هم چک‌باکسِ «باردار» و فیلدِ هفتهٔ بارداری را می‌دید. عدد فقط گیتِ *گزینهٔ UI* است؛
+//   اگر کاربری از مسیرِ API خودش pregnant=true بفرستد، موتور همان را باور می‌کند (N5: ادعای خودِ بیمار را رد نمی‌کنیم).
+export const PREGNANCY_MAX_AGE = 50;
+export const pregnancyEligible = (p) => {
+  if (p?.sex !== "female") return false;
+  const age = ageInYears(p);
+  return age != null && age >= 10 && age < PREGNANCY_MAX_AGE;
+};
 
 // سنِ بارداری (هفته، ۱ تا ۴۲ — همان بازهٔ سرور). هفتهٔ ثبت‌شده با گذشتِ زمان جلو می‌رود؛ بیشینه ۴۲.
 export const GEST_RANGE = [1, 42];

@@ -52,6 +52,13 @@ import { isNeonate, inNeonatalRedCellPeriod, ageFa, NEONATAL_DANGER_WARNING, NEO
 // پیامدِ فرزند — دلیلِ انجامِ این آزمایش — گم می‌شد (M155-class، N20).
 const HBA2_CARRIER_WARNING = "اگر قصدِ ازدواج یا بچه‌دار شدن دارید، این نتیجه را حتماً به پزشک یا مشاورِ ژنتیک نشان دهید؛ " +
   "اگر هر دو والد ناقل باشند، فرزند ممکن است شکلِ شدیدِ بیماری را بگیرد.";
+// P119 (تصمیمِ کاربر ۲۰۲۶-۱۰-۲۸): برای زنی که از سنِ باروری گذشته، جملهٔ «قصدِ ازدواج یا بچه‌دار شدن» بی‌ربط است
+//   (فرد ۵۵ ساله همین جمله را می‌گرفت). متنِ جانشین همان پیامِ «ناقل بودن را به پزشک/مشاورِ ژنتیک نشان بده» را
+//   نگه می‌دارد و فقط چارچوبِ فرزندآوری را برمی‌دارد. عدد فقط برای انتخابِ *متن* است، نه حکم یا فوریت.
+const CHILDBEARING_MAX_AGE = 50;
+const pastChildbearing = (e) => e.sex === "F" && typeof e.age === "number" && e.age >= CHILDBEARING_MAX_AGE;
+const HBA2_CARRIER_WARNING_OLDER = "این نتیجه را حتماً به پزشک یا مشاورِ ژنتیک نشان دهید؛ " +
+  "اگر در خانواده‌تان تالاسمی هست، دانستنِ ناقل بودنِ شما برای بستگانتان هم مهم است.";
 /** جملهٔ MCH کنارِ گلبولِ کوچک — هر دو جهت (M156). کلید در متنِ قاعدهٔ صدازننده می‌ماند تا RULE_READS عوض نشود. */
 const microMchClause = (mch) => !mch?.abnormal ? ""
   : mch.dir === "low"
@@ -70,7 +77,9 @@ const microMchcClause = (mchc) => !mchc?.abnormal ? ""
   : mchc.dir === "low"
     ? ` MCHC شما ${mchc.value} (حد طبیعی ${mchc.range}) هم پایین است؛ MCHC یعنی غلظتِ هموگلوبین داخلِ هر گلبول، و پایین‌بودنش همان کم‌رنگیِ گلبول است که در لام هم گزارش شده.`
     : ` MCHC شما ${mchc.value} بالاتر از بازهٔ ${mchc.range} است؛ این عدد از Hb ÷ Hct می‌آید و بالا بودنش بیشتر به خطای نمونه یا اسفروسیتوز مربوط است، نه به این الگو.`;
-const carrierWarnings = (e) => (["trait", "very_high"].includes(hba2State(e)) ? [HBA2_CARRIER_WARNING] : []);
+const carrierWarnings = (e) => (["trait", "very_high"].includes(hba2State(e))
+  ? [pastChildbearing(e) ? HBA2_CARRIER_WARNING_OLDER : HBA2_CARRIER_WARNING]
+  : []);
 
 // ─── P110-ب (تصمیمِ بازبینِ کاربر ۲۰۲۶-۱۰-۱۶): الکتروفورز با معیارِ غربالگریِ کشوریِ تالاسمی، نه با منتزر ───
 // غربالگریِ پیش از ازدواج: MCV < ۸۰ یا MCH < ۲۷ ⇒ مرحلهٔ دوم (HbA2). پس هر برگهٔ بزرگسالی که به این دو قاعده می‌رسد معیار را
@@ -81,6 +90,18 @@ const THAL_DIRECT_MCV = 78;
 const THAL_DIRECT_MCH = 26;
 const THAL_SCREEN_CONDITIONAL = "اگر قصدِ ازدواج یا بچه‌دار شدن دارید، در خانواده تالاسمی هست، یا تا حالا غربالگریِ تالاسمی نشده‌اید، " +
   "الکتروفورزِ هموگلوبین (اندازه‌گیریِ HbA2) روشن می‌کند که ناقلِ تالاسمی هستید یا نه؛ اگر هر دو والد ناقل باشند، فرزند ممکن است شکلِ شدیدِ بیماری را بگیرد.";
+// P119: همان جمله برای زنی که از سنِ باروری گذشته — بی‌چارچوبِ ازدواج/فرزند.
+const THAL_SCREEN_CONDITIONAL_OLDER = "اگر در خانواده‌تان تالاسمی هست یا تا حالا غربالگریِ تالاسمی نشده‌اید، " +
+  "الکتروفورزِ هموگلوبین (اندازه‌گیریِ HbA2) روشن می‌کند که ناقلِ تالاسمی هستید یا نه.";
+/**
+ * P119 (تصمیمِ کاربر ۲۰۲۶-۱۰-۲۸): «MCV ۷۹ با گلبولِ قرمزِ نرمال» شاهدِ تالاسمی نیست.
+ * الگوی تالاسمیِ خفیف، گلوبولِ *زیاد* می‌سازد (جبران) و منتزرِ < ۱۳ دارد؛ وقتی RBC نرمال است و منتزر ≥ ۱۳،
+ * کمبودِ آهن محتمل‌تر است و اولین قدم فریتین است، نه الکتروفورز و نه گفتنِ «اگر ازدواج/بچه می‌خواهید…».
+ * منتزرِ محاسبه‌شده تصمیم می‌گیرد (همان قاعدهٔ P108)؛ نبودش ⇒ RBCِ بالا.
+ */
+const thalLeaningFrom = (mi, rbcHigh) => (mi != null ? mi < 13 : !!rbcHigh);
+/** آیا این برگه شاهدِ کافی برای مسیرِ تالاسمی دارد؟ زیرِ ۱۶ سال رفتارِ پیشین (direct) دست‌نخورده می‌ماند. */
+const thalEvidence = (e, mi, rbcHigh) => isPedAge(e) || thalLeaningFrom(mi, rbcHigh);
 /** "measured" (HbA2 روی برگه) | "direct" | "conditional". زیرِ ۱۶ سال همان رفتارِ پیشین: direct. */
 function thalScreenTier(e) {
   if (hba2Measured(e)) return "measured";
@@ -1177,7 +1198,7 @@ export const RULES_HEMATOLOGY = [
             : (fc ? "نوبت عادی با پزشک." : "نوبت عادی با پزشک. آزمایش فریتین را مطرح کنید."),
         suggest: [...(thalScreenTier(e) === "direct" ? ["الکتروفورز هموگلوبین"] : []), ...(fc ? [] : ["فریتین"])],
         // P110-ج (تصمیمِ کاربر): هشدارِ ⚠️ِ بارداری حذف شد؛ مشروط ⇒ جملهٔ غربالگری، مستقیم ⇒ همان suggest.
-        warnings: [...ironPillWarning(fc), ...(thalScreenTier(e) === "conditional" ? [THAL_SCREEN_CONDITIONAL] : [])],
+        warnings: [...ironPillWarning(fc), ...(thalScreenTier(e) === "conditional" ? [pastChildbearing(e) ? THAL_SCREEN_CONDITIONAL_OLDER : THAL_SCREEN_CONDITIONAL] : [])],
       };
     },
   },
@@ -1220,6 +1241,10 @@ export const RULES_HEMATOLOGY = [
       //    خواندنِ FERRITIN آن را در هر جهتی پوشش‌داده می‌کند (M156) — هر حالت جملهٔ خودش را دارد.
       const fc = ferritinMicroClause(e, "FERRITIN"); // کلید در متنِ منبع می‌ماند تا RULE_READS آن را «خوانده‌شده» بشمارد
       const mi = e.indices.mentzer;
+      // P119: شاهدِ تالاسمی — RBCِ بالا (برای همین سن/جنس) یا منتزرِ < ۱۳. کلیدها عمداً درون‌خط می‌مانند (RULE_READS).
+      const rbc = e.graded.find((g) => g.test === "RBC");
+      const rbcHigh = isPedAge(e) ? !!(rbc?.abnormal && rbc.dir === "high") : (t.RBC != null && t.RBC > 5.5);
+      const thal = thalEvidence(e, mi, rbcHigh);
       const hbSentence = hgb
         ? `هموگلوبین شما ${hgb.value} است (حد طبیعی ${hgb.range}) و پایین نیست، پس کم‌خونی ندارید. `
         : "هموگلوبین روی این برگه نیست، پس از روی همین برگه نمی‌شود گفت کم‌خونی دارید یا نه — هموگلوبین مهم‌ترین عددِ غایبِ این نتیجه است. " +
@@ -1257,11 +1282,12 @@ export const RULES_HEMATOLOGY = [
           ...(hgb ? [] : ["شمارشِ کاملِ خون (با هموگلوبین) هم سنجیده شود"]),
           ...(fc ? [] : ["آزمایش فریتین را بخواهید"]),
         ].join(" و ") + ".",
-        suggest: [...(hgb ? [] : ["شمارش خون (CBC)"]), ...(fc ? [] : ["فریتین"]), ...(tier === "direct" ? ["الکتروفورز هموگلوبین"] : [])],
+        suggest: [...(hgb ? [] : ["شمارش خون (CBC)"]), ...(fc ? [] : ["فریتین"]), ...(thal && tier === "direct" ? ["الکتروفورز هموگلوبین"] : [])],
         warnings: [
           // P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): «قرص آهن نخورید» کنارِ فریتینِ ۸۵ نویز بود — فقط بر پایهٔ فریتین (P110-ب).
           ...ironPillWarning(fc),
-          ...(tier === "conditional" ? [THAL_SCREEN_CONDITIONAL] : []),
+          // P119: جملهٔ غربالگری فقط با شاهدِ تالاسمی (RBC بالا / منتزر < ۱۳) و با لحنِ متناسب با سن.
+          ...(thal && tier === "conditional" ? [pastChildbearing(e) ? THAL_SCREEN_CONDITIONAL_OLDER : THAL_SCREEN_CONDITIONAL] : []),
           ...carrierWarnings(e),
         ],
       };

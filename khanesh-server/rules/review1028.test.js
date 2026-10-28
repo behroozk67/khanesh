@@ -104,3 +104,38 @@ test("Z07: بازهٔ کراتینینِ ۹ ساله همان ۰٫۶–۱٫۰ م
   assert.equal(cr.dir, "low", "۰٫۵۹ زیرِ کفِ ۰٫۶ است");
   assert.match(cr.range, /0\.6–1/, `بازهٔ سنجش: ${cr.range}`);
 });
+
+test("Z08: MCV ۷۹ با گلبولِ قرمزِ نرمال توصیهٔ تالاسمی نمی‌گیرد؛ جملهٔ ازدواج/فرزند برای زنِ بالای ۵۰ سال نمی‌آید", () => {
+  const F55 = { age: 55, sex: "F" };
+  const cbc = (mcv, rbc, hb = "12.8") => [r("Hemoglobin", hb, "g/dL"), r("MCV", mcv, "fL"), r("RBC", rbc, "10^6/µL")];
+  // ۱) همان موردِ گزارش: MCV ۷۹، RBC نرمال (منتزر ۱۵٫۶) ⇒ فقط فریتین، بی‌الکتروفورز، بی‌جملهٔ تالاسمی
+  const plain = run(cbc("79", "5.05"), F55).p;
+  const m = plain.findings.find((f) => f.pattern === "microcytosis_no_anemia");
+  assert.ok(m, `یافتهٔ گلبولِ کوچک نیامد: ${ids(plain)}`);
+  assert.ok(!m.suggest.includes("الکتروفورز هموگلوبین"), `بی‌شاهدِ تالاسمی نباید الکتروفورز بخواهد: ${m.suggest}`);
+  assert.ok(!m.warnings.some((w) => /تالاسمی/.test(w)), `جملهٔ تالاسمی نباید بیاید: ${m.warnings.join(" | ")}`);
+  assert.ok(m.suggest.includes("فریتین"), "قدمِ اول فریتین است");
+  assert.doesNotMatch(JSON.stringify(plain.findings), /ازدواج/, "هیچ یافته‌ای نباید «ازدواج» را به ۵۵ ساله بگوید");
+
+  // ۲) شاهدِ تالاسمی (RBC ۶٫۲، منتزر ۱۲٫۸) ⇒ قاعدهٔ تالاسمی، با جملهٔ غربالگریِ *بی‌چارچوبِ فرزندآوری*
+  const lean = run(cbc("79.4", "6.2", "13.5"), F55).p.findings.find((f) => f.pattern === "thal_trait_likely");
+  assert.ok(lean, "منتزر < ۱۳ باید قاعدهٔ تالاسمی را فعال کند");
+  const warn = lean.warnings.find((w) => /تالاسمی/.test(w)) ?? "";
+  assert.ok(/غربالگریِ تالاسمی/.test(warn), `جملهٔ غربالگری نیامد: ${lean.warnings.join(" | ")}`);
+  assert.doesNotMatch(warn, /ازدواج|بچه‌دار/, `برای ۵۵ ساله نباید حرفِ ازدواج/بچه‌دار باشد: ${warn}`);
+  // کنترل: همان برگه برای زنِ ۳۰ ساله باید همان جملهٔ اصلی را داشته باشد
+  const young = run(cbc("79.4", "6.2", "13.5"), { age: 30, sex: "F" }).p.findings.find((f) => f.pattern === "thal_trait_likely");
+  assert.match(young.warnings.join(" "), /ازدواج/, "برای ۳۰ ساله جملهٔ ازدواج/فرزند باید بماند");
+
+  // ۳) HbA2 ۵٫۲ در زنِ ۵۵ ساله ⇒ هشدارِ ناقل، بی‌چارچوبِ فرزندآوری
+  const a2 = run([r("HbA2", "5.2", "%")], F55).p;
+  const carrier = a2.findings.find((f) => (f.warnings ?? []).some((w) => /ژنتیک/.test(w)));
+  assert.ok(carrier, `هشدارِ ناقل نیامد: ${JSON.stringify(a2.findings.map((f) => f.warnings))}`);
+  assert.doesNotMatch(carrier.warnings.join(" "), /ازدواج|بچه‌دار/, "برای ۵۵ ساله نباید حرفِ ازدواج باشد");
+
+  // ۴) کودک: رفتارِ قبلی دست‌نخورده — میکروسیتوزِ سنی (زیرِ کفِ ۷۷) الکتروفورز می‌خواهد
+  const kid = run([r("Hemoglobin", "11.8", "g/dL"), r("MCV", "68", "fL"), r("RBC", "4.6", "10^6/µL")], BOY9).p;
+  const kf = kid.findings.find((f) => ["microcytosis_no_anemia", "thal_trait_likely"].includes(f.pattern));
+  assert.ok(kf, `یافتهٔ کودک نیامد: ${ids(kid)}`);
+  assert.ok(kf.suggest.includes("الکتروفورز هموگلوبین"), `کودک باید همان رفتارِ قبلی را داشته باشد: ${kf.suggest}`);
+});
