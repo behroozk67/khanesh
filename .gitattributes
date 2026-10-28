@@ -1,1 +1,7 @@
 .githooks/** text eol=lf
+# P119 (۲۰۲۶-۱۰-۲۸): اسکریپت‌های deploy با `core.autocrlf=true` (تنظیمِ پیش‌فرضِ این مخزن روی ویندوز)
+#   با CRLF چک‌اوت می‌شدند و آرشیوِ ارسالی به سرور در خطِ ۸ شکست می‌خورد:
+#   `/tmp/khdeploy/deploy/setup.sh: line 8: set: pipefail\r: invalid option name`
+#   (کلِ دیپلوی قبل از نصب مرد، در حالی که اسکریپتِ مخزن LF بود). eol=lf مستقل از تنظیمِ محلی،
+#   همان بایت‌هایی را می‌دهد که روی سرور اجرا می‌شود.
+*.sh text eol=lf
