@@ -1046,18 +1046,20 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
   overflow: clip;
 }
 .lh-bg {
-  /* کادرِ بسته: فقط بخشی از نیم‌رخ (بینی، لب، ریش، خطِ چشم) در قاب است؛ بالا و پشتِ سر
-     از لبهٔ بالا و راست بیرون می‌زنند و تبلت پایین‌چپ می‌نشیند.
-     همه‌چیز به ارتفاعِ قاب (--hh، همان clamp ِ .lh) بسته است تا کادر در هر اندازه یکی بماند:
-     ارتفاعِ عکس ۱٫۵۹×، بالای عکس ‎-۰٫۳۸×، و نوکِ بینی (۶۴٫۵٪ ِ عرضِ عکس = ۱٫۴۶۴×)
-     ۲۱۵px مانده به لبهٔ راست (لبهٔ چپِ تبلت درست بعد از ستونِ متن). فقط لبهٔ چپ محو می‌شود (زیرِ ستونِ متن). */
+  /* عکسِ پرترهٔ میکروسکوپ: کلِ کادر داخلِ هیرو دیده می‌شود (نه بریده).
+     بالا ≈ ۳۰٪ ارتفاعِ هیرو پایین‌تر از نوارِ بالا، ارتفاع ۶۸٪ ⇒ پایینِ عکس داخلِ قاب.
+     فقط لبهٔ چپ محو می‌شود تا در گرادیانِ هیرو حل شود. */
   --hh: clamp(640px, 100svh, 920px);
-  position: absolute; z-index: -2;
-  top: calc(var(--hh) * -0.38);
-  left: calc(100% - 215px - var(--hh) * 1.464);
-  height: calc(var(--hh) * 1.59); width: auto; max-width: none; aspect-ratio: 2752 / 1929;
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 22%);
-  mask-image: linear-gradient(to right, transparent 0, #000 22%);
+  /* z-index: 0 — بالای هالهٔ .lh::after (که z-index:-1 دارد و با گرادیانِ روشنِ
+     «--page» عکس را می‌پوشاند) و زیرِ ستونِ متن (.lh-body = 2). با -2، عکس کلاً
+     زیرِ آن هاله گم می‌شد. */
+  position: absolute; z-index: 0;
+  top: calc(var(--hh) * 0.30);
+  right: clamp(8px, 2.5vw, 64px); left: auto;
+  height: calc(var(--hh) * 0.68); width: auto; max-width: none; aspect-ratio: 1400 / 1826;
+  /* فِیدِ لبه‌ها داخلِ خودِ فایل پخته شده است (آلفای WebP) — maskِ CSS لازم نیست؛
+     ترکیبِ دو mask در کروم یک‌بار کلِ تصویر را صفر کرد. */
+  -webkit-mask-image: none; mask-image: none;
 }
 .lh::after {
   /* ورقِ روشنِ ملایم پشتِ ستونِ متن؛ فقط خوانایی، نه رنگ‌آمیزی. */
@@ -1197,7 +1199,7 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 /* گوشی و تبلتِ کوچک: عکس بالا، متن زیرِ آن، پله‌ها آخر */
 @media (max-width: 979px) {
   .lh { min-height: 0; }
-  .lh-bg { position: relative; inset: auto; aspect-ratio: auto; z-index: 0; order: -1; width: 100%; height: clamp(240px, 62vw, 460px); object-fit: cover; object-position: 74% center; -webkit-mask-image: none; mask-image: none; }
+  .lh-bg { position: relative; inset: auto; z-index: 0; order: -1; width: 100%; height: clamp(300px, 96vw, 520px); object-fit: contain; object-position: 50% 100%; -webkit-mask-image: none; mask-image: none; }
   .lh::after { display: none; }
   .lh { padding-top: 100px; }
   .lh-nav { inset-inline: var(--gutter); top: var(--s5); width: auto; margin: 0; }

@@ -603,7 +603,7 @@ function Hero() {
   return (
     <header className="lh" dir="ltr">
       <img className="lh-bg" src="/lab/labmate_hero_microscope.webp" alt={HERO_ALT}
-           width="2752" height="1929" fetchPriority="high" decoding="async" />
+           width="1400" height="1826" fetchPriority="high" decoding="async" />
       <PillNav links={HERO_LINKS} sheetMain={MENU_MAIN} />
 
       <div className="lh-body">
