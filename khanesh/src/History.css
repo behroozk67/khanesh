@@ -74,6 +74,41 @@
 .hist-section { margin: 0 0 30px; }
 .hist-h2 { font-size: 1.1rem; margin: 0 0 12px; }
 
+/* ---------- صافیِ سریع ---------- */
+.hist-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.hist-chip {
+  font: inherit;
+  font-size: .78rem;
+  border-radius: var(--r-pill);
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hist-chip:hover { border-color: var(--brand-line); color: var(--brand-ink); }
+.hist-chip.is-active {
+  background: var(--brand-soft);
+  border-color: var(--brand-line);
+  color: var(--brand-ink);
+  font-weight: 600;
+}
+.hist-chip-n {
+  font-size: .72rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.hist-chip.is-active .hist-chip-n { color: var(--brand-ink); }
+
 .hist-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -105,22 +140,47 @@
 }
 .hist-badge.is-ok { color: var(--st-normal-fg); background: var(--st-normal-bg); }
 .hist-badge.is-out { color: var(--st-out-fg); background: var(--st-out-bg); }
+/* تغییرِ واقعی ولی هنوز داخلِ محدوده — نه هشدار، نه تأیید */
+.hist-badge.is-watch { color: var(--warn-fg); background: var(--warn-bg); }
 
 .hist-card-body { display: flex; flex-direction: column; gap: 8px; }
 
+/* ستون‌ها ثابت‌اند تا درصدِ تغییر در همهٔ کارت‌ها جای یکسان داشته باشد
+   (کارتِ بدونِ نمودار و کارتِ با نمودار یک‌شکل می‌مانند). */
 .hist-values {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 4px 14px;
   align-items: end;
-  justify-content: flex-start;
+  direction: ltr;               /* چپ = نوبتِ قبل، راست = آخرین مقدار (هم‌جهت با نمودار) */
 }
-.hist-now, .hist-prev, .hist-delta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hist-values.is-single { grid-template-columns: 1fr; }
+/* ⚠️ چیدمانِ فیزیکی، نه منطقی: در RTL، flex-start یعنی «راست» و نتیجه برعکسِ
+   نمودار می‌شود (باگِ دیده‌شده در بازبینیِ چشمی). این‌جا صریحاً چپ/راست می‌دهیم. */
+.hist-cell { display: block; min-width: 0; direction: rtl; }
+.hist-cell.is-prev { text-align: left; }
+.hist-cell.is-now { text-align: right; }
+.hist-delta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+/* ⚠️ عدد و واحد یک واحدِ اتمی‌اند: نه می‌شکنند (M/µL) و نه جهتشان با RTL
+   جابه‌جا می‌شود. `unicode-bidi: isolate` + `dir=ltr` روی هر دو bdi. */
 .hist-val {
+  display: inline-flex;
+  direction: ltr;               /* عدد چپ، واحد راست — ترتیبِ علمیِ استاندارد */
+  align-items: baseline;
+  gap: .28em;
   font-size: 1.25rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;          /* عدد و واحد نباید در دو خط بشکنند */
+  white-space: nowrap;
+  unicode-bidi: isolate;
+}
+.hist-num { font-variant-numeric: tabular-nums; }
+.hist-unit {
+  font-size: .62em;
+  font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: 0;
 }
 .hist-val-prev {
   font-size: .95rem;
@@ -128,7 +188,8 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.hist-val-label { font-size: .7rem; color: var(--ink-3); line-height: 1.6; }
+.hist-val-prev .hist-unit { font-size: .78em; }
+.hist-val-label { display: block; font-size: .7rem; color: var(--ink-3); line-height: 1.6; }
 
 .hist-delta-v {
   font-size: .95rem;
@@ -137,13 +198,16 @@
   font-variant-numeric: tabular-nums;
 }
 .hist-delta.is-sig .hist-delta-v { color: var(--st-out-fg); }
+.hist-delta { align-items: flex-start; direction: rtl; }
+.hist-delta-thr { font-size: .7rem; color: var(--ink-3); line-height: 1.6; }
 
 /* ---------- نمودارِ کوچک ---------- */
 .hist-spark { width: 100%; height: 46px; }
 .hist-spark-band { fill: var(--st-normal-bg); }
 .hist-spark-line { stroke: var(--brand); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
 .hist-spark-dot { fill: var(--brand); }
-.hist-spark-dot.is-out { fill: var(--st-emergency-ink); }
+.hist-spark-dot.is-out { fill: var(--st-emergency-ink); }   /* این نوبت بیرون از محدوده بود */
+.hist-spark-dot.is-last { stroke: var(--card); stroke-width: 1.2; }  /* آخرین نوبت: کمی برجسته‌تر */
 
 /* ---------- یادداشت ---------- */
 .hist-note {
@@ -156,7 +220,24 @@
 }
 .hist-note.is-sig { border-right-color: var(--st-out-bg); color: var(--ink); }
 
-.hist-zone { margin: 0; font-size: .74rem; color: var(--ink-3); }
+.hist-details { margin-top: -2px; }
+.hist-details summary {
+  cursor: pointer;
+  font-size: .74rem;
+  color: var(--brand-ink);
+  list-style: none;
+}
+.hist-details summary::-webkit-details-marker { display: none; }
+.hist-details summary::before { content: '＋ '; color: var(--ink-3); }
+.hist-details[open] summary::before { content: '− '; }
+.hist-note-detail {
+  margin: 6px 0 0;
+  font-size: .78rem;
+  line-height: 1.95;
+  color: var(--ink-2);
+  border-right: 2px solid var(--line);
+  padding-right: 8px;
+}
 
 .hist-note-block {
   background: var(--card);

@@ -134,6 +134,21 @@ export function buildSeries(rows) {
 }
 
 /**
+ * درصدِ تغییر **نسبت به مقدارِ قبلی (Baseline)** — همان چیزی که هر آزمایشگاه و
+ * هر کاربری روی کاغذ حساب می‌کند: (new − old) / old × 100.
+ *
+ * ⚠️ چرا جدا از `logPctChange`: آزمونِ RCV روی مقیاسِ لگاریتمی تعریف می‌شود
+ *    (نسبت‌ها، چون تغییرپذیریِ زیستی ضربی است)، ولی درصدی که به کاربر نشان
+ *    می‌دهیم باید همان درصدِ خطیِ مبنا-نسبی باشد؛ وگرنه عددِ روی کارت با
+ *    محاسبهٔ ذهنیِ خودِ بیمار نمی‌خوانَد (۷.۳ → ۴.۸ لگاریتمی ۴۲٪، خطی ۳۴٪).
+ *    اعتبارِ آماری دست‌نخورده می‌ماند؛ فقط زبانِ نمایش یکی می‌شود.
+ */
+export function pctChange(prev, next) {
+  if (!Number.isFinite(prev) || !Number.isFinite(next) || prev === 0) return null;
+  return ((next - prev) / Math.abs(prev)) * 100;
+}
+
+/**
  * درصدِ تغییر روی مقیاسِ لگاریتمی — همان تعریفِ RCV (نسبت‌ها، نه اختلافِ خطی).
  * برای مقدارِ صفر/منفی تعریف نشده ⇒ null.
  */
@@ -141,6 +156,25 @@ export function logPctChange(prev, next) {
   if (!(prev > 0) || !(next > 0)) return null;
   return (Math.log(next / prev) * 100);
 }
+
+/**
+ * همان آزمونِ RCV، ولی بیان‌شده با درصدِ مبنا-نسبی؛ تا عددِ آستانه و عددِ
+ * تغییر در یک زبان باشند.
+ *
+ *   RCV:  |ln(new/old)| ≥ r/100
+ *   ⇔ افزایش: (new−old)/old ≥ e^(r/100) − 1
+ *   ⇔ کاهش:   (old−new)/old ≥ 1 − e^(−r/100)
+ *
+ * (کاهش و افزایش آستانهٔ هم‌اندازه ندارند؛ این ویژگیِ ذاتیِ مقیاسِ لگاریتمی است.)
+ */
+export function rcvThresholdPct(rcvPct, direction) {
+  if (rcvPct == null || !Number.isFinite(rcvPct)) return null;
+  const k = rcvPct / 100;
+  if (direction === 'up') return (Math.exp(k) - 1) * 100;
+  if (direction === 'down') return (1 - Math.exp(-k)) * 100;
+  return null;
+}
+
 
 /**
  * مقایسهٔ کاملِ یک مارکر.
@@ -174,7 +208,9 @@ export function compareMarker(key, points, { today = Date.now() } = {}) {
     comparable: false,
     reason: null,
     delta: null,
-    pct: null,
+    pct: null,            // درصدِ نمایشی: نسبت به مقدارِ قبلی (Baseline)
+    pctLog: null,         // درصدِ لگاریتمی: مبنای آزمونِ RCV
+    rcvPctRef: null,      // همان آستانه، ترجمه‌شده به درصدِ مبنا-نسبی
     significant: null,
     direction: null,
     zone: null,
@@ -203,13 +239,16 @@ export function compareMarker(key, points, { today = Date.now() } = {}) {
     return base;
   }
   base.delta = +(last.value - prev.value).toFixed(4);
-  base.pct = logPctChange(prev.value, last.value);
+  // `pct` = درصدِ نمایشی (مبنا-نسبی) · `pctLog` = مبنای آزمونِ RCV
+  base.pct = pctChange(prev.value, last.value);
+  base.pctLog = logPctChange(prev.value, last.value);
   base.direction = base.delta > 0 ? 'up' : base.delta < 0 ? 'down' : 'flat';
 
   // ── معناداری: RCV (لگاریتمی) ────────────────────────────
   const r = base.rcvPct;
-  if (r != null && base.pct != null) {
-    base.significant = Math.abs(base.pct) >= r;
+  if (r != null && base.pctLog != null) {
+    base.significant = Math.abs(base.pctLog) >= r;
+    base.rcvPctRef = rcvThresholdPct(r, base.direction);
     base.comparable = true;
   } else {
     // RCV نداریم ⇒ عدد و جهت را می‌گوییم، ولی «واقعی است یا نوسان» را نه.
@@ -312,8 +351,13 @@ export function comparisonFa(m) {
     //    تکرارِ نام در هر دو مقدار، جمله را به‌شکلِ «کراتینین ... کراتینین» درمی‌آورد
     //    (باگِ دیده‌شده در بازبینیِ چشمی). عددِ دوم بعد از واژهٔ فارسی است، پس
     //    نشانگرِ جهت لازم ندارد.
+    // آستانه با همان درصدِ مبنا-نسبی گفته می‌شود که تغییر؛ وگرنه کاربر عددِ ۳۴٪
+    // را کنارِ آستانهٔ ۳۵٪ می‌بیند و انتظارِ «معنادار نیست» دارد (باگِ بازبینی).
+    const thrFa = m.rcvPctRef != null ? `حدود ${faDigits(Math.round(m.rcvPctRef))}٪` : null;
     let s = `در آزمایشِ ${when} مقدار ${named(from)} بود و در آخرین آزمایش ${to} — یعنی ${dirFa}${pctFa}. ` +
-            `این تغییر از حدِ نوسانِ طبیعیِ همین آزمایش (حدود ${faDigits(m.rcvPct)}٪) بیشتر است`;
+            (thrFa
+              ? `این تغییر از حدِ نوسانِ فردیِ همین آزمایش (${thrFa}) بیشتر است`
+              : 'این تغییر از حدِ نوسانِ فردیِ همین آزمایش بیشتر است');
     if (m.zone?.kind === 'to_normal') s += ' و مقدار به محدودهٔ مرجع برگشته است.';
     else if (m.zone?.kind === 'to_abnormal') s += ' و مقدار از محدودهٔ مرجع بیرون رفته است.';
     else if (m.towardsRange === true) s += ' و به محدودهٔ مرجع نزدیک‌تر شده است.';
@@ -322,8 +366,8 @@ export function comparisonFa(m) {
     return s;
   }
   // تغییرِ زیرِ RCV یا بی‌RCV ⇒ صادقانه «قابلِ تفسیر نیست»
-  const rTxt = m.rcvPct != null
-    ? `کمتر از حدود ${faDigits(m.rcvPct)}٪`
+  const rTxt = m.rcvPctRef != null
+    ? `کمتر از حدود ${faDigits(Math.round(m.rcvPctRef))}٪`
     : 'در حدی که با دادهٔ تغییرپذیریِ زیستیِ این آزمایش نمی‌شود سنجید';
   return `مقدار ${named(from)} (${when}) به ${to} رسیده؛ این تغییر ${rTxt} است، ` +
          `یعنی در محدودهٔ نوسانِ طبیعیِ بدن و خطای آزمایشگاه — نه بهتر شدن و نه بدتر شدن.`;

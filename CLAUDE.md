@@ -2478,6 +2478,31 @@ frontend's error was `خطای سرور (404)` — the only honest tell.
   inside a `res.json` wrapper keeps every engine byte-lock intact; writing it from engine state
   would have re-opened the N36 class of coupling.
 
+### N41 — Four visual defects an outside review caught in the history cards (2026-10-29)
+
+A read of the shipped comparison UI found four things the tests could never have caught. All four
+were real; each has a permanent guard now.
+
+- **Log-scale math leaked into the number a patient reads.** Significance is tested on `ln(x₂/x₁)`
+  because that is where RCV lives, but the *displayed* percentage was that same log value:
+  7.3 → 4.8 read "42%" while the arithmetic answer is 34%. Two numbers, two languages, one screen —
+  and the RCV threshold printed next to it (35%) looked violated by a change that was not. `pct`
+  is now baseline-relative `(new−old)/old`, `pctLog` carries the test, and `rcvPctRef` restates the
+  same threshold in the displayed language (`e^(RCV/100)−1` up, `1−e^(−RCV/100)` down). The verdict
+  did not move — only the language did (`H09f`–`H09h`).
+- **`flex-start` in an RTL row means *right*.** The "previous" cell was placed with `align-items:
+  flex-start` inside an RTL flex, so the older value sat on the right while the sparkline drew the
+  older point on the left. Fix print/screen coordinates explicitly (`direction: ltr` on the row,
+  physical `text-align` per cell) — never reason about `start`/`end` for chart-adjacent layout.
+- **A number and its unit are one atom.** `M/µL` wrapped as `M/` + `µL`, and in some cards the unit
+  rendered *before* the number (`mg/dL ۰.۹۵`). Both are bidi failures: the wrapper needs
+  `dir="ltr"` + `white-space: nowrap` + `unicode-bidi: isolate`, or the RTL paragraph reorders the
+  pieces.
+- **Status was stated three times per card.** Badge + sentence + a "وضعیت:" footer, all saying the
+  same thing, plus the numbers repeated inside the sentence that was already on screen. One badge
+  (colour carries the meaning: in-range / real-change-but-in-range / out), one conclusion-only line,
+  and the full computed sentence behind `<details>` for whoever wants the audit trail.
+
 ## Working Agreement
 
 My default is a short prompt then a long unattended run (~1 instruction per hour of session).

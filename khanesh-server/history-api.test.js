@@ -147,7 +147,10 @@ test("A2: آخرین نوبت در برابرِ نوبتِ قبل با آستا�
   assert.equal(m.significant, true);
   assert.equal(m.zone.kind, "to_abnormal");
   assert.equal(m.comparable, true);
-  assert.match(m.fa, /۱۸٪/);
+  // آستانهٔ RCV=۱۸٪ لگاریتمی، برای افزایش ⇒ ۱۹.۷٪ نسبت به مبنا ⇒ گرد شده «۲۰٪»
+  assert.equal(Math.round(m.rcvPctRef), 20);
+  assert.equal(Math.round(m.pct), 45);          // نمایشی: (1.6−1.1)/1.1
+  assert.match(m.fa, /۲۰٪/);
   assert.ok(m.latest_fa, "برچسبِ تاریخِ آخرین نوبت لازم است");
 });
 

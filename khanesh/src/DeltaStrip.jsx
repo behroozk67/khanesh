@@ -68,8 +68,8 @@ export default function DeltaStrip({ tests, hidden = false }) {
             <span className={`delta-chip${m.significant ? ' is-sig' : ''}`}>
               {m.reason === 'unit_mismatch'
                 ? 'بی‌قابلیتِ مقایسه'
-                : m.rcvKnown
-                  ? `${fa(Math.abs(m.pct ?? 0).toFixed(0))}٪ · حدِ نوسان ${fa(m.rcvPct)}٪`
+                : m.rcvPctRef != null
+                  ? `${fa(Math.abs(m.pct ?? 0).toFixed(0))}٪ · حدِ نوسان ${fa(Math.round(m.rcvPctRef))}٪`
                   : `${fa(Math.abs(m.pct ?? 0).toFixed(0))}٪`}
             </span>
           </li>

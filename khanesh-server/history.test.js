@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 
 import {
   parseRange, distanceFromRange, buildSeries, compareMarker, compareSeries,
-  comparisonFa, logPctChange, MIN_COMPARABLE_GAP_DAYS, STALE_DAYS,
+  comparisonFa, logPctChange, pctChange, rcvThresholdPct, MIN_COMPARABLE_GAP_DAYS, STALE_DAYS,
 } from './rules/history.js';
 import { rcv } from './rules/biovar.js';
 import { observationsFromResult, takenAtOf, ownerOf } from './historyRoutes.js';
@@ -233,14 +233,18 @@ test('H08b: فیلترِ keys فقط همان مارکرها را می‌دهد'
 // ══════════════════════════════════════════════════════════════
 // H09 — جملهٔ فارسی
 // ══════════════════════════════════════════════════════════════
-test('H09: جملهٔ تغییرِ معنادار عددِ RCV را می‌گوید و جهت را', () => {
+test('H09: جملهٔ تغییرِ معنادار آستانه را هم‌زبانِ درصدِ تغییر می‌گوید', () => {
   const pts = buildSeries([
     obs('2026-01-10', 'CREAT', 1.0),
     obs('2026-04-10', 'CREAT', 1.6, { abnormal: 1, dir: 'high' }),
   ]).get('CREAT');
-  const fa = comparisonFa(compareMarker('CREAT', pts));
+  const m = compareMarker('CREAT', pts);
+  // افزایشِ ۶۰٪ خطی؛ آستانهٔ RCV=۱۸٪ لگاریتمی ⇒ e^0.18−1 = ۱۹.۷٪ خطی
+  assert.equal(Math.round(m.pct), 60);
+  assert.equal(Math.round(m.rcvPctRef), 20);
+  const fa = comparisonFa(m);
   assert.match(fa, /بالاتر/);
-  assert.match(fa, /۱۸٪/);              // حدِ نوسانِ طبیعی (ارقام فارسی)
+  assert.match(fa, /۲۰٪/);              // آستانه، در همان زبانِ درصدِ مبنا-نسبی
   assert.match(fa, /بیرون رفته/);        // to_abnormal
 });
 
@@ -271,6 +275,43 @@ test('H09d: بی‌مقایسه ⇒ null (چیزی نگو)', () => {
   assert.equal(comparisonFa(null), null);
   const pts = buildSeries([obs('2026-01-10', 'CREAT', 1.0)]).get('CREAT');
   assert.equal(comparisonFa(compareMarker('CREAT', pts)), null);
+});
+
+// ══════════════════════════════════════════════════════════════
+// H09f — درصدِ نمایشی = مبنا-نسبی، نه تقسیم بر مقدارِ جدید/لگاریتمی
+// ══════════════════════════════════════════════════════════════
+test('H09f: درصدِ تغییر نسبت به مقدارِ قبلی حساب می‌شود (۷.۳ → ۴.۸ = ۳۴٪)', () => {
+  assert.equal(pctChange(7.3, 4.8).toFixed(1), '-34.2');
+  assert.equal(pctChange(3.36, 4.42).toFixed(1), '31.5');
+  assert.equal(pctChange(100, 110).toFixed(1), '10.0');
+  assert.equal(pctChange(0, 5), null);       // مخرجِ صفر ⇒ تعریف‌نشده
+  assert.equal(pctChange(NaN, 5), null);
+});
+
+test('H09g: آستانهٔ RCV به درصدِ مبنا-نسبی ترجمه می‌شود (همان آزمون، زبانِ دیگر)', () => {
+  const up = rcvThresholdPct(18, 'up');
+  const down = rcvThresholdPct(18, 'down');
+  assert.equal(up.toFixed(1), '19.7');       // e^0.18 − 1
+  assert.equal(down.toFixed(1), '16.5');     // 1 − e^−0.18
+  // همان آزمونِ لگاریتمی: آستانه دقیقاً معادلِ |ln ratio| = 0.18 است
+  assert.equal(Math.abs(logPctChange(1, 1 + up / 100)).toFixed(2), '18.00');
+  assert.equal(Math.abs(logPctChange(1, 1 - down / 100)).toFixed(2), '18.00');
+  assert.equal(rcvThresholdPct(null, 'up'), null);
+  assert.equal(rcvThresholdPct(18, 'flat'), null);
+});
+
+test('H09h: کاهشِ ۷.۳ → ۴.۸ از RCV عبور می‌کند، با اعدادِ هم‌زبان', () => {
+  const pts = buildSeries([
+    { lab_id: 'a', taken_at: '2026-01-10T09:00:00Z', marker_key: 'WBC', value: 7.3, unit: 'K/µL', ref_range: '4.5–11.0', abnormal: 0, dir: null },
+    { lab_id: 'b', taken_at: '2026-04-10T09:00:00Z', marker_key: 'WBC', value: 4.8, unit: 'K/µL', ref_range: '4.5–11.0', abnormal: 0, dir: null },
+  ]).get('WBC');
+  const m = compareMarker('WBC', pts);
+  assert.equal(m.direction, 'down');
+  assert.equal(Math.round(Math.abs(m.pct)), 34);          // نمایشی: مبنا-نسبی
+  assert.equal(Math.round(Math.abs(m.pctLog)), 42);       // لگاریتمی: مبنای RCV
+  assert.equal(m.significant, Math.abs(m.pctLog) >= m.rcvPct);   // آزمون همان RCV است
+  // آستانه در همان زبان: ۳۴٪ > ۳۰٪ ⇒ پیام و عدد با هم نمی‌جنگند
+  assert.ok(Math.abs(m.pct) > m.rcvPctRef);
 });
 
 test('H09e: logPctChange روی مقیاسِ لگاریتمی است', () => {
