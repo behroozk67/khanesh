@@ -2560,6 +2560,27 @@ collided with the sheet's own white question list. The user's report — «نو�
 - **Rule:** an overlay that must cover page chrome belongs in a portal, and when a declared effect
   doesn't appear, read `getComputedStyle` first — `none` means "not applied", not "too weak".
 
+### N45 — The CSS minifier kept only the `-webkit-` half of each prefixed pair (2026-10-29)
+
+After N44 the overlay still showed the hero text crisp on production while local dev was correctly
+blurred. The built CSS was the difference:
+
+```
+dist/assets/Landing-*.css →  backdrop-filter: 0   |  -webkit-backdrop-filter: 8
+```
+
+Chrome does **not** honour the `-webkit-` alias for this property, so every glass surface in the
+bundle (floating nav, cards, the FAQ scrim) rendered flat in production — 8 of 8 declarations lost
+their standard half. The minifier keeps the **last** declaration of a duplicated pair, and `site.css`
+wrote the standard property first (`backdrop-filter: …; -webkit-backdrop-filter: …`).
+
+- **Fix:** write the prefixed property first and the standard one second (8 sites in `site.css`).
+  Bundle went `0 → 8` unprefixed; `.fq-scrim` computes `blur(18px)` on production afterwards.
+- **No config change was needed** — `build.cssTarget` made no difference; the pair's order did.
+- **Rule:** a CSS effect that "works locally but not in production" is usually a *build* difference.
+  Grep the emitted `dist/assets/*.css` for the exact property before touching the value, and put the
+  unprefixed property last so it is the one that survives minification.
+
 ## Working Agreement
 
 My default is a short prompt then a long unattended run (~1 instruction per hour of session).
