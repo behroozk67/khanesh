@@ -2503,6 +2503,24 @@ were real; each has a permanent guard now.
   (colour carries the meaning: in-range / real-change-but-in-range / out), one conclusion-only line,
   and the full computed sentence behind `<details>` for whoever wants the audit trail.
 
+### N42 — The toolbar I was extending did not exist in `HEAD` (2026-10-29)
+
+Five sessions share one dirty tree. The result toolbar I put «تاریخچه و روند» into was **not in
+`HEAD` at all** — it was another session's uncommitted work. On screen it looked committed.
+
+- **Measure what `HEAD` has, not what the screen shows.** `git show HEAD:<file> | grep -c <marker>`
+  before promising a commit: `result-tools` was 3 in `HEAD`'s CSS and **0** in `HEAD`'s JSX. The
+  working diff (142 lines) had my 20 and someone else's 120 mixed in one file.
+- **A change can be right on disk and impossible to commit alone.** Staging it would drag a
+  half-finished refactor in; staging only my lines would have left the app with *no* entry point
+  (removing the `DeltaStrip` link without the new toolbar deletes the only way to `/history`).
+  The honest options are "wait for the owning session" or "review the whole feature and commit it
+  together" — never a partial that breaks navigation.
+- **`print()` behind `fonts.ready` + `rAF` never fires in a hidden tab.** A CDP tab is hidden, so
+  the portal mounted, the title changed, and `print()` was never called — which looks like a bug in
+  the lifecycle. Bring the page to front (`Page.bringToFront`) and assert on `beforeprint` /
+  `afterprint` events; the absence of a dialog is not evidence.
+
 ## Working Agreement
 
 My default is a short prompt then a long unattended run (~1 instruction per hour of session).
