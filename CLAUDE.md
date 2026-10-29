@@ -2521,6 +2521,22 @@ Five sessions share one dirty tree. The result toolbar I put «تاریخچه و
   the lifecycle. Bring the page to front (`Page.bringToFront`) and assert on `beforeprint` /
   `afterprint` events; the absence of a dialog is not evidence.
 
+### N43 — A new SPA route is invisible until nginx knows it (2026-10-29)
+
+`/history` shipped, deployed, and answered **404** to anyone who refreshed, bookmarked or shared it.
+The button worked only because React Router navigates client-side.
+
+- **The fallback is a whitelist, not a catch-all.** `deploy/nginx.conf` has
+  `location ~ ^/(app|signin|profile|tafsir|landing) { try_files $uri $uri/ /index.html; }`; every
+  other path falls through to `location /` → `try_files $uri $uri/index.html $uri/ =404`. Measured
+  after the deploy: `/` 200, `/app` 200, `/profile` 200, `/history` **404**.
+- **Auth-gated routes are never prerendered**, so `gen-static-heads.mjs` cannot paper over this:
+  `/history` has no `dist/history/index.html`. The nginx regex is the only lever.
+- **Add the route in the same change** and reload: `nginx -t && systemctl reload nginx`. Update the
+  repo copy too (`deploy/nginx.conf`), or the next `setup.sh` silently reverts it.
+- **`sites-enabled/khanesh` is a symlink.** `sed -i` on it replaces the symlink with a plain file;
+  edit the target (`readlink -f`) — the same trap as fixing `/etc/nginx/conf.d` copies.
+
 ## Working Agreement
 
 My default is a short prompt then a long unattended run (~1 instruction per hour of session).
