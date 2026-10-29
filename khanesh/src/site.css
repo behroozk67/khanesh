@@ -1612,7 +1612,9 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 }
 /* پردهٔ تبلت — همان کادرِ .lh-bg، ولی رنگی و بی‌فیلتر تا صفحهٔ واقعی دیده شود */
 .lh-screen {
-  filter: none; z-index: -1; pointer-events: none; user-select: none;
+  /* z-index:1 — بالای هالهٔ .lh::after (که پس‌زمینهٔ یشمیِ هیرو را می‌سازد) و زیرِ
+     ستونِ متن (.lh-body = 2). با -1، هاله روی پردهٔ تبلت می‌افتاد و رنگ می‌گرفت. */
+  filter: none; z-index: 1; pointer-events: none; user-select: none;
   -webkit-mask-image: none; mask-image: none;
 }
 @media (max-width: 979px) { .lh-screen { display: none; } }
