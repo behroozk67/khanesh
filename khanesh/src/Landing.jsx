@@ -434,7 +434,7 @@ export function Nav() {
 // هیروی تمام‌عرض: عکس پس‌زمینه است و متن روی آن می‌نشیند. نوارِ کپسولیِ بالا فقط
 // در همین صفحه است؛ Nav صادرشده در بالای فایل سرصفحهٔ بقیهٔ صفحه‌هاست.
 // ⚠️ تصویر تولیدِ مدل است و رابطِ روی تبلتش ساختگی است (جزئیات در public/lab/CREDITS.md).
-const HERO_ALT = "مردی روی مبل نشسته و تبلتی در دست دارد که نمایی از شاخص‌های آزمایش را نشان می‌دهد";
+const HERO_ALT = "میکروسکوپ و رکِ لولهٔ آزمایش روی میزِ روشن، با نورِ مورب بر دیوارِ سبزآبی";
 
 // ⚠️ «فاکتورهای آزمایش خون» از نوارِ بالا و از منوی نُه‌نقطه برداشته شد
 // (درخواستِ صریح): چهار پیوند در قابِ ۱۲۰۰ پیکسلی از ستونِ خودشان سرریز
@@ -602,13 +602,8 @@ function Hero() {
   const [faq, setFaq] = useState(null);
   return (
     <header className="lh" dir="ltr">
-      <img className="lh-bg" src="/lab/labmate_hero_tablet.webp" alt={HERO_ALT}
+      <img className="lh-bg" src="/lab/labmate_hero_microscope.webp" alt={HERO_ALT}
            width="2752" height="1929" fetchPriority="high" decoding="async" />
-      {/* پردهٔ تبلت، رنگی و بدونِ فیلترِ یشمی: همان کادرِ عکس را می‌گیرد (کلاسِ مشترک)
-          و تصویر از قبل به چهارگوشِ نمایشگر منتقل شده است. روی موبایل پنهان می‌شود
-          چون آن‌جا عکس در جریانِ صفحه می‌آید و دو نسخه چیدمان را می‌شکند. */}
-      <img className="lh-bg lh-screen" src="/lab/labmate_hero_screen.webp" alt=""
-           width="2752" height="1929" aria-hidden="true" loading="lazy" decoding="async" />
       <PillNav links={HERO_LINKS} sheetMain={MENU_MAIN} />
 
       <div className="lh-body">

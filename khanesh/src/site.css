@@ -1197,7 +1197,7 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 /* گوشی و تبلتِ کوچک: عکس بالا، متن زیرِ آن، پله‌ها آخر */
 @media (max-width: 979px) {
   .lh { min-height: 0; }
-  .lh-bg { position: relative; inset: auto; aspect-ratio: auto; z-index: 0; order: -1; width: 100%; height: clamp(240px, 62vw, 460px); object-fit: cover; object-position: 30% center; -webkit-mask-image: none; mask-image: none; }
+  .lh-bg { position: relative; inset: auto; aspect-ratio: auto; z-index: 0; order: -1; width: 100%; height: clamp(240px, 62vw, 460px); object-fit: cover; object-position: 74% center; -webkit-mask-image: none; mask-image: none; }
   .lh::after { display: none; }
   .lh { padding-top: 100px; }
   .lh-nav { inset-inline: var(--gutter); top: var(--s5); width: auto; margin: 0; }
@@ -1610,16 +1610,7 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 .lh-bg {
   filter: grayscale(1) sepia(.7) saturate(2.6) hue-rotate(115deg) brightness(1.21) contrast(1.25);
 }
-/* پردهٔ تبلت — همان کادرِ .lh-bg، ولی رنگی و بی‌فیلتر تا صفحهٔ واقعی دیده شود */
-.lh-screen {
-  /* z-index:1 — بالای هالهٔ .lh::after (که پس‌زمینهٔ یشمیِ هیرو را می‌سازد) و زیرِ
-     ستونِ متن (.lh-body = 2). با -1، هاله روی پردهٔ تبلت می‌افتاد و رنگ می‌گرفت. */
-  filter: none; z-index: 1; pointer-events: none; user-select: none;
-  -webkit-mask-image: none; mask-image: none;
-}
-/* لایهٔ رنگی فقط جایی که عکسِ هیرو واضح است (≥۱۲۸۰px)؛ زیرِ آن همان نسخهٔ پخته
-   نمایش داده می‌شود تا ورقِ روشن روی هالهٔ یشمی شناور نماند. */
-@media (max-width: 1279px) { .lh-screen { display: none; } }
+
 .lh::after {
   background:
     radial-gradient(42% 60% at 68% 30%, rgba(0, 168, 107, .30), transparent 70%),
