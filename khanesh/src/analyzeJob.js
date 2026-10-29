@@ -16,6 +16,7 @@
 //    بار تعریف شده بود (اینجا faNum، و toFa در ResultView.jsx) — دو نسخه از
 //    یک سیاستِ نمایشی که هیچ‌چیز هم‌خوانی‌شان را تضمین نمی‌کرد.
 import { toFaDigits as faNum } from "./digits.js";
+import { deviceId } from "./deviceId.js";
 
 const START_URL = "/api/analyze/start";
 const JOB_URL = "/api/analyze/job/";
@@ -75,7 +76,11 @@ export function clearResult() { safeDel(LS_RESULT); }
  */
 function authHeaders(base = {}) {
   const token = localStorage.getItem('auth_token');
-  return token ? { ...base, Authorization: `Bearer ${token}` } : { ...base };
+  // P120: شناسهٔ دستگاه هم لازم است — بدونِ آن، تحلیلِ کاربرِ ناشناس در
+  // تاریخچهٔ هیچ مالکی نمی‌نشیند و «نوبتِ قبل» هیچ‌وقت پیدا نمی‌شود.
+  const dev = deviceId();
+  const h = { ...base, 'x-device-id': dev };
+  return token ? { ...h, Authorization: `Bearer ${token}` } : h;
 }
 
 /** ۴۰۱ یعنی نشست منقضی/غایب است — توکنِ بی‌اثر باید پاک شود تا صفحهٔ ورود بیاید. */

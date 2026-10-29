@@ -2458,6 +2458,26 @@ Rules that follow:
 - Advice text is part of the clinical decision, so it inherits age gates: a 55-year-old woman was told "if you plan to marry or have children…". Text variants are chosen per patient (`pastChildbearing`, `PREGNANCY_MAX_AGE`), and the intake form hides the pregnancy option above that age — the engine still honours an explicit `pregnant=true` from the API, because a patient's own statement is not ours to override.
 - When a fix changes a documented behaviour that an old test froze (here `V24`/`V33`), rebase the test in the same commit with a comment naming the decision and add a positive control — deleting the assertion silently is how a rule drifts back.
 
+### N40 — The feature "didn't work" because the *running* server predated the code (2026-10-29)
+
+Two analyses were run locally right after the history feature landed and the history page stayed
+empty. Nothing was wrong with the feature: the backend on `:8787` was a process started **before**
+the change existed, so `/api/history` returned `404` and no observation was ever recorded. The
+frontend's error was `خطای سرور (404)` — the only honest tell.
+
+- **Verify the process, not the file.** A route existing in `server.js` proves nothing; the tell is
+  `curl -o /dev/null -w '%{http_code}' -H 'x-device-id: …' http://127.0.0.1:8787/api/history`.
+  `404` = stale process. Restart it (the `cmd /k` window from `start-labmate.bat` is the real
+  server; killing that PID frees the port).
+- **`jobs` is not a history store.** Only `createJobRecord` is auth-gated, but in `AUTH_REQUIRED`
+  off mode no job rows are written for anonymous analyses, so "backfill from `jobs`" is often
+  empty. That is exactly why observations live in their own table (`lab_events` /
+  `lab_observations`) with an explicit owner — and why analyses made before the feature cannot be
+  reconstructed after the fact.
+- **Record at the response layer, from the projection.** Writing history from `_engine.tests`
+  inside a `res.json` wrapper keeps every engine byte-lock intact; writing it from engine state
+  would have re-opened the N36 class of coupling.
+
 ## Working Agreement
 
 My default is a short prompt then a long unattended run (~1 instruction per hour of session).

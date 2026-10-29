@@ -5,6 +5,7 @@ import { toFaDigits } from "./digits.js";
 import { conditionFa } from "./conditions.js";
 import { clearJob, clearResult } from "./analyzeJob.js";
 import { loadProfile, clearProfile, AGE_UNIT_FA, pregnancyEligible, currentGestWeeks } from "./onboarding/profileStore.js";
+import { apiJson } from "./deviceId.js";
 import "./onboarding/onboarding.css";
 
 // ============================================================
@@ -65,6 +66,9 @@ export default function Profile() {
           throw new Error(d?.error || 'حذفِ حساب انجام نشد. دوباره تلاش کنید.');
         }
       }
+      // P120: تاریخچه هم باید برود — با احراز هویتِ روشن، حذفِ حساب بالا آبشاری
+      // پاکش می‌کند ولی در حالتِ خاموش تاریخچه زیرِ شناسهٔ دستگاه نشسته است.
+      await apiJson('/api/history', { method: 'DELETE' }).catch(() => {});
       clearJob();
       clearResult();
       signOut();
@@ -92,6 +96,7 @@ export default function Profile() {
         <header className="site-header" style={{ justifyContent: 'space-between' }}>
           <div className="logo"><Link to="/"><LabMateLogo height={32} /></Link></div>
           <div style={{ display: 'flex', gap: 'var(--s4)' }}>
+            <Link to="/history" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)' }}>تاریخچه و روند</Link>
             <Link to="/app" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)' }}>تفسیرِ آزمایش</Link>
             {token() && <button type="button" onClick={signOut} className="btn" style={{ fontSize: 'var(--t-sm)' }}>خروج</button>}
           </div>
@@ -116,6 +121,9 @@ export default function Profile() {
           {account?.jobs?.length > 0 && (
             <>
               <h2 className="sec-sub">سوابقِ تحلیل</h2>
+              <p className="onb-note" style={{ marginTop: 0 }}>
+                مقایسهٔ عددهای هر آزمایش با نوبت‌های قبلی در صفحهٔ <Link to="/history">تاریخچه و روند</Link> است.
+              </p>
               <ul className="onb-list" style={{ listStyle: 'none' }}>
                 {account.jobs.map((job) => (
                   <li key={job.id} className="onb-chip">

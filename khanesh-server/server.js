@@ -74,6 +74,7 @@ import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
 import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "./jobStore.js";
 import authRouter, { requireAuth, authBootReport, AUTH_REQUIRED, otpSenderStatus } from "./auth.js";
 import profileRouter from "./profile.js";
+import historyRouter, { recordAnalysis, ownerOf } from "./historyRoutes.js";
 import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById, getLatestCompletedJob } from "./database.js";
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
@@ -383,6 +384,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "60mb" }));   // ← Nginx روی 50M است؛ Express نباید تنگ‌تر باشد
 app.use("/api/auth", authRouter);
 app.use("/api/profile", profileRouter);   // specs/011 — 409 «local_only» وقتی احراز هویت خاموش است
+app.use("/api/history", historyRouter);   // P120 — تاریخچه و مقایسهٔ نوبت‌های آزمایش
 
 const AVALAI_API_KEY = process.env.AVALAI_API_KEY;
 const AVALAI_BASE_URL = "https://api.avalai.ir/v1";
@@ -1035,6 +1037,25 @@ const analyzeHandler = async (req, res) => {
   const tr = beginTrace({ traceId: req.headers["x-trace-id"] || undefined, route: req.path });
   req._trace = tr;
   res.setHeader("X-Trace-Id", tr.id);
+
+  // ── تاریخچه (P120) ──────────────────────────────────────
+  // هر پاسخِ موتوردار، بعد از ارسال، ردیف‌های عددی‌اش را در `lab_observations`
+  // می‌نشاند. ⚠️ عمداً در لایهٔ *پاسخ* و از `_engine.tests` (پروجکشن) خوانده
+  // می‌شود، نه از استیتِ داخلی — تا هیچ بایتی از خروجیِ موتور عوض نشود و
+  // قفل‌های بایتیِ پنل‌ها نشکنند.
+  const sendJson = res.json.bind(res);
+  res.json = (body) => {
+    try {
+      if (body && body._engine && !body.error) {
+        const owner = ownerOf(req);
+        if (owner) {
+          const jobId = req._jobId ?? `sync:${tr.id}`;
+          Promise.resolve(recordAnalysis({ owner, jobId, result: body })).catch(() => {});
+        }
+      }
+    } catch { /* تاریخچه هرگز تحلیل را نمی‌شکند */ }
+    return sendJson(body);
+  };
 
   try {
     const { patientInfo, testResults, imageDataUrl, imageDataUrls, tests, patient } = req.body || {};
@@ -2025,6 +2046,7 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
 
   // از اینجا به بعد پاسخ رفته؛ نتیجه فقط در انبارِ کار می‌نشیند.
   req._onPage = (page, tests) => reportPage(jobId, page, tests);
+  req._jobId = jobId;   // P120: تاریخچه کلیدِ یکتاسازی‌اش را از همین کار می‌گیرد
 
   const captured = { code: 200 };
   const shim = {

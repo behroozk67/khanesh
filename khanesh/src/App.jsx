@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-route
 import Tafsir from "./Tafsir";
 import AuthGuard from "./AuthGuard";
 import Profile from "./Profile";
+import History from "./History";
 import SignIn from "./onboarding/SignIn.jsx";
 import Intake from "./onboarding/Intake.jsx";
 import StartChoice, { AppEntry } from "./onboarding/StartChoice.jsx";
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/tafsir" element={<Navigate to="/app" replace />} />
           <Route path="/profile" element={<AuthGuard><PrivateHead title="پروفایل کاربری" /><Profile /></AuthGuard>} />
+          <Route path="/history" element={<AuthGuard><PrivateHead title="تاریخچهٔ آزمایش‌ها" /><History /></AuthGuard>} />
           {/* راهنمای آزمایش‌ها: فهرستِ دسته‌ها و فهرستِ الفبایی */}
           <Route path="/tests" element={<Tests />} />
           {/* صفحهٔ یک دسته (۱۷ دسته) و صفحهٔ یک آزمایش (۴۶ آزمایشِ فرم). */}

@@ -16,6 +16,7 @@ import Num from "./Num.jsx";
 import ResultDashboard from "./ResultDashboard.jsx";
 import PhenoAgeCard from "./PhenoAgeCard.jsx";
 import ExpertView from "./ExpertView.jsx";
+import DeltaStrip from "./DeltaStrip.jsx";
 import Segmented from "./Segmented.jsx";
 import ExtractedTests from "./ExtractedTests.jsx";
 import { toFaDigits } from "./digits.js";
@@ -405,6 +406,9 @@ export default function ResultView({ result, asText, asList }) {
           asText={asText}
         />
       )}
+      {/* P120: «نسبت به نوبتِ قبل» — درست بعد از کارنامه، چون اولین سؤالِ بیمار
+          بعد از دیدنِ اعداد همین است. در چاپ می‌رود (گزارشِ برگهٔ همین نوبت است). */}
+      {hasEngine && <DeltaStrip tests={tests} hidden={printing} />}
       </>)}
 
       {/* ۲. تأیید اعداد */}
