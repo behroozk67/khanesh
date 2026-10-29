@@ -1503,10 +1503,12 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
   src: url('/fonts/Estedad-VF.woff2') format('woff2-variations');
   font-weight: 100 900; font-style: normal; font-display: swap;
 }
-.fq { position: fixed; inset: 0; z-index: 4; display: flex; align-items: flex-start; justify-content: center;
+/* z-index:60 — ورق با پورتال به <body> می‌رود؛ باید از نوارِ چسبانِ هیرو (۴۰) بالاتر باشد،
+   وگرنه با اسکرول، نوار روی پرده می‌افتد. */
+.fq { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-start; justify-content: center;
       font-family: 'Estedad', 'Vazirmatn', system-ui, sans-serif; }
 .fq-scrim {
-  position: absolute; inset: 0; background: rgba(70, 70, 70, .55);
+  position: absolute; inset: 0; background: rgba(9, 40, 34, .62);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
 }
 .fq-rail {

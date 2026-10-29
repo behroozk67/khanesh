@@ -2537,6 +2537,29 @@ The button worked only because React Router navigates client-side.
 - **`sites-enabled/khanesh` is a symlink.** `sed -i` on it replaces the symlink with a plain file;
   edit the target (`readlink -f`) — the same trap as fixing `/etc/nginx/conf.d` copies.
 
+### N44 — A fixed overlay inside the hero lost both its blur and its z-index (2026-10-29)
+
+The FAQ sheet (`FaqModal`) was rendered inside `<header class="lh">`, which is
+`position: relative; isolation: isolate; z-index: 40; overflow: clip`. Measured on production while the
+sheet was open:
+
+- `getComputedStyle('.fq-scrim').backdropFilter` → **`none`**, although `.fq-scrim` declares
+  `backdrop-filter: blur(18px)`. The declaration was silently dropped, exactly like a fixed element
+  inside `overflow: clip` (the same ancestor also clipped the sheet).
+- `.fq`'s `z-index: 4` therefore only competed *inside* the hero's stacking context — it could never
+  rise above the sticky nav (40) or escape the hero box.
+
+What was left was `rgba(70,70,70,.55)`: the hero's 60px headline stayed crisp behind the sheet and
+collided with the sheet's own white question list. The user's report — «نوشته‌هایش با نوشتهٔ صفحهٔ
+اصلی قاطی می‌شود» — is that collision, not a font or contrast problem.
+
+- **Fix:** `createPortal(<FaqModal/>, document.body)`, `.fq { z-index: 60 }` (above the sticky hero
+  nav's 40), and the scrim moved to the brand jade `rgba(9,40,34,.62)`.
+- **Proof the ancestor was the cause:** after the portal, `backdropFilter` computes to `blur(18px)`
+  with no CSS change to that rule.
+- **Rule:** an overlay that must cover page chrome belongs in a portal, and when a declared effect
+  doesn't appear, read `getComputedStyle` first — `none` means "not applied", not "too weak".
+
 ## Working Agreement
 
 My default is a short prompt then a long unattended run (~1 instruction per hour of session).

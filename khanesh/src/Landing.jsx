@@ -4,6 +4,7 @@ import { searchHref, searchTests } from "./testSearch.js";
 import { BRAND_FA } from "./Logo.jsx";
 import { LabMateLogo } from "./LabMateLogo.jsx";
 import { FAQ_ITEMS } from "./landingFaqData.jsx";
+import { createPortal } from "react-dom";
 import { FaqModal } from "./LandingFaq.jsx";
 import HowArt from "./howArt.jsx";
 import { useSeoHead } from "./useSeoHead.js";
@@ -630,7 +631,13 @@ function Hero() {
 
       </div>
 
-      {faq !== null && <FaqModal index={faq} onSelect={setFaq} onClose={() => setFaq(null)} />}
+      {/* ⚠️ پورتال به <body>: داخلِ .lh (isolation+overflow:clip+z-index:40) هم لایهٔ
+          بُرندهٔ نوار و هم backdrop-filter از کار می‌افتاد و متنِ هیرو از پشتِ پرده
+          خوانده می‌شد (گزارشِ ۲۰۲۶-۱۰-۲۹: «نوشته‌ها قاطی می‌شوند»). */}
+      {faq !== null && createPortal(
+        <FaqModal index={faq} onSelect={setFaq} onClose={() => setFaq(null)} />,
+        document.body
+      )}
     </header>
   );
 }
