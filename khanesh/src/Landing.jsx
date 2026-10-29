@@ -602,8 +602,13 @@ function Hero() {
   const [faq, setFaq] = useState(null);
   return (
     <header className="lh" dir="ltr">
-      <img className="lh-bg" src="/lab/labmate_hero_mockup.webp" alt={HERO_ALT}
+      <img className="lh-bg" src="/lab/labmate_hero_tablet.webp" alt={HERO_ALT}
            width="2752" height="1929" fetchPriority="high" decoding="async" />
+      {/* پردهٔ تبلت، رنگی و بدونِ فیلترِ یشمی: همان کادرِ عکس را می‌گیرد (کلاسِ مشترک)
+          و تصویر از قبل به چهارگوشِ نمایشگر منتقل شده است. روی موبایل پنهان می‌شود
+          چون آن‌جا عکس در جریانِ صفحه می‌آید و دو نسخه چیدمان را می‌شکند. */}
+      <img className="lh-bg lh-screen" src="/lab/labmate_hero_screen.webp" alt=""
+           width="2752" height="1929" aria-hidden="true" loading="lazy" decoding="async" />
       <PillNav links={HERO_LINKS} sheetMain={MENU_MAIN} />
 
       <div className="lh-body">

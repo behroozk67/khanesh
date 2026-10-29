@@ -1610,6 +1610,12 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 .lh-bg {
   filter: grayscale(1) sepia(.7) saturate(2.6) hue-rotate(115deg) brightness(1.21) contrast(1.25);
 }
+/* پردهٔ تبلت — همان کادرِ .lh-bg، ولی رنگی و بی‌فیلتر تا صفحهٔ واقعی دیده شود */
+.lh-screen {
+  filter: none; z-index: -1; pointer-events: none; user-select: none;
+  -webkit-mask-image: none; mask-image: none;
+}
+@media (max-width: 979px) { .lh-screen { display: none; } }
 .lh::after {
   background:
     radial-gradient(42% 60% at 68% 30%, rgba(0, 168, 107, .30), transparent 70%),
