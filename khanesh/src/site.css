@@ -1050,13 +1050,18 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
      بالا ≈ ۳۰٪ ارتفاعِ هیرو پایین‌تر از نوارِ بالا، ارتفاع ۶۸٪ ⇒ پایینِ عکس داخلِ قاب.
      فقط لبهٔ چپ محو می‌شود تا در گرادیانِ هیرو حل شود. */
   --hh: clamp(640px, 100svh, 920px);
-  /* z-index: 0 — بالای هالهٔ .lh::after (که z-index:-1 دارد و با گرادیانِ روشنِ
-     «--page» عکس را می‌پوشاند) و زیرِ ستونِ متن (.lh-body = 2). با -2، عکس کلاً
-     زیرِ آن هاله گم می‌شد. */
-  position: absolute; z-index: 0;
+  /* z-index: 3 — بالای هالهٔ .lh::after (-1) و بالای ستونِ متن (.lh-body = 2، که با
+     جعبه‌های تودرتویش روی ناحیهٔ راست می‌افتد و عکس را می‌پوشاند)، ولی زیرِ نوارِ
+     بالا (40). عکس و ستونِ متن هم‌پوشانیِ افقی ندارند، پس متن خوانا می‌ماند. */
+  position: absolute; z-index: 3;
   top: calc(var(--hh) * 0.30);
   right: clamp(8px, 2.5vw, 64px); left: auto;
-  height: calc(var(--hh) * 0.68); width: auto; max-width: none; aspect-ratio: 1400 / 1826;
+  height: calc(var(--hh) * 0.68); width: calc(var(--hh) * 0.68 * 1700 / 2217);
+  background: url('/lab/labmate_hero_microscope4.webp') center / contain no-repeat;
+  /* ۴۰٪ به سمتِ ستونِ متن (چپ)، ۲۰٪ بالاتر، ۲۰٪ بزرگ‌تر
+     (درصدها نسبت به ابعادِ خودِ عنصر) */
+  transform: translate(-20%, -20%) scale(1.2);
+  transform-origin: 60% 50%;
   /* فِیدِ لبه‌ها داخلِ خودِ فایل پخته شده است (آلفای WebP) — maskِ CSS لازم نیست؛
      ترکیبِ دو mask در کروم یک‌بار کلِ تصویر را صفر کرد. */
   -webkit-mask-image: none; mask-image: none;
@@ -1199,7 +1204,7 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
 /* گوشی و تبلتِ کوچک: عکس بالا، متن زیرِ آن، پله‌ها آخر */
 @media (max-width: 979px) {
   .lh { min-height: 0; }
-  .lh-bg { position: relative; inset: auto; z-index: 0; order: -1; width: 100%; height: clamp(300px, 96vw, 520px); object-fit: contain; object-position: 50% 100%; -webkit-mask-image: none; mask-image: none; }
+  .lh-bg { position: relative; inset: auto; z-index: 0; order: -1; width: 100%; height: clamp(300px, 96vw, 520px); background-size: contain; background-position: 50% 100%; transform: none; }
   .lh::after { display: none; }
   .lh { padding-top: 100px; }
   .lh-nav { inset-inline: var(--gutter); top: var(--s5); width: auto; margin: 0; }
@@ -1610,7 +1615,9 @@ a.site-test:hover { border-color: var(--brand); box-shadow: var(--sh-xs); }
    رنگ‌بندی شده تا لبهٔ محوشدنش با زمینه یکی باشد. متنِ سفید روی --lh-jade بیش از ۱۰:۱. */
 .lh { --lh-jade: #073b30; --lh-jade-rgb: 7, 59, 48; background: var(--lh-jade); color: #fff; }
 .lh-bg {
-  filter: grayscale(1) sepia(.7) saturate(2.6) hue-rotate(115deg) brightness(1.21) contrast(1.25);
+  /* رنگ‌بندی داخلِ خودِ فایل پخته شده است (۲۰٪ به زمینه + سایه‌های هم‌رنگِ زمینه)؛
+     filter: none چون ترکیبِ filter با تصویرِ آلفادار در این مرورگر تصویر را نمی‌کشید. */
+  filter: none;
 }
 
 .lh::after {

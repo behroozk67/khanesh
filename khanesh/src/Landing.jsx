@@ -602,8 +602,9 @@ function Hero() {
   const [faq, setFaq] = useState(null);
   return (
     <header className="lh" dir="ltr">
-      <img className="lh-bg" src="/lab/labmate_hero_microscope.webp" alt={HERO_ALT}
-           width="1400" height="1826" fetchPriority="high" decoding="async" />
+      {/* عکس به‌صورتِ پس‌زمینهٔ div رندر می‌شود؛ <img> با آلفا در برخی موتورها
+          تا اولین repaint کشیده نمی‌شد. */}
+      <div className="lh-bg" role="img" aria-label={HERO_ALT} />
       <PillNav links={HERO_LINKS} sheetMain={MENU_MAIN} />
 
       <div className="lh-body">
