@@ -11,9 +11,12 @@
 // «همهٔ آزمایش‌ها» حذف شد؛ یادداشتِ N5 («روی برگهٔ شما: X») برای کلسیم/سدیمِ تصحیح‌شده به داشبورد رفت.
 // ============================================================
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import Num from "./Num.jsx";
 import ResultDashboard from "./ResultDashboard.jsx";
+import ResultReport from "./ResultReport.jsx";
 import PhenoAgeCard from "./PhenoAgeCard.jsx";
 import ExpertView from "./ExpertView.jsx";
 import DeltaStrip from "./DeltaStrip.jsx";
@@ -21,6 +24,7 @@ import Segmented from "./Segmented.jsx";
 import ExtractedTests from "./ExtractedTests.jsx";
 import { toFaDigits } from "./digits.js";
 import { buildVerdictContext } from "./resultStates.js";
+import { DISCLAIMER_FA, EMERGENCY_BANNER } from "./resultModel.js";
 import { CATEGORY_ORDER, categoryOf } from "./testCategories.js";
 
 /* ---------- بلوکِ حالت سوم ---------- */
@@ -250,10 +254,62 @@ function writeViewMode(m) {
   try { localStorage.setItem(VIEW_MODE_KEY, m); } catch { /* حافظهٔ مسدود: فقط همین بار */ }
 }
 
+/* ---------- گزارشِ PDF (specs/018) ----------
+   PDF با موتورِ چاپِ مرورگر ساخته می‌شود؛ پس نامِ فایل همان document.title است.
+   ⚠️ تاریخِ نامِ فایل از نمونهٔ برگه می‌آید (اگر بود)، وگرنه امروز — عددِ تاریخ
+      هیچ‌جای دیگری در گزارش ساخته نمی‌شود. */
+const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+function printFileName(sampleDate) {
+  const t = Date.parse(sampleDate) || Date.now();
+  let stamp = "";
+  try {
+    stamp = new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date(t));
+  } catch { stamp = ""; }
+  stamp = stamp.replace(/[۰-۹]/g, (d) => FA_DIGITS.indexOf(d)).replace(/[\s/]+/g, "-").replace(/-+$/, "");
+  return stamp ? `آزمایار-تفسیر-آزمایش-${stamp}` : "آزمایار-تفسیر-آزمایش";
+}
+
 export default function ResultView({ result, asText, asList }) {
   const eng = result._engine;
   const hasEngine = !!eng;
   const [viewMode, setViewMode] = useState(readViewMode);
+  // specs/018 — گزارشِ PDF: تنها فرزندِ دیده‌شدهٔ <body> در چاپ، از پورتال رندر می‌شود
+  //   تا چیدمانِ صفحه (هدر، هیرو، داشبورد) در چاپِ سند هیچ نقشی نداشته باشد.
+  const [printing, setPrinting] = useState(false);
+  const sampleDate = typeof eng?.context?.sample_date === "string" ? eng.context.sample_date : null;
+  useEffect(() => {
+    if (!printing) return undefined;
+    const prevTitle = document.title;
+    document.body.classList.add("is-printing-report");
+    document.title = printFileName(sampleDate);
+    let restored = false;
+    const restore = () => {
+      if (restored) return;
+      restored = true;
+      document.body.classList.remove("is-printing-report");
+      document.title = prevTitle;
+      setPrinting(false);
+    };
+    window.addEventListener("afterprint", restore);
+    // ⚠️ فونت باید پارس‌شده باشد، وگرنه چاپ‌پیش‌نمایش با فونتِ جایگزین رندر می‌شود.
+    const ready = document.fonts?.ready ?? Promise.resolve();
+    ready.then(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+      // ⚠️ بعد از window.print() فوراً برنمی‌چینیم: در سافاری این فراخوانی
+      //    همگام نیست و برگرداندنِ فوری، پیش‌نمایش را خالی می‌کند. `afterprint`
+      //    در کروم/فایرفاکس/سافاری با بستنِ دیالوگ می‌آید.
+      try { window.print(); } catch { restore(); }
+    })));
+    // تورِ ایمنی: بعد از چاپ (با هر مسیری) کلاسِ چاپ روی body نمی‌ماند.
+    const safety = setTimeout(restore, 30000);
+    return () => {
+      clearTimeout(safety);
+      window.removeEventListener("afterprint", restore);
+      document.body.classList.remove("is-printing-report");
+      document.title = prevTitle;
+    };
+  }, [printing, sampleDate]);
   // نمای تخصصی فقط روی مسیرِ موتور معنا دارد؛ بیرونِ آن همیشه ساده.
   const expert = hasEngine && viewMode === "expert";
   const urgency = eng?.urgency ?? "none";
@@ -297,13 +353,9 @@ export default function ResultView({ result, asText, asList }) {
              یک <div> ساده بود که هیچ اسکرین‌ریدری اعلامش نمی‌کرد. */}
       {result.has_critical && (
         <div className={todayBanner && todayBanner.tone !== "emergency" ? "crit-banner crit-banner--today" : "crit-banner"} role="alert">
-          <p className="crit-title">{todayBanner ? asText(todayBanner.title) : "این نتیجه باید همین امروز دیده شود"}</p>
+          <p className="crit-title">{todayBanner ? asText(todayBanner.title) : EMERGENCY_BANNER.title}</p>
           <p className="crit-body">
-            {todayBanner ? asText(todayBanner.body) : (
-              "منتظر صبح نمانید — طبق دستورِ همین گزارش همین حالا به نزدیک‌ترین اورژانس بروید " +
-              "یا با ۱۱۵ تماس بگیرید و همین برگه را همراه ببرید. حتی اگر حالتان خوب است، این نتیجه را " +
-              "به فردا موکول نکنید."
-            )}
+            {todayBanner ? asText(todayBanner.body) : EMERGENCY_BANNER.body}
           </p>
         </div>
       )}
@@ -312,17 +364,49 @@ export default function ResultView({ result, asText, asList }) {
              بیماریِ تیک‌خورده‌ای که قاعده ندارد اینجا نمی‌آید (FR-019). سرورِ قدیمی context ندارد ⇒ چیزی رندر نمی‌شود. */}
       <ContextLine ctx={eng?.context} asText={asText} />
 
-      {hasEngine && (
-        <div className="view-switch">
-          <Segmented
-            label="نمای نتیجه"
-            value={expert ? "expert" : "simple"}
-            options={[{ value: "simple", label: "ساده" }, { value: "expert", label: "تخصصی (کادر درمان)" }]}
-            onChange={(m) => { setViewMode(m); writeViewMode(m); }}
-            size="sm"
-          />
+      {/* نوارِ ابزار: سوییچِ نما (روی مسیرِ موتور) + تاریخچه + دریافتِ PDF (specs/018).
+             «تاریخچه و روند» عمداً کنارِ سوییچِ «تخصصی» است: همان‌جا که پزشک/بیمار
+             می‌خواهد بداند این عدد نسبت به نوبتِ قبل چه شد، بی‌آنکه صفحه را عوض کند.
+             دکمهٔ PDF در هر دو نما هست و همیشه گزارشِ «نمای ساده» را می‌سازد. */}
+      <div className="result-tools">
+        <div className="result-tools__group">
+          {hasEngine && (
+            <Segmented
+              label="نمای نتیجه"
+              value={expert ? "expert" : "simple"}
+              options={[{ value: "simple", label: "ساده" }, { value: "expert", label: "تخصصی (کادر درمان)" }]}
+              onChange={(m) => { setViewMode(m); writeViewMode(m); }}
+              size="sm"
+            />
+          )}
+          <Link
+            to="/history"
+            className="btn btn--outline result-tools__link"
+            title="نوبت‌های قبلی و روندِ هر آزمایش"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 17l5-6 4 3 5-7 4 4" />
+              <path d="M3 21h18" />
+            </svg>
+            تاریخچه و روند
+          </Link>
         </div>
-      )}
+        <button
+          type="button"
+          className="btn btn--outline result-tools__pdf"
+          onClick={() => setPrinting(true)}
+          aria-label="دریافت تفسیر به‌صورت فایل PDF"
+          title="در پنجرهٔ چاپ، مقصد را «Save as PDF» بگذارید"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z" />
+            <path d="M14 3v4h4" /><path d="M12 11v6m-2.5-2.5L12 17l2.5-2.5" />
+          </svg>
+          دریافت PDF
+        </button>
+      </div>
 
       {/* P113 — کارتِ سنِ زیستی، پیش از تفسیر و فقط در نمای ساده.
              داده‌اش را سرور می‌سازد (`_engine.phenoAge`)؛ نبودش ⇒ کارت رندر نمی‌شود. */}
@@ -375,9 +459,13 @@ export default function ResultView({ result, asText, asList }) {
       {!result.labmat && result.interpretation && (
         <section className="card prose-block">
           <h2 className="block-title">تفسیر</h2>
-          {asText(result.interpretation).split(/\n{2,}/).map((para, i) => (
-            <p className="text" key={i}>{para}</p>
-          ))}
+          {asText(result.interpretation)
+            .split(/\r?\n\s*\r?\n/)
+            .map((p) => p.trim())
+            .filter(Boolean)
+            .map((para, i) => (
+              <p className="text" key={i}>{para}</p>
+            ))}
         </section>
       )}
       
@@ -406,7 +494,7 @@ export default function ResultView({ result, asText, asList }) {
           asText={asText}
         />
       )}
-      {/* P120: «نسبت به نوبتِ قبل» — درست بعد از کارنامه، چون اولین سؤالِ بیمار
+      {/* P117: «نسبت به نوبتِ قبل» — درست بعد از کارنامه، چون اولین سؤالِ بیمار
           بعد از دیدنِ اعداد همین است. در چاپ می‌رود (گزارشِ برگهٔ همین نوبت است). */}
       {hasEngine && <DeltaStrip tests={tests} hidden={printing} />}
       </>)}
@@ -460,10 +548,14 @@ export default function ResultView({ result, asText, asList }) {
 
       {/* ⚠️ ثابت و سمتِ کلاینت — عمداً از خروجیِ مدل خوانده نمی‌شود.
           تنها جملهٔ حقوقیِ صفحه نباید چیزی باشد که مدل هر بار از نو می‌نویسد. */}
-      <p className="disclaimer">
-        این تفسیر خودکار است و جای معاینهٔ پزشک را نمی‌گیرد. برای تصمیم درمانی حتماً با پزشک
-        مشورت کنید.
-      </p>
+      <p className="disclaimer">{DISCLAIMER_FA}</p>
+
+      {/* گزارشِ چاپی — فقط وقتی «دریافت PDF» زده شده، مستقیم زیرِ <body> تا
+          چیدمانِ صفحه هیچ اثری روی سندِ A4 نداشته باشد (specs/018). */}
+      {printing && createPortal(
+        <ResultReport result={result} asText={asText} asList={asList} />,
+        document.body
+      )}
     </div>
   );
 }

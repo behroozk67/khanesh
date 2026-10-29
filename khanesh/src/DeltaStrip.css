@@ -11,14 +11,6 @@
 }
 .delta-head .block-title { margin: 0; }
 
-.delta-link {
-  font-size: .82rem;
-  color: var(--brand-ink);
-  text-decoration: none;
-  border-bottom: 1px solid var(--brand-line);
-}
-.delta-link:hover { border-bottom-color: var(--brand); }
-
 .delta-lead {
   margin: 8px 0 12px;
   font-size: .9rem;

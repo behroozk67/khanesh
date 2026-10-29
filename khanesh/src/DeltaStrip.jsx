@@ -11,7 +11,6 @@
 // ============================================================
 
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { apiJson } from './deviceId.js';
 import { toFaDigits } from './digits.js';
 import './DeltaStrip.css';
@@ -53,7 +52,6 @@ export default function DeltaStrip({ tests, hidden = false }) {
     <section className="card delta-strip" aria-labelledby="delta-title">
       <div className="delta-head">
         <h2 className="block-title" id="delta-title">نسبت به نوبتِ قبل</h2>
-        <Link to="/history" className="delta-link">تاریخچه و روند</Link>
       </div>
       <p className="delta-lead">{lead}</p>
       <ul className="delta-list">

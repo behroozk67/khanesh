@@ -24,8 +24,26 @@
   flex-wrap: wrap;
   margin-block: var(--s4, 12px) var(--s5, 16px);
 }
+/* سوییچِ نما و «تاریخچه و روند» یک گروه‌اند: کنارِ هم می‌مانند و PDF سمتِ دیگر
+   می‌رود. بدونِ گروه، space-between سه آیتم را از هم می‌پاشید. */
+.result-tools__group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3, 8px);
+  flex-wrap: wrap;
+}
 .result-tools__pdf { display: inline-flex; align-items: center; gap: 6px; }
 .result-tools__pdf svg { flex: none; }
+.result-tools__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  font-size: var(--t-sm, .86rem);
+  white-space: nowrap;
+}
+.result-tools__link svg { flex: none; }
+.result-tools__link:hover { border-color: var(--brand-line); color: var(--brand-ink); }
 
 @media print {
   @page { size: A4; margin: 8mm 9mm 7mm; }
