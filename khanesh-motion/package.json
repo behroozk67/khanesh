@@ -1,0 +1,21 @@
+{
+  "name": "khanesh-motion",
+  "private": true,
+  "version": "1.0.0",
+  "description": "موشن‌گرافیکِ معرفیِ آزمایار — پروژهٔ مستقل، جدا از khanesh/ و khanesh-server/",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "render:vertical": "remotion render src/index.jsx AzmayarVertical out/azmayar-9x16.mp4 --codec=h264",
+    "render:wide": "remotion render src/index.jsx AzmayarWide out/azmayar-16x9.mp4 --codec=h264",
+    "poster": "remotion still src/index.jsx AzmayarVertical out/poster-9x16.png --frame=900 && remotion still src/index.jsx AzmayarWide out/poster-16x9.png --frame=900",
+    "srt": "node scripts/make-srt.mjs",
+    "render:all": "npm run render:vertical && npm run render:wide && npm run poster && npm run srt"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.250",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.250"
+  }
+}
