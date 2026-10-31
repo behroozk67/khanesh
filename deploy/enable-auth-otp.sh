@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # روشن‌کردنِ ورود با کدِ پیامک روی سرورِ تولید — idempotent و با بکاپ.
-#   HOST=87.107.130.42 SSH_KEY=~/.ssh/azmayar_deploy bash deploy/enable-auth-otp.sh
+#   HOST=<server-ip> SSH_KEY=~/.ssh/id_ed25519 bash deploy/enable-auth-otp.sh
 #
 # چرا اسکریپت و نه یک ssh تکی: پیستِ چندخطی در SSH به‌هم می‌ریزد و خطِ
 # «AUTH_REQUIRED=true» دستی هم یک‌بار به خطِ بی‌معنی «AUT...ue» تبدیل شد

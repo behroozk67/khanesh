@@ -19,12 +19,12 @@ function escapeHtml(str) {
  */
 async function sendTelegramNotification(entry) {
   const token = process.env.TELEGRAM_NOTIFY_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_NOTIFY_CHAT_ID || "554318761";
+  const chatId = process.env.TELEGRAM_NOTIFY_CHAT_ID;
   const apiBase = (process.env.TELEGRAM_API_BASE || "https://api.telegram.org").replace(/\/+$/, "");
 
-  if (!token) {
-    console.warn("[NOTIFIER] تلگرام پیکربندی نشده (TELEGRAM_NOTIFY_BOT_TOKEN خالی است).");
-    return { ok: false, error: "TOKEN_MISSING" };
+  if (!token || !chatId) {
+    console.warn("[NOTIFIER] تلگرام پیکربندی نشده (TELEGRAM_NOTIFY_BOT_TOKEN یا TELEGRAM_NOTIFY_CHAT_ID خالی است).");
+    return { ok: false, error: "CONFIG_MISSING" };
   }
 
   const dateStr = new Date(entry.createdAt || Date.now()).toLocaleString("fa-IR", {

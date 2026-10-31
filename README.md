@@ -12,7 +12,8 @@
 [![Vite](https://img.shields.io/badge/Vite-8-646cff?style=flat-square&logo=vite)](https://vitejs.dev/)
 [![Tests](https://img.shields.io/badge/Tests-1580%2B%20Passing-brightgreen?style=flat-square)](khanesh-server/)
 [![Clinical Engine](https://img.shields.io/badge/Clinical%20Engine-Deterministic-0284c7?style=flat-square)](khanesh-server/rules/)
-[![Security](https://img.shields.io/badge/Privacy-Patient%20Zero%20Leak-success?style=flat-square)](CLAUDE.md)
+[![Security](https://img.shields.io/badge/Security-Policy%20%26%20Zero%20Leak-success?style=flat-square)](SECURITY.md)
+[![License](https://img.shields.io/badge/License-Fair--Source%20%2F%20Noncommercial-blueviolet?style=flat-square)](LICENSE)
 
 ---
 
@@ -37,6 +38,7 @@
 - [منابع علمی و رفرنس‌های بالینی](#منابع-علمی-و-رفرنسهای-بالینی)
 - [حریم خصوصی و امنیت داده‌ها](#حریم-خصوصی-و-امنیت-دادهها)
 - [سلب مسئولیت پزشکی](#سلب-مسئولیت-پزشکی)
+- [پروانه نرم‌افزار، امنیت و مرزهای کپی‌رایت](#پروانه-نرم‌افزار-امنیت-و-مرزهای-کپی‌رایت)
 
 ---
 
@@ -284,6 +286,17 @@ npm run lint
 ## سلب مسئولیت پزشکی
 
 > ⚠️ **یادآوری مهم:** آزمایار اپ یک سامانهٔ کمک‌آموزشی و ابزاری جهت افزایش آگاهی بیمار و تسهیل مرور آزمایش‌هاست. این سامانه تحت هیچ شرایطی جایگزین نظر، معاینه، تشخیص تخصصی یا برنامهٔ درمانی پزشک معالج نیست. برای هرگونه تصمیم درمانی، مصرف دارو یا تفسیر قطعی نتایج، مراجعه به پزشک متخصص الزامی است.
+
+---
+
+## پروانه نرم‌افزار، امنیت و مرزهای کپی‌رایت
+
+این پروژه با رویکرد **منبع‌باز با دسترسی منصفانه (Fair-Source / Source-Available)** برای مقاصد آموزشی، ممیزی شفاف بالینی و پژوهش‌های سلامت جامعه منتشر شده است:
+
+- 🔬 **شفافیت بالینی و ممیزی باز:** تمامی قوانین پزشکی، الگوریتم‌ها و تست‌های اعتبارسنجی به‌صورت شفاف در دسترس جامعه سلامت قرار دارند تا صحت بالینی و عدم نشت داده‌های بیماران کاملاً قابل بازبینی و ممیزی باشد.
+- 🚫 **ممنوعیت کلون تجاری صفر تا صد (No Commercial Turnkey Cloning):** هرگونه استفاده تجاری، بازفروش، بسته‌بندی به عنوان سرویس پولی یا ابری (SaaS)، یا راه‌اندازی نسخه‌های تجاری رقیب بدون اخذ مجوز کتبی رسمی از مالک اثر (`behroozk67`) اکیداً ممنوع است.
+- 🛡️ **حقوق انحصاری برند و هویت تجاری:** نشان‌های تجاری «آزمایار»، «آزمایار اپ»، «Azmayar»، لوگوها، نام دامنه `azmayarapp.ir` و دارایی‌های بصری محصول تحت لایسنس نرم‌افزار واگذار نشده و دارای حق انحصاری هستند.
+- 📋 جهت مطالعه جزئیات به فایل‌های [LICENSE](LICENSE) و [SECURITY.md](SECURITY.md) مراجعه فرمایید.
 
 ---
 

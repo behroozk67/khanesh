@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# تنظیم متغیرهای اعلان پیام به تلگرام و ایمیل در سرور تولید
-#   HOST=87.107.130.42 SSH_KEY=~/.ssh/azmayar_deploy bash deploy/configure-notifier.sh
+# تنظیم متغیرهای اعلان پیام به تلگرام و ایمیل در سرور
+#   HOST=<server-ip> SSH_KEY=<path-to-key> bash deploy/configure-notifier.sh
 set -euo pipefail
 : "${HOST:?HOST را بده}"
 KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 
-# استخراج توکن بات از سرور پشتیبانی 162.35.19.85
 BOT_TOKEN="${TELEGRAM_NOTIFY_BOT_TOKEN:-}"
-if [ -z "$BOT_TOKEN" ]; then
-  BOT_TOKEN=$(ssh -o BatchMode=yes root@162.35.19.85 "python3 -c 'import re; print(re.search(r\"TOKEN\s*=\s*[\x27\x22]([^\x27\x22]+)[\x27\x22]\", open(\"/home/hermes/azmayar-support-bot/bot.py\").read()).group(1))'" 2>/dev/null || true)
-fi
-
+CHAT_ID="${TELEGRAM_NOTIFY_CHAT_ID:-}"
+TG_RELAY="${TELEGRAM_API_BASE:-https://api.telegram.org}"
+NOTIFY_EMAIL_ADDR="${NOTIFY_EMAIL:-}"
+SMTP_USER_VAL="${SMTP_USER:-}"
 SMTP_PASS_VAL="${SMTP_PASS:-}"
+SMTP_HOST_VAL="${SMTP_HOST:-smtp.gmail.com}"
+SMTP_PORT_VAL="${SMTP_PORT:-465}"
 
 ssh -i "$KEY" -o StrictHostKeyChecking=accept-new -o BatchMode=yes "root@$HOST" "bash -s" <<REMOTE
 set -euo pipefail
@@ -25,13 +26,27 @@ grep -E '^[A-Z0-9_]+=' "\$ENV" | grep -vE '^(TELEGRAM_NOTIFY_BOT_TOKEN|TELEGRAM_
 if [ -n "$BOT_TOKEN" ]; then
   echo "TELEGRAM_NOTIFY_BOT_TOKEN=$BOT_TOKEN" >> "\$TMP"
 fi
-echo "TELEGRAM_NOTIFY_CHAT_ID=554318761" >> "\$TMP"
-echo "TELEGRAM_API_BASE=http://162.35.19.85/tg-relay" >> "\$TMP"
-echo "NOTIFY_EMAIL=azmayarapp@gmail.com" >> "\$TMP"
-echo "SMTP_USER=azmayarapp@gmail.com" >> "\$TMP"
-echo "SMTP_PASS=$SMTP_PASS_VAL" >> "\$TMP"
-echo "SMTP_HOST=smtp.gmail.com" >> "\$TMP"
-echo "SMTP_PORT=465" >> "\$TMP"
+if [ -n "$CHAT_ID" ]; then
+  echo "TELEGRAM_NOTIFY_CHAT_ID=$CHAT_ID" >> "\$TMP"
+fi
+if [ -n "$TG_RELAY" ]; then
+  echo "TELEGRAM_API_BASE=$TG_RELAY" >> "\$TMP"
+fi
+if [ -n "$NOTIFY_EMAIL_ADDR" ]; then
+  echo "NOTIFY_EMAIL=$NOTIFY_EMAIL_ADDR" >> "\$TMP"
+fi
+if [ -n "$SMTP_USER_VAL" ]; then
+  echo "SMTP_USER=$SMTP_USER_VAL" >> "\$TMP"
+fi
+if [ -n "$SMTP_PASS_VAL" ]; then
+  echo "SMTP_PASS=$SMTP_PASS_VAL" >> "\$TMP"
+fi
+if [ -n "$SMTP_HOST_VAL" ]; then
+  echo "SMTP_HOST=$SMTP_HOST_VAL" >> "\$TMP"
+fi
+if [ -n "$SMTP_PORT_VAL" ]; then
+  echo "SMTP_PORT=$SMTP_PORT_VAL" >> "\$TMP"
+fi
 
 chown root:khanesh "\$TMP"
 chmod 640 "\$TMP"

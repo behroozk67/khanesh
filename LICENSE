@@ -1,0 +1,71 @@
+AZMAYAR COMMUNITY, RESEARCH & FAIR-SOURCE LICENSE (v1.0)
+Copyright (c) 2024-2026 Behrooz (behroozk67 / Azmayar App) - All Rights Reserved.
+Official Website: https://azmayarapp.ir
+
+--------------------------------------------------------------------------------
+ENGLISH VERSION (LEGAL TERMS)
+--------------------------------------------------------------------------------
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to inspect,
+study, audit, run locally, modify, and contribute to the Software for NON-COMMERCIAL,
+EDUCATIONAL, ACADEMIC RESEARCH, AND CLINICAL AUDITING PURPOSES ONLY, subject to the
+following conditions:
+
+1. NON-COMMERCIAL & NO TURNKEY SAAS PROHIBITION:
+   You may NOT use, deploy, host, distribute, sublicense, or sell the Software
+   or any derivative work thereof as a commercial product, software-as-a-service (SaaS),
+   hosted cloud service, paid API, or turnkey commercial solution without the express,
+   prior written commercial license and agreement from the copyright holder.
+
+2. TRADEMARK & BRAND IDENTITY EXCLUSION:
+   This license does NOT grant any right, title, or interest in or to the trademarks,
+   trade names, brand names ("آزمایار", "آزمایار اپ", "Azmayar", "Azmayar App"),
+   logos, domain names (including azmayarapp.ir), landing design tokens, and proprietary
+   visual assets. All such marks and assets remain the exclusive intellectual property
+   of the copyright holder and may not be used in connection with any derivative
+   distribution without prior written authorization.
+
+3. CLINICAL AUDIT & OPEN CODE TRANSPARENCY:
+   The source code and clinical decision rules are made available openly to ensure
+   scientific transparency, peer medical verification, patient data safety inspection,
+   and reproducible research. Any public study, paper, or non-commercial implementation
+   referencing this project must provide appropriate attribution to the original author
+   and the Azmayar App repository.
+
+4. DISCLAIMER OF MEDICAL AND GENERAL WARRANTY:
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, MEDICAL COMPLICATIONS,
+   OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+   THE SOFTWARE. THIS SOFTWARE IS A HEALTH LITERACY AND EDUCATIONAL TOOL AND DOES NOT
+   CONSTITUTE FORMAL MEDICAL DIAGNOSIS OR CLINICAL PRACTICE.
+
+--------------------------------------------------------------------------------
+نسخهٔ فارسی (قوانین و شرایط استفاده و پروانه)
+--------------------------------------------------------------------------------
+
+بدین‌وسیله به تمامی افراد، پژوهشگران و جامعه توسعه‌دهندگان اجازه داده می‌شود
+کدهای این سامانه را برای مقاصد غیرتجاری، آموزشی، پژوهش‌های دانشگاهی و ممیزی بالینی
+بررسی، مطالعه، اجرا در محیط محلی، و مشارکت فنی نمایند، مشروط به رعایت بندهای زیر:
+
+۱. ممنوعیت کپی‌برداری تجاری و راه‌اندازی سرویس‌های رقابتی (No Turnkey Commercial SaaS):
+   استفاده، استقرار، میزبانی و فروش این نرم‌افزار یا بخش‌های کلیدی آن به عنوان یک
+   محصول تجاری، سرویس ابری (SaaS)، سرویس پولی یا کلون تجاری آماده بدون دریافت
+   مجوز رسمی و مکتوب قبلی از مالک اثر (آزمایار اپ / بهروز) اکیداً ممنوع است.
+
+۲. حفاظت از علائم تجاری و هویت بصری برند:
+   این پروانه هیچ‌گونه حقی برای استفاده از نام تجاری «آزمایار»، «آزمایار اپ»، «Azmayar»،
+   نشان‌ها و لوگوها، نام دامنه azmayarapp.ir و دارایی‌های طراحی بصری به اشخاص ثالث
+   اعطا نمی‌کند. هرگونه بازنشر محصولات مشتق‌شده باید بدون این علائم و با انتساب کامل
+   به منبع اصلی انجام پذیرد.
+
+۳. شفافیت بالینی و ممیزی علمی:
+   انتشار کدهای سامانه صرفاً با هدف شفافیت علمی، اعتباربخشی قواعد پزشکی توسط جامعه
+   درمان، و راستی‌آزمایی امنیت و عدم نشت داده‌های بیماران صورت پذیرفته است.
+
+۴. سلب مسئولیت پزشکی:
+   این سامانه یک ابزار کمک‌آموزشی است و فاقد هرگونه ضمانت پزشکی یا بالینی است و هرگز
+   جایگزین قضاوت پزشک معالج نخواهد بود.

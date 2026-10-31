@@ -63,7 +63,7 @@
 
 ```bash
 # هر چند روز: پوششِ خزشِ گوگل و بینگ از لاگِ سرور
-ssh -i ~/.ssh/azmayar_deploy root@87.107.130.42 \
+ssh -i ~/.ssh/YOUR_KEY root@<server-ip> \
   'zcat -f /var/log/nginx/access.log* | grep Googlebot | awk "{print \$7}" | sort -u | wc -l'
 
 # بعد از هر انتشار: اعلام به ایندکس‌ها

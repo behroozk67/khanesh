@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # استقرار از ماشین توسعه: بیلد، آپلود، نصب وابستگی، ری‌استارت.
-#   HOST=87.107.130.42 SSH_KEY=~/.ssh/azmayar_deploy bash deploy/deploy.sh
+#   HOST=<server-ip> SSH_KEY=~/.ssh/id_ed25519 bash deploy/deploy.sh
 # برای سرور جدید فقط HOST را عوض کن. اولین بار setup.sh هم روی سرور اجرا می‌شود (idempotent).
 set -euo pipefail
 : "${HOST:?HOST را بده}"
