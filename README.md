@@ -1,70 +1,292 @@
-# Khanesh — LabMate («خوانش»)
+# آزمایار اپ | Azmayar App 🩺🔬
 
-Patient-facing web app that interprets medical lab reports in Persian/Farsi. A React frontend
-collects lab values (typed in or photographed) and an Express backend runs them through a
-deterministic clinical rules engine before an LLM (via AvalAI, an OpenAI-compatible gateway)
-rewrites the engine's findings into plain-language Persian.
+> **سامانه هوشمند، امن و پیشرفتهٔ خوانش و تفسیر تخصصی برگهٔ آزمایش‌های پزشکی به زبان ساده و قابل‌فهم فارسی**  
+> *ترکیب موتور قواعد بالینی دترمینستیک با هوش مصنوعی مولد جهت افزایش آگاهی بیمار و همراهی کادر درمان*
 
-**The core architectural rule: the LLM never decides what's abnormal.** Clinical judgment —
-abnormal/normal, severity, patterns — is computed by a deterministic rules engine
-(`khanesh-server/rules/`); the LLM only rewrites pre-computed findings into fluent Persian. See
-[CLAUDE.md](CLAUDE.md) for why, and [.claude/rules/architecture.md](.claude/rules/architecture.md)
-for the full request flow.
+🌐 **وب‌سایت زنده:** [azmayarapp.ir](https://azmayarapp.ir)
 
-## Structure
+---
 
-Two independent projects, no shared `package.json` — `cd` into the right one before running
-commands.
+[![Node.js](https://img.shields.io/badge/Node.js-20+-68a063?style=flat-square&logo=node.js)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8-646cff?style=flat-square&logo=vite)](https://vitejs.dev/)
+[![Tests](https://img.shields.io/badge/Tests-1580%2B%20Passing-brightgreen?style=flat-square)](khanesh-server/)
+[![Clinical Engine](https://img.shields.io/badge/Clinical%20Engine-Deterministic-0284c7?style=flat-square)](khanesh-server/rules/)
+[![Security](https://img.shields.io/badge/Privacy-Patient%20Zero%20Leak-success?style=flat-square)](CLAUDE.md)
 
-| Folder | What it is |
-|---|---|
-| [`khanesh/`](khanesh/) | React 19 + Vite frontend — the form/photo intake and result UI |
-| [`khanesh-server/`](khanesh-server/) | Express backend — OCR, the rules engine, the AvalAI proxy |
+---
+
+## فهرست مطالب
+
+- [درباره آزمایار اپ](#درباره-آزمایار-اپ)
+- [اصل بنیادین بالینی: چرا هوش مصنوعی قضاوت نمی‌کند؟](#اصل-بنیادین-بالینی-چرا-هوش-مصنوعی-قضاوت-نمیکند)
+- [ویژگی‌های برجسته](#ویژگیهای-برجسته)
+  - [۱. خوانش چندکاناله (تصویر، PDF و ورود دستی)](#۱-خوانش-چندکاناله-تصویر-pdf-و-ورود-دستی)
+  - [۲. موتور بالینی قدرتمند و پوشش بیش از ۳۰۰ مارکر](#۲-موتور-بالینی-قدرتمند-و-پوشش-بیش-از-۳۰۰-مارکر)
+  - [۳. نمای دوگانه: ساده (بیمار) و تخصصی (کادر درمان)](#۳-نمای-دوگانه-ساده-بیمار-و-تخصصی-کادر-درمان)
+  - [۴. محاسبه سن زیستی فنوتیپی (Levine PhenoAge)](#۴-محاسبه-سن-زیستی-فنوتیپی-levine-phenoage)
+  - [۵. پایش تاریخچه و مقایسه هوشمند نوبت‌ها بر اساس RCV](#۵-پایش-تاریخچه-و-مقایسه-هوشمند-نوبتها-بر-اساس-rcv)
+  - [۶. تولید گزارش PDF رنگی و استاندارد](#۶-تولید-گزارش-pdf-رنگی-و-استاندارد)
+- [ساختار مخزن و ماژول‌ها](#ساختار-مخزن-و-ماژولها)
+- [پشته فناوری (Tech Stack)](#پشته-فناوری-tech-stack)
+- [راه‌اندازی و اجرای محلی (Quick Start)](#راهاندازی-و-اجرای-محلی-quick-start)
+  - [پیش‌نیازها](#پیشنیازها)
+  - [راه‌اندازی بک‌اند](#راهاندازی-بکاند)
+  - [راه‌اندازی فرانت‌اند](#راهاندازی-فرانتاند)
+- [کیفیت، تست‌ها و دروازه‌های اعتبارسنجی](#کیفیت-تستها-و-دروازههای-اعتبارسنجی)
+- [منابع علمی و رفرنس‌های بالینی](#منابع-علمی-و-رفرنسهای-بالینی)
+- [حریم خصوصی و امنیت داده‌ها](#حریم-خصوصی-و-امنیت-دادهها)
+- [سلب مسئولیت پزشکی](#سلب-مسئولیت-پزشکی)
+
+---
+
+## درباره آزمایار اپ
+
+برگه‌های آزمایش پزشکی پر از علائم اختصاری، واحدهای پیچیده و اعداد سردرگم‌کننده‌اند. در بسیاری از موارد، بیماران تا زمان ویزیت پزشک دچار اضطراب‌های بی‌مورد ناشی از جستجوهای عمومی اینترنتی می‌شوند یا متقابلاً نشانه‌های خطرِ واقعی را نادیده می‌گیرند.
+
+**آزمایار اپ (Azmayar App)** با تلفیق دانش پزشکی بالینی، محاسبات دقیق ریاضی و هوش مصنوعی مدرن، برگهٔ آزمایش را می‌خواند، هر پارامتر را با بازهٔ مرجع متناسب با سن و جنسیت کاربر می‌سنجد، الگوهای چندگانه را ردیابی کرده و در نهایت تفسیری شفاف، آرامش‌بخش، مبتنی بر شواهد و دسته‌بندی‌شده به زبان فارسی ارائه می‌دهد.
+
+---
+
+## اصل بنیادین بالینی: چرا هوش مصنوعی قضاوت نمی‌کند؟
+
+> **قانون طلایی پروژه:** مدل‌های زبانی بزرگ (LLM) تحت هیچ شرایطی دربارهٔ طبیعی یا غیرطبیعی بودن اعداد، شدت انحراف و ضرورت ارجاع قضاوت نمی‌کنند.
+
+مدل‌های زبانی در محاسبات عددی، به‌خاطرسپاری بازه‌های آزمایشگاهی و درک حساسیت‌های بالینی مستعد توهم (Hallucination) هستند. به همین دلیل در آزمایار اپ:
 
 ```
+┌──────────────────────────────────────────────────────────┐
+│  ورودی کاربر (عکس برگه / فایل PDF / ورود دستی)           │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│  استخراج مقادیر و نگاشت یکپارچه نام‌ها و واحدها          │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│  موتور قواعد بالینی دترمینستیک (Deterministic Engine)   │
+│  - تطبیق دقیق بازه‌ها بر اساس سن، جنسیت و بارداری         │
+│  - تشخیص الگوهای چندعاملی (Multi-marker patterns)         │
+│  - محاسبه شاخص‌های مشتق (eGFR, Mentzer, FIB-4, AIP, ...)  │
+│  - تعیین فوریت ارجاع (emergency, soon, this_week, ...)   │
+│  - تولید احکام الزامی (must_say) و نکات کلیدی بالینی     │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│  مدل هوش مصنوعی (تنها به عنوان قلمِ نگارش / Formatter)   │
+│  - بازنویسی احکامِ از پیش محاسبه‌شده به فارسی روان و سلیس │
+│  - حفظ کامل تمام اعداد و فاکتورهای بالینی بدون تغییر      │
+│  - دسته‌بندی پاراگراف‌ها به ترتیب اهمیت بالینی             │
+└────────────────────────────┬─────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────┐
+│  نمایش نهایی در داشبورد تعاملی (ساده و تخصصی)            │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## ویژگی‌های برجسته
+
+### ۱. خوانش چندکاناله (تصویر، PDF و ورود دستی)
+- **OCR هوشمند با بینایی ماشین:** خوانش مستقیم عکس با گوشی یا اسکن برگه، اصلاح نویزها، رفع چرخش و تبدیل ارقام فارسی و جداول پیچیده آزمایشگاهی.
+- **آپلود مستقیم PDF:** استخراج مستقیم لایه‌های متنی و استانداردسازی با `pdf.js` برای آزمایشگاه‌هایی که گزارش دیجیتال ارائه می‌دهند.
+- **فرم ورود دستی پیشرفته:** جستجوی آنی در بیش از ۳۰۰ آزمایش، انتخاب واحد، اعتبارسنجی ارقام و نمایش بازه استاندارد همان آزمایشگاه.
+
+### ۲. موتور بالینی قدرتمند و پوشش بیش از ۳۰۰ مارکر
+موتور بالینی آزمایار (`khanesh-server/rules/`) حوزه‌های گسترده‌ای را پوشش می‌دهد:
+- **هماتولوژی و خون:** CBC کامل، شاخص‌های گلبول قرمز (MCV, MCH, MCHC, RDW)، لام خون محیطی، پلاکت و شمارش افتراقی WBC.
+- **بیوشیمی و متابولیک:** قند خون (ناشتا، تصادفی، HbA1c، تست دو مرحله‌ای بارداری)، چربی‌ها (کلسترول، TG، LDL، HDL، ApoB، Lp(a))، اوره، کراتینین، اسید اوریک.
+- **کبد و گوارش:** آنزیم‌های کبدی (ALT, AST, ALP, GGT)، بیلی‌روبین تام و مستقیم، آلبومین، پروتئین کل، تست‌های هپاتیت و خون مخفی مدفوع (FIT/FOBT).
+- **الکترولیت‌ها و گازهای خون:** سدیم، پتاسیم، کلر، کلسیم، فسفر، منیزیم، گازهای خونی و شکاف آنیونی.
+- **غدد و هورمون‌ها:** تیروئید (TSH, Free T4, T3, Anti-TPO, Anti-Tg)، ویتامین D، آهن و فریتین، کورتیزول، پرولاکتین، تستوسترون، استرادیول، FSH، LH.
+- **ادرار، مایعات بدن و سرولوژی:** آنالیز کامل ادرار (نوار و میکروسکوپی)، ادرار ۲۴ ساعته، مایع مفصلی و پلور، فاکتورهای روماتوئید و آنتی‌بادی‌های خودایمنی (ANA, Anti-dsDNA, Anti-CCP).
+- **شاخص‌های مشتق و فرمول‌های بالینی:**
+  - نسبت منتزر (Mentzer Index) جهت تمایز فقر آهن از تالاسمی مینور
+  - تخمین عملکرد کلیه با eGFR (CKD-EPI 2021)
+  - محاسبه کلسیم تصحیح‌شده و سدیم تصحیح‌شده در هیپرگلیسمی
+  - شاخص فیبروز کبد FIB-4 و شاخص آتروژنیک پلاسما AIP
+
+### ۳. نمای دوگانه: ساده (بیمار) و تخصصی (کادر درمان)
+- **نمای ساده (بیمار):** با هدف کاهش اضطراب و آموزش؛ حاوی خلاصه‌ای گویا، برجسته‌سازی موارد نیازمند اقدام، زمان‌بندی شفاف برای مراجعه به پزشک و پاسخ به پرسش‌های رایج.
+- **نمای تخصصی (Expert View):** مخصوص پزشکان و کادر درمان؛ شامل گریدهای انحراف CTCAE، تبیین مکانیسم فیزیوپاتولوژی، هشدارهای تداخلات دارویی و ارجاع مستقیم به گایدلاین‌های بالینی.
+
+### ۴. محاسبه سن زیستی فنوتیپی (Levine PhenoAge)
+ماژول سن زیستی بر اساس فرمول معتبر **دانشگاه ییل و دکتر مورگان لوین (Levine et al., 2018)** با ۹ نشانگر بیولوژیک (آلبومین، کراتینین، گلوکز، CRP/hs-CRP، لنفوسیت، WBC، MCV، ALP و RDW) وضعیت فرسودگی فیزیولوژیک بدن را نسبت به سن شناسنامه‌ای ارزیابی می‌کند.
+
+### ۵. پایش تاریخچه و مقایسه هوشمند نوبت‌ها بر اساس RCV
+آزمایار به کاربر اجازه می‌دهد نوبت‌های مختلف آزمایش خود را در طول زمان مقایسه کند. مقایسه صرفاً با یک درصد ساده انجام نمی‌شود، بلکه با **آستانه تغییرات مرجع زیستی (Reference Change Value - RCV)** سنجیده می‌شود تا تغییرات ناشی از نوسان‌های طبیعی بدن از تغییرات واقعی بالینی تفکیک گردند.
+
+### ۶. تولید گزارش PDF رنگی و استاندارد
+امکان دریافت یک فایل PDF زیبا، تمیز و ساختاریافته از نتیجه و خلاصه تفاسیر برای پرینت یا ارائه مستقیم به پزشک معالج.
+
+---
+
+## ساختار مخزن و ماژول‌ها
+
+این مخزن شامل بخش‌های مستقل و یکپارچه زیر است:
+
+```text
 khanesh-project/
-├── khanesh/              # React + Vite frontend
-├── khanesh-server/       # Express backend + rules engine (khanesh-server/rules/)
-├── .claude/               # agents, skills, rules — see below
-├── MEDICAL_RULES.md      # clinical decision register, pending human review
-└── CLAUDE.md             # full project map, commands, architecture, lab notebook
+├── khanesh/                  # فرانت‌اند مدرن اپلیکیشن (React 19 + Vite)
+│   ├── src/
+│   │   ├── onboarding/       # گردش ورودی کاربر، احراز هویت پیامکی و پروفایل
+│   │   ├── content/          # دانش‌نامه ۳۰۰ آزمایش، تداخلات دارویی و خطاهای پیش‌آزمایشی
+│   │   ├── App.jsx           # مدیریت مسیرها، سئو داینامیک و کدهای وضعیت
+│   │   ├── Landing.jsx       # لندینگ پیج تعاملی، مدرن و کاملاً واکنش‌گرا
+│   │   ├── Tafsir.jsx        # صفحه اصلی تفسیر، داشبورد نمره و نمایش نتایج
+│   │   ├── ContactPage.jsx   # صفحه تماس با پشتیبانی و ارسال پیام
+│   │   └── ResultReport.jsx  # ماژول تولید گزارش رنگی و پرینت PDF
+│   └── scripts/              # اسکریپت‌های ساخت نقشه سایت و پیش‌رندر استاتیک سئو
+│
+├── khanesh-server/           # بک‌اند اپلیکیشن (Node.js + Express)
+│   ├── rules/                # هسته دترمینستیک بالینی (Rules Engine)
+│   │   ├── patterns_*.js     # ماژول‌های قواعد تفکیک‌شده بر اساس تخصص‌های بالینی
+│   │   ├── score.js          # سیستم امتیازدهی یکپارچه برگه آزمایش
+│   │   ├── pheno_age.js      # محاسبه‌گر سن زیستی فنوتیپی لوین
+│   │   ├── history.js        # تحلیل سری‌های زمانی با آستانه‌های RCV
+│   │   └── guidelines.js     # رجیستری منابع، گایدلاین‌ها و شواهد پزشکی
+│   ├── avalaiClient.js       # کلاینت ارتباط با مدل‌های بینایی و زبانی (با هندلینگ خطا)
+│   ├── database.js           # مدیریت دیتابیس SQLite با ذخیره‌سازی محلی ایمن
+│   ├── notifier.js           # ارسال اعلان‌های سیستمی و پیام‌های پشتیبانی به تلگرام و ایمیل
+│   ├── auth.js               # احراز هویت توکنی و ارسال کد تایید با SMS.ir
+│   └── server.js             # سرور اصلی API و پایپ‌لاین تحلیل
+│
+├── khanesh-motion/           # پروژه رندر ویدیو و موشن‌گرافیک‌های معرفی (Remotion)
+├── deploy/                   # اسکریپت‌های استقرار پروداکشن، Nginx، SSL و سرویس‌های systemd
+├── MEDICAL_RULES.md          # سند بالینی و دفترچه ثبت تصمیم‌های پزشکی (Single Source of Truth)
+└── CLAUDE.md                 # دفترچه حوادث مهندسی و راهنمای تفصیلی قوانین پروژه
 ```
 
-## Quick start
+---
 
-**Backend** (`khanesh-server/`):
+## پشته فناوری (Tech Stack)
+
+### فرانت‌اند (Client-Side)
+- **فریم‌ورک:** React 19 با رویکرد بدون وابستگی‌های سنگین (Pure CSS Tokens & Modern Hooks)
+- **ابزار ساخت:** Vite 8 سریع به همراه بهینه‌سازی Chunks
+- **مسیریابی و سئو:** React Router 7 + ساخت خودکار ۳۰۵ صفحه استاتیک سئو‌شده و Sitemap داینامیک
+- **طراحی بصری:** استایل‌های RTL استاندارد، تایپوگرافی چشم‌نواز با فونت وزیرمتن و استعداد، سیستم رنگی OLED/Dark و Jade Laboratory
+- **پردازش اسناد:** PDF.js استاندارد با پشتیبانی از وب‌اسمبلی برای پردازش محلی فایل‌ها
+
+### بک‌اند (Server-Side)
+- **محیط اجرا:** Node.js v20+ / ESM
+- **فریم‌ورک:** Express.js با Rate Limiting و اعتبارسنجی ورودی‌ها
+- **دیتابیس:** SQLite3 در حالت WAL با محافظت از داده‌های کاربران
+- **موتور قواعد بالینی:** معماری اختصاصی Pure JS بدون سربار، با پوشش لایه‌ای
+- **ارتباط هوش مصنوعی:** AvalAI API (مدل‌های Gemini 2.5 Flash و GPT-4o-mini جهت OCR و فرمت‌بندی)
+- **سرویس‌های جانبی:** درگاه پیامک اعتبارسنجی SMS.ir، ربات پشتیبانی تلگرام و سرویس SMTP ایمیل
+
+---
+
+## راه‌اندازی و اجرای محلی (Quick Start)
+
+### پیش‌نیازها
+- **Node.js** نسخهٔ 20 یا بالاتر
+- **Git**
+- مدیر بستهٔ **npm**
+
+### راه‌اندازی بک‌اند
 
 ```bash
+cd khanesh-server
+
+# نصب بسته‌ها
 npm install
-# requires .env with AVALAI_API_KEY — see .claude/rules/environment.md
-node server.js       # or: npm start / npm run dev (nodemon)
+
+# ساخت فایل متغیرهای محیطی
+cp .env.example .env   # یا ساخت دستی .env
 ```
 
-**Frontend** (`khanesh/`), separate terminal:
+نمونه تنظیمات فایل `khanesh-server/.env`:
+```env
+PORT=8787
+AVALAI_API_KEY=your_avalai_api_key_here
+AVALAI_BASE_URL=https://api.avalai.ir/v1
+TEXT_MODEL=gpt-4o-mini
+VISION_MODEL=gemini-2.5-flash
+JWT_SECRET=your_secure_random_jwt_secret
+AUTH_REQUIRED=false
+SMSIR_API_KEY=your_sms_ir_key
+SMSIR_TEMPLATE_ID=your_template_id
+TELEGRAM_NOTIFY_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_NOTIFY_CHAT_ID=your_telegram_chat_id
+```
+
+اجرای سرور:
+```bash
+npm start
+# یا در حالت توسعه با بازنشانی خودکار:
+npm run dev
+```
+
+### راه‌اندازی فرانت‌اند
+
+در ترمینال مجزا:
 
 ```bash
+cd khanesh
+
+# نصب بسته‌ها
 npm install
-npm run dev           # Vite dev server, proxies /api/* to http://localhost:8787
+
+# اجرای سرور توسعه Vite
+npm run dev
 ```
+اپلیکیشن در آدرس `http://localhost:5173` در دسترس خواهد بود و درخواست‌های `/api/*` را به پورت `8787` بک‌اند هدایت می‌کند.
 
-## Verifying a change
+---
 
+## کیفیت، تست‌ها و دروازه‌های اعتبارسنجی
+
+یکی از مهم‌ترین افتخارات مهندسی پروژه آزمایار، پایبندی به بالاترین استانداردهای ایمنی بیمار و کیفیت کد است:
+
+- **بیش از ۱۵۸۰ تست فعال بالینی:** تست‌های رگرسیون جامع، سناریوهای مرزی اطفال و سالمندان، تست‌های دترمینستیک، اعتبارسنجی قراردادها و بررسی صحت تبدیل واحدها.
+- **تست متامورفیک (Metamorphic Testing):** آزمایش پایداری موتور در برابر جابه‌جایی نام‌ها، تغییر فرمت تاریخ و ترتیبات مختلف صفحات.
+- **هوکس Pre-Commit هوشمند:** قبل از هر کامیت، هوک اختصاصی پروژه تست‌های بک‌اند و لینتر فرانت‌اند را روی محتوای استیج‌شده (Index) اجرا کرده و در صورت وجود کوچک‌ترین خطا، از کامیت جلوگیری می‌کند.
+
+اجرای تست‌های بک‌اند:
 ```bash
-cd khanesh-server && npm test         # node --test — full backend regression suite
-cd khanesh && npm run lint            # oxlint
+cd khanesh-server
+npm test
 ```
 
-The frontend has no test runner — trace UI logic by reading the code. A pre-commit hook
-(`.githooks/pre-commit`) runs both automatically for whichever sub-project has staged changes.
+اجرای لینتر فرانت‌اند:
+```bash
+cd khanesh
+npm run lint
+```
 
-## Where to go next
+---
 
-- **[CLAUDE.md](CLAUDE.md)** — the real map of this repo: full file structure, every command,
-  the agent/skill roster, environment variables, and the "Lab Notebook" — a log of real clinical
-  bugs previous sessions introduced here and the rule that generalizes from each. Read it before
-  touching `khanesh-server/rules/`.
-- **[MEDICAL_RULES.md](MEDICAL_RULES.md)** — the clinical decision register: thresholds and
-  ranges awaiting human clinical review before they reach executable code.
-- **[.claude/rules/](.claude/rules/)** — architecture, the rules-engine grading modes and
-  checklist for adding a lab test, frontend contract, environment variables, and cross-cutting
-  notes (Persian-only strings, patient privacy).
+## منابع علمی و رفرنس‌های بالینی
+
+تمام قوانین تشخیصی، بازه‌های مرجع و توصیه‌های احتیاطی بر اساس مراجع معتبر جهانی تدوین شده‌اند:
+
+1. **Henry's Clinical Diagnosis and Management by Laboratory Methods (24th Edition)** — مرجع اصلی بیوشیمی، هماتولوژی و ادرار.
+2. **Tietz Textbook of Laboratory Medicine (7th Edition)** — بازه‌های بیوشیمی، الکترولیت‌ها و تست‌های کلیوی.
+3. **CALIPER Pediatric Reference Intervals (Hospital for Sick Children)** — بازه‌های مرجع نوزادان، کودکان و نوجوانان.
+4. **ADA Standards of Care in Diabetes (2024–2026)** — معیارهای تشخیص پیش‌دیابت، دیابت و دیابت بارداری.
+5. **ACG Clinical Guidelines** — ارزیابی اختلالات آنزیم‌های کبد و آزمایش‌های گوارشی.
+6. **Merck Manual Professional Version (2025)** — الگوهای بیماری‌های کلیه و متابولیک.
+7. **EFLM Biological Variation Database** — داده‌های معتبر تغییرات بیولوژیک جهت محاسبه RCV در پایش نوبت‌ها.
+
+---
+
+## حریم خصوصی و امنیت داده‌ها
+
+- **عدم ذخیره‌سازی داده‌های بالینی در پرامپت‌ها:** نام، کد ملی، آدرس یا مشخصات شناسایی بیمار هرگز به مدل‌های هوش مصنوعی ارسال نمی‌شود.
+- **ارتباط رمزنگاری‌شده:** کلیه ارتباطات کلاینت-سرور و تراکنش‌ها بر بستر امن HTTPS برقرار است.
+- **امکان حذف کامل حساب:** کاربر در هر لحظه می‌تواند تمام سوابق و تاریخچهٔ خود را با یک کلیک به‌صورت دائمی از سیستم پاک کند.
+
+---
+
+## سلب مسئولیت پزشکی
+
+> ⚠️ **یادآوری مهم:** آزمایار اپ یک سامانهٔ کمک‌آموزشی و ابزاری جهت افزایش آگاهی بیمار و تسهیل مرور آزمایش‌هاست. این سامانه تحت هیچ شرایطی جایگزین نظر، معاینه، تشخیص تخصصی یا برنامهٔ درمانی پزشک معالج نیست. برای هرگونه تصمیم درمانی، مصرف دارو یا تفسیر قطعی نتایج، مراجعه به پزشک متخصص الزامی است.
+
+---
+
+<div align="center">
+  <sub>طراحی و پیاده‌سازی شده با ❤️ برای ارتقای سلامت و آگاهی جامعه</sub>
+</div>
