@@ -74,7 +74,13 @@ function OtpBoxes({ value, onChange, invalid, describedBy }) {
 }
 
 const Trust = () => (
-  <p className="auth-trust"><Icon name="shield" size={18} /><span>کد فقط برای ورود است و رمزی ذخیره نمی‌شود.</span></p>
+  <div style={{ textAlign: "center", marginTop: "0.5rem" }}>
+    <p className="auth-trust"><Icon name="shield" size={18} /><span>کد فقط برای ورود است و رمزی ذخیره نمی‌شود.</span></p>
+    <p style={{ fontSize: "0.8rem", color: "var(--muted, #64748b)", marginTop: "0.4rem" }}>
+      با ورود، <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "inherit" }}>شرایط استفاده</a> و{" "}
+      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "inherit" }}>سیاست حریم خصوصی</a> را می‌پذیرید.
+    </p>
+  </div>
 );
 
 export default function SignIn({ onSignedIn, channels }) {

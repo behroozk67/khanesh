@@ -142,7 +142,7 @@
 /* ---------- دکمه‌ها ---------- */
 
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: var(--s3);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s3); white-space: nowrap;
   border: 1px solid transparent; border-radius: var(--r-sm);
   padding: var(--s4) var(--s8); min-height: var(--tap);
   font-size: var(--t-sm); font-weight: var(--w-semibold); font-family: inherit;

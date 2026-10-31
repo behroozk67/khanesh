@@ -34,6 +34,11 @@ for (const [dir, keep] of jobs) {
   if (!existsSync(from)) continue;
   await mkdir(to, { recursive: true });
   const files = (await readdir(from)).filter(keep);
-  for (const f of files) await cp(join(from, f), join(to, f));
+  for (const f of files) {
+    const destFile = join(to, f);
+    if (!existsSync(destFile)) {
+      try { await cp(join(from, f), destFile); } catch {}
+    }
+  }
   console.log(`copy-pdfjs-assets: ${dir} → public/${dir} (${files.length} فایل)`);
 }

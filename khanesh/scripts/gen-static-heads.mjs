@@ -67,6 +67,8 @@ const footerHtml = `
       <a href="/units-guide" style="color:#64748b;text-decoration:none">واحدهای آزمایشگاهی</a>
       <a href="/how-to-capture" style="color:#64748b;text-decoration:none">کیفیت عکس برگه</a>
       <a href="/methodology" style="color:#64748b;text-decoration:none">روش‌شناسی</a>
+      <a href="/terms" style="color:#64748b;text-decoration:none">شرایط استفاده</a>
+      <a href="/privacy" style="color:#64748b;text-decoration:none">حریم خصوصی</a>
       <a href="/contact" style="color:#64748b;text-decoration:none">تماس با آزمایار</a>
     </div>
   </div>
@@ -367,7 +369,7 @@ function renderStaticArticle(title, description, points = []) {
 }
 
 // استخراجِ تمام آدرس‌ها دقیقاً منطبق با sitemap.xml
-const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology", "/contact"];
+const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology", "/contact", "/terms", "/privacy"];
 for (const g of GUIDES) paths.push(catPath(g.id));
 const keys = new Set();
 for (const g of GUIDES) for (const i of g.items) keys.add(i.k || i.slug);
@@ -522,6 +524,42 @@ for (const p of uniquePaths) {
       "@type": "MedicalWebPage",
       name: `روش‌شناسی تفسیر آزمایش — ${BRAND_FA}`,
       url: `${ORIGIN}/methodology`,
+      description,
+      inLanguage: "fa-IR",
+    };
+  } else if (p === "/terms") {
+    title = `شرایط و قوانین استفاده و سلب مسئولیت پزشکی — ${BRAND_FA}`;
+    description = "شرایط استفاده، سلب مسئولیت حقوقی و پزشکی، عدم جایگزینی با پزشک و پروتکل اورژانس ۱۱۵ در سامانه آزمایار اپ.";
+    ogType = "article";
+    bodyHtml = renderStaticArticle(title, description, [
+      { t: "ماهیت غیردرمانی و کمک‌آموزشی", d: "آزمایار اپ یک دستیار هوشمند نرم‌افزاری جهت ارتقای آگاهی بیمار است و به هیچ وجه مرکز درمانی، مطب پزشکی، پایگاه اورژانس یا مرجع تشخیص بالینی تلقی نمی‌شود." },
+      { t: "عدم جایگزینی با پزشک معالج", d: "هیچ‌یک از تحلیل‌ها، سطوح فوریت یا توصیه‌های این سامانه جایگزین ویزیت، معاینه بالینی، شرح حال پزشکی و تجویز پزشک متخصص نخواهد بود." },
+      { t: "پروتکل شرایط اورژانسی (۱۱۵)", d: "در صورت بروز هرگونه علائم حاد بالینی مانند درد قفسه سینه، تنگی نفس، کاهش هوشیاری یا خونریزی شدید، فوراً با اورژانس پیش‌بیمارستانی ۱۱۵ تماس بگیرید." },
+      { t: "خطای کیت‌ها و مسئولیت کاربر", d: "کیت‌های آزمایشگاهی ممکن است بازه‌های متفاوتی داشته باشند؛ تصمیم‌گیری درمانی صرفاً بر عهده پزشک معالج است." }
+    ]);
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: `شرایط استفاده — ${BRAND_FA}`,
+      url: `${ORIGIN}/terms`,
+      description,
+      inLanguage: "fa-IR",
+    };
+  } else if (p === "/privacy") {
+    title = `سیاست حریم خصوصی و صیانت از داده‌های سلامت — ${BRAND_FA}`;
+    description = "خط‌مشی حفظ حریم خصوصی، شفافیت پردازش داده‌های سلامت، انطباق با قانون تجارت الکترونیک و حق حذف داده‌ها در آزمایار اپ.";
+    ogType = "article";
+    bodyHtml = renderStaticArticle(title, description, [
+      { t: "انطباق با قانون تجارت الکترونیکی", d: "پردازش داده‌های سلامت منطبق بر مواد ۵۸ و ۵۹ قانون تجارت الکترونیک ایران و با رضایت صریح کاربر انجام می‌شود." },
+      { t: "حذف تصاویر پس از استخراج (OCR)", d: "تصاویر برگه آزمایش صرفاً جهت خواندن مقادیر جدول پردازش شده و پس از استخراج از حافظه فعال پردازشگر پاک می‌شوند." },
+      { t: "حق حذف دائمی داده‌ها (Right to Erasure)", d: "کاربر در هر زمان اختیار دارد کلیه سوابق آزمایشی و پرونده خود را به طور کامل و دائمی از پایگاه داده سرور پاک کند." },
+      { t: "امنیت ارتباطات و عدم واگذاری به اشخاص ثالث", d: "ارتباطات از طریق رمزنگاری TLS/HTTPS برقرار شده و اطلاعات سلامت کاربران به هیچ شرکت تجاری یا تبلیغاتی واگذار نمی‌شود." }
+    ]);
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: `حریم خصوصی — ${BRAND_FA}`,
+      url: `${ORIGIN}/privacy`,
       description,
       inLanguage: "fa-IR",
     };

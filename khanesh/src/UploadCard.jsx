@@ -213,6 +213,10 @@ export default function UploadCard({
           ? `تفسیر ${toFaDigits(images.length)} صفحه · ${etaText(images.length)}`
           : `تفسیر آزمایش · ${etaText(images.length)}`}
       </button>
+      <p style={{ fontSize: "0.78rem", color: "var(--muted, #64748b)", textAlign: "center", marginTop: "0.5rem", lineHeight: "1.5" }}>
+        با کلیک روی تفسیر، <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "inherit" }}>شرایط استفاده</a> و{" "}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "inherit" }}>حریم خصوصی داده‌های سلامت</a> آزمایار را می‌پذیرید.
+      </p>
       {!canRun && !aiLoading && (
         <p className="hint" role="status">
           {hasUpload

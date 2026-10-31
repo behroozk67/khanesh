@@ -347,7 +347,13 @@ const app = express();
 // ⚠️ CORS فقط جلوی سوءاستفادهٔ مرورگری از یک سایت دیگر را می‌گیرد؛ curl و اسکریپت
 //    را نمی‌گیرد. محافظِ واقعیِ هزینه، rate limit پایین‌تر است، نه این.
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "")
-  .split(",").map((s) => s.trim()).filter(Boolean);
+  .split(",").map((s) => s.trim()).filter(Boolean)
+  .filter((origin) => {
+    if (process.env.NODE_ENV === "production" && origin.startsWith("http://") && !origin.includes("localhost") && !origin.includes("127.0.0.1")) {
+      return false;
+    }
+    return true;
+  });
 function originAllowed(origin) {
   // بدون Origin = same-origin یا curl؛ اجازه بده (rate limit مهارش می‌کند).
   return !origin || ALLOWED_ORIGINS.length === 0 || ALLOWED_ORIGINS.includes(origin);
@@ -384,6 +390,8 @@ app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   if (req.path.startsWith("/api/")) res.setHeader("Cache-Control", "no-store");
   next();
 });
@@ -418,7 +426,7 @@ const OCR_MAX_TOKENS = Number(process.env.OCR_MAX_TOKENS || 8000);
 // لایهٔ ۳ (P78): موتور همیشه روشن است؛ سوئیچ USE_ENGINE حذف شد (خاموش‌کردنش همهٔ حفاظ‌ها را برمی‌داشت).
 // مسیرِ قدیم یعنی مدل خودش شدت و has_critical را قضاوت کند و متنِ خامِ برگه در پرامپت بنشیند.
 // پیش‌فرض بسته است؛ فقط با ALLOW_LEGACY_PATH=true باز می‌شود.
-const LEGACY_ALLOWED = process.env.ALLOW_LEGACY_PATH === "true";
+const LEGACY_ALLOWED = process.env.ALLOW_LEGACY_PATH === "true" && process.env.NODE_ENV !== "production";
 if (process.env.USE_ENGINE === "false") {
   console.warn("⚠️ USE_ENGINE دیگر پشتیبانی نمی‌شود و نادیده گرفته شد؛ برای مسیرِ قدیم ALLOW_LEGACY_PATH=true بگذارید.");
 }
@@ -2178,9 +2186,24 @@ app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimite
   }
 });
 
-const healthHandler = (_req, res) =>
-  res.json({
+const healthHandler = (req, res) => {
+  const baseHealth = {
     ok: true,
+    engine: "on",
+    authRequired: AUTH_REQUIRED,
+    ...otpSenderStatus(),
+  };
+
+  // اطلاعات تفصیلی پیکربندی فقط در حالت توسعه یا با کلید مدیریت ارائه می‌شود (S-1)
+  const isDebugAllowed = process.env.NODE_ENV !== "production" ||
+    (process.env.ADMIN_DEBUG_KEY && req.headers["x-admin-key"] === process.env.ADMIN_DEBUG_KEY);
+
+  if (!isDebugAllowed) {
+    return res.json(baseHealth);
+  }
+
+  return res.json({
+    ...baseHealth,
     textModel: TEXT_MODEL,
     visionModel: VISION_MODEL,
     medline: "webservice",
@@ -2191,33 +2214,31 @@ const healthHandler = (_req, res) =>
     imageConcurrency: IMAGE_CONCURRENCY,
     ocrRetries: OCR_RETRIES,
     bodyLimit: "60mb",
-    // اگر این اعداد بالا رفت، سقف توکن کم است.
-    // قبل از بالا بردن maxTokens اول اینجا را ببین.
-    engine: "on",
     legacyPath: LEGACY_ALLOWED ? "on" : "off",
     graph: USE_GRAPH ? "on" : "off",
-    // ⚠️ فرانت این را می‌خواند تا صفحهٔ ورود را نشان بدهد یا نه. پیش‌تر
-    //    `VITE_AUTH_REQUIRED` پرچمِ *زمانِ بیلد* و مستقل از این بود، پس دو
-    //    منبعِ حقیقت داشتیم که بی‌صدا از هم واگرا می‌شدند: یا بیمار کلِ فرم
-    //    را پر می‌کرد و آخرش ۴۰۱ می‌گرفت، یا برای سروری که احراز هویت
-    //    نمی‌خواست از او OTP خواسته می‌شد (و فرستندهٔ پیامک هنوز mock است).
-    authRequired: AUTH_REQUIRED,
-    // specs/011: آیا کدِ ورود واقعاً فرستاده می‌شود یا فقط در لاگ است.
-    ...otpSenderStatus(),
     ocrMaxTokens: OCR_MAX_TOKENS,
     truncations: avalai.truncations,
-    // آخرین شکستِ ارتباط با AvalAI (کد + مدل + زمان). اگر «خطا داد» ولی
-    // اینجا null است، مشکل از شبکه نبوده. بدنهٔ خطا اینجا نیست (دادهٔ بیمار).
     lastUpstreamFailure: avalai.lastFailure,
     rateLimit: `${RATE_LIMIT_MAX}/${RATE_LIMIT_WINDOW_MIN}min`,
     corsOrigins: ALLOWED_ORIGINS.length === 0 ? "any (⚠️ در پرودکشن ست کن)" : ALLOWED_ORIGINS,
     trustProxy: TRUST_PROXY || "off",
-    // ⚠️ روشن یعنی مقادیرِ بالینی در حافظه نگه داشته می‌شود. اینجا دیده
-    //    می‌شود تا کسی مجبور نباشد برای فهمیدنش به لاگِ بوت برگردد.
     trace: isTraceEnabled() ? "on (⚠️ دادهٔ بالینی نگه داشته می‌شود)" : "off",
-    // کارهای در حافظه. اگر مدام نزدیک سقف بود، یعنی TTL یا سقف کم است.
     jobsInMemory: jobCount(),
   });
+};
+
+app.get("/.well-known/security.txt", (_req, res) => {
+  res.type("text/plain");
+  res.send(
+`Contact: mailto:security@azmayarapp.ir
+Contact: mailto:sakar1367@gmail.com
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: fa, en
+Canonical: https://azmayarapp.ir/.well-known/security.txt
+Policy: https://azmayarapp.ir/privacy
+`
+  );
+});
 
 app.get("/health", healthHandler);
 app.get("/api/health", healthHandler);

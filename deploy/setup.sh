@@ -30,7 +30,7 @@ NODE_ENV=production
 PORT=8787
 DB_FILE=/var/lib/khanesh/database.sqlite
 TRUST_PROXY=1
-ALLOWED_ORIGINS=https://${DOMAIN},https://www.${DOMAIN},http://${DOMAIN}
+ALLOWED_ORIGINS=https://${DOMAIN},https://www.${DOMAIN}
 JWT_SECRET=$(openssl rand -hex 32)
 AUTH_REQUIRED=false
 EOF

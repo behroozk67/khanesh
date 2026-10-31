@@ -859,6 +859,10 @@ export function Footer() {
           <span style={{ opacity: 0.5 }}>•</span>
           <Link to="/methodology" style={{ color: 'inherit' }}>روش‌شناسی</Link>
           <span style={{ opacity: 0.5 }}>•</span>
+          <Link to="/terms" style={{ color: 'inherit' }}>شرایط استفاده</Link>
+          <span style={{ opacity: 0.5 }}>•</span>
+          <Link to="/privacy" style={{ color: 'inherit' }}>حریم خصوصی</Link>
+          <span style={{ opacity: 0.5 }}>•</span>
           <Link to="/contact" style={{ color: 'inherit' }}>تماس با آزمایار</Link>
         </div>
         <p>

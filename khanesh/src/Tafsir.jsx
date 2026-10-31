@@ -587,7 +587,7 @@ export default function Tafsir() {
           </p>
           <p>
             محدوده‌ها بر اساس مراجع استاندارد است و ممکن است با کیت آزمایشگاه شما اندکی فرق کند.
-            این ابزار آموزشی است و جایگزین پزشک نیست.
+            این ابزار آموزشی است و جایگزین پزشک نیست. (مطالعهٔ <a href="/terms" target="_blank" rel="noopener noreferrer" className="link">شرایط استفاده</a> و <a href="/privacy" target="_blank" rel="noopener noreferrer" className="link">سیاست حریم خصوصی</a>)
           </p>
           <p>
             بخشی از اطلاعاتِ توضیحی از{" "}
