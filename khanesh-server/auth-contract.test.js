@@ -228,7 +228,7 @@ test("SF1: فرستندهٔ شکست‌خورده ⇒ ۵۰۲ با جملهٔ ف�
   let fail = true;
   auth.setOtpSenders({ sms: (phone, code) => { if (fail) return false; sent.sms.set(phone, code); } });
   const r1 = await call("POST", "/api/auth/request-otp", { phone: "09123334455" });
-  assert.equal(r1.status, 502, JSON.stringify(r1.body));
+  assert.equal(r1.status, 503, JSON.stringify(r1.body));
   assert.match(r1.body.error, /ارسالِ کد انجام نشد/);
   fail = false;
   const r2 = await call("POST", "/api/auth/request-otp", { phone: "09123334455" });

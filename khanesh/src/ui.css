@@ -87,6 +87,7 @@
 .block-title { font-size: var(--t-sm); font-weight: var(--w-bold); color: var(--ink); margin-bottom: var(--s4); }
 
 .text { font-size: var(--t-lg); line-height: var(--lh-prose); color: var(--ink); }
+.prose-block .text { text-align: justify; text-align-last: start; }
 .hint { font-size: var(--t-xs); line-height: var(--lh-body); color: var(--ink-2); margin-bottom: var(--s5); }
 .label { display: block; font-size: var(--t-xs); font-weight: var(--w-semibold); color: var(--ink-2); margin-bottom: var(--s3); }
 .link { color: var(--brand); font-weight: var(--w-semibold); }

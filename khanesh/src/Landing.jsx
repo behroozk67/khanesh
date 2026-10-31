@@ -272,6 +272,7 @@ const NAV_LINKS = [
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
   { to: "/methodology", label: "روش‌شناسی" },
   { href: "/#resources", label: "منابع" },
+  { to: "/contact", label: "تماس" },
   { href: "/#basis", label: "استانداردها" },
 ];
 
@@ -444,6 +445,7 @@ const HERO_ALT = "میکروسکوپ و رکِ لولهٔ آزمایش روی م
 const HERO_LINKS = [
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
   { href: "#faq-section", label: "پرسش‌های متداول" },
+  { to: "/contact", label: "تماس با ما" },
   { href: "#basis", label: "منابع بالینی" },
 ];
 
@@ -856,6 +858,8 @@ export function Footer() {
           <Link to="/how-to-capture" style={{ color: 'inherit' }}>راهنمای عکس گرفتن</Link>
           <span style={{ opacity: 0.5 }}>•</span>
           <Link to="/methodology" style={{ color: 'inherit' }}>روش‌شناسی</Link>
+          <span style={{ opacity: 0.5 }}>•</span>
+          <Link to="/contact" style={{ color: 'inherit' }}>تماس با آزمایار</Link>
         </div>
         <p>
           {BRAND} جایگزین مشاورهٔ پزشکی، تشخیص یا درمان نیست؛ برای هر تصمیم درمانی با پزشک مشورت کنید. بخشی از متن‌های آموزشی از{" "}

@@ -4,7 +4,7 @@
 // ⚠️ کد در لاگ چاپ نمی‌شود.
 const URL = 'https://api.sms.ir/v1/send/verify';
 
-export function makeSmsIrSender({ apiKey, templateId, paramName = 'Code', fetchImpl = fetch } = {}) {
+export function makeSmsIrSender({ apiKey, templateId, paramName = 'CODE', fetchImpl = fetch } = {}) {
   if (!apiKey || !templateId) return null;
   return async (phone, code) => {
     try {
@@ -16,7 +16,10 @@ export function makeSmsIrSender({ apiKey, templateId, paramName = 'Code', fetchI
       });
       const d = await r.json().catch(() => null);
       if (!r.ok || (d && d.status !== 1)) {
-        console.warn(`[SMS.IR] ارسال ناموفق: HTTP ${r.status}، پیام: ${d?.message ?? '—'}`);
+        // status 113 = «قالب یافت نشد». در عمل یعنی قالب *تأیید نشده* (رد شده) یا
+        // نامِ پارامتر با قالب نمی‌خواند — نه اینکه templateId غلط نوشته شده باشد.
+        // وضعیتِ قالب را در پنل ببینید (GET /v1/templates → status: 1 تأییدشده، 3 رد‌شده).
+        console.warn(`[SMS.IR] ارسال ناموفق: HTTP ${r.status}، قالب ${templateId}، پارامتر ${paramName}، status ${d?.status ?? '—'}، پیام: ${d?.message ?? '—'}`);
         return false;
       }
       return true;

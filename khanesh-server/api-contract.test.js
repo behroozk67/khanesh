@@ -35,6 +35,9 @@ process.env.USE_ENGINE = "true";
 process.env.ALLOWED_ORIGINS = "";
 process.env.RATE_LIMIT_MAX = "10000";      // ۱۰ تست نباید به سقفِ ۲۰ بخورد
 process.env.TRUST_PROXY = "";
+// ⚠️ این سوئیت با احراز هویتِ *خاموش* نوشته شده و .env حالا AUTH_REQUIRED=true دارد؛
+//    بدونِ این خط، dotenv آن را از .env می‌خواند و همهٔ درخواست‌ها ۴۰۱ می‌گیرند.
+process.env.AUTH_REQUIRED = "false";
 
 // ── گرفتنِ دستهٔ سرور ────────────────────────────────────────
 // server.js چیزی export نمی‌کند و در import شدن app.listen() می‌زند. برای

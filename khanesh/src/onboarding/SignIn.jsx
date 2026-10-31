@@ -77,8 +77,11 @@ const Trust = () => (
   <p className="auth-trust"><Icon name="shield" size={18} /><span>کد فقط برای ورود است و رمزی ذخیره نمی‌شود.</span></p>
 );
 
-export default function SignIn({ onSignedIn }) {
-  const [kind, setKind] = useState("phone");
+export default function SignIn({ onSignedIn, channels }) {
+  // کانالی که فرستنده‌اش mock است نباید دکمه داشته باشد: کاربر کد را هرگز نمی‌گیرد.
+  // channels = null ⇒ هر دو (پاسخِ /health نیامده یا محیطِ توسعهٔ لوکال).
+  const can = channels || { phone: true, email: true };
+  const [kind, setKind] = useState(can.phone ? "phone" : "email");
   const [id, setId] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState("id");     // id | code
@@ -144,7 +147,9 @@ export default function SignIn({ onSignedIn }) {
           <button type="button" className="onb-link" onClick={requestCode} disabled={wait > 0 || loading}>
             {wait > 0 ? `ارسالِ دوباره تا ${toFaDigits(wait)} ثانیهٔ دیگر` : "کد نرسید؟ ارسالِ دوباره"}
           </button>
-          <button type="button" className="onb-link" onClick={() => switchKind(c.other)}>{c.otherLabel}</button>
+          {can[c.other] && (
+            <button type="button" className="onb-link" onClick={() => switchKind(c.other)}>{c.otherLabel}</button>
+          )}
           <Trust />
         </form>
       </OnbShell>
@@ -152,11 +157,13 @@ export default function SignIn({ onSignedIn }) {
   }
 
   return (
-    <OnbShell variant="auth" title="سلام، خوش آمدید" lede="برای دیدنِ تفسیرِ آزمایش، با موبایل یا ایمیل وارد شوید. رمز لازم نیست؛ یک کدِ یک‌بارمصرف می‌فرستیم.">
-      <div className="onb-seg" role="group" aria-label="روشِ ورود">
-        <button type="button" aria-pressed={kind === "phone"} onClick={() => switchKind("phone")}><Icon name="phone" size={18} /> موبایل</button>
-        <button type="button" aria-pressed={kind === "email"} onClick={() => switchKind("email")}><Icon name="mail" size={18} /> ایمیل</button>
-      </div>
+    <OnbShell variant="auth" title="سلام، خوش آمدید" lede={`برای دیدنِ تفسیرِ آزمایش، با ${can.phone && can.email ? "موبایل یا ایمیل" : can.phone ? "موبایل" : "ایمیل"} وارد شوید. رمز لازم نیست؛ یک کدِ یک‌بارمصرف می‌فرستیم.`}>
+    {can.phone && can.email && (
+    <div className="onb-seg" role="group" aria-label="روشِ ورود">
+      <button type="button" aria-pressed={kind === "phone"} onClick={() => switchKind("phone")}><Icon name="phone" size={18} /> موبایل</button>
+      <button type="button" aria-pressed={kind === "email"} onClick={() => switchKind("email")}><Icon name="mail" size={18} /> ایمیل</button>
+    </div>
+    )}
       <form className="onb-card" onSubmit={requestCode} noValidate>
         <div className="onb-field">
           <label className="onb-label" htmlFor="ident">{c.label}</label>

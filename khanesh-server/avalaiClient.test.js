@@ -90,12 +90,60 @@ test("avalai: خطای دیگر می‌شود upstream_error با همان statu
   );
 });
 
-test("avalai: شکستِ fetch می‌شود upstream_timeout", async () => {
-  const c = clientWith(async () => { throw new Error("network down"); });
+test("avalai: لغوِ AbortSignal.timeout می‌شود upstream_timeout", async () => {
+  // فقط این حالت تایم‌اوتِ واقعی است.
+  const c = clientWith(async () => {
+    const e = new Error("The operation was aborted due to timeout");
+    e.name = "TimeoutError";
+    throw e;
+  });
   await assert.rejects(
     () => c.call({ model: "m", messages: [] }),
     (e) => e.message === "upstream_timeout" && e.model === "m",
   );
+});
+
+test("avalai: شکستِ فوریِ شبکه می‌شود upstream_unreachable، نه تایم‌اوت", async () => {
+  // ⚠️ یک باگِ واقعی: هر شکستِ fetch به upstream_timeout ترجمه می‌شد، پس
+  //    ECONNREFUSED (پروکسیِ مرده) و ENOTFOUND (DNS) هم پیامِ «سرویس طول
+  //    کشید» می‌گرفتند و ریشه‌یابی را غیرممکن می‌کردند.
+  const c = clientWith(async () => {
+    const e = new TypeError("fetch failed");
+    e.cause = { code: "ECONNREFUSED" };
+    throw e;
+  });
+  await assert.rejects(
+    () => c.call({ model: "m", messages: [] }),
+    (e) => e.message === "upstream_unreachable" && e.causeCode === "ECONNREFUSED",
+  );
+  // کدِ خطا باید در /health دیده شود تا «خطا داد» بدونِ حدس ریشه‌یابی شود.
+  assert.equal(c.lastFailure.code, "upstream_unreachable");
+  assert.equal(c.lastFailure.causeCode, "ECONNREFUSED");
+  assert.equal(c.lastFailure.model, "m");
+});
+
+test("avalai: شکستِ DNS (ENOTFOUND) هم unreachable است، نه تایم‌اوت", async () => {
+  const c = clientWith(async () => {
+    const e = new TypeError("fetch failed");
+    e.cause = { code: "ENOTFOUND" };
+    throw e;
+  });
+  await assert.rejects(
+    () => c.call({ model: "m", messages: [] }),
+    (e) => e.message === "upstream_unreachable" && e.causeCode === "ENOTFOUND",
+  );
+});
+
+test("avalai: شکستِ موفق بعدی، lastFailure را پاک نمی‌کند (ردِ تشخیصی می‌ماند)", async () => {
+  let fail = true;
+  const c = clientWith(async () => {
+    if (fail) { const e = new TypeError("fetch failed"); e.cause = { code: "ECONNRESET" }; throw e; }
+    return fakeRes({ body: okBody("{}") });
+  });
+  await assert.rejects(() => c.call({ model: "m", messages: [] }));
+  fail = false;
+  assert.equal(await c.call({ model: "m", messages: [] }), "{}");
+  assert.equal(c.lastFailure.causeCode, "ECONNRESET");
 });
 
 test("avalai: بدنهٔ خطای upstream به خطا نمی‌چسبد (ممکن است دادهٔ بیمار را echo کند)", async () => {

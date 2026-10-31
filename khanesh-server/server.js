@@ -24,7 +24,12 @@ import express from "express";
 import cors from "cors";
 import fs from "node:fs";
 import path from "node:path";
-import "dotenv/config";
+import { fileURLToPath } from "node:url";
+
+// ⚠️ باید نخستین ایمپورت باشد — وگرنه ماژول‌هایی که process.env را هنگامِ ایمپورت
+//    می‌خوانند (auth.js: AUTH_REQUIRED/JWT_SECRET/SMSIR_*) مقادیرِ .env را نمی‌بینند.
+import "./env.js";
+
 
 // ---- موتور قواعد ----
 // چرا: gpt-4o-mini تفسیر بالینی نمی‌فهمید («نوع خاصی از کم‌خونی»).
@@ -75,7 +80,8 @@ import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "
 import authRouter, { requireAuth, authBootReport, AUTH_REQUIRED, otpSenderStatus } from "./auth.js";
 import profileRouter from "./profile.js";
 import historyRouter, { recordAnalysis, ownerOf } from "./historyRoutes.js";
-import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById, getLatestCompletedJob } from "./database.js";
+import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById, getLatestCompletedJob, saveContactMessage } from "./database.js";
+import { notifyNewContactMessage } from "./notifier.js";
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
 //
@@ -694,6 +700,7 @@ async function readImage(imageDataUrl, label = "") {
       lastErr = e;
       const retryable =
         e.message === "upstream_timeout" ||
+        e.message === "upstream_unreachable" ||
         e.message === "upstream_error" ||
         e.message === "upstream_rate_limit" ||
         e.message === "ocr_parse_failed";
@@ -1128,7 +1135,7 @@ const analyzeHandler = async (req, res) => {
         }
         // قطعیِ ارتباط (ECONNRESET/تایم‌اوت/۵xx) هم نباید «عکس ناخوانا» گزارش شود:
         // عکس سالم بود و کاربر بی‌دلیل عکس تازه می‌گرفت.
-        const UPSTREAM = new Set(["upstream_timeout", "upstream_error", "upstream_rate_limit"]);
+        const UPSTREAM = new Set(["upstream_timeout", "upstream_unreachable", "upstream_error", "upstream_rate_limit"]);
         if (pages.every((p) => UPSTREAM.has(p.error))) {
           return res.status(503).json({
             error: "ارتباط با سرویس خواندن عکس برقرار نشد؛ مشکل از عکس شما نیست. چند لحظه بعد دوباره تلاش کنید.",
@@ -1671,7 +1678,7 @@ const analyzeHandler = async (req, res) => {
         if (additions.length) {
           console.warn(`⚠️ ${additions.length} یافتهٔ عدددار ناقص منتقل شد — بخشِ افتاده اضافه شد`);
           parsed.interpretation =
-            (parsed.interpretation || "") + "\n\n" + additions.join(" ");
+            (parsed.interpretation || "") + "\n\n" + additions.join("\n\n");
         }
       }
 
@@ -1901,7 +1908,7 @@ const numbered = patternOut.findings.filter(
           console.warn(`⚠️ ${additions.length} یافتهٔ عدددار ناقص منتقل شد — بخشِ افتاده اضافه شد`);
           const beforeCov = parsed.interpretation;
           parsed.interpretation =
-            (parsed.interpretation || "") + "\n\n" + additions.join(" ");
+            (parsed.interpretation || "") + "\n\n" + additions.join("\n\n");
           // ثبتِ اینکه *کدام* یافته ناقص منتقل شده بود: این دقیقاً همان
           // سیگنالی است که «مدل جمله را انداخت» را از «موتور جمله را نساخت»
           // جدا می‌کند، و بدونش هر دو یک‌شکل دیده می‌شوند.
@@ -1916,9 +1923,12 @@ const numbered = patternOut.findings.filter(
       // مدل ارزان گاهی جملهٔ حاویِ یک عددِ مشتق‌شده را حذف می‌کند — مثلاً eGFR را
       // «تکراری با کراتینین» می‌بیند و می‌اندازد. این اعداد بخشِ حرفه‌ایِ تشخیص‌اند
       // (بزرگیِ اختلال) و نباید گم شوند. اگر عددِ key_number در متن نبود، جملهٔ اولِ
-      // must_say (که همان عدد را دارد) به ابتدای تفسیر برمی‌گردد.
+      // must_say (که همان عدد را دارد) به انتهای تفسیر اضافه می‌شود تا اولویت بالینی
+      // یافته‌های مهم‌تر در ابتدای متن دست‌نخورده بماند و متن دو تکه نشود.
       const toLatinDigits = (s) =>
-        String(s).replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d));
+        String(s)
+          .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d))
+          .replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
       const interpText = toLatinDigits(`${parsed.summary || ""} ${parsed.interpretation || ""}`);
       const missingFacts = [];
       for (const f of patternOut.findings) {
@@ -1931,7 +1941,7 @@ const numbered = patternOut.findings.filter(
       if (missingFacts.length) {
         console.warn(`⚠️ ${missingFacts.length} عددِ کلیدی در متن مدل نبود — به تفسیر اضافه شد`);
         const beforeKey = parsed.interpretation;
-        parsed.interpretation = `${missingFacts.join(" ")} ${parsed.interpretation || ""}`.trim();
+        parsed.interpretation = (parsed.interpretation ? `${parsed.interpretation}\n\n` : "") + missingFacts.join("\n\n");
         tr.net("keyNumber:guarantee", beforeKey, parsed.interpretation, { facts: missingFacts });
       }
 
@@ -1988,6 +1998,18 @@ const numbered = patternOut.findings.filter(
     if (err.message === "upstream_timeout") {
       return res.status(504).json({
         error: "پاسخ سرویس هوش مصنوعی خیلی طول کشید. لطفاً دوباره تلاش کنید.",
+      });
+    }
+    // اتصال در همان لحظه رد شد — این «کندی» نیست. پیام قبلی همهٔ شکست‌های
+    // شبکه را «طول کشید» می‌گفت و کاربر (و ما) را دنبالِ علتِ غلط می‌فرستاد.
+    if (err.message === "upstream_unreachable") {
+      return res.status(503).json({
+        error:
+          "ارتباط شبکه با سرویس هوش مصنوعی برقرار نشد" +
+          (err.causeCode ? ` (کد: ${err.causeCode})` : "") +
+          ". مشکل از برگهٔ آزمایش شما نیست؛ اتصال اینترنت/پروکسیِ همین دستگاه را بررسی کنید.",
+        code: "UPSTREAM_UNREACHABLE",
+        cause: err.causeCode || null,
       });
     }
     // ۴۲۹ جدا: کاربر باید بفهمد سرویس شلوغ است، نه خراب
@@ -2184,6 +2206,9 @@ const healthHandler = (_req, res) =>
     ...otpSenderStatus(),
     ocrMaxTokens: OCR_MAX_TOKENS,
     truncations: avalai.truncations,
+    // آخرین شکستِ ارتباط با AvalAI (کد + مدل + زمان). اگر «خطا داد» ولی
+    // اینجا null است، مشکل از شبکه نبوده. بدنهٔ خطا اینجا نیست (دادهٔ بیمار).
+    lastUpstreamFailure: avalai.lastFailure,
     rateLimit: `${RATE_LIMIT_MAX}/${RATE_LIMIT_WINDOW_MIN}min`,
     corsOrigins: ALLOWED_ORIGINS.length === 0 ? "any (⚠️ در پرودکشن ست کن)" : ALLOWED_ORIGINS,
     trustProxy: TRUST_PROXY || "off",
@@ -2222,6 +2247,36 @@ app.get("/", (_req, res) => {
   </div>
 </body>
 </html>`);
+});
+
+// مسیر تماس با آزمایار و دریافت پیام‌ها و بازخوردها
+app.post("/api/contact", async (req, res) => {
+  try {
+    const { name, contact, subject, message } = req.body || {};
+    if (!contact || !message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({ error: "لطفاً ایمیل یا شناسهٔ تلگرام و متن پیام خود را وارد کنید." });
+    }
+    const ip = req.headers["x-forwarded-for"] || req.socket?.remoteAddress;
+    const msgData = {
+      name: (name || "").slice(0, 100).trim(),
+      contact: String(contact).slice(0, 150).trim(),
+      subject: (subject || "").slice(0, 100).trim(),
+      message: String(message).slice(0, 4000).trim(),
+      ip: typeof ip === "string" ? ip.slice(0, 60) : null,
+    };
+    const rec = await saveContactMessage(msgData);
+    console.log(`[CONTACT] پیام جدید #${rec.id} از ${msgData.contact}: ${msgData.subject || "بدون موضوع"}`);
+
+    // ارسال اعلان به تلگرام و ایمیل به‌صورت امن در پس‌زمینه (عدم بلاک‌شدن کاربر)
+    notifyNewContactMessage({ ...msgData, id: rec.id, createdAt: rec.createdAt || new Date() }).catch((err) => {
+      console.error("[NOTIFIER BACKGROUND ERROR]", err.message);
+    });
+
+    return res.json({ success: true, message: "پیام شما با موفقیت ثبت شد." });
+  } catch (err) {
+    console.error("[CONTACT ERROR]", err.message);
+    return res.status(500).json({ error: "خطا در ثبت پیام. لطفاً مستقیماً از طریق تلگرام یا ایمیل پیام دهید." });
+  }
 });
 
 // Global Error Handler

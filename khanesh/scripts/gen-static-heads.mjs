@@ -49,6 +49,7 @@ const navHtml = `
     <a href="/units-guide" style="color:#475569;text-decoration:none">واحدهای سنجش</a>
     <a href="/how-to-capture" style="color:#475569;text-decoration:none">راهنمای عکس گرفتن</a>
     <a href="/methodology" style="color:#475569;text-decoration:none">روش‌شناسی</a>
+    <a href="/contact" style="color:#475569;text-decoration:none">تماس با ما</a>
     <a href="/app" style="background:#0284c7;color:#fff;padding:0.4rem 0.9rem;border-radius:0.5rem;text-decoration:none">ورود به تفسیر</a>
   </nav>
 </header>
@@ -66,6 +67,7 @@ const footerHtml = `
       <a href="/units-guide" style="color:#64748b;text-decoration:none">واحدهای آزمایشگاهی</a>
       <a href="/how-to-capture" style="color:#64748b;text-decoration:none">کیفیت عکس برگه</a>
       <a href="/methodology" style="color:#64748b;text-decoration:none">روش‌شناسی</a>
+      <a href="/contact" style="color:#64748b;text-decoration:none">تماس با آزمایار</a>
     </div>
   </div>
 </footer>
@@ -365,7 +367,7 @@ function renderStaticArticle(title, description, points = []) {
 }
 
 // استخراجِ تمام آدرس‌ها دقیقاً منطبق با sitemap.xml
-const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology"];
+const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology", "/contact"];
 for (const g of GUIDES) paths.push(catPath(g.id));
 const keys = new Set();
 for (const g of GUIDES) for (const i of g.items) keys.add(i.k || i.slug);
@@ -486,6 +488,24 @@ for (const p of uniquePaths) {
       { t: "۳. پرهیز از تاخوردگی برگه", d: "تاخوردگی باعث برش خوردن سطرها و اعداد ستون‌های رنج مرجع می‌شود." },
       { t: "۴. وضوح و خوانایی اعداد", d: "در صورت کم‌رنگ بودن چاپ سوزنی برگه، ترجیحاً اعداد را به صورت دستی در فرم آزمایار وارد کنید." },
     ]);
+  } else if (p === "/contact") {
+    title = `تماس با ${BRAND_FA} — پشتیبانی، بازخورد و گزارش اشکال`;
+    description = "راه‌های ارتباط با آزمایار: بات پشتیبانی تلگرام، ایمیل رسمی azmayarapp@gmail.com و فرم پیام. پرسش دربارهٔ نتیجهٔ آزمایش، پیشنهاد و گزارش اشکال.";
+    bodyHtml = renderStaticArticle("تماس با آزمایار", "برای پرسش دربارهٔ نتیجهٔ آزمایش، پیشنهاد برای دقیق‌ترشدن تفسیر یا گزارش اشکال، از راهی که راحت‌تر است پیام بدهید.", [
+      { t: "بات پشتیبانی در تلگرام", d: "سریع‌ترین راه: در تلگرام به @AzmayarSupportBot پیام بدهید و پاسخ را همان‌جا بگیرید." },
+      { t: "ایمیل رسمی", d: "azmayarapp@gmail.com — مناسب برای پیام‌های بلند، پیوستِ فایل یا هر چیزی که می‌خواهید سابقه‌اش بماند." },
+      { t: "فرم پیام در همین سایت", d: "در صفحهٔ تماس، موضوع را انتخاب کنید و پیامتان را بنویسید؛ در اولین فرصت پاسخ می‌دهیم." },
+      { t: "شبکه‌های اجتماعی", d: "اینستاگرام: @azmayarapp و شبکهٔ اکس: @Azmayarapp." },
+      { t: "چه چیزی در پیام نگذارید", d: "برای محرمانگی، عکسِ برگهٔ آزمایش یا کد ملی را در پیام نفرستید؛ اگر پرسش بالینی است، خودِ عدد و واحدش کافی است. تصمیم درمانی همچنان با پزشک شماست." },
+    ]);
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "ContactPage",
+      name: `تماس با ${BRAND_FA}`,
+      url: `${ORIGIN}/contact`,
+      description,
+      inLanguage: "fa-IR",
+    };
   } else if (p === "/methodology") {
     title = `روش‌شناسی تفسیر آزمایش: از قاعده تا جملهٔ ساده — ${BRAND_FA}`;
     description = "آزمایار چطور تفسیر می‌کند: هر قاعده پیش از کد در سند قواعد بالینی ثبت می‌شود، منبعش کنار هر یافته می‌آید، واحد ناشناخته تفسیر نمی‌شود و هیچ تشخیصی داده نمی‌شود.";

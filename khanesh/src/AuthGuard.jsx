@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import SignIn from "./onboarding/SignIn.jsx";
 import { primeProfile } from "./onboarding/profileStore.js";
+import { fetchHealth, channelsOf } from "./health.js";
 
 // ⚠️ قرینهٔ AUTH_REQUIRED در سمتِ سرور (khanesh-server/auth.js). پیش‌فرض خاموش،
 //    ولی *صریح*: پیش‌تر این کامپوننت با یک `return children` بی‌قید در خطِ اول
@@ -22,6 +23,8 @@ function hasToken() {
 
 export default function AuthGuard({ children }) {
   const [authRequired, setAuthRequired] = useState(AUTH_REQUIRED_HINT);
+  // کدام کانالِ ورود واقعاً فرستنده دارد (پیامک/ایمیل). null = هنوز نامعلوم ⇒ هر دو نشان داده می‌شوند.
+  const [channels, setChannels] = useState(null);
   // تا سرور جواب نداده، بی‌توکن چیزی رندر نمی‌شود — وگرنه «/app» پیش از رسیدنِ جواب به پرسش‌های آغازین
   //   هدایت می‌شد و صفحهٔ ورود بعداً روی آن می‌پرید (specs/011، دیده‌شده در مرورگر).
   const [known, setKnown] = useState(false);
@@ -34,10 +37,12 @@ export default function AuthGuard({ children }) {
     // 🔴 «/api/health»، نه «/health»: پراکسیِ Vite (و Nginx) فقط /api را به سرور می‌برد. «/health» از
     //    همان مبدأ index.html برمی‌گرداند، json() بی‌صدا شکست می‌خورد و گارد هرگز روشن نمی‌شد — با
     //    AUTH_REQUIRED=true در سرور، بیمار بی‌ورود تا ته فرم می‌رفت و آخرش ۴۰۱ می‌گرفت (specs/011).
-    fetch('/api/health')
-      .then((r) => (r.ok ? r.json() : null))
+    fetchHealth()
       .then((d) => {
-        if (alive && d && typeof d.authRequired === 'boolean') setAuthRequired(d.authRequired);
+        if (!alive || !d) return;
+        if (typeof d.authRequired === 'boolean') setAuthRequired(d.authRequired);
+        const ch = channelsOf(d);
+        if (ch) setChannels(ch);
       })
       .catch(() => {})
       .finally(() => { if (alive) setKnown(true); });
@@ -52,6 +57,7 @@ export default function AuthGuard({ children }) {
 
   return (
     <SignIn
+      channels={channels}
       onSignedIn={(data) => {
         primeProfile(data.profile);
         setIsAuthenticated(true);

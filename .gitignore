@@ -60,3 +60,6 @@ labmat-prototype/node_modules/
 /khanesh-server/analysis-audit.jsonl
 # صفحهٔ ذخیره‌شدهٔ مرورگر (scratch) برای بررسیِ چشمی
 /khanesh/ddg.html
+/khanesh/g1.html
+/khanesh-server/backend.log
+/web.tgz

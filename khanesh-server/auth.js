@@ -86,7 +86,7 @@ export function setOtpSenders({ sms, email, live = {} } = {}) {
   sendersLive = { ...sendersLive, ...live };
 }
 // فرستندهٔ واقعیِ پیامک: فقط با SMSIR_API_KEY و SMSIR_TEMPLATE_ID روشن می‌شود.
-const smsIr = makeSmsIrSender({ apiKey: process.env.SMSIR_API_KEY, templateId: process.env.SMSIR_TEMPLATE_ID, paramName: process.env.SMSIR_PARAM || 'Code' });
+const smsIr = makeSmsIrSender({ apiKey: process.env.SMSIR_API_KEY, templateId: process.env.SMSIR_TEMPLATE_ID, paramName: process.env.SMSIR_PARAM || 'CODE' });
 if (smsIr) setOtpSenders({ sms: smsIr, live: { sms: true } });
 export const otpSenderStatus = () => ({ smsOtp: sendersLive.sms ? 'live' : 'mock', emailOtp: sendersLive.email ? 'live' : 'mock' });
 
@@ -140,6 +140,10 @@ async function deliver(sender, key, to, code) {
   return ok;
 }
 const SEND_FAILED = { error: 'ارسالِ کد انجام نشد. چند دقیقهٔ دیگر دوباره تلاش کنید.' };
+// ⚠️ کدِ وضعیت ۵۰۳ است، نه ۵۰۲: کلودفلر بدنهٔ ۵۰۲ را با صفحهٔ خودش («error code: 502»)
+//    عوض می‌کند و بیمار به‌جای همین جملهٔ فارسی یک متنِ انگلیسیِ بی‌معنی می‌بیند
+//    (روی azmayarapp.ir دیده شد). ۵۰۳ از کلودفلر بی‌تغییر رد می‌شود.
+const SEND_FAILED_STATUS = 503;
 
 /** null یعنی کد درست بود و مصرف شد؛ در غیر این صورت پیامِ فارسیِ خطا. */
 function checkCode(key, code) {
@@ -211,7 +215,7 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
   if (!phone) return res.status(400).json({ error: 'شماره موبایل نامعتبر است. شماره را مثل ۰۹۱۲۱۲۳۴۵۶۷ وارد کنید.' });
   const r = issueCode(`phone:${phone}`, OTP_TTL_MS);
   if (r.wait) return res.status(429).json({ error: `کد قبلاً فرستاده شده. ${faDigits(r.wait)} ثانیهٔ دیگر دوباره تلاش کنید.`, retryAfterSec: r.wait });
-  if (!(await deliver(smsSender, `phone:${phone}`, phone, r.code))) return res.status(502).json(SEND_FAILED);
+  if (!(await deliver(smsSender, `phone:${phone}`, phone, r.code))) return res.status(SEND_FAILED_STATUS).json(SEND_FAILED);
   return res.json({ success: true, message: 'کد با موفقیت ارسال شد.', retryAfterSec: RESEND_COOLDOWN_MS / 1000 });
 });
 
@@ -236,7 +240,7 @@ router.post('/request-email-otp', otpRequestLimiter, async (req, res) => {
   if (!email) return res.status(400).json({ error: 'نشانیِ ایمیل نامعتبر است.' });
   const r = issueCode(`email:${email}`, EMAIL_OTP_TTL_MS);
   if (r.wait) return res.status(429).json({ error: `کد قبلاً فرستاده شده. ${faDigits(r.wait)} ثانیهٔ دیگر دوباره تلاش کنید.`, retryAfterSec: r.wait });
-  if (!(await deliver(emailSender, `email:${email}`, email, r.code))) return res.status(502).json(SEND_FAILED);
+  if (!(await deliver(emailSender, `email:${email}`, email, r.code))) return res.status(SEND_FAILED_STATUS).json(SEND_FAILED);
   return res.json({ success: true, message: 'کد به ایمیلِ شما فرستاده شد.', retryAfterSec: RESEND_COOLDOWN_MS / 1000 });
 });
 

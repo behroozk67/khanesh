@@ -598,6 +598,8 @@
 .page--lab .prose-block .text {
   font-size: 1.0625rem; font-weight: 400; line-height: 2.1; color: #123f45;
   text-wrap: pretty; letter-spacing: 0;
+  text-align: justify;
+  text-align-last: start;
 }
 .page--lab .prose-block .text + .text { margin-top: var(--s6); }
 .page--lab .prose-block .bullet-list { font-size: 1.0625rem; line-height: 2.05; color: #123f45; }

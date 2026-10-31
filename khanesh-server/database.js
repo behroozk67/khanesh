@@ -112,6 +112,15 @@ export async function initDb() {
       PRIMARY KEY (lab_id, marker_key)
     );
     CREATE INDEX IF NOT EXISTS idx_lab_obs_marker ON lab_observations(marker_key);
+    CREATE TABLE IF NOT EXISTS contact_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      contact TEXT NOT NULL,
+      subject TEXT,
+      message TEXT NOT NULL,
+      ip TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
   console.log("✅ Database initialized");
 }
@@ -366,6 +375,20 @@ export async function deleteOwnerHistory(owner) {
   const db = await dbConn();
   await db.run(`DELETE FROM lab_observations WHERE lab_id IN (SELECT id FROM lab_events WHERE owner = ?)`, [owner]);
   await db.run(`DELETE FROM lab_events WHERE owner = ?`, [owner]);
+}
+
+/** ثبت پیام تماس و بازخورد */
+export async function saveContactMessage({ name, contact, subject, message, ip }) {
+  const db = await dbConn();
+  const res = await db.run(
+    'INSERT INTO contact_messages (name, contact, subject, message, ip) VALUES (?, ?, ?, ?, ?)',
+    name || null,
+    contact,
+    subject || null,
+    message,
+    ip || null
+  );
+  return { id: res.lastID, name, contact, subject, message, ip, createdAt: new Date() };
 }
 
 // ⚠️ قبلاً خودِ promise را default export می‌کرد، که یعنی هر import اتصال را

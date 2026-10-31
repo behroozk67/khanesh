@@ -1,10 +1,11 @@
-import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { lazy, Suspense, useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import Tafsir from "./Tafsir";
 import AuthGuard from "./AuthGuard";
 import Profile from "./Profile";
 import History from "./History";
 import SignIn from "./onboarding/SignIn.jsx";
+import { fetchHealth, channelsOf } from "./health.js";
 import Intake from "./onboarding/Intake.jsx";
 import StartChoice, { AppEntry } from "./onboarding/StartChoice.jsx";
 import { useSeoHead } from "./useSeoHead.js";
@@ -42,13 +43,38 @@ const ReferenceRanges = lazy(() => import("./ReferenceRanges"));
 const UnitsGuide = lazy(() => import("./UnitsGuide"));
 const HowToCapture = lazy(() => import("./HowToCapture"));
 const Methodology = lazy(() => import("./Methodology"));
+const ContactPage = lazy(() => import("./ContactPage.jsx"));
+
+// با هر تغییرِ مسیر، صفحه از بالا شروع شود.
+// ⚠️ بدونِ این، کلیک روی نوارِ بالا (مثلاً «تماس با ما») صفحهٔ تازه را در همان
+//    اسکرولِ صفحهٔ قبلی باز می‌کرد و کاربر میانِ صفحه فرود می‌آمد — و اگر
+//    مسیر هش داشت (/#faq-section)، باید همان بخش را نشان می‌داد.
+function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+  useEffect(() => {
+    if (hash) {
+      const el = document.getElementById(hash.slice(1));
+      if (el) { el.scrollIntoView({ block: "start" }); return; }
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [pathname, hash]);
+  return null;
+}
 
 function SignInPage() {
   const nav = useNavigate();
+  // ⚠️ مسیرِ /signin بیرونِ AuthGuard است، پس channels را خودش می‌گیرد؛ وگرنه
+  //    «ورود با ایمیل» روی پرودی که فرستندهٔ ایمیل ندارد هم نمایش داده می‌شد.
+  const [channels, setChannels] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    fetchHealth().then((d) => { const ch = channelsOf(d); if (alive && ch) setChannels(ch); });
+    return () => { alive = false; };
+  }, []);
   return (
     <>
       <PrivateHead title="ورود به حساب کاربری" />
-      <SignIn onSignedIn={() => nav("/app", { replace: true })} />
+      <SignIn channels={channels} onSignedIn={() => nav("/app", { replace: true })} />
     </>
   );
 }
@@ -56,6 +82,7 @@ function SignInPage() {
 export default function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Suspense fallback={<PageLoading />}>
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -80,6 +107,7 @@ export default function App() {
           <Route path="/units-guide" element={<UnitsGuide />} />
           <Route path="/how-to-capture" element={<HowToCapture />} />
           <Route path="/methodology" element={<Methodology />} />
+          <Route path="/contact" element={<ContactPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

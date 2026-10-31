@@ -7,7 +7,7 @@ import { GUIDES, testPath, catPath } from "../src/testCatalog.js";
 const ORIGIN = process.env.SITE_ORIGIN || "https://azmayarapp.ir";
 const today = new Date().toISOString().slice(0, 10);
 
-const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology"];
+const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology", "/contact"];
 for (const g of GUIDES) paths.push(catPath(g.id));
 const keys = new Set();
 for (const g of GUIDES) for (const i of g.items) keys.add(i.k || i.slug);

@@ -23,6 +23,10 @@ export function createAvalAIClient({ apiKey, baseUrl, timeoutMs, fetchImpl }) {
   // ندارد و بالا بردنش فقط هزینه اضافه می‌کند.
   const truncations = {};
 
+  // آخرین شکستِ ارتباط — فقط کدِ خطا، هرگز بدنه یا URL با دادهٔ بیمار.
+  // در /health دیده می‌شود تا «خطا داد» بدونِ حدس ریشه‌یابی شود.
+  let lastFailure = null;
+
   async function call({ model, messages, maxTokens = 2000, temperature = 0 }) {
     const doFetch = fetchImpl ?? fetch;
     let upstream;
@@ -43,9 +47,20 @@ export function createAvalAIClient({ apiKey, baseUrl, timeoutMs, fetchImpl }) {
         }),
       });
     } catch (err) {
-      console.error("AvalAI fetch failed:", model, err.name, err.message, "Cause:", err.cause);
-      const e = new Error("upstream_timeout");
+      // ⚠️ هر شکستِ fetch یک «تایم‌اوت» نیست. تا امروز همه — حتی ردشدنِ
+      //    فوریِ اتصال (ECONNREFUSED) یا شکستِ DNS (ENOTFOUND) — به
+      //    upstream_timeout ترجمه می‌شد و کاربر پیامِ «سرویس خیلی طول کشید»
+      //    می‌گرفت؛ یعنی پیام دربارهٔ علت دروغ می‌گفت و ریشه‌یابی (فیلترشکن؟
+      //    DNS؟ سرور؟) غیرممکن می‌شد. تنها زمانی که واقعاً تایم‌اوت است،
+      //    خودِ AbortSignal.timeout() با name=TimeoutError رد می‌کند.
+      const causeCode = err?.cause?.code || err?.code || null;
+      const isAbort = err?.name === "AbortError" || err?.name === "TimeoutError";
+      console.error("AvalAI fetch failed:", model, err.name, err.message, "Cause:", causeCode || err.cause);
+      const e = new Error(isAbort ? "upstream_timeout" : "upstream_unreachable");
       e.model = model;
+      // فقط کدِ خطا (مثل ECONNREFUSED) — هرگز بدنه/آدرسِ درخواست.
+      e.causeCode = causeCode;
+      lastFailure = { code: e.message, causeCode, model, at: new Date().toISOString() };
       throw e;
     }
 
@@ -84,7 +99,7 @@ export function createAvalAIClient({ apiKey, baseUrl, timeoutMs, fetchImpl }) {
     return data?.choices?.[0]?.message?.content || "{}";
   }
 
-  return { call, truncations };
+  return { call, truncations, get lastFailure() { return lastFailure; } };
 }
 
 // ============================================================
