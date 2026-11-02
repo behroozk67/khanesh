@@ -138,24 +138,45 @@ function MarkerCard({ m }) {
               : `یک نوبت · ${m.latest_fa || fa(m.latest?.date)}`}
           </p>
         </div>
-        <span className={`hist-badge ${status.cls}`}>{status.text}</span>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {m.trend5?.direction && m.trend5.direction !== 'single' && (
+            <span className={`hist-trend-badge is-${m.trend5.direction}`}>
+              روندِ {fa(m.trend5.count)} نوبت: {m.trend5.directionFa}
+            </span>
+          )}
+          <span className={`hist-badge ${status.cls}`}>{status.text}</span>
+        </div>
       </header>
 
       <div className="hist-card-body">
-        {/* چیدمان ثابت: چپ = نوبتِ قبل، راست = آخرین مقدار — دقیقاً بالای دو سرِ
-            نمودار (قدیم→جدید) که پایین‌تر کشیده می‌شود. */}
-        <div className={`hist-values${m.previous ? '' : ' is-single'}`} dir="ltr">
-          {m.previous && (
-            <div className="hist-cell is-prev">
-              <Val value={m.previous.value} unit={m.unit} small />
-              <span className="hist-val-label">نوبتِ قبل{m.previous_fa ? ` · ${m.previous_fa}` : ''}</span>
-            </div>
-          )}
-          <div className="hist-cell is-now">
-            <Val value={m.latest?.value} unit={m.unit} />
-            <span className="hist-val-label">آخرین مقدار</span>
+        {m.recentPoints && m.recentPoints.length > 2 ? (
+          <div className="hist-timeline-5" dir="ltr" aria-label="روند نوبت‌های اخیر">
+            {m.recentPoints.map((p, idx) => (
+              <div
+                key={idx}
+                className={`hist-point-pill${idx === m.recentPoints.length - 1 ? ' is-latest' : ''}${p.abnormal ? ' is-out' : ''}`}
+                title={`نوبت ${fa(idx + 1)}: ${p.dateFa || fa(p.date)} - مقدار: ${p.value} ${m.unit || ''}`}
+              >
+                <span className="hist-point-date">{p.dateFa ? p.dateFa.split(' ').slice(0, 2).join(' ') : `نوبت ${fa(idx + 1)}`}</span>
+                <span className="hist-point-val"><Val value={p.value} unit={m.unit} small={idx < m.recentPoints.length - 1} /></span>
+                <span className="hist-point-tag">{idx === m.recentPoints.length - 1 ? 'آخرین' : `نوبت ${fa(idx + 1)}`}</span>
+              </div>
+            ))}
           </div>
-        </div>
+        ) : (
+          <div className={`hist-values${m.previous ? '' : ' is-single'}`} dir="ltr">
+            {m.previous && (
+              <div className="hist-cell is-prev">
+                <Val value={m.previous.value} unit={m.unit} small />
+                <span className="hist-val-label">نوبتِ قبل{m.previous_fa ? ` · ${m.previous_fa}` : ''}</span>
+              </div>
+            )}
+            <div className="hist-cell is-now">
+              <Val value={m.latest?.value} unit={m.unit} />
+              <span className="hist-val-label">آخرین مقدار</span>
+            </div>
+          </div>
+        )}
 
         {m.points.length > 1 && <Spark points={m.points} range={rng} />}
 
@@ -164,6 +185,11 @@ function MarkerCard({ m }) {
             <span className="hist-delta-v">{signFa}</span>
             {m.rcvPctRef != null && (
               <span className="hist-delta-thr">حدِ نوسانِ فردی: {fa(Math.round(m.rcvPctRef))}٪</span>
+            )}
+            {m.trend5?.overallDelta != null && m.recentPoints?.length > 2 && (
+              <span className="hist-delta-thr">
+                تغییرِ {fa(m.recentPoints.length)} نوبت: {m.trend5.overallDelta > 0 ? '+' : ''}{fa(m.trend5.overallDelta)} {m.unit} ({m.trend5.directionFa})
+              </span>
             )}
           </div>
         )}
@@ -178,7 +204,7 @@ function MarkerCard({ m }) {
       {/* متنِ کاملِ محاسبه (تاریخ و اعداد) پشتِ یک کلیک — نه تکرارِ اجباری در هر کارت */}
       {m.count > 1 && m.fa && (
         <details className="hist-details">
-          <summary>جزئیاتِ محاسبه</summary>
+          <summary>جزئیاتِ محاسبه و روند</summary>
           <p className="hist-note-detail">{m.fa}</p>
         </details>
       )}

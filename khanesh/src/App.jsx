@@ -76,7 +76,7 @@ function SignInPage() {
   return (
     <>
       <PrivateHead title="ورود به حساب کاربری" />
-      <SignIn channels={channels} onSignedIn={() => nav("/app", { replace: true })} />
+      <SignIn channels={channels} onSignedIn={() => nav("/app/intake/name", { replace: true })} />
     </>
   );
 }

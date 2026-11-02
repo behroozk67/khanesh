@@ -104,6 +104,13 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
         : "برای تفسیرِ دقیق‌تر. نام فقط برای خطاب‌کردنِ شماست و هرگز همراهِ آزمایش برای تحلیل فرستاده نمی‌شود."}
     >
       <form className="onb-card ik" onSubmit={submit} noValidate>
+        {profile.phone && (
+          <div className="onb-phone-badge" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", background: "var(--brand-soft, #f0fdfa)", borderRadius: "8px", fontSize: "0.85rem", color: "var(--brand, #0f766e)", marginBottom: "0.8rem", width: "fit-content", border: "1px solid var(--line, #e2e8f0)" }}>
+            <Icon name="phone" size={16} />
+            <span>شماره پرونده:</span>
+            <bdi style={{ fontWeight: 600 }}>{toFaDigits(profile.phone)}</bdi>
+          </div>
+        )}
         <div className="ik-names">
           <div className="onb-field">
             <label className="onb-label" htmlFor="fn">نام</label>

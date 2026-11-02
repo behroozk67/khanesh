@@ -202,12 +202,18 @@ function rowToProfile(r) {
     conditions: JSON.parse(r.conditions || '[]'), conditionsAnswered: r.conditions_answered === 1,
     ageRecordedAt: r.age_recorded_at ?? null,
     gestWeeks: r.gest_weeks ?? null, gestRecordedAt: r.gest_recorded_at ?? null,
+    phone: r.phone ?? null,
   };
 }
 
 export async function getProfile(userId) {
   const db = await dbConn();
-  return rowToProfile(await db.get(`SELECT * FROM profiles WHERE user_id = ?`, [userId]));
+  const row = await db.get(
+    `SELECT p.*, u.phone, u.email FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.id = ?`,
+    [userId]
+  );
+  if (!row || row.user_id == null) return null;
+  return rowToProfile(row);
 }
 
 export async function upsertProfile(userId, patch) {
@@ -346,7 +352,7 @@ export async function getLabEvent(owner, labId) {
   return event;
 }
 
-/** همهٔ مشاهده‌های مالک، برای ساختِ سری‌ها (compareSeries). */
+/** همهٔ مشاهده‌های مالک، برای ساختِ سری‌ها (compareSeries) با تضمینِ نگهداری آزمایش‌ها (دست‌کم ۶ ماه و بیشتر). */
 export async function getOwnerObservations(owner, { since = null } = {}) {
   const db = await dbConn();
   const sql = `SELECT o.lab_id, o.marker_key, o.value, o.unit, o.ref_range, o.abnormal, o.dir, e.taken_at
@@ -354,6 +360,14 @@ export async function getOwnerObservations(owner, { since = null } = {}) {
                 WHERE e.owner = ?${since ? ' AND e.taken_at >= ?' : ''}
                 ORDER BY e.taken_at ASC`;
   return db.all(sql, since ? [owner, since] : [owner]);
+}
+
+/** انتقال و اتصالِ تاریخچهٔ ثبت‌شده با شناسهٔ دستگاه به حسابِ کاربر پس از ورود با شماره */
+export async function linkDeviceHistoryToUser(deviceOwner, userOwner) {
+  if (!deviceOwner || !userOwner || deviceOwner === userOwner) return 0;
+  const db = await dbConn();
+  const r = await db.run(`UPDATE lab_events SET owner = ? WHERE owner = ?`, [userOwner, deviceOwner]);
+  return r?.changes || 0;
 }
 
 export async function deleteLabEvent(owner, labId) {

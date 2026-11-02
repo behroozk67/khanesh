@@ -177,7 +177,105 @@ export function rcvThresholdPct(rcvPct, direction) {
 
 
 /**
- * مقایسهٔ کاملِ یک مارکر.
+ * تحلیلِ روندِ تا ۵ نوبتِ اخیر برای یک مارکر.
+ */
+export function calculateTrend5(points) {
+  const pts = points ?? [];
+  if (pts.length < 2) {
+    return {
+      count: pts.length,
+      direction: 'single',
+      directionFa: 'تک‌نوبت',
+      overallDelta: null,
+      overallPct: null,
+      steps: [],
+      summaryFa: pts.length === 1 ? 'تنها یک نوبت ثبت شده است.' : null,
+    };
+  }
+  const oldest = pts[0];
+  const latest = pts[pts.length - 1];
+  const overallDelta = +(latest.value - oldest.value).toFixed(4);
+  const overallPct = pctChange(oldest.value, latest.value);
+
+  const steps = [];
+  let upCount = 0;
+  let downCount = 0;
+  let flatCount = 0;
+
+  for (let i = 1; i < pts.length; i++) {
+    const pPrev = pts[i - 1];
+    const pCurr = pts[i];
+    const stepDelta = +(pCurr.value - pPrev.value).toFixed(4);
+    const stepPct = pctChange(pPrev.value, pCurr.value);
+    const dir = stepDelta > 0 ? 'up' : stepDelta < 0 ? 'down' : 'flat';
+    if (dir === 'up') upCount++;
+    else if (dir === 'down') downCount++;
+    else flatCount++;
+    steps.push({
+      fromIndex: i - 1,
+      toIndex: i,
+      delta: stepDelta,
+      pct: stepPct,
+      direction: dir,
+    });
+  }
+
+  const stepTotal = steps.length;
+  const vals = pts.map((p) => p.value);
+  const minVal = Math.min(...vals);
+  const maxVal = Math.max(...vals);
+  const avgVal = vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
+  const spreadPct = avgVal > 0 ? ((maxVal - minVal) / avgVal) * 100 : 0;
+
+  let direction = 'stable';
+  let directionFa = 'پایدار';
+
+  if (spreadPct < 8 && Math.abs(overallPct ?? 0) < 8) {
+    direction = 'stable';
+    directionFa = 'پایدار';
+  } else if (upCount === stepTotal || (upCount >= stepTotal * 0.7 && downCount === 0)) {
+    direction = 'rising';
+    directionFa = 'صعودی';
+  } else if (downCount === stepTotal || (downCount >= stepTotal * 0.7 && upCount === 0)) {
+    direction = 'falling';
+    directionFa = 'نزولی';
+  } else if (upCount > 0 && downCount > 0) {
+    direction = 'fluctuating';
+    directionFa = 'نوسانی';
+  } else if (Math.abs(overallPct ?? 0) >= 10) {
+    direction = overallDelta > 0 ? 'rising' : 'falling';
+    directionFa = overallDelta > 0 ? 'صعودی' : 'نزولی';
+  } else {
+    direction = 'stable';
+    directionFa = 'پایدار';
+  }
+
+  const countFa = faDigits(pts.length);
+  const fromValFa = numFa(oldest.value, oldest.unit);
+  const toValFa = numFa(latest.value, latest.unit);
+  const fromDateFa = faDate(oldest.date);
+  const toDateFa = faDate(latest.date);
+
+  let summaryFa = `در ${countFa} نوبت اخیر (${fromDateFa} تا ${toDateFa})، روند کلی ${directionFa} بوده و مقدار از ${fromValFa} به ${toValFa} رسیده است.`;
+  if (direction === 'stable') {
+    summaryFa = `در ${countFa} نوبت اخیر، مقادیر تغییرِ چشمگیری نداشته و در محدودهٔ پایدار قرار دارد.`;
+  } else if (direction === 'fluctuating') {
+    summaryFa = `در ${countFa} نوبت اخیر، مقدار این آزمایش نوسانی بوده (از ${fromValFa} تا ${toValFa}).`;
+  }
+
+  return {
+    count: pts.length,
+    direction,
+    directionFa,
+    overallDelta,
+    overallPct,
+    steps,
+    summaryFa,
+  };
+}
+
+/**
+ * مقایسهٔ کاملِ یک مارکر (شامل مقایسهٔ جفتی و بررسیِ روندِ تا ۵ آزمایشِ اخیر).
  * @returns {object} ورودیِ نمایش؛ هیچ متنِ بالینیِ تازه‌ای نمی‌سازد.
  */
 export function compareMarker(key, points, { today = Date.now() } = {}) {
@@ -185,6 +283,21 @@ export function compareMarker(key, points, { today = Date.now() } = {}) {
   const last = list[list.length - 1];
   const prev = list.length > 1 ? list[list.length - 2] : null;
   const first = list[0];
+  const recentList = list.slice(-5);
+  const recentPoints = recentList.map((p, idx) => ({
+    order: idx + 1,
+    total: recentList.length,
+    date: p.date,
+    dateFa: faDate(p.date),
+    value: p.value,
+    unit: p.unit,
+    abnormal: p.abnormal,
+    dir: p.dir,
+    range: p.range,
+    labId: p.labId,
+  }));
+  const trend5 = calculateTrend5(recentList);
+
   const base = {
     key,
     label: faName(key) || key,
@@ -198,6 +311,8 @@ export function compareMarker(key, points, { today = Date.now() } = {}) {
       range: p.range,
       labId: p.labId,
     })),
+    recentPoints,
+    trend5,
     count: list.length,
     latest: last ? { date: last.date, value: last.value, abnormal: last.abnormal, dir: last.dir, range: last.range } : null,
     previous: prev ? { date: prev.date, value: prev.value, abnormal: prev.abnormal, dir: prev.dir, range: prev.range } : null,
@@ -363,12 +478,20 @@ export function comparisonFa(m) {
     else if (m.towardsRange === true) s += ' و به محدودهٔ مرجع نزدیک‌تر شده است.';
     else if (m.towardsRange === false) s += ' و از محدودهٔ مرجع دورتر شده است.';
     else s += '.';
+
+    if (m.count >= 3 && m.trend5?.summaryFa) {
+      s += ` ${m.trend5.summaryFa}`;
+    }
     return s;
   }
   // تغییرِ زیرِ RCV یا بی‌RCV ⇒ صادقانه «قابلِ تفسیر نیست»
   const rTxt = m.rcvPctRef != null
     ? `کمتر از حدود ${faDigits(Math.round(m.rcvPctRef))}٪`
     : 'در حدی که با دادهٔ تغییرپذیریِ زیستیِ این آزمایش نمی‌شود سنجید';
-  return `مقدار ${named(from)} (${when}) به ${to} رسیده؛ این تغییر ${rTxt} است، ` +
-         `یعنی در محدودهٔ نوسانِ طبیعیِ بدن و خطای آزمایشگاه — نه بهتر شدن و نه بدتر شدن.`;
+  let s = `مقدار ${named(from)} (${when}) به ${to} رسیده؛ این تغییر ${rTxt} است، ` +
+          `یعنی در محدودهٔ نوسانِ طبیعیِ بدن و خطای آزمایشگاه — نه بهتر شدن و نه بدتر شدن.`;
+  if (m.count >= 3 && m.trend5?.summaryFa) {
+    s += ` ${m.trend5.summaryFa}`;
+  }
+  return s;
 }

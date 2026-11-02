@@ -64,6 +64,11 @@ export default function DeltaStrip({ tests, hidden = false }) {
               <span className="delta-now">{fmt(m.latest.value, m.unit)}</span>
             </span>
             <span className={`delta-chip${m.significant ? ' is-sig' : ''}`}>
+              {m.trend5?.direction && m.count >= 3 && (
+                <span className={`hist-trend-badge is-${m.trend5.direction}`} style={{ fontSize: '0.7rem', padding: '2px 6px', marginInlineEnd: '6px' }}>
+                  {m.trend5.directionFa}
+                </span>
+              )}
               {m.reason === 'unit_mismatch'
                 ? 'بی‌قابلیتِ مقایسه'
                 : m.rcvPctRef != null

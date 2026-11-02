@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import OnbShell from "./OnbShell.jsx";
 import Icon from "./icons.jsx";
 import { normalizeDigits, toFaDigits } from "../digits.js";
+import { primeProfile } from "./profileStore.js";
 
 // ============================================================
 // ورود (specs/011، US1): دو راه — موبایل با پیامک یا ایمیل — هر دو با کدِ شش‌رقمی.
@@ -30,7 +32,11 @@ const CHANNEL = {
 };
 
 async function post(url, body) {
-  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  let devId = "";
+  try { devId = localStorage.getItem("khanesh_device_id_v1") || ""; } catch {}
+  const headers = { "content-type": "application/json" };
+  if (devId) headers["x-device-id"] = devId;
+  const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
   const d = await r.json().catch(() => null);
   return { ok: r.ok, data: d };
 }
@@ -45,7 +51,13 @@ function OtpBoxes({ value, onChange, invalid, describedBy }) {
   function onInput(i, e) {
     const clean = normalizeDigits(e.target.value).replace(/\D/g, "");
     if (!clean) { set(i, ""); return; }
-    if (clean.length > 1) { onChange(clean.slice(0, 6)); focus(clean.length >= 6 ? 5 : clean.length); return; }
+    if (clean.length >= 6) { onChange(clean.slice(0, 6)); focus(5); return; }
+    if (clean.length > 1) {
+      const single = clean.slice(-1);
+      set(i, single);
+      focus(i + 1);
+      return;
+    }
     set(i, clean); focus(i + 1);
   }
   function onKey(i, e) {
@@ -84,6 +96,7 @@ const Trust = () => (
 );
 
 export default function SignIn({ onSignedIn, channels }) {
+  const navigate = useNavigate();
   // کانالی که فرستنده‌اش mock است نباید دکمه داشته باشد: کاربر کد را هرگز نمی‌گیرد.
   // channels = null ⇒ هر دو (پاسخِ /health نیامده یا محیطِ توسعهٔ لوکال).
   const can = channels || { phone: true, email: true };
@@ -93,6 +106,7 @@ export default function SignIn({ onSignedIn, channels }) {
   const [step, setStep] = useState("id");     // id | code
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [succeeded, setSucceeded] = useState(false);
   const [wait, setWait] = useState(0);
   const c = CHANNEL[kind];
 
@@ -123,17 +137,27 @@ export default function SignIn({ onSignedIn, channels }) {
 
   async function verify(e) {
     e.preventDefault();
+    if (succeeded) return;
     const value = normalizeDigits(code).replace(/\D/g, "");
     if (value.length !== 6) { setError("کدِ شش‌رقمی را کامل وارد کنید."); return; }
     setError(""); setLoading(true);
     try {
       const { ok, data } = await post(c.verify, { [c.field]: normalizeDigits(id).trim(), code: value });
-      if (!ok) { setError(data?.error || "کد پذیرفته نشد."); return; }
+      if (!ok) {
+        setError(data?.error || "کد پذیرفته نشد.");
+        setLoading(false);
+        return;
+      }
+      setSucceeded(true);
       try { localStorage.setItem("auth_token", data.token); } catch { /* حالتِ خصوصی — ورود برای همین نشست */ }
-      onSignedIn?.(data);
+      if (data?.profile) primeProfile(data.profile);
+      if (onSignedIn) {
+        onSignedIn(data);
+      } else {
+        navigate("/app/intake/name", { replace: true });
+      }
     } catch {
       setError("اتصال به اینترنت برقرار نشد. اتصال را بررسی کنید.");
-    } finally {
       setLoading(false);
     }
   }
@@ -149,12 +173,14 @@ export default function SignIn({ onSignedIn, channels }) {
         <form className="onb-card" onSubmit={verify} noValidate>
           <OtpBoxes value={code} onChange={setCode} invalid={!!error} describedBy={error ? "otp-err" : undefined} />
           {error && <p className="onb-err" id="otp-err" role="alert">{error}</p>}
-          <button type="submit" className="onb-primary" disabled={loading}>{loading ? "در حال بررسی…" : "ورود"}</button>
-          <button type="button" className="onb-link" onClick={requestCode} disabled={wait > 0 || loading}>
+          <button type="submit" className="onb-primary" disabled={loading || succeeded}>
+            {succeeded ? "ورود موفق، در حال انتقال…" : loading ? "در حال بررسی…" : "ورود"}
+          </button>
+          <button type="button" className="onb-link" onClick={requestCode} disabled={wait > 0 || loading || succeeded}>
             {wait > 0 ? `ارسالِ دوباره تا ${toFaDigits(wait)} ثانیهٔ دیگر` : "کد نرسید؟ ارسالِ دوباره"}
           </button>
           {can[c.other] && (
-            <button type="button" className="onb-link" onClick={() => switchKind(c.other)}>{c.otherLabel}</button>
+            <button type="button" className="onb-link" onClick={() => switchKind(c.other)} disabled={loading || succeeded}>{c.otherLabel}</button>
           )}
           <Trust />
         </form>

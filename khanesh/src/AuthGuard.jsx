@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import SignIn from "./onboarding/SignIn.jsx";
 import { primeProfile } from "./onboarding/profileStore.js";
 import { fetchHealth, channelsOf } from "./health.js";
@@ -22,6 +23,7 @@ function hasToken() {
 }
 
 export default function AuthGuard({ children }) {
+  const navigate = useNavigate();
   const [authRequired, setAuthRequired] = useState(AUTH_REQUIRED_HINT);
   // کدام کانالِ ورود واقعاً فرستنده دارد (پیامک/ایمیل). null = هنوز نامعلوم ⇒ هر دو نشان داده می‌شوند.
   const [channels, setChannels] = useState(null);
@@ -61,6 +63,7 @@ export default function AuthGuard({ children }) {
       onSignedIn={(data) => {
         primeProfile(data.profile);
         setIsAuthenticated(true);
+        navigate("/app/intake/name", { replace: true });
       }}
     />
   );

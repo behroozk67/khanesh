@@ -104,8 +104,8 @@ export default function Profile() {
 
         <main className="onb-card" style={{ margin: 'var(--s10) auto 0' }}>
           <h1 className="onb-title">پروفایلِ شما</h1>
-          {account && (account.phone || account.email) && (
-            <p className="onb-note">ورود با <span dir="ltr">{account.phone || account.email}</span></p>
+          {(account?.phone || p?.phone || account?.email) && (
+            <p className="onb-note">شماره و حسابِ کاربری: <bdi dir="ltr" style={{ fontWeight: 600 }}>{toFaDigits(account?.phone || p?.phone || account?.email)}</bdi></p>
           )}
           {error && <p className="onb-err" role="alert">{error}</p>}
 

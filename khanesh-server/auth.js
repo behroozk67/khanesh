@@ -12,8 +12,8 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
-import { randomInt } from 'node:crypto';
-import { getUser, createUser, getUserById, getUserByEmail, createUserWithEmail, getProfile, deleteUserCascade } from './database.js';
+import { randomInt, createHash } from 'node:crypto';
+import { getUser, createUser, getUserById, getUserByEmail, createUserWithEmail, getProfile, deleteUserCascade, linkDeviceHistoryToUser } from './database.js';
 import { dropJobsForUser } from './jobStore.js';
 import { makeSmsIrSender } from './smsir.js';
 
@@ -172,7 +172,13 @@ function checkCode(key, code) {
 async function issueToken(user, kind) {
   // ⚠️ شناسه (شماره/ایمیل) عمداً داخلِ توکن نیست — توکن در localStorage و لاگ‌ها می‌گردد.
   const token = jwt.sign({ userId: user.id, kind }, JWT_SECRET, { expiresIn: '7d' });
-  return { success: true, token, user: { id: user.id }, profile: await getProfile(user.id) };
+  const prof = await getProfile(user.id);
+  return {
+    success: true,
+    token,
+    user: { id: user.id, phone: user.phone || null, email: user.email || null },
+    profile: prof ? { ...prof, phone: user.phone || null } : null,
+  };
 }
 
 /** دو درخواستِ هم‌زمان برای یک شناسه: یکی می‌سازد، دیگری به قیدِ UNIQUE می‌خورد — خواندنِ دوباره درست است. */
@@ -227,6 +233,12 @@ router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
   if (err) return res.status(400).json({ error: err });
   try {
     const user = await findOrCreate(getUser, createUser, phone);
+    // اتصالِ تاریخچهٔ ثبت‌شده روی همین دستگاه به حسابِ کاربر
+    const dev = String(req.get('x-device-id') ?? req.body?.deviceId ?? '').trim();
+    if (/^[A-Za-z0-9_-]{8,64}$/.test(dev)) {
+      const devOwner = `d:${createHash('sha256').update(dev).digest('hex').slice(0, 24)}`;
+      await linkDeviceHistoryToUser(devOwner, `u:${user.id}`).catch(() => {});
+    }
     return res.json(await issueToken(user, 'phone'));
   } catch (dbError) {
     console.error('DB Error in auth:', dbError.message);
@@ -251,6 +263,11 @@ router.post('/verify-email-otp', otpVerifyLimiter, async (req, res) => {
   if (err) return res.status(400).json({ error: err });
   try {
     const user = await findOrCreate(getUserByEmail, createUserWithEmail, email);
+    const dev = String(req.get('x-device-id') ?? req.body?.deviceId ?? '').trim();
+    if (/^[A-Za-z0-9_-]{8,64}$/.test(dev)) {
+      const devOwner = `d:${createHash('sha256').update(dev).digest('hex').slice(0, 24)}`;
+      await linkDeviceHistoryToUser(devOwner, `u:${user.id}`).catch(() => {});
+    }
     return res.json(await issueToken(user, 'email'));
   } catch (dbError) {
     console.error('DB Error in auth:', dbError.message);

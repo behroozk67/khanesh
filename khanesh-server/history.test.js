@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import {
   parseRange, distanceFromRange, buildSeries, compareMarker, compareSeries,
   comparisonFa, logPctChange, pctChange, rcvThresholdPct, MIN_COMPARABLE_GAP_DAYS, STALE_DAYS,
+  calculateTrend5,
 } from './rules/history.js';
 import { rcv } from './rules/biovar.js';
 import { observationsFromResult, takenAtOf, ownerOf } from './historyRoutes.js';
@@ -318,6 +319,52 @@ test('H09e: logPctChange روی مقیاسِ لگاریتمی است', () => {
   assert.equal(Math.round(logPctChange(100, 110)), 10);
   assert.equal(Math.round(logPctChange(110, 100)), -10);
   assert.equal(logPctChange(0, 10), null);
+});
+
+test('H09_trend5: تحلیل و بررسیِ روند ۵ نوبت اخیر', () => {
+  const pts5Rising = buildSeries([
+    obs('2025-01-10', 'CREAT', 0.8),
+    obs('2025-04-10', 'CREAT', 0.9),
+    obs('2025-07-10', 'CREAT', 1.0),
+    obs('2025-10-10', 'CREAT', 1.15),
+    obs('2026-01-10', 'CREAT', 1.3),
+  ]).get('CREAT');
+
+  const mRising = compareMarker('CREAT', pts5Rising);
+  assert.equal(mRising.count, 5);
+  assert.equal(mRising.recentPoints.length, 5);
+  assert.equal(mRising.trend5.direction, 'rising');
+  assert.equal(mRising.trend5.directionFa, 'صعودی');
+  assert.ok(mRising.trend5.summaryFa.includes('صعودی'));
+
+  const fa = comparisonFa(mRising);
+  assert.ok(fa.includes('صعودی'));
+
+  // نوسانی
+  const pts5Fluct = buildSeries([
+    obs('2025-01-10', 'CREAT', 1.0),
+    obs('2025-04-10', 'CREAT', 1.3),
+    obs('2025-07-10', 'CREAT', 0.9),
+    obs('2025-10-10', 'CREAT', 1.25),
+    obs('2026-01-10', 'CREAT', 1.0),
+  ]).get('CREAT');
+
+  const mFluct = compareMarker('CREAT', pts5Fluct);
+  assert.equal(mFluct.trend5.direction, 'fluctuating');
+  assert.equal(mFluct.trend5.directionFa, 'نوسانی');
+
+  // پایدار
+  const pts5Stable = buildSeries([
+    obs('2025-01-10', 'CREAT', 1.0),
+    obs('2025-04-10', 'CREAT', 1.01),
+    obs('2025-07-10', 'CREAT', 1.0),
+    obs('2025-10-10', 'CREAT', 1.02),
+    obs('2026-01-10', 'CREAT', 1.01),
+  ]).get('CREAT');
+
+  const mStable = compareMarker('CREAT', pts5Stable);
+  assert.equal(mStable.trend5.direction, 'stable');
+  assert.equal(mStable.trend5.directionFa, 'پایدار');
 });
 
 // ══════════════════════════════════════════════════════════════
