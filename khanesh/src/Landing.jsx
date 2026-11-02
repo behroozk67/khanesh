@@ -870,7 +870,33 @@ export function Footer() {
           <a href="https://medlineplus.gov" target="_blank" rel="noopener noreferrer">MedlinePlus</a>{" "}
           (کتابخانهٔ ملی پزشکی آمریکا) برگرفته شده است.
         </p>
-        <Link to="/app" className="btn btn--primary btn--pill">تحلیل نتایج من</Link>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '1.25rem' }}>
+          <Link to="/app" className="btn btn--primary btn--pill">تحلیل نتایج من</Link>
+          <a
+            referrerPolicy="origin"
+            target="_blank"
+            href="https://trustseal.enamad.ir/?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
+            style={{
+              background: '#ffffff',
+              borderRadius: '10px',
+              padding: '6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+              border: '1px solid rgba(255,255,255,0.2)',
+            }}
+            title="نماد اعتماد الکترونیکی آزمایار (اینماد)"
+          >
+            <img
+              referrerPolicy="origin"
+              src="https://trustseal.enamad.ir/logo.aspx?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
+              alt="نماد اعتماد الکترونیکی اینماد"
+              style={{ cursor: 'pointer', width: '85px', height: 'auto', display: 'block' }}
+              code="M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
+            />
+          </a>
+        </div>
       </div>
     </footer>
   );

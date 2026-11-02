@@ -582,9 +582,35 @@ export default function Tafsir() {
         />
 
         <footer className="site-footer">
-          <p>
-            © ۱۴۰۵ آزمایار (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آزمایش‌های پزشکی.
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
+            <p style={{ margin: 0 }}>
+              © ۱۴۰۵ آزمایار (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آزمایش‌های پزشکی.
+            </p>
+            <a
+              referrerPolicy="origin"
+              target="_blank"
+              href="https://trustseal.enamad.ir/?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
+              style={{
+                background: '#ffffff',
+                borderRadius: '8px',
+                padding: '4px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                border: '1px solid #e2e8f0',
+              }}
+              title="نماد اعتماد الکترونیکی آزمایار (اینماد)"
+            >
+              <img
+                referrerPolicy="origin"
+                src="https://trustseal.enamad.ir/logo.aspx?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
+                alt="نماد اعتماد الکترونیکی اینماد"
+                style={{ cursor: 'pointer', width: '75px', height: 'auto', display: 'block' }}
+                code="M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
+              />
+            </a>
+          </div>
           <p>
             محدوده‌ها بر اساس مراجع استاندارد است و ممکن است با کیت آزمایشگاه شما اندکی فرق کند.
             این ابزار آموزشی است و جایگزین پزشک نیست. (مطالعهٔ <a href="/terms" target="_blank" rel="noopener noreferrer" className="link">شرایط استفاده</a> و <a href="/privacy" target="_blank" rel="noopener noreferrer" className="link">سیاست حریم خصوصی</a>)

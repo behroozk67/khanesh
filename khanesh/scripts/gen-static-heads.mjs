@@ -58,9 +58,18 @@ const navHtml = `
 const footerHtml = `
 <footer class="site-ftr" style="margin-top:3rem;padding:2rem 1.5rem;border-top:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:0.875rem">
   <div style="max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:1rem">
-    <p><strong><a href="/" style="color:#0f172a;text-decoration:none;font-weight:700">تفسیر آزمایش خون</a> با ${BRAND_FA}</strong> (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آنلاین آزمایش‌های پزشکی بر پایهٔ قواعد معتبر بالینی.</p>
-    <p style="font-size:0.8rem;line-height:1.6">© ۱۴۰۵ ${BRAND_FA} — تمامی حقوق محفوظ است.</p>
-    <p style="font-size:0.8rem;line-height:1.6">تذکر مهم پزشکی: آزمایار یک ابزار کمکی آموزشی و بالینی برای درک بهتر برگهٔ آزمایش است و به‌هیچ‌وجه جایگزین معاینه و تصمیم پزشک معالج نیست.</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1.5rem">
+      <div style="flex:1;min-width:260px">
+        <p><strong><a href="/" style="color:#0f172a;text-decoration:none;font-weight:700">تفسیر آزمایش خون</a> با ${BRAND_FA}</strong> (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آنلاین آزمایش‌های پزشکی بر پایهٔ قواعد معتبر بالینی.</p>
+        <p style="font-size:0.8rem;line-height:1.6">© ۱۴۰۵ ${BRAND_FA} — تمامی حقوق محفوظ است.</p>
+        <p style="font-size:0.8rem;line-height:1.6">تذکر مهم پزشکی: آزمایار یک ابزار کمکی آموزشی و بالینی برای درک بهتر برگهٔ آزمایش است و به‌هیچ‌وجه جایگزین معاینه و تصمیم پزشک معالج نیست.</p>
+      </div>
+      <div>
+        <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu' style="background:#fff;border-radius:8px;padding:6px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.1);border:1px solid #e2e8f0" title="نماد اعتماد الکترونیکی آزمایار (اینماد)">
+          <img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu' alt='نماد اعتماد الکترونیکی' style='cursor:pointer;width:80px;height:auto;display:block' code='M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu'>
+        </a>
+      </div>
+    </div>
     <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
       <a href="/tests" style="color:#64748b;text-decoration:none">آزمایش‌ها</a>
       <a href="/reference-ranges" style="color:#64748b;text-decoration:none">مقادیر مرجع</a>
