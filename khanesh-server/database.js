@@ -121,7 +121,36 @@ export async function initDb() {
       ip TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      authority TEXT UNIQUE NOT NULL,
+      job_id TEXT,
+      user_id INTEGER,
+      plan_id TEXT NOT NULL,
+      amount INTEGER NOT NULL,
+      currency TEXT DEFAULT 'IRT',
+      status TEXT DEFAULT 'pending',
+      ref_id TEXT,
+      card_pan TEXT,
+      card_hash TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      paid_at DATETIME,
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(job_id) REFERENCES jobs(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_payments_authority ON payments(authority);
+    CREATE INDEX IF NOT EXISTS idx_payments_job_id ON payments(job_id);
   `);
+
+  const ucols = await db.all('PRAGMA table_info(users)');
+  if (!ucols.some((c) => c.name === 'credits')) {
+    await db.exec('ALTER TABLE users ADD COLUMN credits INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!ucols.some((c) => c.name === 'active_plan')) {
+    await db.exec("ALTER TABLE users ADD COLUMN active_plan TEXT DEFAULT 'starter'");
+  }
+
   console.log("✅ Database initialized");
 }
 
@@ -403,6 +432,66 @@ export async function saveContactMessage({ name, contact, subject, message, ip }
     ip || null
   );
   return { id: res.lastID, name, contact, subject, message, ip, createdAt: new Date() };
+}
+
+// ── تراکنش‌های پرداخت و اعتبارسنجی زرین‌پال ──
+
+export async function createPaymentRecord({ authority, jobId, userId, planId, amount, currency = 'IRT' }) {
+  const db = await dbConn();
+  const res = await db.run(
+    `INSERT INTO payments (authority, job_id, user_id, plan_id, amount, currency, status)
+     VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+    [authority, jobId || null, userId || null, planId, amount, currency]
+  );
+  return { id: res.lastID, authority, jobId, userId, planId, amount, status: 'pending' };
+}
+
+export async function getPaymentByAuthority(authority) {
+  const db = await dbConn();
+  return db.get(`SELECT * FROM payments WHERE authority = ?`, [authority]);
+}
+
+export async function markPaymentSuccess(authority, { refId, cardPan, cardHash }) {
+  const db = await dbConn();
+  await db.run(
+    `UPDATE payments
+     SET status = 'paid', ref_id = ?, card_pan = ?, card_hash = ?, paid_at = CURRENT_TIMESTAMP
+     WHERE authority = ?`,
+    [refId, cardPan || null, cardHash || null, authority]
+  );
+  return getPaymentByAuthority(authority);
+}
+
+export async function markPaymentFailed(authority) {
+  const db = await dbConn();
+  await db.run(`UPDATE payments SET status = 'failed' WHERE authority = ?`, [authority]);
+}
+
+export async function getUserCredits(userId) {
+  if (!userId) return 0;
+  const db = await dbConn();
+  const row = await db.get(`SELECT credits FROM users WHERE id = ?`, [userId]);
+  return row?.credits || 0;
+}
+
+export async function addUserCredits(userId, creditsToAdd, planId) {
+  if (!userId) return;
+  const db = await dbConn();
+  await db.run(
+    `UPDATE users
+     SET credits = credits + ?, active_plan = COALESCE(?, active_plan)
+     WHERE id = ?`,
+    [creditsToAdd, planId || null, userId]
+  );
+}
+
+export async function deductUserCredit(userId) {
+  if (!userId) return false;
+  const db = await dbConn();
+  const row = await db.get(`SELECT credits FROM users WHERE id = ?`, [userId]);
+  if (!row || row.credits <= 0) return false;
+  await db.run(`UPDATE users SET credits = credits - 1 WHERE id = ?`, [userId]);
+  return true;
 }
 
 // ⚠️ قبلاً خودِ promise را default export می‌کرد، که یعنی هر import اتصال را

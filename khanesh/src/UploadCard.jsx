@@ -2,6 +2,7 @@ import { useState } from "react";
 import ResultView from "./ResultView.jsx";
 import ResultErrorBoundary from "./ResultErrorBoundary.jsx";
 import ExtractedTests from "./ExtractedTests.jsx";
+import PaymentCard from "./PaymentCard.jsx";
 import { asText, asList } from "./safeText.js";
 import { toFaDigits } from "./digits.js";
 import { progressText, etaText } from "./analyzeJob.js";
@@ -331,7 +332,26 @@ export default function UploadCard({
         </div>
       )}
 
-      {aiResult && !aiResult.error && !aiResult.parseError && (
+      {/* مرحله پرداخت امن زرین‌پال پس از تایید خوانش عکس توسط OCR */}
+      {aiResult?.status === "awaiting_payment" && (
+        <div ref={resultRef} tabIndex={-1} className="result-anchor">
+          <PaymentCard
+            jobId={aiResult.job_id}
+            planId={aiResult.plan_id}
+            amount={aiResult.amount}
+            testsCount={aiResult.tests_count}
+            testNames={aiResult.test_names}
+            paymentUrl={aiResult.payment_url}
+            authority={aiResult.authority}
+            onCancel={() => {
+              if (typeof onClearResumed === "function") onClearResumed();
+              window.location.reload();
+            }}
+          />
+        </div>
+      )}
+
+      {aiResult && !aiResult.error && !aiResult.parseError && aiResult.status !== "awaiting_payment" && (
         <div ref={resultRef} tabIndex={-1} className="result-anchor">
           <ResultErrorBoundary>
             <ResultView result={aiResult} asText={asText} asList={asList} />

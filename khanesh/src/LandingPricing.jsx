@@ -9,8 +9,32 @@ function toFaDigits(str) {
 }
 
 export default function LandingPricing() {
-  const [cycle, setCycle] = useState("bundle");
+  const [billingCycle, setBillingCycle] = useState("bundle");
   const [modal, setModal] = useState(null);
+  const [payLoading, setPayLoading] = useState(false);
+
+  async function handleProceedToZarinpal() {
+    if (!modal?.plan) return;
+    setPayLoading(true);
+    try {
+      const res = await fetch("/api/payment/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId: modal.plan.id }),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.paymentUrl) {
+        setActivePlanId(modal.plan.id);
+        window.location.href = data.paymentUrl;
+        return;
+      }
+    } catch (err) {
+      console.error("Payment request failed:", err);
+    }
+    setPayLoading(false);
+    setActivePlanId(modal.plan.id);
+    window.location.href = "/app";
+  }
 
   const plans = [
     {
@@ -278,17 +302,15 @@ export default function LandingPricing() {
             </p>
 
             <div style={{ display: "flex", gap: "10px" }}>
-              <Link
-                to="/app"
+              <button
+                type="button"
                 className="btn btn--primary btn--pill"
-                style={{ flex: 1, textAlign: "center", textDecoration: "none" }}
-                onClick={() => {
-                  if (modal?.plan?.id) setActivePlanId(modal.plan.id);
-                  setModal(null);
-                }}
+                style={{ flex: 1, textAlign: "center", fontWeight: 800 }}
+                onClick={handleProceedToZarinpal}
+                disabled={payLoading}
               >
-                شروع و بارگذاری آزمایش
-              </Link>
+                {payLoading ? "در حال اتصال به زرین‌پال…" : "ورود به درگاه پرداخت زرین‌پال"}
+              </button>
               <button
                 type="button"
                 className="btn btn--secondary btn--pill"

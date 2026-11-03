@@ -22,6 +22,30 @@ export default function PricingPage() {
   const [selectedPlan, setSelectedPlan] = useState("empire");
   // مودال پیش‌نمایش درگاه
   const [checkoutModal, setCheckoutModal] = useState(null);
+  const [payLoading, setPayLoading] = useState(false);
+
+  async function handleProceedToZarinpal() {
+    if (!checkoutModal?.plan) return;
+    setPayLoading(true);
+    try {
+      const res = await fetch("/api/payment/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId: checkoutModal.plan.id }),
+      });
+      const data = await res.json().catch(() => null);
+      if (data?.paymentUrl) {
+        setActivePlanId(checkoutModal.plan.id);
+        window.location.href = data.paymentUrl;
+        return;
+      }
+    } catch (err) {
+      console.error("Payment request failed:", err);
+    }
+    setPayLoading(false);
+    setActivePlanId(checkoutModal.plan.id);
+    navigate("/app");
+  }
 
   // تعریف اطلاعات ۳ پلن بر اساس ساختار اسکرین‌شات
   const plans = [
@@ -505,13 +529,8 @@ export default function PricingPage() {
             <div style={{ display: "flex", gap: "10px" }}>
               <button
                 type="button"
-                onClick={() => {
-                  if (checkoutModal?.plan?.id) {
-                    setActivePlanId(checkoutModal.plan.id);
-                  }
-                  setCheckoutModal(null);
-                  navigate("/app");
-                }}
+                onClick={handleProceedToZarinpal}
+                disabled={payLoading}
                 style={{
                   flex: 1,
                   background: "#555941",
@@ -524,7 +543,7 @@ export default function PricingPage() {
                   cursor: "pointer",
                 }}
               >
-                تأیید و فعال‌سازی این پلن در سامانه
+                {payLoading ? "در حال اتصال به زرین‌پال…" : "ورود به درگاه پرداخت زرین‌پال"}
               </button>
               <button
                 type="button"

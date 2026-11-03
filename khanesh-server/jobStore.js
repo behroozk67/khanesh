@@ -77,6 +77,36 @@ export function finishJob(id, statusCode, body) {
   j.finishedAt = Date.now();
 }
 
+/** قرار دادن کار در وضعیت انتظار پرداخت پس از موفقیت OCR */
+export function setJobAwaitingPayment(id, { planId, amount, authority, paymentUrl, testsCount, testNames, pendingResult }) {
+  const j = jobs.get(id);
+  if (!j) return;
+  j.status = "awaiting_payment";
+  j.paymentInfo = { planId, amount, authority, paymentUrl, testsCount, testNames };
+  j.pendingResult = pendingResult;
+}
+
+/** آزادسازی کار پس از تایید موفقیت تراکنش در درگاه زرین‌پال */
+export function unlockPaidJob(id, { refId, cardPan } = {}) {
+  const j = jobs.get(id);
+  if (!j) return null;
+  j.status = "done";
+  j.statusCode = 200;
+  j.result = {
+    ...j.pendingResult,
+    _payment: {
+      paid: true,
+      refId: refId || null,
+      cardPan: cardPan || null,
+      planId: j.paymentInfo?.planId,
+    },
+  };
+  j.paid = true;
+  j.refId = refId;
+  j.finishedAt = Date.now();
+  return j.result;
+}
+
 export function getJob(id) {
   const j = jobs.get(id);
   if (!j) return null;
@@ -108,6 +138,21 @@ export function dropJobsForUser(userId) {
 }
 
 export function jobView(j) {
+  if (j.status === "awaiting_payment") {
+    return {
+      job_id: j.id,
+      status: "awaiting_payment",
+      pages_total: j.pagesTotal,
+      pages_done: j.pagesDone,
+      tests_count: j.paymentInfo?.testsCount ?? 0,
+      test_names: j.paymentInfo?.testNames ?? [],
+      plan_id: j.paymentInfo?.planId ?? "starter",
+      amount: j.paymentInfo?.amount ?? 49000,
+      authority: j.paymentInfo?.authority ?? null,
+      payment_url: j.paymentInfo?.paymentUrl ?? null,
+    };
+  }
+
   return {
     job_id: j.id,
     status: j.status,

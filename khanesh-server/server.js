@@ -80,8 +80,22 @@ import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "
 import authRouter, { requireAuth, authBootReport, AUTH_REQUIRED, otpSenderStatus } from "./auth.js";
 import profileRouter from "./profile.js";
 import historyRouter, { recordAnalysis, ownerOf } from "./historyRoutes.js";
-import { initDb, createJobRecord, updateJobResult, getUserJobs, getJobById, getLatestCompletedJob, saveContactMessage } from "./database.js";
+import {
+  initDb, createJobRecord, updateJobResult, getUserJobs, getJobById,
+  getLatestCompletedJob, saveContactMessage,
+  createPaymentRecord, getPaymentByAuthority, markPaymentSuccess, markPaymentFailed,
+  getUserCredits, addUserCredits, deductUserCredit
+} from "./database.js";
 import { notifyNewContactMessage } from "./notifier.js";
+import { requestPayment, verifyPayment } from "./zarinpal.js";
+import { setJobAwaitingPayment, unlockPaidJob } from "./jobStore.js";
+
+// پلن‌های تعرفه و قیمت‌گذاری سامانه به تومان
+export const PLAN_CONFIG = {
+  starter: { id: "starter", name: "پلن پایه (Starter)", price: 49000, credits: 1 },
+  empire: { id: "empire", name: "پلن پایش سلامت (Empire)", price: 99000, credits: 3 },
+  unicorn: { id: "unicorn", name: "پلن خانواده جامع (Unicorn)", price: 149000, credits: 6 },
+};
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
 //
@@ -2081,10 +2095,73 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
   const captured = { code: 200 };
   const shim = {
     status(c) { captured.code = c; return shim; },
-    json(body) { 
+    async json(body) { 
+      // اگر خطایی رخ داده بود (مثلاً عکس ناخوانا یا ۴۲۲)، کار بدون نیاز به پرداخت به وضعیت خطا می‌رود
+      if (captured.code >= 400 || body?.error || body?.parseError) {
+        finishJob(jobId, captured.code, body); 
+        updateJobResult(jobId, 'failed', body).catch(err => console.error("DB updateJobResult error:", err));
+        return shim;
+      }
+
+      // بررسی وضعیت پرداخت و کسر اعتبار
+      const userId = req.user?.userId;
+      const isTestEnv = process.env.NODE_ENV === "test";
+      const forcePayment = req.body?.requirePayment === true;
+      const skipPayment = (isTestEnv && !forcePayment) || process.env.REQUIRE_PAYMENT === "false";
+
+      // اگر کاربر وارد شده و اعتبار از پیش خریداری‌شده دارد
+      const hasCredit = (!skipPayment && userId && !req.user.anonymous)
+        ? await deductUserCredit(userId)
+        : false;
+
+      if (skipPayment || hasCredit) {
+        finishJob(jobId, captured.code, body); 
+        updateJobResult(jobId, 'completed', body).catch(err => console.error("DB updateJobResult error:", err));
+        return shim; 
+      }
+
+      // بیمار فاقد اعتبار است — صدور پیش‌فاکتور پرداخت زرین‌پال پس از تایید کامل خوانا بودن برگه
+      try {
+        const planId = req.body?.planId || "starter";
+        const plan = PLAN_CONFIG[planId] || PLAN_CONFIG.starter;
+        const origin = req.headers.origin || (process.env.SITE_ORIGIN || "https://azmayarapp.ir");
+        const callbackUrl = `${origin}/payment/verify`;
+
+        const zarin = await requestPayment({
+          amount: plan.price,
+          description: `تفسیر آزمایش خون - ${plan.name} آزمایار`,
+          callbackUrl,
+          mobile: req.user?.phone || req.body?.patient?.phone,
+        });
+
+        if (zarin.ok) {
+          await createPaymentRecord({
+            authority: zarin.authority,
+            jobId,
+            userId: userId && !req.user.anonymous ? userId : null,
+            planId: plan.id,
+            amount: plan.price,
+          });
+
+          const tests = Array.isArray(body._engine?.tests) ? body._engine.tests : [];
+          setJobAwaitingPayment(jobId, {
+            planId: plan.id,
+            amount: plan.price,
+            authority: zarin.authority,
+            paymentUrl: zarin.paymentUrl,
+            testsCount: tests.length || (Array.isArray(body.extracted_tests) ? body.extracted_tests.length : 1),
+            testNames: tests.slice(0, 10).map((t) => t.name || t.key),
+            pendingResult: body,
+          });
+          return shim;
+        }
+      } catch (err) {
+        console.error("ZarinPal creation error in shim:", err);
+      }
+
+      // فال‌بک در صورت قطعی درگاه
       finishJob(jobId, captured.code, body); 
-      // -- آپدیت نتیجه در دیتابیس --
-      updateJobResult(jobId, captured.code === 200 ? 'completed' : 'failed', body).catch(err => console.error("DB updateJobResult error:", err));
+      updateJobResult(jobId, 'completed', body).catch(err => console.error("DB updateJobResult error:", err));
       return shim; 
     },
     setHeader() { return shim; },
@@ -2116,6 +2193,148 @@ app.get("/api/analyze/job/:id", requireAllowedOrigin, requireAuth, (req, res) =>
     });
   }
   res.json(jobView(job));
+});
+
+// ============================================================
+// اندپوینت‌های پرداخت زرین‌پال و مدیریت اشتراک
+// ============================================================
+
+/** درخواست پرداخت و دریافت لینک درگاه زرین‌پال برای یک پلن مشخص */
+app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, res) => {
+  try {
+    const { planId = "starter", jobId = null } = req.body || {};
+    const plan = PLAN_CONFIG[planId] || PLAN_CONFIG.starter;
+    const origin = req.headers.origin || (process.env.SITE_ORIGIN || "https://azmayarapp.ir");
+    const callbackUrl = `${origin}/payment/verify`;
+
+    const zarin = await requestPayment({
+      amount: plan.price,
+      description: `خرید ${plan.name} - سامانه هوشمند آزمایار`,
+      callbackUrl,
+      mobile: req.user?.phone || null,
+    });
+
+    if (!zarin.ok) {
+      return res.status(502).json({ error: zarin.error || "خطا در اتصال به درگاه زرین‌پال" });
+    }
+
+    const userId = req.user?.userId && !req.user.anonymous ? req.user.userId : null;
+    await createPaymentRecord({
+      authority: zarin.authority,
+      jobId,
+      userId,
+      planId: plan.id,
+      amount: plan.price,
+    });
+
+    res.json({
+      ok: true,
+      authority: zarin.authority,
+      paymentUrl: zarin.paymentUrl,
+      amount: plan.price,
+      planId: plan.id,
+      sandbox: zarin.sandbox,
+    });
+  } catch (err) {
+    console.error("Payment request error:", err);
+    res.status(500).json({ error: "خطای داخلی سرور در صدور پیش‌فاکتور پرداخت." });
+  }
+});
+
+/** تایید نهایی پرداخت (Verify) پس از بازگشت بیمار از درگاه شاپرک/زرین‌پال */
+app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
+  try {
+    const { authority, status } = req.body || {};
+    if (!authority) {
+      return res.status(400).json({ error: "شناسه تراکنش (Authority) ارسال نشده است." });
+    }
+
+    const payment = await getPaymentByAuthority(authority);
+    if (!payment) {
+      return res.status(404).json({ error: "اطلاعات تراکنش در سامانه یافت نشد." });
+    }
+
+    if (payment.status === "paid") {
+      let result = null;
+      if (payment.job_id) {
+        const row = await getJobById(payment.job_id);
+        if (row?.result_json) {
+          try { result = JSON.parse(row.result_json); } catch {}
+        }
+      }
+      return res.json({
+        ok: true,
+        alreadyVerified: true,
+        refId: payment.ref_id,
+        planId: payment.plan_id,
+        jobId: payment.job_id,
+        result,
+      });
+    }
+
+    if (status && status !== "OK") {
+      await markPaymentFailed(authority);
+      return res.status(400).json({ error: "پرداخت توسط کاربر لغو شد یا ناموفق بود." });
+    }
+
+    const verifyRes = await verifyPayment({ authority, amount: payment.amount });
+    if (!verifyRes.ok) {
+      await markPaymentFailed(authority);
+      return res.status(400).json({ error: verifyRes.error || "تراکنش توسط درگاه بانک تأیید نشد." });
+    }
+
+    // ثبت موفقیت تراکنش در پایگاه داده
+    await markPaymentSuccess(authority, {
+      refId: verifyRes.refId,
+      cardPan: verifyRes.cardPan,
+      cardHash: verifyRes.cardHash,
+    });
+
+    const plan = PLAN_CONFIG[payment.plan_id] || PLAN_CONFIG.starter;
+
+    // افزایش اعتبار در صورت ورود کاربر
+    if (payment.user_id) {
+      await addUserCredits(payment.user_id, plan.credits, plan.id);
+    }
+
+    // اگر کار تحلیلی در انتظار پرداخت بود، نتیجه باز و تحویل می‌شود
+    let unlockedResult = null;
+    if (payment.job_id) {
+      unlockedResult = unlockPaidJob(payment.job_id, {
+        refId: verifyRes.refId,
+        cardPan: verifyRes.cardPan,
+      });
+
+      if (unlockedResult) {
+        updateJobResult(payment.job_id, 'completed', unlockedResult).catch(() => {});
+        const owner = payment.user_id
+          ? `user:${payment.user_id}`
+          : (req.headers['x-device-id'] ? `dev:${req.headers['x-device-id']}` : null);
+        if (owner) {
+          Promise.resolve(recordAnalysis({ owner, jobId: payment.job_id, result: unlockedResult })).catch(() => {});
+        }
+      }
+    }
+
+    res.json({
+      ok: true,
+      refId: verifyRes.refId,
+      cardPan: verifyRes.cardPan,
+      planId: payment.plan_id,
+      jobId: payment.job_id,
+      result: unlockedResult,
+    });
+  } catch (err) {
+    console.error("Payment verify error:", err);
+    res.status(500).json({ error: "خطای سرور در اعتبارسنجی تراکنش پرداخت." });
+  }
+});
+
+/** ریدایرکت گیت‌وی زرین‌پال در صورتی که مستقیماً به GET سرور کال‌بک بزند */
+app.get("/api/payment/callback", (req, res) => {
+  const { Authority = "", Status = "" } = req.query;
+  const origin = process.env.SITE_ORIGIN || "https://azmayarapp.ir";
+  res.redirect(`${origin}/payment/verify?Authority=${encodeURIComponent(Authority)}&Status=${encodeURIComponent(Status)}`);
 });
 
 // ============================================================

@@ -168,6 +168,22 @@ export async function pollJob(id, { onProgress, signal } = {}) {
       continue;
     }
 
+    // برگه با موفقیت خوانده شده و در انتظار پرداخت است
+    if (data.status === "awaiting_payment") {
+      return {
+        _requiresPayment: true,
+        status: "awaiting_payment",
+        job_id: data.job_id,
+        pages_total: data.pages_total,
+        tests_count: data.tests_count,
+        test_names: data.test_names,
+        plan_id: data.plan_id,
+        amount: data.amount,
+        authority: data.authority,
+        payment_url: data.payment_url,
+      };
+    }
+
     // تمام شد — چه موفق چه ناموفق
     clearJob();
     if (data.status === "error" || (data.status_code && data.status_code >= 400)) {
