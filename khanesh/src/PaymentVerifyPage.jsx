@@ -78,7 +78,7 @@ export default function PaymentVerifyPage() {
             error: data?.error || "خطا در تایید تراکنش بانکی. در صورت کسر وجه، مبلغ تا ۷۲ ساعت به حسابتان بازمی‌گردد.",
           });
         }
-      } catch (err) {
+      } catch {
         if (!isMounted) return;
         setState({
           loading: false,

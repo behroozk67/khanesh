@@ -4,13 +4,13 @@ import { PLANS_CONFIG } from "./userPlan.js";
 import "./PaymentCard.css";
 
 export default function PaymentCard({
-  jobId,
+  jobId: _jobId,
   planId = "starter",
   amount = 49000,
   testsCount = 0,
   testNames = [],
   paymentUrl,
-  authority,
+  authority: _authority,
   onCancel,
 }) {
   const [loading, setLoading] = useState(false);

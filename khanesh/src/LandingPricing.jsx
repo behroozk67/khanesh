@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { setActivePlanId } from "./userPlan.js";
 import "./LandingPricing.css";
 
@@ -9,7 +8,7 @@ function toFaDigits(str) {
 }
 
 export default function LandingPricing() {
-  const [billingCycle, setBillingCycle] = useState("bundle");
+  const [cycle, setCycle] = useState("bundle");
   const [modal, setModal] = useState(null);
   const [payLoading, setPayLoading] = useState(false);
 
