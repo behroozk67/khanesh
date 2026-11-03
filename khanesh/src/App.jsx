@@ -46,6 +46,7 @@ const Methodology = lazy(() => import("./Methodology"));
 const ContactPage = lazy(() => import("./ContactPage.jsx"));
 const TermsPage = lazy(() => import("./TermsPage"));
 const PrivacyPage = lazy(() => import("./PrivacyPage"));
+const PricingPage = lazy(() => import("./PricingPage"));
 
 // با هر تغییرِ مسیر، صفحه از بالا شروع شود.
 // ⚠️ بدونِ این، کلیک روی نوارِ بالا (مثلاً «تماس با ما») صفحهٔ تازه را در همان
@@ -110,6 +111,7 @@ export default function App() {
           <Route path="/how-to-capture" element={<HowToCapture />} />
           <Route path="/methodology" element={<Methodology />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

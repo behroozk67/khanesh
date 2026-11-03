@@ -25,6 +25,8 @@ import { Link } from 'react-router-dom';
 import { toFaDigits } from './digits.js';
 import { apiJson } from './deviceId.js';
 import { LabMateLogo } from './LabMateLogo.jsx';
+import { useActivePlan } from './userPlan.js';
+import { PlanBadge, UpgradeModal } from './PlanGate.jsx';
 import './History.css';
 
 const fa = (n) => (n == null ? '—' : toFaDigits(typeof n === 'number' ? String(n) : n));
@@ -262,6 +264,8 @@ const FILTERS = [
 ];
 
 export default function History() {
+  const { can, plan, planId, setPlan } = useActivePlan();
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [labs, setLabs] = useState([]);
   const [trends, setTrends] = useState({ markers: [], summary: null });
   const [loading, setLoading] = useState(true);
@@ -314,15 +318,40 @@ export default function History() {
       </header>
 
       <main className="hist-main">
-        <h1 className="hist-title">تاریخچهٔ آزمایش‌ها</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
+          <h1 className="hist-title" style={{ margin: 0 }}>تاریخچهٔ آزمایش‌ها</h1>
+          <PlanBadge />
+        </div>
         <p className="hist-lead">
           هر برگه‌ای که تفسیر می‌کنید این‌جا می‌ماند تا نوبتِ بعد ببینید نسبت به قبل چه تغییری کرده —
           و چه تغییری واقعاً «تغییر» است و چه چیزی فقط نوسانِ طبیعیِ بدن و خطای آزمایشگاه.
         </p>
 
-        {error && <div className="hist-error" role="alert">{error}</div>}
-
-        {loading ? (
+        {!can("trendsAndHistory") ? (
+          <div className="pg-locked-card" style={{ marginTop: '24px' }}>
+            <span className="pg-locked-badge">مختص پلن پایش سلامت (Empire) و خانواده</span>
+            <div className="pg-locked-icon" aria-hidden="true">🔒</div>
+            <h2 className="pg-locked-title">تحلیل روند ۵ نوبت اخیر در پرونده سلامت</h2>
+            <p className="pg-locked-desc">
+              پلن فعال شما در حال حاضر <b>{plan.name}</b> است که شامل تفسیر تک‌نوبت آزمایش می‌شود. قابلیت ذخیره پرونده، مقایسه نوبت‌های متوالی و تشخیص نوسان طبیعی (RCV) در پلن پایش سلامت فعال است.
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn--primary btn--pill"
+                style={{ fontSize: '13.5px', padding: '8px 22px' }}
+                onClick={() => setUpgradeOpen(true)}
+              >
+                ارتقا به پلن پایش سلامت
+              </button>
+              <Link to="/app" className="btn btn--secondary btn--pill" style={{ fontSize: '13.5px', padding: '8px 22px', textDecoration: 'none' }}>
+                بازگشت به تفسیر آزمایش
+              </Link>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="hist-error" role="alert">{error}</div>
+        ) : loading ? (
           <p className="hist-loading">در حال خواندنِ تاریخچه…</p>
         ) : labs.length === 0 ? (
           <div className="hist-empty">
@@ -405,6 +434,19 @@ export default function History() {
           درصدِ تغییر را نسبت به مقدارِ نوبتِ قبل حساب می‌کند. تغییری که از این حد کمتر است، معمولاً
           نوسانِ بدن و خطای آزمایشگاه است. تفسیرِ بالینی و تصمیم دربارهٔ تکرارِ آزمایش با پزشکِ شماست.
         </p>
+
+        {upgradeOpen && (
+          <UpgradeModal
+            targetFeatureTitle="تحلیل روند ۵ نوبت اخیر در پرونده سلامت"
+            currentPlanId={planId}
+            targetPlanId="empire"
+            onSelect={(id) => {
+              setPlan(id);
+              setUpgradeOpen(false);
+            }}
+            onClose={() => setUpgradeOpen(false)}
+          />
+        )}
       </main>
     </div>
   );

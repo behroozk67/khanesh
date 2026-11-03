@@ -22,6 +22,7 @@ function signOut() {
 }
 import LocalPreview from "./LocalPreview.jsx";
 import UploadCard from "./UploadCard.jsx";
+import { PlanBadge } from "./PlanGate.jsx";
 import {
   startJob, pollJob, storeJob, pendingJob,
   lastResult, clearResult,
@@ -502,6 +503,7 @@ export default function Tafsir() {
           </Link>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)' }}>
             <p className="tagline" style={{ margin: 0 }}>تفسیر آموزشی نتایج آزمایش خون</p>
+            <PlanBadge />
             <Link to="/profile" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)', padding: 'var(--s2) var(--s4)' }}>پروفایل من</Link>
             <button type="button" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)', padding: 'var(--s2) var(--s4)' }} onClick={signOut}>
               {hasAuthToken() ? "خروج" : "پاک‌کردن اطلاعات من"}

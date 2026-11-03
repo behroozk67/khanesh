@@ -378,7 +378,7 @@ function renderStaticArticle(title, description, points = []) {
 }
 
 // استخراجِ تمام آدرس‌ها دقیقاً منطبق با sitemap.xml
-const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology", "/contact", "/terms", "/privacy"];
+const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology", "/contact", "/terms", "/privacy", "/pricing"];
 for (const g of GUIDES) paths.push(catPath(g.id));
 const keys = new Set();
 for (const g of GUIDES) for (const i of g.items) keys.add(i.k || i.slug);
@@ -569,6 +569,24 @@ for (const p of uniquePaths) {
       "@type": "WebPage",
       name: `حریم خصوصی — ${BRAND_FA}`,
       url: `${ORIGIN}/privacy`,
+      description,
+      inLanguage: "fa-IR",
+    };
+  } else if (p === "/pricing") {
+    title = `تعرفه و پلن‌های تفسیر آنلاین آزمایش — ${BRAND_FA}`;
+    description = "تعرفه پلن‌های تفسیر آزمایش خون آزمایار: پلن پایه تک‌نوبت، پایش سلامت ۳ نوبته با تحلیل روند و گزارش رسمی PDF، و پلن خانواده ۶ نوبته. پرداخت امن شتاب از طریق درگاه زرین‌پال.";
+    ogType = "website";
+    bodyHtml = renderStaticArticle("تعرفه و پلن‌های تفسیر آزمایش آزمایار", "انتخاب پلن مناسب برای چکاپ فردی یا پایش سلامت خانواده با ضمانت کیفیت خوانش و پرداخت امن زرین‌پال.", [
+      { t: "پلن پایه (Starter)", d: "تفسیر کامل برگه آزمایش، بررسی تمام شاخص‌ها با بازه مرجع بالینی، تعیین فوریت و چکیده روان فارسی." },
+      { t: "پلن پایش سلامت (Empire)", d: "محبوب‌ترین پلن: ۳ نوبت تفسیر، تحلیل روند ۵ نوبت اخیر، دریافت فایل PDF رسمی و گزارش تخصصی ویژه پزشک." },
+      { t: "پلن خانواده جامع (Unicorn)", d: "۶ نوبت تفسیر بدون تاریخ انقضا و امکان تعریف تا ۳ پروفایل مجزا برای اعضای خانواده." },
+      { t: "درگاه پرداخت امن زرین‌پال", d: "پرداخت سریع و ایمن با کلیه کارت‌های عضو شتاب با نماد اعتماد الکترونیکی (اینماد)." },
+    ]);
+    jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      name: `تعرفه و پلن‌های تفسیر آزمایش — ${BRAND_FA}`,
+      url: `${ORIGIN}/pricing`,
       description,
       inLanguage: "fa-IR",
     };

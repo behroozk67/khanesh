@@ -6,6 +6,8 @@ import { conditionFa } from "./conditions.js";
 import { clearJob, clearResult } from "./analyzeJob.js";
 import { loadProfile, clearProfile, AGE_UNIT_FA, pregnancyEligible, currentGestWeeks } from "./onboarding/profileStore.js";
 import { apiJson } from "./deviceId.js";
+import { useActivePlan } from "./userPlan.js";
+import { PlanBadge, UpgradeModal } from "./PlanGate.jsx";
 import "./onboarding/onboarding.css";
 
 // ============================================================
@@ -20,6 +22,8 @@ function token() {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { plan, planId, setPlan, can } = useActivePlan();
+  const [planModalOpen, setPlanModalOpen] = useState(false);
   const [profile, setProfile] = useState(null);
   const [account, setAccount] = useState(null);   // { phone, email, jobs } — فقط با احراز هویتِ روشن
   const [error, setError] = useState('');
@@ -93,9 +97,10 @@ export default function Profile() {
   return (
     <div className="page" dir="rtl">
       <div className="shell">
-        <header className="site-header" style={{ justifyContent: 'space-between' }}>
+        <header className="site-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="logo"><Link to="/"><LabMateLogo height={32} /></Link></div>
-          <div style={{ display: 'flex', gap: 'var(--s4)' }}>
+          <div style={{ display: 'flex', gap: 'var(--s4)', alignItems: 'center' }}>
+            <PlanBadge />
             <Link to="/history" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)' }}>تاریخچه و روند</Link>
             <Link to="/app" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)' }}>تفسیرِ آزمایش</Link>
             {token() && <button type="button" onClick={signOut} className="btn" style={{ fontSize: 'var(--t-sm)' }}>خروج</button>}
@@ -117,6 +122,32 @@ export default function Profile() {
               {row('بیماری‌های زمینه‌ای', conds, 'conditions')}
             </div>
           )}
+
+          {/* بخش پلن و سطح دسترسی بیمار */}
+          <div style={{ marginTop: 'var(--s8)', padding: 'var(--s6)', background: 'var(--page)', borderRadius: 'var(--r-xl)', border: '1px solid var(--line)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <h2 className="sec-sub" style={{ margin: 0, fontSize: '15px' }}>پلن و سطح دسترسی بیمار</h2>
+              <span className="pg-locked-badge" style={{ margin: 0 }}>{plan.badge}</span>
+            </div>
+            <p className="onb-note" style={{ margin: '0 0 12px 0' }}>
+              پلن فعال: <b>{plan.name}</b> ({toFaDigits(plan.credits)} نوبت اعتبار تفسیر)
+            </p>
+            <ul style={{ margin: '0 0 16px 0', paddingRight: '20px', fontSize: '13px', color: 'var(--ink)', lineHeight: '1.8' }}>
+              <li>✓ استخراج فاکتورها، تعیین فوریت و خلاصه روان: <b>فعال</b></li>
+              <li>{can('trendsAndHistory') ? '✓' : '🔒'} تاریخچه و تحلیل روند ۵ نوبت اخیر: <b>{can('trendsAndHistory') ? 'فعال' : 'غیرفعال (مختص پلن پایش)'}</b></li>
+              <li>{can('pdfExport') ? '✓' : '🔒'} دریافت فایل PDF رسمی و چاپی: <b>{can('pdfExport') ? 'فعال' : 'غیرفعال (مختص پلن پایش)'}</b></li>
+              <li>{can('expertView') ? '✓' : '🔒'} گزارش تخصصی ویژه پزشک: <b>{can('expertView') ? 'فعال' : 'غیرفعال (مختص پلن پایش)'}</b></li>
+              <li>{can('familyProfiles') ? '✓' : '🔒'} مدیریت چند پروفایل خانواده: <b>{can('familyProfiles') ? 'فعال' : 'غیرفعال (مختص پلن ۳)'}</b></li>
+            </ul>
+            <button
+              type="button"
+              className="btn btn--primary btn--pill"
+              style={{ fontSize: '13px', padding: '6px 18px' }}
+              onClick={() => setPlanModalOpen(true)}
+            >
+              تغییر یا ارتقای پلن
+            </button>
+          </div>
 
           {account?.jobs?.length > 0 && (
             <>
@@ -153,6 +184,17 @@ export default function Profile() {
             )}
           </div>
         </main>
+
+        {planModalOpen && (
+          <UpgradeModal
+            currentPlanId={planId}
+            onSelect={(id) => {
+              setPlan(id);
+              setPlanModalOpen(false);
+            }}
+            onClose={() => setPlanModalOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

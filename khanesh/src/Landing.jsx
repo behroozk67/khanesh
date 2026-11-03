@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { FaqModal } from "./LandingFaq.jsx";
 import HowArt from "./howArt.jsx";
 import { useSeoHead } from "./useSeoHead.js";
+import LandingPricing from "./LandingPricing.jsx";
 import "./site.css";
 
 // ============================================================
@@ -255,6 +256,7 @@ export default function Landing() {
       <FeaturedGuides />
       <BloodTestFactors />
       <ReviewBasis />
+      <LandingPricing />
       <FaqSection />
       <Resources />
       <Footer />
@@ -444,17 +446,18 @@ const HERO_ALT = "میکروسکوپ و رکِ لولهٔ آزمایش روی م
 // پایینِ همان بخش در دسترس است.
 const HERO_LINKS = [
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
-  { href: "#faq-section", label: "پرسش‌های متداول" },
-  { to: "/contact", label: "تماس با ما" },
+  { href: "#pricing", label: "تعرفه‌ها" },
   { href: "#basis", label: "منابع بالینی" },
+  { href: "#faq-section", label: "پرسش‌های متداول" },
 ];
 
 // منوی تمام‌صفحهٔ کنارِ دکمهٔ نُه‌نقطه: ورقِ سفیدِ گرد، عنوان، دکمه، پیوندهای درشت و دو ستونِ کوچک.
 // ⚠️ فقط به صفحه‌هایی لینک می‌دهد که وجود دارند؛ چیزی از طرحِ مرجع (وبلاگ، فرصت‌های شغلی…) نیامده.
 const MENU_MAIN = [
   { to: "/tests", label: "راهنمای آزمایش‌ها" },
-  { href: "#faq-section", label: "پرسش‌های متداول" },
+  { href: "#pricing", label: "تعرفه‌ها" },
   { href: "#basis", label: "منابع بالینی" },
+  { href: "#faq-section", label: "پرسش‌های متداول" },
 ];
 const MENU_COLS = [
   {

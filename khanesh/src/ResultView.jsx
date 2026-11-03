@@ -26,6 +26,8 @@ import { toFaDigits } from "./digits.js";
 import { buildVerdictContext } from "./resultStates.js";
 import { DISCLAIMER_FA, EMERGENCY_BANNER } from "./resultModel.js";
 import { CATEGORY_ORDER, categoryOf } from "./testCategories.js";
+import { useActivePlan, PLAN_IDS } from "./userPlan.js";
+import { LockedFeature, UpgradeModal } from "./PlanGate.jsx";
 
 /* ---------- بلوکِ حالت سوم ---------- */
 
@@ -272,6 +274,8 @@ function printFileName(sampleDate) {
 }
 
 export default function ResultView({ result, asText, asList }) {
+  const { can, planId, setPlan } = useActivePlan();
+  const [upgradeTarget, setUpgradeTarget] = useState(null);
   const eng = result._engine;
   const hasEngine = !!eng;
   const [viewMode, setViewMode] = useState(readViewMode);
@@ -374,43 +378,84 @@ export default function ResultView({ result, asText, asList }) {
             <Segmented
               label="نمای نتیجه"
               value={expert ? "expert" : "simple"}
-              options={[{ value: "simple", label: "ساده" }, { value: "expert", label: "تخصصی (کادر درمان)" }]}
-              onChange={(m) => { setViewMode(m); writeViewMode(m); }}
+              options={[
+                { value: "simple", label: "ساده" },
+                { value: "expert", label: !can("expertView") ? "🔒 تخصصی (پلن ۲)" : "تخصصی (کادر درمان)" }
+              ]}
+              onChange={(m) => {
+                if (m === "expert" && !can("expertView")) {
+                  setUpgradeTarget({
+                    title: "نمای تخصصی کادر درمان و تحلیل دارویی",
+                    planId: PLAN_IDS.EMPIRE,
+                  });
+                  return;
+                }
+                setViewMode(m);
+                writeViewMode(m);
+              }}
               size="sm"
             />
           )}
           <Link
-            to="/history"
+            to={can("trendsAndHistory") ? "/history" : "#"}
             className="btn btn--outline result-tools__link"
             title="نوبت‌های قبلی و روندِ هر آزمایش"
+            onClick={(e) => {
+              if (!can("trendsAndHistory")) {
+                e.preventDefault();
+                setUpgradeTarget({
+                  title: "تاریخچه و تحلیل روند ۵ نوبت اخیر",
+                  planId: PLAN_IDS.EMPIRE,
+                });
+              }
+            }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 17l5-6 4 3 5-7 4 4" />
               <path d="M3 21h18" />
             </svg>
+            {!can("trendsAndHistory") && <span style={{ marginLeft: "4px" }}>🔒</span>}
             تاریخچه و روند
           </Link>
         </div>
         <button
           type="button"
           className="btn btn--outline result-tools__pdf"
-          onClick={() => setPrinting(true)}
+          onClick={() => {
+            if (!can("pdfExport")) {
+              setUpgradeTarget({
+                title: "دریافت فایل PDF رسمی چاپی استاندارد",
+                planId: PLAN_IDS.EMPIRE,
+              });
+              return;
+            }
+            setPrinting(true);
+          }}
           aria-label="دریافت تفسیر به‌صورت فایل PDF"
-          title="در پنجرهٔ چاپ، مقصد را «Save as PDF» بگذارید"
+          title={!can("pdfExport") ? "مختص پلن ۲ (پایش سلامت)" : "در پنجرهٔ چاپ، مقصد را «Save as PDF» بگذارید"}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z" />
             <path d="M14 3v4h4" /><path d="M12 11v6m-2.5-2.5L12 17l2.5-2.5" />
           </svg>
+          {!can("pdfExport") && <span style={{ marginLeft: "4px" }}>🔒</span>}
           دریافت PDF
         </button>
       </div>
 
       {/* P113 — کارتِ سنِ زیستی، پیش از تفسیر و فقط در نمای ساده.
              داده‌اش را سرور می‌سازد (`_engine.phenoAge`)؛ نبودش ⇒ کارت رندر نمی‌شود. */}
-      {!expert && <PhenoAgeCard data={eng?.phenoAge} />}
+      {!expert && (
+        <LockedFeature
+          featureKey="advancedIndices"
+          title="محاسبه سن زیستی و سلامت سلولی (PhenoAge)"
+          description="تحلیل سن تقویمی در مقایسه با سن زیستی بر اساس ۹ فاکتور خونی، در پلن‌های پایش سلامت و خانواده فعال است."
+        >
+          <PhenoAgeCard data={eng?.phenoAge} />
+        </LockedFeature>
+      )}
 
       {/* ۳. خروجی گراف LabMat (بیمار و پزشک) */}
       {result.labmat && (
@@ -431,18 +476,24 @@ export default function ResultView({ result, asText, asList }) {
             <p className="text">{asText(result.labmat.patientSection)}</p>
           </section>
 
-          <section className="card prose-block">
-            <h2 className="block-title">گزارش تخصصی برای پزشک</h2>
-            <p className="text">{asText(result.labmat.doctorSection)}</p>
-            {result.labmat.suggestedFollowUps?.length > 0 && (
-              <div style={{marginTop: "1rem"}}>
-                <strong>آزمایش‌های پیشنهادی تکمیلی:</strong>
-                <ul className="bullet-list">
-                  {result.labmat.suggestedFollowUps.map((test, i) => <li key={i}>{asText(test)}</li>)}
-                </ul>
-              </div>
-            )}
-          </section>
+          <LockedFeature
+            featureKey="expertView"
+            title="گزارش تخصصی ویژه پزشک و آزمایش‌های تکمیلی"
+            description="گزارش با اصطلاحات فیزیولوژیک و آزمایش‌های پیشنهادی تکمیلی جهت گفتگو با پزشک معالج، در پلن پایش سلامت فعال است."
+          >
+            <section className="card prose-block">
+              <h2 className="block-title">گزارش تخصصی برای پزشک</h2>
+              <p className="text">{asText(result.labmat.doctorSection)}</p>
+              {result.labmat.suggestedFollowUps?.length > 0 && (
+                <div style={{marginTop: "1rem"}}>
+                  <strong>آزمایش‌های پیشنهادی تکمیلی:</strong>
+                  <ul className="bullet-list">
+                    {result.labmat.suggestedFollowUps.map((test, i) => <li key={i}>{asText(test)}</li>)}
+                  </ul>
+                </div>
+              )}
+            </section>
+          </LockedFeature>
         </>
       )}
 
@@ -496,7 +547,15 @@ export default function ResultView({ result, asText, asList }) {
       )}
       {/* P117: «نسبت به نوبتِ قبل» — درست بعد از کارنامه، چون اولین سؤالِ بیمار
           بعد از دیدنِ اعداد همین است. در چاپ می‌رود (گزارشِ برگهٔ همین نوبت است). */}
-      {hasEngine && <DeltaStrip tests={tests} hidden={printing} />}
+      {hasEngine && (
+        <LockedFeature
+          featureKey="trendsAndHistory"
+          title="تحلیل روند تغییرات نسبت به نوبت قبل"
+          description="مقایسه مقادیر فاکتورها با نوبت‌های قبلی و تشخیص عبور از آستانه نوسان طبیعی (RCV) در پلن پایه قفل است."
+        >
+          <DeltaStrip tests={tests} hidden={printing} />
+        </LockedFeature>
+      )}
       </>)}
 
       {/* ۲. تأیید اعداد */}
@@ -506,7 +565,15 @@ export default function ResultView({ result, asText, asList }) {
 
       {/* ۵. مقادیر محاسبه‌شده — P111: در نمای تخصصی، ExpertView همان بلوک را با روشِ محاسبه دارد؛
           رندرِ دوباره‌اش کلِ باکس را دو بار نشان می‌داد (بازبینیِ ۲۰۲۶-۱۰-۲۰). */}
-      {!expert && <DerivedValues indices={eng?.indices} />}
+      {!expert && (
+        <LockedFeature
+          featureKey="advancedIndices"
+          title="محاسبه شاخص‌های پیشرفته بالینی (FIB-4، AIP و eAG)"
+          description="محاسبه شاخص فیبروز کبدی، شاخص آتروژنیک پلاسما و گلوکز تخمینی در پلن‌های پایش سلامت و خانواده ارائه می‌شود."
+        >
+          <DerivedValues indices={eng?.indices} />
+        </LockedFeature>
+      )}
 
       {/* ۶. منابع، منشأ، سلب مسئولیت */}
       {asList(result.sources).length > 0 && (
@@ -555,6 +622,19 @@ export default function ResultView({ result, asText, asList }) {
       {printing && createPortal(
         <ResultReport result={result} asText={asText} asList={asList} />,
         document.body
+      )}
+
+      {upgradeTarget && (
+        <UpgradeModal
+          targetFeatureTitle={upgradeTarget.title}
+          currentPlanId={planId}
+          targetPlanId={upgradeTarget.planId}
+          onSelect={(id) => {
+            setPlan(id);
+            setUpgradeTarget(null);
+          }}
+          onClose={() => setUpgradeTarget(null)}
+        />
       )}
     </div>
   );
