@@ -88,14 +88,11 @@ import {
 } from "./database.js";
 import { notifyNewContactMessage } from "./notifier.js";
 import { requestPayment, verifyPayment } from "./zarinpal.js";
+import { PLAN_CONFIG, planAmount } from "./planPrices.js";
 import { setJobAwaitingPayment, unlockPaidJob } from "./jobStore.js";
 
 // پلن‌های تعرفه و قیمت‌گذاری سامانه به تومان
-export const PLAN_CONFIG = {
-  starter: { id: "starter", name: "پلن پایه (Starter)", price: 49000, credits: 1 },
-  empire: { id: "empire", name: "پلن پایش سلامت (Empire)", price: 99000, credits: 3 },
-  unicorn: { id: "unicorn", name: "پلن خانواده جامع (Unicorn)", price: 149000, credits: 6 },
-};
+export { PLAN_CONFIG, planAmount };
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
 //
@@ -2124,11 +2121,12 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
       try {
         const planId = req.body?.planId || "starter";
         const plan = PLAN_CONFIG[planId] || PLAN_CONFIG.starter;
+        const payAmount = planAmount(plan, req.body?.cycle);
         const origin = req.headers.origin || (process.env.SITE_ORIGIN || "https://azmayarapp.ir");
         const callbackUrl = `${origin}/payment/verify`;
 
         const zarin = await requestPayment({
-          amount: plan.price,
+          amount: payAmount,
           description: `تفسیر آزمایش خون - ${plan.name} آزمایار`,
           callbackUrl,
           mobile: req.user?.phone || req.body?.patient?.phone,
@@ -2140,13 +2138,13 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
             jobId,
             userId: userId && !req.user.anonymous ? userId : null,
             planId: plan.id,
-            amount: plan.price,
+            amount: payAmount,
           });
 
           const tests = Array.isArray(body._engine?.tests) ? body._engine.tests : [];
           setJobAwaitingPayment(jobId, {
             planId: plan.id,
-            amount: plan.price,
+            amount: payAmount,
             authority: zarin.authority,
             paymentUrl: zarin.paymentUrl,
             testsCount: tests.length || (Array.isArray(body.extracted_tests) ? body.extracted_tests.length : 1),
@@ -2202,13 +2200,14 @@ app.get("/api/analyze/job/:id", requireAllowedOrigin, requireAuth, (req, res) =>
 /** درخواست پرداخت و دریافت لینک درگاه زرین‌پال برای یک پلن مشخص */
 app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, res) => {
   try {
-    const { planId = "starter", jobId = null } = req.body || {};
+    const { planId = "starter", jobId = null, cycle } = req.body || {};
     const plan = PLAN_CONFIG[planId] || PLAN_CONFIG.starter;
+    const payAmount = planAmount(plan, cycle);
     const origin = req.headers.origin || (process.env.SITE_ORIGIN || "https://azmayarapp.ir");
     const callbackUrl = `${origin}/payment/verify`;
 
     const zarin = await requestPayment({
-      amount: plan.price,
+      amount: payAmount,
       description: `خرید ${plan.name} - سامانه هوشمند آزمایار`,
       callbackUrl,
       mobile: req.user?.phone || null,
@@ -2224,14 +2223,14 @@ app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, 
       jobId,
       userId,
       planId: plan.id,
-      amount: plan.price,
+      amount: payAmount,
     });
 
     res.json({
       ok: true,
       authority: zarin.authority,
       paymentUrl: zarin.paymentUrl,
-      amount: plan.price,
+      amount: payAmount,
       planId: plan.id,
       sandbox: zarin.sandbox,
     });

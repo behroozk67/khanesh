@@ -31,7 +31,7 @@ export default function PricingPage() {
       const res = await fetch("/api/payment/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId: checkoutModal.plan.id }),
+        body: JSON.stringify({ planId: checkoutModal.plan.id, cycle }),
       });
       const data = await res.json().catch(() => null);
       if (data?.paymentUrl) {

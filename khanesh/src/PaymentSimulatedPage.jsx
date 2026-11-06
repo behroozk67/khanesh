@@ -6,7 +6,7 @@ export default function PaymentSimulatedPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const authority = params.get("Authority") || "A_TEST_MOCK";
-  const amount = Number(params.get("Amount") || 49000);
+  const amount = Number(params.get("Amount") || 39000);
 
   function handleSuccess() {
     navigate(`/payment/verify?Authority=${encodeURIComponent(authority)}&Status=OK`);

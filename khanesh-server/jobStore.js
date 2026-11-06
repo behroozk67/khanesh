@@ -147,7 +147,7 @@ export function jobView(j) {
       tests_count: j.paymentInfo?.testsCount ?? 0,
       test_names: j.paymentInfo?.testNames ?? [],
       plan_id: j.paymentInfo?.planId ?? "starter",
-      amount: j.paymentInfo?.amount ?? 49000,
+      amount: j.paymentInfo?.amount ?? 39000,
       authority: j.paymentInfo?.authority ?? null,
       payment_url: j.paymentInfo?.paymentUrl ?? null,
     };

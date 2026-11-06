@@ -6,7 +6,7 @@ import "./PaymentCard.css";
 export default function PaymentCard({
   jobId: _jobId,
   planId = "starter",
-  amount = 49000,
+  amount = 39000,
   testsCount = 0,
   testNames = [],
   paymentUrl,
