@@ -1,7 +1,7 @@
 import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis as actionUnlessAnemiaCrisisBase, urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
 // P117: فهرستِ بستهٔ رنگِ سیاه از یک منبع (stool.js) — قاعدهٔ ملنا و رنگِ مدفوع یک واژگان دارند.
 import { STOOL_BLACK_RE } from "./stool.js";
-import { rbcMorphOf, bandNeutDiscordance, anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
+import { anemiaInflammationFa, anemiaInflammationSuggest, rbcMorphOf, bandNeutDiscordance, anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
 import { printedVerdict } from "./units.js";
 import { onInpatient } from "./inpatient.js";
 import { faName } from "./names.js";
@@ -2039,6 +2039,7 @@ export const RULES_HEMATOLOGY = [
         extra = " شمارش رتیکولوسیت پایین است — یعنی مغز استخوان پاسخ کافی نمی‌دهد؛ علت‌هایی مثل کمبود آهن/ویتامین، کم‌کاری کلیه یا مشکل مغز استخوان مطرح است.";
         suggest = ["فریتین", "ویتامین B12 و فولات", "کراتینین", "بررسی توسط پزشک"];
       }
+      suggest = [...suggest, ...anemiaInflammationSuggest(e).filter((s) => !suggest.includes(s))];   // P121
       // brief در کمکیِ بیرونی است تا کلیدهایش در RULE_READS نیایند (M156) — normocyticBrief بالای فایل.
       const brief = normocyticBrief(e, hgb);
       return {
@@ -2054,6 +2055,7 @@ export const RULES_HEMATOLOGY = [
             ? `${mcvSizeClauseFa(e)}؛ پس اندازهٔ گلبول‌ها در حدِ نورموسیتیک و تعدادشان کم است (کم‌خونیِ نورموسیتیک).`
             : "گلبول‌ها اندازهٔ طبیعی دارند ولی تعدادشان کم است (کم‌خونیِ نورموسیتیک).") +
           (anemiaCompanionsFa(e, false) ? ` ${anemiaCompanionsFa(e, false).trim()}` : "") + extra +
+          (anemiaInflammationFa(e) ? ` ${anemiaInflammationFa(e).trim()}` : "") +
           " شمارش رتیکولوسیت (گلبول‌های تازه‌ساز) کلید تعیین علت است و برای پیدا کردن ریشهٔ کم‌خونی چند آزمایش دیگر لازم است.",
         action: actionUnlessAnemiaCrisis(
           e,

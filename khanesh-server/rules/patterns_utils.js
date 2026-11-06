@@ -1478,6 +1478,27 @@ export function anemiaSeverityFa(e, hb) {
 // کم‌خونیِ شیرخوارِ زیرِ ۶ ماه (۲۸ روز تا ۶ ماه؛ زیرِ ۲۸ روز کفِ نوزادی دارد): درجه ندارد، پس نباید «routine» بماند.
 export const infantAnemiaNoGrade = (e) => e.age != null && e.age < 0.5;
 
+// P121: Hb↓ + CRP↑ بدونِ پنلِ آهن. anemia_chronic_disease فقط با IRON و FERRITIN می‌آید، پس برگهٔ بی‌پنل این پیوند را نمی‌شنید.
+// یک جمله داخلِ متنِ همان قاعدهٔ کم‌خونی (نه قاعدهٔ جدا، تا بیمار «دو کم‌خونی» نخواند)؛ فوریت دست‌نخورده. ESR عمداً نیست:
+// خودِ کم‌خونی آن را بالا می‌برد (esr_elevated). بیرون از قاعده تا CRP_Q در RULE_READSِ کم‌خونی نیاید (M156) — crp_elevated مالکش است.
+export function anemiaInflammationFa(e) {
+  const g = (k) => e.graded?.find((x) => x.test === k);
+  const hgb = g("HGB"), crp = g("CRP_Q");
+  if (!(hgb?.abnormal && hgb.dir === "low" && crp?.abnormal && crp.dir === "high")) return "";
+  if (g("IRON") && g("FERRITIN")) return "";   // پنل هست: iron_deficiency_panel / anemia_chronic_disease مالک‌اند
+  return `CRP شما هم بالاست (${crp.value}، حد طبیعی ${crp.range}). التهاب خودش می‌تواند کم‌خونی بسازد و فریتین را هم بالا ببرد؛ ` +
+    "پس برای جدا کردنِ آن از کمبود آهن، آهن سرم و TIBC باید کنار فریتین خوانده شوند. ";
+}
+
+// جملهٔ بالا آهن سرم و TIBC را نام می‌برد ⇒ در suggest هم بیایند (N8)، فقط وقتی جمله هست و روی برگه نیستند.
+export function anemiaInflammationSuggest(e) {
+  if (!anemiaInflammationFa(e)) return [];
+  const out = [];
+  if (!e.graded.some((x) => x.test === "IRON")) out.push("آهن سرم");
+  if (!e.graded.some((x) => x.test === "TIBC")) out.push("TIBC");
+  return out;
+}
+
 // ═══ P88 (۲۰۲۶-۱۰-۰۵، LIS بیمارستان): «چاپ‌شده ولی سنجیده‌نشده» ≠ «روی برگه نیست» (N4) ═══
 // عددی که بی‌واحد چاپ شده (unit_unknown) یا به دلیلِ دیگری بی‌نمره مانده در e.ungraded است، نه در e.graded. قاعده‌ای که
 // فقط graded را نگاه کند می‌گوید «روی این برگه اندازه‌گیری نشده» و همان آزمایش را دوباره درخواست می‌کند (N8).

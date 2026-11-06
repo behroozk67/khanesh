@@ -10,7 +10,7 @@
 //    مالک‌ها صریحاً فهرست شده‌اند، نه با «قاعده این کلید را خواند» (N18: خواندن ≠ گفتن) — `M313` وجودشان را می‌سنجد.
 // ⚠️ هر جمله‌ای که از آزمایشِ دیگر حرف می‌زند سه‌حالته است (بالا/پایین/طبیعی/غایب) — `comp()` (N4، M156).
 // ============================================================
-import { levelGrade, anemiaSeverityFa, infantAnemiaNoGrade, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION, ungradedFa } from "./patterns_utils.js";
+import { levelGrade, anemiaInflammationFa, anemiaInflammationSuggest, anemiaSeverityFa, infantAnemiaNoGrade, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION, ungradedFa } from "./patterns_utils.js";
 import { isNeonate } from "./neonatal.js";
 import { faName } from "./names.js";
 
@@ -483,11 +483,12 @@ const anemiaHbAlone = {
         `هموگلوبین شما ${hb.value} است (حد طبیعی ${hb.range})؛ یعنی کم‌خونی. ` +
         (sev ? `بر پایهٔ طبقه‌بندیِ سازمان جهانی بهداشت برای سن${e.pregnant ? " و بارداریِ" : "ِ"} شما، این کم‌خونیِ ${sev} است. ` : "") +
         "هموگلوبین به‌تنهایی علت را نمی‌گوید. برای پیدا کردنِ علت معمولاً حجمِ گلبول قرمز (MCV) و بقیهٔ شاخص‌های CBC، فریتین (ذخیرهٔ آهن)، رتیکولوسیت، و در صورتِ لزوم B12 و فولات خواسته می‌شود؛ چون درمانِ هر نوع فرق دارد و بدونِ دانستنِ علت نباید خودسرانه قرصِ آهن شروع کرد. " +
-        comp(e, K.MCV, "حجم گلبول قرمز (MCV)") + " " + comp(e, K.FERRITIN, "فریتین"),
+        comp(e, K.MCV, "حجم گلبول قرمز (MCV)") + " " + comp(e, K.FERRITIN, "فریتین") +
+        (anemiaInflammationFa(e) ? ` ${anemiaInflammationFa(e).trim()}` : ""),
       action: pregLow && urgency === "this_week"
         ? "این هفته با پزشکِ زنان یا مامای خود مطرح کنید؛ کم‌خونی در این حد در بارداری نیاز به بررسی و درمانِ زودتر دارد."
         : ACT[urgency],
-      suggest: ["شاخص‌های گلبول قرمز (MCV، MCH)", "فریتین", "رتیکولوسیت"],
+      suggest: ["شاخص‌های گلبول قرمز (MCV، MCH)", "فریتین", "رتیکولوسیت", ...anemiaInflammationSuggest(e)],
       warnings: ["اگر ضعفِ شدید، تپشِ قلبِ تند، تنگیِ نفس، سرگیجه یا دردِ قفسهٔ سینه دارید، یا خونریزی (مدفوعِ سیاه، قاعدگیِ بسیار زیاد) دارید، زودتر مراجعه کنید."],
     };
   },
