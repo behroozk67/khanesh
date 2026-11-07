@@ -89,6 +89,7 @@ import {
 import { notifyNewContactMessage } from "./notifier.js";
 import { requestPayment, verifyPayment } from "./zarinpal.js";
 import { PLAN_CONFIG, planAmount } from "./planPrices.js";
+import { paymentExempt } from "./paymentExempt.js";
 import { setJobAwaitingPayment, unlockPaidJob } from "./jobStore.js";
 
 // پلن‌های تعرفه و قیمت‌گذاری سامانه به تومان
@@ -2104,7 +2105,8 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
       const userId = req.user?.userId;
       const isTestEnv = process.env.NODE_ENV === "test";
       const forcePayment = req.body?.requirePayment === true;
-      const skipPayment = (isTestEnv && !forcePayment) || process.env.REQUIRE_PAYMENT === "false";
+      const skipPayment = (isTestEnv && !forcePayment) || process.env.REQUIRE_PAYMENT === "false"
+        || paymentExempt(req.user);   // PAYMENT_EXEMPT_PHONES (تست روی production)
 
       // اگر کاربر وارد شده و اعتبار از پیش خریداری‌شده دارد
       const hasCredit = (!skipPayment && userId && !req.user.anonymous)
