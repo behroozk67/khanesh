@@ -12846,3 +12846,27 @@ test("M312: TSHِ < ۰٫۱ وقتی FT4 روی برگه نیست ⇒ این هف
   const withFt4 = t([{ name: "TSH", value: "0.05" }, { name: "FT4", value: "1.2", unit: "ng/dL" }]).p.findings.find((x) => x.rule_id === "thyroid");
   assert.equal(withFt4.pattern, "thyroid_hyper_subclinical"); assert.equal(withFt4.urgency, "routine");
 });
+
+test("T4 کل: «Total Thyroxine (T4) (CLIA)» و هم‌خانواده‌ها ⇒ T4 (نه unmapped)؛ Free Thyroxine هنوز FT4؛ Thyroxine تنها حدس زده نمی‌شود", () => {
+  const run = (name, value, unit) => runEngine({ patient: { sex: "F", age: 35 }, tests: [{ name, value, unit }] });
+  for (const n of ["Total Thyroxine (T4) (CLIA)", "Total Thyroxine", "Total Thyroxin", "T4 (Total)", "Total T4", "Thyroxine Total"]) {
+    const r = run(n, 6.7, "mcg/dL");
+    assert.deepEqual(r.graded.map((g) => g.test), ["T4"], n);
+    assert.equal(r.graded[0].abnormal, false, n);   // 6.7 mcg/dL = µg/dL، در بازهٔ 5–12
+    assert.deepEqual(r.unmapped, [], n);
+  }
+  for (const n of ["Free Thyroxine (FT4)", "Free Thyroxine"]) assert.deepEqual(run(n, 1.2, "ng/dL").graded.map((g) => g.test), ["FT4"], n);
+  assert.deepEqual(run("Thyroxine", 6.7, "mcg/dL").graded, []);
+});
+
+test("VIT_D: مرزها — <20 کمبود، 20 ناکافی، 29.9 ناکافی، 30 کافی، 100 کافی، 150 بالاتر از حد مطلوب، 151 احتمال زیاده‌روی؛ مرزهای MCV (80/100) دست‌نخورده", () => {
+  const fa = (name, v, unit) => runEngine({ patient: { sex: "F", age: 35 }, tests: [{ name, value: v, unit }] }).graded[0];
+  const want = [[19.9, "کمبود ویتامین D"], [20, "ویتامین D ناکافی"], [29.9, "ویتامین D ناکافی"], [30, "کافی"],
+    [100, "کافی"], [150, "بالاتر از حد مطلوب"], [151, "احتمال زیاده‌روی در مکمل"]];
+  for (const [v, w] of want) assert.equal(fa("Vitamin D (25-OH)", v, "ng/mL").fa, w, String(v));
+  assert.equal(fa("Vitamin D (25-OH)", 30, "ng/mL").abnormal, false);
+  assert.equal(fa("MCV", 80, "fL").abnormal, false);
+  assert.equal(fa("MCV", 100, "fL").abnormal, false);
+  assert.equal(fa("MCV", 79.9, "fL").abnormal, true);
+  assert.equal(fa("MCV", 100.1, "fL").abnormal, true);
+});

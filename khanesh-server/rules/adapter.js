@@ -296,6 +296,8 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   t3: "T3", totalt3: "T3", tt3: "T3",
   antitpo: "ANTI_TPO", tpoab: "ANTI_TPO", tpoantibody: "ANTI_TPO", "anti-tpo": "ANTI_TPO", thyroidperoxidaseantibody: "ANTI_TPO",
   t4: "T4", totalt4: "T4", tt4: "T4",
+  // «Total Thyroxine (T4) (CLIA)» روی برگهٔ زنده unmapped بود؛ «thyroxine» تنها عمداً نیست (FT4 نیست، T4 هم نباید حدس شود).
+  totalthyroxine: "T4", totalthyroxin: "T4", thyroxinetotal: "T4", thyroxintotal: "T4", t4total: "T4",
   // ⚠️ املاهای واقعیِ برگه‌های ایرانی. این‌ها تایپیِ ما نیستند — عیناً روی
   //    برگه چاپ شده‌اند و بدونشان تست «خوانده ولی تفسیرنشده» می‌ماند.
   chol: "CHOL", cholesterol: "CHOL", totalcholesterol: "CHOL",

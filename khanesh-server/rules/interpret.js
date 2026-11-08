@@ -79,8 +79,8 @@ export const CLASSIFIERS = {
     kind: 'classifier',
     label: 'ویتامین D',
     bands: [
-      { max: 20,  tag: 'deficiency',    fa: 'کمبود ویتامین D',  patient: 'ویتامین D خون شما کم است' },
-      { max: 30,  tag: 'insufficiency', fa: 'ویتامین D ناکافی', patient: 'ویتامین D خون شما کمی کمتر از حد مطلوب است' },
+      { max: 20,  exclusive: true, tag: 'deficiency',    fa: 'کمبود ویتامین D',  patient: 'ویتامین D خون شما کم است' },
+      { max: 30,  exclusive: true, tag: 'insufficiency', fa: 'ویتامین D ناکافی', patient: 'ویتامین D خون شما کمی کمتر از حد مطلوب است' },
       { max: 100, tag: 'sufficient',    fa: 'کافی',             patient: null, normal: true },
       // ۱۰۰–۱۵۰: بالاتر از حد مطلوب ولی سمّی نیست (معمولاً از مکمل).
       { max: 150, tag: 'above_target',  fa: 'بالاتر از حد مطلوب', patient: 'ویتامین D خون شما بالاتر از حد مطلوب است — مصرف مکمل را با پزشک بررسی کنید' },
@@ -286,7 +286,8 @@ export function classify(testKey, value, lln, uln) {
     // پس بند lln باید اکیداً کوچک‌تر باشد (MCV=80 نرموسیتیک است، نه میکروسیتیک)، در حالی که
     // بند uln شامل خودِ مرز است (MCV=100 نرموسیتیک است). قبلاً هر دو <= بودند و مرزِ پایین
     // برخلافِ refs.js غیرطبیعی علامت می‌خورد.
-    const hit = b.max === 'lln' ? value < limit : value <= limit;
+    // exclusive (VIT_D): ۲۰ ناکافی و ۳۰ کافی است؛ ۱۰۰ و ۱۵۰ عمداً شاملند (بازهٔ چاپی 30–100، سمّیت >150).
+    const hit = b.max === 'lln' || b.exclusive ? value < limit : value <= limit;
     if (hit) {
       return {
         kind: 'classifier',
