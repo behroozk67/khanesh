@@ -1556,3 +1556,68 @@ test("T64c: برگه‌ای که فقط تومورمارکر دارد مسیرِ
   assert.equal(allText(body).includes("تفسیر نشد"), false);
   assert.equal(allText(body).includes("خوانده نشد"), false);
 });
+
+// ── T65: گروه‌بندی و ترتیبِ متنِ تفسیر از سمتِ کد (P123) ───────────────────────
+// گزارشِ اپ: CRP و ESR چهار پاراگراف از هم جدا، آهن جدا از هموگلوبین، ترتیب = فوریت. مدلِ این تست عمداً بد است:
+// بخش‌ها وارونه، یک جملهٔ CRP در بخشِ کم‌خونی، و هیچ جملهٔ CRPِ خودِ یافته در بخشِ التهاب نیست.
+const PANEL_GROUPS = {
+  patient: { age: 34, sex: "F" },
+  tests: [
+    { name: "CRP", value: 48, unit: "mg/L" }, { name: "ESR", value: 62 },
+    { name: "Hemoglobin", value: 9.8, unit: "g/dL" }, { name: "MCV", value: 68 }, { name: "MCH", value: 21 }, { name: "RDW", value: 17 },
+    { name: "Ferritin", value: 6, unit: "ng/mL" }, { name: "TIBC", value: 460, unit: "µg/dL" }, { name: "Iron", value: 25, unit: "µg/dL" },
+  ],
+};
+const paragraphsOf = (s) => String(s).split("\n\n");
+const inParas = (s, needle) => paragraphsOf(s).filter((p) => p.includes(needle)).length;
+
+test("T65: مدلِ بد (ترتیبِ وارونه، جملهٔ CRP در کم‌خونی، جملهٔ افتاده) ⇒ هر گروه یک پاراگراف، ترتیبِ ثابت، هر نشانگر فقط در یک پاراگراف، جملهٔ افتاده در پاراگرافِ خودش", async () => {
+  const { patterns } = engineVerdict(PANEL_GROUPS);
+  const must = (id) => patterns.findings.find((f) => f.rule_id === id).must_say;
+  const crpFirst = must("crp_elevated").split(/(?<=[.؟!])\s/)[0];
+  const model = {
+    ...modelSays(),
+    interpretation: "متنِ آزادِ مدل که باید نادیده بماند.",
+    sections: [
+      { group: "inflam", text: must("esr_elevated") },                                          // وارونه + جملات CRP افتاده
+      { group: "anemia", text: `${must("microcytic_anemia")} ${must("iron_deficiency_panel")} ${crpFirst}` },
+      { group: "ساختگی", text: "گروهِ ساختگی" },
+    ],
+  };
+  const { status, body } = await analyze(PANEL_GROUPS, model);
+  assert.equal(status, 200);
+  const text = body.interpretation;
+  assert.ok(!text.includes("متنِ آزادِ مدل") && !text.includes("گروهِ ساختگی"));
+  assert.equal(body.sections, undefined, "sections به کلاینت نمی‌رود");
+  const ps = paragraphsOf(text);
+  const iA = ps.findIndex((p) => p.includes("هموگلوبین")), iI = ps.findIndex((p) => p.includes("CRP"));
+  assert.ok(iA === 0 && iI === 1, `ترتیب: کم‌خونی (0) سپس التهاب (1)؛ گرفتیم ${iA}، ${iI}`);
+  assert.equal(ps.findIndex((p) => p.includes("ESR")), iI, "CRP و ESR در یک پاراگراف");
+  for (const m of ["CRP", "ESR", "MCV", "MCH", "RDW", "هموگلوبین", "فریتین"]) assert.equal(inParas(text, m), 1, `«${m}» در ${inParas(text, m)} پاراگراف`);
+  // جملهٔ CRPِ جاافتاده (key_number) در پاراگرافِ التهاب برگشته، نه ته‌ِ متن
+  for (const s of must("crp_elevated").split(/(?<=[.؟!])\s/).slice(0, 2)) assert.ok(ps[iI].includes(s.replace(/[.؟!]$/, "")), `جملهٔ CRP در پاراگرافِ التهاب نیست: ${s}`);
+  assert.equal(body.has_critical, false);
+});
+
+test("T65b: شکلِ قدیمیِ پاسخ (فقط interpretation) هم همان چینشِ قطعی را می‌دهد", async () => {
+  const { status, body } = await analyze(PANEL_GROUPS, modelSays({ text: "پاسخِ قدیمیِ مدل بدونِ sections." }));
+  assert.equal(status, 200);
+  assert.ok(!body.interpretation.includes("پاسخِ قدیمیِ مدل"));
+  const ps = paragraphsOf(body.interpretation);
+  assert.ok(ps[0].includes("هموگلوبین") && ps[1].includes("CRP") && ps[1].includes("ESR"));
+});
+
+test("T65c: اورژانس + کم‌خونی — ترتیبِ گروه‌ها ثابت می‌ماند ولی هیچ نکتهٔ ایمنی نمی‌افتد و has_critical/فوریت از موتور می‌آید", async () => {
+  const panel = { patient: { age: 40, sex: "M" }, tests: [
+    { name: "Potassium", value: 7.1 }, { name: "Hemoglobin", value: 9.8, unit: "g/dL" }, { name: "MCV", value: 68 }, { name: "Ferritin", value: 6 },
+  ] };
+  const { patterns } = engineVerdict(panel);
+  const { status, body } = await analyze(panel, { ...modelSays(), sections: [] });
+  assert.equal(status, 200);
+  assert.equal(body.has_critical, true);
+  assert.equal(body._engine.urgency, "emergency");
+  const k = patterns.findings.find((f) => f.rule_id === "potassium_critical");
+  for (const s of k.must_say.split(/(?<=[.؟!])\s/)) assert.ok(body.interpretation.includes(s.trim().replace(/[.؟!]$/, "")), `جملهٔ اورژانسی افتاد: ${s}`);
+  const ps = paragraphsOf(body.interpretation);
+  assert.ok(ps.findIndex((p) => p.includes("هموگلوبین")) < ps.findIndex((p) => p.includes("پتاسیم")), "ترتیبِ ثابتِ کاربر: هماتولوژی پیش از بیوشیمی");
+});

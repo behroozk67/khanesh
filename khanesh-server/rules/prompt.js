@@ -18,6 +18,7 @@ import { engineClosingBlocks } from "./printed.js";
 import { faName } from "./names.js";
 import { SPECIMEN_FA, FLUID_TYPE_FA } from "./specimen.js";
 import { activeConditionIds, conditionFa } from "./conditions.js";
+import { INTERP_GROUPS, groupOf, orderFindings, renderGroupedMustSay } from "./groups.js";
 
 const activeFa = (input) => activeConditionIds(input).map(conditionFa);
 import { isNeonate, neonatalVoice } from "./neonatal.js";
@@ -52,9 +53,9 @@ export const ENGINE_SYSTEM_PROMPT = `
 ۶. ننویس بیمار کِی یا کجا مراجعه کند (امروز، این هفته، اورژانس، مطب) و هشدار اضافه نکن. دستورِ مراجعه و هشدارها
    جداگانه و عیناً از موتور به بیمار نشان داده می‌شوند؛ اگر تو هم بنویسی، دو دستورِ متفاوت کنارِ هم می‌نشینند.
    فقط اگر خودِ must_say چنین جمله‌ای دارد، همان را منتقل کن.
-۷. ترتیب بیان بر اساس اهمیت بالینی: یافته‌ها در ورودی به ترتیب فوریت و اهمیت بالینی هستند. همیشه ابتدا موضوعات مهم‌تر و انحرافات شدیدتر/اورژانسی را بنویس، سپس به موضوعات با فوریت و اهمیت کمتر بپرداز.
-۸. پاراگراف‌بندی مجزا: متن تفسیر (interpretation) باید حتماً به‌صورت پاراگراف‌های جداگانه باشد (هر موضوع یا یافتهٔ اصلی در یک پاراگراف جداگانه با دو خط فاصله \\n\\n بین پاراگراف‌ها). هرگز کل تفسیر را در یک پاراگراف به هم پیوسته ننویس.
-۹. متن یکنواخت و بدون پراکنده‌گویی: دربارهٔ هر آزمایش (مانند CRP، قند، چربی و...) متمرکز و یکنواخت بنویس. پراکنده‌گویی ممنوع است؛ نباید در اول متن به یک آزمایش اشاره شود و دوباره در وسط متن به آن بازگردی. تمام توضیحات مربوط به هر آزمایش را یک‌جا و منسجم در پاراگراف مربوط به خودش بیاور.
+۷. هر finding یک فیلد group دارد و در groups فهرستِ گروه‌های بالینی به ترتیبِ ثابت آمده است. برای **هر گروه یک بخش** بنویس (یک پاراگراف) با همان شناسهٔ group. ترتیبِ گروه‌ها را کد می‌چیند؛ تو فقط متنِ هر گروه را بنویس. گروهی که finding ندارد بخش نمی‌گیرد.
+۸. جملهٔ اولِ هر بخش گروه را نام ببرد (مثلاً «در بررسی التهاب …» یا «دربارهٔ کم‌خونی و آهن …»). بخش را وسطِ توضیحِ یک آزمایش قطع نکن و همهٔ findingهای آن گروه را در همان بخش، کامل، بیاور.
+۹. هر آزمایش فقط در بخشِ گروهِ خودش توضیح داده شود، یک بار. نکتهٔ مشترک (مثلاً التهاب که هم CRP و هم ESR را بالا برده) یک بار و در همان بخش بیاید؛ به آزمایشِ گروهِ دیگر برنگرد.
 
 ## زبان
 - جمله‌ها ساده باشند. ولی کوتاه‌کردنِ جمله هرگز دلیلِ حذفِ بخشی از must_say نیست.
@@ -69,7 +70,9 @@ export const ENGINE_SYSTEM_PROMPT = `
 
 {
   "summary": "یک تا دو جمله. کل وضعیت.",
-  "interpretation": "متن اصلی در پاراگراف‌های جداگانه (با \\n\\n) به ترتیب اهمیت بالینی. همهٔ must_sayها را کامل در آن بگنجان.",
+  "sections": [
+    { "group": "شناسهٔ group از فهرست groups", "text": "پاراگرافِ همین گروه، بدون خط جدید. همهٔ must_sayهای findingهای همین گروه را کامل در آن بگنجان." }
+  ],
   "disclaimer": "یادآوری کوتاه که این تفسیر جای پزشک را نمی‌گیرد."
 }
 
@@ -154,7 +157,11 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
     // یافتهٔ تکمیلی (supplementary) به مدل نمی‌رود: server.js آن را عیناً در پاراگرافِ جدای «موارد دیگر» می‌گذارد (printed.js)؛
     // مدل نمی‌تواند برچسب/جداسازی را بیندازد یا با یافته‌های اصلی قاطی کند.
     // P110: یافتهٔ بی‌اقدام (minor) هم نمی‌رود — موتور آن را عیناً در پاراگرافِ «موارد دیگر، بی‌اقدام» می‌نویسد (printed.js).
-    findings: patterns.findings.filter((f) => !f.supplementary && !f.minor).map((f) => ({
+    // ترتیب و گروه را کد تضمین می‌کند (rules/groups.js)؛ مدل فقط برای هر group یک بخش می‌نویسد.
+    groups: [...new Set(orderFindings(patterns.findings.filter((f) => !f.supplementary && !f.minor && f.must_say)).map(groupOf))]
+      .map((id) => ({ id, title: INTERP_GROUPS.find((g) => g.id === id).fa })),
+    findings: orderFindings(patterns.findings.filter((f) => !f.supplementary && !f.minor)).map((f) => ({
+      group: groupOf(f),
       headline: f.headline,
       must_say: f.must_say,
       urgency: f.urgency,
@@ -600,7 +607,7 @@ function buildEngineFallbackResultAdult(engineOut, patterns) {
   const findings = patterns.findings;
   // P110: یافتهٔ بی‌اقدام (minor) فقط در پاراگرافِ پایانیِ «موارد دیگر» می‌آید (closingSuffix)، نه دو بار.
   const headlines = findings.filter((f) => !f.minor).map((f) => f.headline).filter(Boolean);
-  const mustSay = findings.filter((f) => !f.supplementary && !f.minor).map((f) => f.must_say).filter(Boolean);
+  const mustSay = renderGroupedMustSay(findings);
   // N8: این متن مستقیم به بیمار می‌رسد (هیچ LLM‌ای در این مسیر نیست)،
   // پس کلید موتور باید از faName() رد شود وگرنه «HGB: 9.2» روی صفحه می‌نشیند.
   const abnormalText = engineOut.abnormal
@@ -613,8 +620,8 @@ function buildEngineFallbackResultAdult(engineOut, patterns) {
       : (engineOut.abnormal.length
           ? "چند مقدار خارج از محدوده طبیعی است."
           : "نتایج آزمایش شما بررسی شد.")),
-    interpretation: (mustSay.length
-      ? mustSay.join("\n\n")
+    interpretation: (mustSay
+      ? mustSay
       : (abnormalText ? `مقادیر خارج از محدوده: ${abnormalText}.` : "")) + (findings.length ? closingSuffix(engineOut, patterns) : ""),
     general_recommendations: recs.length ? recs : ["نتایج را با پزشک بررسی کنید."],
     has_critical: patterns.has_critical,

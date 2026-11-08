@@ -76,6 +76,7 @@ import rateLimit from "express-rate-limit";
 import { createAvalAIClient, safeParseJson } from "./avalaiClient.js";
 import { extractMedlineTerms, formatMedlineContext } from "./rules/medline.js";
 import { missingFindingText, stripUnmeasuredClaims, splitSentences, replaceForbiddenSentences } from "./rules/coverage.js";
+import { GroupedText } from "./rules/groups.js";
 import { collectProtected, engineStrings, inventedDosage } from "./rules/protected.js";
 import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
 import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "./jobStore.js";
@@ -1773,6 +1774,16 @@ const analyzeHandler = async (req, res) => {
     tr.stage("llm_raw", { raw });
 
     parsed = safeParseJson(raw);
+    // گروه‌بندیِ بالینی (rules/groups.js): مدل برای هر گروه یک بخش می‌نویسد و *کد* بخش‌ها را به ترتیبِ ثابتِ گروه‌ها می‌چیند؛ بخشِ
+    //   گم‌شده یا شکلِ قدیمیِ پاسخ (فقط interpretation) با متنِ قطعیِ موتور پر می‌شود. تورهای پایین به پاراگرافِ گروهِ خودِ یافته اضافه می‌کنند.
+    let gt = null;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && patternOut?.findings?.length && engineOut && engineCandidate) {
+      gt = new GroupedText(patternOut.findings).fromModel(parsed.sections);
+      const assembled = gt.render();
+      tr.net("groups:assemble", parsed.interpretation ?? null, assembled, { sections_shape: Array.isArray(parsed.sections), ...gt.meta });
+      delete parsed.sections;
+      parsed.interpretation = assembled;
+    }
     // 🔴 بازبینیِ medium (M35، P105): JSONِ معتبر ولی بی‌شکل («{}» برای content خالی، آرایه، summary/interpretation خالی) از تورِ
     //    «!parsed» رد می‌شد ⇒ تفسیرِ خالی، و برای آرایه کلِ بدنه [] بود (has_critical/_engine گم، حتی با K 7.1). در مسیرِ موتور همان
     //    نتیجهٔ قطعیِ موتور جایش می‌نشیند (N18: شرطِ «فقط شکستِ کامل» تور نیست).
@@ -1839,7 +1850,9 @@ const analyzeHandler = async (req, res) => {
       ])];
       for (const [k, v] of Object.entries(parsed)) {
         if (typeof v !== "string") continue;
-        const after = stripUnmeasuredClaims(v, measured);
+        const after = k === "interpretation" && gt
+          ? gt.transform((t) => stripUnmeasuredClaims(t, measured)).render()
+          : stripUnmeasuredClaims(v, measured);
         // ⚠️ این تور متن *حذف* می‌کند، برخلاف بقیه که اضافه می‌کنند. پس
         //    وقتی یک جملهٔ درست گم می‌شود، اینجا جای اولِ نگاه‌کردن است —
         //    و بدونِ ثبتِ before/after هیچ ردی از حذف نمی‌ماند.
@@ -1904,8 +1917,10 @@ const analyzeHandler = async (req, res) => {
         const fb = replaceForbiddenSentences(parsed[field], patternOut.findings);
         if (!fb.hits.length) continue;
         console.warn(`⚠️ مدل ${fb.hits.length} جمله با واژهٔ ممنوعِ یافته نوشت — با متنِ موتور جایگزین شد: ` + fb.hits.map((h) => `${h.rule_id}:${h.word}`).join(" | "));
-        tr.net(`forbid:${field}`, parsed[field], fb.text, { hits: fb.hits });
-        parsed[field] = fb.text;
+        // interpretation: روی متنِ هر گروه جدا (پاراگراف‌ها دست‌نخورده)؛ hits از همان اجرای کامل می‌آید.
+        const fbText = field === "interpretation" && gt ? gt.transform((t) => replaceForbiddenSentences(t, patternOut.findings).text).render() : fb.text;
+        tr.net(`forbid:${field}`, parsed[field], fbText, { hits: fb.hits });
+        parsed[field] = fbText;
       }
 
       // بلوک‌های پایانیِ موتور: «موارد دیگر» (یافته‌های تکمیلی) و «مواردِ در محدودهٔ طبیعی». مدل آن‌ها را نمی‌نویسد (پرامپت تکمیلی‌ها را
@@ -1914,7 +1929,8 @@ const analyzeHandler = async (req, res) => {
         const closing = closingSuffix(engineOut, patternOut);
         if (closing) {
           const beforeClosing = parsed.interpretation;
-          parsed.interpretation = (parsed.interpretation || "") + closing;
+          if (gt) parsed.interpretation = gt.setClosing(closing).render();
+          else parsed.interpretation = (parsed.interpretation || "") + closing;
           tr.net("closingBlocks:append", beforeClosing, parsed.interpretation, { supplementary: patternOut.supplementary_ids ?? [] });
         }
       }
@@ -1930,8 +1946,17 @@ const numbered = patternOut.findings.filter(
         if (additions.length) {
           console.warn(`⚠️ ${additions.length} یافتهٔ عدددار ناقص منتقل شد — بخشِ افتاده اضافه شد`);
           const beforeCov = parsed.interpretation;
-          parsed.interpretation =
-            (parsed.interpretation || "") + "\n\n" + additions.join("\n\n");
+          if (gt) {
+            // به پاراگرافِ گروهِ خودِ یافته، نه ته‌ِ متن.
+            for (const f of numbered) {
+              const add = missingFindingText(f, text);
+              if (add) gt.add(f, add);
+            }
+            parsed.interpretation = gt.render();
+          } else {
+            parsed.interpretation =
+              (parsed.interpretation || "") + "\n\n" + additions.join("\n\n");
+          }
           // ثبتِ اینکه *کدام* یافته ناقص منتقل شده بود: این دقیقاً همان
           // سیگنالی است که «مدل جمله را انداخت» را از «موتور جمله را نساخت»
           // جدا می‌کند، و بدونش هر دو یک‌شکل دیده می‌شوند.
@@ -1954,17 +1979,23 @@ const numbered = patternOut.findings.filter(
           .replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
       const interpText = toLatinDigits(`${parsed.summary || ""} ${parsed.interpretation || ""}`);
       const missingFacts = [];
+      const missingFactOwners = [];
       for (const f of patternOut.findings) {
         if (f.key_number == null) continue;
         // مرز عدد: «8» نباید در «80»، «18» یا «1.8» پیدا شود؛ «1,500» ≡ 1500 و «5.0» ≡ 5 (P107l: keyNumberAppears).
         if (keyNumberAppears(interpText, toLatinDigits(f.key_number))) continue;
         const sent = String(f.must_say || "").split(/(?<=[.؟!])\s/)[0].trim();
-        if (sent && !missingFacts.includes(sent)) missingFacts.push(sent);
+        if (sent && !missingFacts.includes(sent)) { missingFacts.push(sent); missingFactOwners.push(f); }
       }
       if (missingFacts.length) {
         console.warn(`⚠️ ${missingFacts.length} عددِ کلیدی در متن مدل نبود — به تفسیر اضافه شد`);
         const beforeKey = parsed.interpretation;
-        parsed.interpretation = (parsed.interpretation ? `${parsed.interpretation}\n\n` : "") + missingFacts.join("\n\n");
+        if (gt) {
+          missingFacts.forEach((s, i) => gt.add(missingFactOwners[i], s));
+          parsed.interpretation = gt.render();
+        } else {
+          parsed.interpretation = (parsed.interpretation ? `${parsed.interpretation}\n\n` : "") + missingFacts.join("\n\n");
+        }
         tr.net("keyNumber:guarantee", beforeKey, parsed.interpretation, { facts: missingFacts });
       }
 
@@ -1994,9 +2025,11 @@ const numbered = patternOut.findings.filter(
         const bad = inventedDosage(parsed[field], engineText);
         if (!bad.length) continue;
         const beforeInv = parsed[field];
-        parsed[field] = splitSentences(beforeInv)
-          .filter((s) => !inventedDosage(s, engineText).length)
-          .join(" ");
+        // پاراگراف‌به‌پاراگراف: join(" ") روی کلِ متن پاراگراف‌ها را در هم می‌ریخت.
+        parsed[field] = beforeInv.split(/\n{2,}/)
+          .map((para) => splitSentences(para).filter((s) => !inventedDosage(s, engineText).length).join(" "))
+          .filter(Boolean)
+          .join("\n\n");
         console.warn(
           `⚠️ مدل ${bad.length} نشانهٔ دوز/راهِ مصرف نوشت که در موتور نبود — جمله‌اش حذف شد: ` +
           bad.map((b) => b.match).join(" | "),
