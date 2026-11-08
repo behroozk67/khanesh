@@ -44,8 +44,16 @@ function maxGlucose(tests) {
 //   (tshcl، tbilirubinclot …) و هر نامِ تازه‌ای که می‌رسید دوباره unmapped می‌شد. حالا یک قاعده: پسوندِ
 //   داخلِ پرانتز/براکت در انتهای نام حذف می‌شود تا «TSH (CL)» همان TSH دیده شود.
 const METHOD_PAREN_RE = /\s*[\(\[]\s*(cl|clia|ecl|eclia|elisa|ifa|cmia|icma|hplc|ria|fpia|eia|lia|petia|enzymatic|immunoassay|chemiluminescence)\s*[\)\]]\s*$/i;
+// علامتِ پانویسِ برگه در نام: «WBC(*1)»، «WBC *1»، «HDL(**)»، «Hb†»، «Hb¹»، «Hb [1]». فقط ستاره/خنجر/بالانویس یا تک‌رقمِ داخلِ [ ] یا پرانتزِ
+// ستاره‌دار؛ «(1)» ساده، «Factor VIII»، «B12» و «10*3»/«10³» (پس از رقم) دست نمی‌خورند. حدسِ فازی نیست: فقط حذفِ نشانه.
+const FOOTNOTE_RE = /\s*(?:\(\s*[*†‡§¶]+\s*[\d۰-۹]?\s*\)|\(\s*[\d۰-۹]\s*[*†‡§¶]+\s*\)|\[\s*[\d۰-۹]\s*\]|(?<![\d۰-۹])[*†‡§¶]+\s*[\d۰-۹]?(?![\d۰-۹])|(?<![\d۰-۹])[¹²³⁰⁴-⁹]+)/g;
+export function stripFootnote(name) {
+  const s = String(name ?? "");
+  const out = s.replace(FOOTNOTE_RE, "");
+  return out === s || !out.trim() ? s : out.replace(/\s{2,}/g, " ").trim();
+}
 function norm(s) {
-  let str = String(s || "");
+  let str = stripFootnote(s || "");
   for (let i = 0; i < 3 && METHOD_PAREN_RE.test(str); i++) str = str.replace(METHOD_PAREN_RE, "");
   return str
     .toLowerCase()
@@ -683,6 +691,7 @@ const DERIVED_ROW_BASES = {
   vldl: ["TG"], vldlcholesterol: ["TG"], vldlc: ["TG"], vldlchol: ["TG"],
   ldlhdl: ["LDL", "HDL"], ldlhdlratio: ["LDL", "HDL"], cholhdlratio: ["CHOL", "HDL"],
   totalcholesterolhdl: ["CHOL", "HDL"], cholesterolhdlratio: ["CHOL", "HDL"],
+  cholesterolhdl: ["CHOL", "HDL"], cholhdl: ["CHOL", "HDL"], tchdl: ["CHOL", "HDL"], totalcholhdl: ["CHOL", "HDL"],   // «Cholesterol / HDL» روی برگهٔ زنده (۲۰۲۶-۱۱-۰۸)
   buncr: ["UREA|UREA_N", "CREAT"], buncreat: ["UREA|UREA_N", "CREAT"], buncreatinine: ["UREA|UREA_N", "CREAT"],
   buncreatinineratio: ["UREA|UREA_N", "CREAT"],
   agratio: ["ALB", "TP"], aglobulinratio: ["ALB", "TP"], albuminoglobulinratio: ["ALB", "TP"],
@@ -1465,7 +1474,7 @@ function possibleValue(key, v) {
 }
 
 export function ocrToEngineInput(ocr) {
-  ocr = splitHpfFromName(ocr);
+  ocr = splitHpfFromName(stripFootnotesFromNames(ocr));
   // ═══ دو ردیف، دو عدد، یک آزمایش (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر) ═══
   // 🔴 اندازه‌گیری‌شده: «Potassium 7.0» + «K 4.2» ⇒ K=4.2؛ اورژانسِ هیپرکالمی بی‌صدا گم می‌شد. هر نقطهٔ نوشتن «آخری برنده» بود
   //    و mergePages فقط نام‌های یکسان را می‌گرفت. این ردیاب همهٔ نوشتن‌های حلقهٔ اصلی را می‌بیند (یک گلوگاه، نه بیست ویرایش).
@@ -3421,6 +3430,11 @@ function printedUnitText(u) {
 
 /** P110-ج (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): OCR گاهی واحدِ میکروسکوپیِ ادرار را به نام می‌چسباند («Bacteria /hpf»، «Mucus threads /hpf») و ستونِ
  *  واحد را خالی می‌گذارد ⇒ نام شناخته نمی‌شد و «Not seen» در «تفسیر نشدند» می‌آمد. فقط /hpf و /lpf، فقط وقتی واحدی چاپ نشده. */
+/** پانویسِ نام را پیش از هر خواننده برمی‌دارد تا هر مصرف‌کننده‌ای که t.name خام می‌خواند هم نامِ پاک ببیند. فقط name؛ مقدار/واحد/بازه دست نمی‌خورد. */
+function stripFootnotesFromNames(ocr) {
+  if (!Array.isArray(ocr?.tests) || !ocr.tests.some((t) => t?.name && stripFootnote(t.name) !== t.name)) return ocr;
+  return { ...ocr, tests: ocr.tests.map((t) => (t?.name && stripFootnote(t.name) !== t.name ? { ...t, name: stripFootnote(t.name) } : t)) };
+}
 function splitHpfFromName(ocr) {
   if (!Array.isArray(ocr?.tests)) return ocr;
   const re = /^(.*\S)\s*\/\s*(hpf|lpf)\.?$/i;

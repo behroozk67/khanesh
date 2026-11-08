@@ -16,7 +16,7 @@ import { CLASSIFIERS } from "./interpret.js";
 import { CTCAE_MAP } from "./ctcae.js";
 import { FA_NAMES, faName } from "./names.js";
 import { evaluate } from "./grade.js";
-import { runEngine, parseTitre } from "./adapter.js";
+import { runEngine, parseTitre, stripFootnote } from "./adapter.js";
 import { runPatterns, RULES, SUGGEST_TESTS } from "./patterns.js";
 import { buildEngineFallbackResult, buildEngineRecommendations, ENGINE_SYSTEM_PROMPT,
          tidyRecommendations, phraseSuggestion, buildNormalResult,
@@ -12932,4 +12932,51 @@ test("ادرار در tests (N39): هر ردیفِ ادراری که فهرست 
     assert.equal(urineAbnormalRows(r).length, 1, `${n}=${v}: ردیف نیامد`);
     assert.ok(runPatterns(r).findings.some(isUrineFinding), `${n}=${v}: ردیفِ فهرست مالک ندارد`);
   }
+});
+
+test("پانویسِ برگه در نام (*1)، (**)، †، ¹، [1] نگاشت را نمی‌شکند؛ «T3 (1)»، «Factor VIII»، «10³» و مقدار/واحد دست‌نخورده", () => {
+  const one = (name, value, unit) => runEngine({ patient: { sex: "F", age: 35 }, tests: [{ name, value, unit }] });
+  for (const n of ["WBC(*1)", "WBC (*1)", "WBC *1", "W.B.C (*1)", "WBC (**)", "WBC†", "WBC¹", "WBC [1]"]) {
+    const r = one(n, "6.2 x 1000/µL");
+    assert.deepEqual(r.graded.map((g) => g.test), ["WBC"], n);
+    assert.deepEqual(r.unmapped, [], n);
+  }
+  assert.deepEqual(one("Hemoglobin(*1)", 13, "g/dL").graded.map((g) => g.test), ["HGB"]);
+  assert.deepEqual(one("HDL(*2)", 50, "mg/dL").graded.map((g) => g.test), ["HDL"]);
+  // نشانه‌ای که پانویس نیست دست نمی‌خورد
+  assert.deepEqual(one("T3 (1)", 1.2, "ng/mL").unmapped, ["T3 (1)"]);
+  assert.equal(stripFootnote("T3 (1)"), "T3 (1)");
+  assert.equal(stripFootnote("Factor VIII"), "Factor VIII");
+  assert.equal(stripFootnote("Vitamin B12"), "Vitamin B12");
+  assert.equal(stripFootnote("WBC (10³/µL)"), "WBC (10³/µL)");
+  assert.equal(stripFootnote("WBC x10*3"), "WBC x10*3");
+  assert.equal(stripFootnote("*"), "*");   // نامِ تهی نمی‌شود
+  // مقدار/واحد از خودِ برگه می‌ماند
+  assert.equal(one("WBC(*1)", "6.2 x 1000/µL").graded[0].value, 6.2);
+  // برگهٔ ادرار: پانویس ردیف را به qual نمی‌برد/نمی‌برد
+  const u = runEngine({ patient: { sex: "F", age: 35 }, tests: [{ name: "Urine Protein(*1)", value: "+1" }, { name: "Specific Gravity (*2)", value: "1.003" }] });
+  assert.deepEqual(Object.keys(u.qual).sort(), ["Urine Protein", "Urine Specific Gravity"]);
+  assert.deepEqual(u.unmapped, []);
+});
+
+test("پانویس + «Cholesterol / HDL»: نسبتِ برگه با اجزایش کنار گذاشته می‌شود، تنها در «تفسیر نشدند» می‌ماند؛ «Others» همان ردیفِ عمومی", () => {
+  const run = (tests) => runEngine({ patient: { sex: "F", age: 35 }, tests });
+  const withParts = run([{ name: "Cholesterol", value: 200, unit: "mg/dL" }, { name: "HDL(*2)", value: 50, unit: "mg/dL" }, { name: "Cholesterol / HDL", value: "4.0" }]);
+  assert.deepEqual(withParts.graded.map((g) => g.test).sort(), ["CHOL", "HDL"]);
+  assert.deepEqual(withParts.unmapped, []);
+  assert.deepEqual(run([{ name: "Cholesterol / HDL", value: "4.0" }]).unmapped, ["Cholesterol / HDL"]);
+  assert.deepEqual(run([{ name: "Others", value: "x" }]).unmapped, ["Others"]);
+});
+
+test("WBC(*1): PhenoAge دیگر به‌خاطرِ WBC مفقود نمی‌شود و differential_without_wbc روشن نمی‌شود", () => {
+  const T = (name, value, unit = "") => ({ name, value: String(value), unit });
+  const sheet = (wbcName) => [T("Albumin", 4.4, "g/dL"), T("Creatinine", 0.9, "mg/dL"), T("FBS", 90, "mg/dL"), T("hs-CRP", 0.3, "mg/L"),
+    T("Lymph %", 30, "%"), T("MCV", 90, "fL"), T("RDW-CV", 12.5, "%"), T("ALP", 70, "U/L"), T(wbcName, 6.5, "x10^3/uL"), T("Neutrophils %", 60, "%")];
+  const go = (name) => { const e = runEngine({ tests: sheet(name), patient: { sex: "M", age: 45 } }, { diagnostics: true }); return { e, ids: runPatterns(e).findings.map((f) => f.rule_id) }; };
+  const plain = go("WBC"), fn = go("WBC(*1)");
+  assert.equal("phenoAgeDiag" in fn.e, false, JSON.stringify(fn.e.phenoAgeDiag));
+  assert.equal(typeof plain.e.indices.pheno_age, "number", "پیش‌شرط: PhenoAge باید ساخته شود");
+  assert.equal(fn.e.indices.pheno_age, plain.e.indices.pheno_age);
+  assert.equal(fn.ids.includes("differential_without_wbc"), false);
+  assert.deepEqual(fn.ids, plain.ids);
 });
