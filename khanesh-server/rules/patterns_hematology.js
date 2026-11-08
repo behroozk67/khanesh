@@ -250,6 +250,17 @@ function inrIsolatedMild(e) {
   return !!(inr?.abnormal && inr.dir === "high" && inr.value <= INR_MILD_TO && !pt?.abnormal &&
     !(aptt?.abnormal && aptt.dir === "high") && !(fib?.abnormal && fib.dir === "low"));
 }
+// برگهٔ واقعی ۲۰۲۶-۱۱-۰۸ (N4/N5): PT ۱۵٫۷ + INR ۱٫۳ + aPTT ۳۷ (طبیعی) فقط «زمان لخته شدن طولانی‌تر است» می‌گرفت؛ نه عددی، نه اینکه aPTT طبیعی است،
+//   (بازهٔ چاپ‌شده را patterns_utils جایگزین می‌کند). فوریت دست نخورد (آستانه‌ها تصمیمِ بازبین‌اند).
+function coagNumbersClause(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const hi = [["PT", "PT"], ["INR", "INR"], ["APTT", "aPTT"]].map(([k, fa]) => [g(k), fa]).filter(([x]) => x?.abnormal && x.dir === "high");
+  const apt = g("APTT");
+  // فقط وقتی aPTTِ طبیعی سنجیده شده: همان حالتی که متنِ قدیم («زمان لخته شدن طولانی‌تر») غلط می‌گفت. بقیهٔ پنل‌ها بایت‌به‌بایت (فریزها) همان می‌مانند.
+  if (!hi.length || !apt || apt.abnormal) return "";
+  return " " + hi.map(([x, fa]) => `${fa} ${x.value} (حد طبیعی ${x.range})`).join("، ") + " بالاتر از حد طبیعی است و aPTT طبیعی است. " +
+    "پزشک این را با داروها، کار کبد و تغذیه (ویتامین K) می‌سنجد و معمولاً برای اطمینان تکرار می‌کند.";
+}
 function coagulationMildInrText(e) {
   const g = (k) => e.graded.find((x) => x.test === k);
   const inr = g("INR"), aptt = g("APTT");
@@ -2470,7 +2481,7 @@ export const RULES_HEMATOLOGY = [
           : inrMild
             ? coagulationMildInrText(e)
             : "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
-            "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند." + (fibLow ? ` ${fibTxt.trim()}` : "")) + apttShortClause(e),
+            "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند." + coagNumbersClause(e) + (fibLow ? ` ${fibTxt.trim()}` : "")) + apttShortClause(e),
         // 🔴 N20 (بازبینیِ ۲۰۲۶-۱۰-۰۴): urgency «emergency» + blocks_others بود و تنها دستور «همین امروز با پزشک تماس بگیرید» —
         //    ضعیف‌تر از soonِ همین قاعده («ظرف ۲۴ تا ۴۸ ساعت مراجعه») نبود ولی تماسِ تلفنی زیرِ بنرِ قرمز. حالا اورژانس.
         action: severe

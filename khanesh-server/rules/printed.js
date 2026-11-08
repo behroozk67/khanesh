@@ -82,7 +82,7 @@ export function minorParagraph(patterns) {
  * پاراگرافِ مواردِ در محدوده. فقط ردیف‌های graded و غیرغیرطبیعی (N4: ungraded و unit_unknown هرگز «طبیعی» نمی‌شوند)،
  * با عددِ چاپ‌شدهٔ برگه (N5) و نامِ فارسی (N8: کلیدی که نامِ فارسی ندارد نمی‌آید).
  */
-export function normalRangeParagraph(engineOut, { max = 20 } = {}) {
+export function normalRangeParagraph(engineOut, { max = Infinity } = {}) {
   const seen = new Set();
   const items = [];
   for (const g of engineOut?.graded ?? []) {

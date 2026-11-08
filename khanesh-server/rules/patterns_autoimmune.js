@@ -98,8 +98,12 @@ function anaBuild(e, { pregnant }) {
   const st = stateOf(e, ANA_IDS);
   const anaPos = isPos(st.ANA);
   const specificPos = SPECIFIC.some((id) => isPos(st[id]));
-  const urgency = urgencyOf(specificPos);
+  // ANAِ عددی که ≥ ۱۰ برابرِ حدِ چاپ‌شدهٔ همان ردیف است، مثبتِ ضعیف/مرزی نیست: اولویتِ ارجاع به روماتولوژی (MEDICAL_RULES: انتظار تأییدِ بازبین).
+  const anaCut = Number(String(st.ANA.reference ?? "").replace(/[٠-٩]/g, (d) => d.charCodeAt(0) - 1632).match(/\d+(?:\.\d+)?/)?.[0]);
+  const anaHigh = st.ANA.assay && st.ANA.state === "above" && Number.isFinite(anaCut) && anaCut > 0 && Number(st.ANA.value) >= 10 * anaCut;
+  const urgency = urgencyOf(specificPos || anaHigh);
   const parts = ANA_IDS.filter((id) => present(st[id])).map((id) => lineOf(st[id], id));
+  if (anaHigh) parts.push(`این عدد حدود ${Math.round(Number(st.ANA.value) / anaCut)} برابرِ مرزِ چاپ‌شدهٔ برگه (${st.ANA.reference}) است، یعنی مثبتِ ضعیف یا مرزی نیست. در این سطح معمولاً ارجاع به روماتولوژیست و بررسیِ علائمِ مفصلی (درد و تورمِ مفصل، خشکیِ صبحگاهی)، پوستی (بثورات، حساسیت به نور) و خشکیِ چشم و دهان لازم است؛ این موضوع از اختلالاتِ جزئیِ دیگرِ برگه (مثلاً تیروئیدِ خفیف یا HDL کمی پایین) اولویتِ بیشتری دارد.`);
 
   if (anaPos) {
     for (const p of st.ANA.patterns ?? []) if (PATTERN_FA[p]) parts.push(`${PATTERN_FA[p]}.`);
@@ -151,7 +155,7 @@ function anaBuild(e, { pregnant }) {
   if ((anaPos || specificPos) && !present(st.ANTI_DSDNA)) suggest.push("Anti-dsDNA");
   if ((anaPos || specificPos) && !present(st.ANTI_RO) && !present(st.ANTI_LA) && !present(st.ANTI_SM) && !present(st.ANTI_RNP)) suggest.push("پنل ENA (Anti-Sm، Anti-RNP، Anti-Ro، Anti-La)");
   if (specificPos && autoAbState(e, "C3").state === "absent" && autoAbState(e, "C4").state === "absent") suggest.push("C3 و C4");
-  if (specificPos) suggest.push("بررسی توسط متخصص روماتولوژی");
+  if (specificPos || anaHigh) suggest.push("بررسی توسط متخصص روماتولوژی");
 
   const ex = explainsOf(e, st);
   return {

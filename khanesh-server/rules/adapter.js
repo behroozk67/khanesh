@@ -526,6 +526,9 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   //  • «Phosphorus.P» و «Mg +2»: نقطه و بارِ یونی بخشی از *نام* تست است، نه شناسه‌اش. norm() نقطه را برمی‌دارد
   //    ولی «+» را نه؛ هر دو صریح نگاشت می‌شوند تا با «P»ِ تنها (=PHOS، NAME_MAP بالا) یا «Mg» قاطی نشوند.
   phosphorusp: "PHOS", phosphorousp: "PHOS", serumphosphorusp: "PHOS", inorganicphosphorusp: "PHOS",
+  // برگهٔ واقعیِ ۲۰۲۶-۱۱-۰۸ (N2): «P ( Phosphorus )» (فسفر ۵٫۱ = بالا) و «K ( Potassium )» «تفسیر نشدند» بودند؛ «Ca ( Calcium )» و «Na ( Sodium )» همان برگه نگاشت می‌شدند.
+  pphosphorus: "PHOS", kpotassium: "K",
+  tpoel: "ANTI_TPO", tpoelisa: "ANTI_TPO",
   mg2: "MG", "mg+2": "MG", mgplus2: "MG", magnesium2: "MG", serummagnesium2: "MG",
   ca2: "CA", "ca+2": "CA", calcium2: "CA",
   //  • «Serum Albumin» — بی‌آن قاعدهٔ پروتئینِ تام می‌گفت «آلبومین روی این برگه نیست» (ادعای کاذب، N4) و
@@ -1473,8 +1476,11 @@ function possibleValue(key, v) {
   return !lim || (v <= lim[1] && (key !== "HCT" || v >= lim[0]));
 }
 
+// فوترِ چاپیِ دستگاه/امضا («Analysed by flowcytometric sysmex X series cell counter»، «Reported by …») آزمایش نیست؛ unmapped نمی‌شود.
+const DEVICE_FOOTER_RE = /^\s*(?:analy[sz]ed|reported|verified|validated|printed|checked|authori[sz]ed|approved)\s+by\b|\b(?:cell\s*counter|sysmex|flow\s*cytometr\w*)\b/i;
 export function ocrToEngineInput(ocr) {
   ocr = splitHpfFromName(stripFootnotesFromNames(ocr));
+  if (Array.isArray(ocr?.tests)) ocr = { ...ocr, tests: ocr.tests.filter((t) => !(t?.name && DEVICE_FOOTER_RE.test(String(t.name)) && !/\d/.test(String(t.value ?? "")) || (/^[-–—]+$/.test(String(t.value ?? "").trim()) && /^(?:c\.?b\.?c\.?|urine\s*analysis|urine\s*\(?\s*culture.*)$/i.test(String(t?.name ?? "").trim())))) };
   // ═══ دو ردیف، دو عدد، یک آزمایش (۲۰۲۶-۱۰-۰۶، تصمیمِ کاربر) ═══
   // 🔴 اندازه‌گیری‌شده: «Potassium 7.0» + «K 4.2» ⇒ K=4.2؛ اورژانسِ هیپرکالمی بی‌صدا گم می‌شد. هر نقطهٔ نوشتن «آخری برنده» بود
   //    و mergePages فقط نام‌های یکسان را می‌گرفت. این ردیاب همهٔ نوشتن‌های حلقهٔ اصلی را می‌بیند (یک گلوگاه، نه بیست ویرایش).
@@ -2430,11 +2436,14 @@ export function ocrToEngineInput(ocr) {
     //    ۱ nmol/L ≈ ۶۵.۱ ng/dL (وزن مولکولی T3 = ۶۵۱).
     if (engineKey === "T3" && /nmol/i.test(String(t.unit || ""))) {
       tests.T3 = Math.round(v * BRANCH_FACTORS.T3_NMOL_TO_NGDL);
+      // N5 (برگهٔ واقعی ۲۰۲۶-۱۱-۰۸: «T3 1.78 nmol/L»): بی‌رکورد، بیمار «T3 تام 116» می‌دید و عددِ برگه‌اش را پیدا نمی‌کرد.
+      unitConversions.push({ test: "T3", raw: v, from: "nmol/L", value: tests.T3, to: "ng/dL", basis: t._basis ?? "printed" });
       continue;
     }
     // ۲۰۲۶-۱۰-۱۶ (N3): ng/mL ⇒ ×۱۰۰ (همان عاملِ تعریفیِ تستوسترون). پیش‌تر «T3 1.2 ng/mL» خام با ۸۰–۱۸۰ سنجیده می‌شد.
     if (engineKey === "T3" && /^ng\/ml$/i.test(String(t.unit || "").replace(/\s+/g, ""))) {
       tests.T3 = Math.round(v * BRANCH_FACTORS.TESTO_NGML_TO_NGDL);
+      unitConversions.push({ test: "T3", raw: v, from: "ng/mL", value: tests.T3, to: "ng/dL", basis: t._basis ?? "printed" });
       continue;
     }
 
