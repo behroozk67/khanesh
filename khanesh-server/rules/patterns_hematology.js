@@ -73,6 +73,14 @@ const microcyticForCrisis = (e) => {
   const mch = e.graded.find((g) => g.test === "MCH");
   return !!((mcv?.abnormal && mcv.dir === "low") || (mch?.abnormal && mch.dir === "low"));
 };
+/** RDW-CV بالا کنارِ گلبولِ کوچک (برگهٔ واقعی ۲۰۲۶-۱۱-۰۸: RDW ۱۵٫۱ فقط در «توضیح آماده نداریم» می‌افتاد). فقط سرنخ؛ حکم و فوریت نمی‌دهد.
+ *  منبع: مرورِ Mentzer/RDW در PMC (PMC11317290؛ فقط نتیجهٔ جست‌وجو، متنِ کامل باز نشد) ⇒ MEDICAL_RULES P127 «در انتظارِ بازبین». */
+const microRdwClause = (e, mcvSmall) => {
+  const rdw = e.graded.find((g) => g.test === "RDW_CV");
+  return mcvSmall && rdw?.abnormal && rdw.dir === "high"
+    ? ` RDW-CV شما ${rdw.value} (حد طبیعی ${rdw.range}) بالاتر از حد است، یعنی اندازهٔ گلبول‌ها یکدست نیست. کنارِ گلبولِ کوچک، RDWِ بالا بیشتر به کمبودِ آهن می‌خورد و RDWِ طبیعی بیشتر به صفتِ تالاسمی؛ ولی این فقط سرنخ است و با فریتین و در صورتِ نیاز الکتروفورزِ هموگلوبین روشن می‌شود.`
+    : "";
+};
 const microMchcClause = (mchc) => !mchc?.abnormal ? ""
   : mchc.dir === "low"
     ? ` MCHC شما ${mchc.value} (حد طبیعی ${mchc.range}) هم پایین است؛ MCHC یعنی غلظتِ هموگلوبین داخلِ هر گلبول، و پایین‌بودنش همان کم‌رنگیِ گلبول است که در لام هم گزارش شده.`
@@ -260,6 +268,23 @@ function coagNumbersClause(e) {
   if (!hi.length || !apt || apt.abnormal) return "";
   return " " + hi.map(([x, fa]) => `${fa} ${x.value} (حد طبیعی ${x.range})`).join("، ") + " بالاتر از حد طبیعی است و aPTT طبیعی است. " +
     "پزشک این را با داروها، کار کبد و تغذیه (ویتامین K) می‌سنجد و معمولاً برای اطمینان تکرار می‌کند.";
+}
+// تصمیمِ کاربر ۲۰۲۶-۱۱-۰۸: INRی که داخلِ بازهٔ چاپ‌شدهٔ همان آزمایشگاه است (برگه: ۱٫۳ با بازهٔ ۱–۱٫۳) را آزمایشگاه طبیعی می‌داند؛ «این هفته» نمی‌گیرد.
+//   فقط وقتی aPTT/فیبرینوژن غیرطبیعی نیستند؛ soon/emergency (INR ≥ آستانه‌ها) دست‌نخورده می‌ماند.
+function inrInPrintedRange(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const inr = g("INR"), aptt = g("APTT"), fib = g("FIB");
+  if (!(inr?.abnormal && inr.dir === "high") || (aptt?.abnormal && aptt.dir === "high") || (fib?.abnormal && fib.dir === "low")) return false;
+  const m = String(e.printedRanges?.INR ?? "").match(/(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/);
+  return !!m && inr.value >= Number(m[1]) && inr.value <= Number(m[2]);
+}
+function coagulationPrintedInrText(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const pt = g("PT"), inr = g("INR"), aptt = g("APTT");
+  return (pt?.abnormal && pt.dir === "high" ? `PT شما ${pt.value} (حد طبیعی ${pt.range}) کمی بالاتر از حد است و ` : "") +
+    `INR شما ${inr.value} (حد طبیعی ${inr.range}) داخلِ بازهٔ خودِ آزمایشگاه است` + (aptt && !aptt.abnormal ? " و aPTT هم طبیعی است" : "") + ". " +
+    "این‌قدر نزدیک به حد به‌تنهایی نشانهٔ اختلالِ انعقادی نیست؛ برای اطمینان PT و INR تکرار می‌شود. " +
+    "اگر داروی رقیق‌کننده (مثل وارفارین) مصرف می‌کنید یا خونریزی یا کبودیِ بی‌دلیل دارید، به پزشک بگویید.";
 }
 function coagulationMildInrText(e) {
   const g = (k) => e.graded.find((x) => x.test === k);
@@ -1282,6 +1307,7 @@ export const RULES_HEMATOLOGY = [
           : hgb ? "گلبول‌های قرمز شما کوچک‌تر از حد معمول‌اند" : "گلبول‌های قرمز شما کوچک‌اند و هموگلوبین روی برگه نیست",
         must_say:
           sizeSentence +
+          microRdwClause(e, mcvSmall) +
           (fc
             ? `${fc.text}؛ علتِ شایعِ دیگرِ ${mcvSmall ? "گلبولِ کوچک" : "این حالت"} یک ویژگیِ ارثیِ خون (صفتِ تالاسمی) است.` +
               (adultRisk && ["neutral", "masked"].includes(fc.state) ? giBleed : "")
@@ -2440,6 +2466,7 @@ export const RULES_HEMATOLOGY = [
       //   ⚠️ «فیبرینوژن < ۱۰۰» منبعِ بازشده ندارد (بازبین نتوانست تأیید کند) — بی‌منبع باقی است، MEDICAL_RULES.md P82.
       const isoPt = ptIsolatedMild(e);
       const inrMild = inrIsolatedMild(e);   // P96
+      const printedOk = !isoPt && !inrMild && inrInPrintedRange(e);
       const lvl = (k) => levelGrade(e.graded.find((g) => g.test === k));
       const liverSevere = lvl("AST") >= 3 || lvl("ALT") >= 3;
       const lowOf = (k) => { const g = e.graded.find((x) => x.test === k); return !!(g?.abnormal && g.dir === "low"); };
@@ -2469,7 +2496,7 @@ export const RULES_HEMATOLOGY = [
       return {
         pattern: "coagulation_abnormal",
         // P59 پرسش ۵ (بازبین): PT ایزوله با INRِ طبیعی «routine» است؛ INR معیارِ قابل‌مقایسه است.
-        urgency: severe ? "emergency" : soonInr ? "soon" : isoPt || inrMild ? "routine" : "this_week",
+        urgency: severe ? "emergency" : soonInr ? "soon" : isoPt || inrMild || printedOk ? "routine" : "this_week",
         ...(isoPt ? { sources: ["STATPEARLS_INR"] } : {}),   // فقط متنِ «PTِ خام به معرف بستگی دارد»
         always_show: true,
         brief,
@@ -2480,6 +2507,8 @@ export const RULES_HEMATOLOGY = [
           ? coagulationIsolatedPtText(e)
           : inrMild
             ? coagulationMildInrText(e)
+            : printedOk && !soonInr && !severe
+              ? coagulationPrintedInrText(e)
             : "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
             "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند." + coagNumbersClause(e) + (fibLow ? ` ${fibTxt.trim()}` : "")) + apttShortClause(e),
         // 🔴 N20 (بازبینیِ ۲۰۲۶-۱۰-۰۴): urgency «emergency» + blocks_others بود و تنها دستور «همین امروز با پزشک تماس بگیرید» —
@@ -2490,7 +2519,7 @@ export const RULES_HEMATOLOGY = [
             ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و بگویید چه داروهایی مصرف می‌کنید."
           : soonInr
             ? "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و بگویید چه داروهایی (به‌ویژه وارفارین) مصرف می‌کنید. اگر وارفارین مصرف می‌کنید، آن را خودسرانه قطع یا تغییر ندهید."
-          : isoPt || inrMild
+          : isoPt || inrMild || printedOk
             ? "در نوبتِ عادی با پزشک مطرح کنید و بخواهید PT و INR تکرار شود. حتماً بگویید چه داروهایی مصرف می‌کنید."
             : "این هفته با پزشک وقت بگیرید. حتماً بگویید چه داروهایی مصرف می‌کنید.",
         suggest: ["تکرار آزمایش انعقاد"],

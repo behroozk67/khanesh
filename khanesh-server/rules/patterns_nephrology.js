@@ -1025,4 +1025,36 @@ export const RULES_NEPHROLOGY_NEW = [
       };
     },
   },
+
+  // ── اوره/BUNِ پایین (۲۰۲۶-۱۱-۰۸، برگهٔ واقعی: اوره ۱۴ با بازهٔ ۱۸–۵۵ فقط «توضیح آماده نداریم» می‌گرفت؛ درخواستِ کاربر) ──
+  // منبع: Merck Manual Professional، «Systemic Abnormalities in Liver Disease» — «BUN levels are often low because of impaired liver
+  //   synthesis» (نتیجهٔ جست‌وجوی همین جلسه؛ صفحه کامل باز نشد). جملهٔ رژیمِ کم‌پروتئین/آبِ زیاد منبعِ بازشده ندارد و در MEDICAL_RULES P127
+  //   «در انتظارِ بازبین» است. هیچ آستانهٔ تازه‌ای نیست: «پایین» همان حکمِ refs.js است. فوریت همیشه routine.
+  {
+    id: "urea_low",
+    match: (e) => e.graded.some((x) => (x.test === "UREA" || x.test === "UREA_N") && x.abnormal && x.dir === "low"),
+    build: (e) => {
+      const u = e.graded.find((x) => (x.test === "UREA" || x.test === "UREA_N") && x.abnormal && x.dir === "low");
+      const g = (k) => e.graded.find((x) => x.test === k);
+      const liver = [["ALT", "ALT"], ["AST", "AST"], ["ALP", "ALP"], ["BILI_T", "بیلی‌روبین"]]
+        .filter(([k]) => g(k)?.abnormal && g(k).dir === "high").map(([, fa]) => fa);
+      if (g("ALB")?.abnormal && g("ALB").dir === "low") liver.push("آلبومین پایین");
+      return {
+        pattern: "urea_low",
+        urgency: "routine",
+        headline: "اوره (" + faName(u.test) + ") شما کمی پایین‌تر از محدودهٔ مرجع است",
+        key_number: u.value,
+        must_say:
+          `${faName(u.test)} شما ${u.value} است (حد طبیعی ${u.range}) و پایین‌تر از آن است. ` +
+          "اوره در کبد از پروتئینِ غذا ساخته می‌شود و با ادرار دفع می‌شود؛ پایین بودنِ آن معمولاً به رژیمِ کم‌پروتئین یا نوشیدنِ آبِ زیاد برمی‌گردد و به‌تنهایی نگران‌کننده نیست. " +
+          "ولی چون ساختِ اوره کارِ کبد است، در بیماریِ کبدی هم می‌تواند پایین باشد" +
+          (liver.length ? `؛ در همین برگه ${liver.join("، ")} هم غیرطبیعی است و پزشک اوره را کنار آن‌ها می‌سنجد. ` : ". ") +
+          "کراتینین (که اینجا جداگانه سنجیده می‌شود) نشان می‌دهد کلیه چطور کار می‌کند؛ اوره‌ی پایین به‌تنهایی نشانهٔ مشکلِ کلیه نیست.",
+        action: "نوبت عادی؛ اگر لاغریِ بی‌دلیل، زردی یا ناراحتیِ کبدی دارید به پزشک بگویید.",
+        suggest: [],
+        warnings: [],
+        sources: ["MERCK_PRO"],
+      };
+    },
+  },
 ];

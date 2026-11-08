@@ -62,5 +62,28 @@ test("R6: «P ( Phosphorus )»، «K ( Potassium )»، «TPO (EL)» نگاشت �
   assert.ok(find(p, "hyperphosphatemia"), "فسفرِ بالا باید مالک داشته باشد");
   assert.ok(e.unitConversions.some((c) => c.test === "T3" && c.raw === 1.78 && c.from === "nmol/L"));
   const coag = find(p, "coagulation_abnormal");
-  assert.ok(coag.must_say.includes("INR 1.3") && coag.must_say.includes("aPTT طبیعی است"));
+  assert.ok(coag.must_say.includes("INR شما 1.3") && coag.must_say.includes("aPTT هم طبیعی است"));
+});
+
+test("R7: INR داخلِ بازهٔ چاپیِ آزمایشگاه ⇒ routine؛ INR بالاتر از بازهٔ چاپی هنوز this_week", () => {
+  const ok = find(run([r("P.T. ( Patient )", "15.7", "Sec"), r("I.N.R.", "1.3", "Index", "1 - 1.3"), r("P.T.T.", "37", "Sec", "24 - 40")]).p, "coagulation_abnormal");
+  assert.equal(ok.urgency, "routine");
+  assert.ok(ok.action.startsWith("در نوبتِ عادی"));
+  const hi = find(run([r("P.T. ( Patient )", "19", "Sec"), r("I.N.R.", "1.6", "Index", "1 - 1.3"), r("P.T.T.", "37", "Sec", "24 - 40")]).p, "coagulation_abnormal");
+  assert.equal(hi.urgency, "this_week");
+});
+
+test("R8: اوره/BUNِ پایین قاعدهٔ خودش را دارد (نه «توضیح آماده نداریم»)؛ با ALT بالا آن را نام می‌برد؛ اورهٔ طبیعی ساکت", () => {
+  const { p } = run([r("Urea", "14", "mg/dL", "18 - 55"), r("ALT", "50", "U/L", "<41")]);
+  const f = find(p, "urea_low");
+  assert.equal(f.urgency, "routine");
+  assert.ok(f.must_say.includes("14") && f.must_say.includes("ALT"));
+  assert.ok(!find(p, "unexplained_abnormal"));
+  assert.ok(!find(run([r("Urea", "30", "mg/dL", "18 - 55")]).p, "urea_low"));
+});
+
+test("R9: RDW بالا کنار گلبولِ کوچک نام برده می‌شود و در «توضیح آماده نداریم» نمی‌افتد", () => {
+  const { p } = run([r("Hb", "15", "g/dL", "13 - 18"), r("MCV", "79.4", "fL", "80 - 100"), r("RDW-CV", "15.1", "%", "10.5 - 14.6")]);
+  assert.ok(find(p, "microcytosis_no_anemia").must_say.includes("RDW-CV شما 15.1"));
+  assert.ok(!(find(p, "unexplained_abnormal")?.must_say ?? "").includes("RDW"));
 });
