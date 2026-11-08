@@ -24,7 +24,7 @@ export const STOOL_CLAY_RE = /^(clay|clay[\s-]*colou?red|pale|pale[\s-]*yellow|p
 export const STOOL_RED_RE = /^(red|reddish|bloody|fresh[\s-]*blood|blood[\s-]*streaked|hematochezia|سرخ|سرخ‌رنگ|خونی|خون‌آلود|خون آلود)$/i;
 
 /** «منفی»های رایج — برای تخم/کیست و بقایای غذایی. */
-export const STOOL_NEGATIVE_RE = /^(negative|neg|nil|none|not[\s-]*seen|no[\s-]*ova|absent|ندارد|منفی|دیده نشد|مشاهده نشد)$/i;
+export const STOOL_NEGATIVE_RE = /^(negative|neg|nil|none|absent|n\/?d|[-–—]+|no(?:[\s-]*(?:ova|cysts?|parasites?|eggs?))*[\s-]*(?:seen|found|detected|observed)|no[\s-]*(?:ova|cysts?|parasites?|eggs?)|not[\s-]*(?:seen|found|detected|observed)|ندارد|منفی|دیده نشد|مشاهده نشد|یافت نشد|دیده نمی‌شود|مشاهده نمی‌شود)$/i;
 
 /** درجهٔ شدتِ چاپی: Few/+/++/+++/Moderate/Many → ۱..۳ (بی‌درجه ⇒ null، نه صفر). */
 export function stoolGrade(value) {

@@ -118,3 +118,17 @@ test("P117-۱۰: مشاهده‌های مدفوع در خطِ «محدوده م�
   const nonObs = e.noRef.filter((k) => !STOOL_OBS_KEYS.has(k));
   assert.deepEqual(nonObs, [], "چیزی جز مشاهده‌های مدفوع نباید بی‌بازه بماند");
 });
+
+test("P117-۱۱: «No Seen» / «-» / «Not detected» منفی‌اند — تخم، کیست، مخاط و خون یافته نمی‌سازند (N6/N30)", () => {
+  // برگهٔ واقعی: Ova «No Seen»، Cyst «No Seen»، Mucus «-» ⇒ متنِ «تخمِ انگل گزارش شده» و «مخاط گزارش شده» می‌آمد
+  for (const neg of ["No Seen", "no seen", "No ova seen", "No parasite found", "Not detected", "Not seen", "-", "—", "N/D", "یافت نشد"]) {
+    const { ids } = run([...CBC, r("Ova Of Parasites", neg, "", "", "Stool"), r("Protozoa Cyst", neg, "", "", "Stool"),
+      r("Mucus", neg, "", "", "Stool"), r("Blood", neg, "", "", "Stool")]);
+    for (const id of ["stool_parasite_found", "stool_mucus_present", "stool_fresh_blood"]) {
+      assert.ok(!ids.includes(id), `«${neg}» نباید ${id} بسازد`);
+    }
+  }
+  // مثبتِ واقعی هنوز یافته است («No» جزئی از نامِ انگل نیست)
+  const pos = run([...CBC, r("Ova Of Parasites", "Giardia", "", "", "Stool")]);
+  assert.ok(pos.ids.includes("stool_parasite_found"));
+});
