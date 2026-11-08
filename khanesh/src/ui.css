@@ -21,7 +21,8 @@
 .st-out       { --fg: var(--st-out-fg);       --bg: var(--st-out-bg);       --dot: var(--st-out-fg); }
 .st-unmatched { --fg: var(--st-unmatched-fg); --bg: var(--st-unmatched-bg); --dot: var(--st-unmatched-fg); }
 .st-emergency { --fg: var(--st-emergency-fg); --bg: var(--st-emergency-bg); --dot: var(--st-emergency-bg); }
-.st-missing   { --fg: var(--st-missing-fg);   --bg: var(--st-missing-bg);   --dot: var(--st-missing-fg); }
+.st-missing,
+.st-norange   { --fg: var(--st-missing-fg);   --bg: var(--st-missing-bg);   --dot: var(--st-missing-fg); }
 
 /* ---------- چیدمانِ صفحه ---------- */
 
@@ -198,7 +199,8 @@
   border-radius: var(--r-pill); padding: var(--s2) var(--s5); white-space: nowrap;
   color: var(--fg); background: var(--bg);
 }
-.chip.st-missing { border: 1px dashed var(--fg); }
+.chip.st-missing,
+.chip.st-norange { border: 1px dashed var(--fg); }
 
 .mini-chip {
   display: inline-flex; align-items: center; gap: var(--s2);
@@ -206,7 +208,8 @@
   border-radius: var(--r-pill); padding: var(--s1) var(--s4); white-space: nowrap;
   color: var(--fg); background: var(--bg);
 }
-.mini-chip.st-missing { border: 1px dashed var(--fg); }
+.mini-chip.st-missing,
+.mini-chip.st-norange { border: 1px dashed var(--fg); }
 
 /* دکمه‌چیپِ قابل‌انتخاب (دسته‌ها، بیماری‌های زمینه‌ای) */
 .chip-row { display: flex; flex-wrap: wrap; gap: var(--s3); }
@@ -360,6 +363,7 @@
 .ring[data-tone="near"]      { --ring-color: var(--st-near-fg); }
 .ring[data-tone="out"]       { --ring-color: var(--st-out-fg); }
 .ring[data-tone="unmatched"] { --ring-color: var(--st-unmatched-fg); }
+.ring[data-tone="norange"]   { --ring-color: var(--st-missing-fg); }
 .ring[data-tone="emergency"] { --ring-color: var(--st-emergency-bg); }
 .ring-hole {
   position: absolute; inset: 13px;    /* بُعد: ضخامتِ خودِ حلقه */

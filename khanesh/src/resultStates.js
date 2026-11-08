@@ -61,6 +61,14 @@ export const STATES = {
     icon: "—",
     cls: "st-missing",
   },
+  // specs/019: ردیفی که روی برگه هست ولی موتور حکمی برایش ندارد (بدون محدودهٔ چاپی، بازهٔ ناخوانا، یا CEA بین دو حدِ
+  // سیگاری/غیرسیگاری). نه «در محدوده» است نه «خارج از محدوده»: همان حاشیهٔ خط‌چینِ missing تا سبزِ کاذب (N4) نسازد.
+  norange: {
+    key: "norange",
+    label: "بدون محدوده مرجع",
+    icon: "◇",
+    cls: "st-norange",
+  },
 };
 
 /** برچسبِ فوریتِ کلِ برگه (`_engine.urgency`) — تنها نسخه؛ پیش‌تر داخلِ Scorecard.jsx بود. */
@@ -108,7 +116,8 @@ export function buildVerdictContext(tests, urgency, uncoveredKeys) {
   const uncovered = new Set(Array.isArray(uncoveredKeys) ? uncoveredKeys : []);
 
   if (urgency === "emergency") {
-    const abnormal = list.filter((t) => t.abnormal);
+    // ردیفِ تومورمارکر هرگز مرجعِ «قرمزِ امروز» نمی‌شود، هرچند abnormal باشد (specs/019؛ اورژانس را فقط یافتهٔ دیگر می‌گوید).
+    const abnormal = list.filter((t) => t.abnormal && t.source !== "tumor_marker_printed");
     const severe = abnormal.filter(
       (t) =>
         t.level === "critical" ||
@@ -129,6 +138,8 @@ export function buildVerdictContext(tests, urgency, uncoveredKeys) {
  */
 export function stateOf(t, ctx) {
   if (!t) return STATES.missing;
+  // specs/019: «بی‌حکم» (abnormal:null یا verdict بی‌حکم) پیش از شاخهٔ !abnormal می‌آید وگرنه به «در محدوده» می‌رفت (Principle II).
+  if (t.abnormal === null || t.verdict === "noref" || t.verdict === "unreadable" || t.verdict === "between") return STATES.norange;
   if (!t.abnormal) return t.nearLimit ? STATES.near : STATES.normal;
   if (ctx?.emergencyKeys?.has(t.key)) return STATES.emergency;
   // خارج از محدوده ولی هیچ قاعده‌ای نگرفتش → حالت سوم، نه زرد.
@@ -142,7 +153,7 @@ export function stateOf(t, ctx) {
  * (نکتهٔ ۹ در design-reference: trend arrow = KEEP، هرگز افقی نباشد.)
  */
 export function dirIcon(t, state) {
-  if (state.key === "normal" || state.key === "near" || state.key === "missing") return state.icon;
+  if (state.key === "normal" || state.key === "near" || state.key === "missing" || state.key === "norange") return state.icon;
   if (t?.dir === "high") return "▲";
   if (t?.dir === "low") return "▼";
   return state.icon;
@@ -162,13 +173,15 @@ export function labelOf(t, state) {
 export function countRows(rows) {
   const list = Array.isArray(rows) ? rows : [];
   const out = list.filter((r) => r.abnormal).length;
-  const near = list.filter((r) => !r.abnormal && r.nearLimit).length;
-  return { inRange: list.length - out, out, near, total: list.length };
+  const near = list.filter((r) => !r.abnormal && r.abnormal !== null && r.nearLimit).length;
+  // بی‌حکم (abnormal:null) نه «در محدوده» شمرده می‌شود نه «خارج» (specs/019).
+  const noRange = list.filter((r) => r.abnormal === null).length;
+  return { inRange: list.length - out - noRange, out, near, noRange, total: list.length };
 }
 
 /** بدترین حالتِ موجود در یک مجموعه ردیف — برای رنگِ حلقه و کارتِ دستگاه بدن */
 export function worstState(rows, ctx) {
-  const order = ["normal", "near", "unmatched", "out", "emergency"];
+  const order = ["normal", "near", "norange", "unmatched", "out", "emergency"];
   let best = STATES.normal;
   for (const r of rows || []) {
     const s = stateOf(r, ctx);

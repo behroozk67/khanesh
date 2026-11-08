@@ -14,6 +14,7 @@
 // ============================================================
 import { qualState, qualVerdict } from "./patterns_utils.js";
 import { parseReference } from "./units.js";
+import { TM_KEYS, parseTmRange, tmVerdict } from "./tumor_markers.js";
 
 // کلیدِ نرمال‌شده (خروجیِ norm در adapter، یا normK در قاعده‌ها) — ZWNJ هم حذف می‌شود چون norm نگهش می‌دارد.
 // P112 (۲۰۲۶-۱۰-۲۳): ویرگولِ انگلیسی و فارسی هم جداکنندهٔ نام است، نه بخشی از آن — «Occult Blood, Stool» و
@@ -263,7 +264,9 @@ const AI_RE = {
   B2GPI: /^(anti)?(b2|β2|beta2)(gpi|glycoproteini?)(ab|antibody)?$/,
   LUPUS_AC: /^(lupusanticoagulant|lac|lupusac|drvvt|dilutedrussellsviperventime|lupusanticoagulantscreen)$/,
   // P77 — تومورمارکرها و گوارش: بی‌نمره؛ فقط محدودهٔ چاپ‌شده. بی‌محدوده هم یافته می‌سازد (قیدِ «محدوده روی برگه نیست»)، نه unmapped.
-  CEA: /^(cea|carcinoembryonicantigen|serumcea)$/,
+  // specs/019: «CEA (Carcinoembryonic Antigen)» همان دو نامِ بالا کنارِ هم است (k0 پرانتز را می‌اندازد)؛ فارسی فقط همان شکلی که
+  //   در محتوای خودِ اپ آمده (extra.cancer.js)، نه حدس. «CA 15.3 (Breast)» و «CA 125 Ovarian» عمداً نیستند: روی برگهٔ واقعی دیده نشده‌اند (N2).
+  CEA: /^(cea|carcinoembryonicantigen|serumcea|ceacarcinoembryonicantigen|carcinoembryonicantigencea|آنتیژنکارسینوامبریونیک)$/,
   AFP: /^(afp|alphafetoprotein|αfetoprotein|alphafetoproteinserum|serumafp|afpserum|afptumormarker)$/,
   CA125: /^(ca125|cancerantigen125|ca125ii)$/,
   CA199: /^(ca199|cancerantigen199)$/,
@@ -351,8 +354,12 @@ export function rangeVerdict(n, cmp, reference, sexHint = null) {
 
 /** عددِ همان‌طور که چاپ شده نقل می‌شود («3.0»، نه «3» — N5) و حکم در برابرِ مرزِ چاپ‌شدهٔ همان ردیف. unknown ⇒ null. */
 function assayRoute(abKey, t, sexHint, q) {
-  const refClean = cleanPrintedRef(t.reference);
-  let state = AI_RANGE_ONLY.has(abKey) ? rangeVerdict(q.n, q.cmp, refClean, sexHint) : abVerdict(q.n, q.cmp, refClean, sexHint);
+  // specs/019: تومورمارکرها بازهٔ چاپ‌شده را با خوانندهٔ خودشان می‌خوانند (باندِ سیگاری/غیرسیگاری، «<» اکید، «At or below»)؛
+  //   cleanPrintedRef روی «/ ; | ،» می‌شکست و نخستین بخشِ قابل‌خواندن را برمی‌داشت (CEA ۷ بی‌صدا «بالا»).
+  const tm = TM_KEYS.has(abKey);
+  const refClean = tm ? String(t.reference ?? "").trim() : cleanPrintedRef(t.reference);
+  let state = tm ? tmVerdict(q.n, q.cmp, parseTmRange(refClean, sexHint))
+    : AI_RANGE_ONLY.has(abKey) ? rangeVerdict(q.n, q.cmp, refClean, sexHint) : abVerdict(q.n, q.cmp, refClean, sexHint);
   // P77: تومورمارکر/گوارش بی‌محدودهٔ چاپی (یا مقدارِ سانسورشده) یافتهٔ «بی‌حکمِ بالا/پایین» می‌گیرد، نه unmapped.
   if (state === "unknown" && AI_NOREF.has(abKey)) state = "noref";
   if (state === "unknown") return null;

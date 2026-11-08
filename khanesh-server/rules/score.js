@@ -14,6 +14,7 @@
 import { isNeonate } from './refs.js';
 import { faName } from './names.js';
 import { ruleReads } from './patterns.js';
+import { TM_KEYS } from './tumor_markers.js';
 
 /** کفِ نمره به‌ازای درجهٔ موتور (CTCAE). */
 export const POINTS = { normal: 1, near: 0.9, mild: 0.65, moderate: 0.4, marked: 0.15, critical: 0 };
@@ -186,8 +187,9 @@ export function healthScore(engineOut, patternOut) {
   }
 
   // ردیف‌هایی که موتور خواند ولی حکم نداد (بی‌واحد، بی‌محدوده، نامعلوم) — در شمارش گفته می‌شوند، نه پنهان.
+  // specs/019: تومورمارکر نه نمره دارد و نه «داده‌ای که نخوانده‌ایم» برای دستگاه‌های بدن است؛ نه سبز را می‌گیرد نه عدد را (FR-014).
   count.unread = (Array.isArray(engineOut?.unmapped) ? engineOut.unmapped.length : 0)
-    + Object.keys(engineOut?.ungraded ?? {}).length;
+    + Object.keys(engineOut?.ungraded ?? {}).filter((k) => !TM_KEYS.has(k)).length;
 
   // سقفِ هر دستگاه از یافته‌های نمایش‌داده‌شده. findings فقط نمایش‌داده‌شده‌هاست؛ «یافتهٔ تکمیلی»ِ فشرده
   // (supplementary_ids) هم سقف نمی‌گذارد (FR-011). یافته‌ای که به هیچ کلیدِ graded نسبت داده نشد ⇒ سقفِ کلِ برگه.
@@ -196,6 +198,9 @@ export function healthScore(engineOut, patternOut) {
   let sheetCap = urgency === 'emergency' ? URGENCY_CAP.emergency : 100;
   for (const f of po.findings ?? []) {
     if (!SYSTEM_CAP_URGENCIES.has(f?.urgency) || supplementary.has(f.rule_id)) continue;
+    // specs/019: یافتهٔ تومورمارکر به هیچ کلیدِ graded نسبت داده نمی‌شد و سقفِ کلِ برگه را می‌گذاشت (CEA طبیعی ⇒ ۹۸ → ۹۰)؛
+    //   دیگر نه. «سبز نشدنِ» برگه کنارِ یافتهٔ «این هفته» همچنان از urgencyِ کل می‌آید (پایین‌تر).
+    if (f.rule_id === 'tumor_markers_result' && f.explains?.length && f.explains.every((k) => TM_KEYS.has(k))) continue;
     const keys = findingKeys(f, abnormalKeys);
     if (!keys) { sheetCap = Math.min(sheetCap, URGENCY_CAP[f.urgency]); continue; }
     for (const k of keys) {

@@ -70,6 +70,7 @@ function auditAnalysis(rec) {
 }
 import { faName } from "./rules/names.js";
 import { urineAbnormalRows, isUrineFinding } from "./rules/urine_rows.js";
+import { tumorMarkerRows } from "./rules/tumor_markers.js";
 import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
 import { createAvalAIClient, safeParseJson } from "./avalaiClient.js";
@@ -351,7 +352,7 @@ function serializeGraded(engineOut) {
     ctcaeGrade: g.ctcaeGrade ?? null,
     nearLimit: !!g.nearLimit,
     source: g.source ?? null,
-  })), ...urineAbnormalRows(engineOut)];
+  })), ...urineAbnormalRows(engineOut), ...tumorMarkerRows(engineOut)];
 }
 
 const app = express();

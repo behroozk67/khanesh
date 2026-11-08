@@ -17,6 +17,7 @@ import { RULES, HIDDEN_FINDINGS, alreadyMeasured } from "./patterns.js";
 import { dropSubsumedTests, URGENCY_FA, buildEngineRecommendations, phraseSuggestion } from "./prompt.js";
 import { findingKeys } from "./score.js";
 import { printedOf } from "./printed.js";
+import { tmDisplay } from "./tumor_markers.js";
 
 const RULE_BY_ID = new Map(RULES.map((r) => [r.id, r]));
 const UNTITLED = "یافتهٔ بی‌عنوان";
@@ -84,15 +85,16 @@ function testRow(g, engineOut) {
 }
 
 function ungradedRow(key, u) {
+  const tm = tmDisplay(key, u);   // specs/019: تومورمارکرِ دارای حکم «بدون حکم» نیست؛ همان برچسب و بازهٔ نمای ساده (دو روایت نشود)
   return {
     name: nameOf(key),
     printed: u?.value != null ? { value: u.value, unit: u.unit ?? null } : null,
     graded: null,
     derived_from: null,
     engine_range: null,
-    printed_range: null,
-    range_source: null,
-    status_fa: UNGRADED_FA,
+    printed_range: tm?.range ?? null,
+    range_source: tm ? "printed" : null,
+    status_fa: tm ? tm.fa : UNGRADED_FA,
     level: null,
     ctcae_grade: null,
     grading_source: null,

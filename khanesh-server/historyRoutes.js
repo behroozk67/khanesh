@@ -51,6 +51,8 @@ export function observationsFromResult(result) {
     if (!t?.key || seen.has(t.key)) continue;
     if (t.value == null || t.value === '') continue;   // Number(null) === 0 — گاردِ اجباری
     if (t.key.startsWith('URINE_')) continue;   // ردیفِ ادرارِ غیرطبیعی (rules/urine_rows.js): «+1» نه عدد است نه سری
+    if (t.abnormal === null) continue;          // specs/019: بی‌حکم با !!null «در محدوده» ثبت می‌شد و نوبتِ بعد «از محدوده بیرون رفت» می‌گفت
+    if (t.source === 'tumor_marker_printed') continue;   // specs/019: تومورمارکر بین آزمایشگاه/کیت‌ها قابل‌مقایسه نیست (EGTM 2014، NACB ص ۵۴: «values from different methods are not interchangeable»)
     const v = Number(t.value);
     if (!Number.isFinite(v)) continue;
     seen.add(t.key);

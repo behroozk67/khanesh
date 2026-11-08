@@ -12980,3 +12980,129 @@ test("WBC(*1): PhenoAge دیگر به‌خاطرِ WBC مفقود نمی‌شو�
   assert.equal(fn.ids.includes("differential_without_wbc"), false);
   assert.deepEqual(fn.ids, plain.ids);
 });
+
+// ═══════════ specs/019 — تومورمارکرها: خواندنِ بازهٔ چاپ‌شده (برگهٔ واقعی ۲۰۲۶-۱۱-۰۸) ═══════════
+// موتور فقط در برابرِ بازهٔ چاپ‌شده روی همان ردیف قضاوت می‌کند (P77). باگ‌ها: (۱) بازهٔ دوبانده‌ٔ CEA یا نخستین بخشش را برمی‌داشت
+// (CEA ۷ بی‌صدا «بالا») یا اصلاً خوانده نمی‌شد؛ (۲) «At or below: N» خوانده نمی‌شد؛ (۳) «<» اکید مثلِ «≤» خوانده می‌شد.
+{
+  const TMT = (name, value, unit, reference) => ({ name, value: String(value), unit, reference });
+  const tmRun = (tests, patient = { age: 45, sex: "F" }) => { const e = runEngine({ patient, tests }); return { e, p: runPatterns(e) }; };
+  const tmText = (p) => p.findings.find((f) => f.rule_id === "tumor_markers_result" || f.pattern === "tumor_markers_result");
+  const CEA2 = "Non smoker: < 5   Smokers: < 10";
+
+  test("TM1: برگهٔ زندهٔ ۲۰۲۶-۱۱-۰۸ — CEA بالا، CA 125 و CA 15-3 داخلِ بازه؛ جملهٔ «خوانده نشد» نمی‌آید", () => {
+    const { e, p } = tmRun([TMT("C.E.A", "27.97", "ng/mL", CEA2), TMT("CA 125", "10.3", "U/mL", "0-35"),
+      TMT("CA 15-3", "11.6", "U/mL", "At or below: 31.0"), TMT("25 hydroxy Vitamin D", "53.61", "ng/mL", "")]);
+    assert.equal(e.ungraded.CEA.state, "above");
+    assert.equal(e.ungraded.CA125.state, "within");
+    assert.equal(e.ungraded.CA153.state, "within");
+    assert.deepEqual(e.graded.map((g) => g.test), ["VIT_D"]);
+    const f = tmText(p);
+    assert.ok(f, "tumor_markers_result باید بیاید");
+    assert.equal(String(f.must_say).includes("خوانده نشد"), false, String(f.must_say));
+  });
+
+  test("TM2: بازهٔ دوبانده با هر جداکننده به نخستین بخش کوتاه نمی‌شود (CEA ۷ ⇒ between، نه above و نه noref)", () => {
+    for (const sep of ["   ", " / ", " ; ", " | ", " ، ", "\n", "  "]) {
+      const { e } = tmRun([TMT("CEA", "7", "ng/mL", `Non smoker: < 5${sep}Smokers: < 10`)]);
+      assert.equal(e.ungraded.CEA.state, "between", JSON.stringify(sep));
+    }
+    assert.equal(tmRun([TMT("CEA", "7", "ng/mL", "Non-smoker <5 Smoker <10")]).e.ungraded.CEA.state, "between");
+  });
+
+  test("TM3: CEA در سه ناحیه و مرزهای اکید — ۳ داخل، ۷ بین، ۱۲ بالا؛ «<» اکید است", () => {
+    const st = (v, ref = CEA2) => tmRun([TMT("CEA", v, "ng/mL", ref)]).e.ungraded.CEA.state;
+    assert.deepEqual([3, 4.9, 5, 7, 9.9, 10, 12].map((v) => st(v)), ["within", "within", "between", "between", "between", "above", "above"]);
+  });
+
+  test("TM4: واژه‌های بازهٔ تک‌باند و مرزِ اکید/غیراکید (CA 15-3)", () => {
+    const st = (v, ref) => tmRun([TMT("CA 15-3", v, "U/mL", ref)]).e.ungraded.CA153.state;
+    for (const ref of ["< 35", "<35", "Less than 35", "کمتر از 35"]) assert.deepEqual([st(34.9, ref), st(35, ref)], ["within", "above"], ref);
+    for (const ref of ["≤ 35", "<= 35", "up to 35", "Up to: 35", "At or below: 35", "0-35", "0 - 35", "Normal: <= 35"]) {
+      assert.deepEqual([st(35, ref), st(35.1, ref)], ["within", "above"], ref);
+    }
+    assert.equal(st(30, "At or below: 31.0"), "within");
+    assert.equal(st(31.1, "At or below: 31.0"), "above");
+  });
+
+  test("TM5: بازهٔ چاپ‌شدهٔ ناخوانا ≠ بازهٔ چاپ‌نشده — «خوانده نشد» فقط برای اولی", () => {
+    const text = (ref) => String(tmText(tmRun([TMT("CEA", "7", "ng/mL", ref)]).p).must_say);
+    assert.match(text("see comment"), /خوانده نشد/);
+    assert.match(text("Non smoker: < 10 Smokers: < 5"), /خوانده نشد/);   // متناقض ⇒ حدس نمی‌زنیم
+    assert.match(text("Smokers: < 10"), /خوانده نشد/);                      // برچسبِ ناقص ⇒ نه نخستین بخش
+    const none = text("");
+    assert.match(none, /چاپ نشده/);
+    assert.equal(none.includes("خوانده نشد"), false);
+  });
+}
+
+{
+  const TMT = (name, value, unit, reference) => ({ name, value: String(value), unit, reference });
+  const keyOf = (name) => { const e = runEngine({ patient: { age: 45, sex: "F" }, tests: [TMT(name, 10, "U/mL", "< 35")] }); return Object.keys(e.ungraded ?? {})[0] ?? "unmapped"; };
+
+  test("TM6: نام‌های رایج تومورمارکر به یک کلید می‌رسند؛ نام‌های دیده‌نشده روی برگهٔ واقعی عمداً «تفسیر نشد» می‌مانند", () => {
+    const mapped = {
+      CEA: ["C.E.A", "CEA", "Carcinoembryonic Antigen", "CEA (Carcinoembryonic Antigen)", "CEA(*1)", "آنتی‌ژن کارسینوامبریونیک"],
+      CA125: ["CA 125", "CA-125", "CA125", "CA 125 II", "Cancer Antigen 125", "CA 125 (*1)"],
+      CA153: ["CA 15-3", "CA15.3", "CA 15 3", "CA15-3", "Cancer Antigen 15-3"],
+      CA199: ["CA 19-9", "CA19.9", "CA 19 9"],
+    };
+    for (const [key, names] of Object.entries(mapped)) for (const n of names) assert.equal(keyOf(n), key, n);
+    // حدس نمی‌زنیم (N2): هنوز روی برگهٔ واقعی دیده نشده‌اند ⇒ در «تفسیر نشدند» می‌مانند، نه بی‌صدا نگاشت.
+    for (const n of ["CA 15.3 (Breast)", "CA 125 Ovarian", "سی ای ای", "سی آ 125"]) assert.equal(keyOf(n), "unmapped", n);
+  });
+
+  test("TM7: تومورمارکر هرگز has_critical یا اورژانس نمی‌سازد — در همهٔ حکم‌ها", () => {
+    const refs = [CEA_REF2(), "< 5", "", "see comment", "0-35"];
+    for (const ref of refs) for (const v of [0.5, 5, 7, 12, 500, 100000]) {
+      for (const name of ["CEA", "CA 125", "CA 15-3", "CA 19-9"]) {
+        const e = runEngine({ patient: { age: 45, sex: "F" }, tests: [TMT(name, v, "U/mL", ref)] });
+        const p = runPatterns(e);
+        assert.equal(p.has_critical, false, `${name} ${v} ${ref}`);
+        assert.notEqual(p.overall_urgency, "emergency", `${name} ${v} ${ref}`);
+      }
+    }
+    function CEA_REF2() { return "Non smoker: < 5   Smokers: < 10"; }
+  });
+
+  test("TM8: فوریتِ CEA با بدتر شدنِ عدد پایین‌تر نمی‌آید (۳ ≤ ۷ ≤ ۱۲) و «بین» اورژانس/این‌هفته نیست", () => {
+    const rank = { none: 0, routine: 1, this_week: 2, soon: 3, emergency: 4 };
+    const urg = (v) => runPatterns(runEngine({ patient: { age: 45, sex: "F" }, tests: [TMT("CEA", v, "ng/mL", "Non smoker: < 5   Smokers: < 10")] })).overall_urgency;
+    assert.deepEqual([3, 7, 12].map(urg), ["routine", "routine", "this_week"]);
+    assert.ok(rank[urg(3)] <= rank[urg(7)] && rank[urg(7)] <= rank[urg(12)]);
+  });
+}
+
+test("TM9: متنِ بیمارِ CEA/CA 125/CA 15-3 فقط از عبارت‌های منبع‌دار ساخته می‌شود؛ ادعاهای بی‌منبع برداشته شده‌اند (MEDICAL_RULES_TUMOR_MARKERS.md)", () => {
+  const T = (name, value, unit, reference) => ({ name, value: String(value), unit, reference });
+  const say = (tests) => { const e = runEngine({ patient: { age: 45, sex: "F" }, tests }); return String(runPatterns(e).findings.find((f) => (f.rule_id ?? f.pattern) === "tumor_markers_result").must_say); };
+  const t = say([T("CEA", 27.97, "ng/mL", "Non smoker: < 5   Smokers: < 10"), T("CA 125", 10.3, "U/mL", "0-35"), T("CA 15-3", 11.6, "U/mL", "At or below: 31.0")]);
+  // برداشته‌شده: بی‌منبع در منابعِ بازشده (NACB 2008، EGTM 2014/2016)
+  assert.equal(t.includes("آسیت"), false);
+  assert.equal(t.includes("در سیگاری‌ها"), false);
+  assert.equal(t.includes("بیماری‌های التهابی"), false);
+  assert.equal(t.includes("فقط برای پایش"), false);
+  // حاضر: همان چیزی که منبع می‌گوید
+  assert.match(t, /غربالگریِ سرطانِ رودهٔ بزرگ در افرادِ سالم به‌کار نمی‌رود/);            // NACB p.30 توصیهٔ ۱
+  assert.match(t, /برای غربالگریِ سرطانِ تخمدان در زنانِ بی‌علامت توصیه نمی‌شود/);        // NACB p.55 توصیهٔ ۲؛ EGTM 2016
+  assert.match(t, /قاعدگی و بارداری، کیستِ تخمدان، اندومتریوز و فیبرومِ رحم، التهابِ لگن/);  // EGTM 2016 مقدمه
+  assert.match(t, /نشانگرهای خونی برای تشخیصِ زودهنگامِ سرطانِ پستان کاربردی ندارند/);     // NACB p.37
+  // بدونِ تشخیص، بدونِ لحنِ اورژانسی
+  for (const bad of [/سرطان دارید/, /مبتلا/, /اورژانس|فوراً|همین امروز/]) assert.doesNotMatch(t, bad);
+  assert.match(t, /تشخیصِ سرطان نیست/);
+  // حکمِ «بین» در متن نام می‌برد که به سیگار بستگی دارد
+  assert.match(say([T("CEA", 7, "ng/mL", "Non smoker: < 5   Smokers: < 10")]), /وضعیتِ سیگارِ شما برای ما معلوم نیست/);
+});
+
+test("TM10: CEA «بین دو حد» — جملهٔ دقیق (رسیده/بالاتر از حدِ غیرسیگاری، نه بالاتر از حدِ سیگاری) و جملهٔ پایانیِ خودش؛ CA 15-3 جهشِ گذرای پس از شیمی‌درمانی را می‌گوید", () => {
+  const T = (name, value, unit, reference) => ({ name, value: String(value), unit, reference });
+  const say = (tests) => { const e = runEngine({ patient: { age: 45, sex: "F" }, tests }); return String(runPatterns(e).findings.find((f) => (f.rule_id ?? f.pattern) === "tumor_markers_result").must_say); };
+  const btw = say([T("CEA", 3.8, "ng/mL", "Non-smoker < 3.8 / Smoker < 5.5")]);   // برابرِ حدِ اکیدِ غیرسیگاری
+  assert.match(btw, /به حدِ چاپ‌شده برای غیرسیگاری‌ها رسیده یا از آن بالاتر است و از حدِ چاپ‌شده برای سیگاری‌ها بالاتر نیست/);
+  assert.equal(btw.includes("(یا برابر)"), false);
+  assert.match(btw, /این عدد نه تشخیصِ سرطان است و نه آن را رد می‌کند/);
+  assert.equal(btw.includes("داخلِ محدوده یا بدونِ محدودهٔ چاپی"), false);
+  const hi = say([T("CEA", 5.5, "ng/mL", "Non-smoker < 3.8 / Smoker < 5.5")]);       // برابرِ حدِ اکیدِ سیگاری ⇒ بالا
+  assert.match(hi, /بالاتر از مرزِ چاپ‌شده/);
+  assert.match(say([T("CA 15-3", 11.6, "U/mL", "At or below: 31.0")]), /پس از شروعِ شیمی‌درمانی ممکن است چند هفته موقتاً بالا برود/);
+});

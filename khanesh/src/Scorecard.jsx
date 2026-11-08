@@ -24,7 +24,7 @@ const MAX_PIPS = 18;
 
 function SystemCard({ group, ctx }) {
   const cat = CATEGORIES[group.key] ?? CATEGORIES.other;
-  const { inRange, out, total } = countRows(group.rows);
+  const { inRange, out, noRange, total } = countRows(group.rows);
   const worst = worstState(group.rows, ctx);
   const pips = group.rows.slice(0, MAX_PIPS);
 
@@ -39,6 +39,11 @@ function SystemCard({ group, ctx }) {
           <span className="mini-chip st-normal">
             <span aria-hidden="true">✓</span> {toFaDigits(inRange)} در محدوده
           </span>
+          {noRange > 0 && (
+            <span className="mini-chip st-norange">
+              <span aria-hidden="true">◇</span> {toFaDigits(noRange)} بدون محدوده مرجع
+            </span>
+          )}
           {out > 0 && (
             <span className={`mini-chip ${worst.cls}`}>
               <span aria-hidden="true">{worst.icon}</span> {toFaDigits(out)} خارج از محدوده
@@ -68,8 +73,10 @@ export default function Scorecard({ groups, ctx, urgency, hasNumbers }) {
   const all = groups.flatMap((g) => g.rows);
   if (!all.length) return null;
 
-  const { inRange, out, total } = countRows(all);
+  const { inRange, out, noRange, total } = countRows(all);
   const worst = worstState(all, ctx);
+  // specs/019: ردیفِ بی‌حکم (بدون محدودهٔ مرجع) «داخل محدوده» نیست؛ جمله‌ی «همه داخل محدوده بودند» دربارهٔ آن‌ها دروغ می‌شد (N4).
+  const noRangeNote = noRange > 0 ? ` ${toFaDigits(noRange)} مورد هم محدودهٔ مرجعِ قابل‌استفاده ندارد و دربارهٔ آن حکمی نمی‌دهیم.` : "";
   const urg = URGENCY[urgency] ?? URGENCY.none;
   // کمانِ حلقه = نسبتِ همان شمارش. وقتی هیچ‌چیز بیرون نیست حلقه کامل و
   // سبز است، ولی هیچ «آفرین»ی کنارش نوشته نمی‌شود.
@@ -82,7 +89,7 @@ export default function Scorecard({ groups, ctx, urgency, hasNumbers }) {
       <div className="score-hero">
         <div
           className="ring"
-          data-tone={out === 0 ? "normal" : worst.key}
+          data-tone={out === 0 && noRange === 0 ? "normal" : worst.key}
           style={{ "--ring-pct": ringPct }}
         >
           <span className="ring-hole">
@@ -93,9 +100,11 @@ export default function Scorecard({ groups, ctx, urgency, hasNumbers }) {
 
         <div className="score-lines">
           <p className="score-headline">
-            {out === 0
+            {out === 0 && noRange === 0
               ? `${toFaDigits(total)} آزمایش خوانده شد؛ همه داخل محدودهٔ مرجع بودند.`
-              : `از ${toFaDigits(total)} آزمایش، ${toFaDigits(out)} مورد خارج از محدودهٔ مرجع و ${toFaDigits(inRange)} مورد داخل آن بود.`}
+              : out === 0
+                ? `${toFaDigits(total)} آزمایش خوانده شد؛ ${toFaDigits(inRange)} مورد داخل محدودهٔ مرجع بود.${noRangeNote}`
+                : `از ${toFaDigits(total)} آزمایش، ${toFaDigits(out)} مورد خارج از محدودهٔ مرجع و ${toFaDigits(inRange)} مورد داخل آن بود.${noRangeNote}`}
           </p>
 
           <p className="score-urgency">

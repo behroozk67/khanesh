@@ -1513,3 +1513,46 @@ test("T63b: ادرارِ غیرطبیعی ⇒ ردیفِ فارسی با abnorma
     assert.equal(missingFindingText(f, allText(body)), "", `یافتهٔ ${f.rule_id} به متنِ بیمار نرسید`);
   }
 });
+
+// ═══════════ specs/019 — تومورمارکرها در _engine.tests ═══════════
+const TM_LIVE = [
+  { name: "C.E.A", value: "27.97", unit: "ng/mL", reference: "Non smoker: < 5   Smokers: < 10" },
+  { name: "CA 125", value: "10.3", unit: "U/mL", reference: "0-35" },
+  { name: "CA 15-3", value: "11.6", unit: "U/mL", reference: "At or below: 31.0" },
+];
+
+test("T64: برگهٔ زندهٔ تومورمارکر ⇒ سه ردیف در _engine.tests با حکمِ درست؛ has_critical نه؛ امتیاز/سنِ زیستی دست‌نخورده (specs/019)", async () => {
+  const base = { patient: { age: 45, sex: "F" }, tests: [{ name: "Cholesterol", value: 245, unit: "mg/dL" }, { name: "Triglyceride", value: 210, unit: "mg/dL" }, { name: "HDL", value: 38, unit: "mg/dL" }] };
+  const withTm = { ...base, tests: [...base.tests, ...TM_LIVE] };
+  const a = (await analyze(base)).body;
+  const { body } = await analyze(withTm);
+  const rows = body._engine.tests.filter((t) => t.source === "tumor_marker_printed");
+  assert.deepEqual(rows.map((t) => [t.key, t.verdict, t.abnormal]), [["CEA", "above", true], ["CA125", "within", false], ["CA153", "within", false]]);
+  assert.deepEqual(rows.map((t) => t.range), ["Non smoker: < 5   Smokers: < 10", "0-35", "At or below: 31.0"]);
+  for (const t of rows) { assert.equal(t.refSource, "printed"); assert.equal(t.level, null); assert.equal(typeof t.name, "string"); assert.notEqual(t.name, t.key === "CA125" ? "CA125" : "CA153"); }
+  assert.equal(body.has_critical, false);
+  assert.notEqual(body._engine.urgency, "emergency");
+  assert.equal(allText(body).includes("خوانده نشد"), false);
+  // ردیف‌های تومورمارکر فقط افزوده‌اند: ردیف‌های قبلی و امتیازِ عددی همان‌اند.
+  assert.deepEqual(body._engine.tests.filter((t) => t.source !== "tumor_marker_printed"), a._engine.tests);
+  assert.equal(body._engine.score?.value, a._engine.score?.value);
+  assert.equal(body._engine.indices?.pheno_age, a._engine.indices?.pheno_age);
+});
+
+test("T64b: تومورمارکرِ بی‌بازه ⇒ ردیف با abnormal:null و verdict:noref (هرگز «طبیعی»)", async () => {
+  const { body } = await analyze({ patient: { age: 45, sex: "F" }, tests: [{ name: "CA 15-3", value: "11.6", unit: "U/mL" }, { name: "Cholesterol", value: 245, unit: "mg/dL" }] });
+  const row = body._engine.tests.find((t) => t.key === "CA153");
+  assert.ok(row, "CA153 باید در _engine.tests باشد");
+  assert.deepEqual([row.abnormal, row.dir, row.verdict, row.range], [null, null, "noref", null]);
+});
+
+test("T64c: برگه‌ای که فقط تومورمارکر دارد مسیرِ موتور می‌گیرد — سه ردیف، نه «تفسیر نشد»، نه اورژانس (specs/019، N2)", async () => {
+  const { status, body } = await analyze({ patient: { age: 45, sex: "F" }, tests: TM_LIVE });
+  assert.equal(status, 200);
+  assert.ok(body._engine, "باید مسیرِ موتور باشد، نه buildUninterpretedResult");
+  assert.deepEqual(body._engine.tests.map((t) => [t.key, t.verdict]), [["CEA", "above"], ["CA125", "within"], ["CA153", "within"]]);
+  assert.equal(body.has_critical, false);
+  assert.notEqual(body._engine.urgency, "emergency");
+  assert.equal(allText(body).includes("تفسیر نشد"), false);
+  assert.equal(allText(body).includes("خوانده نشد"), false);
+});

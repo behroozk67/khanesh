@@ -432,3 +432,22 @@ test('H10d: ردیفِ ادرارِ غیرطبیعیِ _engine.tests («+1»، �
   ] } };
   assert.deepEqual(observationsFromResult(result).map((x) => x.marker_key), ['HGB']);
 });
+
+// H10TM (specs/019) — ردیفِ بی‌حکم (abnormal:null) در سری ثبت نمی‌شود؛ پیش‌تر `!!null` آن را «در محدوده» می‌کرد و نوبتِ بعد «از محدوده
+// بیرون رفته» می‌گفت. تومورمارکر (حتی دارای حکم) هم ثبت نمی‌شود: مقدارِ دو آزمایشگاه/کیت قابل‌مقایسه نیست (NACB 2008 ص ۵۴) و تاریخچه
+// کیت را نمی‌شناسد. ردیفِ عادیِ دارای حکم (HGB) ثبت می‌شود.
+test('H10TM: abnormal:null و تومورمارکر ثبت نمی‌شوند؛ ردیفِ عادی ثبت می‌شود', () => {
+  const result = {
+    _engine: {
+      tests: [
+        { key: 'CEA', value: 7, range: 'Non smoker: < 5   Smokers: < 10', abnormal: null, dir: null, verdict: 'between', source: 'tumor_marker_printed' },
+        { key: 'CA153', value: 11.6, range: null, abnormal: null, dir: null, verdict: 'noref', source: 'tumor_marker_printed' },
+        { key: 'CA125', value: 10.3, range: '0-35', abnormal: false, dir: null, verdict: 'within', source: 'tumor_marker_printed' },
+        { key: 'CA199', value: 90, range: '< 37', abnormal: true, dir: 'high', verdict: 'above', source: 'tumor_marker_printed' },
+        { key: 'HGB', value: 11.2, range: '13–17', abnormal: true, dir: 'low' },
+      ],
+      context: { sample_date: '2026-03-05T00:00:00.000Z' },
+    },
+  };
+  assert.deepEqual(observationsFromResult(result).map((x) => [x.marker_key, x.abnormal]), [['HGB', true]]);
+});

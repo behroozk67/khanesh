@@ -46,7 +46,9 @@ test("PN02: برگه‌های بی‌شاهد (تومورمارکر، تستِ �
     hcg_preg: [PREG_F, [["Beta HCG", "25000", "mIU/mL"]], "901c09b289e3e7e7"],
     // بازپایهٔ عمدی (بندِ ۵، ۲۰۲۶-۱۰-۰۶): فقط معنای فارسیِ «Positive» (مثبت) اضافه شد؛ بی‌آن همان 1507f1846f19801f.
     hcg_qual: [PREG_F, [["Pregnancy test", "Positive", ""]], "cc50f794fac12d22"],
-    afp_cea: [M, [["AFP", "12", "IU/mL"], ["CEA", "3", "ng/mL"]], "f92f9c8e7ecff06e"],
+    // بازپایهٔ عمدی (specs/019، ۲۰۲۶-۱۱-۰۸): فقط جملهٔ زمینهٔ CEA عوض شد (منبع‌دار شد؛ MEDICAL_RULES_TUMOR_MARKERS.md §4). اثبات: با
+    //   برگرداندنِ همان یک جمله به متنِ HEAD، هشِ یافته‌ها دقیقاً f92f9c8e7ecff06e می‌شود؛ پس هیچ تغییرِ دیگری در این برگه نیست.
+    afp_cea: [M, [["AFP", "12", "IU/mL"], ["CEA", "3", "ng/mL"]], "5e8a015dd0969d91"],
   };
   for (const [k, [pt, rows, h]] of Object.entries(cases)) {
     const f = run(rows, pt).p.findings;

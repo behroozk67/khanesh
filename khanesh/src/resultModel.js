@@ -125,7 +125,10 @@ export function normTest(t, i, asText, hasNumbers = true, indices = null) {
   const name = asText(t.name ?? t.title ?? t.label_fa) || `آزمایش ${toFa(i + 1)}`;
   const value = hasNumbers ? num(t.value ?? t.result) : null;
   const { low, high } = parseRange(t);
-  const pos = position(value, low, high);
+  // specs/019: ردیفِ بی‌حکمِ سرور (abnormal:null + verdict: بدون محدوده/ناخوانا/بین دو حد) را کلاینت از روی متنِ بازه حدس نمی‌زند —
+  //   دومین خواننده‌ٔ همان بازه همان کلاسِ N12/N25 است. حالتش «unknown» می‌ماند و برچسب از `fa`ِ سرور می‌آید.
+  const noVerdict = t.abnormal === null && typeof t.verdict === 'string';
+  const pos = noVerdict ? null : position(value, low, high);
   const fl = flagInfo(t);
   let dir = fl.dir;
   if (!dir && fl.abnormal == null && pos != null) dir = pos > 1 ? 'high' : pos < 0 ? 'low' : null;
