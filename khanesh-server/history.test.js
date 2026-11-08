@@ -423,3 +423,12 @@ test('H11b: بی‌ورود و بی‌شناسه ⇒ null (مسیر می‌گو�
   assert.equal(ownerOf({ user: null, get: () => null }), null);
   assert.equal(ownerOf({ user: { userId: 1, anonymous: true }, get: () => 'bad' }), null);
 });
+
+test('H10d: ردیفِ ادرارِ غیرطبیعیِ _engine.tests («+1»، وزنِ مخصوص) وارد تاریخچه نمی‌شود', () => {
+  const result = { _engine: { tests: [
+    { key: 'URINE_PROTEIN', value: '+1', range: null, abnormal: true, dir: null },
+    { key: 'URINE_SG', value: '1.003', range: '1.005–1.030', abnormal: true, dir: 'low' },
+    { key: 'HGB', value: 11.2, range: '13–17', abnormal: true, dir: 'low' },
+  ] } };
+  assert.deepEqual(observationsFromResult(result).map((x) => x.marker_key), ['HGB']);
+});

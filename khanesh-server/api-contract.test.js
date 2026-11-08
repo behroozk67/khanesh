@@ -1465,3 +1465,51 @@ test("T62: P109 — priorFromStoredResult سن را از context.age_text می�
     tests: [{ key: "ALT", value: 46, abnormal: true, dir: "high", range: "0–41" }] } } });
   assert.equal(p.age, 38);
 });
+
+// ════════════════════════════════════════════════════════════
+// T63 — ردیف‌های ادرار در _engine.tests: فقط غیرطبیعی‌ها، بی‌اثر بر امتیاز/فوریت/has_critical
+// ════════════════════════════════════════════════════════════
+const URINE_NORMAL = [
+  { name: "Urine Protein", value: "Negative" }, { name: "Urine Glucose", value: "Negative" },
+  { name: "Urine RBC", value: "0-2" }, { name: "Urine pH", value: "6.0" }, { name: "Specific Gravity", value: "1.020" },
+];
+const URINE_ABNORMAL = [
+  { name: "Urine Protein", value: "+1" }, { name: "Urine Glucose", value: "Negative" },
+  { name: "Urine RBC", value: "5-10" }, { name: "Urine pH", value: "6.0" }, { name: "Specific Gravity", value: "1.020" },
+];
+
+test("T63: ادرارِ طبیعی ⇒ هیچ ردیفی در tests؛ و فوریت/امتیاز/has_critical/abnormal با پنلِ بدونِ ادرار یکی است", async () => {
+  const base = PANEL_ABNORMAL_NONCRITICAL;
+  const withUrine = { ...base, tests: [...base.tests, ...URINE_NORMAL] };
+  const a = (await analyze(base)).body._engine;
+  const b = (await analyze(withUrine)).body._engine;
+  assert.deepEqual(b.tests, a.tests);
+  assert.deepEqual(b.score, a.score);
+  assert.equal(b.urgency, a.urgency);
+  assert.equal(b.abnormal, a.abnormal);
+  assert.equal(b.tests.some((t) => /^URINE_/.test(t.key)), false);
+});
+
+test("T63b: ادرارِ غیرطبیعی ⇒ ردیفِ فارسی با abnormal:true؛ امتیاز/abnormal/has_critical از ردیف‌ها تأثیر نمی‌گیرد، جمله‌اش در تفسیر هست", async () => {
+  const panel = { patient: { age: 35, sex: "F" }, tests: URINE_ABNORMAL };
+  const { engineOut, patterns } = engineVerdict(panel);
+  const { body } = await analyze(panel);
+  const rows = body._engine.tests.filter((t) => /^URINE_/.test(t.key));
+  assert.deepEqual(rows.map((t) => t.key), ["URINE_PROTEIN", "URINE_RBC"]);
+  for (const t of rows) {
+    assert.equal(t.abnormal, true);
+    assert.match(t.name, /^[؀-ۿ‌ ]+$/, `نامِ فارسی نیست: ${t.name}`);
+    assert.match(t.fa, /^[؀-ۿ‌ ]+$/, `برچسبِ فارسی نیست: ${t.fa}`);
+    assert.equal(t.level, null); assert.equal(t.ctcaeGrade, null); assert.equal(t.nearLimit, false);
+  }
+  // موتور: ردیفِ ادرار از graded نیست، پس شمارش/فوریت/امتیاز همان است که موتور می‌گوید (قبل از افزودنِ این ردیف‌ها هم همین بود)
+  assert.equal(body._engine.abnormal, engineOut.abnormal.length);
+  assert.equal(body._engine.urgency, patterns.overall_urgency);
+  assert.equal(body.has_critical, patterns.has_critical);
+  assert.equal(JSON.stringify(body._engine.score).includes("URINE_"), false);
+  assert.equal(body._engine.tests.length, engineOut.graded.length + rows.length);
+  // یافتهٔ متنیِ ادرار در تفسیرِ نهایی هست، حتی وقتی مدل چیزی از آن ننوشته (urgency = this_week، بدونِ key_number)
+  for (const f of patterns.findings.filter((x) => /hematuria|proteinuria/.test(x.rule_id))) {
+    assert.equal(missingFindingText(f, allText(body)), "", `یافتهٔ ${f.rule_id} به متنِ بیمار نرسید`);
+  }
+});

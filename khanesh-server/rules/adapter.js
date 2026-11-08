@@ -1953,6 +1953,11 @@ export function ocrToEngineInput(ocr) {
     //    الگوی severe_acidosis یک «🚨 اورژانس» کاذب می‌ساخت. pH خون فقط با پنل گاز خون
     //    (HCO3/pCO2/…) اندازه‌گیری می‌شود؛ pH تنها روی یک برگه تقریباً همیشه pH ادرار است.
     //    pH خارج از دامنهٔ حیات (۵) هم که قطعاً ادرار است.
+    // «Urine pH» / «pH (Urine)» نامِ صریحِ ادرار است؛ بدونِ این به unmapped می‌رفت و برگهٔ ادرارِ طبیعی را «تفسیر نشد» می‌کرد.
+    if ((key === "urineph" || key === "phurine") && String(t.value ?? "").trim()) {
+      qual["Urine pH"] = String(t.value).trim();
+      continue;
+    }
     if (key === "ph") {
       const v = toNum(t.value);
       const bloodEligible = (onAbgPage || secKind === "blood") && !onUrinePage && !onStripPage &&   // بی‌کربناتِ سرم کنار نوارِ ادرار pH ادرار را «pH خون» نمی‌کند (بازبینی ۱۰-۱۳)

@@ -69,6 +69,7 @@ function auditAnalysis(rec) {
   }
 }
 import { faName } from "./rules/names.js";
+import { urineAbnormalRows, isUrineFinding } from "./rules/urine_rows.js";
 import { sourceList } from "./rules/guidelines.js";
 import rateLimit from "express-rate-limit";
 import { createAvalAIClient, safeParseJson } from "./avalaiClient.js";
@@ -336,7 +337,8 @@ function engineDebug(engineOut, patternOut) {
 // هرگز به متنِ روبه‌بیمار نرسد — همان کلاسی که N8 است.
 function serializeGraded(engineOut) {
   if (!Array.isArray(engineOut?.graded)) return [];
-  return engineOut.graded.map((g) => ({
+  // ادرار در qual می‌نشیند نه graded؛ فقط ردیف‌های غیرطبیعی‌اش، با همان طبقه‌بندهای قاعده‌های متن (rules/urine_rows.js).
+  return [...engineOut.graded.map((g) => ({
     key: g.test,
     name: faName(g.test),
     value: g.value,
@@ -349,7 +351,7 @@ function serializeGraded(engineOut) {
     ctcaeGrade: g.ctcaeGrade ?? null,
     nearLimit: !!g.nearLimit,
     source: g.source ?? null,
-  }));
+  })), ...urineAbnormalRows(engineOut)];
 }
 
 const app = express();
@@ -1688,7 +1690,7 @@ const analyzeHandler = async (req, res) => {
       //    جمله‌های افتاده اینجا برگردند، عدد هم با آن‌ها برمی‌گردد و تضمینِ بعدی
       //    دیگر فعال نمی‌شود — پس یک جمله دو بار اضافه نمی‌شود.
       const numbered = patternOut.findings.filter(
-        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary || f.minor
+        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary || f.minor || isUrineFinding(f)
       );
       if (numbered.length) {
         const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;
@@ -1917,7 +1919,7 @@ const analyzeHandler = async (req, res) => {
       }
       
 const numbered = patternOut.findings.filter(
-        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary || f.minor
+        (f) => f.urgency === "emergency" || f.urgency === "soon" || f.key_number != null || f.supplementary || f.minor || isUrineFinding(f)
       );
       if (numbered.length) {
         const text = `${parsed.summary || ""} ${parsed.interpretation || ""}`;

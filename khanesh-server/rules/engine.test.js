@@ -28,6 +28,7 @@ import { runPatterns as _rp, RULE_SOURCES } from "./patterns.js";
 import { GUIDELINE_IDS, sourceList } from "./guidelines.js";
 import { PREANALYTICAL_RULES } from "./preanalytical.js";
 import { rcv, hasLowIndividuality } from "./biovar.js";
+import { urineAbnormalRows, isUrineFinding } from "./urine_rows.js";
 import { toConventional, ifccToNgsp, SI_CONVERSIONS } from "./units.js";
 import { collectProtected, dosageSignals, inventedDosage, engineStrings, verbatimIntegrity } from "./protected.js";
 import { beginTrace, setTraceEnabled, isTraceEnabled, stageOf, STAGES } from "../trace.js";
@@ -12869,4 +12870,66 @@ test("VIT_D: مرزها — <20 کمبود، 20 ناکافی، 29.9 ناکافی
   assert.equal(fa("MCV", 100, "fL").abnormal, false);
   assert.equal(fa("MCV", 79.9, "fL").abnormal, true);
   assert.equal(fa("MCV", 100.1, "fL").abnormal, true);
+});
+
+test("ادرار در tests: «Spe. Gravity» و «Urine pH» دیگر unmapped نیستند (برگهٔ زندهٔ ۲۰۲۶-۱۱-۰۷)", () => {
+  const r = runEngine({ patient: { sex: "F", age: 35 }, tests: [{ name: "Spe. Gravity", value: "1.003" }, { name: "Urine pH", value: "6.0" }] });
+  assert.deepEqual(r.unmapped, []);
+  assert.equal(r.qual["Urine Specific Gravity"], "1.003");
+  assert.equal(r.qual["Urine pH"], "6.0");
+});
+
+test("ادرار در tests: ادرارِ طبیعی ⇒ هیچ ردیفی؛ سرم/مدفوعِ کیفی ادرار حساب نمی‌شود", () => {
+  const U = (name, value) => ({ name, value, section: "Urinalysis" });
+  const normal = runEngine({ patient: { sex: "F", age: 35 }, tests: [U("Protein", "Negative"), U("Glucose", "Negative"), U("Blood", "Negative"),
+    U("Ketone", "Negative"), U("Bilirubin", "Negative"), U("Nitrite", "Negative"), U("Leukocyte Esterase", "Negative"), U("pH", "6.0"),
+    U("Spe. Gravity", "1.020"), U("RBC", "0-2"), U("WBC", "1-3"), U("Ep.cell", "Few"), U("Casts", "Hyaline 0-1"), U("Crystals", "Not seen"), U("Color", "Yellow")] });
+  assert.deepEqual(urineAbnormalRows(normal), []);
+  const other = runEngine({ patient: { sex: "M", age: 40 }, tests: [{ name: "Hb", value: 14, unit: "g/dL" }, { name: "CRP", value: "Positive" }, { name: "Stool RBC", value: "5-10" }] });
+  assert.deepEqual(urineAbnormalRows(other), []);
+  assert.deepEqual(urineAbnormalRows(undefined), []);
+});
+
+test("ادرار در tests: هر ردیفِ غیرطبیعی با نامِ فارسی (نه کلیدِ خام) و فقط همان‌ها؛ جهت فقط جایی که معنا دارد", () => {
+  const U = (name, value) => ({ name, value, section: "Urinalysis" });
+  const r = runEngine({ patient: { sex: "F", age: 35 }, tests: [U("Protein", "+1"), U("Glucose", "+2"), U("Blood", "+3"), U("Ketone", "+1"), U("Nitrite", "Positive"),
+    U("Leukocyte Esterase", "++"), U("Spe. Gravity", "1.003"), U("RBC", "5-10"), U("WBC", "20-25"), U("Casts", "Granular 2-3"),
+    U("Crystals", "Calcium oxalate +"), U("Bilirubin", "Positive"), U("Ep.cell", "Few")] });
+  const rows = urineAbnormalRows(r);
+  assert.deepEqual(rows.map((x) => x.key).sort(), ["URINE_BILIRUBIN", "URINE_BLOOD", "URINE_CAST", "URINE_CRYSTAL", "URINE_GLUCOSE", "URINE_KETONE",
+    "URINE_LE", "URINE_NITRITE", "URINE_PROTEIN", "URINE_RBC", "URINE_SG", "URINE_WBC"]);
+  for (const x of rows) {
+    assert.equal(x.abnormal, true); assert.equal(x.level, null); assert.equal(x.ctcaeGrade, null); assert.equal(x.nearLimit, false);
+    assert.notEqual(x.name, x.key, `${x.key} در FA_NAMES نیست`);
+    assert.match(x.name, /^[؀-ۿ‌ ]+$/, x.name); assert.match(x.fa, /^[؀-ۿ‌ ]+$/, x.fa);
+  }
+  const by = Object.fromEntries(rows.map((x) => [x.key, x]));
+  assert.equal(by.URINE_PROTEIN.value, "+1"); assert.equal(by.URINE_PROTEIN.dir, null);
+  assert.deepEqual([by.URINE_SG.dir, by.URINE_SG.fa, by.URINE_SG.range], ["low", "رقیق", "1.005–1.030"]);
+  assert.equal(by.URINE_RBC.dir, "high");
+  // مرزها همان قاعدهٔ متن‌اند: RBC ≤ ۲ و سیلندرِ هیالنِ کم طبیعی؛ هیالنِ زیاد نه
+  const edge = (rows) => urineAbnormalRows(runEngine({ patient: { sex: "F", age: 35 }, tests: rows.map(([n, v]) => U(n, v)) })).map((x) => x.key);
+  assert.deepEqual(edge([["RBC", "1-2"]]), []); assert.deepEqual(edge([["RBC", "2-3"]]), ["URINE_RBC"]);
+  assert.deepEqual(edge([["Casts", "Hyaline 5-8"]]), ["URINE_CAST"]);
+  assert.deepEqual(edge([["Spe. Gravity", "1.032"]]), ["URINE_SG"]);
+  assert.deepEqual(edge([["Spe. Gravity", "1.030"]]), []);
+});
+
+test("ادرار در تفسیر: هر قاعدهٔ ادراریِ واقعی را isUrineFinding می‌شناسد؛ قاعدهٔ غیرادراری را نه", () => {
+  const urine = RULES.map((x) => x.id).filter((id) => /^(urine_|uti_pattern|bacteriuria_|hematuria_|persistent_microhematuria|proteinuria_|glycosuria_|ketonuria_)/.test(id) && id !== "urine_calcium_abnormal");
+  assert.ok(urine.length >= 20, `قاعدهٔ ادراری کم است: ${urine.length}`);
+  for (const id of urine) assert.equal(isUrineFinding({ rule_id: id }), true, id);
+  for (const id of ["urine_calcium_abnormal", "lipid_profile", "potassium_critical", "pregnancy_proteinuria_24h"]) assert.equal(isUrineFinding({ rule_id: id }), false, id);
+});
+
+test("ادرار در tests (N39): هر ردیفِ ادراری که فهرست می‌کنیم، یک یافتهٔ ادراریِ نمایش‌داده‌شده مالکش است", () => {
+  const U = (name, value) => ({ name, value, section: "Urinalysis" });
+  const cases = [["Protein", "+1"], ["Glucose", "+1"], ["Blood", "+1"], ["Ketone", "+1"], ["Nitrite", "Positive"], ["Leukocyte Esterase", "+"],
+    ["Bilirubin", "Positive"], ["RBC", "2-3"], ["RBC", "3-4"], ["RBC", "Many"], ["WBC", "6-8"], ["WBC", "Many"], ["Epithelial Cells", "Many"],
+    ["Casts", "Granular 2-3"], ["Casts", "RBC cast 1"], ["Casts", "Hyaline 5-8"], ["Crystals", "Calcium oxalate +"], ["Spe. Gravity", "1.003"], ["Spe. Gravity", "1.034"]];
+  for (const [n, v] of cases) {
+    const r = runEngine({ patient: { sex: "F", age: 35 }, tests: [U(n, v)] });
+    assert.equal(urineAbnormalRows(r).length, 1, `${n}=${v}: ردیف نیامد`);
+    assert.ok(runPatterns(r).findings.some(isUrineFinding), `${n}=${v}: ردیفِ فهرست مالک ندارد`);
+  }
 });

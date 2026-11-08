@@ -50,6 +50,7 @@ export function observationsFromResult(result) {
   for (const t of tests) {
     if (!t?.key || seen.has(t.key)) continue;
     if (t.value == null || t.value === '') continue;   // Number(null) === 0 — گاردِ اجباری
+    if (t.key.startsWith('URINE_')) continue;   // ردیفِ ادرارِ غیرطبیعی (rules/urine_rows.js): «+1» نه عدد است نه سری
     const v = Number(t.value);
     if (!Number.isFinite(v)) continue;
     seen.add(t.key);

@@ -84,6 +84,8 @@ function esteraseWithoutCellsFires(e) {
 }
 // specs/006: patterns_urinalysis می‌پرسد «باکتریِ بی‌التهاب فعال شد؟» — با همین تابع، نه با بازنویسیِ شرطش.
 export { utiFires, bacteriuriaFires, bacteriaSignificant, esteraseWithoutCellsFires };
+// urine_rows.js همین ثابت‌ها را می‌خواند تا ردیفِ فهرست با قاعدهٔ متن یک آستانه داشته باشد.
+export { LE_RE, NIT_RE, WBC_RE, BLOOD_RE, RBC_RE, URINE_RBC_UPPER_HPF, URINE_WBC_UPPER_HPF };
 
 // «کلیه در حدِ اورژانس»: CTCAE درجهٔ ≥ ۳ کراتینین. هم `kidney.build` (urgency/blocks_others) و هم `kidney.match`
 //   (واگذاری به glomerulonephritis_pattern) از همین یک تعریف می‌خوانند — کپیِ شرط در دو جا همان N20 است.

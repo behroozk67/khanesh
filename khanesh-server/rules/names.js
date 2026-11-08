@@ -120,6 +120,12 @@ export const FA_NAMES = {
   SPERM_MORPH: "شکل طبیعی اسپرم (مورفولوژی)",
   SEMEN_PH: "pH مایع منی",
   SEMEN_ABSTINENCE: "مدت پرهیز پیش از نمونه‌گیری",
+  // ردیف‌های غیرطبیعیِ ادرار در _engine.tests (rules/urine_rows.js)
+  URINE_PROTEIN: "پروتئین ادرار", URINE_GLUCOSE: "قند ادرار", URINE_KETONE: "کتون ادرار", URINE_BLOOD: "خونِ نوار ادرار",
+  URINE_LE: "لکوسیت‌استرازِ نوار ادرار", URINE_NITRITE: "نیتریت ادرار", URINE_BILIRUBIN: "بیلی‌روبین ادرار",
+  URINE_UROBILINOGEN: "اوروبیلینوژن ادرار", URINE_SG: "وزن مخصوص ادرار", URINE_RBC: "گلبول قرمز ادرار",
+  URINE_WBC: "گلبول سفید ادرار", URINE_EPI_RENAL: "سلول اپی‌تلیال کلیه در ادرار", URINE_EPI_SQUAMOUS: "سلول سنگفرشی ادرار",
+  URINE_CRYSTAL: "کریستال ادرار", URINE_CAST: "سیلندر ادرار",
   SEMEN_WBC: "گلبول سفید در مایع منی",
   SEMEN_RBC: "گلبول قرمز در مایع منی",
   SEMEN_FRUCTOSE: "فروکتوز مایع منی",

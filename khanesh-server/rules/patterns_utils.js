@@ -919,7 +919,7 @@ const SG_DILUTE_MAX = 1.005;
 const SG_CONCENTRATED_MIN = 1.030;
 const SG_KEY = "Urine Specific Gravity";
 // «Sp. Gravity»، «Spec. Grav.»، «Specific Gravity (SG)» هم (بازبینی #۹).
-const SG_NAME_RE = /^(urine\s*)?(sp(ecific|ec)?\.?\s*gr(av(ity)?)?\.?(\s*\(\s*s\.?\s*g\.?\s*\))?|s\.?\s*g\.?)$|وزن\s*مخصوص/i;
+const SG_NAME_RE = /^(urine\s*)?(sp(ecific|ec|e)?\.?\s*gr(av(ity)?)?\.?(\s*\(\s*s\.?\s*g\.?\s*\))?|s\.?\s*g\.?)$|وزن\s*مخصوص/i;
 function isSgKey(name) {
   return SG_NAME_RE.test(String(name).trim());
 }
