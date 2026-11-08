@@ -145,10 +145,13 @@ test("B10: کلسی‌تونین > ۱۰۰ فقط با واحدِ pg/mL ادعا 
   assert.doesNotMatch(txt(nu), /بالای ۱۰۰ pg\/mL/);
 });
 
-test("B11: کروموگرانین A ⇒ جملهٔ PPI؛ β2M ⇒ کراتینین؛ CA 15-3 ⇒ غربالگری نیست", () => {
+test("B11: کروموگرانین A و β2M ⇒ فقط «پزشک تفسیر می‌کند» (بی‌ادعای بی‌منبع)؛ CA 15-3 ⇒ غربالگری نیست", () => {
   const t = txt(byId(run([{ name: "Chromogranin A", value: "300", unit: "ng/mL", reference: "<100" }, { name: "Beta-2 Microglobulin", value: "2.0", unit: "mg/L", reference: "1.0-2.5" }, { name: "CA 15-3", value: "20", unit: "U/mL", reference: "<30" }]), "tumor_markers_result")[0]);
-  assert.match(t, /PPI/);
-  assert.match(t, /کنارِ کراتینین/);
+  // تغییرِ عمدی (specs/019، ۲۰۲۶-۱۱-۰۸): جملاتِ «PPI/گاستریتِ آتروفیک» (CgA) و «کنارِ کراتینین» (β2M) در هیچ منبعِ بازشده‌ای نبود
+  //   (MEDICAL_RULES_TUMOR_MARKERS.md، V26) ⇒ برداشته شد؛ به‌جایش «پزشک کنارِ سایر آزمایش‌ها تفسیر می‌کند».
+  assert.match(t, /کروموگرانین A را پزشک کنارِ سایر آزمایش‌ها و وضعیتِ بالینی تفسیر می‌کند/);
+  assert.match(t, /بتا-۲ میکروگلوبولین را پزشک کنارِ سایر آزمایش‌ها و وضعیتِ بالینی تفسیر می‌کند/);
+  assert.doesNotMatch(t, /PPI|پانتوپرازول|گاستریتِ آتروفیک|کنارِ کراتینین/);
   // تغییرِ عمدی (specs/019، ۲۰۲۶-۱۱-۰۸): جملهٔ قدیمیِ «CA 15-3 برای غربالگری یا تشخیصِ سرطانِ پستان کاربرد ندارد؛ فقط برای پایش…» با
   //   عبارتِ منبع‌دارِ NACB 2008 (ص ۳۷: نشانگرهای خونی برای تشخیصِ زودهنگام بی‌ارزش‌اند؛ ص ۴۷: پایشِ بیماریِ پیشرفته) جایگزین شد.
   //   «تشخیص» و «فقط» در منبعِ بازشده نبود. معنای همین تست (CA 15-3 ابزارِ غربالگری نیست) همان مانده.
@@ -156,6 +159,22 @@ test("B11: کروموگرانین A ⇒ جملهٔ PPI؛ β2M ⇒ کراتینی
 });
 
 // ═══════════ PSA ═══════════
+test("B11b: متنِ منبع‌دارِ CA 19-9 / AFP / کلسی‌تونین — بی‌«۵ تا ۱۰»، بی‌PPI، بی‌بارداریِ AFP (V25–V27)", () => {
+  // تغییرِ عمدی (specs/019، ۲۰۲۶-۱۱-۰۸): ادعاهایی که منبعِ بازشده نداشتند برداشته شد؛ هر کدام با ردیفِ V در MEDICAL_RULES_TUMOR_MARKERS.md.
+  const t = txt(byId(run([
+    { name: "CA 19-9", value: "20", unit: "U/mL", reference: "<37" },
+    { name: "AFP", value: "5", unit: "ng/mL", reference: "<10" },
+    { name: "Calcitonin", value: "150", unit: "pg/mL" },
+  ]), "tumor_markers_result")[0]);
+  assert.match(t, /حدود ۱۰ درصدِ افراد فنوتیپِ Lewis-منفی/);
+  assert.doesNotMatch(t, /۵ تا ۱۰/);
+  assert.match(t, /سیروز.*هر ۶ ماه.*با AFP یا بدونِ آن/);
+  assert.doesNotMatch(t, /بارداری هم آن را بالا|هپاتیت B/);
+  assert.match(t, /نارسایی مزمنِ کلیه، پرکاریِ پاراتیروئید و تیروئیدیتِ خودایمنی/);
+  assert.match(t, /در یک مطالعه روی بیمارانِ دارای ندولِ تیروئید/);
+  assert.doesNotMatch(t, /PPI|گاستریت|در گزارش‌ها با احتمالِ بالا/);
+});
+
 test("B12: PSA — درصدِ Free PSA فقط در PSA کل ۴ تا ۱۰؛ ≤۱۵٪ ⇒ this_week؛ فیناستراید ذکر می‌شود", () => {
   const a = byId(run([{ name: "Total PSA", value: "6.0", unit: "ng/mL" }, { name: "Free PSA", value: "0.5", unit: "ng/mL" }], { age: 62, sex: "M" }), "psa_result");
   assert.equal(a.length, 1);
