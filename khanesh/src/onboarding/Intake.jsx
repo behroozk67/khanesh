@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { payHeaders } from "../userPlan.js";
 import { useNavigate, useParams, Navigate, useSearchParams } from "react-router-dom";
 import OnbShell from "./OnbShell.jsx";
 import Icon from "./icons.jsx";
@@ -38,8 +39,17 @@ export default function Intake() {
   if (loadErr) return <OnbShell variant="intake" title="پروفایل باز نشد" lede={loadErr} />;
   if (!profile) return <div className="onb" dir="rtl" aria-busy="true" />;
 
-  const onSave = async (patch) => {
+  const onSave = async (patch, planId) => {
     await saveProfile(patch);
+    if (planId) {
+      // پلن انتخاب‌شده ⇒ درگاه؛ بعد از پرداخت صفحهٔ تأیید به /app برمی‌گردد.
+      const res = await fetch("/api/payment/request", { method: "POST", headers: payHeaders(), body: JSON.stringify({ planId }) });
+      const d = await res.json().catch(() => null);
+      if (res.status === 401) { window.location.assign("/app"); return; }
+      if (!d?.paymentUrl) throw new Error(d?.error || "اتصال به درگاه پرداخت برقرار نشد. دوباره تلاش کنید.");
+      window.location.href = d.paymentUrl;
+      return;
+    }
     navigate(editing ? "/profile" : "/app/start");
   };
   return <IntakeCard profile={profile} editing={editing} onSave={onSave} onBack={editing ? () => navigate("/profile") : null} />;
@@ -56,6 +66,17 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
   const [sel, setSel] = useState(() => new Set(profile.conditionsAnswered && !profile.conditions?.length ? [NONE_ID] : profile.conditions ?? []));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [planInfo, setPlanInfo] = useState(null); // از سرور: { needsPlan, paymentApplies, plans[] }
+  const [planId, setPlanId] = useState("");
+  useEffect(() => {
+    let token = null;
+    try { token = localStorage.getItem("auth_token"); } catch { /* حالت خصوصی */ }
+    if (!token || editing) return;
+    fetch("/api/plan", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.paymentApplies) setPlanInfo(d); })
+      .catch(() => {});
+  }, [editing]);
 
   const n = /^\d+$/.test(value) ? Number(value) : NaN;
   const [lo, hi] = AGE_RANGE[unit];
@@ -84,12 +105,13 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
       return setErr(`هفتهٔ بارداری را عددی بین ${toFaDigits(GEST_RANGE[0])} و ${toFaDigits(GEST_RANGE[1])} وارد کنید، یا خالی بگذارید.`);
     }
     if (sel.size === 0) return setErr("بیماریِ زمینه‌ای را انتخاب کنید، یا «هیچ‌کدام».");
+    if (planInfo?.needsPlan && !planId) return setErr("یکی از پلن‌ها را انتخاب کنید.");
     setBusy(true); setErr("");
     try {
       await onSave({
         firstName: first.trim().slice(0, 50), lastName: last.trim().slice(0, 50), sex,
         ageValue: n, ageUnit: unit, pregnant: canPregnant && pregnant, gestWeeks: canPregnant && pregnant ? g : null, gestRecordedAt: canPregnant && pregnant && g != null ? Date.now() : null, conditions: [...sel],
-      });
+      }, planInfo?.needsPlan ? planId : null);
     } catch (e2) {
       setErr(e2.message || "ذخیره انجام نشد. دوباره تلاش کنید.");
       setBusy(false);
@@ -182,8 +204,21 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
           <p className="onb-note">بعضی از این‌ها تفسیر را دقیق‌تر می‌کنند؛ نتیجه می‌گوید کدام‌ها لحاظ شد.</p>
         </div>
 
+        {planInfo?.plans && (
+          <div className="ik-field" role="radiogroup" aria-label="انتخاب پلن">
+            <span className="ik-label">پلن خود را انتخاب کنید</span>
+            <div className="ik-caps" style={{ flexDirection: "column", alignItems: "stretch" }}>
+              {planInfo.plans.map((p) => (
+                <button key={p.id} type="button" role="radio" className="ik-cap" aria-checked={planId === p.id} aria-pressed={planId === p.id} onClick={() => setPlanId(p.id)}>
+                  {p.name} — {toFaDigits(p.price.toLocaleString("en-US"))} تومان — {toFaDigits(p.credits)} تفسیر
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {err && <p className="onb-err" role="alert">{err}</p>}
-        <button type="submit" className="onb-primary" disabled={busy}>{editing ? "ذخیره" : "ادامه"}</button>
+        <button type="submit" className="onb-primary" disabled={busy}>{editing ? "ذخیره" : planInfo?.needsPlan ? "ادامه و پرداخت" : "ادامه"}</button>
       </form>
     </OnbShell>
   );

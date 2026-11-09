@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 
-// پیش از صفحهٔ تفسیر: اگر سرور بگوید این کاربر باید پلن بخرد (needsPlan)، به /pricing می‌رود.
+// پیش از صفحهٔ تفسیر: اگر سرور بگوید این کاربر باید پلن بخرد (needsPlan)، به فرمِ اطلاعات (که پایینش انتخابِ پلن است) می‌رود.
 // خطا/بدون توکن ⇒ عبور؛ قفل واقعی همچنان سمتِ سرور (پرداخت پیش از تحویلِ نتیجه) است.
 export default function PlanRequired({ children }) {
   const [state, setState] = useState("loading"); // loading | ok | pay
@@ -15,6 +15,6 @@ export default function PlanRequired({ children }) {
       .catch(() => alive && setState("ok"));
     return () => { alive = false; };
   }, []);
-  if (state === "pay") return <Navigate to="/pricing" replace />;
+  if (state === "pay") return <Navigate to="/app/intake/name" replace />;
   return state === "ok" ? children : <div className="onb" dir="rtl" aria-busy="true" />;
 }

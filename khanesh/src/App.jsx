@@ -47,7 +47,6 @@ const Methodology = lazy(() => import("./Methodology"));
 const ContactPage = lazy(() => import("./ContactPage.jsx"));
 const TermsPage = lazy(() => import("./TermsPage"));
 const PrivacyPage = lazy(() => import("./PrivacyPage"));
-const PricingPage = lazy(() => import("./PricingPage"));
 const PaymentVerifyPage = lazy(() => import("./PaymentVerifyPage.jsx"));
 const PaymentSimulatedPage = lazy(() => import("./PaymentSimulatedPage.jsx"));
 
@@ -114,7 +113,7 @@ export default function App() {
           <Route path="/how-to-capture" element={<HowToCapture />} />
           <Route path="/methodology" element={<Methodology />} />
           <Route path="/contact" element={<ContactPage />} />
-          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/pricing" element={<Navigate to="/app" replace />} /> {/* صفحهٔ قیمت غیرفعال؛ انتخابِ پلن پایینِ فرمِ اطلاعات است */}
           <Route path="/payment/verify" element={<PaymentVerifyPage />} />
           <Route path="/payment/simulated" element={<PaymentSimulatedPage />} />
           <Route path="/terms" element={<TermsPage />} />

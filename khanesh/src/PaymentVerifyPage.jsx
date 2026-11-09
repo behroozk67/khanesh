@@ -172,7 +172,7 @@ export default function PaymentVerifyPage() {
                 بازگشت به برگه آزمایش
               </button>
               <Link
-                to="/pricing"
+                to="/app/intake/name"
                 className="btn btn--outline btn--pill"
                 style={{ flex: 1, padding: "10px", fontSize: "14px", textDecoration: "none" }}
               >

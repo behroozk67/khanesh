@@ -2268,7 +2268,7 @@ app.get("/api/plan", requireAllowedOrigin, requireAuth, async (req, res) => {
   const applies = real && !paymentExempt(req.user)
     && (process.env.REQUIRE_PAYMENT !== "false" || paymentExempt(req.user, process.env.PAYMENT_TEST_PHONES));
   const credits = row?.credits ?? 0;
-  res.json({ planId, credits, paymentsOff: process.env.REQUIRE_PAYMENT === "false", needsPlan: !!applies && credits <= 0 });
+  res.json({ planId, credits, paymentsOff: process.env.REQUIRE_PAYMENT === "false", needsPlan: !!applies && credits <= 0, paymentApplies: !!applies, plans: Object.values(PLAN_CONFIG).map(({ id, name, price, credits: c }) => ({ id, name, price, credits: c })) });
 });
 
 // ============================================================

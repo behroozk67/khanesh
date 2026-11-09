@@ -77,7 +77,7 @@ export function LockedFeature({
             ارتقا به {requiredPlanName}
           </button>
           <Link
-            to="/pricing"
+            to="/app/intake/name"
             className="btn btn--secondary btn--pill"
             style={{ fontSize: "13px", padding: "6px 18px", textDecoration: "none" }}
           >
@@ -182,7 +182,7 @@ export function UpgradeModal({
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
           <Link
-            to="/pricing"
+            to="/app/intake/name"
             onClick={onClose}
             style={{ fontSize: "12px", color: "var(--brand)", fontWeight: 700, textDecoration: "none" }}
           >
