@@ -78,11 +78,11 @@ export function finishJob(id, statusCode, body) {
 }
 
 /** قرار دادن کار در وضعیت انتظار پرداخت پس از موفقیت OCR */
-export function setJobAwaitingPayment(id, { planId, amount, authority, paymentUrl, testsCount, testNames, pendingResult, hasCritical, urgency, criticalBanner }) {
+export function setJobAwaitingPayment(id, { planId, amount, authority, paymentUrl, testsCount, testNames, pendingResult, hasCritical, urgency, criticalBanner, historyOwner }) {
   const j = jobs.get(id);
   if (!j) return;
   j.status = "awaiting_payment";
-  j.paymentInfo = { planId, amount, authority, paymentUrl, testsCount, testNames, hasCritical: !!hasCritical, urgency: urgency ?? null, criticalBanner: criticalBanner ?? null };
+  j.paymentInfo = { planId, amount, authority, paymentUrl, testsCount, testNames, hasCritical: !!hasCritical, urgency: urgency ?? null, criticalBanner: criticalBanner ?? null, historyOwner: historyOwner ?? null };
   j.pendingResult = pendingResult;
 }
 

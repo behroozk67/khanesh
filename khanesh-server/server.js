@@ -79,7 +79,7 @@ import { missingFindingText, stripUnmeasuredClaims, splitSentences, replaceForbi
 import { GroupedText } from "./rules/groups.js";
 import { collectProtected, engineStrings, inventedDosage } from "./rules/protected.js";
 import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
-import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "./jobStore.js";
+import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount, getJob } from "./jobStore.js";
 import authRouter, { requireAuth, optionalUser, authBootReport, AUTH_REQUIRED, otpSenderStatus } from "./auth.js";
 import profileRouter, { withMember } from "./profile.js";
 import historyRouter, { recordAnalysis, ownerOf } from "./historyRoutes.js";
@@ -1097,7 +1097,9 @@ const analyzeHandler = async (req, res) => {
   const sendJson = res.json.bind(res);
   res.json = (body) => {
     try {
-      if (body && body._engine && !body.error) {
+      // ⚠️ مسیرِ کار (req._jobId) اینجا ثبت نمی‌شود: هنوز معلوم نیست نتیجه تحویل می‌شود یا پشتِ پرداخت می‌ماند؛
+      //    ثبتِ پیش از پرداخت یعنی عددهای برگهٔ پرداخت‌نشده از راهِ /history خوانده شوند.
+      if (body && body._engine && !body.error && !req._jobId) {
         const owner = ownerOf(req);
         if (owner) {
           const jobId = req._jobId ?? `sync:${tr.id}`;
@@ -2177,6 +2179,10 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, withMember, an
         : false;
 
       if (skipPayment || hasCredit) {
+        if (body?._engine) {
+          const owner = ownerOf(req);
+          if (owner) Promise.resolve(recordAnalysis({ owner, jobId, result: body })).catch(() => {});
+        }
         finishJob(jobId, captured.code, body); 
         updateJobResult(jobId, 'completed', body).catch(err => console.error("DB updateJobResult error:", err));
         return shim; 
@@ -2215,6 +2221,7 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, withMember, an
             testsCount: tests.length || (Array.isArray(body.extracted_tests) ? body.extracted_tests.length : 1),
             testNames: tests.slice(0, 10).map((t) => t.name || t.key),
             pendingResult: body,
+            historyOwner: ownerOf(req),   // ثبت در تاریخچه بعد از پرداخت، با مالکِ همین درخواست (عضوِ خانواده هم)
             // P128: فوریت پشتِ پرداخت نمی‌ماند؛ فقط سطحِ هشدار می‌رود، نه متن و یافته‌ها.
             hasCritical: body.has_critical === true,
             urgency: body._engine?.urgency ?? null,
@@ -2340,7 +2347,7 @@ app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, 
 /**
  * ثبتِ پرداختی که زرین‌پال تأیید کرده: اعتبار و بازکردنِ تحلیلِ در انتظار.
  * تأییدِ دوباره (برگشت + رفرش + بررسیِ دوره‌ای) با firstTime اعتبار را دوبار نمی‌دهد.
- * ثبت در تاریخچه لازم نیست: res.json همان لحظهٔ پایانِ تحلیل با مالکِ درست ثبتش کرده است.
+ * تاریخچه همین‌جا ثبت می‌شود، نه هنگامِ پایانِ تحلیل: نتیجهٔ پرداخت‌نشده نباید از راهِ /history خوانده شود.
  */
 async function settlePayment(payment, verifyRes) {
   const paid = await markPaymentSuccess(payment.authority, {
@@ -2352,7 +2359,11 @@ async function settlePayment(payment, verifyRes) {
   let unlockedResult = null;
   if (payment.job_id) {
     unlockedResult = unlockPaidJob(payment.job_id, { refId: verifyRes.refId, cardPan: verifyRes.cardPan });
-    if (unlockedResult) updateJobResult(payment.job_id, 'completed', unlockedResult).catch(() => {});
+    if (unlockedResult) {
+      updateJobResult(payment.job_id, 'completed', unlockedResult).catch(() => {});
+      const owner = getJob(payment.job_id)?.paymentInfo?.historyOwner;
+      if (owner) Promise.resolve(recordAnalysis({ owner, jobId: payment.job_id, result: unlockedResult })).catch(() => {});
+    }
   }
   // تحلیلِ بازشده یکی از نوبت‌های همین پلن است و هرگز از اعتبار کم نشده؛ کارِ ازدست‌رفته (ری‌استارت) نوبتش را نگه می‌دارد.
   if (payment.user_id && paid.firstTime) {

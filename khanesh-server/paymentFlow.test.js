@@ -77,11 +77,11 @@ async function withServer(extraEnv, fn) {
   const exited = new Promise((resolve) => child.once("exit", resolve));
   try {
     // سرور روی :: گوش می‌دهد؛ روی ویندوز یک سرورِ تستیِ دیگر می‌تواند همان پورت را روی 127.0.0.1 گرفته باشد
-    // و درخواستِ IPv4 به آن برسد. پس هر دو آدرس سنجیده می‌شود.
+    // و درخواستِ IPv4 به آن برسد. پس اول همان آدرسِ خودِ سرور سنجیده می‌شود.
     let base = null;
     let last = "";
     for (let i = 0; i < 100 && !base && child.exitCode === null; i++) {
-      for (const host of ["127.0.0.1", "[::1]"]) {
+      for (const host of ["[::1]", "127.0.0.1"]) {
         const url = `http://${host}:${port}`;
         last = await fetch(`${url}/health`).then((r) => String(r.status), (err) => String(err.cause?.code || err.message));
         if (last === "200") { base = url; break; }
@@ -371,5 +371,25 @@ test("پروفایل خانواده: فقط پلن خانواده، سقفِ س�
     assert.equal((await call("DELETE", "/api/auth/me", u, { confirm: true })).status, 200);
     assert.equal((await db.get("SELECT COUNT(*) n FROM family_members")).n, 0);
     assert.equal((await db.get("SELECT COUNT(*) n FROM lab_events WHERE owner LIKE '%:m:%'")).n, 0);
+  });
+});
+
+test("تاریخچه فقط نتیجهٔ تحویل‌شده را می‌بیند: برگهٔ پرداخت‌نشده از راهِ /history لو نمی‌رود", async () => {
+  await withServer({}, async ({ tokenFor, call, db }) => {
+    const u = await tokenFor("09120000001");
+    await give(db, "09120000001", 0, "empire");   // پلن بالا، اعتبار تمام‌شده
+    const job = await runJob(call, u, PANEL);
+    assert.equal(job.status, "awaiting_payment");
+    await new Promise((r) => setTimeout(r, 400));
+    assert.equal((await call("GET", "/api/history", u)).body.count, 0, "پیش از پرداخت هیچ عددی نباید در تاریخچه باشد");
+    assert.deepEqual((await call("GET", "/api/history/trends", u)).body.markers, []);
+
+    await verify(call, job.authority, u);
+    let hist;
+    for (let i = 0; i < 30 && !hist?.count; i++) {
+      hist = (await call("GET", "/api/history", u)).body;
+      if (!hist.count) await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(hist.count, 1, "بعد از پرداخت با همان مالک ثبت می‌شود");
   });
 });

@@ -53,11 +53,11 @@ async function withServer(nodeEnv, extraEnv, fn) {
 
   try {
     // سرور روی :: گوش می‌دهد؛ روی ویندوز یک سرورِ تستیِ دیگر می‌تواند همان پورت را روی 127.0.0.1 گرفته باشد
-    // و درخواستِ IPv4 به آن برسد. پس هر دو آدرس سنجیده می‌شود.
+    // و درخواستِ IPv4 به آن برسد. پس اول همان آدرسِ خودِ سرور سنجیده می‌شود.
     let base = null;
     let last = "";
     for (let i = 0; i < 100 && !base && child.exitCode === null; i++) {
-      for (const host of ["127.0.0.1", "[::1]"]) {
+      for (const host of ["[::1]", "127.0.0.1"]) {
         const url = `http://${host}:${port}`;
         last = await fetch(`${url}/health`).then((r) => String(r.status), (err) => String(err.cause?.code || err.message));
         if (last === "200") { base = url; break; }
