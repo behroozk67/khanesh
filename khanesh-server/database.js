@@ -451,15 +451,16 @@ export async function getPaymentByAuthority(authority) {
   return db.get(`SELECT * FROM payments WHERE authority = ?`, [authority]);
 }
 
+// firstTime=true فقط برای اولین تأیید؛ تأیید دوباره (callback + refresh) اعتبار را دوباره اضافه نمی‌کند.
 export async function markPaymentSuccess(authority, { refId, cardPan, cardHash }) {
   const db = await dbConn();
-  await db.run(
+  const r = await db.run(
     `UPDATE payments
      SET status = 'paid', ref_id = ?, card_pan = ?, card_hash = ?, paid_at = CURRENT_TIMESTAMP
-     WHERE authority = ?`,
+     WHERE authority = ? AND status != 'paid'`,
     [refId, cardPan || null, cardHash || null, authority]
   );
-  return getPaymentByAuthority(authority);
+  return { ...(await getPaymentByAuthority(authority)), firstTime: r.changes === 1 };
 }
 
 export async function markPaymentFailed(authority) {
@@ -488,10 +489,14 @@ export async function addUserCredits(userId, creditsToAdd, planId) {
 export async function deductUserCredit(userId) {
   if (!userId) return false;
   const db = await dbConn();
-  const row = await db.get(`SELECT credits FROM users WHERE id = ?`, [userId]);
-  if (!row || row.credits <= 0) return false;
-  await db.run(`UPDATE users SET credits = credits - 1 WHERE id = ?`, [userId]);
-  return true;
+  const r = await db.run(`UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0`, [userId]);
+  return r.changes === 1;
+}
+
+export async function getUserPlan(userId) {
+  if (!userId) return null;
+  const db = await dbConn();
+  return db.get(`SELECT credits, active_plan FROM users WHERE id = ?`, [userId]);
 }
 
 // ⚠️ قبلاً خودِ promise را default export می‌کرد، که یعنی هر import اتصال را

@@ -16,6 +16,7 @@
 import express from 'express';
 import { createHash, randomUUID } from 'crypto';
 import { requireAuth } from './auth.js';
+import { requirePlanFeature } from './plans.js';
 import { getUnit } from './rules/refs.js';
 import { compareSeries, comparisonFa, faDate, toTime } from './rules/history.js';
 import {
@@ -49,10 +50,10 @@ export function observationsFromResult(result) {
   const seen = new Set();
   for (const t of tests) {
     if (!t?.key || seen.has(t.key)) continue;
-    if (t.value == null || t.value === '') continue;   // Number(null) === 0 — گاردِ اجباری
     if (t.key.startsWith('URINE_')) continue;   // ردیفِ ادرارِ غیرطبیعی (rules/urine_rows.js): «+1» نه عدد است نه سری
     if (t.abnormal === null) continue;          // specs/019: بی‌حکم با !!null «در محدوده» ثبت می‌شد و نوبتِ بعد «از محدوده بیرون رفت» می‌گفت
     if (t.source === 'tumor_marker_printed') continue;   // specs/019: تومورمارکر بین آزمایشگاه/کیت‌ها قابل‌مقایسه نیست (EGTM 2014، NACB ص ۵۴: «values from different methods are not interchangeable»)
+    if (t.value == null || t.value === '') continue;   // Number(null) === 0 — گاردِ اجباری
     const v = Number(t.value);
     if (!Number.isFinite(v)) continue;
     seen.add(t.key);
@@ -113,7 +114,7 @@ function requireOwner(req, res, next) {
   return next();
 }
 
-const guard = [requireAuth, requireOwner];
+const guard = [requireAuth, requirePlanFeature('history'), requireOwner];
 
 router.get('/', ...guard, async (req, res) => {
   try {

@@ -87,15 +87,22 @@ import {
   initDb, createJobRecord, updateJobResult, getUserJobs, getJobById,
   getLatestCompletedJob, saveContactMessage,
   createPaymentRecord, getPaymentByAuthority, markPaymentSuccess, markPaymentFailed,
-  getUserCredits, addUserCredits, deductUserCredit
+  getUserCredits, addUserCredits, deductUserCredit, getUserPlan
 } from "./database.js";
 import { notifyNewContactMessage } from "./notifier.js";
 import { requestPayment, verifyPayment } from "./zarinpal.js";
+import { planOf, withPlanLocks } from "./plans.js";
 import { PLAN_CONFIG, planAmount } from "./planPrices.js";
 import { paymentExempt } from "./paymentExempt.js";
 import { setJobAwaitingPayment, unlockPaidJob } from "./jobStore.js";
 
 // پلن‌های تعرفه و قیمت‌گذاری سامانه به تومان
+// در production آدرس بازگشت همیشه دامنهٔ ثبت‌شده در زرین‌پال است، نه هدر Origin درخواست.
+function callbackOrigin(req) {
+  const site = process.env.SITE_ORIGIN || "https://azmayarapp.ir";
+  return process.env.NODE_ENV === "production" ? site : (req.headers.origin || site);
+}
+
 export { PLAN_CONFIG, planAmount };
 
 // اطلاعات موتور برای کلاینت — یک‌جا تا بین مسیر اصلی و مسیر جایگزین drift نکند.
@@ -479,6 +486,19 @@ const analyzeLimiter = rateLimit({
     console.warn(`⚠️ rate limit خورد (key=${req.ip}) — اگر پشت پروکسی هستی TRUST_PROXY را ببین`);
     res.status(options.statusCode).json(options.message);
   },
+});
+
+// سقفِ روزانهٔ هر کاربر. analyzeLimiter فقط IP را می‌شمارد و OCR پولی پیش از پرداخت اجرا می‌شود؛
+// بدونِ این، یک حساب با چرخاندنِ IP بی‌سقف هزینه می‌سازد. ناشناس (AUTH خاموش) و PAYMENT_EXEMPT_PHONES معاف‌اند.
+// shortcut: شمارنده در حافظه است و با ری‌استارت صفر می‌شود؛ اگر سوءاستفاده دیده شد، به دیتابیس منتقل شود.
+const dailyUserLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skip: (req) => !req.user?.userId || req.user.anonymous || paymentExempt(req.user),
+  keyGenerator: (req) => `u:${req.user.userId}`,
+  message: { error: "سقفِ تحلیلِ روزانه پر شده است. لطفاً فردا دوباره تلاش کنید." },
 });
 
 const MEDLINE_BASE = "https://wsearch.nlm.nih.gov/ws/query";
@@ -2091,8 +2111,12 @@ const numbered = patternOut.findings.filter(
   }
 };
 
-// مسیرِ همگامِ قدیمی — دست‌نخورده، برای سازگاری عقب‌رو
-app.post("/api/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, analyzeHandler);
+// مسیرِ همگامِ قدیمی — فقط برای تست و توسعهٔ محلی.
+// ⚠️ این مسیر نه اعتبار کم می‌کند و نه پرداخت می‌خواهد و withPlanLocks هم ندارد؛ در production نباید ثبت شود،
+//    وگرنه هر کاربرِ واردشده تفسیرِ کامل را رایگان می‌گیرد. سایت و اپ فقط از /api/analyze/start استفاده می‌کنند.
+if (process.env.NODE_ENV !== "production") {
+  app.post("/api/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, analyzeHandler);
+}
 
 // ============================================================
 // [۱۴-ب] مسیرِ ناهمگام: شناسهٔ کار + پرسشِ دوره‌ای
@@ -2106,7 +2130,7 @@ app.post("/api/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, anal
 //    که هر ۲ ثانیه poll می‌کند خودش را بلاک می‌کند. چیزی که هزینهٔ AvalAI
 //    را می‌سازد شروعِ کار است، نه پرسیدنِ وضعیت.
 // ============================================================
-app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter, (req, res) => {
+app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter, dailyUserLimiter, (req, res) => {
   const imgs = Array.isArray(req.body?.imageDataUrls)
     ? req.body.imageDataUrls
     : (typeof req.body?.imageDataUrl === "string" ? [req.body.imageDataUrl] : []);
@@ -2141,7 +2165,8 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
       const userId = req.user?.userId;
       const isTestEnv = process.env.NODE_ENV === "test";
       const forcePayment = req.body?.requirePayment === true;
-      const skipPayment = (isTestEnv && !forcePayment) || process.env.REQUIRE_PAYMENT === "false"
+      const skipPayment = (isTestEnv && !forcePayment) || (process.env.REQUIRE_PAYMENT === "false"
+          && !paymentExempt(req.user, process.env.PAYMENT_TEST_PHONES))   // PAYMENT_TEST_PHONES: فقط این شماره‌ها حتی با REQUIRE_PAYMENT=false پرداخت می‌کنند
         || paymentExempt(req.user);   // PAYMENT_EXEMPT_PHONES (تست روی production)
 
       // اگر کاربر وارد شده و اعتبار از پیش خریداری‌شده دارد
@@ -2160,7 +2185,7 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
         const planId = req.body?.planId || "starter";
         const plan = PLAN_CONFIG[planId] || PLAN_CONFIG.starter;
         const payAmount = planAmount(plan, req.body?.cycle);
-        const origin = req.headers.origin || (process.env.SITE_ORIGIN || "https://azmayarapp.ir");
+        const origin = callbackOrigin(req);
         const callbackUrl = `${origin}/payment/verify`;
 
         const zarin = await requestPayment({
@@ -2195,9 +2220,10 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
         console.error("ZarinPal creation error in shim:", err);
       }
 
-      // فال‌بک در صورت قطعی درگاه
-      finishJob(jobId, captured.code, body); 
-      updateJobResult(jobId, 'completed', body).catch(err => console.error("DB updateJobResult error:", err));
+      // درگاه در دسترس نیست: نتیجه رایگان تحویل نمی‌شود. (تا فعال‌شدنِ درگاه: REQUIRE_PAYMENT=false)
+      const unavailable = { error: "درگاه پرداخت موقتاً در دسترس نیست. چند دقیقهٔ دیگر دوباره تلاش کنید." };
+      finishJob(jobId, 503, unavailable);
+      updateJobResult(jobId, 'failed', unavailable).catch(err => console.error("DB updateJobResult error:", err));
       return shim; 
     },
     setHeader() { return shim; },
@@ -2221,14 +2247,23 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
 //    می‌خواهد و این یکی نه، پس هر کسی با یک شناسهٔ کار تفسیرِ کاملِ بیمارِ
 //    دیگری را می‌خواند. با AUTH_REQUIRED خاموش، `requireAuth` کاربرِ ناشناس
 //    را ست می‌کند و رفتار عوض نمی‌شود.
-app.get("/api/analyze/job/:id", requireAllowedOrigin, requireAuth, (req, res) => {
+app.get("/api/analyze/job/:id", requireAllowedOrigin, requireAuth, async (req, res) => {
   const job = getJobFor(req.params.id, req.user?.userId ?? null);
   if (!job) {
     return res.status(404).json({
       error: "این تحلیل پیدا نشد یا منقضی شده. لطفاً دوباره شروع کنید.",
     });
   }
-  res.json(jobView(job));
+  const view = jobView(job);
+  if (view.result) view.result = await withPlanLocks(req.user, view.result);
+  res.json(view);
+});
+
+/** پلن و اعتبارِ کاربر از سرور — منبع حقیقتِ رابط کاربری برای قفل‌ها. */
+app.get("/api/plan", requireAllowedOrigin, requireAuth, async (req, res) => {
+  const planId = await planOf(req.user);
+  const row = req.user?.userId && !req.user.anonymous ? await getUserPlan(req.user.userId) : null;
+  res.json({ planId, credits: row?.credits ?? 0, paymentsOff: process.env.REQUIRE_PAYMENT === "false" });
 });
 
 // ============================================================
@@ -2241,7 +2276,7 @@ app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, 
     const { planId = "starter", jobId = null, cycle } = req.body || {};
     const plan = PLAN_CONFIG[planId] || PLAN_CONFIG.starter;
     const payAmount = planAmount(plan, cycle);
-    const origin = req.headers.origin || (process.env.SITE_ORIGIN || "https://azmayarapp.ir");
+    const origin = callbackOrigin(req);
     const callbackUrl = `${origin}/payment/verify`;
 
     const zarin = await requestPayment({
@@ -2316,12 +2351,14 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
 
     const verifyRes = await verifyPayment({ authority, amount: payment.amount });
     if (!verifyRes.ok) {
+      // خطای شبکه/سرورِ زرین‌پال رد پرداخت نیست؛ ممکن است کاربر پول داده باشد و دوباره تأیید شود.
+      if (verifyRes.transient) return res.status(503).json({ error: "تأیید پرداخت اکنون ممکن نیست. چند لحظه بعد همین صفحه را دوباره باز کنید." });
       await markPaymentFailed(authority);
       return res.status(400).json({ error: verifyRes.error || "تراکنش توسط درگاه بانک تأیید نشد." });
     }
 
     // ثبت موفقیت تراکنش در پایگاه داده
-    await markPaymentSuccess(authority, {
+    const paid = await markPaymentSuccess(authority, {
       refId: verifyRes.refId,
       cardPan: verifyRes.cardPan,
       cardHash: verifyRes.cardHash,
@@ -2330,7 +2367,7 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
     const plan = PLAN_CONFIG[payment.plan_id] || PLAN_CONFIG.starter;
 
     // افزایش اعتبار در صورت ورود کاربر
-    if (payment.user_id) {
+    if (payment.user_id && paid.firstTime) {
       await addUserCredits(payment.user_id, plan.credits, plan.id);
     }
 
@@ -2359,7 +2396,7 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
       cardPan: verifyRes.cardPan,
       planId: payment.plan_id,
       jobId: payment.job_id,
-      result: unlockedResult,
+      result: await withPlanLocks(payment.user_id ? { userId: payment.user_id } : null, unlockedResult),
     });
   } catch (err) {
     console.error("Payment verify error:", err);
@@ -2381,7 +2418,7 @@ app.get("/api/payment/callback", (req, res) => {
 //    عبور نمی‌کند (N13). گیتِ `USE_GRAPH` تا امروز فقط داخلِ `analyzeHandler`
 //    بود، پس این در — بی‌احراز هویت — همان مسیری را باز می‌گذاشت که کلِ
 //    تصمیمِ «پیش‌فرض خاموش» برای بستنش گرفته شده بود.
-app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, async (req, res) => {
+app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, dailyUserLimiter, async (req, res) => {
   if (!USE_GRAPH) {
     return res.status(503).json({
       error: "مسیرِ گراف خاموش است. برای آزمایشِ محلی USE_GRAPH=true را ست کنید.",
@@ -2527,13 +2564,15 @@ app.get("/", (_req, res) => {
 });
 
 // مسیر تماس با آزمایار و دریافت پیام‌ها و بازخوردها
-app.post("/api/contact", async (req, res) => {
+const contactLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false,
+  message: { error: "تعداد پیام‌ها بیش از حد مجاز است. کمی بعد دوباره تلاش کنید." } });
+app.post("/api/contact", contactLimiter, async (req, res) => {
   try {
     const { name, contact, subject, message } = req.body || {};
     if (!contact || !message || typeof message !== "string" || !message.trim()) {
       return res.status(400).json({ error: "لطفاً ایمیل یا شناسهٔ تلگرام و متن پیام خود را وارد کنید." });
     }
-    const ip = req.headers["x-forwarded-for"] || req.socket?.remoteAddress;
+    const ip = req.ip || req.socket?.remoteAddress;
     const msgData = {
       name: (name || "").slice(0, 100).trim(),
       contact: String(contact).slice(0, 150).trim(),

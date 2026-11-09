@@ -1,42 +1,99 @@
 // ============================================================
 // ماژول اتصال به وب‌سرویس پرداخت زرین‌پال (ZarinPal REST v4)
+// مستندات: https://www.zarinpal.com/docs/paymentGateway/
 // ============================================================
 
-const ZARINPAL_MERCHANT_ID = process.env.ZARINPAL_MERCHANT_ID || "00000000-0000-0000-0000-000000000000";
-const IS_SANDBOX = process.env.ZARINPAL_SANDBOX === "true" || !process.env.ZARINPAL_MERCHANT_ID || process.env.ZARINPAL_MERCHANT_ID.startsWith("00000000");
+/**
+ * جدول کدهای خطای رسمی زرین‌پال با توضیحات فارسی روان
+ */
+export const ZARINPAL_ERRORS = {
+  "-9": "اطلاعات ارسالی به درگاه نامعتبر است (خطای اعتبارسنجی داده‌ها).",
+  "-10": "آی‌پی یا شناسه مرچنت پذیرنده معتبر نیست (Terminal ip not valid).",
+  "-11": "درگاه پرداخت در زرین‌پال فعال نیست (Terminal is not active). وضعیت درگاه باید در پیشخوان زرین‌پال فعال باشد.",
+  "-12": "تلاش بیش از حد مجاز در بازه زمانی کوتاه. لطفاً کمی بعد تلاش کنید.",
+  "-15": "دامنه آدرس بازگشت (callback_url) با دامنه ثبت‌شده درگاه در زرین‌پال مغایرت دارد.",
+  "-16": "سطح تایید پذیرنده پایین‌تر از سطح نقره‌ای یا مجاز است.",
+  "-30": "اجازه دسترسی به این متد در درگاه شما وجود ندارد.",
+  "-31": "حساب بانکی متصل به درگاه توسط زرین‌پال تایید نشده است.",
+  "-50": "مبلغ پرداخت‌شده با مبلغ ارسالی در متد اعتبارسنجی مطابقت ندارد.",
+  "-51": "پرداخت ناموفق بوده است (تراکنش در درگاه شاپرک نهایی نشد).",
+  "-52": "خطای غیرمنتظره در سرور درگاه زرین‌پال رخ داده است.",
+  "-53": "شناسه تراکنش (Authority) به این درگاه تعلق ندارد یا نامعتبر است.",
+  "-54": "مدت زمان مجاز انجام تراکنش (Authority) منقضی شده است.",
+};
 
-const BASE_URL = IS_SANDBOX
-  ? "https://sandbox.zarinpal.com/pg/v4/payment"
-  : "https://payment.zarinpal.com/pg/v4/payment";
+/**
+ * تبدیل ارقام فارسی به انگلیسی و استانداردسازی شماره موبایل ایرانی (09xxxxxxxxx)
+ */
+export function normalizeIranianMobile(phone) {
+  if (!phone) return null;
+  const ascii = String(phone).replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d)).trim();
+  const digits = ascii.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("09")) return digits;
+  if (digits.length === 12 && digits.startsWith("989")) return `0${digits.slice(2)}`;
+  if (digits.length === 14 && digits.startsWith("00989")) return `0${digits.slice(4)}`;
+  if (digits.length === 10 && digits.startsWith("9")) return `0${digits}`;
+  return null;
+}
 
-const GATEWAY_URL = IS_SANDBOX
-  ? "https://sandbox.zarinpal.com/pg/StartPay"
-  : "https://payment.zarinpal.com/pg/StartPay";
+/**
+ * خواندن تنظیمات زرین‌پال از متغیرهای محیطی
+ */
+export function getZarinpalConfig() {
+  const merchantId = (process.env.ZARINPAL_MERCHANT_ID || "").trim() || "00000000-0000-0000-0000-000000000000";
+  const isSandbox = process.env.ZARINPAL_SANDBOX === "true" || merchantId.startsWith("00000000");
+
+  const baseUrl = isSandbox
+    ? "https://sandbox.zarinpal.com/pg/v4/payment"
+    : "https://payment.zarinpal.com/pg/v4/payment";
+
+  const gatewayUrl = isSandbox
+    ? "https://sandbox.zarinpal.com/pg/StartPay"
+    : "https://payment.zarinpal.com/pg/StartPay";
+
+  return { merchantId, isSandbox, baseUrl, gatewayUrl };
+}
 
 /**
  * درخواست ایجاد تراکنش و دریافت شناسه Authority از زرین‌پال
  * @param {Object} params
- * @param {number} params.amount - مبلغ به تومان
- * @param {string} params.description - شرح تراکنش
- * @param {string} params.callbackUrl - آدرس بازگشت پس از پرداخت
- * @param {string} [params.mobile] - شماره همراه بیمار (اختیاری)
- * @param {string} [params.email] - ایمیل بیمار (اختیاری)
+ * @param {number} params.amount - مبلغ به تومان (IRT)
+ * @param {string} [params.description] - شرح تراکنش (حداکثر ۵۰۰ کاراکتر)
+ * @param {string} params.callbackUrl - آدرس بازگشت خریدار پس از پرداخت در شاپرک
+ * @param {string} [params.mobile] - شماره همراه خریدار (اختیاری)
+ * @param {string} [params.email] - ایمیل خریدار (اختیاری)
  */
 export async function requestPayment({ amount, description, callbackUrl, mobile, email }) {
+  const { merchantId, isSandbox, baseUrl, gatewayUrl } = getZarinpalConfig();
+
+  const normMobile = normalizeIranianMobile(mobile);
+  const metadata = {};
+  if (normMobile) metadata.mobile = normMobile;
+  if (email && typeof email === "string" && email.includes("@")) metadata.email = email.trim();
+
+  // در حالت لایو، اطمینان از مطابقت دامنه callback با دامنه معتبر ثبت‌شده
+  let resolvedCallback = callbackUrl;
+  if (!isSandbox && process.env.SITE_ORIGIN) {
+    try {
+      const u = new URL(callbackUrl, process.env.SITE_ORIGIN);
+      const originUrl = new URL(process.env.SITE_ORIGIN);
+      if (u.hostname !== originUrl.hostname && (u.hostname === "localhost" || u.hostname === "127.0.0.1")) {
+        resolvedCallback = `${process.env.SITE_ORIGIN}${u.pathname}${u.search}`;
+      }
+    } catch {}
+  }
+
   const payload = {
-    merchant_id: ZARINPAL_MERCHANT_ID,
+    merchant_id: merchantId,
     amount: Math.round(Number(amount)), // تومان
     currency: "IRT",
-    description: description || "تفسیر آزمایش خون در سامانه هوشمند آزمایار",
-    callback_url: callbackUrl,
-    metadata: {
-      ...(mobile ? { mobile: String(mobile).trim() } : {}),
-      ...(email ? { email: String(email).trim() } : {}),
-    },
+    description: (description || "تفسیر آزمایش خون در سامانه هوشمند آزمایار").slice(0, 490),
+    callback_url: resolvedCallback,
+    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
   };
 
   try {
-    const res = await fetch(`${BASE_URL}/request.json`, {
+    const res = await fetch(`${baseUrl}/request.json`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -44,7 +101,7 @@ export async function requestPayment({ amount, description, callbackUrl, mobile,
         "User-Agent": "AzmayarApp/1.0",
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(18000),
     });
 
     const body = await res.json().catch(() => null);
@@ -54,14 +111,15 @@ export async function requestPayment({ amount, description, callbackUrl, mobile,
       return {
         ok: true,
         authority,
-        paymentUrl: `${GATEWAY_URL}/${authority}`,
+        paymentUrl: `${gatewayUrl}/${authority}`,
         fee: body.data.fee || 0,
-        sandbox: IS_SANDBOX,
+        feeType: body.data.fee_type || "Merchant",
+        sandbox: isSandbox,
       };
     }
 
     // در صورتی که زرین‌پال در حالت سندباکس/تست خطای اعتبارسنجی داد، حالت شبیه‌ساز محلی را برمی‌گردانیم
-    if (IS_SANDBOX) {
+    if (isSandbox && process.env.NODE_ENV !== "production") {
       console.warn("⚠️ ZarinPal Sandbox fallback activated:", body?.errors || body);
       const mockAuthority = `A_TEST_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       return {
@@ -73,16 +131,18 @@ export async function requestPayment({ amount, description, callbackUrl, mobile,
       };
     }
 
-    const errCode = body?.errors?.code || body?.data?.code || res.status;
-    const errMsg = body?.errors?.message || "پاسخ نامعتبر از درگاه زرین‌پال";
+    const errCode = body?.errors?.code ?? body?.data?.code ?? res.status;
+    const zarinMsg = body?.errors?.message || body?.data?.message;
+    const friendlyMsg = ZARINPAL_ERRORS[String(errCode)] || zarinMsg || "پاسخ نامعتبر از درگاه زرین‌پال";
     return {
       ok: false,
-      error: `خطای ارتباط با زرین‌پال (${errCode}): ${errMsg}`,
+      code: errCode,
+      error: `خطای درگاه زرین‌پال (${errCode}): ${friendlyMsg}`,
       raw: body,
     };
   } catch (err) {
     console.error("ZarinPal requestPayment error:", err.message);
-    if (IS_SANDBOX) {
+    if (isSandbox && process.env.NODE_ENV !== "production") {
       const mockAuthority = `A_TEST_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       return {
         ok: true,
@@ -106,8 +166,12 @@ export async function requestPayment({ amount, description, callbackUrl, mobile,
  * @param {number} params.amount - مبلغ تراکنش به تومان
  */
 export async function verifyPayment({ authority, amount }) {
+  if (!authority) {
+    return { ok: false, error: "شناسه تراکنش (Authority) ارسال نشده است." };
+  }
+
   // اگر شناسه شبیه‌ساز تستی بود
-  if (authority.startsWith("A_TEST_") || authority.startsWith("SIM_")) {
+  if (process.env.NODE_ENV !== "production" && (authority.startsWith("A_TEST_") || authority.startsWith("SIM_"))) {
     const mockRefId = Math.floor(10000000 + Math.random() * 90000000);
     return {
       ok: true,
@@ -119,14 +183,16 @@ export async function verifyPayment({ authority, amount }) {
     };
   }
 
+  const { merchantId, baseUrl } = getZarinpalConfig();
+
   const payload = {
-    merchant_id: ZARINPAL_MERCHANT_ID,
+    merchant_id: merchantId,
     amount: Math.round(Number(amount)),
     authority,
   };
 
   try {
-    const res = await fetch(`${BASE_URL}/verify.json`, {
+    const res = await fetch(`${baseUrl}/verify.json`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -134,7 +200,7 @@ export async function verifyPayment({ authority, amount }) {
         "User-Agent": "AzmayarApp/1.0",
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(18000),
     });
 
     const body = await res.json().catch(() => null);
@@ -148,21 +214,25 @@ export async function verifyPayment({ authority, amount }) {
         cardHash: body.data.card_hash || "",
         code: body.data.code,
         fee: body.data.fee || 0,
+        alreadyVerified: body.data.code === 101,
       };
     }
 
-    const errCode = body?.errors?.code || body?.data?.code || res.status;
-    const errMsg = body?.errors?.message || "تراکنش توسط درگاه تأیید نشد یا ناموفق بود.";
+    const errCode = body?.errors?.code ?? body?.data?.code ?? res.status;
+    const zarinMsg = body?.errors?.message || body?.data?.message;
+    const friendlyMsg = ZARINPAL_ERRORS[String(errCode)] || zarinMsg || "تراکنش توسط درگاه تأیید نشد یا ناموفق بود.";
     return {
       ok: false,
       code: errCode,
-      error: errMsg,
+      transient: res.status >= 500,
+      error: `تأیید پرداخت زرین‌پال (${errCode}): ${friendlyMsg}`,
       raw: body,
     };
   } catch (err) {
     console.error("ZarinPal verifyPayment error:", err.message);
     return {
       ok: false,
+      transient: true, // خطای شبکه ≠ رد پرداخت؛ نباید پرداخت «ناموفق» ثبت شود
       error: "عدم دریافت پاسخ از سرور زرین‌پال جهت اعتبارسنجی پرداخت.",
     };
   }
