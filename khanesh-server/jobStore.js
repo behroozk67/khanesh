@@ -87,9 +87,10 @@ export function setJobAwaitingPayment(id, { planId, amount, authority, paymentUr
 }
 
 /** آزادسازی کار پس از تایید موفقیت تراکنش در درگاه زرین‌پال */
-export function unlockPaidJob(id, { refId, cardPan } = {}) {
+export function unlockPaidJob(id, { authority, refId, cardPan } = {}) {
   const j = jobs.get(id);
-  if (!j) return null;
+  // فقط پرداختی که برای همین کار صادر شد آن را باز می‌کند (تکرارپذیر می‌ماند، چون paymentInfo بعد از باز شدن هم هست).
+  if (!j || !authority || j.paymentInfo?.authority !== authority) return null;
   j.status = "done";
   j.statusCode = 200;
   j.result = {

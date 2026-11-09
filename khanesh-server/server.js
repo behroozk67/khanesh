@@ -2309,7 +2309,8 @@ app.get("/api/plan", requireAllowedOrigin, requireAuth, withMember, async (req, 
 /** درخواست پرداخت و دریافت لینک درگاه زرین‌پال برای یک پلن مشخص */
 app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, res) => {
   try {
-    const { planId = "starter", jobId = null } = req.body || {};
+    // jobId عمداً از بدنه خوانده نمی‌شود: پرداختِ یک کار فقط هنگامِ خودِ تحلیل (/api/analyze/start) به آن وصل می‌شود.
+    const { planId = "starter" } = req.body || {};
     const plan = PLAN_CONFIG[planId] || PLAN_CONFIG.starter;
     const payAmount = planAmount(plan);
     const origin = callbackOrigin(req);
@@ -2331,7 +2332,6 @@ app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, 
     const userId = req.user?.userId && !req.user.anonymous ? req.user.userId : null;
     await createPaymentRecord({
       authority: zarin.authority,
-      jobId,
       userId,
       planId: plan.id,
       amount: payAmount,
@@ -2360,7 +2360,7 @@ async function settlePayment(payment, verifyRes) {
   const plan = PLAN_CONFIG[payment.plan_id] || PLAN_CONFIG.starter;
   // unlockPaidJob تا وقتی کار در حافظه است تکرارپذیر است، پس تکرارِ بعد از شکستِ تراکنش همان «یک نوبت کمتر» را می‌دهد.
   const unlockedResult = payment.job_id
-    ? unlockPaidJob(payment.job_id, { refId: verifyRes.refId, cardPan: verifyRes.cardPan })
+    ? unlockPaidJob(payment.job_id, { authority: payment.authority, refId: verifyRes.refId, cardPan: verifyRes.cardPan })
     : null;
   // تحلیلِ بازشده یکی از نوبت‌های همین پلن است و هرگز از اعتبار کم نشده؛ کارِ ازدست‌رفته (ری‌استارت) نوبتش را نگه می‌دارد.
   const { firstTime } = await settlePaymentRecord(

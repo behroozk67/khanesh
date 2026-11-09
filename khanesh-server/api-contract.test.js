@@ -728,6 +728,33 @@ test("T15d: Status ِ کلاینت پرداخت را رد نمی‌کند؛ فق
   assert.equal((await getPaymentByAuthority(authority)).status, "paid");
 });
 
+test("T15e: پرداخت فقط کارِ خودش را باز می‌کند؛ jobId ِ بدنهٔ /payment/request نادیده گرفته می‌شود", async () => {
+  const { createJob, setJobAwaitingPayment, getJob } = await import("./jobStore.js");
+  const { createPaymentRecord, getPaymentByAuthority } = await import("./database.js");
+  const victim = createJob({ pagesTotal: 1, userId: null });
+  setJobAwaitingPayment(victim, { planId: "starter", amount: 1000, authority: `A_TEST_T15e_own_${victim}`, paymentUrl: "/x", testsCount: 1, testNames: ["HGB"], pendingResult: { secret: "نتیجهٔ بیمارِ دیگر" } });
+
+  const req = await realFetch(`${baseUrl}/api/payment/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ planId: "starter", jobId: victim }),
+  });
+  assert.equal(req.status, 200);
+  assert.equal((await getPaymentByAuthority((await req.json()).authority)).job_id, null, "jobId از بدنه نباید به پرداخت وصل شود");
+
+  // ردیفی که به هر دلیل به کارِ دیگری اشاره کند هم آن را باز نمی‌کند
+  const other = `A_TEST_T15e_other_${victim}`;
+  await createPaymentRecord({ authority: other, jobId: victim, userId: null, planId: "starter", amount: 1000 });
+  const res = await realFetch(`${baseUrl}/api/payment/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ authority: other }),
+  });
+  assert.equal(res.status, 200);
+  assert.ok(!JSON.stringify(await res.json()).includes("نتیجهٔ بیمارِ دیگر"));
+  assert.equal(getJob(victim).status, "awaiting_payment", "کارِ دیگری نباید باز شود");
+});
+
 test("T16: مسیرِ گراف با USE_GRAPH خاموش در دسترس نیست", async () => {
   // ⚠️ تورهای ایمنیِ مرحلهٔ ۸ روی این مسیر اجرا نمی‌شوند (N13). گیت تا امروز
   //    فقط داخلِ analyzeHandler بود، نه روی این روت.
