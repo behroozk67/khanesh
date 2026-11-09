@@ -5,6 +5,8 @@ import { storeResult } from "./analyzeJob.js";
 import { setActivePlanId, PLANS_CONFIG } from "./userPlan.js";
 import { LabMateLogo } from "./LabMateLogo.jsx";
 
+const REDIRECT_MS = 8000;
+
 export default function PaymentVerifyPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -64,8 +66,6 @@ export default function PaymentVerifyPage() {
           if (data.result) {
             storeResult(data.result);
           }
-          // خرید پلن بدون تحلیلِ در انتظار: مستقیم به /app؛ آنجا پروفایلِ کامل ⇒ انتخابِ روش، ناقص ⇒ فرمِ اطلاعات.
-          if (!data.result) { navigate("/app", { replace: true }); return; }
           setState({
             loading: false,
             success: true,
@@ -95,7 +95,15 @@ export default function PaymentVerifyPage() {
     return () => {
       isMounted = false;
     };
-  }, [authority, status, navigate]);
+  }, [authority, status]);
+
+  // خرید پلن بدون تحلیلِ در انتظار: شمارهٔ پیگیری چند ثانیه دیده می‌شود، بعد /app
+  // (پروفایلِ کامل ⇒ انتخابِ روش، ناقص ⇒ فرمِ اطلاعات). نتیجهٔ بازشده خودکار نمی‌رود تا بیمار خودش بازش کند.
+  useEffect(() => {
+    if (!state.success || state.result) return undefined;
+    const t = setTimeout(() => navigate("/app", { replace: true }), REDIRECT_MS);
+    return () => clearTimeout(t);
+  }, [state.success, state.result, navigate]);
 
   const planInfo = state.planId ? PLANS_CONFIG[state.planId] : null;
 
@@ -123,7 +131,9 @@ export default function PaymentVerifyPage() {
             </div>
             <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#065f46", margin: "0 0 8px 0" }}>پرداخت شما با موفقیت انجام شد</h2>
             <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 20px 0" }}>
-              تفسیر بالینی آزمایش شما آماده شد و دسترسی‌های پلن فعال گردید.
+              {state.result
+                ? "تفسیر بالینی آزمایش شما آماده شد و دسترسی‌های پلن فعال گردید."
+                : "پلن شما فعال شد. شمارهٔ پیگیری را نگه دارید؛ چند لحظهٔ دیگر به ادامهٔ کار می‌روید."}
             </p>
 
             <div style={{ background: "#f8fafc", borderRadius: "12px", padding: "16px", margin: "0 0 24px 0", fontSize: "13.5px", lineHeight: "1.9", textAlign: "right", border: "1px solid #e2e8f0" }}>
@@ -147,9 +157,9 @@ export default function PaymentVerifyPage() {
               type="button"
               className="btn btn--primary btn--pill"
               style={{ width: "100%", padding: "12px", fontSize: "15px", fontWeight: 800 }}
-              onClick={() => navigate("/app")}
+              onClick={() => navigate(state.result ? "/app/photo" : "/app", { replace: true })}
             >
-              مشاهده آنی تفسیر و کارنامه آزمایش
+              {state.result ? "مشاهده آنی تفسیر و کارنامه آزمایش" : "ادامه"}
             </button>
           </div>
         )}
@@ -174,7 +184,7 @@ export default function PaymentVerifyPage() {
                 بازگشت به برگه آزمایش
               </button>
               <Link
-                to="/app/intake/name"
+                to="/app/intake/name?upgrade=1"
                 className="btn btn--outline btn--pill"
                 style={{ flex: 1, padding: "10px", fontSize: "14px", textDecoration: "none" }}
               >

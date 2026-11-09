@@ -1,6 +1,7 @@
 // دسترسی به قابلیت‌ها بر اساس پلنِ ثبت‌شده در سرور (users.active_plan).
 // پلن را فقط verify موفقِ پرداخت عوض می‌کند؛ کلاینت فقط آن را نمایش می‌دهد.
 import { getUserPlan } from './database.js';
+import { paymentExempt } from './paymentExempt.js';
 
 // هم‌خوان با khanesh/src/userPlan.js — قابلیت‌هایی که سرور خودش قفل می‌کند.
 // shortcut: PDF چاپِ مرورگر است و سمتِ کلاینت می‌ماند؛ فقط تاریخچه و نمای تخصصی (داده) سمتِ سرور قفل است.
@@ -10,9 +11,9 @@ const FEATURE_PLANS = { history: PAID, expert: PAID };
 // تا فعال‌شدنِ درگاه: REQUIRE_PAYMENT=false ⇒ همه چیز رایگان و باز (همان سوییچی که تحلیل را هم رایگان می‌کند).
 const paymentsOff = () => process.env.REQUIRE_PAYMENT === 'false';
 
-/** پلنِ مؤثرِ کاربر. ناشناس (AUTH خاموش، dev/test) محدود نمی‌شود. */
+/** پلنِ مؤثرِ کاربر. ناشناس (AUTH خاموش، dev/test) و شمارهٔ معاف (PAYMENT_EXEMPT_PHONES) محدود نمی‌شوند. */
 export async function planOf(user) {
-  if (paymentsOff() || !user || user.anonymous || !user.userId) return 'unicorn';
+  if (paymentsOff() || !user || user.anonymous || !user.userId || paymentExempt(user)) return 'unicorn';
   const row = await getUserPlan(user.userId);
   return row?.active_plan || 'starter';
 }

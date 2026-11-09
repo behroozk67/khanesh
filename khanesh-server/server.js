@@ -80,7 +80,7 @@ import { GroupedText } from "./rules/groups.js";
 import { collectProtected, engineStrings, inventedDosage } from "./rules/protected.js";
 import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
 import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "./jobStore.js";
-import authRouter, { requireAuth, authBootReport, AUTH_REQUIRED, otpSenderStatus } from "./auth.js";
+import authRouter, { requireAuth, optionalUser, authBootReport, AUTH_REQUIRED, otpSenderStatus } from "./auth.js";
 import profileRouter from "./profile.js";
 import historyRouter, { recordAnalysis, ownerOf } from "./historyRoutes.js";
 import {
@@ -2331,10 +2331,15 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
       return res.status(404).json({ error: "اطلاعات تراکنش در سامانه یافت نشد." });
     }
 
+    // برگشت از درگاه بی‌نشست هم باید اعتبار را ثبت کند؛ ولی Authority در آدرس است و هویت نیست:
+    // نتیجهٔ بیمار و شمارهٔ کارت فقط به مالکِ همین پرداخت می‌رسد (N24).
+    const viewer = await optionalUser(req);
+    const isOwner = payment.user_id ? viewer?.userId === payment.user_id : viewer?.anonymous === true;
+
     if (payment.status === "paid") {
       let result = null;
-      if (payment.job_id) {
-        const row = await getJobById(payment.job_id);
+      if (isOwner && payment.job_id) {
+        const row = await getJobById(payment.job_id, payment.user_id);
         if (row?.result_json) {
           try { result = JSON.parse(row.result_json); } catch {}
         }
@@ -2344,8 +2349,8 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
         alreadyVerified: true,
         refId: payment.ref_id,
         planId: payment.plan_id,
-        jobId: payment.job_id,
-        result,
+        jobId: isOwner ? payment.job_id : null,
+        result: await withPlanLocks(viewer, result),
       });
     }
 
@@ -2371,11 +2376,6 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
 
     const plan = PLAN_CONFIG[payment.plan_id] || PLAN_CONFIG.starter;
 
-    // افزایش اعتبار در صورت ورود کاربر
-    if (payment.user_id && paid.firstTime) {
-      await addUserCredits(payment.user_id, plan.credits, plan.id);
-    }
-
     // اگر کار تحلیلی در انتظار پرداخت بود، نتیجه باز و تحویل می‌شود
     let unlockedResult = null;
     if (payment.job_id) {
@@ -2395,13 +2395,18 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
       }
     }
 
+    // تحلیلِ بازشده یکی از نوبت‌های همین پلن است و هرگز از اعتبار کم نشده؛ کارِ ازدست‌رفته (ری‌استارت) نوبتش را نگه می‌دارد.
+    if (payment.user_id && paid.firstTime) {
+      await addUserCredits(payment.user_id, Math.max(plan.credits - (unlockedResult ? 1 : 0), 0), plan.id);
+    }
+
     res.json({
       ok: true,
       refId: verifyRes.refId,
-      cardPan: verifyRes.cardPan,
+      cardPan: isOwner ? verifyRes.cardPan : null,
       planId: payment.plan_id,
-      jobId: payment.job_id,
-      result: await withPlanLocks(payment.user_id ? { userId: payment.user_id } : null, unlockedResult),
+      jobId: isOwner ? payment.job_id : null,
+      result: isOwner ? await withPlanLocks(viewer, unlockedResult) : null,
     });
   } catch (err) {
     console.error("Payment verify error:", err);

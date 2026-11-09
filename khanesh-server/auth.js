@@ -308,6 +308,20 @@ export function requireAuth(req, res, next) {
     });
 }
 
+/** کاربرِ درخواست بدونِ ردِ آن: برای مسیری که بی‌نشست هم کار می‌کند (برگشت از درگاه) ولی داده‌اش مالک دارد. */
+export async function optionalUser(req) {
+  if (!AUTH_REQUIRED) return ANON_USER;
+  const h = req.headers.authorization;
+  if (!h || !h.startsWith('Bearer ')) return null;
+  try {
+    const payload = jwt.verify(h.slice('Bearer '.length).trim(), JWT_SECRET);
+    const u = await getUserById(payload.userId);
+    return u ? { ...payload, phone: u.phone ?? null, email: u.email ?? null } : null;
+  } catch {
+    return null;
+  }
+}
+
 // 4. دریافت اطلاعات پروفایل و تاریخچه آزمایش‌ها
 router.get('/me', requireAuth, async (req, res) => {
   // ⚠️ در حالتِ خاموش همهٔ درخواست‌ها userId = ۱ می‌گیرند، پس این مسیر

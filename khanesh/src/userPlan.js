@@ -141,7 +141,7 @@ export function useActivePlan() {
     planId,
     plan,
     // انتخاب پلن = رفتن به صفحهٔ تعرفه و پرداخت؛ تغییر پلن بدون پرداخت وجود ندارد.
-    setPlan: () => window.location.assign("/app/intake/name"),
+    setPlan: (id) => window.location.assign(`/app/intake/name?upgrade=1${id ? `&plan=${id}` : ""}`),
     can: (featureKey) => !!plan.features[featureKey],
   };
 }

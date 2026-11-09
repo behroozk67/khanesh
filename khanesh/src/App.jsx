@@ -97,7 +97,7 @@ export default function App() {
           <Route path="/app" element={<AuthGuard><PrivateHead title="تفسیر آزمایش" /><AppEntry /></AuthGuard>} />
           <Route path="/app/intake/:step" element={<AuthGuard><PrivateHead title="مشخصات آزمایش" /><Intake /></AuthGuard>} />
           <Route path="/app/start" element={<AuthGuard><PrivateHead title="انتخاب روش ورود اطلاعات" /><PlanRequired><StartChoice /></PlanRequired></AuthGuard>} />
-          <Route path="/app/:mode" element={<AuthGuard><PrivateHead title="تفسیر برگه آزمایش" /><PlanRequired><Tafsir /></PlanRequired></AuthGuard>} />
+          <Route path="/app/:mode" element={<AuthGuard><PrivateHead title="تفسیر برگه آزمایش" /><PlanRequired resume><Tafsir /></PlanRequired></AuthGuard>} />
           {/* پیش‌نمایشِ صفحهٔ ورود بدونِ روشن‌کردنِ AUTH_REQUIRED؛ ورودِ موفق به /app می‌رود. */}
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/tafsir" element={<Navigate to="/app" replace />} />

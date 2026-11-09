@@ -52,10 +52,10 @@ export default function Intake() {
     }
     navigate(editing ? "/profile" : "/app/start");
   };
-  return <IntakeCard profile={profile} editing={editing} onSave={onSave} onBack={editing ? () => navigate("/profile") : null} />;
+  return <IntakeCard profile={profile} editing={editing} upgrade={search.get("upgrade") === "1"} initialPlan={search.get("plan") || ""} onSave={onSave} onBack={editing ? () => navigate("/profile") : null} />;
 }
 
-function IntakeCard({ profile, editing, onSave, onBack }) {
+function IntakeCard({ profile, editing, upgrade, initialPlan, onSave, onBack }) {
   const [first, setFirst] = useState(profile.firstName || "");
   const [last, setLast] = useState(profile.lastName || "");
   const [sex, setSex] = useState(profile.sex || "");
@@ -67,7 +67,11 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [planInfo, setPlanInfo] = useState(null); // از سرور: { needsPlan, paymentApplies, plans[] }
-  const [planId, setPlanId] = useState("");
+  const [planId, setPlanId] = useState(upgrade ? initialPlan : "");
+  // بی‌پلن: همهٔ پلن‌ها. ارتقا (?upgrade=1): فقط بالاتر از پلن فعال. در غیر این صورت فقط نام پلن فعال.
+  const currentPrice = planInfo?.plans?.find((p) => p.id === planInfo.planId)?.price ?? 0;
+  const pickable = !planInfo ? [] : planInfo.needsPlan ? planInfo.plans : upgrade ? planInfo.plans.filter((p) => p.price > currentPrice) : [];
+  const pickedPlan = pickable.some((p) => p.id === planId) ? planId : "";
   useEffect(() => {
     let token = null;
     try { token = localStorage.getItem("auth_token"); } catch { /* حالت خصوصی */ }
@@ -105,13 +109,13 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
       return setErr(`هفتهٔ بارداری را عددی بین ${toFaDigits(GEST_RANGE[0])} و ${toFaDigits(GEST_RANGE[1])} وارد کنید، یا خالی بگذارید.`);
     }
     if (sel.size === 0) return setErr("بیماریِ زمینه‌ای را انتخاب کنید، یا «هیچ‌کدام».");
-    if (planInfo?.needsPlan && !planId) return setErr("یکی از پلن‌ها را انتخاب کنید.");
+    if (planInfo?.needsPlan && !pickedPlan) return setErr("یکی از پلن‌ها را انتخاب کنید.");
     setBusy(true); setErr("");
     try {
       await onSave({
         firstName: first.trim().slice(0, 50), lastName: last.trim().slice(0, 50), sex,
         ageValue: n, ageUnit: unit, pregnant: canPregnant && pregnant, gestWeeks: canPregnant && pregnant ? g : null, gestRecordedAt: canPregnant && pregnant && g != null ? Date.now() : null, conditions: [...sel],
-      }, planInfo?.needsPlan ? planId : null);
+      }, pickedPlan || null);
     } catch (e2) {
       setErr(e2.message || "ذخیره انجام نشد. دوباره تلاش کنید.");
       setBusy(false);
@@ -204,11 +208,11 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
           <p className="onb-note">بعضی از این‌ها تفسیر را دقیق‌تر می‌کنند؛ نتیجه می‌گوید کدام‌ها لحاظ شد.</p>
         </div>
 
-        {planInfo?.needsPlan && (
+        {pickable.length > 0 && (
           <div className="pk" role="radiogroup" aria-label="انتخاب پلن">
-            <p className="pk-title">پلن خود را انتخاب کنید</p>
-            {planInfo.plans.map((p) => (
-              <button key={p.id} type="button" role="radio" aria-checked={planId === p.id} className="pk-opt" onClick={() => setPlanId(p.id)}>
+            <p className="pk-title">{planInfo.needsPlan ? "پلن خود را انتخاب کنید" : "ارتقای پلن (اختیاری)"}</p>
+            {pickable.map((p) => (
+              <button key={p.id} type="button" role="radio" aria-checked={pickedPlan === p.id} className="pk-opt" onClick={() => setPlanId(p.id)}>
                 <span className="pk-dot" aria-hidden="true" />
                 <span className="pk-main">
                   <span className="pk-name">{p.name}</span>
@@ -221,13 +225,13 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
         )}
         {planInfo && !planInfo.needsPlan && (
           <p className="pk-active">
-            <span aria-hidden="true">✓</span> پلن فعال: <b>{planInfo.plans.find((p) => p.id === planInfo.planId)?.name || "—"}</b>
+            <span aria-hidden="true">✓</span> پلن فعال: <b>{planInfo.plans.find((p) => p.id === planInfo.planId)?.name.replace(/^پلنs+/, "") || "—"}</b>
             {planInfo.credits > 0 && <> · {toFaDigits(planInfo.credits)} تفسیر باقی‌مانده</>}
           </p>
         )}
 
         {err && <p className="onb-err" role="alert">{err}</p>}
-        <button type="submit" className="onb-primary" disabled={busy}>{editing ? "ذخیره" : planInfo?.needsPlan ? "ادامه و پرداخت" : "ادامه"}</button>
+        <button type="submit" className="onb-primary" disabled={busy}>{editing ? "ذخیره" : pickedPlan ? "ادامه و پرداخت" : "ادامه"}</button>
       </form>
     </OnbShell>
   );

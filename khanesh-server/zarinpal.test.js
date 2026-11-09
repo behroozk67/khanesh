@@ -62,6 +62,10 @@ test('Zarinpal: ZARINPAL_ERRORS contains known codes', () => {
   assert.ok(ZARINPAL_ERRORS['-10']);
   assert.ok(ZARINPAL_ERRORS['-11']);
   assert.ok(ZARINPAL_ERRORS['-15']);
+  // طبق لیست خطاهای رسمی: مغایرتِ دامنه -14 است و -15 تعلیقِ درگاه؛ جدولِ قبلی این را غلط داشت.
+  assert.match(ZARINPAL_ERRORS['-14'], /دامنه/);
+  assert.match(ZARINPAL_ERRORS['-15'], /تعلیق/);
+  assert.match(ZARINPAL_ERRORS['-54'], /نامعتبر/);
 });
 
 test('Zarinpal: در production شبیه‌ساز و A_TEST_ پذیرفته نمی‌شود', async () => {
