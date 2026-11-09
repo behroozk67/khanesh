@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { setActivePlanId } from "./userPlan.js";
+import { payHeaders } from "./userPlan.js";
 import "./LandingPricing.css";
 
 function toFaDigits(str) {
@@ -18,12 +18,12 @@ export default function LandingPricing() {
     try {
       const res = await fetch("/api/payment/request", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: payHeaders(),
         body: JSON.stringify({ planId: modal.plan.id, cycle }),
       });
       const data = await res.json().catch(() => null);
+      if (res.status === 401) { window.location.assign("/app"); return; } // نشستِ ورود لازم است
       if (data?.paymentUrl) {
-        setActivePlanId(modal.plan.id);
         window.location.href = data.paymentUrl;
         return;
       }
@@ -31,8 +31,8 @@ export default function LandingPricing() {
       console.error("Payment request failed:", err);
     }
     setPayLoading(false);
-    setActivePlanId(modal.plan.id);
-    window.location.href = "/app";
+    // پلن فقط بعد از تأیید پرداختِ سرور فعال می‌شود؛ خطای درگاه نباید پلن را باز کند.
+    window.alert("اتصال به درگاه پرداخت برقرار نشد. چند دقیقهٔ دیگر دوباره تلاش کنید.");
   }
 
   const plans = [
@@ -222,10 +222,17 @@ export default function LandingPricing() {
           </div>
         </div>
 
-        <div className="lp-enamad-badge">
+        <a
+          href="https://trustseal.enamad.ir/?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="lp-enamad-badge"
+          style={{ textDecoration: "none", color: "inherit" }}
+          title="مشاهده نماد اعتماد الکترونیکی در سامانه اینماد"
+        >
           <span style={{ color: "var(--brand)", fontWeight: 900 }}>✓</span>
           <span>دارای نماد اعتماد الکترونیکی (اینماد)</span>
-        </div>
+        </a>
       </div>
 
       {/* مودال پیش‌فاکتور شتاب */}

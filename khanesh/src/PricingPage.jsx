@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { setActivePlanId, useActivePlan } from "./userPlan.js";
+import { Link } from "react-router-dom";
+import { useActivePlan, payHeaders } from "./userPlan.js";
 import "./pricing.css";
 
 // تبدیل ارقام انگلیسی به فارسی برای سازگاری کامل متن و اعداد در وب فارسی
@@ -10,7 +10,6 @@ function toFaDigits(str) {
 }
 
 export default function PricingPage() {
-  const navigate = useNavigate();
   useActivePlan();
   // حالت دوره پرداخت: 'single' (نوبتی / ماهانه) یا 'bundle' (پکیج دوره‌ای / سالانه با تخفیف ویژه)
   const [cycle, setCycle] = useState("bundle");
@@ -30,12 +29,12 @@ export default function PricingPage() {
     try {
       const res = await fetch("/api/payment/request", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: payHeaders(),
         body: JSON.stringify({ planId: checkoutModal.plan.id, cycle }),
       });
       const data = await res.json().catch(() => null);
+      if (res.status === 401) { window.location.assign("/app"); return; } // نشستِ ورود لازم است
       if (data?.paymentUrl) {
-        setActivePlanId(checkoutModal.plan.id);
         window.location.href = data.paymentUrl;
         return;
       }
@@ -43,8 +42,8 @@ export default function PricingPage() {
       console.error("Payment request failed:", err);
     }
     setPayLoading(false);
-    setActivePlanId(checkoutModal.plan.id);
-    navigate("/app");
+    // پلن فقط بعد از تأیید پرداختِ سرور فعال می‌شود؛ خطای درگاه نباید پلن را باز کند.
+    window.alert("اتصال به درگاه پرداخت برقرار نشد. چند دقیقهٔ دیگر دوباره تلاش کنید.");
   }
 
   // تعریف اطلاعات ۳ پلن بر اساس ساختار اسکرین‌شات
@@ -444,10 +443,17 @@ export default function PricingPage() {
               </div>
             </div>
 
-            <div className="trust-enamad-badge">
+            <a
+              href="https://trustseal.enamad.ir/?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="trust-enamad-badge"
+              style={{ textDecoration: "none", color: "inherit" }}
+              title="مشاهده نماد اعتماد الکترونیکی در سامانه اینماد"
+            >
               <span style={{ color: "#10b981", fontWeight: 800 }}>✓</span>
               <span>دارای نماد اعتماد الکترونیکی (اینماد)</span>
-            </div>
+            </a>
           </footer>
 
         </section>

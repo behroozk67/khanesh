@@ -8,6 +8,7 @@ import SignIn from "./onboarding/SignIn.jsx";
 import { fetchHealth, channelsOf } from "./health.js";
 import Intake from "./onboarding/Intake.jsx";
 import StartChoice, { AppEntry } from "./onboarding/StartChoice.jsx";
+import PlanRequired from "./PlanRequired.jsx";
 import { useSeoHead } from "./useSeoHead.js";
 
 function PrivateHead({ title = "تفسیر آزمایش" }) {
@@ -96,8 +97,8 @@ export default function App() {
               ⚠️ «/app/:mode» یک مسیر است (نه دو) تا Tafsir بینِ عکس و دستی سوار بماند و داده‌ها پاک نشوند (FR-014). */}
           <Route path="/app" element={<AuthGuard><PrivateHead title="تفسیر آزمایش" /><AppEntry /></AuthGuard>} />
           <Route path="/app/intake/:step" element={<AuthGuard><PrivateHead title="مشخصات آزمایش" /><Intake /></AuthGuard>} />
-          <Route path="/app/start" element={<AuthGuard><PrivateHead title="انتخاب روش ورود اطلاعات" /><StartChoice /></AuthGuard>} />
-          <Route path="/app/:mode" element={<AuthGuard><PrivateHead title="تفسیر برگه آزمایش" /><Tafsir /></AuthGuard>} />
+          <Route path="/app/start" element={<AuthGuard><PrivateHead title="انتخاب روش ورود اطلاعات" /><PlanRequired><StartChoice /></PlanRequired></AuthGuard>} />
+          <Route path="/app/:mode" element={<AuthGuard><PrivateHead title="تفسیر برگه آزمایش" /><PlanRequired><Tafsir /></PlanRequired></AuthGuard>} />
           {/* پیش‌نمایشِ صفحهٔ ورود بدونِ روشن‌کردنِ AUTH_REQUIRED؛ ورودِ موفق به /app می‌رود. */}
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/tafsir" element={<Navigate to="/app" replace />} />

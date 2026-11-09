@@ -112,6 +112,16 @@ export function hasPlanFeature(featureKey, planId = null) {
 export function useActivePlan() {
   const [planId, setPlanId] = useState(getActivePlanId);
 
+  // منبع حقیقت پلن سرور است؛ localStorage فقط کشِ نمایش است.
+  useEffect(() => {
+    const token = localStorage.getItem("auth_token");
+    if (!token) return;
+    fetch("/api/plan", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.planId && PLANS_CONFIG[d.planId]) setActivePlanId(d.planId); })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     const handler = (e) => {
       if (e?.detail?.planId) setPlanId(e.detail.planId);
@@ -130,7 +140,15 @@ export function useActivePlan() {
   return {
     planId,
     plan,
-    setPlan: (newId) => setActivePlanId(newId),
+    // انتخاب پلن = رفتن به صفحهٔ تعرفه و پرداخت؛ تغییر پلن بدون پرداخت وجود ندارد.
+    setPlan: () => window.location.assign("/pricing"),
     can: (featureKey) => !!plan.features[featureKey],
   };
+}
+
+/** سرآیند درخواستِ پرداخت: بدون توکنِ ورود، /api/payment/request ۴۰۱ می‌دهد. */
+export function payHeaders() {
+  let token = null;
+  try { token = localStorage.getItem("auth_token"); } catch { /* حالت خصوصی */ }
+  return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }

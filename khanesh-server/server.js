@@ -2263,7 +2263,12 @@ app.get("/api/analyze/job/:id", requireAllowedOrigin, requireAuth, async (req, r
 app.get("/api/plan", requireAllowedOrigin, requireAuth, async (req, res) => {
   const planId = await planOf(req.user);
   const row = req.user?.userId && !req.user.anonymous ? await getUserPlan(req.user.userId) : null;
-  res.json({ planId, credits: row?.credits ?? 0, paymentsOff: process.env.REQUIRE_PAYMENT === "false" });
+  // needsPlan: پرداخت برای این کاربر برقرار است و اعتبار ندارد ⇒ کلاینت پیش از تفسیر به /pricing می‌برد.
+  const real = req.user?.userId && !req.user.anonymous;
+  const applies = real && !paymentExempt(req.user)
+    && (process.env.REQUIRE_PAYMENT !== "false" || paymentExempt(req.user, process.env.PAYMENT_TEST_PHONES));
+  const credits = row?.credits ?? 0;
+  res.json({ planId, credits, paymentsOff: process.env.REQUIRE_PAYMENT === "false", needsPlan: !!applies && credits <= 0 });
 });
 
 // ============================================================
