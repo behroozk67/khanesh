@@ -203,3 +203,11 @@ for (const [name, env, label] of [
     assert.doesNotMatch(stderr, /test-key-never-used|test-secret-for-route-check/);
   });
 }
+
+test("کد ورودِ ایمیلی بی‌فرستندهٔ واقعی در production چاپ نمی‌شود و ۵۰۳ می‌گیرد", async () => {
+  await withServer("production", {}, async (base) => {
+    const res = await post(base, "/api/auth/request-email-otp", null, JSON.stringify({ email: "a@example.com" }));
+    assert.equal(res.status, 503);
+    assert.match((await res.json()).error, /ارسالِ کد انجام نشد/);
+  });
+});
