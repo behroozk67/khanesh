@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { toNumber, toFaDigits } from "./digits.js";
 import { REF, ALL, ageInMonths, statusOf, URINE_FIELDS } from "./labRefs.js";
 import { MAX_IMAGES, looksLikeImage, looksLikePdf, compressImage } from "./imageIntake.js";
@@ -23,6 +23,7 @@ function signOut() {
 import LocalPreview from "./LocalPreview.jsx";
 import UploadCard from "./UploadCard.jsx";
 import { PlanBadge } from "./PlanGate.jsx";
+import { apiJson } from "./deviceId.js";
 import {
   startJob, pollJob, storeJob, pendingJob,
   lastResult, clearResult,
@@ -78,6 +79,8 @@ export default function Tafsir() {
   const [imgProgress, setImgProgress] = useState(null);   // {i, n} حینِ رندرِ صفحه‌های PDF (specs/017)
   const [aiProgress, setAiProgress] = useState(null);   // پیشرفتِ واقعیِ صفحه‌به‌صفحه
   const [resumed, setResumed] = useState(null);         // نتیجهٔ ذخیره‌شدهٔ بازدید قبلی
+  const [urlParams] = useSearchParams();
+  const [lastAt, setLastAt] = useState(null);           // ?last=1: تاریخِ آخرین نتیجهٔ ذخیره‌شده در سرور
   const abortRef = useRef(null);      // برای لغو fetch در حال اجرا
   const mountedRef = useRef(true);    // جلوگیری از setState روی کامپوننت unmount‌شده
   const resultRef = useRef(null);     // برای بردنِ فوکوس به نتیجه
@@ -119,9 +122,17 @@ export default function Tafsir() {
         .finally(() => { if (mountedRef.current) { setAiLoading(false); setAiProgress(null); } });
       return;
     }
+    // «آخرین نتیجهٔ من»: از سرور، چون نسخهٔ این دستگاه ۳۰ دقیقه بیشتر نمی‌ماند و پلن پایه تاریخچه ندارد.
+    if (urlParams.get("last") === "1") {
+      apiJson("/api/analyze/latest")
+        .then((d) => { if (mountedRef.current) { setAiResult(d.result); setLastAt(d.created_at); setShow(true); } })
+        .catch((e) => { if (mountedRef.current) setAiError(e.message); });
+      return;
+    }
     // کارِ ناتمامی نیست، ولی نتیجهٔ اخیری هست — پیشنهادش بده، تحمیلش نکن
     const last = lastResult();
     if (last) setResumed(last);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ورود از فهرستِ «راهنمای آزمایش‌ها» (/tests): «/?test=hb» یعنی کاربر روی
@@ -256,7 +267,7 @@ export default function Tafsir() {
 
   // فراخوانی سرور برای تفسیر
   async function runAI(ignoreMismatch = false) {
-    setAiError(""); setMismatchError(false); setAiResult(null);
+    setAiError(""); setMismatchError(false); setAiResult(null); setLastAt(null);
     if (!profileReady) { setAiError(profileErr || "پروفایل هنوز بارگذاری نشده است."); return; }
     // specs/011: هر حالت فقط ورودیِ خودش را می‌فرستد — عکس یا PDF در حالتِ فایل، اعداد در حالتِ دستی.
     if (usePhotos && images.length === 0) {
@@ -514,7 +525,7 @@ export default function Tafsir() {
         {profileErr && <div className="warn warn--strong" role="alert">{profileErr} صفحه را دوباره باز کنید.</div>}
 
         <div className="mode-bar">
-          {profile && <span>تفسیر برای: <b>{profileSummary(profile)}</b> · <Link to="/profile">ویرایش</Link></span>}
+          {profile && <span>تفسیر برای: <b>{profile.firstName ? `${profile.firstName} — ` : ""}{profileSummary(profile)}</b> · <Link to="/profile">ویرایش</Link></span>}
           <div className="mode-bar-links" style={{ display: 'flex', gap: 'var(--s4)', alignItems: 'center' }}>
             <span>تغییر روش ورود:</span>
             {mode !== "photo" && <Link to="/app/photo">عکسِ برگه</Link>}
@@ -562,6 +573,7 @@ export default function Tafsir() {
         {mode === "photo" && <PhotoGuide />}
         {mode === "pdf" && <PdfGuide />}
 
+        {lastAt && <p className="onb-note">این آخرین نتیجهٔ ذخیره‌شدهٔ شماست، مربوط به {new Date(`${String(lastAt).replace(" ", "T")}Z`).toLocaleDateString("fa-IR")}.</p>}
         {/* specs/011: هر حالت فقط ورودیِ خودش را می‌فرستد، پس هشدارِ «مقادیرِ تایپ‌شده فرستاده نمی‌شوند»
             دیگر معنا ندارد (typedCount=0). داده‌های حالتِ دیگر پاک نمی‌شوند — با برگشتن سرِ جایشان‌اند. */}
         <UploadCard

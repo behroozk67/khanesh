@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { payHeaders } from "../userPlan.js";
-import { useNavigate, useParams, Navigate, useSearchParams } from "react-router-dom";
+import { apiHeaders } from "../deviceId.js";
+import { useNavigate, useParams, Navigate, useSearchParams, Link } from "react-router-dom";
 import OnbShell from "./OnbShell.jsx";
 import Icon from "./icons.jsx";
 import { normalizeDigits, toFaDigits } from "../digits.js";
 import { CONDITIONS, NONE_ID } from "../conditions.js";
 import {
-  loadProfile, saveProfile, AGE_RANGE, AGE_UNIT_FA, ageInYears, pregnancyEligible, ageIsStale, currentGestWeeks, GEST_RANGE,
+  loadProfile, saveProfile, createMember, emptyProfile, AGE_RANGE, AGE_UNIT_FA, ageInYears, pregnancyEligible, ageIsStale, currentGestWeeks, GEST_RANGE,
 } from "./profileStore.js";
 
 // ============================================================
@@ -24,22 +25,25 @@ const STEPS = ["name", "sex", "age", "conditions"];
 export default function Intake() {
   const { step } = useParams();
   const [search] = useSearchParams();
-  const editing = search.get("edit") === "1";
+  const isNew = search.get("member") === "new";   // عضوِ تازهٔ خانواده: فرمِ خالی، ذخیره با POST
+  const editing = search.get("edit") === "1" || isNew;
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loadErr, setLoadErr] = useState("");
 
   useEffect(() => {
     let alive = true;
+    if (isNew) { setProfile(emptyProfile()); return undefined; }
     loadProfile().then((p) => alive && setProfile(p)).catch((e) => alive && setLoadErr(e.message));
     return () => { alive = false; };
-  }, []);
+  }, [isNew]);
 
   if (!STEPS.includes(step)) return <Navigate to="/app" replace />;
   if (loadErr) return <OnbShell variant="intake" title="پروفایل باز نشد" lede={loadErr} />;
   if (!profile) return <div className="onb" dir="rtl" aria-busy="true" />;
 
   const onSave = async (patch, planId) => {
+    if (isNew) { await createMember(patch); navigate("/profile"); return; }
     await saveProfile(patch);
     if (planId) {
       // پلن انتخاب‌شده ⇒ درگاه؛ بعد از پرداخت صفحهٔ تأیید به /app برمی‌گردد.
@@ -52,10 +56,10 @@ export default function Intake() {
     }
     navigate(editing ? "/profile" : "/app/start");
   };
-  return <IntakeCard profile={profile} editing={editing} upgrade={search.get("upgrade") === "1"} initialPlan={search.get("plan") || ""} onSave={onSave} onBack={editing ? () => navigate("/profile") : null} />;
+  return <IntakeCard profile={profile} editing={editing} isNew={isNew} upgrade={search.get("upgrade") === "1"} initialPlan={search.get("plan") || ""} onSave={onSave} onBack={editing ? () => navigate("/profile") : null} />;
 }
 
-function IntakeCard({ profile, editing, upgrade, initialPlan, onSave, onBack }) {
+function IntakeCard({ profile, editing, isNew, upgrade, initialPlan, onSave, onBack }) {
   const [first, setFirst] = useState(profile.firstName || "");
   const [last, setLast] = useState(profile.lastName || "");
   const [sex, setSex] = useState(profile.sex || "");
@@ -76,7 +80,7 @@ function IntakeCard({ profile, editing, upgrade, initialPlan, onSave, onBack }) 
     let token = null;
     try { token = localStorage.getItem("auth_token"); } catch { /* حالت خصوصی */ }
     if (!token || editing) return;
-    fetch("/api/plan", { headers: { Authorization: `Bearer ${token}` } })
+    fetch("/api/plan", { headers: apiHeaders() })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (d?.paymentApplies) setPlanInfo(d); })
       .catch(() => {});
@@ -124,7 +128,7 @@ function IntakeCard({ profile, editing, upgrade, initialPlan, onSave, onBack }) 
 
   return (
     <OnbShell
-      variant="intake" onBack={onBack} title="چند نکته دربارهٔ شما"
+      variant="intake" onBack={onBack} title={isNew ? "عضوِ تازهٔ خانواده" : "چند نکته دربارهٔ شما"}
       lede={ageIsStale(profile)
         ? "سنی که قبلاً به روز یا ماه وارد کرده‌اید از یک هفته پیش است. سنِ امروز را وارد کنید؛ محدوده‌های نوزاد هفته‌به‌هفته عوض می‌شوند."
         : "برای تفسیرِ دقیق‌تر. نام فقط برای خطاب‌کردنِ شماست و هرگز همراهِ آزمایش برای تحلیل فرستاده نمی‌شود."}
@@ -222,6 +226,9 @@ function IntakeCard({ profile, editing, upgrade, initialPlan, onSave, onBack }) 
               </button>
             ))}
           </div>
+        )}
+        {planInfo?.needsPlan && planInfo.hasLatestResult && (
+          <Link to="/app/photo?last=1" className="onb-link">مشاهدهٔ آخرین نتیجهٔ شما</Link>
         )}
         {planInfo && !planInfo.needsPlan && (
           <p className="pk-active">

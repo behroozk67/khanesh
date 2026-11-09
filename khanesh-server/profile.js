@@ -9,7 +9,10 @@
 
 import express from 'express';
 import { requireAuth, AUTH_REQUIRED } from './auth.js';
-import { getProfile, upsertProfile } from './database.js';
+import {
+  getProfile, upsertProfile, listFamilyMembers, getFamilyMember, createFamilyMember, updateFamilyMember, deleteFamilyMember,
+} from './database.js';
+import { planAllows, requirePlanFeature } from './plans.js';
 import { CONDITIONS, NONE_ID } from './rules/conditions.js';
 
 const router = express.Router();
@@ -138,6 +141,91 @@ router.patch('/', localOnly, requireAuth, async (req, res) => {
   } catch (e) {
     console.error('DB Error in PATCH /api/profile:', e.message);
     return res.status(500).json({ error: 'ذخیرهٔ پروفایل انجام نشد. کمی بعد دوباره تلاش کنید.' });
+  }
+});
+
+// ── پروفایل‌های خانواده (P131) ─────────────────────────────
+// سقف: سه عضو کنارِ صاحبِ حساب. هر عضو نتیجه و تاریخچهٔ جدا دارد؛ مقایسهٔ عددِ یک نفر با نفرِ دیگر خطای بالینی است.
+export const MAX_FAMILY_MEMBERS = 3;
+const NOT_FOUND = { error: 'این پروفایل پیدا نشد. پروفایلِ دیگری را انتخاب کنید.', code: 'member_not_found' };
+const memberId = (raw) => (/^\d+$/.test(String(raw)) ? Number(raw) : null);
+
+/** هدرِ x-member-id را با حسابِ واردشده می‌سنجد؛ عضوِ نامعتبر رد می‌شود، نه اینکه نتیجه به‌نامِ صاحبِ حساب بنشیند. */
+export async function withMember(req, res, next) {
+  const raw = req.get?.('x-member-id');
+  if (!raw || !req.user?.userId || req.user.anonymous) return next();
+  try {
+    const id = memberId(raw);
+    if (id == null || !(await getFamilyMember(req.user.userId, id))) return res.status(404).json(NOT_FOUND);
+    req.memberId = id;
+    return next();
+  } catch (e) {
+    console.error('DB Error in withMember:', e.message);
+    return res.status(500).json({ error: 'خطای سرور. کمی بعد دوباره تلاش کنید.' });
+  }
+}
+
+router.get('/members', localOnly, requireAuth, async (req, res) => {
+  try {
+    return res.json({
+      members: await listFamilyMembers(req.user.userId),
+      max: MAX_FAMILY_MEMBERS,
+      allowed: await planAllows(req.user, 'family'),
+    });
+  } catch (e) {
+    console.error('DB Error in GET /api/profile/members:', e.message);
+    return res.status(500).json({ error: 'خواندنِ پروفایل‌ها انجام نشد. کمی بعد دوباره تلاش کنید.' });
+  }
+});
+
+router.post('/members', localOnly, requireAuth, requirePlanFeature('family'), async (req, res) => {
+  try {
+    const { patch, error } = validatePatch(req.body, {});
+    if (error) return res.status(400).json({ error });
+    if (intakeStep(patch) !== 'done') return res.status(400).json({ error: 'اطلاعات این عضو کامل نیست.' });
+    const member = await createFamilyMember(req.user.userId, patch, MAX_FAMILY_MEMBERS);
+    if (!member) return res.status(409).json({ error: `حداکثر ${faDigits(MAX_FAMILY_MEMBERS)} عضوِ خانواده می‌توانید تعریف کنید.`, code: 'member_limit' });
+    return res.status(201).json({ member });
+  } catch (e) {
+    console.error('DB Error in POST /api/profile/members:', e.message);
+    return res.status(500).json({ error: 'ساختِ پروفایل انجام نشد. کمی بعد دوباره تلاش کنید.' });
+  }
+});
+
+router.get('/members/:id', localOnly, requireAuth, async (req, res) => {
+  try {
+    const member = memberId(req.params.id) != null ? await getFamilyMember(req.user.userId, memberId(req.params.id)) : null;
+    if (!member) return res.status(404).json(NOT_FOUND);
+    return res.json({ profile: member, intakeStep: intakeStep(member) });
+  } catch (e) {
+    console.error('DB Error in GET /api/profile/members/:id:', e.message);
+    return res.status(500).json({ error: 'خواندنِ پروفایل انجام نشد. کمی بعد دوباره تلاش کنید.' });
+  }
+});
+
+router.patch('/members/:id', localOnly, requireAuth, async (req, res) => {
+  try {
+    const id = memberId(req.params.id);
+    const current = id != null ? await getFamilyMember(req.user.userId, id) : null;
+    if (!current) return res.status(404).json(NOT_FOUND);
+    const { patch, error } = validatePatch(req.body, current);
+    if (error) return res.status(400).json({ error });
+    const member = await updateFamilyMember(req.user.userId, id, patch);
+    return res.json({ member, profile: member, intakeStep: intakeStep(member) });
+  } catch (e) {
+    console.error('DB Error in PATCH /api/profile/members/:id:', e.message);
+    return res.status(500).json({ error: 'ذخیرهٔ پروفایل انجام نشد. کمی بعد دوباره تلاش کنید.' });
+  }
+});
+
+router.delete('/members/:id', localOnly, requireAuth, async (req, res) => {
+  try {
+    const id = memberId(req.params.id);
+    if (id == null || !(await deleteFamilyMember(req.user.userId, id))) return res.status(404).json(NOT_FOUND);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('DB Error in DELETE /api/profile/members/:id:', e.message);
+    return res.status(500).json({ error: 'حذفِ پروفایل انجام نشد. کمی بعد دوباره تلاش کنید.' });
   }
 });
 

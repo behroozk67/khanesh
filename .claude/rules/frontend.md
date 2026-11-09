@@ -149,6 +149,10 @@ when it is off — the server returns 409 `local_only` then, because every reque
 active. Manual urine rows go as strings with `kind: "urine"` (`URINE_FIELDS` in `labRefs.js`). Health checks use
 `/api/health` — `/health` is not proxied (N27).
 
+**Family profiles (P131).** `localStorage["azmayar_active_member"]` selects the patient; `loadProfile`/`saveProfile` follow it, and `apiHeaders`/`authHeaders` send `x-member-id`. Server: `withMember` rejects a foreign id with 404, history owner is `u:<id>:m:<memberId>`, `jobs.member_id` scopes "previous visit" and `/api/analyze/latest`. Switching goes through `setActiveMember`: it clears the stored result and refuses during a running job, so a result never appears under the next person's name.
+
+**Plan gate.** `PlanRequired` blocks a new analysis at zero credit, never reading a result: pending job, recent local result and `?last=1` (`GET /api/analyze/latest`) all pass. `/pricing` redirects to `/app`; plans are picked at the bottom of the intake form, and `?upgrade=1&plan=<id>` shows only higher plans.
+
 Keep `REF` (in `khanesh/src/labRefs.js` — client-side, manual-entry only) and
 `khanesh-server/rules/` (server-side, authoritative) in sync when a test's range or label changes
 — they are two separate copies by design, not a shared source of truth. Record any deliberate

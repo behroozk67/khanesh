@@ -38,9 +38,16 @@ export function deviceId() {
   }
 }
 
-/** هدرهای مشترکِ API: توکنِ ورود (اگر بود) + شناسهٔ دستگاه. */
+/** عضوِ خانوادهٔ فعال؛ null یعنی خودِ صاحبِ حساب. */
+export function activeMemberId() {
+  try { return localStorage.getItem('azmayar_active_member') || null; } catch { return null; }
+}
+
+/** هدرهای مشترکِ API: توکنِ ورود (اگر بود) + شناسهٔ دستگاه + عضوِ فعال. */
 export function apiHeaders(extra = {}) {
   const h = { 'x-device-id': deviceId(), ...extra };
+  const member = activeMemberId();
+  if (member) h['x-member-id'] = member;
   try {
     const t = localStorage.getItem('auth_token');
     if (t) h.Authorization = `Bearer ${t}`;

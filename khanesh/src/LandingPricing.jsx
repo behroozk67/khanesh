@@ -8,7 +8,6 @@ function toFaDigits(str) {
 }
 
 export default function LandingPricing() {
-  const [cycle, setCycle] = useState("bundle");
   const [modal, setModal] = useState(null);
   const [payLoading, setPayLoading] = useState(false);
 
@@ -19,7 +18,7 @@ export default function LandingPricing() {
       const res = await fetch("/api/payment/request", {
         method: "POST",
         headers: payHeaders(),
-        body: JSON.stringify({ planId: modal.plan.id, cycle }),
+        body: JSON.stringify({ planId: modal.plan.id }),
       });
       const data = await res.json().catch(() => null);
       if (res.status === 401) { window.location.assign("/app"); return; } // نشستِ ورود لازم است
@@ -39,9 +38,7 @@ export default function LandingPricing() {
     {
       id: "starter",
       name: "پایه (Starter)",
-      priceSingle: 39000,
-      priceBundle: 33000,
-      discountTag: "۱۵٪ تخفیف",
+      price: 33000,
       note: "ضمانت بازگشت اعتبار خوانایی برگه",
       isPopular: false,
       btnLabel: "انتخاب پلن پایه",
@@ -57,9 +54,7 @@ export default function LandingPricing() {
     {
       id: "empire",
       name: "پایش سلامت (Empire)",
-      priceSingle: 99000,
-      priceBundle: 89000, // بسته ۳ نوبته (هر نوبت ~۲۹ هزار تومان)
-      discountTag: "۲۵٪ تخفیف پکیج",
+      price: 89000, // بسته ۳ نوبته (هر نوبت ~۲۹ هزار تومان)
       note: "اعتبار بدون تاریخ انقضا (بسته ۳ نوبته)",
       isPopular: true,
       popularBanner: "محبوب‌ترین انتخاب (پیشنهادی)",
@@ -77,10 +72,8 @@ export default function LandingPricing() {
     {
       id: "unicorn",
       name: "خانواده جامع (Unicorn)",
-      priceSingle: 199000,
-      priceBundle: 159000, // بسته ۶ نوبته (هر نوبت ~۲۶ هزار تومان)
-      discountTag: "۳۵٪ تخفیف ویژه",
-      note: "پوشش نامحدود ۶ نوبت آزمایش برای خانواده",
+      price: 159000, // بسته ۶ نوبته (هر نوبت ~۲۶ هزار تومان)
+      note: "پوشش ۶ نوبت آزمایش برای خانواده",
       isPopular: false,
       btnLabel: "انتخاب پلن جامع",
       dividerLabel: "آنچه دریافت می‌کنید",
@@ -96,12 +89,7 @@ export default function LandingPricing() {
   ];
 
   function openCheckout(plan) {
-    const amount = cycle === "bundle" ? plan.priceBundle : plan.priceSingle;
-    setModal({
-      plan,
-      amount,
-      cycleText: cycle === "bundle" ? "بسته دوره‌ای (با تخفیف)" : "نوبت عادی",
-    });
+    setModal({ plan, amount: plan.price });
   }
 
   return (
@@ -115,36 +103,9 @@ export default function LandingPricing() {
         </p>
       </div>
 
-      {/* سوئیچ دوره پرداخت (تک‌نوبت / پکیج دوره‌ای) */}
-      <div className="lp-toggle-wrap">
-        <div className="lp-toggle-pill" role="radiogroup" aria-label="انتخاب نوع پلن">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={cycle === "single"}
-            className={`lp-toggle-btn ${cycle === "single" ? "is-active" : ""}`}
-            onClick={() => setCycle("single")}
-          >
-            <span>تک‌نوبت (عادی)</span>
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={cycle === "bundle"}
-            className={`lp-toggle-btn ${cycle === "bundle" ? "is-active" : ""}`}
-            onClick={() => setCycle("bundle")}
-          >
-            <span>پکیج دوره‌ای سلامت</span>
-            <span className="lp-toggle-badge">۱۵٪ تخفیف</span>
-          </button>
-        </div>
-      </div>
-
       {/* شبکه ۳ کارتی پلن‌ها */}
       <div className="lp-grid">
         {plans.map((p) => {
-          const currentPrice = cycle === "bundle" ? p.priceBundle : p.priceSingle;
-
           return (
             <div
               key={p.id}
@@ -159,11 +120,10 @@ export default function LandingPricing() {
               <div className="lp-card-inner">
                 <div className="lp-card-top">
                   <h3 className="lp-plan-name">{p.name}</h3>
-                  <span className="lp-discount-tag">{toFaDigits(p.discountTag)}</span>
                 </div>
 
                 <div className="lp-price-row">
-                  <span className="lp-price-val">{toFaDigits(currentPrice.toLocaleString("fa-IR"))}</span>
+                  <span className="lp-price-val">{toFaDigits(p.price.toLocaleString("fa-IR"))}</span>
                   <span className="lp-price-unit">تومان</span>
                 </div>
 

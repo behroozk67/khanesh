@@ -1,5 +1,7 @@
 import { toFaDigits } from "../digits.js";
 import { conditionFa } from "../conditions.js";
+import { activeMemberId, apiJson } from "../deviceId.js";
+import { clearResult, pendingJob } from "../analyzeJob.js";
 
 // ============================================================
 // پروفایلِ بیمار (specs/011): نام، جنس، سن، بارداری، بیماری‌های زمینه‌ای.
@@ -14,6 +16,7 @@ import { conditionFa } from "../conditions.js";
 // ============================================================
 
 const LS_KEY = "azmayar_profile_v1";
+const ACTIVE_MEMBER_KEY = "azmayar_active_member";
 const TOKEN_KEY = "auth_token";
 
 const EMPTY = Object.freeze({
@@ -55,17 +58,53 @@ function onUnauthorized() {
 }
 
 const normalize = (p) => ({ ...EMPTY, ...(p ?? {}), ageUnit: p?.ageUnit || "year" });
+export const emptyProfile = () => normalize(null);
+
+// ── پروفایل‌های خانواده (P131): همهٔ صفحه‌ها از loadProfile می‌خوانند، پس عوض‌کردنِ عضو همه‌جا اثر می‌کند. ──
+function dropActiveMember() {
+  try { localStorage.removeItem(ACTIVE_MEMBER_KEY); } catch { /* بی‌اهمیت */ }
+}
+const profileUrl = () => {
+  const id = activeMemberId();
+  return id ? `/api/profile/members/${encodeURIComponent(id)}` : "/api/profile";
+};
+
+/**
+ * عوض‌کردنِ بیمارِ فعال. نتیجهٔ ذخیره‌شدهٔ قبلی پاک می‌شود تا به‌نامِ نفرِ بعدی دیده نشود.
+ * ⚠️ حینِ تحلیلِ در جریان بسته است: نتیجهٔ آن کار باید زیرِ نامِ همان بیمار برگردد.
+ */
+export function setActiveMember(id) {
+  if (pendingJob()) throw new Error("یک تحلیل در جریان است. بعد از پایانش پروفایل را عوض کنید.");
+  clearResult();
+  cache = null;
+  if (id == null) dropActiveMember();
+  else try { localStorage.setItem(ACTIVE_MEMBER_KEY, String(id)); } catch { /* حالتِ خصوصی */ }
+}
+
+export const listMembers = () => apiJson("/api/profile/members");
+export async function createMember(patch) {
+  return (await apiJson("/api/profile/members", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(patch),
+  })).member;
+}
+export async function deleteMember(id) {
+  await apiJson(`/api/profile/members/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (String(activeMemberId()) === String(id)) { dropActiveMember(); clearResult(); cache = null; }
+}
 
 /** بعد از ورود، پروفایلی که سرور در پاسخِ verify داد بی‌درخواستِ دوم در حافظه می‌نشیند. */
 export function primeProfile(p) {
+  dropActiveMember();   // ورودِ تازه همیشه با خودِ صاحبِ حساب شروع می‌شود
   cache = normalize(p);
 }
 
 export async function loadProfile() {
   if (cache) return cache;
   if (await isServerMode()) {
-    const r = await fetch("/api/profile", { headers: { authorization: `Bearer ${token()}` } });
+    const r = await fetch(profileUrl(), { headers: { authorization: `Bearer ${token()}` } });
     if (r.status === 401) { onUnauthorized(); return normalize(null); }
+    // عضوی که از دستگاهِ دیگر حذف شده: برگشت به صاحبِ حساب، نه گیر کردن روی خطا.
+    if (r.status === 404 && activeMemberId()) { dropActiveMember(); clearResult(); return loadProfile(); }
     const d = await r.json().catch(() => null);
     if (!r.ok) throw new Error(d?.error || "خواندنِ پروفایل انجام نشد.");
     cache = normalize(d.profile);
@@ -78,7 +117,7 @@ export async function loadProfile() {
 /** ذخیرهٔ بخشی از پروفایل. خطای سرور جملهٔ فارسیِ خودِ سرور است. */
 export async function saveProfile(patch) {
   if (await isServerMode()) {
-    const r = await fetch("/api/profile", {
+    const r = await fetch(profileUrl(), {
       method: "PATCH",
       headers: { "content-type": "application/json", authorization: `Bearer ${token()}` },
       body: JSON.stringify(patch),
@@ -102,6 +141,7 @@ export async function saveProfile(patch) {
 
 export function clearProfile() {
   cache = null;
+  dropActiveMember();
   try { localStorage.removeItem(LS_KEY); } catch { /* بی‌اهمیت */ }
 }
 

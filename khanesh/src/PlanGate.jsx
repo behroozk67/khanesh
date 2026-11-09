@@ -8,7 +8,7 @@ import "./PlanGate.css";
  * نشانگر پلن فعال در هدر برنامه با قابلیت تعویض سریع
  */
 export function PlanBadge() {
-  const { plan, planId, setPlan } = useActivePlan();
+  const { plan, planId, setPlan, needsPlan } = useActivePlan();
   const [openModal, setOpenModal] = useState(false);
 
   return (
@@ -20,7 +20,7 @@ export function PlanBadge() {
         title="سطح دسترسی شما بر اساس پلن انتخابی"
       >
         <span aria-hidden="true">🔒</span>
-        <span>پلن فعال: {plan.name}</span>
+        <span>{needsPlan ? "پلن فعالی ندارید" : <>پلن فعال: {plan.name}</>}</span>
       </button>
 
       {openModal && (

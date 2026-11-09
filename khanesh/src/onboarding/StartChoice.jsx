@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation } from "react-router-dom";
 import OnbShell from "./OnbShell.jsx";
 import { loadProfile, intakeStep, profileSummary } from "./profileStore.js";
 import Icon from "./icons.jsx";
+import { MemberPicker } from "../FamilyProfiles.jsx";
 
 // ============================================================
 // /app — اولین گامِ ناتمام را پیدا می‌کند (FR-010). بیمارِ برگشتی مستقیم به انتخابِ روش می‌رود (SC-002).
@@ -44,6 +45,7 @@ export default function StartChoice() {
           <Link to="/profile">ویرایش</Link>
         </div>
       )}
+      <MemberPicker />
       <nav className="onb-modes" aria-label="روشِ ورودِ نتایج">
         <Link to="/app/photo" className="onb-mode">
           <span className="onb-mode-ic"><Icon name="camera" size={26} /></span>

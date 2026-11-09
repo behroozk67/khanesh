@@ -73,7 +73,8 @@ export async function requestPayment({ amount, description, callbackUrl, mobile,
   const { merchantId, isSandbox, baseUrl, gatewayUrl } = getZarinpalConfig();
 
   const normMobile = normalizeIranianMobile(mobile);
-  const metadata = {};
+  // auto_verify=false: تا verify نکنیم چیزی نهایی نمی‌شود و اگر انجام نشود پول برمی‌گردد؛ بدونِ این، خریدارِ تب‌بسته پول می‌دهد و چیزی نمی‌گیرد.
+  const metadata = { auto_verify: false };
   if (normMobile) metadata.mobile = normMobile;
   if (email && typeof email === "string" && email.includes("@")) metadata.email = email.trim();
 
@@ -95,7 +96,7 @@ export async function requestPayment({ amount, description, callbackUrl, mobile,
     currency: "IRT",
     description: (description || "تفسیر آزمایش خون در سامانه هوشمند آزمایار").slice(0, 490),
     callback_url: resolvedCallback,
-    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+    metadata,
   };
 
   try {
@@ -241,5 +242,31 @@ export async function verifyPayment({ authority, amount }) {
       transient: true, // خطای شبکه ≠ رد پرداخت؛ نباید پرداخت «ناموفق» ثبت شود
       error: "عدم دریافت پاسخ از سرور زرین‌پال جهت اعتبارسنجی پرداخت.",
     };
+  }
+}
+
+/**
+ * پرداخت‌های موفقی که هنوز verify نشده‌اند (حداکثر ۱۰۰ موردِ آخر، طبق مستندات).
+ * برای خریداری که پیش از برگشت به سایت تب را بسته است.
+ * @returns {Promise<{ok: true, authorities: string[]} | {ok: false, error: string}>}
+ */
+export async function listUnverified() {
+  const { merchantId, baseUrl } = getZarinpalConfig();
+  try {
+    const res = await fetch(`${baseUrl}/unVerified.json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "User-Agent": "AzmayarApp/1.0" },
+      body: JSON.stringify({ merchant_id: merchantId }),
+      signal: AbortSignal.timeout(18000),
+    });
+    const body = await res.json().catch(() => null);
+    if (body?.data?.code !== 100) {
+      return { ok: false, error: String(body?.errors?.code ?? body?.data?.code ?? res.status) };
+    }
+    const raw = body.data.authorities;
+    const list = Array.isArray(raw) ? raw : [];
+    return { ok: true, authorities: list.map((a) => a?.authority).filter(Boolean) };
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
 }

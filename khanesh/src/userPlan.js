@@ -111,6 +111,7 @@ export function hasPlanFeature(featureKey, planId = null) {
  */
 export function useActivePlan() {
   const [planId, setPlanId] = useState(getActivePlanId);
+  const [needsPlan, setNeedsPlan] = useState(false);
 
   // منبع حقیقت پلن سرور است؛ localStorage فقط کشِ نمایش است.
   useEffect(() => {
@@ -118,7 +119,10 @@ export function useActivePlan() {
     if (!token) return;
     fetch("/api/plan", { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.planId && PLANS_CONFIG[d.planId]) setActivePlanId(d.planId); })
+      .then((d) => {
+        if (d?.planId && PLANS_CONFIG[d.planId]) setActivePlanId(d.planId);
+        setNeedsPlan(d?.needsPlan === true);
+      })
       .catch(() => {});
   }, []);
 
@@ -140,6 +144,7 @@ export function useActivePlan() {
   return {
     planId,
     plan,
+    needsPlan,
     // انتخاب پلن = رفتن به صفحهٔ تعرفه و پرداخت؛ تغییر پلن بدون پرداخت وجود ندارد.
     setPlan: (id) => window.location.assign(`/app/intake/name?upgrade=1${id ? `&plan=${id}` : ""}`),
     can: (featureKey) => !!plan.features[featureKey],

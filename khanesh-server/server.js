@@ -81,7 +81,7 @@ import { collectProtected, engineStrings, inventedDosage } from "./rules/protect
 import { beginTrace, traceBootReport, isTraceEnabled } from "./trace.js";
 import { createJob, reportPage, finishJob, getJobFor, jobView, jobCount } from "./jobStore.js";
 import authRouter, { requireAuth, optionalUser, authBootReport, AUTH_REQUIRED, otpSenderStatus } from "./auth.js";
-import profileRouter from "./profile.js";
+import profileRouter, { withMember } from "./profile.js";
 import historyRouter, { recordAnalysis, ownerOf } from "./historyRoutes.js";
 import {
   initDb, createJobRecord, updateJobResult, getUserJobs, getJobById,
@@ -90,7 +90,7 @@ import {
   getUserCredits, addUserCredits, deductUserCredit, getUserPlan
 } from "./database.js";
 import { notifyNewContactMessage } from "./notifier.js";
-import { requestPayment, verifyPayment } from "./zarinpal.js";
+import { requestPayment, verifyPayment, listUnverified } from "./zarinpal.js";
 import { planOf, withPlanLocks } from "./plans.js";
 import { PLAN_CONFIG, planAmount } from "./planPrices.js";
 import { paymentExempt } from "./paymentExempt.js";
@@ -1594,6 +1594,7 @@ const analyzeHandler = async (req, res) => {
     if (!engineCandidate && (!LEGACY_ALLOWED || USE_GRAPH || recognizedAtFallback)) {
       console.warn("⚠️ موتور برگه را نشناخت و مسیرِ قدیم بسته است — نتیجهٔ «تفسیر نشد» بی‌فراخوانیِ مدل");
       const out = buildUninterpretedResult(unmappedAtFallback, { listShown: extractedTests.length > 0, recognized: recognizedAtFallback, readNegative: readNegativeAtFallback });
+      req._uninterpreted = true;   // «تفسیر نشد» پول و اعتبار نمی‌گیرد (P129؛ گارانتیِ صفحهٔ اصلی)
       if (recognizedAtFallback) ocrWarnings.push(recognizedAtFallback);
       if (extractedTests.length) out.extracted_tests = extractedTests;
       if (ocrWarnings.length) out.ocr_warnings = ocrWarnings;
@@ -2130,7 +2131,7 @@ if (process.env.NODE_ENV !== "production") {
 //    که هر ۲ ثانیه poll می‌کند خودش را بلاک می‌کند. چیزی که هزینهٔ AvalAI
 //    را می‌سازد شروعِ کار است، نه پرسیدنِ وضعیت.
 // ============================================================
-app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter, dailyUserLimiter, (req, res) => {
+app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, withMember, analyzeLimiter, dailyUserLimiter, (req, res) => {
   const imgs = Array.isArray(req.body?.imageDataUrls)
     ? req.body.imageDataUrls
     : (typeof req.body?.imageDataUrl === "string" ? [req.body.imageDataUrl] : []);
@@ -2141,7 +2142,7 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
   // ⚠️ specs/011 (بازبینیِ کد): کاربرِ ناشناس (AUTH خاموش) ذخیره نمی‌شود. همه userId=1اند، پس «حذفِ همه» نمی‌توانست
   //    این‌ها را پاک کند، و اگر روزی احراز هویت روشن شود اولین کاربرِ ثبت‌نامی (id 1) همهٔ نتایجِ ناشناس را به ارث می‌برد.
   if (req.user && req.user.userId && !req.user.anonymous) {
-    createJobRecord(jobId, req.user.userId, imgs.length).catch(err => console.error("DB createJobRecord error:", err));
+    createJobRecord(jobId, req.user.userId, imgs.length, req.memberId ?? null).catch(err => console.error("DB createJobRecord error:", err));
   }
 
   res.status(202).json({ job_id: jobId, pages_total: imgs.length });
@@ -2167,7 +2168,8 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
       const forcePayment = req.body?.requirePayment === true;
       const skipPayment = (isTestEnv && !forcePayment) || (process.env.REQUIRE_PAYMENT === "false"
           && !paymentExempt(req.user, process.env.PAYMENT_TEST_PHONES))   // PAYMENT_TEST_PHONES: فقط این شماره‌ها حتی با REQUIRE_PAYMENT=false پرداخت می‌کنند
-        || paymentExempt(req.user);   // PAYMENT_EXEMPT_PHONES (تست روی production)
+        || paymentExempt(req.user)    // PAYMENT_EXEMPT_PHONES (تست روی production)
+        || req._uninterpreted === true;
 
       // اگر کاربر وارد شده و اعتبار از پیش خریداری‌شده دارد
       const hasCredit = (!skipPayment && userId && !req.user.anonymous)
@@ -2184,7 +2186,7 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
       try {
         const planId = req.body?.planId || "starter";
         const plan = PLAN_CONFIG[planId] || PLAN_CONFIG.starter;
-        const payAmount = planAmount(plan, req.body?.cycle);
+        const payAmount = planAmount(plan);
         const origin = callbackOrigin(req);
         const callbackUrl = `${origin}/payment/verify`;
 
@@ -2213,6 +2215,10 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
             testsCount: tests.length || (Array.isArray(body.extracted_tests) ? body.extracted_tests.length : 1),
             testNames: tests.slice(0, 10).map((t) => t.name || t.key),
             pendingResult: body,
+            // P128: فوریت پشتِ پرداخت نمی‌ماند؛ فقط سطحِ هشدار می‌رود، نه متن و یافته‌ها.
+            hasCritical: body.has_critical === true,
+            urgency: body._engine?.urgency ?? null,
+            criticalBanner: body._engine?.critical_banner ?? null,
           });
           return shim;
         }
@@ -2231,7 +2237,7 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, analyzeLimiter
 
   // P108-ج: آخرین نتیجهٔ ذخیره‌شدهٔ همین کاربر ⇒ نوبتِ قبلیِ ALT/AST. ناشناس (AUTH خاموش) هرگز: همه userId=1اند.
   const priorP = req.user && req.user.userId && !req.user.anonymous
-    ? getLatestCompletedJob(req.user.userId, jobId).then(priorFromStoredResult).catch(() => null)
+    ? getLatestCompletedJob(req.user.userId, jobId, req.memberId ?? null).then(priorFromStoredResult).catch(() => null)
     : Promise.resolve(null);
   priorP.then((prior) => {
     if (prior) req.priorLabs = prior;
@@ -2259,8 +2265,20 @@ app.get("/api/analyze/job/:id", requireAllowedOrigin, requireAuth, async (req, r
   res.json(view);
 });
 
+/**
+ * آخرین نتیجهٔ تحویل‌شدهٔ همین بیمار از سرور: بی‌تاریخچه (پلن پایه) هم نتیجهٔ پرداخت‌شده بعد از ۳۰ دقیقه گم نمی‌شود.
+ * ناشناس هرگز: همه userId=1اند. قفل‌های پلن همان نمای تخصصی را نگه می‌دارند.
+ */
+app.get("/api/analyze/latest", requireAllowedOrigin, requireAuth, withMember, async (req, res) => {
+  const row = req.user?.userId && !req.user.anonymous
+    ? await getLatestCompletedJob(req.user.userId, "", req.memberId ?? null)
+    : null;
+  if (!row) return res.status(404).json({ error: "هنوز نتیجهٔ ذخیره‌شده‌ای ندارید." });
+  res.json({ result: await withPlanLocks(req.user, row.result), created_at: row.created_at });
+});
+
 /** پلن و اعتبارِ کاربر از سرور — منبع حقیقتِ رابط کاربری برای قفل‌ها. */
-app.get("/api/plan", requireAllowedOrigin, requireAuth, async (req, res) => {
+app.get("/api/plan", requireAllowedOrigin, requireAuth, withMember, async (req, res) => {
   const planId = await planOf(req.user);
   const row = req.user?.userId && !req.user.anonymous ? await getUserPlan(req.user.userId) : null;
   // needsPlan: پرداخت برای این کاربر برقرار است و اعتبار ندارد ⇒ کلاینت پیش از تفسیر به /pricing می‌برد.
@@ -2268,7 +2286,8 @@ app.get("/api/plan", requireAllowedOrigin, requireAuth, async (req, res) => {
   const applies = real && !paymentExempt(req.user)
     && (process.env.REQUIRE_PAYMENT !== "false" || paymentExempt(req.user, process.env.PAYMENT_TEST_PHONES));
   const credits = row?.credits ?? 0;
-  res.json({ planId, credits, paymentsOff: process.env.REQUIRE_PAYMENT === "false", needsPlan: !!applies && credits <= 0, paymentApplies: !!applies, plans: Object.values(PLAN_CONFIG).map(({ id, name, price, credits: c }) => ({ id, name, price, credits: c })) });
+  const hasLatestResult = !!real && !!(await getLatestCompletedJob(req.user.userId, "", req.memberId ?? null));
+  res.json({ planId, credits, paymentsOff: process.env.REQUIRE_PAYMENT === "false", needsPlan: !!applies && credits <= 0, paymentApplies: !!applies, hasLatestResult, plans: Object.values(PLAN_CONFIG).map(({ id, name, price, credits: c }) => ({ id, name, price, credits: c })) });
 });
 
 // ============================================================
@@ -2278,9 +2297,9 @@ app.get("/api/plan", requireAllowedOrigin, requireAuth, async (req, res) => {
 /** درخواست پرداخت و دریافت لینک درگاه زرین‌پال برای یک پلن مشخص */
 app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, res) => {
   try {
-    const { planId = "starter", jobId = null, cycle } = req.body || {};
+    const { planId = "starter", jobId = null } = req.body || {};
     const plan = PLAN_CONFIG[planId] || PLAN_CONFIG.starter;
-    const payAmount = planAmount(plan, cycle);
+    const payAmount = planAmount(plan);
     const origin = callbackOrigin(req);
     const callbackUrl = `${origin}/payment/verify`;
 
@@ -2317,6 +2336,54 @@ app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, 
     res.status(500).json({ error: "خطای داخلی سرور در صدور پیش‌فاکتور پرداخت." });
   }
 });
+
+/**
+ * ثبتِ پرداختی که زرین‌پال تأیید کرده: اعتبار و بازکردنِ تحلیلِ در انتظار.
+ * تأییدِ دوباره (برگشت + رفرش + بررسیِ دوره‌ای) با firstTime اعتبار را دوبار نمی‌دهد.
+ * ثبت در تاریخچه لازم نیست: res.json همان لحظهٔ پایانِ تحلیل با مالکِ درست ثبتش کرده است.
+ */
+async function settlePayment(payment, verifyRes) {
+  const paid = await markPaymentSuccess(payment.authority, {
+    refId: verifyRes.refId,
+    cardPan: verifyRes.cardPan,
+    cardHash: verifyRes.cardHash,
+  });
+  const plan = PLAN_CONFIG[payment.plan_id] || PLAN_CONFIG.starter;
+  let unlockedResult = null;
+  if (payment.job_id) {
+    unlockedResult = unlockPaidJob(payment.job_id, { refId: verifyRes.refId, cardPan: verifyRes.cardPan });
+    if (unlockedResult) updateJobResult(payment.job_id, 'completed', unlockedResult).catch(() => {});
+  }
+  // تحلیلِ بازشده یکی از نوبت‌های همین پلن است و هرگز از اعتبار کم نشده؛ کارِ ازدست‌رفته (ری‌استارت) نوبتش را نگه می‌دارد.
+  if (payment.user_id && paid.firstTime) {
+    await addUserCredits(payment.user_id, Math.max(plan.credits - (unlockedResult ? 1 : 0), 0), plan.id);
+  }
+  return unlockedResult;
+}
+
+let reconciling = false;
+/** خریداری که پیش از برگشت به سایت تب را بسته: پرداختش را خودمان تأیید می‌کنیم تا پیش از مهلت نهایی شود (P130). */
+async function reconcileUnverifiedPayments() {
+  if (reconciling) return;
+  reconciling = true;
+  try {
+    const list = await listUnverified();
+    if (!list.ok) { console.warn("[payment] فهرستِ تأییدنشده خوانده نشد:", list.error); return; }
+    for (const authority of list.authorities) {
+      const payment = await getPaymentByAuthority(authority);
+      if (!payment || payment.status === "paid") continue;
+      const verifyRes = await verifyPayment({ authority, amount: payment.amount });
+      if (verifyRes.ok) {
+        await settlePayment(payment, verifyRes);
+        console.log("[payment] پرداختِ بدونِ برگشت ثبت شد:", authority.slice(-8));
+      } else {
+        console.warn("[payment] تأییدِ دوره‌ای ناموفق:", authority.slice(-8), verifyRes.code ?? verifyRes.error);
+      }
+    }
+  } finally {
+    reconciling = false;
+  }
+}
 
 /** تایید نهایی پرداخت (Verify) پس از بازگشت بیمار از درگاه شاپرک/زرین‌پال */
 app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
@@ -2367,38 +2434,7 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
       return res.status(400).json({ error: verifyRes.error || "تراکنش توسط درگاه بانک تأیید نشد." });
     }
 
-    // ثبت موفقیت تراکنش در پایگاه داده
-    const paid = await markPaymentSuccess(authority, {
-      refId: verifyRes.refId,
-      cardPan: verifyRes.cardPan,
-      cardHash: verifyRes.cardHash,
-    });
-
-    const plan = PLAN_CONFIG[payment.plan_id] || PLAN_CONFIG.starter;
-
-    // اگر کار تحلیلی در انتظار پرداخت بود، نتیجه باز و تحویل می‌شود
-    let unlockedResult = null;
-    if (payment.job_id) {
-      unlockedResult = unlockPaidJob(payment.job_id, {
-        refId: verifyRes.refId,
-        cardPan: verifyRes.cardPan,
-      });
-
-      if (unlockedResult) {
-        updateJobResult(payment.job_id, 'completed', unlockedResult).catch(() => {});
-        const owner = payment.user_id
-          ? `user:${payment.user_id}`
-          : (req.headers['x-device-id'] ? `dev:${req.headers['x-device-id']}` : null);
-        if (owner) {
-          Promise.resolve(recordAnalysis({ owner, jobId: payment.job_id, result: unlockedResult })).catch(() => {});
-        }
-      }
-    }
-
-    // تحلیلِ بازشده یکی از نوبت‌های همین پلن است و هرگز از اعتبار کم نشده؛ کارِ ازدست‌رفته (ری‌استارت) نوبتش را نگه می‌دارد.
-    if (payment.user_id && paid.firstTime) {
-      await addUserCredits(payment.user_id, Math.max(plan.credits - (unlockedResult ? 1 : 0), 0), plan.id);
-    }
+    const unlockedResult = await settlePayment(payment, verifyRes);
 
     res.json({
       ok: true,
@@ -2623,6 +2659,10 @@ initDb()
     // ردیابی هم مثل احراز هویت باید در بوت دیده شود — روشن‌بودنش یعنی
     // مقادیرِ بالینیِ بیمار نگه داشته می‌شود، و آن نباید بی‌صدا بماند.
     traceBootReport();
+    const reconcileMs = Number(process.env.RECONCILE_MS ?? 5 * 60 * 1000);
+    if (process.env.NODE_ENV === "production" && reconcileMs > 0) {
+      setInterval(() => { reconcileUnverifiedPayments().catch((e) => console.error("[payment] بررسیِ دوره‌ای:", e.message)); }, reconcileMs).unref();
+    }
     app.listen(PORT, () => {
     console.log(`سرور واسط (با MedlinePlus) روی پورت ${PORT} در حال اجراست`);
     console.log(`مدل متن: ${TEXT_MODEL} | مدل بینایی: ${VISION_MODEL} | مهلت: ${AI_TIMEOUT_MS}ms`);

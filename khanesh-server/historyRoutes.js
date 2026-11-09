@@ -17,6 +17,7 @@ import express from 'express';
 import { createHash, randomUUID } from 'crypto';
 import { requireAuth } from './auth.js';
 import { requirePlanFeature } from './plans.js';
+import { withMember } from './profile.js';
 import { getUnit } from './rules/refs.js';
 import { compareSeries, comparisonFa, faDate, toTime } from './rules/history.js';
 import {
@@ -29,7 +30,7 @@ const router = express.Router();
 /** مالکِ تاریخچه از روی درخواست. null ⇒ نه کاربرِ واردشده، نه شناسهٔ دستگاه. */
 export function ownerOf(req) {
   const u = req?.user;
-  if (u && u.userId && !u.anonymous) return `u:${u.userId}`;
+  if (u && u.userId && !u.anonymous) return req.memberId ? `u:${u.userId}:m:${req.memberId}` : `u:${u.userId}`;
   const dev = String(req?.get?.('x-device-id') ?? '').trim();
   if (/^[A-Za-z0-9_-]{8,64}$/.test(dev)) {
     return `d:${createHash('sha256').update(dev).digest('hex').slice(0, 24)}`;
@@ -114,7 +115,7 @@ function requireOwner(req, res, next) {
   return next();
 }
 
-const guard = [requireAuth, requirePlanFeature('history'), requireOwner];
+const guard = [requireAuth, withMember, requirePlanFeature('history'), requireOwner];
 
 router.get('/', ...guard, async (req, res) => {
   try {

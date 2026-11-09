@@ -16,7 +16,7 @@
 //    بار تعریف شده بود (اینجا faNum، و toFa در ResultView.jsx) — دو نسخه از
 //    یک سیاستِ نمایشی که هیچ‌چیز هم‌خوانی‌شان را تضمین نمی‌کرد.
 import { toFaDigits as faNum } from "./digits.js";
-import { deviceId } from "./deviceId.js";
+import { deviceId, activeMemberId } from "./deviceId.js";
 
 const START_URL = "/api/analyze/start";
 const JOB_URL = "/api/analyze/job/";
@@ -80,6 +80,8 @@ function authHeaders(base = {}) {
   // تاریخچهٔ هیچ مالکی نمی‌نشیند و «نوبتِ قبل» هیچ‌وقت پیدا نمی‌شود.
   const dev = deviceId();
   const h = { ...base, 'x-device-id': dev };
+  const member = activeMemberId();
+  if (member) h['x-member-id'] = member;
   return token ? { ...h, Authorization: `Bearer ${token}` } : h;
 }
 
@@ -178,6 +180,9 @@ export async function pollJob(id, { onProgress, signal } = {}) {
         tests_count: data.tests_count,
         test_names: data.test_names,
         plan_id: data.plan_id,
+        has_critical: data.has_critical === true,
+        urgency: data.urgency ?? null,
+        critical_banner: data.critical_banner ?? null,
         amount: data.amount,
         authority: data.authority,
         payment_url: data.payment_url,

@@ -338,6 +338,9 @@ export default function UploadCard({
           <PaymentCard
             jobId={aiResult.job_id}
             planId={aiResult.plan_id}
+            hasCritical={aiResult.has_critical}
+            urgency={aiResult.urgency}
+            criticalBanner={aiResult.critical_banner}
             amount={aiResult.amount}
             testsCount={aiResult.tests_count}
             testNames={aiResult.test_names}

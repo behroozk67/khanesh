@@ -6,7 +6,8 @@ import { paymentExempt } from './paymentExempt.js';
 // هم‌خوان با khanesh/src/userPlan.js — قابلیت‌هایی که سرور خودش قفل می‌کند.
 // shortcut: PDF چاپِ مرورگر است و سمتِ کلاینت می‌ماند؛ فقط تاریخچه و نمای تخصصی (داده) سمتِ سرور قفل است.
 const PAID = new Set(['empire', 'unicorn']);
-const FEATURE_PLANS = { history: PAID, expert: PAID };
+const FEATURE_PLANS = { history: PAID, expert: PAID, family: new Set(['unicorn']) };
+const FEATURE_LOCK_FA = { family: 'این بخش مخصوص پلن خانواده جامع است.' };
 
 // تا فعال‌شدنِ درگاه: REQUIRE_PAYMENT=false ⇒ همه چیز رایگان و باز (همان سوییچی که تحلیل را هم رایگان می‌کند).
 const paymentsOff = () => process.env.REQUIRE_PAYMENT === 'false';
@@ -27,7 +28,7 @@ export function requirePlanFeature(feature) {
     try {
       if (await planAllows(req.user, feature)) return next();
       return res.status(403).json({
-        error: 'این بخش مخصوص پلن پایش سلامت یا بالاتر است.',
+        error: FEATURE_LOCK_FA[feature] || 'این بخش مخصوص پلن پایش سلامت یا بالاتر است.',
         code: 'plan_required',
         feature,
       });

@@ -1,20 +1,25 @@
 import React, { useState } from "react";
 import { toFaDigits } from "./digits.js";
 import { PLANS_CONFIG } from "./userPlan.js";
+import { EMERGENCY_BANNER } from "./resultModel.js";
 import "./PaymentCard.css";
 
 export default function PaymentCard({
   jobId: _jobId,
   planId = "starter",
-  amount = 39000,
+  amount,
   testsCount = 0,
   testNames = [],
   paymentUrl,
   authority: _authority,
+  hasCritical = false,
+  urgency = null,
+  criticalBanner = null,
   onCancel,
 }) {
   const [loading, setLoading] = useState(false);
   const plan = PLANS_CONFIG[planId] || PLANS_CONFIG.starter;
+  const banner = criticalBanner && typeof criticalBanner.title === "string" && typeof criticalBanner.body === "string" ? criticalBanner : null;
 
   function handlePay() {
     setLoading(true);
@@ -28,6 +33,20 @@ export default function PaymentCard({
 
   return (
     <div className="pay-card" role="region" aria-label="پیش‌فاکتور پرداخت تفسیر آزمایش">
+      {/* P128: هشدارِ فوریت به پرداخت وابسته نیست؛ متن همان بنرِ صفحهٔ نتیجه است و یافته‌ای لو نمی‌دهد. */}
+      {hasCritical && (
+        <div className={banner && banner.tone !== "emergency" ? "crit-banner crit-banner--today" : "crit-banner"} role="alert">
+          <p className="crit-title">{(banner || EMERGENCY_BANNER).title}</p>
+          <p className="crit-body">{(banner || EMERGENCY_BANNER).body}</p>
+          <p className="crit-body">این هشدار به پرداخت وابسته نیست؛ همین حالا به آن عمل کنید. متنِ کاملِ تفسیر بعد از پرداخت باز می‌شود.</p>
+        </div>
+      )}
+      {!hasCritical && urgency === "soon" && (
+        <div className="crit-banner crit-banner--today" role="alert">
+          <p className="crit-title">ظرفِ ۲۴ تا ۴۸ ساعت با پزشک</p>
+          <p className="crit-body">در این برگه یافته‌ای هست که نباید منتظرِ پرداخت بماند؛ این توصیه به پرداخت وابسته نیست. متنِ کاملِ تفسیر بعد از پرداخت باز می‌شود.</p>
+        </div>
+      )}
       <div className="pay-card__header">
         <div className="pay-card__icon" aria-hidden="true">✓</div>
         <div>

@@ -52,13 +52,19 @@ async function withServer(nodeEnv, extraEnv, fn) {
   const exited = new Promise((resolve) => child.once("exit", resolve));
 
   try {
-    const base = `http://127.0.0.1:${port}`;
-    let up = false;
-    for (let i = 0; i < 100 && !up && child.exitCode === null; i++) {
-      up = await fetch(`${base}/health`).then((r) => r.ok, () => false);
-      if (!up) await new Promise((r) => setTimeout(r, 200));
+    // سرور روی :: گوش می‌دهد؛ روی ویندوز یک سرورِ تستیِ دیگر می‌تواند همان پورت را روی 127.0.0.1 گرفته باشد
+    // و درخواستِ IPv4 به آن برسد. پس هر دو آدرس سنجیده می‌شود.
+    let base = null;
+    let last = "";
+    for (let i = 0; i < 100 && !base && child.exitCode === null; i++) {
+      for (const host of ["127.0.0.1", "[::1]"]) {
+        const url = `http://${host}:${port}`;
+        last = await fetch(`${url}/health`).then((r) => String(r.status), (err) => String(err.cause?.code || err.message));
+        if (last === "200") { base = url; break; }
+      }
+      if (!base) await new Promise((r) => setTimeout(r, 200));
     }
-    assert.ok(up, `server did not start: ${stderr.slice(0, 500)}`);
+    assert.ok(base, `server did not start: port=${port} last=${last} exit=${child.exitCode} ${stderr.slice(0, 200)}`);
     return await fn(base, dbFile);
   } finally {
     child.kill();

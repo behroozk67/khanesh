@@ -679,3 +679,15 @@
 .pk-price b { color: var(--ink); font-size: var(--t-md); }
 .pk-active { margin: 0; padding: var(--s4) var(--s6); border-radius: var(--r-md, 14px); background: var(--brand-soft); color: var(--brand-ink); font-size: var(--t-sm); }
 @media (prefers-reduced-motion: reduce) { .pk-opt { transition: none; } }
+
+/* پروفایل‌های خانواده */
+.fam { display: grid; gap: var(--s4); margin-top: var(--s8); }
+.fam-list { display: grid; gap: var(--s3); margin: 0; padding: 0; list-style: none; }
+.fam-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); padding: var(--s4) var(--s6); border: 1px solid var(--line-input); border-radius: var(--r-md, 14px); background: var(--card); }
+.fam-row .btn { font-size: var(--t-sm); }
+.fam-main { display: grid; gap: 2px; flex: 1; min-width: 140px; }
+.fam-sub { font-size: var(--t-xs, 12px); color: var(--ink-2); }
+.fam-active { font-size: var(--t-sm); font-weight: var(--w-semibold); color: var(--brand-ink); background: var(--brand-soft); padding: 4px 12px; border-radius: var(--r-pill); }
+.fam-del { color: #b91c1c; border: 1px solid currentColor; background: transparent; }
+.fam-picker { display: grid; gap: var(--s3); }
+.fam-picker-t { font-size: var(--t-sm); color: var(--ink-2); }

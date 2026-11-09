@@ -8,6 +8,7 @@ import { loadProfile, clearProfile, AGE_UNIT_FA, pregnancyEligible, currentGestW
 import { apiJson } from "./deviceId.js";
 import { useActivePlan } from "./userPlan.js";
 import { PlanBadge, UpgradeModal } from "./PlanGate.jsx";
+import FamilyProfiles from "./FamilyProfiles.jsx";
 import "./onboarding/onboarding.css";
 
 // ============================================================
@@ -149,9 +150,12 @@ export default function Profile() {
             </button>
           </div>
 
+          <FamilyProfiles />
+
           {account?.jobs?.length > 0 && (
             <>
               <h2 className="sec-sub">سوابقِ تحلیل</h2>
+              <p className="onb-note"><Link to="/app/photo?last=1">مشاهدهٔ آخرین نتیجه</Link></p>
               <p className="onb-note" style={{ marginTop: 0 }}>
                 مقایسهٔ عددهای هر آزمایش با نوبت‌های قبلی در صفحهٔ <Link to="/history">تاریخچه و روند</Link> است.
               </p>

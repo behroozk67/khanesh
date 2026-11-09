@@ -35,6 +35,23 @@ export async function closeDb() {
   await conn.close();
 }
 
+// یک اتصالِ مشترک داریم: تراکنشِ هم‌زمان «cannot start a transaction within a transaction» می‌دهد، پس پشتِ هم اجرا می‌شوند.
+let txTail = Promise.resolve();
+async function beginTx(db) {
+  let release;
+  const done = new Promise((r) => { release = r; });
+  const wait = txTail;
+  txTail = txTail.then(() => done);
+  await wait;
+  try {
+    await db.exec('BEGIN');
+    return release;
+  } catch (e) {
+    release();
+    throw e;
+  }
+}
+
 export async function initDb() {
   const db = await dbConn();
 
@@ -74,6 +91,25 @@ export async function initDb() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  // پروفایل‌های خانواده (P131): همان ستون‌های پروفایل، جدا از صاحبِ حساب. نام هرگز به تحلیل نمی‌رود.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS family_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      first_name TEXT, last_name TEXT, sex TEXT, age_value INTEGER, age_unit TEXT,
+      pregnant INTEGER NOT NULL DEFAULT 0,
+      conditions TEXT NOT NULL DEFAULT '[]',
+      conditions_answered INTEGER NOT NULL DEFAULT 0,
+      age_recorded_at INTEGER, gest_weeks INTEGER, gest_recorded_at INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_family_user ON family_members(user_id);
+  `);
+  const jcols = await db.all('PRAGMA table_info(jobs)');
+  if (!jcols.some((c) => c.name === 'member_id')) {
+    await db.exec('ALTER TABLE jobs ADD COLUMN member_id INTEGER');
+  }
   // ستونِ بعداً افزوده‌شده (بازبینیِ کد #1) — پایگاهی که جدول را بی‌آن ساخته، با ALTER به‌روز می‌شود.
   const pcols = await db.all('PRAGMA table_info(profiles)');
   if (!pcols.some((c) => c.name === 'age_recorded_at')) {
@@ -267,26 +303,106 @@ export async function upsertProfile(userId, patch) {
 /** حذفِ حساب (clarify A): کاربر، پروفایل و نتایجِ ذخیره‌شده در یک تراکنش. */
 export async function deleteUserCascade(userId) {
   const db = await dbConn();
-  await db.exec('BEGIN');
+  const release = await beginTx(db);
   try {
     await db.run(`DELETE FROM jobs WHERE user_id = ?`, [userId]);
-    await db.run(`DELETE FROM lab_observations WHERE lab_id IN (SELECT id FROM lab_events WHERE owner = ?)`, [`u:${userId}`]);
-    await db.run(`DELETE FROM lab_events WHERE owner = ?`, [`u:${userId}`]);
+    // تاریخچهٔ صاحبِ حساب و همهٔ عضوها (u:<id> و u:<id>:m:<memberId>)
+    const owners = `owner = ? OR owner LIKE ?`;
+    const ownerArgs = [`u:${userId}`, `u:${userId}:m:%`];
+    await db.run(`DELETE FROM lab_observations WHERE lab_id IN (SELECT id FROM lab_events WHERE ${owners})`, ownerArgs);
+    await db.run(`DELETE FROM lab_events WHERE ${owners}`, ownerArgs);
+    await db.run(`DELETE FROM family_members WHERE user_id = ?`, [userId]);
     await db.run(`DELETE FROM profiles WHERE user_id = ?`, [userId]);
     await db.run(`DELETE FROM users WHERE id = ?`, [userId]);
     await db.exec('COMMIT');
   } catch (e) {
     await db.exec('ROLLBACK').catch(() => {});
     throw e;
+  } finally {
+    release();
   }
 }
 
-export async function createJobRecord(jobId, userId, pagesTotal) {
+export async function createJobRecord(jobId, userId, pagesTotal, memberId = null) {
   const db = await dbConn();
   await db.run(
-    `INSERT INTO jobs (id, user_id, pages_total, status) VALUES (?, ?, ?, ?)`,
-    [jobId, userId, pagesTotal, 'pending']
+    `INSERT INTO jobs (id, user_id, pages_total, status, member_id) VALUES (?, ?, ?, ?, ?)`,
+    [jobId, userId, pagesTotal, 'pending', memberId]
   );
+}
+
+// ── اعضای خانواده (P131) ─────────────────────────────────────
+const memberRow = (r) => (r ? { id: r.id, ...rowToProfile(r) } : null);
+
+export async function listFamilyMembers(userId) {
+  const db = await dbConn();
+  return (await db.all(`SELECT * FROM family_members WHERE user_id = ? ORDER BY id`, [userId])).map(memberRow);
+}
+
+export async function getFamilyMember(userId, memberId) {
+  const db = await dbConn();
+  return memberRow(await db.get(`SELECT * FROM family_members WHERE id = ? AND user_id = ?`, [memberId, userId]));
+}
+
+function memberColumns(patch) {
+  const cols = [];
+  const vals = [];
+  for (const [k, col] of Object.entries(PROFILE_COLS)) {
+    if (!(k in patch)) continue;
+    let v = patch[k];
+    if (k === 'conditions') v = JSON.stringify(v);
+    if (k === 'pregnant' || k === 'conditionsAnswered') v = v ? 1 : 0;
+    cols.push(col);
+    vals.push(v);
+  }
+  return { cols, vals };
+}
+
+/** سقف در همان INSERT سنجیده می‌شود تا دو درخواستِ هم‌زمان از آن رد نشوند. null ⇒ سقف پر است. */
+export async function createFamilyMember(userId, patch, max) {
+  const db = await dbConn();
+  const { cols, vals } = memberColumns(patch);
+  const r = await db.run(
+    `INSERT INTO family_members (user_id, ${cols.join(', ')})
+     SELECT ?, ${cols.map(() => '?').join(', ')}
+     WHERE (SELECT COUNT(*) FROM family_members WHERE user_id = ?) < ?`,
+    [userId, ...vals, userId, max]
+  );
+  return r.changes === 1 ? getFamilyMember(userId, r.lastID) : null;
+}
+
+export async function updateFamilyMember(userId, memberId, patch) {
+  const db = await dbConn();
+  const { cols, vals } = memberColumns(patch);
+  if (cols.length) {
+    await db.run(
+      `UPDATE family_members SET ${cols.map((c) => `${c} = ?`).join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`,
+      [...vals, memberId, userId]
+    );
+  }
+  return getFamilyMember(userId, memberId);
+}
+
+/** حذفِ عضو با نتایج و تاریخچه‌اش. */
+export async function deleteFamilyMember(userId, memberId) {
+  const db = await dbConn();
+  const owner = `u:${userId}:m:${memberId}`;
+  const release = await beginTx(db);
+  try {
+    const r = await db.run(`DELETE FROM family_members WHERE id = ? AND user_id = ?`, [memberId, userId]);
+    if (r.changes === 1) {
+      await db.run(`DELETE FROM jobs WHERE user_id = ? AND member_id = ?`, [userId, memberId]);
+      await db.run(`DELETE FROM lab_observations WHERE lab_id IN (SELECT id FROM lab_events WHERE owner = ?)`, [owner]);
+      await db.run(`DELETE FROM lab_events WHERE owner = ?`, [owner]);
+    }
+    await db.exec('COMMIT');
+    return r.changes === 1;
+  } catch (e) {
+    await db.exec('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    release();
+  }
 }
 
 export async function updateJobResult(jobId, status, resultJson) {
@@ -302,12 +418,12 @@ export async function getUserJobs(userId) {
   return db.all(`SELECT id, status, created_at FROM jobs WHERE user_id = ? ORDER BY created_at DESC`, [userId]);
 }
 
-/** P108-ج: آخرین نتیجهٔ کامل‌شدهٔ همین کاربر (غیر از کارِ جاری) — منبعِ «نوبتِ قبلی» برای پایداریِ ALT/AST. */
-export async function getLatestCompletedJob(userId, excludeJobId) {
+/** P108-ج: آخرین نتیجهٔ کامل‌شدهٔ همین بیمار (همان عضوِ خانواده، غیر از کارِ جاری) — منبعِ «نوبتِ قبلی» برای پایداریِ ALT/AST و «آخرین نتیجه». */
+export async function getLatestCompletedJob(userId, excludeJobId = '', memberId = null) {
   const db = await dbConn();
   const row = await db.get(
-    `SELECT id, created_at, result_json FROM jobs WHERE user_id = ? AND id != ? AND status = 'completed' AND result_json IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
-    [userId, excludeJobId]
+    `SELECT id, created_at, result_json FROM jobs WHERE user_id = ? AND id != ? AND member_id IS ? AND status = 'completed' AND result_json IS NOT NULL ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+    [userId, excludeJobId, memberId]
   );
   if (!row) return null;
   try { return { id: row.id, created_at: row.created_at, result: JSON.parse(row.result_json) }; } catch { return null; }
@@ -333,7 +449,7 @@ export async function getJobById(jobId, userId) {
 
 export async function insertLabEvent({ id, owner, jobId, takenAt, source, labName, observations }) {
   const db = await dbConn();
-  await db.exec('BEGIN');
+  const release = await beginTx(db);
   try {
     // ⚠️ job_id عمداً یکتا نیست: یک کار می‌تواند دو بار ثبت شود اگر کاربر تاریخ را
     //    ویرایش کند. در آن حالت DELETE+INSERT همان id عوض می‌کند، نه ردیفِ دوم.
@@ -353,6 +469,8 @@ export async function insertLabEvent({ id, owner, jobId, takenAt, source, labNam
   } catch (e) {
     await db.exec('ROLLBACK').catch(() => {});
     throw e;
+  } finally {
+    release();
   }
 }
 
@@ -401,7 +519,7 @@ export async function linkDeviceHistoryToUser(deviceOwner, userOwner) {
 
 export async function deleteLabEvent(owner, labId) {
   const db = await dbConn();
-  await db.exec('BEGIN');
+  const release = await beginTx(db);
   try {
     await db.run(`DELETE FROM lab_observations WHERE lab_id IN (SELECT id FROM lab_events WHERE id = ? AND owner = ?)`, [labId, owner]);
     const r = await db.run(`DELETE FROM lab_events WHERE id = ? AND owner = ?`, [labId, owner]);
@@ -410,6 +528,8 @@ export async function deleteLabEvent(owner, labId) {
   } catch (e) {
     await db.exec('ROLLBACK').catch(() => {});
     throw e;
+  } finally {
+    release();
   }
 }
 
@@ -475,14 +595,18 @@ export async function getUserCredits(userId) {
   return row?.credits || 0;
 }
 
+// خریدِ پلن پایین‌تر اعتبار را اضافه می‌کند ولی قابلیت‌های پلن بالاتر را نمی‌گیرد.
+const planRankSql = (x) => `(CASE ${x} WHEN 'unicorn' THEN 3 WHEN 'empire' THEN 2 ELSE 1 END)`;
+
 export async function addUserCredits(userId, creditsToAdd, planId) {
   if (!userId) return;
   const db = await dbConn();
   await db.run(
     `UPDATE users
-     SET credits = credits + ?, active_plan = COALESCE(?, active_plan)
+     SET credits = credits + ?,
+         active_plan = CASE WHEN ${planRankSql('?')} > ${planRankSql('active_plan')} THEN ? ELSE active_plan END
      WHERE id = ?`,
-    [creditsToAdd, planId || null, userId]
+    [creditsToAdd, planId || 'starter', planId || 'starter', userId]
   );
 }
 

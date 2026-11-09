@@ -25,56 +25,11 @@
 }
 
 /* سوئیچ دوره پرداخت (تک‌نوبت / پکیج دوره‌ای) */
-.lp-toggle-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: var(--s11);
-}
 
-.lp-toggle-pill {
-  display: inline-flex;
-  background: var(--track-warm);
-  border-radius: var(--r-pill);
-  padding: 4px;
-  border: 1px solid var(--line);
-}
 
-.lp-toggle-btn {
-  border: none;
-  background: transparent;
-  padding: 8px 22px;
-  border-radius: var(--r-pill);
-  font-size: var(--t-sm);
-  font-weight: 600;
-  color: var(--ink-2);
-  cursor: pointer;
-  transition: all 0.2s var(--ease);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: inherit;
-}
 
-.lp-toggle-btn.is-active {
-  background: var(--brand);
-  color: var(--on-brand);
-  box-shadow: 0 2px 8px rgba(47, 111, 107, 0.28);
-  font-weight: var(--w-bold);
-}
 
-.lp-toggle-badge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: var(--r-pill);
-  background: var(--brand-soft);
-  color: var(--brand-ink);
-  font-weight: 700;
-}
 
-.lp-toggle-btn.is-active .lp-toggle-badge {
-  background: rgba(255, 255, 255, 0.25);
-  color: #ffffff;
-}
 
 /* شبکه ۳ کارتی پلن‌ها */
 .lp-grid {
@@ -141,15 +96,6 @@
   margin: 0;
 }
 
-.lp-discount-tag {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--brand);
-  background: var(--brand-soft);
-  border: 1px solid var(--brand-line);
-  padding: 3px 10px;
-  border-radius: var(--r-pill);
-}
 
 .lp-price-row {
   display: flex;

@@ -78,11 +78,11 @@ export function finishJob(id, statusCode, body) {
 }
 
 /** قرار دادن کار در وضعیت انتظار پرداخت پس از موفقیت OCR */
-export function setJobAwaitingPayment(id, { planId, amount, authority, paymentUrl, testsCount, testNames, pendingResult }) {
+export function setJobAwaitingPayment(id, { planId, amount, authority, paymentUrl, testsCount, testNames, pendingResult, hasCritical, urgency, criticalBanner }) {
   const j = jobs.get(id);
   if (!j) return;
   j.status = "awaiting_payment";
-  j.paymentInfo = { planId, amount, authority, paymentUrl, testsCount, testNames };
+  j.paymentInfo = { planId, amount, authority, paymentUrl, testsCount, testNames, hasCritical: !!hasCritical, urgency: urgency ?? null, criticalBanner: criticalBanner ?? null };
   j.pendingResult = pendingResult;
 }
 
@@ -147,7 +147,10 @@ export function jobView(j) {
       tests_count: j.paymentInfo?.testsCount ?? 0,
       test_names: j.paymentInfo?.testNames ?? [],
       plan_id: j.paymentInfo?.planId ?? "starter",
-      amount: j.paymentInfo?.amount ?? 39000,
+      has_critical: j.paymentInfo?.hasCritical ?? false,
+      urgency: j.paymentInfo?.urgency ?? null,
+      critical_banner: j.paymentInfo?.criticalBanner ?? null,
+      amount: j.paymentInfo?.amount ?? null,
       authority: j.paymentInfo?.authority ?? null,
       payment_url: j.paymentInfo?.paymentUrl ?? null,
     };
