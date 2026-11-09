@@ -90,7 +90,7 @@ import {
   getUserCredits, addUserCredits, deductUserCredit, getUserPlan
 } from "./database.js";
 import { notifyNewContactMessage } from "./notifier.js";
-import { requestPayment, verifyPayment, listUnverified } from "./zarinpal.js";
+import { getZarinpalConfig, requestPayment, verifyPayment, listUnverified } from "./zarinpal.js";
 import { planOf, withPlanLocks } from "./plans.js";
 import { PLAN_CONFIG, planAmount } from "./planPrices.js";
 import { paymentExempt } from "./paymentExempt.js";
@@ -418,7 +418,12 @@ app.use((req, res, next) => {
   if (req.path.startsWith("/api/")) res.setHeader("Cache-Control", "no-store");
   next();
 });
-app.use(express.json({ limit: "60mb" }));   // ← Nginx روی 50M است؛ Express نباید تنگ‌تر باشد
+// سقف بزرگ فقط برای مسیرهای عکس، و آن هم بعد از ورود و rate limit؛ پارس پیش از آن‌ها به هر مهاجم بی‌حساب حافظه و CPU می‌داد.
+// ⚠️ bigJson نباید از سقف Nginx (50M) تنگ‌تر باشد.
+const bigJson = express.json({ limit: "60mb" });
+const smallJson = express.json({ limit: "256kb" });
+const BIG_BODY_PATHS = new Set(["/api/analyze", "/api/analyze/start", "/api/labmat/analyze"]);
+app.use((req, res, next) => (BIG_BODY_PATHS.has(req.path) ? next() : smallJson(req, res, next)));
 app.use("/api/auth", authRouter);
 app.use("/api/profile", profileRouter);   // specs/011 — 409 «local_only» وقتی احراز هویت خاموش است
 app.use("/api/history", historyRouter);   // P120 — تاریخچه و مقایسهٔ نوبت‌های آزمایش
@@ -2118,7 +2123,7 @@ const numbered = patternOut.findings.filter(
 // ⚠️ این مسیر نه اعتبار کم می‌کند و نه پرداخت می‌خواهد و withPlanLocks هم ندارد؛ در production نباید ثبت شود،
 //    وگرنه هر کاربرِ واردشده تفسیرِ کامل را رایگان می‌گیرد. سایت و اپ فقط از /api/analyze/start استفاده می‌کنند.
 if (process.env.NODE_ENV !== "production") {
-  app.post("/api/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, analyzeHandler);
+  app.post("/api/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, bigJson, analyzeHandler);
 }
 
 // ============================================================
@@ -2133,7 +2138,7 @@ if (process.env.NODE_ENV !== "production") {
 //    که هر ۲ ثانیه poll می‌کند خودش را بلاک می‌کند. چیزی که هزینهٔ AvalAI
 //    را می‌سازد شروعِ کار است، نه پرسیدنِ وضعیت.
 // ============================================================
-app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, withMember, analyzeLimiter, dailyUserLimiter, (req, res) => {
+app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, withMember, analyzeLimiter, bigJson, dailyUserLimiter, (req, res) => {
   const imgs = Array.isArray(req.body?.imageDataUrls)
     ? req.body.imageDataUrls
     : (typeof req.body?.imageDataUrl === "string" ? [req.body.imageDataUrl] : []);
@@ -2318,7 +2323,9 @@ app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, 
     });
 
     if (!zarin.ok) {
-      return res.status(502).json({ error: zarin.error || "خطا در اتصال به درگاه زرین‌پال" });
+      // متن زرین‌پال وضعیت مرچنت و تنظیمات را می‌گوید: جایش لاگ است. ۵۰۳ چون کلودفلر بدنهٔ ۵۰۲ را با صفحهٔ خودش عوض می‌کند.
+      console.error("ZarinPal request failed:", zarin.error);
+      return res.status(503).json({ error: "اتصال به درگاه پرداخت برقرار نشد. کمی بعد دوباره تلاش کنید." });
     }
 
     const userId = req.user?.userId && !req.user.anonymous ? req.user.userId : null;
@@ -2479,7 +2486,7 @@ app.get("/api/payment/callback", (req, res) => {
 //    عبور نمی‌کند (N13). گیتِ `USE_GRAPH` تا امروز فقط داخلِ `analyzeHandler`
 //    بود، پس این در — بی‌احراز هویت — همان مسیری را باز می‌گذاشت که کلِ
 //    تصمیمِ «پیش‌فرض خاموش» برای بستنش گرفته شده بود.
-app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, dailyUserLimiter, async (req, res) => {
+app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimiter, bigJson, dailyUserLimiter, async (req, res) => {
   if (!USE_GRAPH) {
     return res.status(503).json({
       error: "مسیرِ گراف خاموش است. برای آزمایشِ محلی USE_GRAPH=true را ست کنید.",
@@ -2535,7 +2542,7 @@ app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimite
       });
     } catch (fallbackErr) {
       console.error("[LabMat API] Deterministic fallback failed:", fallbackErr);
-      res.status(500).json({ error: "Internal Server Error in LabMat Agent Graph and Fallback failed", details: err.message });
+      res.status(500).json({ error: "خطای سرور رخ داده است." });
     }
   }
 });
@@ -2658,9 +2665,23 @@ app.post("/api/contact", contactLimiter, async (req, res) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
+  if (err.type === "entity.too.large") return res.status(413).json({ error: "حجم درخواست بیش از حد مجاز است." });
+  if (err.type === "entity.parse.failed") return res.status(400).json({ error: "بدنهٔ درخواست معتبر نیست." });
   console.error('[Express Error]', err.message);
   res.status(500).json({ error: 'خطای سرور رخ داده است.' });
 });
+
+// یک متغیرِ جاافتاده نباید production را بی‌صدا ناامن کند: ورودِ خاموش، CORS باز، یا پرداختِ آزمایشی که اعتبارِ واقعی می‌دهد.
+// زرین‌پال به REQUIRE_PAYMENT وابسته نیست: /api/payment/request همیشه باز است و PAYMENT_TEST_PHONES هم پول واقعی می‌دهد.
+function assertProductionConfig() {
+  if (process.env.NODE_ENV !== "production") return;
+  const bad = [];
+  if (!AUTH_REQUIRED) bad.push("AUTH_REQUIRED");
+  if (!AVALAI_API_KEY) bad.push("AVALAI_API_KEY");
+  if (!ALLOWED_ORIGINS.length) bad.push("ALLOWED_ORIGINS");
+  if (getZarinpalConfig().isSandbox) bad.push("ZARINPAL_MERCHANT_ID/ZARINPAL_SANDBOX");
+  if (bad.length) throw new Error(`تنظیماتِ ناامن در production: ${bad.join(", ")}`);
+}
 
 initDb()
   .then(() => {
@@ -2670,6 +2691,7 @@ initDb()
     //    بلعیده می‌شد و سرور با توکن‌های جعل‌شدنی بالا می‌ماند — دقیقاً
     //    کلاسِ «گاردی که بی‌صدا می‌بلعید». بیرونِ listen بودن یعنی
     //    rejection به همین .catch می‌رسد و فرایند با کدِ غیرصفر خارج می‌شود.
+    assertProductionConfig();
     console.log(authBootReport());
     // ردیابی هم مثل احراز هویت باید در بوت دیده شود — روشن‌بودنش یعنی
     // مقادیرِ بالینیِ بیمار نگه داشته می‌شود، و آن نباید بی‌صدا بماند.

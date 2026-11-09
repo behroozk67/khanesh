@@ -100,7 +100,8 @@ function shrink(v, depth = 0) {
  * رابط را دارد — پس مسیرِ درخواست هیچ‌جا نیاز به `if (trace)` ندارد.
  */
 export function beginTrace(meta = {}) {
-  const id = meta.traceId || newTraceId();
+  // از هدر x-trace-id می‌آید و نام فایل می‌شود؛ بدون این الگو، «../» بیرون از .traces می‌نویسد.
+  const id = /^[\w-]{1,64}$/.test(meta.traceId ?? "") ? meta.traceId : newTraceId();
   if (!enabled) return noopTrace(id);
 
   const trace = {

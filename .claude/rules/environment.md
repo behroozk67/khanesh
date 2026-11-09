@@ -69,6 +69,7 @@ encryption at rest, and deletion are now open questions that the code does not a
   The gate used to live only inside `analyzeHandler`, so this route ran the graph unconditionally
   and without `requireAuth` — a live, unauthenticated door to exactly the path N13 made
   default-off. Guard `T16`.
+- **Production refuses to boot on unsafe config** (`assertProductionConfig` in `server.js`): `NODE_ENV=production` with `AUTH_REQUIRED` off, no `AVALAI_API_KEY`, no valid `ALLOWED_ORIGINS`, or a sandbox Zarinpal config exits non-zero and names the variable. The Zarinpal check does not depend on `REQUIRE_PAYMENT`, because `/api/payment/request` is always open and `PAYMENT_TEST_PHONES` pay real money.
 - **`JWT_SECRET` is enforced, not warned about.** With auth on and the secret still the in-repo dev
   default, anyone who has read the source can mint a valid token, so `authBootReport()` throws
   instead of warning. This is the one place the server refuses to start.
@@ -98,6 +99,8 @@ address unless Express is told how many hops to trust:
 
 Set it to the actual hop count (`1` for a single Nginx). `GET /health` reports the live value
 alongside `rateLimit` and `corsOrigins`.
+
+JSON bodies are capped at 256 KB everywhere except the image routes (`/api/analyze`, `/api/analyze/start`, `/api/labmat/analyze`), which get 60 MB and parse it only after `requireAuth` and `analyzeLimiter`. Keep that order: parsing first gives any caller without an account the server's memory and CPU.
 
 CORS restricts browser-driven abuse from other origins only — it does nothing against `curl` or a
 script. The rate limiter, not CORS, is what protects the AvalAI bill.

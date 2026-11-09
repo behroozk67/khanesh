@@ -66,7 +66,7 @@ async function withServer(extraEnv, fn) {
     stdio: ["ignore", "ignore", "pipe"],
     env: {
       ...process.env, NODE_ENV: "production", PORT: String(port), DB_FILE: dbFile, AUTH_REQUIRED: "true", JWT_SECRET,
-      AVALAI_API_KEY: "test-key-never-used", ALLOWED_ORIGINS: "", TRUST_PROXY: "", RATE_LIMIT_MAX: "1000",
+      AVALAI_API_KEY: "test-key-never-used", ALLOWED_ORIGINS: "https://test.local", TRUST_PROXY: "", RATE_LIMIT_MAX: "1000",
       ZARINPAL_MERCHANT_ID: "11111111-1111-1111-1111-111111111111", ZARINPAL_SANDBOX: "false",
       REQUIRE_PAYMENT: "true", PAYMENT_EXEMPT_PHONES: "", PAYMENT_TEST_PHONES: "", SITE_ORIGIN: "https://example.test", RECONCILE_MS: "0",
       ...extraEnv,

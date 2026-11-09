@@ -650,6 +650,71 @@ test("T15: poll فقط کارِ خودِ کاربر را برمی‌گرداند
   assert.ok(!JSON.stringify(body).includes("نتیجهٔ بیمارِ دیگر"), "بدنهٔ نتیجه نباید لو برود");
 });
 
+test("T15b: تاریخچهٔ پرداخت با همان کلیدهای مالکِ بقیهٔ سیستم ثبت می‌شود تا حذف حساب به آن برسد", async () => {
+  const { createHash } = await import("node:crypto");
+  const { createJob, setJobAwaitingPayment } = await import("./jobStore.js");
+  const { createPaymentRecord, listLabEvents } = await import("./database.js");
+  const { ownerOf } = await import("./historyRoutes.js");
+  const pendingResult = { _engine: { tests: [{ key: "HGB", value: 13.2, abnormal: false, range: "12 - 16" }] } };
+  const payFor = async ({ userId, device }) => {
+    const jobId = createJob({ pagesTotal: 1, userId });
+    const authority = `A_TEST_T15b_${jobId}`;
+    // مثل /api/analyze/start: مالک از درخواستِ شروع گرفته می‌شود
+    const historyOwner = ownerOf({ user: userId ? { userId } : null, get: (h) => (h === "x-device-id" ? device : undefined) });
+    setJobAwaitingPayment(jobId, { planId: "starter", amount: 1000, authority, paymentUrl: "/x", testsCount: 1, testNames: ["HGB"], pendingResult, historyOwner });
+    await createPaymentRecord({ authority, jobId, userId, planId: "starter", amount: 1000 });
+    const res = await realFetch(`${baseUrl}/api/payment/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(device ? { "x-device-id": device } : {}) },
+      body: JSON.stringify({ authority }),
+    });
+    assert.equal(res.status, 200);
+    return jobId;
+  };
+  const eventually = async (owner, jobId) => {
+    for (let i = 0; i < 50; i++) {
+      if ((await listLabEvents(owner)).some((e) => e.job_id === jobId)) return true;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return false;
+  };
+
+  const userId = 900000 + Math.floor(Math.random() * 90000);
+  const j1 = await payFor({ userId });
+  assert.ok(await eventually(`u:${userId}`, j1), "کلید کاربر باید u:<id> باشد؛ deleteUserCascade فقط همین را پاک می‌کند");
+  assert.equal((await listLabEvents(`user:${userId}`)).length, 0);
+
+  const device = `T15bdevice${userId}`;
+  const j2 = await payFor({ userId: null, device });
+  const hashed = `d:${createHash("sha256").update(device).digest("hex").slice(0, 24)}`;
+  assert.ok(await eventually(hashed, j2), "کلید دستگاه باید هش شود");
+  assert.equal((await listLabEvents(`dev:${device}`)).length, 0, "شناسهٔ خام دستگاه نباید ذخیره شود");
+});
+
+test("T15c: خطای درگاه به کاربر نمی‌رسد؛ پیام عمومی با ۵۰۳", async () => {
+  const stub = globalThis.fetch;
+  const saved = { id: process.env.ZARINPAL_MERCHANT_ID, sandbox: process.env.ZARINPAL_SANDBOX };
+  process.env.ZARINPAL_MERCHANT_ID = "11111111-1111-1111-1111-111111111111";
+  process.env.ZARINPAL_SANDBOX = "false";
+  globalThis.fetch = async (input, init) => (String(input).includes("zarinpal.com")
+    ? new Response(JSON.stringify({ errors: { code: -10, message: "Terminal is not valid" } }), { status: 200 })
+    : stub(input, init));
+  try {
+    const res = await realFetch(`${baseUrl}/api/payment/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId: "starter" }),
+    });
+    assert.equal(res.status, 503);
+    assert.deepEqual(await res.json(), { error: "اتصال به درگاه پرداخت برقرار نشد. کمی بعد دوباره تلاش کنید." });
+  } finally {
+    globalThis.fetch = stub;
+    for (const [k, v] of [["ZARINPAL_MERCHANT_ID", saved.id], ["ZARINPAL_SANDBOX", saved.sandbox]]) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});
+
 test("T16: مسیرِ گراف با USE_GRAPH خاموش در دسترس نیست", async () => {
   // ⚠️ تورهای ایمنیِ مرحلهٔ ۸ روی این مسیر اجرا نمی‌شوند (N13). گیت تا امروز
   //    فقط داخلِ analyzeHandler بود، نه روی این روت.

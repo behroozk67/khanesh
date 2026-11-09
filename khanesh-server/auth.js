@@ -76,8 +76,13 @@ function sweepExpired(now = Date.now()) {
 // ── فرستنده‌ها ───────────────────────────────────────────────
 // MOCK: هر دو کد را در لاگِ سرور چاپ می‌کنند. ⚠️ پیش از پرودکشن به پنلِ پیامک و سرویسِ ایمیلِ
 //    واقعی وصل شوند — لاگ جای کدِ ورود نیست. /health وضعیتشان را («mock») گزارش می‌کند.
-let smsSender = (phone, code) => console.log(`[SMS MOCK] کد ${code} برای ${phone}`);
-let emailSender = (email, code) => console.log(`[EMAIL MOCK] کد ${code} برای ${email}`);
+//    در production فرستندهٔ mock هیچ‌چیز چاپ نمی‌کند و شکست برمی‌گرداند: هر که لاگ را ببیند با کد چاپ‌شده وارد آن حساب می‌شود.
+const mockSender = (label) => (to, code) => {
+  if (process.env.NODE_ENV === 'production') return false;
+  console.log(`[${label} MOCK] کد ${code} برای ${to}`);
+};
+let smsSender = mockSender('SMS');
+let emailSender = mockSender('EMAIL');
 let sendersLive = { sms: false, email: false };
 /** برای تست و برای وصل‌کردنِ فرستندهٔ واقعی؛ فرستندهٔ واقعی live: { sms: true } می‌دهد. */
 export function setOtpSenders({ sms, email, live = {} } = {}) {
