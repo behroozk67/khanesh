@@ -2297,7 +2297,9 @@ app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, 
     });
 
     if (!zarin.ok) {
-      return res.status(502).json({ error: zarin.error || "خطا در اتصال به درگاه زرین‌پال" });
+      // متن زرین‌پال وضعیت مرچنت و تنظیمات را می‌گوید: جایش لاگ است. ۵۰۳ چون کلودفلر بدنهٔ ۵۰۲ را با صفحهٔ خودش عوض می‌کند.
+      console.error("ZarinPal request failed:", zarin.error);
+      return res.status(503).json({ error: "اتصال به درگاه پرداخت برقرار نشد. کمی بعد دوباره تلاش کنید." });
     }
 
     const userId = req.user?.userId && !req.user.anonymous ? req.user.userId : null;
@@ -2487,7 +2489,7 @@ app.post("/api/labmat/analyze", requireAllowedOrigin, requireAuth, analyzeLimite
       });
     } catch (fallbackErr) {
       console.error("[LabMat API] Deterministic fallback failed:", fallbackErr);
-      res.status(500).json({ error: "Internal Server Error in LabMat Agent Graph and Fallback failed", details: err.message });
+      res.status(500).json({ error: "خطای سرور رخ داده است." });
     }
   }
 });

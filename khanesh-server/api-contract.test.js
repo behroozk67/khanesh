@@ -688,6 +688,30 @@ test("T15b: تاریخچهٔ پرداخت با همان کلیدهای مالک�
   assert.equal((await listLabEvents(`dev:${device}`)).length, 0, "شناسهٔ خام دستگاه نباید ذخیره شود");
 });
 
+test("T15c: خطای درگاه به کاربر نمی‌رسد؛ پیام عمومی با ۵۰۳", async () => {
+  const stub = globalThis.fetch;
+  const saved = { id: process.env.ZARINPAL_MERCHANT_ID, sandbox: process.env.ZARINPAL_SANDBOX };
+  process.env.ZARINPAL_MERCHANT_ID = "11111111-1111-1111-1111-111111111111";
+  process.env.ZARINPAL_SANDBOX = "false";
+  globalThis.fetch = async (input, init) => (String(input).includes("zarinpal.com")
+    ? new Response(JSON.stringify({ errors: { code: -10, message: "Terminal is not valid" } }), { status: 200 })
+    : stub(input, init));
+  try {
+    const res = await realFetch(`${baseUrl}/api/payment/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId: "starter" }),
+    });
+    assert.equal(res.status, 503);
+    assert.deepEqual(await res.json(), { error: "اتصال به درگاه پرداخت برقرار نشد. کمی بعد دوباره تلاش کنید." });
+  } finally {
+    globalThis.fetch = stub;
+    for (const [k, v] of [["ZARINPAL_MERCHANT_ID", saved.id], ["ZARINPAL_SANDBOX", saved.sandbox]]) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+});
+
 test("T16: مسیرِ گراف با USE_GRAPH خاموش در دسترس نیست", async () => {
   // ⚠️ تورهای ایمنیِ مرحلهٔ ۸ روی این مسیر اجرا نمی‌شوند (N13). گیت تا امروز
   //    فقط داخلِ analyzeHandler بود، نه روی این روت.
