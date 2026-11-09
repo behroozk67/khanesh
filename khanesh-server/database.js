@@ -611,7 +611,8 @@ export async function settlePaymentRecord(authority, { refId, cardPan, cardHash 
 
 export async function markPaymentFailed(authority) {
   const db = await dbConn();
-  await db.run(`UPDATE payments SET status = 'failed' WHERE authority = ?`, [authority]);
+  // بدونِ این شرط، ردیفِ paid به failed برمی‌گشت و تأییدِ بعدی (۱۰۱) با firstTime اعتبار را دوباره می‌داد.
+  await db.run(`UPDATE payments SET status = 'failed' WHERE authority = ? AND status != 'paid'`, [authority]);
 }
 
 export async function getUserCredits(userId) {

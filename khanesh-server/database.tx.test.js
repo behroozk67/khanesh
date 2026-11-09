@@ -50,6 +50,11 @@ test("ثبتِ پرداخت و اعتبار یک تراکنش است: شکستِ
     assert.deepEqual(await d.settlePaymentRecord("AUTH1", { refId: "1" }, { userId: uid, credits: 3, planId: "empire" }), { firstTime: true });
     assert.deepEqual(await d.settlePaymentRecord("AUTH1", { refId: "1" }, { userId: uid, credits: 3, planId: "empire" }), { firstTime: false });
     assert.deepEqual(await d.getUserPlan(uid), { credits: 3, active_plan: "empire" });
+
+    // تأییدِ هم‌زمانی که ردِ قطعی گرفت نباید پرداختِ paid را failed کند؛ وگرنه تأییدِ بعدی دوباره اعتبار می‌دهد.
+    await d.markPaymentFailed("AUTH1");
+    assert.equal((await d.getPaymentByAuthority("AUTH1")).status, "paid");
+    assert.deepEqual(await d.settlePaymentRecord("AUTH1", { refId: "1" }, { userId: uid, credits: 3, planId: "empire" }), { firstTime: false });
   } finally {
     await d.closeDb();
     rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
