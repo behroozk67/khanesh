@@ -99,6 +99,8 @@ address unless Express is told how many hops to trust:
 Set it to the actual hop count (`1` for a single Nginx). `GET /health` reports the live value
 alongside `rateLimit` and `corsOrigins`.
 
+JSON bodies are capped at 256 KB everywhere except the image routes (`/api/analyze`, `/api/analyze/start`, `/api/labmat/analyze`), which get 60 MB and parse it only after `requireAuth` and `analyzeLimiter`. Keep that order: parsing first gives any caller without an account the server's memory and CPU.
+
 CORS restricts browser-driven abuse from other origins only — it does nothing against `curl` or a
 script. The rate limiter, not CORS, is what protects the AvalAI bill.
 

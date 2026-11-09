@@ -67,11 +67,13 @@ async function withServer(nodeEnv, extraEnv, fn) {
   }
 }
 
-const post = (base, p, token) => fetch(`${base}${p}`, {
+// بدنهٔ خالی پیش از هر فراخوانیِ AvalAI با خطای ۴۰۰ در کار تمام می‌شود
+const post = (base, p, token, body = "{}") => fetch(`${base}${p}`, {
   method: "POST",
   headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
-  body: "{}",   // بدنهٔ خالی پیش از هر فراخوانیِ AvalAI با خطای ۴۰۰ در کار تمام می‌شود
+  body,
 });
+const bodyOf = (bytes) => JSON.stringify({ pad: "x".repeat(bytes) });
 
 test("production: مسیرِ همگام ثبت نمی‌شود و مسیرِ اصلی ورود می‌خواهد", async () => {
   await withServer("production", {}, async (base) => {
@@ -111,5 +113,38 @@ test("سقفِ روزانه: کاربرِ عادی ۱۰ تحلیل، کاربر�
     for (let i = 1; i <= 12; i++) {
       assert.equal((await post(base, "/api/analyze/start", exempt)).status, 202, `معاف ${i}`);
     }
+  });
+});
+
+test("سقفِ بدنه: مسیرِ بی‌حساب ۲۵۶ کیلوبایت، مسیرِ عکس فقط بعد از ورود، و بدنهٔ خراب از سهمیه کم نمی‌کند", async () => {
+  await withServer("production", { RATE_LIMIT_MAX: "1000" }, async (base, dbFile) => {
+    const db = await open({ filename: dbFile, driver: sqlite3.Database });
+    const { lastID } = await db.run("INSERT INTO users (phone) VALUES (?)", ["09120000002"]);
+    await db.close();
+    const token = jwt.sign({ userId: lastID, kind: "phone" }, JWT_SECRET, { expiresIn: "1h" });
+    const KB = 1024;
+
+    const big = await post(base, "/api/contact", null, bodyOf(300 * KB));
+    assert.equal(big.status, 413);
+    assert.equal((await big.json()).error, "حجم درخواست بیش از حد مجاز است.");
+    const broken = await post(base, "/api/contact", null, "{not json");
+    assert.equal(broken.status, 400);
+    assert.equal((await broken.json()).error, "بدنهٔ درخواست معتبر نیست.");
+    assert.equal((await post(base, "/api/auth/request-otp", null, bodyOf(300 * KB))).status, 413);
+    assert.equal((await post(base, "/api/contact", null, JSON.stringify({ contact: "a@b.co", message: "سلام" }))).status, 200);
+    assert.equal((await post(base, "/api/payment/verify", null, JSON.stringify({ authority: "missing" }))).status, 404);
+
+    // بدون ورود، بدنهٔ بزرگ پیش از پارس رد می‌شود؛ با ورود، حجمِ عکس پذیرفته است.
+    assert.equal((await post(base, "/api/analyze/start", null, bodyOf(KB * KB))).status, 401);
+    assert.equal((await post(base, "/api/analyze/start", token, bodyOf(KB * KB))).status, 202);
+    assert.equal((await post(base, "/api/analyze/start", token, bodyOf(61 * KB * KB))).status, 413);
+
+    for (let i = 0; i < 12; i++) {
+      assert.equal((await post(base, "/api/analyze/start", token, "{not json")).status, 400);
+    }
+    for (let i = 2; i <= 10; i++) {
+      assert.equal((await post(base, "/api/analyze/start", token)).status, 202, `تحلیلِ ${i}`);
+    }
+    assert.equal((await post(base, "/api/analyze/start", token)).status, 429);
   });
 });
