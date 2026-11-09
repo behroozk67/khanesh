@@ -11,6 +11,7 @@
     "postbuild": "node scripts/gen-static-heads.mjs",
     "indexnow": "node scripts/indexnow.mjs",
     "lint": "oxlint",
+    "test": "node --test scripts/sitemap.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

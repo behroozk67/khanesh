@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { GUIDES, testPath, catPath, extraBySlug, catOfTest } from "../src/testCatalog.js";
+import { publicPaths } from "./site-routes.mjs";
 import { REF } from "../src/labRefs.js";
 import { CATEGORY_PAGES } from "../src/guideContent.js";
 import { EXTRA_TESTS } from "../src/content/extraTests.js";
@@ -377,14 +378,8 @@ function renderStaticArticle(title, description, points = []) {
 `;
 }
 
-// استخراجِ تمام آدرس‌ها دقیقاً منطبق با sitemap.xml
-const paths = ["/", "/tests", "/reference-ranges", "/units-guide", "/how-to-capture", "/methodology", "/contact", "/terms", "/privacy", "/pricing"];
-for (const g of GUIDES) paths.push(catPath(g.id));
-const keys = new Set();
-for (const g of GUIDES) for (const i of g.items) keys.add(i.k || i.slug);
-for (const k of [...keys].sort()) paths.push(testPath(k));
-
-const uniquePaths = [...new Set(paths)];
+// همان فهرستی که sitemap.xml از آن ساخته می‌شود (scripts/site-routes.mjs)
+const uniquePaths = publicPaths();
 let count = 0;
 
 for (const p of uniquePaths) {
