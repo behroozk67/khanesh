@@ -2391,9 +2391,7 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
 
       if (unlockedResult) {
         updateJobResult(payment.job_id, 'completed', unlockedResult).catch(() => {});
-        const owner = payment.user_id
-          ? `user:${payment.user_id}`
-          : (req.headers['x-device-id'] ? `dev:${req.headers['x-device-id']}` : null);
+        const owner = payment.user_id ? `u:${payment.user_id}` : ownerOf(req);
         if (owner) {
           Promise.resolve(recordAnalysis({ owner, jobId: payment.job_id, result: unlockedResult })).catch(() => {});
         }

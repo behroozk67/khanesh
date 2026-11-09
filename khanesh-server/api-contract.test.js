@@ -650,6 +650,44 @@ test("T15: poll فقط کارِ خودِ کاربر را برمی‌گرداند
   assert.ok(!JSON.stringify(body).includes("نتیجهٔ بیمارِ دیگر"), "بدنهٔ نتیجه نباید لو برود");
 });
 
+test("T15b: تاریخچهٔ پرداخت با همان کلیدهای مالکِ بقیهٔ سیستم ثبت می‌شود تا حذف حساب به آن برسد", async () => {
+  const { createHash } = await import("node:crypto");
+  const { createJob, setJobAwaitingPayment } = await import("./jobStore.js");
+  const { createPaymentRecord, listLabEvents } = await import("./database.js");
+  const pendingResult = { _engine: { tests: [{ key: "HGB", value: 13.2, abnormal: false, range: "12 - 16" }] } };
+  const payFor = async ({ userId, device }) => {
+    const jobId = createJob({ pagesTotal: 1, userId });
+    const authority = `A_TEST_T15b_${jobId}`;
+    setJobAwaitingPayment(jobId, { planId: "starter", amount: 1000, authority, paymentUrl: "/x", testsCount: 1, testNames: ["HGB"], pendingResult });
+    await createPaymentRecord({ authority, jobId, userId, planId: "starter", amount: 1000 });
+    const res = await realFetch(`${baseUrl}/api/payment/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(device ? { "x-device-id": device } : {}) },
+      body: JSON.stringify({ authority }),
+    });
+    assert.equal(res.status, 200);
+    return jobId;
+  };
+  const eventually = async (owner, jobId) => {
+    for (let i = 0; i < 50; i++) {
+      if ((await listLabEvents(owner)).some((e) => e.job_id === jobId)) return true;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return false;
+  };
+
+  const userId = 900000 + Math.floor(Math.random() * 90000);
+  const j1 = await payFor({ userId });
+  assert.ok(await eventually(`u:${userId}`, j1), "کلید کاربر باید u:<id> باشد؛ deleteUserCascade فقط همین را پاک می‌کند");
+  assert.equal((await listLabEvents(`user:${userId}`)).length, 0);
+
+  const device = `T15bdevice${userId}`;
+  const j2 = await payFor({ userId: null, device });
+  const hashed = `d:${createHash("sha256").update(device).digest("hex").slice(0, 24)}`;
+  assert.ok(await eventually(hashed, j2), "کلید دستگاه باید هش شود");
+  assert.equal((await listLabEvents(`dev:${device}`)).length, 0, "شناسهٔ خام دستگاه نباید ذخیره شود");
+});
+
 test("T16: مسیرِ گراف با USE_GRAPH خاموش در دسترس نیست", async () => {
   // ⚠️ تورهای ایمنیِ مرحلهٔ ۸ روی این مسیر اجرا نمی‌شوند (N13). گیت تا امروز
   //    فقط داخلِ analyzeHandler بود، نه روی این روت.
