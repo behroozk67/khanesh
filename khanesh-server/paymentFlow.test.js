@@ -287,6 +287,22 @@ test("پرداختِ بدونِ برگشت به سایت: بررسیِ دوره�
   });
 });
 
+test("سرور بعد از تأییدِ زرین‌پال و پیش از ثبت افتاد: بررسیِ دوره‌ای پرداختِ «در حالِ تأیید» را تمام می‌کند", async () => {
+  await withServer({ RECONCILE_MS: "200" }, async ({ tokenFor, call, db }) => {
+    const u = await tokenFor("09120000001");
+    // زرین‌پال تأیید کرده (پس دیگر در unVerified نیست)، ولی ردیفِ ما هنوز paid نشده
+    await db.run("INSERT INTO payments (authority, user_id, plan_id, amount, status, created_at) VALUES ('ZSTUCK', 1, 'empire', 89000, 'verifying', datetime('now','-30 minutes'))");
+    let plan;
+    for (let i = 0; i < 50; i++) {
+      plan = (await call("GET", "/api/plan", u)).body;
+      if (plan.credits > 0) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(plan.credits, 3);
+    assert.equal((await db.get("SELECT status FROM payments WHERE authority = 'ZSTUCK'")).status, "paid");
+  });
+});
+
 test("آخرین نتیجه از سرور: فقط برای مالک، فقط نتیجهٔ تحویل‌شده", async () => {
   await withServer({}, async ({ tokenFor, call, db }) => {
     const u = await tokenFor("09120000001");

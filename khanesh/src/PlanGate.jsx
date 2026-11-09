@@ -9,6 +9,8 @@ import "./PlanGate.css";
  */
 export function PlanBadge() {
   const { plan, planId, setPlan, needsPlan } = useActivePlan();
+  // پلنِ بالاتر با اعتبارِ تمام‌شده هنوز تاریخچه و PDF را دارد؛ فقط «پایه»ِ مصرف‌شده (یا هرگز نخریده) یعنی پلن ندارد.
+  const noPlan = needsPlan && planId === PLAN_IDS.STARTER;
   const [openModal, setOpenModal] = useState(false);
 
   return (
@@ -20,7 +22,7 @@ export function PlanBadge() {
         title="سطح دسترسی شما بر اساس پلن انتخابی"
       >
         <span aria-hidden="true">🔒</span>
-        <span>{needsPlan ? "پلن فعالی ندارید" : <>پلن فعال: {plan.name}</>}</span>
+        <span>{noPlan ? "پلن فعالی ندارید" : <>پلن فعال: {plan.name}{needsPlan && " · اعتبارِ تفسیر تمام شده"}</>}</span>
       </button>
 
       {openModal && (

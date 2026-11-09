@@ -27,3 +27,31 @@ test("تراکنش‌های هم‌زمان پشتِ هم اجرا می‌شون
     rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   }
 });
+
+test("ثبتِ پرداخت و اعتبار یک تراکنش است: شکستِ افزودنِ اعتبار، «paid» را هم برمی‌گرداند", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "db-pay-"));
+  process.env.DB_FILE = path.join(dir, "t.sqlite");
+  const d = await import(`./database.js?pay=${Date.now()}`);
+  await d.initDb();
+  const db = await d.default();
+  try {
+    const { lastID: uid } = await db.run("INSERT INTO users (phone) VALUES ('09120000009')");
+    await d.createPaymentRecord({ authority: "AUTH1", userId: uid, planId: "empire", amount: 89000 });
+    await d.markPaymentVerifying("AUTH1");
+    assert.equal((await d.getPaymentByAuthority("AUTH1")).status, "verifying");
+
+    // سقوط بینِ دو نوشتن را با شکستِ UPDATEِ اعتبار شبیه‌سازی می‌کنیم
+    await db.exec("CREATE TRIGGER boom BEFORE UPDATE OF credits ON users BEGIN SELECT RAISE(ABORT, 'boom'); END");
+    await assert.rejects(d.settlePaymentRecord("AUTH1", { refId: "1" }, { userId: uid, credits: 3, planId: "empire" }));
+    assert.equal((await d.getPaymentByAuthority("AUTH1")).status, "verifying", "پرداختِ بی‌اعتبار نباید paid بماند");
+    assert.equal((await d.getUserPlan(uid)).credits, 0);
+
+    await db.exec("DROP TRIGGER boom");
+    assert.deepEqual(await d.settlePaymentRecord("AUTH1", { refId: "1" }, { userId: uid, credits: 3, planId: "empire" }), { firstTime: true });
+    assert.deepEqual(await d.settlePaymentRecord("AUTH1", { refId: "1" }, { userId: uid, credits: 3, planId: "empire" }), { firstTime: false });
+    assert.deepEqual(await d.getUserPlan(uid), { credits: 3, active_plan: "empire" });
+  } finally {
+    await d.closeDb();
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  }
+});

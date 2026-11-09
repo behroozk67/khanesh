@@ -571,16 +571,42 @@ export async function getPaymentByAuthority(authority) {
   return db.get(`SELECT * FROM payments WHERE authority = ?`, [authority]);
 }
 
-// firstTime=true فقط برای اولین تأیید؛ تأیید دوباره (callback + refresh) اعتبار را دوباره اضافه نمی‌کند.
-export async function markPaymentSuccess(authority, { refId, cardPan, cardHash }) {
+// پیش از صدا زدنِ verifyِ زرین‌پال: اگر سرور بعد از تأییدِ زرین‌پال و پیش از ثبت بیفتد، این ردیف نشان می‌دهد
+// پولی شاید گرفته شده؛ زرین‌پال دیگر آن را در unVerified نمی‌آورد، پس بررسیِ دوره‌ای از همین وضعیت پیدایش می‌کند.
+export async function markPaymentVerifying(authority) {
   const db = await dbConn();
-  const r = await db.run(
-    `UPDATE payments
-     SET status = 'paid', ref_id = ?, card_pan = ?, card_hash = ?, paid_at = CURRENT_TIMESTAMP
-     WHERE authority = ? AND status != 'paid'`,
-    [refId, cardPan || null, cardHash || null, authority]
-  );
-  return { ...(await getPaymentByAuthority(authority)), firstTime: r.changes === 1 };
+  await db.run(`UPDATE payments SET status = 'verifying' WHERE authority = ? AND status != 'paid'`, [authority]);
+}
+
+// «در حالِ تأیید» که ۲۰ دقیقه مانده (مهلتِ درگاه گذشته، پس verifyِ زنده‌ای در جریان نیست). بعد از ۷ روز رها می‌شود.
+export async function listStuckPayments() {
+  const db = await dbConn();
+  return db.all(`SELECT * FROM payments WHERE status = 'verifying'
+    AND created_at < datetime('now', '-20 minutes') AND created_at > datetime('now', '-7 days')`);
+}
+
+// «paid» و اعتبار در یک تراکنش: سقوط بینِ این دو، پرداختِ paidِ بی‌اعتبار نمی‌گذارد.
+// firstTime=true فقط برای اولین تأیید؛ تأیید دوباره (callback + refresh + بررسیِ دوره‌ای) اعتبار را دوباره اضافه نمی‌کند.
+export async function settlePaymentRecord(authority, { refId, cardPan, cardHash }, credit = null) {
+  const db = await dbConn();
+  const release = await beginTx(db);
+  try {
+    const r = await db.run(
+      `UPDATE payments
+       SET status = 'paid', ref_id = ?, card_pan = ?, card_hash = ?, paid_at = CURRENT_TIMESTAMP
+       WHERE authority = ? AND status != 'paid'`,
+      [refId, cardPan || null, cardHash || null, authority]
+    );
+    const firstTime = r.changes === 1;
+    if (firstTime && credit?.userId) await addUserCredits(credit.userId, credit.credits, credit.planId);
+    await db.exec('COMMIT');
+    return { firstTime };
+  } catch (e) {
+    await db.exec('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    release();
+  }
 }
 
 export async function markPaymentFailed(authority) {

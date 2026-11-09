@@ -86,7 +86,7 @@ import historyRouter, { recordAnalysis, ownerOf } from "./historyRoutes.js";
 import {
   initDb, createJobRecord, updateJobResult, getUserJobs, getJobById,
   getLatestCompletedJob, saveContactMessage,
-  createPaymentRecord, getPaymentByAuthority, markPaymentSuccess, markPaymentFailed,
+  createPaymentRecord, getPaymentByAuthority, markPaymentVerifying, settlePaymentRecord, listStuckPayments, markPaymentFailed,
   getUserCredits, addUserCredits, deductUserCredit, getUserPlan
 } from "./database.js";
 import { notifyNewContactMessage } from "./notifier.js";
@@ -2350,24 +2350,21 @@ app.post("/api/payment/request", requireAllowedOrigin, requireAuth, async (req, 
  * تاریخچه همین‌جا ثبت می‌شود، نه هنگامِ پایانِ تحلیل: نتیجهٔ پرداخت‌نشده نباید از راهِ /history خوانده شود.
  */
 async function settlePayment(payment, verifyRes) {
-  const paid = await markPaymentSuccess(payment.authority, {
-    refId: verifyRes.refId,
-    cardPan: verifyRes.cardPan,
-    cardHash: verifyRes.cardHash,
-  });
   const plan = PLAN_CONFIG[payment.plan_id] || PLAN_CONFIG.starter;
-  let unlockedResult = null;
-  if (payment.job_id) {
-    unlockedResult = unlockPaidJob(payment.job_id, { refId: verifyRes.refId, cardPan: verifyRes.cardPan });
-    if (unlockedResult) {
-      updateJobResult(payment.job_id, 'completed', unlockedResult).catch(() => {});
-      const owner = getJob(payment.job_id)?.paymentInfo?.historyOwner;
-      if (owner) Promise.resolve(recordAnalysis({ owner, jobId: payment.job_id, result: unlockedResult })).catch(() => {});
-    }
-  }
+  // unlockPaidJob تا وقتی کار در حافظه است تکرارپذیر است، پس تکرارِ بعد از شکستِ تراکنش همان «یک نوبت کمتر» را می‌دهد.
+  const unlockedResult = payment.job_id
+    ? unlockPaidJob(payment.job_id, { refId: verifyRes.refId, cardPan: verifyRes.cardPan })
+    : null;
   // تحلیلِ بازشده یکی از نوبت‌های همین پلن است و هرگز از اعتبار کم نشده؛ کارِ ازدست‌رفته (ری‌استارت) نوبتش را نگه می‌دارد.
-  if (payment.user_id && paid.firstTime) {
-    await addUserCredits(payment.user_id, Math.max(plan.credits - (unlockedResult ? 1 : 0), 0), plan.id);
+  const { firstTime } = await settlePaymentRecord(
+    payment.authority,
+    { refId: verifyRes.refId, cardPan: verifyRes.cardPan, cardHash: verifyRes.cardHash },
+    payment.user_id ? { userId: payment.user_id, credits: Math.max(plan.credits - (unlockedResult ? 1 : 0), 0), planId: plan.id } : null,
+  );
+  if (unlockedResult) {
+    updateJobResult(payment.job_id, 'completed', unlockedResult).catch(() => {});
+    const owner = firstTime && getJob(payment.job_id)?.paymentInfo?.historyOwner;
+    if (owner) Promise.resolve(recordAnalysis({ owner, jobId: payment.job_id, result: unlockedResult })).catch(() => {});
   }
   return unlockedResult;
 }
@@ -2379,15 +2376,21 @@ async function reconcileUnverifiedPayments() {
   reconciling = true;
   try {
     const list = await listUnverified();
-    if (!list.ok) { console.warn("[payment] فهرستِ تأییدنشده خوانده نشد:", list.error); return; }
-    for (const authority of list.authorities) {
+    if (!list.ok) console.warn("[payment] فهرستِ تأییدنشده خوانده نشد:", list.error);
+    const unverified = list.ok ? list.authorities : [];
+    // ردیف‌هایی که verifyشان شروع شد و ثبت نشد (سقوطِ سرور): زرین‌پال برای تأییدِ دوباره ۱۰۱ و همان ref_id را می‌دهد.
+    const stuck = (await listStuckPayments()).map((p) => p.authority).filter((a) => !unverified.includes(a));
+    for (const authority of [...unverified, ...stuck]) {
       const payment = await getPaymentByAuthority(authority);
       if (!payment || payment.status === "paid") continue;
+      await markPaymentVerifying(authority);
       const verifyRes = await verifyPayment({ authority, amount: payment.amount });
       if (verifyRes.ok) {
         await settlePayment(payment, verifyRes);
         console.log("[payment] پرداختِ بدونِ برگشت ثبت شد:", authority.slice(-8));
       } else {
+        // ردِ قطعیِ زرین‌پال همان کاری را می‌کند که مسیرِ verify می‌کند؛ خطای گذرا دورِ بعد دوباره امتحان می‌شود.
+        if (!verifyRes.transient) await markPaymentFailed(authority);
         console.warn("[payment] تأییدِ دوره‌ای ناموفق:", authority.slice(-8), verifyRes.code ?? verifyRes.error);
       }
     }
@@ -2437,6 +2440,7 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
       return res.status(400).json({ error: "پرداخت توسط کاربر لغو شد یا ناموفق بود." });
     }
 
+    await markPaymentVerifying(authority);
     const verifyRes = await verifyPayment({ authority, amount: payment.amount });
     if (!verifyRes.ok) {
       // خطای شبکه/سرورِ زرین‌پال رد پرداخت نیست؛ ممکن است کاربر پول داده باشد و دوباره تأیید شود.
