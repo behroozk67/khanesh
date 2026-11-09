@@ -64,6 +64,8 @@ export default function PaymentVerifyPage() {
           if (data.result) {
             storeResult(data.result);
           }
+          // خرید پلن بدون تحلیلِ در انتظار: مستقیم به /app؛ آنجا پروفایلِ کامل ⇒ انتخابِ روش، ناقص ⇒ فرمِ اطلاعات.
+          if (!data.result) { navigate("/app", { replace: true }); return; }
           setState({
             loading: false,
             success: true,
@@ -93,7 +95,7 @@ export default function PaymentVerifyPage() {
     return () => {
       isMounted = false;
     };
-  }, [authority, status]);
+  }, [authority, status, navigate]);
 
   const planInfo = state.planId ? PLANS_CONFIG[state.planId] : null;
 

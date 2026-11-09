@@ -204,17 +204,26 @@ function IntakeCard({ profile, editing, onSave, onBack }) {
           <p className="onb-note">بعضی از این‌ها تفسیر را دقیق‌تر می‌کنند؛ نتیجه می‌گوید کدام‌ها لحاظ شد.</p>
         </div>
 
-        {planInfo?.plans && (
-          <div className="ik-field" role="radiogroup" aria-label="انتخاب پلن">
-            <span className="ik-label">پلن خود را انتخاب کنید</span>
-            <div className="ik-caps" style={{ flexDirection: "column", alignItems: "stretch" }}>
-              {planInfo.plans.map((p) => (
-                <button key={p.id} type="button" role="radio" className="ik-cap" aria-checked={planId === p.id} aria-pressed={planId === p.id} onClick={() => setPlanId(p.id)}>
-                  {p.name} — {toFaDigits(p.price.toLocaleString("en-US"))} تومان — {toFaDigits(p.credits)} تفسیر
-                </button>
-              ))}
-            </div>
+        {planInfo?.needsPlan && (
+          <div className="pk" role="radiogroup" aria-label="انتخاب پلن">
+            <p className="pk-title">پلن خود را انتخاب کنید</p>
+            {planInfo.plans.map((p) => (
+              <button key={p.id} type="button" role="radio" aria-checked={planId === p.id} className="pk-opt" onClick={() => setPlanId(p.id)}>
+                <span className="pk-dot" aria-hidden="true" />
+                <span className="pk-main">
+                  <span className="pk-name">{p.name}</span>
+                  <span className="pk-sub">{toFaDigits(p.credits)} تفسیر</span>
+                </span>
+                <span className="pk-price"><b dir="ltr">{toFaDigits(p.price.toLocaleString("en-US"))}</b> تومان</span>
+              </button>
+            ))}
           </div>
+        )}
+        {planInfo && !planInfo.needsPlan && (
+          <p className="pk-active">
+            <span aria-hidden="true">✓</span> پلن فعال: <b>{planInfo.plans.find((p) => p.id === planInfo.planId)?.name || "—"}</b>
+            {planInfo.credits > 0 && <> · {toFaDigits(planInfo.credits)} تفسیر باقی‌مانده</>}
+          </p>
         )}
 
         {err && <p className="onb-err" role="alert">{err}</p>}
