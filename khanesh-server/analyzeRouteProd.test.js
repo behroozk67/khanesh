@@ -41,7 +41,9 @@ async function withServer(nodeEnv, extraEnv, fn) {
       AUTH_REQUIRED: "true",
       JWT_SECRET,
       AVALAI_API_KEY: "test-key-never-used",
-      ALLOWED_ORIGINS: "",
+      ALLOWED_ORIGINS: "https://test.local",
+      ZARINPAL_MERCHANT_ID: "11111111-1111-1111-1111-111111111111",
+      ZARINPAL_SANDBOX: "false",
       TRUST_PROXY: "",
       PAYMENT_EXEMPT_PHONES: "",
       ...extraEnv,
@@ -148,3 +150,56 @@ test("سقفِ بدنه: مسیرِ بی‌حساب ۲۵۶ کیلوبایت، م
     assert.equal((await post(base, "/api/analyze/start", token)).status, 429);
   });
 });
+
+// بوتِ رد شده: پروسه باید با کدِ غیرصفر بیرون برود و نام متغیر را بگوید، نه اینکه ناامن بالا بیاید.
+function bootResult(env) {
+  const dir = mkdtempSync(path.join(tmpdir(), "boot-check-"));
+  return new Promise(async (resolve) => {
+    const port = await freePort();
+    const child = spawn(process.execPath, ["server.js"], {
+      cwd: HERE,
+      stdio: ["ignore", "ignore", "pipe"],
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+        PORT: String(port),
+        DB_FILE: path.join(dir, "test.sqlite"),
+        AUTH_REQUIRED: "true",
+        JWT_SECRET,
+        AVALAI_API_KEY: "test-key-never-used",
+        ALLOWED_ORIGINS: "https://test.local",
+        ZARINPAL_MERCHANT_ID: "11111111-1111-1111-1111-111111111111",
+        ZARINPAL_SANDBOX: "false",
+        TRUST_PROXY: "",
+        ...env,
+      },
+    });
+    let stderr = "";
+    child.stderr.on("data", (d) => { stderr += d; });
+    const finish = (code) => {
+      clearTimeout(timer);
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      resolve({ code, stderr });
+    };
+    child.once("exit", finish);
+    // رد شدن با خروج خودش تمام می‌شود، پس مهلت فقط برای وقتی است که بالا آمده؛ کوتاهش نکن: زیر بار هوک، بوت ثانیه‌ها طول می‌کشد.
+    const timer = setTimeout(() => { child.removeListener("exit", finish); child.once("exit", () => finish("still-running")); child.kill(); }, 60000);
+  });
+}
+
+for (const [name, env, label] of [
+  ["AUTH_REQUIRED خاموش", { AUTH_REQUIRED: "" }, "AUTH_REQUIRED"],
+  ["کلید AvalAI خالی", { AVALAI_API_KEY: "" }, "AVALAI_API_KEY"],
+  ["ALLOWED_ORIGINS خالی", { ALLOWED_ORIGINS: "" }, "ALLOWED_ORIGINS"],
+  ["مبدأ http در production حذف می‌شود و چیزی نمی‌ماند", { ALLOWED_ORIGINS: "http://example.com" }, "ALLOWED_ORIGINS"],
+  ["مرچنت خالی", { ZARINPAL_MERCHANT_ID: "" }, "ZARINPAL"],
+  ["ZARINPAL_SANDBOX روشن", { ZARINPAL_SANDBOX: "true" }, "ZARINPAL"],
+]) {
+  test(`بوتِ production رد می‌شود: ${name}`, async () => {
+    const { code, stderr } = await bootResult(env);
+    assert.notEqual(code, "still-running", "سرور با تنظیمِ ناامن بالا آمد");
+    assert.notEqual(code, 0);
+    assert.match(stderr, new RegExp(label));
+    assert.doesNotMatch(stderr, /test-key-never-used|test-secret-for-route-check/);
+  });
+}

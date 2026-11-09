@@ -90,7 +90,7 @@ import {
   getUserCredits, addUserCredits, deductUserCredit, getUserPlan
 } from "./database.js";
 import { notifyNewContactMessage } from "./notifier.js";
-import { requestPayment, verifyPayment } from "./zarinpal.js";
+import { getZarinpalConfig, requestPayment, verifyPayment } from "./zarinpal.js";
 import { planOf, withPlanLocks } from "./plans.js";
 import { PLAN_CONFIG, planAmount } from "./planPrices.js";
 import { paymentExempt } from "./paymentExempt.js";
@@ -2618,6 +2618,18 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'خطای سرور رخ داده است.' });
 });
 
+// یک متغیرِ جاافتاده نباید production را بی‌صدا ناامن کند: ورودِ خاموش، CORS باز، یا پرداختِ آزمایشی که اعتبارِ واقعی می‌دهد.
+// زرین‌پال به REQUIRE_PAYMENT وابسته نیست: /api/payment/request همیشه باز است و PAYMENT_TEST_PHONES هم پول واقعی می‌دهد.
+function assertProductionConfig() {
+  if (process.env.NODE_ENV !== "production") return;
+  const bad = [];
+  if (!AUTH_REQUIRED) bad.push("AUTH_REQUIRED");
+  if (!AVALAI_API_KEY) bad.push("AVALAI_API_KEY");
+  if (!ALLOWED_ORIGINS.length) bad.push("ALLOWED_ORIGINS");
+  if (getZarinpalConfig().isSandbox) bad.push("ZARINPAL_MERCHANT_ID/ZARINPAL_SANDBOX");
+  if (bad.length) throw new Error(`تنظیماتِ ناامن در production: ${bad.join(", ")}`);
+}
+
 initDb()
   .then(() => {
     // ⚠️ باید *قبل از* app.listen صدای زده شود، نه بعدش. قبلاً درونِ
@@ -2626,6 +2638,7 @@ initDb()
     //    بلعیده می‌شد و سرور با توکن‌های جعل‌شدنی بالا می‌ماند — دقیقاً
     //    کلاسِ «گاردی که بی‌صدا می‌بلعید». بیرونِ listen بودن یعنی
     //    rejection به همین .catch می‌رسد و فرایند با کدِ غیرصفر خارج می‌شود.
+    assertProductionConfig();
     console.log(authBootReport());
     // ردیابی هم مثل احراز هویت باید در بوت دیده شود — روشن‌بودنش یعنی
     // مقادیرِ بالینیِ بیمار نگه داشته می‌شود، و آن نباید بی‌صدا بماند.

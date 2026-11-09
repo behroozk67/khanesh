@@ -69,6 +69,7 @@ encryption at rest, and deletion are now open questions that the code does not a
   The gate used to live only inside `analyzeHandler`, so this route ran the graph unconditionally
   and without `requireAuth` — a live, unauthenticated door to exactly the path N13 made
   default-off. Guard `T16`.
+- **Production refuses to boot on unsafe config** (`assertProductionConfig` in `server.js`): `NODE_ENV=production` with `AUTH_REQUIRED` off, no `AVALAI_API_KEY`, no valid `ALLOWED_ORIGINS`, or a sandbox Zarinpal config exits non-zero and names the variable. The Zarinpal check does not depend on `REQUIRE_PAYMENT`, because `/api/payment/request` is always open and `PAYMENT_TEST_PHONES` pay real money.
 - **`JWT_SECRET` is enforced, not warned about.** With auth on and the secret still the in-repo dev
   default, anyone who has read the source can mint a valid token, so `authBootReport()` throws
   instead of warning. This is the one place the server refuses to start.
