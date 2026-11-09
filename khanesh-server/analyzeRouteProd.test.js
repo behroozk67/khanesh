@@ -46,6 +46,7 @@ async function withServer(nodeEnv, extraEnv, fn) {
       ZARINPAL_SANDBOX: "false",
       TRUST_PROXY: "",
       PAYMENT_EXEMPT_PHONES: "",
+      REQUIRE_PAYMENT: "true",   // مستقل از .envِ محلی؛ سقفِ روزانه به آن وابسته است
       ...extraEnv,
     },
   });
@@ -97,8 +98,9 @@ test("غیر production: مسیرِ همگام برای تست و توسعه م�
   });
 });
 
-test("سقفِ روزانه: کاربرِ عادی ۱۰ تحلیل، کاربرِ معاف بی‌سقف، و شمارش هر کاربر جداست", async () => {
+test("سقفِ روزانه: بی‌اعتبار ۵ و بااعتبار ۱۰ تحلیل، کاربرِ معاف بی‌سقف، و شمارش هر کاربر جداست", async () => {
   const NORMAL = "09120000000";
+  const CREDITED = "09120000003";
   const OTHER = "09120000001";
   const EXEMPT = "09120000009";
   await withServer("production", { RATE_LIMIT_MAX: "1000", PAYMENT_EXEMPT_PHONES: EXEMPT }, async (base, dbFile) => {
@@ -107,15 +109,22 @@ test("سقفِ روزانه: کاربرِ عادی ۱۰ تحلیل، کاربر�
       const { lastID } = await db.run("INSERT INTO users (phone) VALUES (?)", [phone]);
       return jwt.sign({ userId: lastID, kind: "phone" }, JWT_SECRET, { expiresIn: "1h" });
     };
-    const [normal, other, exempt] = [await tokenFor(NORMAL), await tokenFor(OTHER), await tokenFor(EXEMPT)];
+    const [normal, other, exempt, credited] = [await tokenFor(NORMAL), await tokenFor(OTHER), await tokenFor(EXEMPT), await tokenFor(CREDITED)];
+    await db.run("UPDATE users SET credits = 3 WHERE phone = ?", [CREDITED]);
     await db.close();
 
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 5; i++) {
       assert.equal((await post(base, "/api/analyze/start", normal)).status, 202, `تحلیلِ ${i}`);
     }
     const blocked = await post(base, "/api/analyze/start", normal);
     assert.equal(blocked.status, 429);
     assert.equal((await blocked.json()).error, "سقفِ تحلیلِ روزانه پر شده است. لطفاً فردا دوباره تلاش کنید.");
+
+    // بدنهٔ خالی پیش از کسرِ اعتبار با ۴۰۰ تمام می‌شود، پس اعتبار تا آخر می‌ماند
+    for (let i = 1; i <= 10; i++) {
+      assert.equal((await post(base, "/api/analyze/start", credited)).status, 202, `بااعتبار ${i}`);
+    }
+    assert.equal((await post(base, "/api/analyze/start", credited)).status, 429);
 
     assert.equal((await post(base, "/api/analyze/start", other)).status, 202);
     for (let i = 1; i <= 12; i++) {
@@ -150,7 +159,7 @@ test("سقفِ بدنه: مسیرِ بی‌حساب ۲۵۶ کیلوبایت، م
     for (let i = 0; i < 12; i++) {
       assert.equal((await post(base, "/api/analyze/start", token, "{not json")).status, 400);
     }
-    for (let i = 2; i <= 10; i++) {
+    for (let i = 2; i <= 5; i++) {
       assert.equal((await post(base, "/api/analyze/start", token)).status, 202, `تحلیلِ ${i}`);
     }
     assert.equal((await post(base, "/api/analyze/start", token)).status, 429);
@@ -200,6 +209,7 @@ for (const [name, env, label] of [
   ["مبدأ http در production حذف می‌شود و چیزی نمی‌ماند", { ALLOWED_ORIGINS: "http://example.com" }, "ALLOWED_ORIGINS"],
   ["مرچنت خالی", { ZARINPAL_MERCHANT_ID: "" }, "ZARINPAL"],
   ["ZARINPAL_SANDBOX روشن", { ZARINPAL_SANDBOX: "true" }, "ZARINPAL"],
+  ["USE_GRAPH روشن (/api/labmat/analyze بی‌پرداخت)", { USE_GRAPH: "true" }, "USE_GRAPH"],
 ]) {
   test(`بوتِ production رد می‌شود: ${name}`, async () => {
     const { code, stderr } = await bootResult(env);

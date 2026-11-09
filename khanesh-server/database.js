@@ -615,6 +615,13 @@ export async function markPaymentFailed(authority) {
   await db.run(`UPDATE payments SET status = 'failed' WHERE authority = ? AND status != 'paid'`, [authority]);
 }
 
+/** تعدادِ تحلیل‌های شروع‌شدهٔ این کاربر در ۲۴ ساعتِ گذشته — سقفِ روزانه‌ای که با ری‌استارت صفر نمی‌شود. */
+export async function countRecentJobs(userId) {
+  const db = await dbConn();
+  const row = await db.get(`SELECT COUNT(*) n FROM jobs WHERE user_id = ? AND created_at > datetime('now', '-1 day')`, [userId]);
+  return row?.n ?? 0;
+}
+
 export async function getUserCredits(userId) {
   if (!userId) return 0;
   const db = await dbConn();

@@ -22,6 +22,8 @@ process.env.DB_FILE = path.join(TMP, "auth.sqlite");
 process.env.OTP_REQUEST_MAX = "1000";
 process.env.OTP_VERIFY_MAX = "1000";
 process.env.ALLOWED_ORIGINS = "";
+// پرداخت روشن، مستقل از .envِ محلی (dotenv متغیرِ ست‌شده را بازنویسی نمی‌کند) — سقفِ روزانهٔ تحلیل به آن وابسته است.
+process.env.REQUIRE_PAYMENT = "true";
 
 let serverHandle = null;
 const realCreateServer = http.createServer;
@@ -193,6 +195,24 @@ test("T45: سنِ روز/ماهِ قدیمی‌تر از ۷ روز دوباره 
   assert.ok(Date.now() - r.body.profile.ageRecordedAt < 60_000, JSON.stringify(r.body.profile));
 });
 
+test("سقفِ روزانهٔ کد برای یک شماره: یازدهمین درخواست ۴۲۹ می‌گیرد، حتی وقتی ورودِ موفق فاصله را آزاد کرده", async () => {
+  for (let i = 0; i < 10; i++) await signInPhone("09155550000", "09155550000");
+  const r = await call("POST", "/api/auth/request-otp", { phone: "09155550000" });
+  assert.equal(r.status, 429);
+  assert.match(r.body.error, /سقفِ روزانه/);
+  // شمارهٔ دیگر سهمیهٔ خودش را دارد
+  assert.equal((await call("POST", "/api/auth/request-otp", { phone: "09155550001" })).status, 200);
+});
+
+test("سقفِ روزانهٔ تحلیل از جدولِ jobs: کاربرِ بی‌اعتبار پس از ۵ تحلیل ۴۲۹ می‌گیرد، پیش از هر فراخوانِ مدل", async () => {
+  const { token, user } = await signInPhone("09155550002", "09155550002");
+  const { createJobRecord } = await import("./database.js");
+  for (let i = 0; i < 5; i++) await createJobRecord(`cap-test-${i}`, user.id, 1);
+  const r = await call("POST", "/api/analyze/start", { imageDataUrls: ["data:image/jpeg;base64,AAAA"] }, token);
+  assert.equal(r.status, 429, JSON.stringify(r.body));
+  assert.match(r.body.error, /سقفِ تحلیلِ روزانه/);
+});
+
 test("T34: مهاجرتِ users — پایگاهِ قدیمی (phone NOT NULL) ردیفش را نگه می‌دارد و کاربرِ فقط-ایمیل می‌پذیرد", async () => {
   // ⚠️ آخرین تست: اتصالِ ماژول را به یک فایلِ قدیمیِ تازه می‌برد.
   const { closeDb, initDb, createUserWithEmail, getUser } = await import("./database.js");
@@ -235,3 +255,4 @@ test("SF1: فرستندهٔ شکست‌خورده ⇒ ۵۰۲ با جملهٔ ف�
   assert.equal(r2.status, 200, JSON.stringify(r2.body));
   assert.ok(sent.sms.get("09123334455"));
 });
+

@@ -87,7 +87,7 @@ import {
   initDb, createJobRecord, updateJobResult, getUserJobs, getJobById,
   getLatestCompletedJob, saveContactMessage,
   createPaymentRecord, getPaymentByAuthority, markPaymentVerifying, settlePaymentRecord, listStuckPayments, markPaymentFailed,
-  getUserCredits, addUserCredits, deductUserCredit, getUserPlan
+  getUserCredits, addUserCredits, deductUserCredit, getUserPlan, countRecentJobs
 } from "./database.js";
 import { notifyNewContactMessage } from "./notifier.js";
 import { getZarinpalConfig, requestPayment, verifyPayment, listUnverified } from "./zarinpal.js";
@@ -505,6 +505,29 @@ const dailyUserLimiter = rateLimit({
   keyGenerator: (req) => `u:${req.user.userId}`,
   message: { error: "سقفِ تحلیلِ روزانه پر شده است. لطفاً فردا دوباره تلاش کنید." },
 });
+
+/** پرداخت برای این کاربر برقرار است؟ (منبعِ مشترکِ /api/plan و سقفِ روزانه) */
+function paymentApplies(user) {
+  const real = user?.userId && !user.anonymous;
+  return !!real && !paymentExempt(user)
+    && (process.env.REQUIRE_PAYMENT !== "false" || paymentExempt(user, process.env.PAYMENT_TEST_PHONES));
+}
+
+// OCR و مدل پیش از پیش‌فاکتور اجرا می‌شوند، پس کاربرِ بی‌اعتبار بی‌پرداخت هزینه می‌سازد: سقفش کمتر است.
+// شمارش از جدولِ jobs است تا ری‌استارت سقف را صفر نکند؛ dailyUserLimiterِ در-حافظه جلوی رگبارِ هم‌زمان را می‌گیرد.
+const PAID_DAILY_MAX = 10;
+const UNPAID_DAILY_MAX = Number(process.env.UNPAID_DAILY_MAX) || 5;
+async function persistentDailyCap(req, res, next) {
+  if (!paymentApplies(req.user)) return next();
+  try {
+    const credits = await getUserCredits(req.user.userId);
+    if ((await countRecentJobs(req.user.userId)) < (credits > 0 ? PAID_DAILY_MAX : UNPAID_DAILY_MAX)) return next();
+  } catch (err) {
+    console.error("DB persistentDailyCap error:", err.message);
+    return next();   // خطای DB تحلیل را نمی‌بندد؛ limiterهای در-حافظه هنوز برقرارند
+  }
+  res.status(429).json({ error: "سقفِ تحلیلِ روزانه پر شده است. لطفاً فردا دوباره تلاش کنید." });
+}
 
 const MEDLINE_BASE = "https://wsearch.nlm.nih.gov/ws/query";
 
@@ -2138,7 +2161,7 @@ if (process.env.NODE_ENV !== "production") {
 //    که هر ۲ ثانیه poll می‌کند خودش را بلاک می‌کند. چیزی که هزینهٔ AvalAI
 //    را می‌سازد شروعِ کار است، نه پرسیدنِ وضعیت.
 // ============================================================
-app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, withMember, analyzeLimiter, bigJson, dailyUserLimiter, (req, res) => {
+app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, withMember, analyzeLimiter, bigJson, dailyUserLimiter, persistentDailyCap, (req, res) => {
   const imgs = Array.isArray(req.body?.imageDataUrls)
     ? req.body.imageDataUrls
     : (typeof req.body?.imageDataUrl === "string" ? [req.body.imageDataUrl] : []);
@@ -2295,8 +2318,7 @@ app.get("/api/plan", requireAllowedOrigin, requireAuth, withMember, async (req, 
   const row = req.user?.userId && !req.user.anonymous ? await getUserPlan(req.user.userId) : null;
   // needsPlan: پرداخت برای این کاربر برقرار است و اعتبار ندارد ⇒ کلاینت پیش از تفسیر به /pricing می‌برد.
   const real = req.user?.userId && !req.user.anonymous;
-  const applies = real && !paymentExempt(req.user)
-    && (process.env.REQUIRE_PAYMENT !== "false" || paymentExempt(req.user, process.env.PAYMENT_TEST_PHONES));
+  const applies = paymentApplies(req.user);
   const credits = row?.credits ?? 0;
   const hasLatestResult = !!real && !!(await getLatestCompletedJob(req.user.userId, "", req.memberId ?? null));
   res.json({ planId, credits, paymentsOff: process.env.REQUIRE_PAYMENT === "false", needsPlan: !!applies && credits <= 0, paymentApplies: !!applies, hasLatestResult, plans: Object.values(PLAN_CONFIG).map(({ id, name, price, credits: c }) => ({ id, name, price, credits: c })) });
@@ -2676,6 +2698,8 @@ function assertProductionConfig() {
   if (!AVALAI_API_KEY) bad.push("AVALAI_API_KEY");
   if (!ALLOWED_ORIGINS.length) bad.push("ALLOWED_ORIGINS");
   if (getZarinpalConfig().isSandbox) bad.push("ZARINPAL_MERCHANT_ID/ZARINPAL_SANDBOX");
+  // /api/labmat/analyze پرداخت و کسرِ اعتبار ندارد؛ روشن بودنش یعنی تفسیرِ رایگان برای هر کاربرِ واردشده.
+  if (USE_GRAPH) bad.push("USE_GRAPH");
   if (bad.length) throw new Error(`تنظیماتِ ناامن در production: ${bad.join(", ")}`);
 }
 

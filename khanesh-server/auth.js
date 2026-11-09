@@ -62,6 +62,11 @@ const otpStore = new Map();   // "phone:09…" | "email:a@b" -> { code, expiresA
 // ⚠️ جدا از otpStore: سوختنِ کد (۵ حدسِ اشتباه) رکوردش را پاک می‌کند، و اگر زمانِ ارسال هم همان‌جا بود،
 //    درخواستِ بعدی بی‌فاصله کدِ تازه می‌گرفت — یعنی فاصلهٔ ارسالِ دوباره دور زده می‌شد (بازبینیِ کد).
 const lastSent = new Map();   // key -> ms
+// سقفِ روزانهٔ کد برای *یک* شناسه: بی‌آن، با چرخاندنِ IP هر دقیقه یک کدِ تازه و ۵ حدس، و هر بار یک پیامکِ پولی.
+// shortcut: در حافظه است و با ری‌استارت صفر می‌شود؛ اگر چند نمونهٔ سرور شد به DB ببر.
+const OTP_DAILY_MAX = Number(process.env.OTP_DAILY_MAX) || 10;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const dailySent = new Map();  // key -> { n, resetAt }
 
 /** پاک‌سازیِ کدهای منقضی. بدونِ این، Map با هر شناسه برای همیشه رشد می‌کند. */
 function sweepExpired(now = Date.now()) {
@@ -70,6 +75,9 @@ function sweepExpired(now = Date.now()) {
   }
   for (const [key, at] of lastSent) {
     if (now - at > RESEND_COOLDOWN_MS) lastSent.delete(key);
+  }
+  for (const [key, d] of dailySent) {
+    if (now > d.resetAt) dailySent.delete(key);
   }
 }
 
@@ -126,6 +134,10 @@ function issueCode(key, ttlMs) {
   if (prev != null && now - prev < RESEND_COOLDOWN_MS) {
     return { wait: Math.ceil((RESEND_COOLDOWN_MS - (now - prev)) / 1000) };
   }
+  const day = dailySent.get(key) ?? { n: 0, resetAt: now + DAY_MS };
+  if (day.n >= OTP_DAILY_MAX) return { daily: true };
+  day.n += 1;
+  dailySent.set(key, day);
   // ⚠️ randomInt رمزنگارانه است. Math.random قابل پیش‌بینی است و برای کدی که
   //    نقشِ رمزِ عبور را بازی می‌کند مناسب نیست.
   const code = String(randomInt(100000, 1000000));
@@ -141,7 +153,11 @@ function issueCode(key, ttlMs) {
 async function deliver(sender, key, to, code) {
   let ok = true;
   try { ok = (await sender(to, code)) !== false; } catch { ok = false; }
-  if (!ok) { otpStore.delete(key); lastSent.delete(key); }
+  if (!ok) {
+    otpStore.delete(key); lastSent.delete(key);
+    const day = dailySent.get(key);
+    if (day) day.n -= 1;   // ارسالِ ناموفق از سهمیهٔ روزانه کم نمی‌کند
+  }
   return ok;
 }
 const SEND_FAILED = { error: 'ارسالِ کد انجام نشد. چند دقیقهٔ دیگر دوباره تلاش کنید.' };
@@ -149,6 +165,7 @@ const SEND_FAILED = { error: 'ارسالِ کد انجام نشد. چند دقی
 //    عوض می‌کند و بیمار به‌جای همین جملهٔ فارسی یک متنِ انگلیسیِ بی‌معنی می‌بیند
 //    (روی azmayarapp.ir دیده شد). ۵۰۳ از کلودفلر بی‌تغییر رد می‌شود.
 const SEND_FAILED_STATUS = 503;
+const DAILY_CAP = { error: 'سقفِ روزانهٔ ارسالِ کد برای این شناسه پر شده است. فردا دوباره تلاش کنید.' };
 
 /** null یعنی کد درست بود و مصرف شد؛ در غیر این صورت پیامِ فارسیِ خطا. */
 function checkCode(key, code) {
@@ -225,6 +242,7 @@ router.post('/request-otp', otpRequestLimiter, async (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   if (!phone) return res.status(400).json({ error: 'شماره موبایل نامعتبر است. شماره را مثل ۰۹۱۲۱۲۳۴۵۶۷ وارد کنید.' });
   const r = issueCode(`phone:${phone}`, OTP_TTL_MS);
+  if (r.daily) return res.status(429).json(DAILY_CAP);
   if (r.wait) return res.status(429).json({ error: `کد قبلاً فرستاده شده. ${faDigits(r.wait)} ثانیهٔ دیگر دوباره تلاش کنید.`, retryAfterSec: r.wait });
   if (!(await deliver(smsSender, `phone:${phone}`, phone, r.code))) return res.status(SEND_FAILED_STATUS).json(SEND_FAILED);
   return res.json({ success: true, message: 'کد با موفقیت ارسال شد.', retryAfterSec: RESEND_COOLDOWN_MS / 1000 });
@@ -256,6 +274,7 @@ router.post('/request-email-otp', otpRequestLimiter, async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   if (!email) return res.status(400).json({ error: 'نشانیِ ایمیل نامعتبر است.' });
   const r = issueCode(`email:${email}`, EMAIL_OTP_TTL_MS);
+  if (r.daily) return res.status(429).json(DAILY_CAP);
   if (r.wait) return res.status(429).json({ error: `کد قبلاً فرستاده شده. ${faDigits(r.wait)} ثانیهٔ دیگر دوباره تلاش کنید.`, retryAfterSec: r.wait });
   if (!(await deliver(emailSender, `email:${email}`, email, r.code))) return res.status(SEND_FAILED_STATUS).json(SEND_FAILED);
   return res.json({ success: true, message: 'کد به ایمیلِ شما فرستاده شد.', retryAfterSec: RESEND_COOLDOWN_MS / 1000 });
