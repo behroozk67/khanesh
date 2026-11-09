@@ -715,6 +715,19 @@ test("T15c: خطای درگاه به کاربر نمی‌رسد؛ پیام عم�
   }
 });
 
+test("T15d: Status ِ کلاینت پرداخت را رد نمی‌کند؛ فقط verifyِ درگاه تصمیم می‌گیرد", async () => {
+  const { createPaymentRecord, getPaymentByAuthority } = await import("./database.js");
+  const authority = `A_TEST_T15d_${Date.now()}`;
+  await createPaymentRecord({ authority, jobId: null, userId: null, planId: "starter", amount: 1000 });
+  const res = await realFetch(`${baseUrl}/api/payment/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ authority, status: "NOK" }),
+  });
+  assert.equal(res.status, 200, "Status=NOK از کلاینت نباید پرداختِ تأییدشده را failed کند");
+  assert.equal((await getPaymentByAuthority(authority)).status, "paid");
+});
+
 test("T16: مسیرِ گراف با USE_GRAPH خاموش در دسترس نیست", async () => {
   // ⚠️ تورهای ایمنیِ مرحلهٔ ۸ روی این مسیر اجرا نمی‌شوند (N13). گیت تا امروز
   //    فقط داخلِ analyzeHandler بود، نه روی این روت.

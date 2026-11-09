@@ -2409,7 +2409,8 @@ async function reconcileUnverifiedPayments() {
 /** تایید نهایی پرداخت (Verify) پس از بازگشت بیمار از درگاه شاپرک/زرین‌پال */
 app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
   try {
-    const { authority, status } = req.body || {};
+    // Status ِ آدرسِ برگشت را هر کسی می‌تواند بنویسد؛ فقط پاسخِ verifyِ زرین‌پال پرداخت را رد یا تأیید می‌کند.
+    const { authority } = req.body || {};
     if (!authority) {
       return res.status(400).json({ error: "شناسه تراکنش (Authority) ارسال نشده است." });
     }
@@ -2440,11 +2441,6 @@ app.post("/api/payment/verify", requireAllowedOrigin, async (req, res) => {
         jobId: isOwner ? payment.job_id : null,
         result: await withPlanLocks(viewer, result),
       });
-    }
-
-    if (status && status !== "OK") {
-      await markPaymentFailed(authority);
-      return res.status(400).json({ error: "پرداخت توسط کاربر لغو شد یا ناموفق بود." });
     }
 
     await markPaymentVerifying(authority);
