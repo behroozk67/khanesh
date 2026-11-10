@@ -98,9 +98,9 @@ export default function Profile() {
   return (
     <div className="page" dir="rtl">
       <div className="shell">
-        <header className="site-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+        <header className="site-header" style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--s3)' }}>
           <div className="logo"><Link to="/"><LabMateLogo height={32} /></Link></div>
-          <div style={{ display: 'flex', gap: 'var(--s4)', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--s3)', alignItems: 'center', minWidth: 0 }}>
             <PlanBadge />
             <Link to="/history" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)' }}>تاریخچه و روند</Link>
             <Link to="/app" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)' }}>تفسیرِ آزمایش</Link>

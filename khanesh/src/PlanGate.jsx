@@ -159,9 +159,9 @@ export function UpgradeModal({
                 tabIndex={0}
               >
                 <div className="pg-plan-choice-info">
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: "8px" }}>
                     <span className="pg-plan-choice-name">{p.name}</span>
-                    <span style={{ fontSize: "11px", color: "var(--brand)", fontWeight: 700 }}>
+                    <span style={{ fontSize: "11px", color: "var(--brand)", fontWeight: 700, whiteSpace: "nowrap" }}>
                       ({toFaDigits(p.credits)} نوبت تفسیر)
                     </span>
                   </div>

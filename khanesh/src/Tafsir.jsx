@@ -512,7 +512,7 @@ export default function Tafsir() {
           <Link to="/" style={{ textDecoration: 'none' }}>
             <LabMateLogo height={68} />
           </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 'var(--s3)' }}>
             <p className="tagline" style={{ margin: 0 }}>تفسیر آموزشی نتایج آزمایش خون</p>
             <PlanBadge />
             <Link to="/profile" className="btn btn--outline" style={{ fontSize: 'var(--t-sm)', padding: 'var(--s2) var(--s4)' }}>پروفایل من</Link>
