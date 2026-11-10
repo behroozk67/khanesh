@@ -2600,7 +2600,6 @@ Rules:
 - «> N» on a ratio or percentage is the lower normal limit, not a positive cut-off. Never run a concentration or a ratio through a reader written for antibodies.
 - A fix scoped to a key set (`TM_KEYS`) must grep every key that takes the same route (`assay_printed`). The 019 fix covered four of eleven.
 - An exemption listed by finding id must list every finding that owns those keys.
-- The dev folder's persistent `database.sqlite`/`.env` made 8 auth/daily-cap tests red (T15e and 7 more). They pass on a clean `git archive` copy, so take baselines there.
 
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),

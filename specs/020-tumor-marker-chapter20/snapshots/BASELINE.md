@@ -85,3 +85,11 @@ Findings recorded for the register:
   fact (which sex was used), not "PSA on a female". T019 therefore keys on `e.sex === "F"`.
 - When the sheet says male and the profile says female, the patient sees both sentences: one says which sex was used,
   the other says PSA does not fit. They do not contradict each other. This is accepted and recorded.
+
+## T030: committed tree
+
+`b6c1946`, via `git archive HEAD khanesh-server`, a `node_modules` junction, no `.env` and a fresh DB:
+`tests 1706 · pass 1704 · fail 0 · skipped 1 · todo 1`. The pre-commit hook on the index gave the same counts.
+
+Follow-up commit: H10TM2 (`history.test.js`) shows the real rows of the 7 new keys stay out of the history series
+(`source` filter, `historyRoutes.js:56`). It went red when that filter was removed, and the filter was then restored.

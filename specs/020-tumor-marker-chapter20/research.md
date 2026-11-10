@@ -11,6 +11,8 @@ uncommitted changes, and the uncommitted changes elsewhere are frontend/deploy f
 - **Failing test**: `T15e: پرداخت فقط کارِ خودش را باز می‌کند؛ jobId ِ بدنهٔ /payment/request نادیده گرفته می‌شود`
   (`api-contract.test.js:742`, got 503 instead of 200). It also fails when run alone
   (`--test-name-pattern="T15e"`), so it is a real pre-existing failure and not load noise (N48).
+- **⚠️ Corrected later in the same session:** T15e is environmental. It comes from the dev folder's persistent
+  `database.sqlite` and `.env`. A clean `git archive` copy of HEAD gives `fail 0` (snapshots/BASELINE.md).
 - **Decision**: this feature leaves T15e alone. The gate for this feature is therefore **"no new failures relative to
   this baseline"**, and T15e is named in every report until someone fixes it.
 
@@ -42,7 +44,7 @@ Same input for both readers, for sex `M` and `F` (the results were identical for
 | AFP 7.0 · «< 7.0» | within | **above** | same; `tmBuild` urgency `routine` → **`this_week`** |
 | Free PSA ratio 30 · «> 25» | **above** | within | ⚠️ **today's verdict is inverted.** `abVerdict` reads «> 25» as a positive-above cut-off, so a reassuring ratio is shown as «بالاتر از مرزِ چاپ‌شده» |
 | Free PSA ratio 18 · «> 25» | **within** | below | ⚠️ same inversion: the lower ratio (the one that argues *for* biopsy) is shown as inside the range |
-| PSA 3.0 · «40-49 y: <2.5 / 50-59 y: <3.5» | noref («چاپ نشده») | unreadable («خوانده نشد») | wording becomes true (the range *is* printed) |
+| PSA 3.0 · «40-49 y: <2.5 / 50-59 y: <3.5» | noref | unreadable | **only the new row differs**: the finding text was already «خوانده نشد» (`lineOf` checks the printed reference). Corrected after measuring the before/after snapshots. |
 | PSA 5.0 · P114 forms («< 4.0 / 70-90 years: < 4.0», «… Up to 6.5») | above | above | unchanged |
 | AFP 50 · «Adult: < 10 / Pregnancy: variable» | above | above | unchanged |
 | Calcitonin 12 · «Male: < 8.4 Female: < 5» | above | above | unchanged |

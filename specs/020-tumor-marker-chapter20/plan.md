@@ -17,7 +17,8 @@ the register.
 - **Measured side effects** ([research.md](research.md) R2):
   - fixes a live inverted Free-PSA-ratio verdict;
   - flips two boundary values (PSA 4.0 / AFP 7.0 against a strict «<») to above, which raises urgency to `this_week`;
-  - changes «چاپ نشده» to «خوانده نشد» for age-banded PSA.
+  - gives age-banded PSA an `unreadable` row (the text was already «خوانده نشد»; corrected after measurement);
+  - removes PSA from the score (a normal PSA had cut 98 «high» to 90 «mid»).
 - **Register**: P132 in `MEDICAL_RULES.md`. `MEDICAL_RULES_TUMOR_MARKERS.md` §6 gets the 40 extracted rules, the source
   contradictions and the R5 gap table, all marked "secondary, unverified" until the raw chapter text arrives.
 

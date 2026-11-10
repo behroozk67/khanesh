@@ -13,7 +13,7 @@ one of the R2 rows (N36).
 ## 1. Baseline (before any edit)
 
 ```bash
-npm test 2>&1 | grep -E "^ℹ (tests|pass|fail)"     # 2026-11-10 working tree: 1698 / 1696 / 1 (T15e, pre-existing)
+npm test 2>&1 | grep -E "^ℹ (tests|pass|fail)"     # dev folder: 1698 / 1696 / 1 (T15e, environmental: dev DB/.env). Clean git-archive copy of HEAD: 1698 / 1696 / 0
 node "$TEMP/claude_probe020.mjs"                    # the R2 table; save the output as before.txt
 ```
 
@@ -38,7 +38,7 @@ npm test 2>&1 | grep -E "^ℹ (tests|pass|fail)"     # fail count must equal bas
 | Q7 | PSA 1.2 · «< 4.0», male profile | no `sexMismatch`, no R4 sentence |
 | Q8 | sheet = PSA 6 · «< 4» + Hb normal | score equals the same sheet without the PSA row |
 | Q9 | Calcitonin 12 pg/mL, no range | row `verdict:"noref"`, `abnormal:null`; text «چاپ نشده» |
-| Q10 | PSA 3.0 · «40-49 y: <2.5 / 50-59 y: <3.5» | row `verdict:"unreadable"`; text «خوانده نشد» (today: «چاپ نشده») |
+| Q10 | PSA 3.0 · «40-49 y: <2.5 / 50-59 y: <3.5» | row `verdict:"unreadable"`; text «خوانده نشد» (already so before; only the row is new) |
 
 ## 4. Register check
 

@@ -144,7 +144,7 @@ without opening the code.
 
 ## Phase 7: Polish
 
-- [ ] T030 Measure the committed tree. Extract it with `git archive HEAD khanesh-server` into a temp dir with a `node_modules` junction, run `node --test` there, and report tests/pass/fail plus the commit hash in the final report.
+- [X] T030 Measure the committed tree. Extract it with `git archive HEAD khanesh-server` into a temp dir with a `node_modules` junction, run `node --test` there, and report tests/pass/fail plus the commit hash in the final report.
 - [ ] T031 Update `specs/020-tumor-marker-chapter20/checklists/requirements.md` and `MEDICAL_RULES_TUMOR_MARKERS.md` §5 (open question 4 now points to §6). Report FR-001/SC-001 as blocked, and give the R4 sentence verbatim in the report.
 
 ---

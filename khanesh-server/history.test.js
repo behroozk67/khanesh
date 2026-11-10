@@ -451,3 +451,17 @@ test('H10TM: abnormal:null و تومورمارکر ثبت نمی‌شوند؛ ر
   };
   assert.deepEqual(observationsFromResult(result).map((x) => [x.marker_key, x.abnormal]), [['HGB', true]]);
 });
+
+// H10TM2 (specs/020، P132) — هفت کلیدِ تازهٔ TM_KEYS (PSA، AFP، …) حالا ردیفِ _engine.tests دارند؛ ردیف‌های *واقعیِ* موتور
+//   (نه دست‌نوشته) هم به سریِ تاریخچه نمی‌روند، چون source همان «tumor_marker_printed» است. PSAِ دارای حکم (within/above) هم نه.
+test('H10TM2: ردیف‌های واقعیِ PSA/AFP/کلسی‌تونین از tumorMarkerRows در تاریخچه ثبت نمی‌شوند', async () => {
+  const { runEngine } = await import('./rules/adapter.js');
+  const { tumorMarkerRows } = await import('./rules/tumor_markers.js');
+  const T = (name, value, unit, reference) => ({ name, value: String(value), unit, reference });
+  const e = runEngine({ patient: { age: 60, sex: 'M' }, tests: [T('PSA', 6, 'ng/mL', '< 4.0'), T('Free PSA Ratio', 30, '%', '> 25'), T('AFP', 3, 'ng/mL', '< 7.0'), T('Calcitonin', 2, 'pg/mL', '< 10')] });
+  const rows = tumorMarkerRows(e);
+  assert.deepEqual(rows.map((r) => r.key).sort(), ['AFP', 'CALCITONIN', 'PSA_RATIO', 'PSA_TOTAL'], 'پیش‌شرط: ردیف‌ها ساخته شوند');
+  assert.ok(rows.some((r) => r.abnormal === true) && rows.some((r) => r.abnormal === false), 'پیش‌شرط: ردیفِ دارای حکم');
+  const result = { _engine: { tests: [...rows, { key: 'HGB', value: 11.2, range: '13–17', abnormal: true, dir: 'low' }], context: { sample_date: '2026-03-05T00:00:00.000Z' } } };
+  assert.deepEqual(observationsFromResult(result).map((x) => x.marker_key), ['HGB']);
+});
