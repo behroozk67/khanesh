@@ -3781,14 +3781,17 @@ test("M58c: تور دوم هیچ‌وقت blocks_others نمی‌شود", () => 
     tests: [
       { name: "Creatinine", value: "2.4", unit: "mg/dL" }, { name: "Urea", value: "95", unit: "mg/dL" },
       { name: "Uric acid", value: "12", unit: "mg/dL" }, { name: "Potassium", value: "5.9" },
+      // specs/021 (G2): اورهٔ ۹۵ کنارِ کراتینینِ بالا حالا در متنِ kidney می‌آید؛ نمونهٔ بی‌قاعدهٔ این تست کلرِ ۱۱۵ است.
+      { name: "Chloride", value: "115", unit: "mmol/L" },
     ],
   });
   const p = runPatterns(e);
   const f = p.findings.find((x) => x.rule_id === "unexplained_abnormal");
   assert.ok(f, `تور باید روشن می‌شد؛ الگوها: ${p.findings.map((x) => x.rule_id).join("، ")}`);
   assert.equal(f.blocks_others, false);
-  // ⚠️ اسید اوریک از ۲۰۲۶-۱۰-۰۱ مالک دارد (hyperuricemia، M276)؛ اورهٔ ۹۵ (کنارِ کراتینینِ بالا) هنوز بی‌قاعده است.
-  assert.ok(f.must_say.includes("اوره"), "اورهٔ بی‌قاعده باید نام برده شود");
+  // ⚠️ اسید اوریک از ۲۰۲۶-۱۰-۰۱ مالک دارد (hyperuricemia، M276)؛ اوره از specs/021 (kidney). کلر هنوز بی‌قاعده است.
+  assert.ok(f.must_say.includes("کلر"), "کلرِ بی‌قاعده باید نام برده شود");
+  assert.ok(!f.must_say.includes("اوره"), "اوره دیگر بی‌قاعده نیست (G2)");
   assert.ok(!f.must_say.includes("اسید اوریک"), "اسید اوریک دیگر بی‌قاعده نیست");
 });
 
@@ -7137,8 +7140,10 @@ test("M125: واحدِ چاپ‌شده بایت‌به‌بایت بی‌تغی�
   // ⚠️ دو پنلِ کراتینین عمداً بازپایه شدند (۲۰۲۶-۱۰-۱۶، حذفِ محاسبهٔ eGFR از موتور): متنِ kidney_impairment دیگر
   //   «eGFR شما …» ندارد و indices.egfr ساخته نمی‌شود. اثباتِ عمدی‌بودن: روی کپیِ درخت با فقط احیای محاسبهٔ eGFR،
   //   هشِ قبلی عیناً برمی‌گردد؛ بقیهٔ اجزای هش (درجه‌بندی/CREAT 1.9 بالا، UREA 70 بالا، نبودِ هشِ کلیویِ دیگر) بی‌تغییر.
+  // ⚠️ پنلِ ششم (Creatinine 1.9 + Urea 70) عمداً بازپایه شد (specs/021، P133، G2): اوره در متنِ kidney نام برده می‌شود و خطِ
+  //   «توضیح داده نشدند» برای اوره حذف شد؛ فوریت همان. اثبات: کپیِ درخت با فقط hunkهای G2 برگردانده‌شده، هشِ قبلی (9f92862b01304e03) را عیناً می‌دهد.
   const EXPECTED = ["6c9c0b13f8bedb08", "64e5d9bacf2b4164", "4cf12f06147a9f54", "bd45550d31afb2f3", "4436e94e10c7ae54",
-    "9f92862b01304e03", "3e42dc52c5b43bdc", "995fad1290b5833e", "edac66e5fd40ebf2", "4231b77939cd3a67",
+    "2598d2591d1f5da6", "3e42dc52c5b43bdc", "995fad1290b5833e", "edac66e5fd40ebf2", "4231b77939cd3a67",
     "5a3b00c577ab6abf", "c2ef8cb631aa6acb", "09889f9ef3323ae1", "47ef5a64951b1422", "ae34e1364ae42f9c"]; // ⚠️ آخری دوباره: P53 پرسش ۱۶ — بازهٔ MCV و جملهٔ فریتینِ روی برگه (freezediff). // ⚠️ آخری: specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11)
   const snap = (rows) => {
     const e = runEngine({ patient: { age: 50, sex: "M" }, tests: rows.map(([name, value, unit]) => ({ name, value, unit })) });
@@ -13125,4 +13130,147 @@ test("TM11: نسبتِ Free PSA در برابرِ «> 25» — ۱۸٪ پایین
   const ok = run(30);
   assert.match(ok.say, /درصد Free PSA روی برگهٔ شما 30 % است و داخلِ محدودهٔ چاپ‌شدهٔ همان ردیف است/);
   assert.deepEqual([ok.row?.verdict, ok.row?.abnormal], ["within", false]);
+});
+
+// ═══ specs/021 (P133) — مارکرهای کلیوی، بستهٔ دوم (Tietz فصلِ ۲۱) ═══
+const kdT = (name, value, unit = "", reference = "") => ({ name, value: String(value), unit, reference });
+const kdRun = (patient, tests) => { const e = runEngine({ patient, tests }); return { e, p: runPatterns(e) }; };
+const kdFind = (p, id) => p.findings.find((f) => (f.rule_id ?? f.pattern) === id);
+// نامِ آزمایش در خطِ «توضیح داده نشدند»؟ (N18)
+const kdOrphan = (p, re) => re.test(String(kdFind(p, "unexplained_abnormal")?.must_say ?? "") + " " + String(kdFind(p, "unmatched_abnormal")?.must_say ?? ""));
+
+// KD1 — G1: ACRِ «۳٫۲ mg/mmol (< 3.0)» به mg/g تبدیل می‌شد (۲۸٫۳) و با مرزِ ۳۰ mg/g «A1، طبیعی» می‌شد؛ بیمار هیچ یافته‌ای نمی‌گرفت.
+//   KDIGO مرزِ A2 را ۳ mg/mmol می‌گذارد و بازهٔ چاپیِ خودِ برگه هم همین را می‌گفت (کم‌خوانی، اصلِ II).
+test("KD1: ACR ۳٫۲ mg/mmol ⇒ A2 و یافتهٔ آلبومینوری با عددِ چاپی؛ ۲٫۹ ⇒ A1", () => {
+  const { e, p } = kdRun({ age: 55, sex: "M" }, [kdT("ACR", 3.2, "mg/mmol", "< 3.0")]);
+  const g = e.graded.find((x) => x.test === "ACR");
+  assert.equal(g.tag, "A2");
+  assert.equal(g.abnormal, true);
+  const f = kdFind(p, "albuminuria_pattern");
+  assert.ok(f, "albuminuria_pattern باید فعال شود");
+  assert.match(f.must_say, /3\.2 میلی‌گرم بر میلی‌مول/);
+  assert.equal(f.key_number, 3.2, "key_number عددِ برگه است، نه ۲۸٫۳ mg/g (N5)");
+  const low = kdRun({ age: 55, sex: "M" }, [kdT("ACR", 2.9, "mg/mmol", "< 3.0")]);
+  assert.equal(low.e.graded.find((x) => x.test === "ACR").tag, "A1");
+  assert.equal(kdFind(low.p, "albuminuria_pattern"), undefined);
+});
+
+// KD2 — G1: ۳۳ mg/mmol (= ۲۹۱٫۷ mg/g) «A2» می‌شد؛ KDIGO: A3 = بالای ۳۰ mg/mmol. خودِ ۳۰ هنوز A2 است.
+test("KD2: ACR ۳۳ mg/mmol ⇒ A3؛ ۳۰ mg/mmol ⇒ A2", () => {
+  const a3 = kdRun({ age: 55, sex: "M" }, [kdT("ACR", 33, "mg/mmol")]);
+  assert.equal(a3.e.graded.find((x) => x.test === "ACR").tag, "A3");
+  assert.match(kdFind(a3.p, "albuminuria_pattern").must_say, /A3، بالای ۳۰ میلی‌گرم بر میلی‌مول/);
+  const a2 = kdRun({ age: 55, sex: "M" }, [kdT("ACR", 30, "mg/mmol")]);
+  assert.equal(a2.e.graded.find((x) => x.test === "ACR").tag, "A2");
+});
+
+// KD3 — G1 نباید برگه‌های mg/g را جابه‌جا کند.
+test("KD3: ACR بر حسبِ mg/g همان رفتارِ پیشین را دارد", () => {
+  const a1 = kdRun({ age: 55, sex: "M" }, [kdT("ACR", 28, "mg/g", "< 30")]);
+  const g1 = a1.e.graded.find((x) => x.test === "ACR");
+  assert.deepEqual([g1.tag, g1.abnormal, g1.range, g1.printed], ["A1", false, "0–30", undefined]);
+  const a2 = kdRun({ age: 55, sex: "M" }, [kdT("ACR", 45, "mg/g")]);
+  const f = kdFind(a2.p, "albuminuria_pattern");
+  assert.match(f.must_say, /نسبت آلبومین به کراتینین ادرار شما 45 میلی‌گرم بر گرم است، که در ردهٔ «افزایش متوسط» \(A2، بین ۳۰ تا ۳۰۰\)/);
+  assert.equal(f.key_number, 45);
+});
+
+// KD4 — G1/N5: بیمار ۳۰٫۹ mg/g می‌دید و برگه‌اش ۳٫۵ mg/mmol می‌گفت؛ هیچ ردیفِ «واحدها» این تبدیل را توضیح نمی‌داد.
+test("KD4: تبدیلِ ACR از mg/mmol در unitConversions ثبت می‌شود", () => {
+  const { e } = kdRun({ age: 55, sex: "M" }, [kdT("ACR", 3.2, "mg/mmol")]);
+  const c = e.unitConversions.find((x) => x.test === "ACR");
+  assert.ok(c, "ردیفِ تبدیل لازم است");
+  assert.deepEqual([c.raw, c.from, c.to], [3.2, "mg/mmol", "mg/g"]);
+});
+
+// KD5 — G2: «اوره ۸۰ + کراتینین ۲» — رایج‌ترین پنلِ کلیوی. kidney فقط کراتینین را می‌گفت و اوره زیرِ کارتِ کلیه
+//   «توضیحِ آمادهٔ اختصاصی نداریم» می‌گرفت (N18). فوریت نباید عوض شود.
+test("KD5: اوره/BUNِ بالا کنارِ کراتینینِ بالا در متنِ کلیه نام برده می‌شود", () => {
+  for (const [row, re] of [[kdT("Urea", 80, "mg/dL"), /اوره 80/], [kdT("BUN", 40, "mg/dL"), /BUN 40/]]) {
+    const { p } = kdRun({ age: 60, sex: "M" }, [row, kdT("Creatinine", 2.0, "mg/dL")]);
+    assert.equal(kdOrphan(p, /اوره|BUN/), false, "اوره نباید در «توضیح داده نشدند» بیاید");
+    assert.match(kdFind(p, "kidney").must_say, re);
+    assert.equal(p.overall_urgency, "this_week");
+  }
+});
+
+// KD6 — G2 زیرِ مالکانِ دیگرِ کراتینین: گلومرولونفریت، رابدومیولیز، اورژانسِ کراتینین، و kidney زیرِ پتاسیمِ بحرانی.
+//   فوریت و has_critical همان مقدارِ پیش از اصلاح‌اند (سنجیده روی HEAD، snapshots/before.txt).
+test("KD6: اورهٔ بالا زیرِ GN/رابدو/اورژانس/پتاسیم بی‌توضیح نمی‌ماند و فوریت ثابت است", () => {
+  const cases = [
+    [{ age: 40, sex: "M" }, [kdT("Urea", 80, "mg/dL"), kdT("Creatinine", 2.0, "mg/dL"), kdT("Urine Blood", "3+"), kdT("Urine Protein", "2+")], "this_week", false],
+    [{ age: 30, sex: "M" }, [kdT("CK", 5000, "U/L"), kdT("Urine Blood", "3+"), kdT("Urea", 70, "mg/dL"), kdT("Creatinine", 2.0, "mg/dL")], "emergency", true],
+    [{ age: 60, sex: "M" }, [kdT("Creatinine", 6, "mg/dL"), kdT("Urea", 150, "mg/dL")], "emergency", true],
+    [{ age: 60, sex: "M" }, [kdT("Creatinine", 3, "mg/dL"), kdT("Urea", 120, "mg/dL"), kdT("Potassium", 6.8, "mmol/L")], "emergency", true],
+  ];
+  for (const [patient, tests, urgency, crit] of cases) {
+    const { p } = kdRun(patient, tests);
+    assert.equal(kdOrphan(p, /اوره/), false, `اورهٔ بی‌توضیح: ${tests.map((t) => t.name).join("+")}`);
+    assert.deepEqual([p.overall_urgency, p.has_critical], [urgency, crit]);
+  }
+});
+
+// KD7 — G2 نباید دیالیزی یا اورژانسِ اوره را تکرار کند.
+test("KD7: دیالیزی و اورژانسِ اوره جملهٔ تازه نمی‌گیرند", () => {
+  const dia = kdRun({ age: 60, sex: "M", conditions: ["dialysis"] }, [kdT("Creatinine", 7, "mg/dL"), kdT("Urea", 140, "mg/dL")]);
+  assert.equal(/کنارِ کراتینین تفسیر می‌شود/.test(kdFind(dia.p, "kidney").must_say), false);
+  const em = kdRun({ age: 60, sex: "M" }, [kdT("Urea", 220, "mg/dL"), kdT("Creatinine", 4, "mg/dL")]);
+  assert.equal(/کنارِ کراتینین تفسیر می‌شود/.test(kdFind(em.p, "kidney").must_say), false);
+  assert.ok(kdFind(em.p, "urea_bun_emergency"));
+});
+
+// KD8 — G3: اسید اوریکِ پایین هیچ مالکی نداشت و فقط «بعضی از نتایج خارج از محدوده طبیعی هستند» می‌گرفت (N1).
+test("KD8: اسید اوریکِ پایین ⇒ uric_acid_low (نوبتِ عادی)", () => {
+  for (const [patient, v] of [[{ age: 50, sex: "M" }, 1.5], [{ age: 40, sex: "F" }, 2.2]]) {
+    const { p } = kdRun(patient, [kdT("Uric Acid", v, "mg/dL")]);
+    const f = kdFind(p, "uric_acid_low");
+    assert.ok(f, `uric_acid_low برای ${v}`);
+    assert.equal(f.urgency, "routine");
+    assert.match(f.must_say, new RegExp(`اسید اوریک شما ${String(v).replace(".", "\\.")} است`));
+    assert.equal(kdFind(p, "unmatched_abnormal"), undefined);
+  }
+  assert.match(kdFind(kdRun({ age: 50, sex: "M" }, [kdT("Uric Acid", 1.5, "mg/dL")]).p, "uric_acid_low").must_say, /هیپواوریسمی/);
+  assert.equal(/هیپواوریسمی/.test(kdFind(kdRun({ age: 40, sex: "F" }, [kdT("Uric Acid", 2.2, "mg/dL")]).p, "uric_acid_low").must_say), false);
+});
+
+// KD8b — G3: جنسِ نامعلوم (N50)، کودک و مقدارِ طبیعی نباید قاعدهٔ تازه بگیرند.
+test("KD8b: uric_acid_low برای جنسِ نامعلوم، کودک و مقدارِ طبیعی فعال نمی‌شود", () => {
+  assert.equal(kdFind(kdRun({ age: 45 }, [kdT("Uric Acid", 3.0, "mg/dL")]).p, "uric_acid_low"), undefined);
+  assert.equal(kdFind(kdRun({ age: 10, sex: "M" }, [kdT("Uric Acid", 1.8, "mg/dL")]).p, "uric_acid_low"), undefined);
+  assert.equal(kdFind(kdRun({ age: 50, sex: "M" }, [kdT("Uric Acid", 4.0, "mg/dL")]).p, "uric_acid_low"), undefined);
+  // کنترلِ مثبت: بی‌این، سه خطِ بالا روی کدی که قاعده را ندارد هم سبز می‌شدند.
+  assert.ok(kdFind(kdRun({ age: 50, sex: "M" }, [kdT("Uric Acid", 1.5, "mg/dL")]).p, "uric_acid_low"));
+});
+
+// KD9 — G4: نسبتِ پروتئین به کراتینین (PCR) با هیچ املایی شناخته نمی‌شد (N2). فقط شناختن؛ بی‌بازه و بی‌حکم.
+test("KD9: املاهای PCR به UPCR (noRef) می‌روند، نه unmapped و نه graded", () => {
+  for (const name of ["Urine Protein/Creatinine Ratio", "UPCR", "Protein Creatinine Ratio", "نسبت پروتئین به کراتینین"]) {
+    const { e } = kdRun({ age: 55, sex: "M" }, [kdT(name, 60, "mg/mmol", "< 15")]);
+    assert.equal(e.unmapped.includes(name), false, name);
+    assert.ok(e.noRef.includes("UPCR"), name);
+    assert.equal(e.graded.some((g) => g.test === "UPCR"), false, name);
+  }
+  assert.equal(faName("UPCR"), "نسبت پروتئین به کراتینین ادرار (PCR)");
+});
+
+// KD9b — G4: «PCR»ِ مولکولی (N25) دست نمی‌خورد؛ برگهٔ فقط-PCR «طبیعی» گزارش نمی‌شود (اصلِ II).
+test("KD9b: PCRِ مولکولی unmapped می‌ماند؛ برگهٔ فقط-UPCR «طبیعی» نیست", () => {
+  const mol = kdRun({ age: 40, sex: "M" }, [kdT("PCR", "Positive"), kdT("HCV PCR", "Not Detected")]);
+  assert.ok(mol.e.unmapped.includes("PCR") && mol.e.unmapped.includes("HCV PCR"));
+  const { e } = kdRun({ age: 55, sex: "M" }, [kdT("UPCR", 60, "mg/mmol", "< 15")]);
+  const r = buildNormalResult(e);
+  assert.equal(/طبیعی است/.test(r.summary + r.interpretation), false);
+  assert.match(r.interpretation, /نسبت پروتئین به کراتینین ادرار \(PCR\)/);
+});
+
+// KD10 — G5: اورهٔ پایین در زنِ باردارِ اعلام‌شده هیچ اشاره‌ای به بارداری نداشت (Tietz: هیپرفیلتراسیونِ فیزیولوژیک).
+test("KD10: urea_low فقط برای pregnant === true جملهٔ بارداری می‌گیرد", () => {
+  const preg = kdFind(kdRun({ age: 28, sex: "F", pregnant: true }, [kdT("Urea", 12, "mg/dL")]).p, "urea_low");
+  assert.match(preg.must_say, /در بارداری جریانِ خون و صافیِ کلیه بیشتر می‌شود/);
+  assert.equal(preg.urgency, "routine");
+  for (const patient of [{ age: 28, sex: "F", pregnant: false }, { age: 28, sex: "F" }]) {
+    const f = kdFind(kdRun(patient, [kdT("Urea", 12, "mg/dL")]).p, "urea_low");
+    assert.equal(/بارداری/.test(f.must_say), false);
+    assert.equal(f.urgency, "routine");
+  }
 });

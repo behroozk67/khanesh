@@ -1,0 +1,173 @@
+
+═══ U1 زن ۴۰ — اسید اوریک ۲٫۲ (زیرِ ۲٫۵ موتور) ═══  urgency=routine
+  [graded] URIC=2.2 2.5–6.2 ab=true low out_of_range_low
+  [graded] CREAT=0.8 0.5–1.1 ab=false  normal
+  {unmatched_abnormal · routine} بعضی از نتایج خارج از محدوده طبیعی هستند
+
+═══ U2 مرد ۵۰ — اسید اوریک ۱٫۵ ═══  urgency=routine
+  [graded] URIC=1.5 3.5–7.2 ab=true low out_of_range_low
+  {unmatched_abnormal · routine} بعضی از نتایج خارج از محدوده طبیعی هستند
+
+═══ U3 زن ۳۰ — اسید اوریک ۶٫۱ (بینِ ۶٫۰ منبع و ۶٫۲ موتور) ═══  urgency=none
+  [graded] URIC=6.1 2.5–6.2 ab=false  normal
+
+═══ U4 بی‌جنس — اسید اوریک ۶٫۸ ═══  urgency=routine
+  ungraded: {"URIC":{"value":6.8,"reason":"sex_unknown_range","side":"high","normalFor":"M","female":"2.5–6.2","male":"3.5–7.2"}}
+  {sex_unknown_value · routine} جنسیت روی برگه نیست و تفسیرِ چند آزمایش به آن بستگی دارد
+
+═══ U5 اسید اوریک µmol/L ═══  urgency=routine
+  [graded] URIC=8.07 3.5–7.2 ab=true high out_of_range_high
+  {hyperuricemia · routine} اسید اوریک خون بالاتر از حد طبیعی است
+
+═══ B1 مرد ۶۵ — BUN ۲۲ (بینِ ۲۰ و ۲۳) ═══  urgency=routine
+  [graded] UREA_N=22 7–20 ab=true high out_of_range_high
+  [graded] CREAT=1 0.6–1.3 ab=false  normal
+  {isolated_urea_elevation · routine} BUN خون شما بالاتر از حد طبیعی است
+
+═══ B2 زنِ باردار — اوره ۱۲ ═══  urgency=routine
+  [graded] UREA=12 15–45 ab=true low out_of_range_low
+  [graded] CREAT=0.5 0.5–1.1 ab=false  normal
+  {urea_low · routine} اوره (اوره) شما کمی پایین‌تر از محدودهٔ مرجع است
+
+═══ B3 اوره mmol/L ۱۲ ═══  urgency=routine
+  [graded] UREA=72.1 15–45 ab=true high out_of_range_high
+  [graded] CREAT=1.02 0.6–1.3 ab=false  normal
+  {isolated_urea_elevation · routine} اوره خون شما بالاتر از حد طبیعی است
+
+═══ B4 اوره ۸۰ + کراتینین ۲٫۰ (نسبتِ بالا) ═══  urgency=this_week
+  [graded] UREA=80 15–45 ab=true high out_of_range_high
+  [graded] CREAT=2 0.6–1.3 ab=true high moderate
+  {kidney · this_week} شاخص کار کلیه بالاتر از حد طبیعی است
+  {unexplained_abnormal · routine} چند نتیجهٔ خارج از محدوده که جداگانه توضیح داده نشدند
+
+═══ A1 ACR ۳٫۵ mg/mmol ═══  urgency=this_week
+  [graded] ACR=30.9 0–30 ab=true high A2
+  {albuminuria_pattern · this_week} در ادرار شما آلبومین (نوعی پروتئین) دفع می‌شود
+
+═══ A2 ACR ۲۸ mg/g ═══  urgency=none
+  [graded] ACR=28 0–30 ab=false  A1
+
+═══ A3 ACR ۳۵ mg/mmol ═══  urgency=this_week
+  [graded] ACR=309.4 0–30 ab=true high A3
+  {albuminuria_pattern · this_week} در ادرار شما آلبومین (نوعی پروتئین) دفع می‌شود
+
+═══ P1 PCR ۶۰ mg/mmol ═══  urgency=none
+  unmapped: ["Urine Protein/Creatinine Ratio"]
+
+═══ P2 UPCR ۰٫۵ mg/mg ═══  urgency=none
+  unmapped: ["UPCR"]
+
+═══ P3 Protein Creatinine Ratio ۴۰۰ mg/g ═══  urgency=none
+  unmapped: ["Protein Creatinine Ratio"]
+
+═══ P4 پروتئین ادرار ۲۴ ساعته ۵۰۰ (غیرباردار) ═══  urgency=none
+
+═══ P5 میکروآلبومین ادرار ۴۵ mg/L ═══  urgency=none
+  unmapped: ["Microalbumin"]
+
+═══ AB ACR 2.9 mg/mmol ═══  urgency=none
+  [graded] ACR=25.6 0–30 ab=false  A1
+
+═══ AB ACR 3 mg/mmol ═══  urgency=none
+  [graded] ACR=26.5 0–30 ab=false  A1
+
+═══ AB ACR 3.2 mg/mmol ═══  urgency=none
+  [graded] ACR=28.3 0–30 ab=false  A1
+
+═══ AB ACR 3.4 mg/mmol ═══  urgency=this_week
+  [graded] ACR=30.1 0–30 ab=true high A2
+  {albuminuria_pattern · this_week} در ادرار شما آلبومین (نوعی پروتئین) دفع می‌شود
+
+═══ AB ACR 29.9 mg/mmol ═══  urgency=this_week
+  [graded] ACR=264.3 0–30 ab=true high A2
+  {albuminuria_pattern · this_week} در ادرار شما آلبومین (نوعی پروتئین) دفع می‌شود
+
+═══ AB ACR 30 mg/mmol ═══  urgency=this_week
+  [graded] ACR=265.2 0–30 ab=true high A2
+  {albuminuria_pattern · this_week} در ادرار شما آلبومین (نوعی پروتئین) دفع می‌شود
+
+═══ AB ACR 30.1 mg/mmol ═══  urgency=this_week
+  [graded] ACR=266.1 0–30 ab=true high A2
+  {albuminuria_pattern · this_week} در ادرار شما آلبومین (نوعی پروتئین) دفع می‌شود
+
+═══ AB ACR 33 mg/mmol ═══  urgency=this_week
+  [graded] ACR=291.7 0–30 ab=true high A2
+  {albuminuria_pattern · this_week} در ادرار شما آلبومین (نوعی پروتئین) دفع می‌شود
+
+═══ AB ACR 34 mg/mmol ═══  urgency=this_week
+  [graded] ACR=300.6 0–30 ab=true high A3
+  {albuminuria_pattern · this_week} در ادرار شما آلبومین (نوعی پروتئین) دفع می‌شود
+
+═══ AB2 ACR ۲۹ mg/g ═══  urgency=none
+  [graded] ACR=29 0–30 ab=false  A1
+
+═══ AB3 ACR ۳٫۲ بی‌واحد ═══  urgency=routine
+  ungraded: {"ACR":{"value":3.2,"reason":"unit_unknown","alt":["normal","normal"],"units":2,"basis":"readings","possible":2,"level":"none","urgency":"none"}}
+  {unit_unknown_values · routine} واحدِ بعضی از آزمایش‌های برگهٔ شما مشخص نبود
+
+═══ AB4 زن ACR ۳٫۲ mg/mmol با بازهٔ جنس‌محور ═══  urgency=none
+  [graded] ACR=28.3 0–30 ab=false  A1
+
+═══ G2a اوره ۶۰ + Cr ۱٫۶ ═══  urgency=routine
+  [graded] UREA=60 15–45 ab=true high out_of_range_high
+  [graded] CREAT=1.6 0.6–1.3 ab=true high mild
+  {kidney · routine} کراتینین شما کمی بالاتر از حد طبیعی است
+  {unexplained_abnormal · routine} چند نتیجهٔ خارج از محدوده که جداگانه توضیح داده نشدند
+
+═══ G2b BUN ۴۰ + Cr ۲٫۰ ═══  urgency=this_week
+  [graded] UREA_N=40 7–20 ab=true high out_of_range_high
+  [graded] CREAT=2 0.6–1.3 ab=true high moderate
+  {kidney · this_week} شاخص کار کلیه بالاتر از حد طبیعی است
+  {unexplained_abnormal · routine} چند نتیجهٔ خارج از محدوده که جداگانه توضیح داده نشدند
+
+═══ G2c GN: اوره ۸۰ + Cr ۲ + خون و پروتئینِ ادرار ═══  urgency=this_week
+  [graded] UREA=80 15–45 ab=true high out_of_range_high
+  [graded] CREAT=2 0.6–1.3 ab=true high moderate
+  {glomerulonephritis_pattern · this_week} ترکیب نتایج ادرار و خون شما به یک التهاب کلیه اشاره دارد
+  {unexplained_abnormal · routine} چند نتیجهٔ خارج از محدوده که جداگانه توضیح داده نشدند
+
+═══ G2d رابدو: CK ۵۰۰۰ + خون ادرار + اوره ۷۰ + Cr ۲ ═══  urgency=emergency
+  [graded] CK=5000 55–170 ab=true high critical
+  [graded] UREA=70 15–45 ab=true high out_of_range_high
+  [graded] CREAT=2 0.6–1.3 ab=true high moderate
+  {rhabdomyolysis_pattern · emergency} این نتایج می‌توانند نشانه‌ی یک وضعیت جدی عضلانی-کلیوی باشند
+  {unexplained_abnormal · routine} چند نتیجهٔ خارج از محدوده که جداگانه توضیح داده نشدند
+
+═══ G2e اورژانسِ کراتینین: Cr ۶ + اوره ۱۵۰ ═══  urgency=emergency
+  [graded] CREAT=6 0.6–1.3 ab=true high marked
+  [graded] UREA=150 15–45 ab=true high out_of_range_high
+  {kidney · emergency} شاخص کار کلیه بالاتر از حد طبیعی است
+  {unexplained_abnormal · routine} چند نتیجهٔ خارج از محدوده که جداگانه توضیح داده نشدند
+
+═══ G2f AKI + K ۶٫۸: Cr ۳ + اوره ۱۲۰ ═══  urgency=emergency
+  [graded] CREAT=3 0.6–1.3 ab=true high moderate
+  [graded] UREA=120 15–45 ab=true high out_of_range_high
+  [graded] K=6.8 3.5–5 ab=true high marked
+  {potassium_critical · emergency} پتاسیم خون شما بالاست
+  {kidney · this_week} شاخص کار کلیه بالاتر از حد طبیعی است
+  {unexplained_abnormal · routine} چند نتیجهٔ خارج از محدوده که جداگانه توضیح داده نشدند
+
+═══ G2g دیالیزی: Cr ۷ + اوره ۱۴۰ ═══  urgency=routine
+  [graded] CREAT=7 0.6–1.3 ab=true high marked
+  [graded] UREA=140 15–45 ab=true high out_of_range_high
+  {kidney · routine} کراتینین شما بالاتر از حد معمول است (بیمار دیالیزی)
+
+═══ G2h اورهٔ اورژانس ۲۲۰ + Cr ۴ ═══  urgency=emergency
+  [graded] UREA=220 15–45 ab=true high out_of_range_high
+  [graded] CREAT=4 0.6–1.3 ab=true high marked
+  {kidney · emergency} شاخص کار کلیه بالاتر از حد طبیعی است
+  {urea_bun_emergency · emergency} اوره/BUN بسیار بالا (خطر مسمومیت اورمیک)
+
+═══ U6 بی‌جنس — اسید اوریک ۳٫۰ (پایین فقط برای مرد) ═══  urgency=routine
+  ungraded: {"URIC":{"value":3,"reason":"sex_unknown_range","side":"low","normalFor":"F","female":"2.5–6.2","male":"3.5–7.2"}}
+  {sex_unknown_value · routine} جنسیت روی برگه نیست و تفسیرِ چند آزمایش به آن بستگی دارد
+
+═══ U7 کودک ۱۰ — اسید اوریک ۱٫۸ ═══  urgency=routine
+  [graded] URIC=1.8 3.5–7.2 ab=true low out_of_range_low
+  {unmatched_abnormal · routine} بعضی از نتایج خارج از محدوده طبیعی هستند
+
+═══ P6 کنترلِ منفی: PCR مولکولی ═══  urgency=none
+  unmapped: ["PCR","HCV PCR"]
+
+═══ P7 نسبت پروتئین به کراتینین فارسی ═══  urgency=none
+  unmapped: ["نسبت پروتئین به کراتینین"]

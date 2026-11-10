@@ -81,7 +81,7 @@ const RULE_GROUP_LISTS = {
     severe_hyperglycemia_uncertain_ketosis eag_result bhb_result`),
   lipid: T(`lipid_profile severe_hypercholesterolemia familial_hypercholesterolemia_youth apob_elevated atherogenic_index`),
   kidney: T(`kidney albuminuria_pattern nephrotic_pattern glomerulonephritis_pattern ckd_pattern_diagnostic creatinine_emergency
-    urea_bun_emergency isolated_urea_elevation creatinine_low urea_low hyperuricemia urine_calcium_abnormal`),
+    urea_bun_emergency isolated_urea_elevation creatinine_low urea_low hyperuricemia uric_acid_low urine_calcium_abnormal`),
   liver: T(`hyperammonemia liver_pattern bilirubin_pattern alp_isolated ggt_isolated pancreas_pattern cirrhosis_pattern
     alcoholic_liver_pattern amylase_emergency bilirubin_emergency total_protein_abnormal bilirubin_total_alone albumin_low_alone
     albumin_high_alone ammonia_mild_high bilirubin_direct_high bilirubin_indirect_high neonatal_bilirubin_hour_chart

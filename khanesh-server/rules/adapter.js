@@ -11,6 +11,7 @@
 import { getRef, getRefSource, getUnit, REPRO_HORMONE_KEYS, HCG_POSITIVE_ABOVE, HCG_QUAL_NAME_RE,
   inNeonatalRedCellPeriod, NEONATAL_NO_ADULT_FALLBACK } from "./refs.js";
 import { evaluate } from "./grade.js";
+import { CLASSIFIERS } from "./interpret.js";
 import { getPedRef } from "./refs_ped.js";
 import { toConventional, UNIT_PROFILE, recognizedUnit, decideUnit, verdictsAcrossSystems, BRANCH_FACTORS,
          parseReference, printedVerdict, readingsAcrossSystems, printedRangeFits, possibleConv, normUnit,
@@ -236,6 +237,11 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   microalbumincreatinineratio: "ACR", malbcr: "ACR",
   نسبتآلبومینبهکراتینین: "ACR", آلبومینبهکراتینین: "ACR",
   میکروآلبومینبهکراتینین: "ACR",
+  // specs/021 (P133، G4): نسبتِ پروتئین به کراتینینِ ادرار — فقط شناختن (بی‌بازه ⇒ noRef، هرگز graded). «pcr» تنها عمداً نیست:
+  //   «PCR»، «HCV PCR»، «COVID PCR» آزمایشِ مولکولی‌اند (N25).
+  upcr: "UPCR", proteincreatinineratio: "UPCR", proteintocreatinineratio: "UPCR",
+  urineproteincreatinineratio: "UPCR", urineproteintocreatinineratio: "UPCR",
+  نسبتپروتئینبهکراتینین: "UPCR", پروتئینبهکراتینین: "UPCR",
   tp: "TP", totalprotein: "TP",
   bili: "BILI_T", bilirubintotal: "BILI_T", totalbilirubin: "BILI_T", tbil: "BILI_T",
   tbili: "BILI_T", بیلیروبینتام: "BILI_T", بیلیروبینکل: "BILI_T",
@@ -2524,6 +2530,9 @@ export function ocrToEngineInput(ocr) {
       const u = String(t.unit || "").toLowerCase().replace(/\s+/g, "");
       if (/mg\/mmol|mmol/.test(u)) {
         tests.ACR = +(v * BRANCH_FACTORS.ACR_MGMMOL_TO_MGG).toFixed(1);          // mg/mmol → mg/g
+        // specs/021 (P133، G1): ردهٔ KDIGO با عددِ چاپی و مرزهای mg/mmol (۳/۳۰) گرفته می‌شود — پایینِ حلقهٔ درجه‌بندی.
+        tests._acr_mgmmol = v;
+        unitConversions.push({ test: "ACR", raw: v, from: "mg/mmol", value: tests.ACR, to: "mg/g", basis: t._basis ?? "printed" });
       } else {
         tests.ACR = v;                               // mg/g یا µg/mg (معادل)
       }
@@ -3162,6 +3171,18 @@ export function runEngine(ocr, opts = {}) {
       refSource: absRef ? "بازهٔ چاپ‌شدهٔ همین برگه" : printedOwn ? "بازهٔ چاپ‌شدهٔ همین برگه" : getRefSource(key, age),
       ...e,
     });
+    // specs/021 (P133، G1): ACRِ چاپ‌شده با mg/mmol پیش‌تر پس از تبدیل با مرزهای mg/g رده می‌گرفت: ۳٫۰–۳٫۳۹ mg/mmol (۲۶٫۵–۲۹٫۹ mg/g)
+    //   «A1، طبیعی» می‌شد، با اینکه KDIGO و بازهٔ چاپیِ خودِ برگه («< 3.0») A2 می‌گویند (کم‌خوانی، اصلِ II). مرزهای mg/mmol (۳ و ۳۰ =
+    //   ۲۶٫۵ و ۲۶۵٫۲ mg/g) پایین‌ترِ مرزهای mg/g (۳۰ و ۳۰۰) هستند، پس این رده هرگز پایین‌تر از ردهٔ mg/g نیست. عددِ mg/g دست نمی‌خورد (M17).
+    if (key === "ACR" && tests._acr_mgmmol != null) {
+      const mm = tests._acr_mgmmol;
+      const band = CLASSIFIERS.ACR.bands.find((b) => b.tag === (mm < 3 ? "A1" : mm <= 30 ? "A2" : "A3"));
+      Object.assign(graded[graded.length - 1], {
+        range: `0–${(3 * BRANCH_FACTORS.ACR_MGMMOL_TO_MGG).toFixed(1)}`,
+        tag: band.tag, fa: band.fa, patient: band.patient, abnormal: band.normal !== true, dir: band.normal === true ? null : "high",
+        printed: { value: mm, unit: "mg/mmol" },
+      });
+    }
   }
 
   // ═══ نوزاد و دیفِ ناقص (job c138671c، P57) ═══

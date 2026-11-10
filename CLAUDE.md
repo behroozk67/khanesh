@@ -2617,6 +2617,13 @@ Project-specific: this file contains ZWNJ (U+200C) characters — orthographical
 - **My first fix.** "Sex label + unknown sex ⇒ unreadable" made calcitonin 9, which is above *both* bands, «خوانده نشد» with `routine` urgency. That is a worse under-read, and it was found only by running real panels after the tests were green.
 - **Rule.** When the input that picks a band is missing, evaluate every band and give a verdict only if they all agree (`kind: "sexed"`, the same shape as the smoker `between` case). "Don't guess" must never mean "don't say a value that is high whichever band applies".
 
+### N51 — An ACR printed in mg/mmol was classified on the converted mg/g value; 3.0–3.39 mg/mmol read as normal (2026-11-10)
+
+(specs/021, P133; commit: this change.)
+- **The bug.** An ACR printed as «3.2 mg/mmol (< 3.0)» was converted to mg/g (×8.84 = 28.3) and then classified on the mg/g edges (30/300). 3.0–3.39 mg/mmol came out A1 «طبیعی» with no finding at all, against KDIGO (A2 ≥ 3 mg/mmol) and against the lab's own printed range; 30.1–33.9 mg/mmol came out A2 instead of A3. `key_number` quoted 30.9 mg/g, a number not on the sheet, and no «واحدها» row explained it.
+- **Why it hid.** M17 locked «8 mg/mmol → A2» — a value far from either edge. Every test sat in the middle of a band; no test probed the band edges in the *printed* unit.
+- **Rule.** A category with published edges in two units is decided in the unit the sheet printed, with that unit's edges, not by converting and reusing the other unit's edges — rounding in the guideline's equivalence (3 mg/mmol ≈ 30 mg/g) lands exactly on the boundary. Probe classifier edges in every printed unit (edge − ε, edge, edge + ε). The same probe found a second class: a high urea next to a high creatinine fell into «توضیح نداریم» under four different owners, and under a blocker only keys named *in the rule's own source* (`RULE_READS`) are rescued — a helper's internal key names don't count.
+
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
 [environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).
