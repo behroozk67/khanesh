@@ -60,6 +60,14 @@ const P = {
   "L36 AST 120 ALT 30 + CK طبیعی": [{ age: 22, sex: "M" }, [T("AST", 120, "U/L"), T("ALT", 30, "U/L"), T("CK", 100, "U/L")]],
   "L37 AST 300 ALT 200 (≥ درجهٔ ۳؟) بی CK": [M, [T("AST", 300, "U/L"), T("ALT", 200, "U/L")]],
   "L38 سیروز با آلبومین 3.4 (غیرنشانه)": [M, [T("PLT", 90, "10^3/uL"), T("INR", 1.5, ""), T("Albumin", 3.4, "g/dL"), T("Total Bilirubin", 3, "mg/dL")]],
+  "C1 سنتز: ALB 2.7 + INR 1.8 + ALT 80": [M, [T("Albumin", 2.7, "g/dL"), T("INR", 1.8, ""), T("ALT", 80, "U/L"), T("AST", 70, "U/L")]],
+  "C1b کنترل: ALB 2.7 + INR 1.8 بی‌آنزیم": [M, [T("Albumin", 2.7, "g/dL"), T("INR", 1.8, "")]],
+  "C1c PT به‌جای INR: ALB 3.0 + PT 16 + AST 90": [M, [T("Albumin", 3.0, "g/dL"), T("PT", 16, "sec"), T("AST", 90, "U/L"), T("ALT", 100, "U/L")]],
+  "C4 ایسکمیک: AST 3000 ALT 2500 ALP 150 Bili 2 PT 18": [M, [T("AST", 3000, "U/L"), T("ALT", 2500, "U/L"), T("ALP", 150, "U/L"), T("Total Bilirubin", 2, "mg/dL"), T("PT", 18, "sec")]],
+  "C4b کنترل: AST 3000 ALT 2500 ALP 900": [M, [T("AST", 3000, "U/L"), T("ALT", 2500, "U/L"), T("ALP", 900, "U/L")]],
+  "C5 فریتین 1200 + TSAT 70": [M, [T("Ferritin", 1200, "ng/mL"), T("Transferrin Saturation", 70, "%")]],
+  "C6 زن TSAT 46": [F, [T("Transferrin Saturation", 46, "%")]],
+  "C6b کنترل: زن TSAT 45": [F, [T("Transferrin Saturation", 45, "%")]],
   "L32 AST 12000 ALT 9000 (شوک)": [M, [T("AST", 12000, "U/L"), T("ALT", 9000, "U/L")]],
 };
 for (const [label, [patient, tests]] of Object.entries(P)) {

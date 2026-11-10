@@ -137,6 +137,7 @@ leukocytosis_with_cytopenia
 leukopenia
 lipid_profile
 liver_pattern
+liver_synthetic_dysfunction
 low_rbc_hct_without_anemia
 luteal_progesterone
 lymphopenia

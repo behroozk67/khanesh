@@ -88,6 +88,44 @@ function cirrhosisNumbers(e) {
   return parts.length ? `روی برگهٔ شما ${parts.join("، ")} است. ` : "";
 }
 
+// cirrhosis_pattern (جابه‌جاشده بی‌تغییر تا liver_synthetic_dysfunction هم بخواندش — N20).
+function cirrhosisFires(e) {
+  const t = val(e);
+  // ⚠️ عمداً albLowMarker و نه `abnormal && dir === "low"`: این قاعده با
+  //    حدِ پایینِ ۳.۵ نوشته شده بود و وقتی بازهٔ مرجع به هنری (۳.۹) رفت،
+  //    بی‌سروصدا شل شد. رجوع به توضیحِ ALB_LOW_MARKER_GDL در patterns_utils.js.
+  const albLow = albLowMarker(e);
+  const plt = e.graded.find((g) => g.test === "PLT");
+  const pltLow = plt?.abnormal && plt.dir === "low";
+  const bili = e.graded.find((x) => x.test === "BILI_T");
+  const biliHigh = bili?.abnormal && bili.dir === "high";
+  const inrHigh = t.INR != null && t.INR > 1.3;
+  // نیاز به حداقل ۳ نشانه از ۴ برای احتیاط (این تشخیص سنگینی است)
+  return [albLow, pltLow, biliHigh, inrHigh].filter(Boolean).length >= 3;
+}
+
+// P134-۱ (specs/022، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۱؛ Tietz فصلِ ۳۷ ص ۷۰۲، خلاصهٔ تأییدنشده: آلبومین و PT نشانگرِ ساختِ کبدند):
+//   آلبومینِ پایین + INR/PTِ بالا + ALT/ASTِ بالا سه کارتِ جدا می‌گرفت و هیچ‌کدام آن‌ها را به هم وصل نمی‌کرد. بی‌عددِ تازه؛
+//   فقط وقتی سیروز (۳ از ۴) فعال نیست. فوریت this_week (هم‌سطحِ اجزا؛ انعقاد فوریتِ خودش را جدا نگه می‌دارد).
+function liverSyntheticRows(e) {
+  const f = (k, d) => e.graded.find((g) => g.test === k && g.abnormal && g.dir === d);
+  const alb = f("ALB", "low");
+  const coag = f("INR", "high") ?? f("PT", "high");
+  const enz = f("ALT", "high") ?? f("AST", "high");
+  return alb && coag && enz && !cirrhosisFires(e) ? { alb, coag } : null;
+}
+
+// P134-۲ (specs/022، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۱؛ Tietz جدولِ ۳۷٫۲، خلاصهٔ تأییدنشده): آنزیم > ۵۰× سقف با ALPِ نه‌بالا الگوی آسیبِ سمی
+//   یا ایسکمیک است. فقط جمله در liver_pattern (فوریت از پیش اورژانس/soon است؛ یک یافته، یک تصمیم — N20).
+const ISCHEMIC_TOXIC_FOLD = 50;
+function ischemicToxicRange(e) {
+  const f = (k) => e.graded.find((g) => g.test === k);
+  const x = Math.max(timesUln(f("ALT")) ?? 0, timesUln(f("AST")) ?? 0);
+  const alp = f("ALP");
+  return x > ISCHEMIC_TOXIC_FOLD && !(alp?.abnormal && alp.dir === "high");
+}
+const ISCHEMIC_TOXIC_SENTENCE = "وقتی آنزیم‌ها بیش از پنجاه برابرِ حدِ بالا می‌رسند، علاوه بر التهابِ حادِ ویروسی، آسیبِ ناشی از دارو یا سم (به‌ویژه مصرفِ زیادِ استامینوفن) و نرسیدنِ خونِ کافی به کبد (افتِ شدیدِ فشار، شوک یا نارساییِ قلب) از علت‌های شایعِ این حدند؛ هر دارو، مکمل یا مقدارِ استامینوفنی را که در روزهای اخیر مصرف کرده‌اید به پزشک بگویید. ";
+
 // P134-G4 (specs/022؛ Tietz فصلِ ۳۷ ص ۷۰۴ و ۷۱۰، خلاصهٔ تأییدنشده): AST بالاتر از ALT بی‌CK روی برگه ⇒ منشأ عضلانی هم نام برده شود.
 //   فقط زیرِ آسیبِ شدید (نه ~۱۰×، نه Hy، نه درجهٔ ≥ ۳) و فقط وقتی ALT سنجیده شده (N4).
 function astLeadNoCk(e, { alt, ast, marked, hy, maxG }) {
@@ -1759,7 +1797,8 @@ export const RULES_BIOCHEM = [
               : `CK (آنزیم مخصوص عضله) هم بالاست (${ck.value})، پس منشأ عضلانی محتمل است؛ با این حال تکرارِ آزمایشِ کبد لازم است. `
             : "") +
           (marked
-            ? "آنزیم‌های کبدی خیلی بالا هستند، که می‌تواند نشانه‌ی یک آسیب فعال و قابل‌توجه کبد باشد (مثلاً التهاب حاد کبد). این حتماً و سریع باید بررسی شود. "
+            ? "آنزیم‌های کبدی خیلی بالا هستند، که می‌تواند نشانه‌ی یک آسیب فعال و قابل‌توجه کبد باشد (مثلاً التهاب حاد کبد). این حتماً و سریع باید بررسی شود. " +
+              (ischemicToxicRange(e) ? ISCHEMIC_TOXIC_SENTENCE : "")
             : "") +
           (kind === "cholestatic"
             ? "این الگو بیشتر به مسیر خروج صفرا مربوط است تا خود سلول‌های کبد."
@@ -2211,23 +2250,7 @@ export const RULES_BIOCHEM = [
   //   (هایپراسپلنیسم) + INR بالا (اختلال ساخت فاکتورهای انعقادی).
   {
     id: "cirrhosis_pattern",
-    match: (e) => {
-      const t = val(e);
-      // ⚠️ عمداً albLowMarker و نه `abnormal && dir === "low"`: این قاعده با
-      //    حدِ پایینِ ۳.۵ نوشته شده بود و وقتی بازهٔ مرجع به هنری (۳.۹) رفت،
-      //    بی‌سروصدا شل شد. رجوع به توضیحِ ALB_LOW_MARKER_GDL در patterns_utils.js.
-      const albLow = albLowMarker(e);
-      const plt = e.graded.find((g) => g.test === "PLT");
-      const pltLow = plt?.abnormal && plt.dir === "low";
-      const biliHigh = (() => {
-        const g = e.graded.find((x) => x.test === "BILI_T");
-        return g?.abnormal && g.dir === "high";
-      })();
-      const inrHigh = t.INR != null && t.INR > 1.3;
-      // نیاز به حداقل ۳ نشانه از ۴ برای احتیاط (این تشخیص سنگینی است)
-      const markers = [albLow, pltLow, biliHigh, inrHigh].filter(Boolean).length;
-      return markers >= 3;
-    },
+    match: (e) => cirrhosisFires(e),
     // P134-G1 (specs/022، N18/N5): متن هیچ عددی نمی‌گفت و آلبومین (که albumin_low_alone به این قاعده می‌سپارد) به «توضیح نداریم» می‌افتاد.
     //   هر نشانهٔ غیرطبیعیِ این چهار با عدد و بازه نقل می‌شود؛ فوریت دست‌نخورده.
     build: (e) => ({
@@ -2245,6 +2268,30 @@ export const RULES_BIOCHEM = [
         "تا وقتی پزشک بررسی نکرده، از داروهای بدون نسخه (به‌خصوص استامینوفن) و مکمل گیاهی پرهیز کنید.",
       ],
     }),
+  },
+
+  {
+    id: "liver_synthetic_dysfunction",
+    match: (e) => liverSyntheticRows(e) != null,
+    build: (e) => {
+      const { alb, coag } = liverSyntheticRows(e);
+      return {
+        pattern: "liver_synthetic_dysfunction",
+        urgency: "this_week",
+        headline: "آلبومینِ پایین و زمانِ انعقادِ طولانی، کنارِ آنزیم‌های بالای کبد",
+        must_say:
+          `روی برگهٔ شما ${faName(alb.test)} ${alb.value} (حد طبیعی ${alb.range}) و ${faName(coag.test)} ${coag.value} (حد طبیعی ${coag.range}) است. ` +
+          "هر دو را کبد می‌سازد: آلبومین مهم‌ترین پروتئینِ خون است و بیشترِ عواملِ انعقادی هم در کبد ساخته می‌شوند. " +
+          "وقتی این دو با هم و کنارِ آنزیم‌های بالای کبد غیرطبیعی باشند، ممکن است توانِ ساختِ کبد کم شده باشد. " +
+          "هرکدام علتِ دیگری هم می‌تواند داشته باشد (آلبومین با التهاب یا دفعِ پروتئین از کلیه، زمانِ انعقاد با داروی رقیق‌کنندهٔ خون یا کمبودِ ویتامین K)، پس پزشک آن‌ها را با هم می‌خواند.",
+        action: "این هفته با پزشک وقت بگیرید و فهرستِ داروها و مکمل‌هایتان را همراه ببرید.",
+        suggest: ["سونوگرافی کبد", "هپاتیت B و C"],
+        warnings: [
+          "اگر زردی، گیجی یا خواب‌آلودگیِ غیرعادی، خونریزی یا تورمِ شکم دارید، همان روز به اورژانس بروید.",
+          "تا وقتی پزشک بررسی نکرده، از داروهای بدون نسخه (به‌خصوص استامینوفن) و مکمل گیاهی پرهیز کنید.",
+        ],
+      };
+    },
   },
 
   // ═══════════ الگوی کبد الکلی ═══════════

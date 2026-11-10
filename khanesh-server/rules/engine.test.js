@@ -13380,3 +13380,47 @@ test("LV5: آمونیاک، ALP و PT/INR با عدد و بازه؛ کنارِ �
   const alone = kdFind(kdRun(lvM, [kdT("INR", 2.5)]).p, "coagulation_abnormal");
   assert.ok(alone.must_say.includes("INR 2.5 (") && !alone.must_say.includes("کبد می‌سازد"), "بی‌آنزیمِ کبد، جملهٔ کبد نمی‌آید");
 });
+
+// LV6 — P134-۱: آلبومینِ پایین + INR/PTِ بالا + آنزیمِ بالای کبد سه کارتِ جدا بود و هیچ‌کدام آن‌ها را به هم وصل نمی‌کرد.
+test("LV6: liver_synthetic_dysfunction آلبومین و INR/PT را کنارِ آنزیمِ کبد به هم وصل می‌کند؛ نه بی‌آنزیم، نه زیرِ سیروز", () => {
+  const run = (tests) => kdRun(lvM, tests).p;
+  const p = run([kdT("Albumin", 2.7, "g/dL"), kdT("INR", 1.8), kdT("ALT", 80, "U/L"), kdT("AST", 70, "U/L")]);
+  const f = kdFind(p, "liver_synthetic_dysfunction");
+  assert.ok(f && f.must_say.includes("آلبومین 2.7 (") && f.must_say.includes("INR 1.8 ("));
+  assert.equal(f.urgency, "this_week");
+  assert.equal(kdFind(p, "albumin_low_alone"), undefined, "آلبومین مالکِ تازه دارد");
+  assert.ok(kdFind(p, "coagulation_abnormal"), "انعقاد فوریتِ خودش را نگه می‌دارد");
+  assert.ok(kdFind(run([kdT("Albumin", 3.0, "g/dL"), kdT("PT", 16, "sec"), kdT("ALT", 100, "U/L")]), "liver_synthetic_dysfunction"), "PT به‌جای INR");
+  assert.equal(kdFind(run([kdT("Albumin", 2.7, "g/dL"), kdT("INR", 1.8)]), "liver_synthetic_dysfunction"), undefined, "بی‌آنزیمِ کبد");
+  const cir = run([kdT("AST", 70, "U/L"), kdT("PLT", 90, "10^3/uL"), kdT("INR", 1.5), kdT("Albumin", 2.7, "g/dL"), kdT("Total Bilirubin", 3, "mg/dL")]);
+  assert.ok(kdFind(cir, "cirrhosis_pattern") && !kdFind(cir, "liver_synthetic_dysfunction"), "زیرِ سیروز تکرار نمی‌شود");
+});
+
+// LV7 — P134-۲ (جدولِ ۳۷٫۲): آنزیمِ > ۵۰× سقف با ALPِ نه‌بالا فقط «التهاب حاد کبد» را نام می‌برد.
+test("LV7: > ۵۰× سقف با ALPِ نه‌بالا علتِ سمی/ایسکمیک را نام می‌برد؛ فوریت همان", () => {
+  const lp = (tests) => kdFind(kdRun(lvM, tests).p, "liver_pattern");
+  const on = lp([kdT("AST", 3000, "U/L"), kdT("ALT", 2500, "U/L"), kdT("ALP", 150, "U/L")]);
+  assert.ok(on.must_say.includes("پنجاه برابرِ حدِ بالا") && on.must_say.includes("استامینوفن"));
+  assert.equal(on.urgency, "emergency");
+  assert.ok(!lp([kdT("AST", 3000, "U/L"), kdT("ALT", 2500, "U/L"), kdT("ALP", 900, "U/L")]).must_say.includes("پنجاه برابرِ"), "ALPِ بالا");
+  assert.ok(!lp([kdT("AST", 900, "U/L"), kdT("ALT", 800, "U/L")]).must_say.includes("پنجاه برابرِ"), "~۲۰×");
+});
+
+// LV8 — P134-۴ (Tietz ص ۷۱۳): اشباعِ ترانسفرینِ ۴۶–۵۵٪ داخلِ بازهٔ موتور بی‌یافته بود.
+test("LV8: TSAT > ۴۵٪ داخلِ بازه یک یافتهٔ routine می‌گیرد؛ ۴۵ نه", () => {
+  const f = kdFind(kdRun({ age: 35, sex: "F" }, [kdT("Transferrin Saturation", 46, "%")]).p, "iron_markers_high");
+  assert.ok(f && f.must_say.includes("بالای 45٪") && f.must_say.includes("ناشتا"));
+  assert.equal(f.urgency, "routine");
+  assert.equal(kdFind(kdRun({ age: 35, sex: "F" }, [kdT("Transferrin Saturation", 45, "%")]).p, "iron_markers_high"), undefined);
+});
+
+// LV9 — P134-۵ (Tietz ص ۷۱۳–۷۱۴): فریتینِ ۱۲۰۰ همان متنِ فریتینِ ۲۳۰ را می‌گرفت.
+test("LV9: فریتینِ > ۱۰۰۰ جملهٔ کبد و وضعیتِ AST را می‌گوید؛ ۹۰۰ نه؛ فوریت همان", () => {
+  const f = (v, extra = []) => kdFind(kdRun(lvM, [kdT("Ferritin", v, "ng/mL"), ...extra]).p, "iron_markers_high");
+  const hiAst = f(1200, [kdT("AST", 80, "U/L"), kdT("ALT", 70, "U/L")]);
+  assert.ok(hiAst.must_say.includes("از 1000 بیشتر است") && hiAst.must_say.includes("AST شما هم 80"));
+  assert.ok(f(1200, [kdT("AST", 30, "U/L")]).must_say.includes("AST شما 30 و در محدودهٔ طبیعی"));
+  assert.ok(f(1200).must_say.includes("AST روی این برگه نیست"));
+  assert.ok(!f(900).must_say.includes("از 1000 بیشتر"));
+  assert.equal(f(1200).urgency, "routine");
+});

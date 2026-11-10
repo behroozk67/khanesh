@@ -37,3 +37,29 @@ Negative controls, unchanged:
 | U10 | `coag` | G5 coag |
 
 Proof: a copy of the working tree (`$TEMP/khanesh-022-proof`) with only `astLeadNoCk → false` and `coagPlainClause → ""` passes M111, M257, X0 and U10 on the **old** hashes.
+
+## Round 2 (2026-11-11, user: «پیشنهادت اجرا کن»)
+
+Implemented #1, #2, #4 and #5 from the follow-up proposal. These were D1–D3 plus the synthetic-function rule.
+
+**Rule ids.** `rule-ids-before-patterns.txt` (HEAD 325ce8c, 278 ids) → `rule-ids-after.txt` (279). The diff is exactly `+liver_synthetic_dysfunction`.
+
+**Probe.** `before-patterns.txt` (HEAD 325ce8c) → `after.txt`. Every changed panel maps to one item:
+
+| Item | Panels |
+|---|---|
+| #1 | C1, C1c |
+| #2 | L3, C4, L32 |
+| #4 | L10, L10b, C6 |
+| #5 | L9, L9b, C5 |
+
+**Urgency.** The only urgency change is TSAT 46–55 % (L10, C6), which goes from none to routine.
+
+**Controls, unchanged:**
+- C1b (no enzymes);
+- C4b (ALP high);
+- C6b (TSAT 45);
+- L15 and L22 (about 20×);
+- L29 (cirrhosis owns it).
+
+**Tests.** LV6–LV9 all fail on a full HEAD copy and pass on the working tree. The full suite has 1736 tests: 1734 pass and 1 fails (T15e, the dev-folder artefact). No byte-lock moved.

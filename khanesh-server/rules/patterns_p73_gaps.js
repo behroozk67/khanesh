@@ -63,7 +63,7 @@ export const P73_OWNERS = {
   erythro: ["erythrocytosis", "erythrocytosis_who_screen", "thal_trait_no_anemia", "microcytosis_no_anemia", "rbc_indices_implausible"],
   bilirubin: ["bilirubin_pattern", "bilirubin_emergency", "hemolysis_pattern", "cirrhosis_pattern"],
   ck: ["rhabdomyolysis_pattern", "myoglobin_abnormal", "ckmb_high", "troponin_positive", "troponin_hs_above_99th", "liver_pattern"],
-  albumin: ["total_protein_abnormal", "cirrhosis_pattern", "nephrotic_pattern"],
+  albumin: ["total_protein_abnormal", "cirrhosis_pattern", "nephrotic_pattern", "liver_synthetic_dysfunction"],
   iron: ["iron_deficiency_panel", "anemia_chronic_disease"],
   hco3: ["severe_acidosis", "high_anion_gap", "normal_ag_acidosis", "dka_pattern", "hhs_pattern"],
   pct: ["sepsis_markers"],
@@ -311,13 +311,26 @@ const ironLowAlone = {
   },
 };
 
+// P134-۴/۵ (specs/022؛ Tietz فصلِ ۳۷ ص ۷۱۳–۷۱۴، خلاصهٔ تأییدنشده): TSAT > ۴۵٪ زودترین نشانهٔ انباشتِ آهن؛ در هموکروماتوز،
+//   فریتینِ < ۱۰۰۰ با ASTِ طبیعی سیروز را بعید می‌کند ⇒ بالای ۱۰۰۰ یک جملهٔ کبد (فوریت دست‌نخورده).
+const TSAT_EARLY_OVERLOAD_ABOVE = 45;
+const FERRITIN_LIVER_CHECK_ABOVE = 1000;
+const tsatUpperBorder = (ts) => !!(ts && !ts.abnormal && ts.value > TSAT_EARLY_OVERLOAD_ABOVE);
+function ferritinLiverClause(e) {
+  const ast = g(e, "AST");
+  const astTxt = !ast ? "AST روی این برگه نیست." : hi(ast) ? `AST شما هم ${ast.value} (حد طبیعی ${ast.range}) و بالاست.` : `AST شما ${ast.value} و در محدودهٔ طبیعی است.`;
+  return `فریتینِ شما از ${FERRITIN_LIVER_CHECK_ABOVE} بیشتر است. اگر علتِ آن انباشتِ آهن باشد، فریتینِ زیرِ ${FERRITIN_LIVER_CHECK_ABOVE} همراه با AST طبیعی آسیبِ جدیِ کبد را بعید می‌کند، ولی بالای این حد چنین اطمینانی نیست و پزشک کبد را هم بررسی می‌کند. ${astTxt} `;
+}
+
 // ── ۵+۶) فریتین↑ / TSAT↑ — EASL 2022: TSAT > 45٪ و فریتین > 200 (زن) | TSAT > 50٪ و فریتین > 300 (مرد) ⇒ بارِ آهنِ احتمالی ──
 const ironMarkersHigh = {
   id: "iron_markers_high",
-  match: (e) => (hi(g(e, "FERRITIN")) || hi(g(e, "TSAT"))) && !anyFires(e, P73_OWNERS.iron),
+  // P134-۴ (specs/022، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۱؛ Tietz فصلِ ۳۷ ص ۷۱۳، خلاصهٔ تأییدنشده): اشباعِ ترانسفرینِ > ۴۵٪ ولی داخلِ بازهٔ موتور
+  //   (۲۰–۵۵) هیچ یافته‌ای نمی‌گرفت. شاخهٔ دومِ match، نه تغییرِ refs.js (N22). فوریت routine.
+  match: (e) => (hi(g(e, "FERRITIN")) || hi(g(e, "TSAT")) || tsatUpperBorder(g(e, "TSAT"))) && !anyFires(e, P73_OWNERS.iron),
   build: (e) => {
     const fer = g(e, "FERRITIN"), ts = g(e, "TSAT");
-    const feHi = hi(fer), tsHi = hi(ts);
+    const feHi = hi(fer), tsHi = hi(ts), tsBorder = tsatUpperBorder(ts);
     const feCut = e.sex === "M" ? 300 : e.sex === "F" ? 200 : null;
     const tsCut = e.sex === "M" ? 50 : e.sex === "F" ? 45 : null;
     const provisional = feCut != null && fer && ts && fer.value > feCut && ts.value > tsCut;
@@ -326,7 +339,8 @@ const ironMarkersHigh = {
       pattern: "iron_markers_high",
       urgency,
       sources: ["EASL_HH_2022"],
-      headline: feHi && tsHi ? "فریتین و اشباعِ ترانسفرینِ شما بالاترند" : feHi ? "فریتینِ شما بالاتر از حد طبیعی است" : "اشباعِ ترانسفرینِ شما بالاتر از حد طبیعی است",
+      headline: feHi && tsHi ? "فریتین و اشباعِ ترانسفرینِ شما بالاترند" : feHi ? "فریتینِ شما بالاتر از حد طبیعی است"
+        : tsBorder ? "اشباعِ ترانسفرینِ شما در بخشِ بالای محدوده است" : "اشباعِ ترانسفرینِ شما بالاتر از حد طبیعی است",
       must_say:
         (feHi
           ? `فریتین شما ${fer.value} است (حد طبیعی ${fer.range}). فریتین علاوه بر ذخیرهٔ آهن، با التهاب، عفونت، بیماریِ کبد (مثل کبد چرب یا الکل)، چاقی و سندرمِ متابولیک و بعضی سرطان‌ها هم بالا می‌رود؛ در بیشترِ موارد علتش همین‌هاست نه انباشتِ آهن. `
@@ -334,7 +348,11 @@ const ironMarkersHigh = {
         (tsHi
           ? `اشباعِ ترانسفرین شما ${ts.value}٪ است (حد طبیعی ${ts.range}). این عدد نشان می‌دهد چند درصد از ظرفیتِ آهن‌بریِ خون پر است و برخلافِ فریتین با التهاب بالا نمی‌رود؛ ولی تغییرپذیریِ زیادی دارد (مصرفِ قرصِ آهن و خون‌گیریِ غیرناشتا اثر می‌گذارند)، پس برای تفسیر بهتر است ناشتا و بدونِ مکملِ آهن تکرار شود. `
           : "") +
-        (!feHi ? comp(e, K.FERRITIN, "فریتین") + " " : "") + (!tsHi ? comp(e, K.TSAT, "اشباعِ ترانسفرین") + " " : "") +
+        (feHi && fer.value > FERRITIN_LIVER_CHECK_ABOVE ? ferritinLiverClause(e) : "") +
+        (tsBorder
+          ? `اشباعِ ترانسفرین شما ${ts.value}٪ است؛ داخلِ محدودهٔ آزمایشگاه (${ts.range}) ولی بالای ${TSAT_EARLY_OVERLOAD_ABOVE}٪، که در منابعِ بیوشیمیِ بالینی حساس‌ترین نشانهٔ زودرسِ انباشتِ آهن شمرده می‌شود. یک نوبتِ تنها کافی نیست: این عدد با قرصِ آهن و نمونهٔ غیرناشتا هم بالا می‌رود، پس بهتر است ناشتا و بدونِ مکملِ آهن تکرار شود. `
+          : "") +
+        (!feHi ? comp(e, K.FERRITIN, "فریتین") + " " : "") + (!tsHi && !tsBorder ? comp(e, K.TSAT, "اشباعِ ترانسفرین") + " " : "") +
         (provisional
           ? `هر دو عدد از آستانه‌های راهنمای EASL (اشباعِ ترانسفرین > ${tsCut}٪ و فریتین > ${feCut}) بالاترند، که یعنی بارِ آهنِ احتمالی (مثلاً هموکروماتوز ارثی)؛ قدمِ بعد آزمایشِ ژنِ HFE و بررسیِ کبد است. `
           : feHi && tsHi
