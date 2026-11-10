@@ -11,7 +11,9 @@
 import { faName } from "./names.js";
 import { parseReference } from "./units.js";
 
-export const TM_KEYS = new Set(["CEA", "CA125", "CA153", "CA199"]);
+// specs/020 (P132): هفت کلیدِ P77 که پیش‌تر از abVerdict می‌گذشتند — آن خواننده «> N» را مرزِ مثبت‌شدنِ آنتی‌بادی می‌خواند
+//   (نسبتِ Free PSA ۱۸٪ در برابرِ «> 25» ⇒ «داخل») و ردیفی در `_engine.tests` نمی‌ساخت. CALPROTECTIN عمداً نیست (تومورمارکر نیست).
+export const TM_KEYS = new Set(["CEA", "CA125", "CA153", "CA199", "AFP", "B2M", "CALCITONIN", "CGA", "PSA_TOTAL", "PSA_FREE", "PSA_RATIO"]);
 
 const norm = (s) => String(s ?? "")
   .replace(/[۰-۹]/g, (d) => "۰۱۲۳۴۵۶۷۸۹".indexOf(d)).replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d))
@@ -157,6 +159,8 @@ export function tumorMarkerRows(engineOut) {
       nearLimit: false,
       source: "tumor_marker_printed",
       verdict,
+      // specs/020 (P132): فقط پرچم؛ abnormal/dir/fa/verdict دست نمی‌خورند. جمله در psa_result است.
+      ...(key.startsWith("PSA_") && engineOut?.sex === "F" ? { sexMismatch: true } : {}),
     });
   }
   return rows;

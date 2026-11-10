@@ -200,7 +200,8 @@ export function healthScore(engineOut, patternOut) {
     if (!SYSTEM_CAP_URGENCIES.has(f?.urgency) || supplementary.has(f.rule_id)) continue;
     // specs/019: یافتهٔ تومورمارکر به هیچ کلیدِ graded نسبت داده نمی‌شد و سقفِ کلِ برگه را می‌گذاشت (CEA طبیعی ⇒ ۹۸ → ۹۰)؛
     //   دیگر نه. «سبز نشدنِ» برگه کنارِ یافتهٔ «این هفته» همچنان از urgencyِ کل می‌آید (پایین‌تر).
-    if (f.rule_id === 'tumor_markers_result' && f.explains?.length && f.explains.every((k) => TM_KEYS.has(k))) continue;
+    // specs/020 (P132): psa_result هم — PSAِ طبیعی ۹۸ «high» را ۹۰ «mid» می‌کرد.
+    if ((f.rule_id === 'tumor_markers_result' || f.rule_id === 'psa_result') && f.explains?.length && f.explains.every((k) => TM_KEYS.has(k))) continue;
     const keys = findingKeys(f, abnormalKeys);
     if (!keys) { sheetCap = Math.min(sheetCap, URGENCY_CAP[f.urgency]); continue; }
     for (const k of keys) {

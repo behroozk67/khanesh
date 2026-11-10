@@ -2590,6 +2590,27 @@ wrote the standard property first (`backdrop-filter: …; -webkit-backdrop-filte
 (Commits `9aae2b7`, `6b03bc2`.) `DELETE /api/auth/me` right after an analysis returned 500 at random, because `insertLabEvent` was mid-transaction: «cannot start a transaction within a transaction». It only showed once a test deleted an account immediately after a job, and passed when run alone; `beginTx` now serialises transactions (`database.tx.test.js`). A test that goes red only under load is a finding, not noise — run it alone before blaming the harness. Family members (P131) touch the same lesson as N25: "the same user" was the identity behind history owner, `getLatestCompletedJob` and the cascade delete, and all three had to learn the member, or a child's values get compared with an adult's. History was recorded when the analysis finished, before any payment decision: an Empire user with no credits read an unpaid sheet's values from `/history`. The verify route also recorded under `user:<id>` while every reader uses `u:<id>`, so that row could never be read or deleted. Both are one rule: record at delivery (`shim` delivery branch, `settlePayment`), with the owner captured from the request.
 Follow-up (`7069493` and the next commit): `paid` and the credit were two writes, so a crash between them left a paid row with no credit, and nothing retried it: Zarinpal had already verified it, so `unVerified` no longer listed it. Now both happen in one transaction (`settlePaymentRecord`). The row is marked `verifying` before calling the gateway, and reconcile re-verifies stuck rows (code 101). `markPaymentFailed` had no status guard, so a concurrent rejection could turn `paid` into `failed`, and the next verify credited twice. Rule: `firstTime` is the double-credit lock, so every write that can move a row out of `paid` guards on status. Also, an Empire user with 0 credits saw «پلن فعالی ندارید» while history was open. "No credit" is not "no plan".
 
+### N49 — The Free-PSA ratio was read inverted: an antibody reader on a ratio (2026-11-10)
+
+(specs/020, P132; commit: this change.) The seven P77 tumour-marker keys (AFP, B2M, calcitonin, CgA, PSA total/free/ratio) went through `abVerdict`, which reads «> N» as an antibody's positive cut-off. Two consequences:
+- **Ratio.** «درصد Free PSA» 18 % against «> 25», the side that argues for a biopsy, was told «داخلِ محدودهٔ چاپ‌شده». The same paragraph quoted a ~20 % biopsy-cancer probability. A ratio of 30 % was told «بالاتر از مرزِ».
+- **Score.** A normal PSA cut a healthy sheet from 98 «high» to 90 «mid». This is the N46 CEA defect, still live for PSA, because `score.js` exempted only `tumor_markers_result`.
+
+Rules:
+- «> N» on a ratio or percentage is the lower normal limit, not a positive cut-off. Never run a concentration or a ratio through a reader written for antibodies.
+- A fix scoped to a key set (`TM_KEYS`) must grep every key that takes the same route (`assay_printed`). The 019 fix covered four of eleven.
+- An exemption listed by finding id must list every finding that owns those keys.
+- The dev folder's persistent `database.sqlite`/`.env` made 8 auth/daily-cap tests red (T15e and 7 more). They pass on a clean `git archive` copy, so take baselines there.
+
+Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
+[rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
+[environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).
+
+## Working Agreement, Token Economy, Orientation
+
+Same as the global `~/.claude/CLAUDE.md` (plan-first for 3+ files, verify with real commands, finish before reporting, read with offset/limit, batch calls).
+Project-specific: this file contains ZWNJ (U+200C) characters — orthographically required in Persian, never strip or "normalize" them; read the file with the file tool.
+
 ---
 
 ## Working Agreement

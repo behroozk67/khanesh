@@ -13106,3 +13106,23 @@ test("TM10: CEA «بین دو حد» — جملهٔ دقیق (رسیده/بال�
   assert.match(hi, /بالاتر از مرزِ چاپ‌شده/);
   assert.match(say([T("CA 15-3", 11.6, "U/mL", "At or below: 31.0")]), /پس از شروعِ شیمی‌درمانی ممکن است چند هفته موقتاً بالا برود/);
 });
+
+// ⚠️ باگِ واقعی (specs/020، P132، ۲۰۲۶-۱۱-۱۰، سنجیده روی کدِ پیش از اصلاح): «درصد Free PSA» با بازهٔ چاپیِ «> 25» از abVerdict
+//    می‌گذشت که «> N» را مرزِ مثبت‌شدنِ آنتی‌بادی می‌خواند ⇒ نسبتِ ۱۸٪ (همان طرفی که به نفعِ بیوپسی است) «داخلِ محدوده» گفته می‌شد
+//    و ۳۰٪ «بالاتر از مرز». «> 25» روی یک نسبت حدِ پایینِ طبیعی است. این تست روی آن کد قرمز است.
+test("TM11: نسبتِ Free PSA در برابرِ «> 25» — ۱۸٪ پایین‌تر از مرز (نه داخل)، ۳۰٪ داخلِ محدوده؛ ردیفِ _engine.tests با جهتِ پایین", async () => {
+  const { tumorMarkerRows } = await import("./tumor_markers.js");
+  const T = (name, value, unit, reference) => ({ name, value: String(value), unit, reference });
+  const run = (ratio) => {
+    const e = runEngine({ patient: { age: 60, sex: "M" }, tests: [T("PSA", 6, "ng/mL", "< 4.0"), T("Free PSA Ratio", ratio, "%", "> 25")] });
+    const say = String(runPatterns(e).findings.find((f) => (f.rule_id ?? f.pattern) === "psa_result").must_say);
+    return { say, row: tumorMarkerRows(e).find((r) => r.key === "PSA_RATIO") };
+  };
+  const low = run(18);
+  assert.match(low.say, /درصد Free PSA روی برگهٔ شما 18 % است و پایین‌تر از مرزِ چاپ‌شدهٔ همان ردیف است/);
+  assert.equal(/18 % است و داخلِ/.test(low.say), false);
+  assert.deepEqual([low.row?.verdict, low.row?.abnormal, low.row?.dir], ["below", true, "low"]);
+  const ok = run(30);
+  assert.match(ok.say, /درصد Free PSA روی برگهٔ شما 30 % است و داخلِ محدودهٔ چاپ‌شدهٔ همان ردیف است/);
+  assert.deepEqual([ok.row?.verdict, ok.row?.abnormal], ["within", false]);
+});
