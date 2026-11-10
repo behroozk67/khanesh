@@ -23,14 +23,14 @@ function fmt(v, unit) {
   return `${toFaDigits(String(n))}${unit ? ' ' + unit : ''}`;
 }
 
-export default function DeltaStrip({ tests, hidden = false }) {
+export default function DeltaStrip({ tests, hidden = false, until = null }) {
   const [rows, setRows] = useState([]);
   const keys = (tests || []).map((t) => t.key).filter(Boolean);
 
   useEffect(() => {
     if (hidden || !keys.length) return undefined;
     let alive = true;
-    apiJson(`/api/history/trends?keys=${encodeURIComponent(keys.join(','))}`)
+    apiJson(`/api/history/trends?keys=${encodeURIComponent(keys.join(','))}${until ? `&until=${encodeURIComponent(until)}` : ''}`)
       .then((d) => {
         if (!alive) return;
         // فقط مارکرهایی که واقعاً نوبتِ قبلی دارند و مقایسه‌شان معنا دارد.
@@ -39,7 +39,7 @@ export default function DeltaStrip({ tests, hidden = false }) {
       .catch(() => { if (alive) setRows([]); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [keys.join(','), hidden]);
+  }, [keys.join(','), hidden, until]);
 
   if (hidden || !rows.length) return null;
 

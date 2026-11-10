@@ -260,7 +260,8 @@ export function calculateTrend5(points) {
   if (direction === 'stable') {
     summaryFa = `در ${countFa} نوبت اخیر، مقادیر تغییرِ چشمگیری نداشته و در محدودهٔ پایدار قرار دارد.`;
   } else if (direction === 'fluctuating') {
-    summaryFa = `در ${countFa} نوبت اخیر، مقدار این آزمایش نوسانی بوده (از ${fromValFa} تا ${toValFa}).`;
+    // بازهٔ واقعیِ نوسان (کمینه تا بیشینه)، نه اولین تا آخرین نقطه — وگرنه «از ۱۲۴ تا ۱۲۴» چاپ می‌شد.
+    summaryFa = `در ${countFa} نوبت اخیر، مقدار این آزمایش نوسانی بوده (از ${numFa(minVal, latest.unit)} تا ${numFa(maxVal, latest.unit)}).`;
   }
 
   return {

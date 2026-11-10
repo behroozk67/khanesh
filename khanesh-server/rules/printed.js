@@ -100,12 +100,27 @@ export function normalRangeParagraph(engineOut, { max = Infinity } = {}) {
     //    جزئیات و اندازه‌گیریِ مرورگر: rules/faText.js.
     items.push(joinFaNumber(name, shown));
   }
-  if (!items.length) return "";
+  const urine = urineNegativeFa(engineOut);
+  if (!items.length && !urine) return "";
   const age = engineOut?.age;
   const who = age == null ? "" : age < NEONATE_YEARS ? "برای سنِ نوزاد " : age < CHILD_YEARS ? "برای سنِ کودک " : "";
   const head = items.slice(0, max);
   const rest = items.length - head.length;
-  return `مواردی که ${who}در محدودهٔ طبیعی‌اند: ${head.join("، ")}${rest > 0 ? ` و ${rest} مورد دیگر` : ""}.`;
+  const main = items.length ? `مواردی که ${who}در محدودهٔ طبیعی‌اند: ${head.join("، ")}${rest > 0 ? ` و ${rest} مورد دیگر` : ""}.` : "";
+  return [main, urine].filter(Boolean).join(" ");
+}
+
+// ردیف‌های کیفیِ نوارِ ادرار (adapter ⇒ qual «Urine X»). فقط ردیفِ *منفیِ صریح* و نامِ شناخته‌شده می‌آید (N4/N8): ردیفِ مثبت/نامعلوم هرگز «طبیعی» نمی‌شود.
+const URINE_NEG_FA = { Protein: "پروتئین", Glucose: "گلوکز", Blood: "خون", Bilirubin: "بیلی‌روبین", Ketone: "کتون", Nitrite: "نیتریت", Urobilinogen: "اوروبیلینوژن", "Leukocyte Esterase": "لکوسیت استراز" };
+const URINE_NEG_VALUE = /^(neg(ative)?|nil|none|absent|not\s*(seen|detected)|normal|منفی|دیده\s*نشد|طبیعی|-)$/i;
+function urineNegativeFa(engineOut) {
+  const out = [];
+  for (const [name, value] of Object.entries(engineOut?.qual ?? {})) {
+    const m = /^Urine (.+)$/.exec(name);
+    const fa = m && URINE_NEG_FA[m[1]];
+    if (fa && URINE_NEG_VALUE.test(String(value ?? "").trim())) out.push(fa);
+  }
+  return out.length ? `در آزمایش ادرار، این موارد منفی بودند: ${out.join("، ")}.` : "";
 }
 
 /** دو بلوکِ پایانی با \n\n؛ رشتهٔ خالی اگر چیزی نبود. */

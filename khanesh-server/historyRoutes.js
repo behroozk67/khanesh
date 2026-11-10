@@ -136,7 +136,10 @@ router.get('/trends', ...guard, async (req, res) => {
     const keys = typeof req.query.keys === 'string' && req.query.keys.trim()
       ? req.query.keys.split(',').map((s) => s.trim()).filter(Boolean)
       : null;
-    const rows = await getOwnerObservations(req.historyOwner, { since: req.query.since || null });
+    let rows = await getOwnerObservations(req.historyOwner, { since: req.query.since || null });
+    // `until` = تاریخِ نمونهٔ برگهٔ جاری: برگهٔ قدیمی‌ای که امروز آپلود می‌شود نباید با نوبت‌های *جدیدتر* مقایسه شود.
+    const untilT = toTime(req.query.until);
+    if (untilT != null) rows = rows.filter((r) => (toTime(r.taken_at) ?? 0) <= untilT + 24 * 3600 * 1000);
     const { markers, summary } = compareSeries(rows, { keys });
     return res.json({
       markers: markers.map((m) => ({ ...m, latest_fa: m.latest ? faDate(m.latest.date) : null, previous_fa: m.previous ? faDate(m.previous.date) : null, fa: comparisonFa(m) })),

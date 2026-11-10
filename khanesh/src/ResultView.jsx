@@ -553,7 +553,7 @@ export default function ResultView({ result, asText, asList }) {
           title="تحلیل روند تغییرات نسبت به نوبت قبل"
           description="مقایسه مقادیر فاکتورها با نوبت‌های قبلی و تشخیص عبور از آستانه نوسان طبیعی (RCV) در پلن پایه قفل است."
         >
-          <DeltaStrip tests={tests} hidden={printing} />
+          <DeltaStrip tests={tests} hidden={printing} until={typeof eng?.context?.sample_date === "string" ? eng.context.sample_date : null} />
         </LockedFeature>
       )}
       </>)}

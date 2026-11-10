@@ -1292,7 +1292,10 @@ export const RULES_HEMATOLOGY = [
       // MCVِ کوچک ⇒ جملهٔ قبلی؛ فقط MCHِ < ۲۷ (MCV در محدوده یا غایب) ⇒ جملهٔ MCH جایِ آن.
       const mcvSmall = isPedAge(e) ? !!(mcv?.abnormal && mcv.dir === "low") : t.MCV != null && t.MCV < 80;
       const sizeSentence = mcvSmall
-        ? `اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} است که کوچک‌تر از حد طبیعی${mcv?.range ? ` (${mcv.range})` : ""} است. ` +
+        ? // مرزِ ۸۰ مرزِ غربالگری است؛ اگر عدد داخلِ محدودهٔ چاپیِ همین برگه است، نباید «کوچک‌تر از حد طبیعی (بازهٔ برگه)» گفت (تناقض با فهرستِ «در محدوده»).
+          (mcv && !mcv.abnormal
+            ? `اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} است؛ زیرِ ۸۰ (مرزِ غربالگریِ کم‌خونیِ فقر آهن و تالاسمی) ولی داخلِ محدودهٔ طبیعیِ چاپ‌شده روی برگهٔ شما${mcv.printedRange ? ` (${mcv.printedRange})` : ""} و در حدِ مرزی است. `
+            : `اندازهٔ متوسط گلبول‌ها (MCV) ${t.MCV} است که کوچک‌تر از حد طبیعی${mcv?.range ? ` (${mcv.range})` : ""} است. `) +
           // ۲۰۲۶-۱۰-۱۶ (P108): منتزرِ ≥ ۱۳ حالا از thal_trait_no_anemia به این‌جا می‌آید و MCHِ پایین به «توضیح داده نشدند» می‌افتاد (N18).
           hbSentence + microMchClause(mchG).trimStart() + (mchG?.abnormal ? " " : "") +
           microMchcClause(e.graded.find((g) => g.test === "MCHC")).trimStart()
