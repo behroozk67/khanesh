@@ -37,3 +37,9 @@ Every hunk is in G1–G5:
 ## Local end-to-end (`e2e.mjs` → `e2e-output.txt`)
 
 Run through `/api/analyze` on the restarted local server, with gpt-4o-mini and the mock email OTP user `local-qa-021@example.test`. All 6 panels came out as intended, and the model kept the engine's text (the urea sentence, the mg/mmol band, the pregnancy sentence). A PCR-only sheet gets «موتور هیچ‌کدام را تفسیر نکرد», not «طبیعی».
+
+## Follow-up (same day, after b5d77b7)
+
+- **KD11** (low uric acid inside the printed range), **KD12** (urea sentence only next to high creatinine) and **KD13** (UPCR counts as unread in the score) were added. All three fail on b5d77b7 and pass now.
+- Working tree: 1724 tests, 1722 pass, 1 fail (T15e, the dev-folder DB artefact).
+- `after.txt` was regenerated. The only new lines are the `ungraded.UPCR` (no_range) entries on the PCR panels.

@@ -108,6 +108,9 @@ function crEmergencyOwns(e) {
 //   اورهٔ اورژانسی مالکِ خودش را دارد (urea_bun_emergency) و دیالیزی متنِ خودش را (P72) — اینجا تکرار نمی‌شوند.
 function ureaAlongside(e, keys) {   // keys در خودِ قاعده نوشته می‌شود تا RULE_READS آن را ببیند (مسیرِ «یافتهٔ تکمیلی»)
   if (onDialysis(e) || RULES_NEPHROLOGY_NEW.find((r) => r.id === "urea_bun_emergency").match(e)) return "";
+  // کراتینینِ بالا نیست ⇒ مالکِ اوره isolated_urea_elevation است (با پرچمِ خونریزیِ گوارشی)؛ «کنارِ کراتینین» آنجا معنا ندارد.
+  const cr = e.graded.find((g) => g.test === "CREAT");
+  if (!(cr?.abnormal && cr.dir === "high")) return "";
   return e.graded
     .filter((g) => keys.includes(g.test) && g.abnormal && g.dir === "high")
     .map((g) => ` ${g.test === "UREA_N" ? "BUN" : "اوره"} ${g.value} (حد طبیعی ${g.range}) هم بالاتر از حد طبیعی است و کنارِ کراتینین تفسیر می‌شود.`)

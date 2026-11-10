@@ -51,10 +51,13 @@
   {albuminuria_pattern · this_week} در ادرار شما آلبومین (نوعی پروتئین) دفع می‌شود
 
 ═══ P1 PCR ۶۰ mg/mmol ═══  urgency=none
+  ungraded: {"UPCR":{"value":60,"reason":"no_range","unit":"mg/mmol"}}
 
 ═══ P2 UPCR ۰٫۵ mg/mg ═══  urgency=none
+  ungraded: {"UPCR":{"value":0.5,"reason":"no_range","unit":"mg/mg"}}
 
 ═══ P3 Protein Creatinine Ratio ۴۰۰ mg/g ═══  urgency=none
+  ungraded: {"UPCR":{"value":400,"reason":"no_range","unit":"mg/g"}}
 
 ═══ P4 پروتئین ادرار ۲۴ ساعته ۵۰۰ (غیرباردار) ═══  urgency=none
 
@@ -163,3 +166,4 @@
   unmapped: ["PCR","HCV PCR"]
 
 ═══ P7 نسبت پروتئین به کراتینین فارسی ═══  urgency=none
+  ungraded: {"UPCR":{"value":0.4,"reason":"no_range","unit":"mg/mg"}}

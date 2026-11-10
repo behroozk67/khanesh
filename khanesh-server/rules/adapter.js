@@ -809,6 +809,9 @@ function hemostasisItem(key, t, sex) {
 const ADULT_ONLY_REF_KEYS = new Set(["MYOGLOBIN", "TRANSFERRIN", "ATIII", "TT"]);
 const PLATELET_INDEX_KEYS = new Set(["PDW", "P_LCR", "PLT_CRIT"]);
 const UNIT_KEPT = new Set(["PDW", "PLT_CRIT", "P_LCR", "CERULOPLASMIN", "U_COPPER_24H",
+  // specs/021 (G4): PCR بی‌بازه است؛ در ungraded هم می‌نشیند تا امتیازِ برگه آن را «خوانده‌نشده» بشمارد (score.js) و برگه با
+  //   PCRِ تفسیرنشده «مطلوب» نشود (اصلِ II). واحدِ چاپ‌شده (mg/mmol، mg/g، mg/mg) همراهش می‌ماند.
+  "UPCR",
   // P93-ب: قندهای آزمونِ تحملِ قند (۱ و ۳ساعته، چالشِ ۵۰ گرمی) — mmol/L فقط با واحدِ چاپ‌شده تبدیل می‌شود (N3).
   "GLU_1H", "GLU_3H", "GLU_GCT",
   // P53 پرسش ۴ و ۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): ZPP فقط با µmol/mol، sTfR فقط با mg/L تفسیر می‌شوند، و درصدِ

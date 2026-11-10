@@ -13274,3 +13274,37 @@ test("KD10: urea_low فقط برای pregnant === true جملهٔ بارداری
     assert.equal(f.urgency, "routine");
   }
 });
+
+// KD11 — G3 (پیگیری): عددِ داخلِ بازهٔ چاپ‌شدهٔ خودِ آزمایشگاه «پایین‌تر از آن است» گفته می‌شد — «اسید اوریک 3، روی برگهٔ شما 2.5–7»
+//   کنارِ «پایین‌تر از آن است» (همان تناقضِ P113 در hyperuricemia، سمتِ پایین).
+test("KD11: uric_acid_low داخلِ بازهٔ چاپیِ آزمایشگاه حکمِ «پایین‌تر» نمی‌دهد", () => {
+  const f = kdFind(kdRun({ age: 50, sex: "M" }, [kdT("Uric Acid", 3.0, "mg/dL", "2.5-7.0")]).p, "uric_acid_low");
+  assert.ok(f);
+  assert.match(f.must_say, /داخلِ بازهٔ چاپ‌شدهٔ خودِ آزمایشگاه است/);
+  assert.equal(/و پایین‌تر از آن است/.test(f.must_say), false);
+  assert.equal(f.urgency, "routine");
+  const out = kdFind(kdRun({ age: 50, sex: "M" }, [kdT("Uric Acid", 2.0, "mg/dL", "2.5-7.0")]).p, "uric_acid_low");
+  assert.match(out.must_say, /و پایین‌تر از آن است/);
+});
+
+// KD12 — G2 (پیگیری): گلومرولونفریت با کم‌خونی و کراتینینِ طبیعی هم جملهٔ «کنارِ کراتینین تفسیر می‌شود» می‌گرفت، در حالی که
+//   isolated_urea_elevation همان اوره را (با پرچمِ خونریزیِ گوارشی) می‌گوید — دو بار یک عدد، با «کنارِ کراتینین»ِ بی‌معنا.
+test("KD12: جملهٔ اوره فقط کنارِ کراتینینِ بالا؛ با کراتینینِ طبیعی مالک isolated_urea_elevation است", () => {
+  const { p } = kdRun({ age: 40, sex: "F" }, [kdT("Hb", 9, "g/dL"), kdT("Urine Blood", "3+"), kdT("Urine Protein", "2+"), kdT("Urea", 70, "mg/dL"), kdT("Creatinine", 0.9, "mg/dL")]);
+  assert.equal(/کنارِ کراتینین تفسیر می‌شود/.test(kdFind(p, "glomerulonephritis_pattern").must_say), false);
+  assert.ok(kdFind(p, "isolated_urea_elevation"));
+});
+
+// KD13 — G4 (پیگیری، N46): UPCR در noRef بود ولی امتیازِ برگه فقط unmapped/ungraded را «خوانده‌نشده» می‌شمرد؛ برگهٔ سالم با
+//   PCRِ تفسیرنشده دوباره «مطلوب» (high) می‌شد — پیش از G4 (unmapped) همان برگه «mid، unread 1» بود.
+test("KD13: PCRِ تفسیرنشده امتیازِ برگه را «مطلوب» نمی‌گذارد (unread)", async () => {
+  const { healthScore } = await import("./score.js");
+  const BASE = [kdT("Albumin", 4.4, "g/dL"), kdT("Creatinine", 0.9, "mg/dL"), kdT("FBS", 90, "mg/dL"), kdT("hs-CRP", 0.3, "mg/L"),
+    kdT("Lymph %", 30, "%"), kdT("MCV", 90, "fL"), kdT("RDW-CV", 12.5, "%"), kdT("ALP", 70, "U/L"), kdT("WBC", 6.5, "x10^3/uL"), kdT("Neutrophils %", 60, "%")];
+  const with_ = kdRun({ age: 45, sex: "M" }, [...BASE, kdT("UPCR", 60, "mg/mmol", "< 15")]);
+  const s = healthScore(with_.e, with_.p);
+  assert.equal(s.count.unread, 1);
+  assert.notEqual(s.band, "high");
+  const without = kdRun({ age: 45, sex: "M" }, BASE);
+  assert.equal(healthScore(without.e, without.p).band, "high", "کنترل: بی‌PCR همان برگه مطلوب است");
+});
