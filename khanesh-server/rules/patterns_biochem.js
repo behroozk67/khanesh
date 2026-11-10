@@ -71,6 +71,32 @@ function liverBorderline(e) {
   return highs.every((x) => { const r = timesUln(x); return r != null && r < 2; });
 }
 
+// P134-G5: «<برچسب> <عدد> (حد طبیعی <بازه>) است. » از ردیفِ graded؛ ردیفِ ناموجود ⇒ "".
+function valueRangeFa(e, key, label, tail = " است. ") {
+  const g = e.graded.find((x) => x.test === key);
+  return g ? `${label} ${g.value}${g.range ? ` (حد طبیعی ${g.range})` : ""}${tail}` : "";
+}
+
+const NH3_KEY = "NH3";   // بیرون از must_say تا گاردِ زبان (M38) کلید را رشتهٔ بیمارپسند نشمارد
+
+// P134-G1: نشانه‌های غیرطبیعیِ cirrhosis_pattern با عدد و بازه (جهتِ هرکدام از graded.dir — N12).
+function cirrhosisNumbers(e) {
+  const parts = [["ALB", "low"], ["PLT", "low"], ["BILI_T", "high"], ["INR", "high"]]
+    .map(([k, d]) => e.graded.find((g) => g.test === k && g.abnormal && g.dir === d))
+    .filter(Boolean)
+    .map((g) => `${faName(g.test)} ${g.value} (حد طبیعی ${g.range})`);
+  return parts.length ? `روی برگهٔ شما ${parts.join("، ")} است. ` : "";
+}
+
+// P134-G4 (specs/022؛ Tietz فصلِ ۳۷ ص ۷۰۴ و ۷۱۰، خلاصهٔ تأییدنشده): AST بالاتر از ALT بی‌CK روی برگه ⇒ منشأ عضلانی هم نام برده شود.
+//   فقط زیرِ آسیبِ شدید (نه ~۱۰×، نه Hy، نه درجهٔ ≥ ۳) و فقط وقتی ALT سنجیده شده (N4).
+function astLeadNoCk(e, { alt, ast, marked, hy, maxG }) {
+  const ckOnSheet = e.graded.some((g) => g.test === "CK") || !!e.ungraded?.CK || !!e.noRef?.includes("CK");
+  return !ckOnSheet && !marked && !hy && maxG < 3 && !!alt && !!(ast?.abnormal && ast.dir === "high") &&
+    (!alt.abnormal || ast.value > alt.value);
+}
+const AST_LEAD_SENTENCE = "AST بیشتر از ALT بالا رفته است. این الگو همیشه از کبد نیست: AST در عضله هم ساخته می‌شود و ورزشِ سنگین یا آسیبِ عضله در چند روزِ اخیر (به‌ویژه در افرادِ جوان و پرتحرک) هم آن را بالا می‌برد. از سوی دیگر، ASTِ بالاتر از ALT در مصرفِ الکل و بیماری‌های مزمن‌ترِ کبد هم دیده می‌شود. CK (آنزیمِ مخصوصِ عضله) روی این برگه نیست و منشأ عضلانی را روشن می‌کند. ";
+
 function liverMarked(e) {
   const alt = e.graded.find((g) => g.test === "ALT");
   const ast = e.graded.find((g) => g.test === "AST");
@@ -925,11 +951,13 @@ export const RULES_BIOCHEM = [
       const t = val(e);
       return t.NH3 != null && t.NH3 > 100;
     },
-    build: () => ({
+    // P134-G5 (N5): اورژانس بود و نه عدد را می‌گفت نه بازه را.
+    build: (e) => ({
       pattern: "hyperammonemia",
       urgency: "emergency",
       headline: "آمونیاک خون شما بالاست",
       must_say:
+        valueRangeFa(e, NH3_KEY, "آمونیاکِ خونِ شما") +
         "آمونیاک ماده‌ای است که کبد معمولاً آن را از خون پاک می‌کند. بالا بودن آن (اغلب در مشکلات کبدی) می‌تواند بر هوشیاری اثر بگذارد و نیاز به رسیدگی فوری دارد.",
       action: "همین امروز به پزشک یا اورژانس مراجعه کنید.",
       suggest: [],
@@ -1693,6 +1721,7 @@ export const RULES_BIOCHEM = [
       const urgency = visit?.kind === "persistent" ? "soon" : baseUrgency;
       // هپاتیت/سونوگرافی/ALP/GGT فقط برای ALTِ تأییدشده (پایدار) یا ≥ ۲×ULN — یعنی نه برای تک‌نوبتِ مرزی.
       const narrowWorkup = visit != null && visit.kind !== "persistent" && borderline;
+      const astLead = astLeadNoCk(e, { alt, ast, marked, hy, maxG });
       const ckHigh = ck?.abnormal && ck.dir === "high";
       // P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶): CK هم در این یافته («منشأ عضلانی») و هم در کارتِ جدای ck_elevated_alone می‌آمد. CKِ «کمی» بالا
       //   (بزرگسال، < ۵×سقف، یافتهٔ routine) همین‌جا با عدد و بازه گفته و تکرارش خواسته می‌شود؛ ck_elevated_alone با ck_folded کنار می‌رود
@@ -1721,6 +1750,7 @@ export const RULES_BIOCHEM = [
             ? "این افزایش کمتر از دو برابرِ حدِ بالای طبیعی است (در راهنمای کالج گوارش آمریکا «مرزی» نامیده می‌شود)؛ شایع است و اغلب با چربیِ کبد، وزن، الکل یا دارو مربوط است، ولی باید تکرار و پیگیری شود. "
             : "") +
           (visit ? visit.sentence + " " : "") +
+          (astLead ? AST_LEAD_SENTENCE : "") +
           (visit && ckHigh
             ? ckFold
               // P110-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): با منشأ عضلانی AST معمولاً بیشتر از ALT بالا می‌رود؛ AST ِ طبیعی کنارِ ALT ِ بالا یعنی
@@ -1753,13 +1783,13 @@ export const RULES_BIOCHEM = [
               ? "در نوبتِ عادی با پزشک مطرح کنید و بخواهید آزمایشِ کبد تکرار شود. لیست کامل داروها و مکمل‌هایتان را همراه ببرید."
               : "این هفته وقت بگیرید. لیست کامل داروها و مکمل‌هایتان را همراه ببرید.",
         ...(ckFold ? { ck_folded: true, explains: ["CK"] } : {}),
-        suggest: narrowWorkup
+        suggest: [...(astLead ? ["CK"] : []), ...(narrowWorkup
           ? [ckFold ? "تکرار ALT، AST و CK" : "تکرار ALT و AST"]
           : kind === "cholestatic"
             ? ["GGT", "بیلی‌روبین مستقیم و غیرمستقیم", "سونوگرافی شکم"]
             : kind === "unspecified"
               ? ["ALP", "GGT", "هپاتیت B و C", "سونوگرافی شکم"]
-              : ["AST", "GGT", "هپاتیت B و C", "سونوگرافی شکم"],
+              : ["AST", "GGT", "هپاتیت B و C", "سونوگرافی شکم"])],
         // P110-ج: الکل، استامینوفن و مکملِ گیاهی یک بار و فقط همین‌جا (action دیگر تکرارشان نمی‌کند).
         warnings: ["تا تکرارِ آزمایش الکل ننوشید، و تا وقتی پزشک نگفته مکملِ گیاهی یا دوزِ بالای استامینوفن مصرف نکنید."],
         // P110-ج: متنِ تخصصیِ همین برگه (expert.js این را بر rule.pro مقدم می‌گیرد) — افتراقی به ترتیبِ احتمال و پیگیریِ مرحله‌ای، هم‌مرحله با نمای ساده.
@@ -1898,7 +1928,8 @@ export const RULES_BIOCHEM = [
           urgency: "this_week",
           headline: "آنزیم ALP شما بالاست",
           must_say:
-            "آنزیم ALP بالاتر از حد طبیعی است. چون آنزیم دیگری به نام GGT هم بالاست، " +
+            (valueRangeFa(e, "ALP", "آنزیم ALP شما", " و بالاتر از حد طبیعی است. ") || "آنزیم ALP بالاتر از حد طبیعی است. ") +
+            "چون آنزیم دیگری به نام GGT هم بالاست، " +
             "این حالت بیشتر به کبد یا مجاری صفراوی مربوط می‌شود تا استخوان. برای بررسی بهتر است با پزشک مطرح شود.",
           action: "این هفته با پزشک مطرح کنید.",
           suggest: ["سونوگرافی شکم", "بیلی‌روبین"],
@@ -1912,7 +1943,8 @@ export const RULES_BIOCHEM = [
         urgency: "routine",
         headline: "آنزیم ALP شما بالاست",
         must_say:
-          "آنزیم ALP بالاتر از حد طبیعی است. این آنزیم فقط از کبد نمی‌آید — " +
+          (valueRangeFa(e, "ALP", "آنزیم ALP شما", " و بالاتر از حد طبیعی است. ") || "آنزیم ALP بالاتر از حد طبیعی است. ") +
+          "این آنزیم فقط از کبد نمی‌آید — " +
           "در استخوان هم ساخته می‌شود و بالا بودن آن همیشه به معنی مشکل کبد نیست. " +
           // موتور ورودیِ بارداری ندارد و محدودهٔ مرجع را برای باردار عوض نمی‌کند،
           // پس ALPِ یک بارداریِ کاملاً طبیعی اینجا «بالا» علامت می‌خورد. تنها
@@ -2196,11 +2228,14 @@ export const RULES_BIOCHEM = [
       const markers = [albLow, pltLow, biliHigh, inrHigh].filter(Boolean).length;
       return markers >= 3;
     },
-    build: () => ({
+    // P134-G1 (specs/022، N18/N5): متن هیچ عددی نمی‌گفت و آلبومین (که albumin_low_alone به این قاعده می‌سپارد) به «توضیح نداریم» می‌افتاد.
+    //   هر نشانهٔ غیرطبیعیِ این چهار با عدد و بازه نقل می‌شود؛ فوریت دست‌نخورده.
+    build: (e) => ({
       pattern: "chronic_liver_disease_pattern",
       urgency: "this_week",
       headline: "چند شاخص با هم به مشکل مزمن کبد اشاره دارند",
       must_say:
+        cirrhosisNumbers(e) +
         "ترکیبی از نتایج (پروتئین سازنده کبد پایین، پلاکت پایین، و شاخص‌های دیگر) " +
         "می‌تواند نشانه‌ای از کاهش عملکرد کبد در طول زمان باشد. این یک تشخیص قطعی نیست، " +
         "ولی الگویی است که حتماً باید توسط پزشک بررسی شود.",

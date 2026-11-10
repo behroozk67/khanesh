@@ -6523,7 +6523,7 @@ test("M111: قاعده‌های تکراریِ فصل ۲۶ — خروجیِ ام
     //   پیشوند هش بایت‌به‌بایت همان db536cbb6c334e6e است.
     // بازپایهٔ عمدی (P108، ۲۰۲۶-۱۰-۱۶): کراتینینِ ۱٫۲ِ زن با eGFR ۶۳ ⇒ kidney «routine» + سرتیترِ «کراتینین … کمی بالاتر» + جملهٔ بازهٔ ۶۰–۸۹
     //   به‌جای «مرحلهٔ ۲». diffِ کاملِ خروجی (درختِ HEAD برای همین هفت فایل): فقط همان یافته عوض شد و به‌خاطرِ فوریتِ کمترش جابه‌جا شد. قبلی 3272562e0b81615b.
-    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "01a81da67ceaaa1c"], // بازپایه عمدی (حذف محاسبه eGFR)
+    pe_components: [{ age: 29, sex: "F" }, [["PLT", "90"], ["Creatinine", "1.2", "mg/dL"], ["AST", "90"], ["ALT", "80"]], "d9e253b7e66a4de4"], /* specs/022 P134-G4 عمدی: فقط جملهٔ «AST بیشتر از ALT» و CK در suggest؛ با خاموش‌کردنِ astLeadNoCk همان 01a81da67ceaaa1c */ // بازپایه عمدی (حذف محاسبه eGFR)
     uprot2: [{ age: 29, sex: "F" }, [["Urine Protein", "2+"]], "66d2d90325afa534"],
     thyroid: [{ age: 40, sex: "F" }, [["TSH", "8"], ["FT4", "0.6", "ng/dL"]], "0da3c35337661135"],
     // prl_thyroid برداشته شد (۲۰۲۶-۱۰-۰۳): پرولاکتین با تأییدِ P46 بند ۱ بازه و قاعده گرفت (hyperprolactinemia، M101–M101e)،
@@ -11998,8 +11998,8 @@ const M010_FREEZE = {
   plt45_dd3: ["M", 60, [m010T("WBC", 7, "10^3/uL"), m010T("Hb", 13, "g/dL"), m010T("PLT", 45, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL"), m010T("PT", 12, "sec")], "0b3777138bf58435"], // P95 (عمدی، proof95): severe_thrombocytopenia Hbِ پایین و لام/LDH را می‌گوید ⇒ نجاتِ تکمیلیِ anemia_hb_alone (فقط جملهٔ اول) لازم نیست؛ فوریت همان
   plt120_dd3: ["M", 60, [...M010_BASE, m010T("PLT", 120, "10^3/uL"), m010T("D-dimer", 3.0, "µg/mL")], "a86da6d7c90ad6c7"], // P98 (عمدی، proof2: کپیِ درخت با فقط هشدارِ شرطیِ بستری/هپارین برگردانده ⇒ هشِ قبلی ce53c5c6951f5b7a عیناً)؛ P95 (عمدی، proofM257: فوریت همان؛ EDTA/Hb-در-severe_thrombocytopenia/maha بی‌نشانگر)
   dd_only: ["M", 70, [...M010_BASE, m010T("D-dimer", 700, "ng/mL")], "3063cfd783be8dcc"],
-  aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "9f137c25b23770f4"],
-  pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "94e00e35c2d503ae"],
+  aptt_only: ["M", 25, [...M010_BASE, m010T("APTT", 68, "sec"), m010T("PT", 12, "sec")], "5c2e6d957108bb3c"],
+  pt_inr: ["M", 40, [...M010_BASE, m010T("PT", 19, "sec"), m010T("INR", 1.6, "")], "f1e43963cae038da"] /* specs/022 P134-G5 عمدی (با aptt_only): فقط عددِ coagPlainClause؛ با خاموش‌کردنش همان 94e00e35c2d503ae و 9f137c25b23770f4 */,
   // بازبینیِ ۲۰۲۶-۱۰-۰۴ (N20، M369): عمداً عوض شد — تنها تفاوت‌ها با پیشین (diff کاملِ خروجی): actionِ شاخهٔ severe («همین امروز با پزشک تماس بگیرید» ⇒ اورژانس) و هشدارِ خونریزی («همان لحظه به اورژانس بروید»، هم‌راستا با اورژانس بودنِ یافته).
   fib_90: ["M", 40, [...M010_BASE, m010T("Fibrinogen", 90, "mg/dL")], "53ce53bcbe2a9617"], // P105 (عمدی، proof257b): فقط متن/actionِ فیبرینوژنِ تنها (نه «زمانِ لخته … وارفارین»)؛ برگرداندنِ همان دو رشته ⇒ ec06a77d719a98cb؛ فوریت همان
   // ۲۰۲۶-۱۰-۰۳ (P67): TT حالا کلیدِ شناخته‌شده و قاعده‌دار است؛ این تنها ردیفِ freeze است که عمداً عوض شد (M290).
@@ -13307,4 +13307,76 @@ test("KD13: PCRِ تفسیرنشده امتیازِ برگه را «مطلوب»
   assert.notEqual(s.band, "high");
   const without = kdRun({ age: 45, sex: "M" }, BASE);
   assert.equal(healthScore(without.e, without.p).band, "high", "کنترل: بی‌PCR همان برگه مطلوب است");
+});
+
+// ═══════════ specs/022 — کبد (Tietz فصلِ ۳۷، P134) ═══════════
+const lvM = { age: 45, sex: "M" };
+
+// LV1 — G1 (N18/N5): cirrhosis_pattern هیچ عددی نمی‌گفت و آلبومین (سپرده به آن در P73_OWNERS) به «توضیح نداریم» می‌افتاد.
+test("LV1: کارتِ سیروز عددِ نشانه‌ها را می‌گوید و آلبومین بی‌مالک نمی‌ماند", () => {
+  for (const alb of [2.7, 3.4]) {
+    const { p } = kdRun(lvM, [kdT("AST", 70, "U/L"), kdT("ALT", 40, "U/L"), kdT("PLT", 90, "10^3/uL"), kdT("INR", 1.5),
+      kdT("Albumin", alb, "g/dL"), kdT("Total Bilirubin", 3, "mg/dL")]);
+    const c = kdFind(p, "cirrhosis_pattern");
+    assert.ok(c, `سیروز با آلبومین ${alb}`);
+    for (const s of [`آلبومین ${alb} (`, "پلاکت 90 (", "INR 1.5 (", "بیلی‌روبین تام 3 ("]) assert.ok(c.must_say.includes(s), s);
+    assert.equal(kdFind(p, "unexplained_abnormal"), undefined, `آلبومین ${alb} در «توضیح نداریم»`);
+    assert.equal(c.urgency, "this_week");
+  }
+});
+
+// LV2 — G2 (N25/N49): «HCV Ag: Reactive» (آنتی‌ژن = ویروسِ حاضر) را خوانندهٔ آنتی‌بادی می‌خواند: «می‌تواند عفونتِ گذشته باشد».
+test("LV2: آنتی‌ژنِ HCV آنتی‌بادی خوانده نمی‌شود؛ ترکیبیِ Ag/Ab و Anti-HCV دست‌نخورده", () => {
+  for (const n of ["HCV Ag", "HCVcAg", "HCV Core Antigen"]) {
+    const { e, p } = kdRun(lvM, [kdT(n, "Reactive")]);
+    assert.equal(kdFind(p, "hcv_screen_reactive"), undefined, n);
+    assert.ok(e.unmapped.includes(n), `${n} ⇒ «تفسیر نشدند»`);
+  }
+  for (const n of ["HCV Ag/Ab Combo", "Anti-HCV", "HCV Ab"]) assert.ok(kdFind(kdRun(lvM, [kdT(n, "Reactive")]).p, "hcv_screen_reactive"), `کنترل: ${n}`);
+});
+
+// LV3 — G3 (N4): غربالگریِ واکنش‌گر کنارِ RNA/DNAِ همان ویروس روی همان برگه، همان آزمایش را دوباره درخواست می‌کرد.
+test("LV3: آزمایشِ مولکولیِ روی برگه گفته می‌شود و دوباره درخواست نمی‌شود", () => {
+  const cases = [["hcv_screen_reactive", "Anti-HCV", "HCV RNA", 2500000], ["hbv_screen_reactive", "HBsAg", "HBV DNA", 50000]];
+  for (const [id, screen, mol, v] of cases) {
+    const f = kdFind(kdRun(lvM, [kdT(screen, "Positive"), kdT(mol, v, "IU/mL")]).p, id);
+    assert.ok(f.must_say.includes(`«${mol}») روی همین برگه هست`), id);
+    assert.ok(!f.suggest.some((s) => s.includes(mol)), `${id}: ${mol} دوباره پیشنهاد نشود`);
+    assert.equal(f.urgency, "this_week");
+    const alone = kdFind(kdRun(lvM, [kdT(screen, "Positive")]).p, id);
+    assert.ok(alone.suggest.some((s) => s.includes(mol)), `کنترل: ${id} بی‌${mol} همان پیشنهاد را دارد`);
+    assert.ok(!alone.must_say.includes("روی همین برگه هست"));
+  }
+});
+
+// LV4 — G4 (Tietz ص ۷۰۴/۷۱۰): AST بالاتر از ALT بی‌CK روی برگه ⇒ «سلول‌های کبد تحریک شده‌اند» بی‌نامِ عضله و بی‌پیشنهادِ CK.
+test("LV4: ASTِ پیشتاز بی‌CK منشأ عضلانی را نام می‌برد و CK پیشنهاد می‌شود؛ فقط زیرِ آسیبِ شدید", () => {
+  const run = (pt, tests) => kdFind(kdRun(pt, tests).p, "liver_pattern");
+  const on = run({ age: 22, sex: "M" }, [kdT("AST", 120, "U/L"), kdT("ALT", 30, "U/L")]);
+  assert.ok(on.must_say.includes("AST بیشتر از ALT بالا رفته است") && on.suggest.includes("CK"));
+  assert.equal(on.urgency, "this_week");
+  assert.ok(run(lvM, [kdT("AST", 60, "U/L"), kdT("ALT", 45, "U/L")]).suggest.includes("CK"), "مرزی هم");
+  const off = [
+    ["CK طبیعی روی برگه", [kdT("AST", 120, "U/L"), kdT("ALT", 30, "U/L"), kdT("CK", 100, "U/L")]],
+    ["ALT بالاتر از AST", [kdT("AST", 80, "U/L"), kdT("ALT", 120, "U/L")]],
+    ["درجهٔ ۳ (> ۵×)", [kdT("AST", 300, "U/L"), kdT("ALT", 200, "U/L")]],
+    ["~۱۰× (liverMarked)", [kdT("AST", 900, "U/L"), kdT("ALT", 400, "U/L")]],
+    ["بی‌ALT (N4)", [kdT("AST", 120, "U/L")]],
+  ];
+  for (const [label, tests] of off) {
+    const f = run(lvM, tests);
+    if (f) assert.ok(!f.must_say.includes("AST بیشتر از ALT") && !f.suggest.includes("CK"), label);
+  }
+});
+
+// LV5 — G5 (N5/N21): آمونیاکِ اورژانسی، ALP و انعقادِ بی‌aPTT هیچ عددی نمی‌گفتند؛ انعقاد کنارِ آنزیم‌های بالای کبد فقط «رقیق‌کننده» را می‌گفت.
+test("LV5: آمونیاک، ALP و PT/INR با عدد و بازه؛ کنارِ کبد، ساختِ فاکتورها", () => {
+  const nh3 = kdFind(kdRun(lvM, [kdT("Ammonia", 150, "µmol/L")]).p, "hyperammonemia");
+  assert.ok(nh3.must_say.includes("150 (حد طبیعی 15–45)")); assert.equal(nh3.urgency, "emergency");
+  for (const ggt of [25, 200]) assert.ok(kdFind(kdRun(lvM, [kdT("ALP", 400, "U/L"), kdT("GGT", ggt, "U/L")]).p, "alp_isolated").must_say.includes("ALP شما 400 (حد طبیعی"), `ALP با GGT ${ggt}`);
+  const liv = kdFind(kdRun(lvM, [kdT("ALT", 150, "U/L"), kdT("AST", 120, "U/L"), kdT("INR", 1.8)]).p, "coagulation_abnormal");
+  assert.ok(liv.must_say.includes("INR 1.8 (حد طبیعی 0.9–1.1)") && liv.must_say.includes("عواملِ انعقادی را کبد می‌سازد"));
+  assert.equal(liv.urgency, "this_week");
+  const alone = kdFind(kdRun(lvM, [kdT("INR", 2.5)]).p, "coagulation_abnormal");
+  assert.ok(alone.must_say.includes("INR 2.5 (") && !alone.must_say.includes("کبد می‌سازد"), "بی‌آنزیمِ کبد، جملهٔ کبد نمی‌آید");
 });

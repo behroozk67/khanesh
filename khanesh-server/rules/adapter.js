@@ -1914,6 +1914,12 @@ export function ocrToEngineInput(ocr) {
       unmapped.push(t.name);
       continue;
     }
+    // P134-G2 (specs/022، N25/N49): «HCV Ag: Reactive» (آنتی‌ژنِ مرکزی = ویروسِ حاضر) را hcv_screen_reactive آنتی‌بادی می‌خواند و می‌گفت
+    //   «می‌تواند نشانهٔ عفونتِ گذشته باشد». آنتی‌ژن خواننده ندارد ⇒ همان مسیرِ RNA («تفسیر نشدند»). ترکیبیِ Ag/Ab (غربالگری) دست‌نخورده.
+    if (/(hcv|hepatitis\s*c|هپاتیت\s*c).*(c?ag\b|antigen|آنتی\s*ژن)/i.test(t.name) && !/\bab\b|antibod|آنتی\s*بادی|^\s*anti/i.test(t.name)) {
+      unmapped.push(t.name);
+      continue;
+    }
 
     // ═══ لایه ۱: واحد /hpf یا /lpf → میکروسکوپی ادرار، نه شمارش خون ═══
     if (/\/?\s*[hl]pf/i.test(String(t.unit || ""))) {

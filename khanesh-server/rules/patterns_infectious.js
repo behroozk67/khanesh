@@ -9,6 +9,20 @@ import { isNeonate, ageFa, nextNeonatalBand, NEONATAL_DANGER_WARNING, NEONATAL_S
 const PCT_EARLY_NEONATE_DAYS = 2;
 const PCT_EARLY_NEONATE_95TH = 20;
 
+// P134-G3 (specs/022، N4): غربالگریِ واکنش‌گر کنارِ آزمایشِ مولکولیِ همان ویروس روی همان برگه (adapter M16 ⇒ unmapped، «تفسیر نشدند»)
+//   همان آزمایش را دوباره درخواست می‌کرد. حالا می‌گوید روی برگه هست و تفسیر نشده، و درخواستش از suggest می‌افتد. فوریت دست‌نخورده.
+const HCV_MOLECULAR_RE = /(hcv|hepatitis\s*c|هپاتیت\s*c).*\b(rna|pcr|nat|viral\s*load)\b/i;
+const HBV_MOLECULAR_RE = /(hbv|hepatitis\s*b|هپاتیت\s*b).*\b(dna|pcr|nat|viral\s*load)\b/i;
+function withMolecularOnSheet(e, re, label, finding) {
+  const row = (e.unmapped ?? []).find((n) => re.test(String(n)));
+  if (!row) return finding;
+  return {
+    ...finding,
+    must_say: `${finding.must_say} آزمایشِ تکمیلیِ ${label} («${row}») روی همین برگه هست، ولی این سامانه نتیجهٔ آن را تفسیر نمی‌کند؛ برگه را برای خواندنِ آن به پزشک نشان دهید.`,
+    suggest: finding.suggest.filter((s) => !s.includes(label)),
+  };
+}
+
 export const RULES_INFECTIOUS = [
   // ═══════════ سرولوژی غربالگری (هپاتیت B/C، HIV) ═══════════
   // اصل CDC: یک نتیجه مثبت غربالگری هرگز تشخیص قطعی نیست.
@@ -19,7 +33,7 @@ export const RULES_INFECTIOUS = [
   {
     id: "hcv_screen_reactive",
     match: (e) => serologyReactive(e, /hcv|hepatitisc|هپاتیتc|آنتیبادیc/i),
-    build: () => ({
+    build: (e) => withMolecularOnSheet(e, HCV_MOLECULAR_RE, "HCV RNA", {
       pattern: "hcv_ab_reactive",
       urgency: "this_week",
       // سرتیتر خنثی — نام بیماری در سرتیتر نمی‌آید
@@ -52,7 +66,7 @@ export const RULES_INFECTIOUS = [
       /hbsag|hepatitisbsurface|هپاتیتb|استرالیا/i,
       /^anti|آنتیبادی|antibody|hbsab|hbcab|surfaceab|ab$/i,
     ),
-    build: () => ({
+    build: (e) => withMolecularOnSheet(e, HBV_MOLECULAR_RE, "HBV DNA", {
       pattern: "hbsag_reactive",
       urgency: "this_week",
       headline: "یکی از تست‌های غربالگری شما نیاز به یک آزمایش تکمیلی دارد",

@@ -127,7 +127,7 @@ const FREEZE = {
   liver: [{ sex: "F", age: 45 }, [row("AST", "120"), row("ALT", "150"), row("ALP", "200"), row("Total Bilirubin", "2.1", "mg/dL")], "ce23476c8506c7b2"], // P108-ج (عمدی): فقط جملهٔ «تک‌نوبت» در must_sayِ liver_pattern (diff کامل ۲۰۲۶-۱۰-۱۶)
   thyroid: [{ sex: "F", age: 35 }, [row("TSH", "8.2"), row("FT4", "0.9")], "5fa44e1713a9ec1d"],
   urinalysis: [{ sex: "F", age: 28 }, [row("Urine Protein", "+1"), row("Nitrite", "Positive"), row("WBC", "10-12", "/hpf"), row("RBC", "2-3", "/hpf")], "3f28e6213d7b156b"],
-  coag: [{ sex: "M", age: 60 }, [row("PT", "19"), row("PTT", "42"), row("PT INR", "1.7")], "6583cf22c1f12265"],
+  coag: [{ sex: "M", age: 60 }, [row("PT", "19"), row("PTT", "42"), row("PT INR", "1.7")], "a706a5fd28501c0e"] /* specs/022 P134-G5 عمدی؛ با خاموش‌کردنِ coagPlainClause همان 6583cf22c1f12265 */,
   lis_ldh: [{ sex: "F", age: 32 }, [row("AST", "35"), row("ALT", "26"), row("LDH", "864"), row("T. Bilirubin(Clot)", "0.41"), row("Direct Bili.", "0.1")], "cb6e1b255fd08014"],
   lis_serum: [{ sex: "F", age: 40 }, [row("Serum Ca", "9.1"), row("serum Mg", "2"), row("serum p", "4"), row("Serum Protein", "7")], "9159183844ddacfe"],
   fluid_bare: [{ sex: "F", age: 46 }, [row("Glucose", "122"), row("LDH", "306"), row("Total Protein", "6.6")], "8531fb546310bbb6"],

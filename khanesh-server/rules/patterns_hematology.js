@@ -269,6 +269,16 @@ function coagNumbersClause(e) {
   return " " + hi.map(([x, fa]) => `${fa} ${x.value} (حد طبیعی ${x.range})`).join("، ") + " بالاتر از حد طبیعی است و aPTT طبیعی است. " +
     "پزشک این را با داروها، کار کبد و تغذیه (ویتامین K) می‌سنجد و معمولاً برای اطمینان تکرار می‌کند.";
 }
+// P134-G5 (specs/022، N5/N21): وقتی coagNumbersClause چیزی نمی‌گوید (aPTT سنجیده نشده یا خودش بالاست)، متن هیچ عددی نداشت و کنارِ
+//   آنزیم‌های بالای کبد فقط «داروهای رقیق‌کننده» را می‌گفت. Tietz فصلِ ۳۷ ص ۷۰۲ (خلاصهٔ تأییدنشده): PTِ طولانی در بیماریِ کبد از کم‌شدنِ ساختِ فاکتورهاست.
+function coagPlainClause(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const hi = [["PT", "PT"], ["INR", "INR"], ["APTT", "aPTT"]].map(([k, fa]) => [g(k), fa]).filter(([x]) => x?.abnormal && x.dir === "high");
+  if (!hi.length) return "";
+  const liverHigh = ["ALT", "AST"].some((k) => g(k)?.abnormal && g(k).dir === "high");
+  return " " + hi.map(([x, fa]) => `${fa} ${x.value} (حد طبیعی ${x.range})`).join("، ") + " بالاتر از حد طبیعی است." +
+    (liverHigh ? " بیشترِ عواملِ انعقادی را کبد می‌سازد؛ کنارِ آنزیم‌های بالای کبدِ همین برگه، طولانی‌شدنِ این زمان می‌تواند از کم‌شدنِ ساختِ این عوامل در کبد هم باشد و پزشک آن را کنارِ آزمایش‌های کبد می‌خواند." : "");
+}
 // تصمیمِ کاربر ۲۰۲۶-۱۱-۰۸: INRی که داخلِ بازهٔ چاپ‌شدهٔ همان آزمایشگاه است (برگه: ۱٫۳ با بازهٔ ۱–۱٫۳) را آزمایشگاه طبیعی می‌داند؛ «این هفته» نمی‌گیرد.
 //   فقط وقتی aPTT/فیبرینوژن غیرطبیعی نیستند؛ soon/emergency (INR ≥ آستانه‌ها) دست‌نخورده می‌ماند.
 function inrInPrintedRange(e) {
@@ -2513,7 +2523,7 @@ export const RULES_HEMATOLOGY = [
             : printedOk && !soonInr && !severe
               ? coagulationPrintedInrText(e)
             : "زمان لخته شدن خون طولانی‌تر از حد معمول است. " +
-            "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند." + coagNumbersClause(e) + (fibLow ? ` ${fibTxt.trim()}` : "")) + apttShortClause(e),
+            "داروهای رقیق‌کننده خون هم می‌توانند این را بسازند." + (coagNumbersClause(e) || coagPlainClause(e)) + (fibLow ? ` ${fibTxt.trim()}` : "")) + apttShortClause(e),
         // 🔴 N20 (بازبینیِ ۲۰۲۶-۱۰-۰۴): urgency «emergency» + blocks_others بود و تنها دستور «همین امروز با پزشک تماس بگیرید» —
         //    ضعیف‌تر از soonِ همین قاعده («ظرف ۲۴ تا ۴۸ ساعت مراجعه») نبود ولی تماسِ تلفنی زیرِ بنرِ قرمز. حالا اورژانس.
         action: severe
