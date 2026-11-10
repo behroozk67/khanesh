@@ -86,7 +86,7 @@ export const LIVER_PERSIST_WEEKS = 4;
 const LIVER_REPEAT_FA = "۴ تا ۱۲ هفته بعد";
 const faDigits = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
 const PERSIST_FA = faDigits(LIVER_PERSIST_WEEKS);
-function liverVisit(e, current) {
+function liverVisit(e, current, borderline = true) {
   if ((typeof e.age === "number" && e.age < 16) || e.pregnant) return null;
   const highs = current.filter((g) => g?.abnormal && g.dir === "high");
   if (!highs.length) return null;
@@ -94,6 +94,7 @@ function liverVisit(e, current) {
   const prev = (g) => p?.[g.test];
   const wk = p ? faDigits(Math.round(p.weeks)) : null;
   const fa = (g) => faName(g.test);
+  if (e.priorNotEarlier) return { kind: "single", sentence: "نتیجهٔ ذخیره‌شدهٔ قبلیِ شما هم‌تاریخ با این نمونه (یا دیرتر از آن) است، پس به‌عنوان نوبتِ قبلی حساب نشد؛ برای سنجشِ پایداری باید آزمایشی با فاصلهٔ دست‌کم " + PERSIST_FA + " هفته انجام شود." };
   const persistent = highs.filter((g) => prev(g)?.abnormal && prev(g).dir === "high");
   if (persistent.length && p.weeks >= LIVER_PERSIST_WEEKS) {
     return { kind: "persistent", sentence: `در آزمایشِ قبلیِ شما (حدودِ ${wk} هفته پیش) هم ${persistent.map((g) => `${fa(g)} بالا بود (${prev(g).value})`).join(" و ")}؛ یعنی این افزایش دست‌کم ${PERSIST_FA} هفته پایدار مانده و باید بررسی شود.` };
@@ -105,7 +106,8 @@ function liverVisit(e, current) {
   if (prevNormal.length) {
     return { kind: "new", sentence: `در آزمایشِ قبلیِ شما (حدودِ ${wk} هفته پیش) ${prevNormal.map((g) => `${fa(g)} طبیعی بود (${prev(g).value})`).join(" و ")}؛ پس این افزایشِ تازه است و تکرارِ آزمایش نشان می‌دهد ماندگار است یا نه.` };
   }
-  return { kind: "single", sentence: "این تنها نتیجهٔ آنزیم‌های کبدِ شماست که در دست داریم (تک‌نوبت)؛ یک بار بالا بودن هنوز «افزایشِ پایدار» نیست." };
+  // «در دست نداریم» ≠ «قبلاً نبوده»: کاربر ممکن است قبلاً جای دیگر آزمایش داده باشد. و مرزی (< ۲×ULN) با بالاتر از آن یک جمله نمی‌شود.
+  return { kind: "single", sentence: `تا الان فقط همین یک نتیجهٔ آنزیم‌های کبدِ شما نزدِ ما ثبت شده است؛ اگر پیش‌تر هم آزمایش داده‌اید و بالا بوده، برگهٔ قبلی را به پزشک نشان دهید. یک بار بالا بودن هنوز «افزایشِ پایدار» نیست؛ بالا ماندن در آزمایش‌هایی با فاصلهٔ دست‌کم ${PERSIST_FA} هفته مهم‌تر است.${borderline ? "" : " ولی این افزایش بیش از دو برابرِ حدِ بالای طبیعی است و مرزی نیست؛ برای بررسیِ علت منتظرِ آزمایشِ بعدی نمانید."}` };
 }
 
 // P77-۲ (تصمیمِ بازبین؛ منبع: جدولِ panicِ APSA، وابسته به آزمایشگاه): منیزیمِ ≥ ۴٫۹ mg/dL پنیک است.
@@ -1686,7 +1688,7 @@ export const RULES_BIOCHEM = [
       const hy = hyLawPattern(e);
       const borderline = !hy && liverBorderline(e);
       // P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): پایداریِ ALT/AST — فقط زیرِ آسیبِ شدید (نه Hy، نه ~۱۰×، نه درجهٔ ۴).
-      const visit = !hy && !marked && maxG < 4 ? liverVisit(e, [alt, ast]) : null;
+      const visit = !hy && !marked && maxG < 4 ? liverVisit(e, [alt, ast], borderline) : null;
       const baseUrgency = maxG >= 4 ? "emergency" : marked || hy ? "soon" : borderline ? "routine" : "this_week";
       const urgency = visit?.kind === "persistent" ? "soon" : baseUrgency;
       // هپاتیت/سونوگرافی/ALP/GGT فقط برای ALTِ تأییدشده (پایدار) یا ≥ ۲×ULN — یعنی نه برای تک‌نوبتِ مرزی.

@@ -2746,7 +2746,9 @@ function priorVisit(ocr, sex, age) {
   if (!p || typeof p !== "object") return null;
   const sd = sampleDateOf(ocr);
   const t0 = Date.parse(p.date), t1 = sd ? Date.parse(sd) : Date.now();
-  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t0 >= t1) return null;
+  if (!Number.isFinite(t0) || !Number.isFinite(t1)) return null;
+  // نتیجهٔ قبلی هست ولی تاریخش از نمونهٔ فعلی جلوتر نیست (همان برگه دوباره فرستاده شد): «نوبتِ قبلی» نیست، ولی «تنها نتیجه» هم نیست.
+  if (t0 >= t1) return { weeks: 0, notEarlier: true };
   // یک حساب ممکن است برگهٔ عضوِ دیگرِ خانواده را هم بفرستد: جنسِ متفاوت ⇒ همان شخص نیست ⇒ نوبتِ قبلی نداریم.
   if (p.sex && sex && p.sex !== sex) return null;
   // و سن (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): سنِ امروز باید با سنِ نوبتِ قبلی + فاصلهٔ دو نوبت بخواند. سن روی برگه به سالِ کامل چاپ می‌شود ⇒
@@ -3371,11 +3373,13 @@ export function runEngine(ocr, opts = {}) {
 
   // P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): نوبتِ قبلیِ ALT/AST برای «پایداری». فقط وقتی ورودی دارد (سرور از نتیجهٔ ذخیره‌شدهٔ
   //   کاربرِ واردشده می‌سازد) ⇒ بی‌آن خروجی بایت‌به‌بایت همان.
-  const prior = priorVisit(ocr, sex, age);
+  const pv = priorVisit(ocr, sex, age);
+  const prior = pv?.notEarlier ? null : pv;   // e.prior فقط برای نوبتِ واقعاً قبلی (V11/V13)
   const sampleDate = sampleDateOf(ocr);
 
   return {
     ...(prior ? { prior } : {}),
+    ...(pv?.notEarlier ? { priorNotEarlier: true } : {}),
     ...(sampleDate ? { sample_date: sampleDate } : {}),
     sex, age,
     pregnant: pregnantF,

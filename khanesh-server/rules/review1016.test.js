@@ -127,7 +127,7 @@ const liver = (tests, extra = {}) => runPatterns(runEngine({ patient: M36, tests
 test("V7: ALT ۴۸ تک‌نوبت ⇒ routine، برچسبِ «تک‌نوبت»، تکرارِ ۴–۱۲ هفته با پرهیزها، بی هپاتیت/سونو/ALP/GGT", () => {
   const f = liver(ALT48);
   assert.equal(f.urgency, "routine");
-  assert.match(f.must_say, /\(تک‌نوبت\)/);
+  assert.match(f.must_say, /همین یک نتیجهٔ آنزیم/);
   // P110-ج: «پرهیز تا ۴ تا ۱۲ هفته» حذف؛ الکل/استامینوفن/مکمل فقط یک بار، در هشدار.
   assert.match(f.action, /آزمایشِ کبد را ۴ تا ۱۲ هفته بعد تکرار کنید/);
   assert.doesNotMatch(f.action, /استامینوفن|پرهیز/);
