@@ -27,6 +27,8 @@ const LABEL_RE = /non[\s-]*smokers?|never[\s-]*smokers?|غیر\s*سیگاری(?:
 const labelKind = (s) => (/^(non|never|غیر)/.test(s) ? "nonsmoker" : "smoker");
 // پیشوندهایی که بازه را به جمعیتِ دیگری می‌بندند (جنس/سن/بارداری/یائسگی): این‌جا خوانده نمی‌شوند.
 const OTHER_POP_RE = /male|female|مرد|زن|child|infant|کودک|نوزاد|age|year|سال|post|pre|meno|trimester|pregnan|بارد/;
+// برچسبِ جنس روی متنِ نرمال‌شده (حروفِ کوچک): male/female، men/women، «M:»/«F:»، مرد/زن.
+const SEX_LABEL_RE = /(?<![a-z])(?:fe)?males?(?![a-z])|(?<![a-z])(?:wo)?men(?![a-z])|(?<![a-z])[mf]\s*:|مرد|زن/;
 
 /** یک قطعهٔ بی‌برچسب → {lo, hi, loStrict, hiStrict} یا null. کلِ قطعه باید مصرف شود؛ عددِ اضافه ⇒ null. */
 function parseOneBand(seg) {
@@ -73,6 +75,9 @@ export function parseTmRange(text, sex = null) {
     const ns = bands.find((b) => b.label === "nonsmoker"), sm = bands.find((b) => b.label === "smoker");
     return ns.hi < sm.hi ? { kind: "labelled", bands: [ns, sm] } : { kind: "unreadable", bands: [] };
   }
+  // P132-الف: بازهٔ دارای برچسبِ جنس و جنسِ نامعلوم ⇒ حدس نه (parseReference حدِ مردانه را برمی‌داشت ⇒ زنِ بی‌جنس کم‌خوانده می‌شد).
+  //   هر دو باند خوانده می‌شود؛ tmVerdict فقط وقتی حکم می‌دهد که هر دو یکی بگویند (۹ در برابرِ «M < 8.4 F < 5» ⇒ بالا؛ ۶ ⇒ نامعلوم).
+  if (!sex && SEX_LABEL_RE.test(s)) return { kind: "sexed", bands: [], m: parseTmRange(text, "M"), f: parseTmRange(text, "F") };
   const one = parseOneBand(s);
   if (one) return { kind: "single", bands: [{ ...one, label: null }] };
   // قالب‌های دیگر که پیش‌تر خوانده می‌شدند (بازهٔ دوجنسی…) همان‌طور و غیراکید.
@@ -98,6 +103,10 @@ const below = (v, b) => b.lo != null && (b.loStrict ? v <= b.lo : v < b.lo);
  *   مقدارِ سانسورشده («<0.5»، «>100»): فقط وقتی قطعی است حکم می‌دهد؛ وگرنه unknown (⇒ noref، بی‌ادعای بالا/پایین).
  */
 export function tmVerdict(value, cmp, range) {
+  if (range?.kind === "sexed") {
+    const a = tmVerdict(value, cmp, range.m), b = tmVerdict(value, cmp, range.f);
+    return a === b ? a : "unknown";
+  }
   if (!range || (range.kind !== "single" && range.kind !== "labelled") || !Number.isFinite(value)) return "unknown";
   const [first, last] = [range.bands[0], range.bands[range.bands.length - 1]];
   if (cmp === "<" || cmp === "≤") return first.hi != null && value <= first.hi ? "within" : "unknown";

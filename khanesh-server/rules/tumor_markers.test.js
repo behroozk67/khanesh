@@ -186,13 +186,43 @@ test("TMM12: PSA (طبیعی یا بالا) امتیاز را تکان نمی‌
 
 // کنترلِ منفی: مسیرِ بارداری AFPِ MoM را نگه می‌دارد. نگهبانِ واقعی `prenatalClaim` در adapter.js است، نه شاخهٔ MoMِ serology.js
 //   (برداشتنِ آن یکی تست را قرمز نکرد؛ خاموش کردنِ prenatalClaim کرد — BASELINE.md).
-test("TMM13: AFPِ MoM روی برگهٔ بارداری ردیفِ تومورمارکر نمی‌گیرد؛ کلسی‌تونینِ دوجنسیتی با جنسِ نامعلوم همان وضعِ امروز", () => {
+test("TMM13: AFPِ MoM روی برگهٔ بارداری ردیفِ تومورمارکر نمی‌گیرد", () => {
   const preg = go20({ age: 30, sex: "F", pregnant: true }, [T20("AFP", 2.5, "MoM", "0.5-2.5")]);
   assert.equal(preg.rows.some((r) => r.key === "AFP"), false);
   assert.ok(preg.p.findings.some((f) => (f.rule_id ?? f.pattern) === "prenatal_ntd_afp"));
-  // ⚠️ شکافِ پیشین (P132، پرسشِ بازبین): با جنسِ نامعلوم حدِ مردانه برداشته می‌شود ⇒ ۶ «داخل». این تست وضعِ امروز را قفل می‌کند تا بی‌صدا جابه‌جا نشود.
-  const c = go20({ age: 45 }, [T20("Calcitonin", 6, "pg/mL", "Male: < 8.4 Female: < 5")]);
-  assert.equal(row20(c, "CALCITONIN")?.verdict, "within");
+});
+
+// ⚠️ باگِ واقعی (P132-الف، سنجیده روی کدِ پیشین): با جنسِ نامعلوم، بازهٔ دوجنسیتی حدِ مردانه را می‌گرفت (کلسی‌تونین ۶ در برابرِ
+//    «Male: < 8.4 Female: < 5» ⇒ «داخل»، برای یک زن کم‌خوانی) و «Female: < 5» تنها حدِ زنانه را برای هر کسی. حالا حدس نمی‌زند ⇒ «خوانده نشد».
+test("TMM17: بازهٔ برچسبِ جنسی با جنسِ نامعلوم ⇒ حکم فقط اگر هر دو باند یکی بگویند؛ وگرنه unreadable؛ با جنسِ معلوم همان باند", () => {
+  const two = "Male: < 8.4 Female: < 5";
+  // ۹ بالاتر از هر دو حد ⇒ «بالا» (کم‌خوانی نه)؛ ۳ زیرِ هر دو ⇒ «داخل»؛ ۶ بین ⇒ نامعلوم.
+  assert.deepEqual([3, 6, 9].map((n) => row20(go20({ age: 45 }, [T20("Calcitonin", n, "pg/mL", two)]), "CALCITONIN")?.verdict), ["within", "unreadable", "above"]);
+  assert.equal(urg20(go20({ age: 45 }, [T20("Calcitonin", 9, "pg/mL", two)]), "tumor_markers_result"), "this_week");
+  for (const ref of [two, "M: <8.4 F: <5", "مرد: کمتر از 8.4 زن: کمتر از 5", "Female: < 5"]) {
+    assert.equal(parseTmRange(ref, null).kind, "sexed", ref);
+    const c = go20({ age: 45 }, [T20("Calcitonin", 6, "pg/mL", ref)]);
+    assert.deepEqual([row20(c, "CALCITONIN")?.verdict, row20(c, "CALCITONIN")?.abnormal], ["unreadable", null], ref);
+    assert.match(say20(c, "tumor_markers_result"), /بازهٔ مرجعِ چاپ‌شده روی همان ردیف خوانده نشد/, ref);
+  }
+  assert.equal(row20(go20({ age: 45, sex: "F" }, [T20("Calcitonin", 6, "pg/mL", "Male: < 8.4 Female: < 5")]), "CALCITONIN")?.verdict, "above");
+  assert.equal(row20(go20({ age: 45, sex: "M" }, [T20("Calcitonin", 6, "pg/mL", "Male: < 8.4 Female: < 5")]), "CALCITONIN")?.verdict, "within");
+  assert.equal(parseTmRange("< 10", null).kind, "single");   // بی‌برچسب: دست نخورد
+  assert.equal(parseTmRange("0-35 U/mL (CA 125 II)", null).kind, "single");
+});
+
+// P132-ب: AFP روی پروفایلِ باردار — جملهٔ زمینهٔ «سیروز/سرطانِ کبد» جای بارداری نیست. Tietz (فصلِ ۲۰، استخراجِ ثانویه) بارداری را
+//   از علل غیربدخیمِ بالا رفتنِ AFP می‌شمارد. فوریت دست نمی‌خورد (هیچ لایه‌ای فوریت را پایین نمی‌آورد).
+test("TMM18: AFP با واحدِ غلظت روی پروفایلِ باردار ⇒ جملهٔ بارداری، نه سیروز؛ غیرباردار همان جملهٔ قبلی", () => {
+  const preg = go20({ age: 30, sex: "F", pregnant: true }, [T20("AFP", 35, "IU/mL", ""), T20("Total hCG", 29000, "mIU/mL", "")]);
+  const s = say20(preg, "tumor_markers_result");
+  assert.match(s, /در بارداری AFP به‌طورِ طبیعی بالا می‌رود/);
+  assert.equal(s.includes("سیروز"), false);
+  const np = say20(go20({ age: 30, sex: "F" }, [T20("AFP", 35, "IU/mL", "")]), "tumor_markers_result");
+  assert.match(np, /سیروز/);
+  assert.equal(np.includes("در بارداری AFP"), false);
+  const hi = go20({ age: 30, sex: "F", pregnant: true }, [T20("AFP", 35, "ng/mL", "< 7.0")]);
+  assert.equal(urg20(hi, "tumor_markers_result"), "this_week", "فوریت پایین نمی‌آید");
 });
 
 test("TMM14: قرارداد v2 — abnormal:null ⇔ بی‌حکم؛ نامِ فارسی، نه کلید", () => {

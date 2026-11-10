@@ -439,6 +439,8 @@ const TM_CONTEXT = {
   CGA: "کروموگرانین A را پزشک کنارِ سایر آزمایش‌ها و وضعیتِ بالینی تفسیر می‌کند؛ بالا بودنش به‌تنهایی تشخیصِ بیماری نیست.",
 };
 
+const AFP_PREGNANT = "در بارداری AFP به‌طورِ طبیعی بالا می‌رود و با محدودهٔ بزرگسالِ غیرباردار سنجیده نمی‌شود؛ معنای آن در بارداری با غربالگریِ بارداری (MoM برای همان هفتهٔ بارداری) روشن می‌شود، پس این عدد را به پزشک یا مامای پیگیرِ بارداری‌تان نشان دهید.";
+
 function calcitoninHigh(a) {
   // فقط با واحدِ چاپیِ pg/mL (یا ng/L) — بی‌واحد عدد مقایسه نمی‌شود (N3).
   return a.assay && !a.cmp && typeof a.value === "number" && /^(pg\/ml|ng\/l)$/i.test(String(a.unit ?? "").replace(/\s/g, "")) && a.value > 100;
@@ -451,7 +453,8 @@ function tmBuild(e) {
   const above = items.some((id) => st[id].state === "above") || calcHi;
   const urgency = urgencyOf(above);
   const parts = items.map((id) => lineOf(st[id], id));
-  for (const id of items) parts.push(TM_CONTEXT[id]);
+  // P132-ب: AFP روی پروفایلِ باردار ⇒ جملهٔ بارداری به‌جای «سیروز» (Tietz فصلِ ۲۰: بارداری از علل غیربدخیمِ بالا رفتنِ AFP). فوریت دست نمی‌خورد.
+  for (const id of items) parts.push(id === "AFP" && e.pregnant === true ? AFP_PREGNANT : TM_CONTEXT[id]);
   if (calcHi) parts.push("کلسی‌تونینِ پایه بالای ۱۰۰ pg/mL در یک مطالعه روی بیمارانِ دارای ندولِ تیروئید با سرطانِ مدولاریِ تیروئید همراه بوده است و نیازمندِ ارزیابیِ تخصصی (غدد یا جراحیِ سر و گردن) است؛ این حکمِ تشخیص نیست.");
   const between = items.some((id) => st[id].state === "between");
   parts.push(!above && between

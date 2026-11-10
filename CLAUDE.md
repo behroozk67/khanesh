@@ -2610,6 +2610,22 @@ Detailed instructions are split across `.claude/rules/`: [architecture.md](.clau
 Same as the global `~/.claude/CLAUDE.md` (plan-first for 3+ files, verify with real commands, finish before reporting, read with offset/limit, batch calls).
 Project-specific: this file contains ZWNJ (U+200C) characters — orthographically required in Persian, never strip or "normalize" them; read the file with the file tool.
 
+### N50 — With the sex unknown, a sex-banded range took the male band; my first fix turned a clearly high value into "unreadable" (2026-11-10)
+
+(specs/020, P132-6a; commit: this change.)
+- **The bug.** For calcitonin 6 against «Male: < 8.4 Female: < 5» with no sex on the sheet, `parseReference` took the male band and said «داخل», an under-read for a woman. «Female: < 5» on its own was applied to anyone.
+- **My first fix.** "Sex label + unknown sex ⇒ unreadable" made calcitonin 9, which is above *both* bands, «خوانده نشد» with `routine` urgency. That is a worse under-read, and it was found only by running real panels after the tests were green.
+- **Rule.** When the input that picks a band is missing, evaluate every band and give a verdict only if they all agree (`kind: "sexed"`, the same shape as the smoker `between` case). "Don't guess" must never mean "don't say a value that is high whichever band applies".
+
+Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
+[rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
+[environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).
+
+## Working Agreement, Token Economy, Orientation
+
+Same as the global `~/.claude/CLAUDE.md` (plan-first for 3+ files, verify with real commands, finish before reporting, read with offset/limit, batch calls).
+Project-specific: this file contains ZWNJ (U+200C) characters — orthographically required in Persian, never strip or "normalize" them; read the file with the file tool.
+
 ---
 
 ## Working Agreement
