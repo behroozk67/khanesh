@@ -154,7 +154,6 @@ khanesh-project/
 │   ├── auth.js               # احراز هویت توکنی و ارسال کد تایید با SMS.ir
 │   └── server.js             # سرور اصلی API و پایپ‌لاین تحلیل
 │
-├── khanesh-motion/           # پروژه رندر ویدیو و موشن‌گرافیک‌های معرفی (Remotion)
 ├── deploy/                   # اسکریپت‌های استقرار پروداکشن، Nginx، SSL و سرویس‌های systemd
 ├── MEDICAL_RULES.md          # سند بالینی و دفترچه ثبت تصمیم‌های پزشکی (Single Source of Truth)
 └── CLAUDE.md                 # دفترچه حوادث مهندسی و راهنمای تفصیلی قوانین پروژه
