@@ -97,7 +97,9 @@ export function applyPrintedRange(findings, e) {
     //   ۷٫۲ِ موتور و ۸٫۲ِ برگه) — آن‌جا گفتنِ هر دو همان صداقتی است که این تابع برایش ساخته شد.
     const pr2 = parseReference(printed, e.sex ?? null);
     const pv = !pr2 ? null : pr2.lo != null && g.value < pr2.lo ? "low" : pr2.hi != null && g.value > pr2.hi ? "high" : "normal";
-    const same = pv != null && pv === (g.abnormal ? g.dir : "normal");
+    // P135-2: کودک با ردیفِ سنیِ موتور سنجیده شده؛ بازهٔ برگه (معمولاً بزرگسال: Hct ِ ۴۱٫۵–۵۰٫۴ برای کودکِ ۳ ساله) نباید جای آن بنشیند ⇒ هر دو.
+    const pedRow = e.age != null && e.age < 16 && getPedRef(g.test, e.age, e.sex) != null;
+    const same = !pedRow && pv != null && pv === (g.abnormal ? g.dir : "normal");
     const fix = (s) => (typeof s === "string" ? s.replace(re, (_m, p1) => (same ? `${p1}${printed}` : `${p1}${g.range}؛ روی برگهٔ شما ${printed}`)) : s);
     for (const f of findings) {
       for (const k of ["must_say", "brief"]) if (typeof f[k] === "string") f[k] = fix(f[k]);

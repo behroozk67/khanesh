@@ -225,7 +225,8 @@ export default function ResultDashboard({
           </header>
 
           <ResultsCard id={`${uid}-results`} systems={systems} focus={focus}
-            onClearFocus={() => setFocusKey(null)} hasNumbers={hasNumbers} />
+            onClearFocus={() => setFocusKey(null)} hasNumbers={hasNumbers}
+            unread={Array.isArray(engine.unread) ? engine.unread : []} />
 
           <RadarCard id={`${uid}-systems`} systems={scoreSystems} overall={overall} score={score}
             urgency={urgency} focusKey={focusKey} onSelect={toggleFocus} />
@@ -351,7 +352,7 @@ function CardHead({ title, sub, info, aside }) {
 const LIMIT = 12;
 const axis = (p) => 8 + ((clamp(p, -0.5, 1.5) + 0.5) / 2) * 84; // % along the track
 
-function ResultsCard({ id, systems, focus, onClearFocus, hasNumbers }) {
+function ResultsCard({ id, systems, focus, onClearFocus, hasNumbers, unread = [] }) {
   const [expanded, setExpanded] = useState(false);
   const [sel, setSel] = useState(null);
   // دستگاه‌های دارای موردِ بحرانی/خارج اول می‌آیند تا پشتِ «نمایش بیشتر» پنهان نشوند
@@ -434,6 +435,13 @@ function ResultsCard({ id, systems, focus, onClearFocus, hasNumbers }) {
             <li key={r.id}>* {r.name}: روی برگهٔ شما <bdi className="kd-ltr">{fmtNum(r.corrected.measured)}</bdi> است — عددِ نوار {r.corrected.why}.</li>
           ))}
         </ul>
+      )}
+      {/* P135-3: ردیفِ خوانده‌شده‌ای که موتور نمی‌شناسد (۱٬۲۵-دی‌هیدروکسی ویتامین D) در هیچ شمارشی نبود؛ بیمار ۲۳ از ۲۴ را می‌دید. */}
+      {!focus && unread.length > 0 && (
+        <p className="kd-footnote">
+          {toFa(unread.length)} مورد دیگر هم از برگه خوانده شد که این سامانه تفسیرش نمی‌کند و در شمارش بالا نیست:{" "}
+          {unread.map((n, i) => <React.Fragment key={i}>{i > 0 && "، "}<bdi>{n}</bdi></React.Fragment>)} — مقدارش را با پزشک بررسی کنید.
+        </p>
       )}
       {hasNumbers && !focus && total > LIMIT && (
         <button type="button" className="kd-more" onClick={() => setExpanded((e) => !e)}>

@@ -455,6 +455,10 @@ export const PED_REFS = {
 // اینجا: اگر سن < 16 و ردیف اطفال داریم، از آن استفاده کن.
 // ============================================================
 export const PED_MAX_AGE = 16;
+// P135-1 (گزارشِ کاربر ۲۰۲۶-۱۱-۱۱، کودکِ ۳ ساله): سن به سالِ کامل می‌آید و «۳ ساله» یعنی ۳٫۰–۳٫۹۹، ولی getPedRef با «≤ maxAge»
+//   کودکِ درست در روزِ تولد را در ردیفِ کوچک‌تر می‌گذاشت (ALP ِ ۴۹۵ با ۷۶–۳۰۸ِ «۱–۳ سال» «بالا» شد، نه با ۸۰–۸۰۰ِ «۳ تا <۱۵»).
+//   همان قراردادِ نیم‌بازِ P107m («۱۵ - D(1)») و ردیفِ ۶–۹ (بالا) برای هر مرزِ سالِ صحیح، یک‌جا و برای همهٔ خواننده‌ها.
+for (const rows of Object.values(PED_REFS)) for (const row of rows) if (Number.isInteger(row.maxAge) && row.maxAge < PED_MAX_AGE) row.maxAge -= D(1);
 
 export function isPediatricRCPCH(age) {
   return age != null && age < PED_MAX_AGE;

@@ -309,6 +309,17 @@ Rules:
   - An owner listed in a hand-off table must quote the key in the text the patient sees, or the hand-off is an orphan (N18/N20).
   - Re-routing a misread row can lower urgency (here `this_week` → «تفسیر نشد»). Say so in the decision record; don't let the probe hide it.
 
+**N53 — A 3-year-old was graded in the 1–3-year row, and the text quoted an adult man's Hct range.** (P135; commit: this change.)
+- **The bugs.**
+  - `getPedRef` used `age <= maxAge`. Intake sends whole years, so a child exactly N years old fell into the younger row at 37 integer boundaries: ALP 495 against 76–308 instead of 80–800, and Hct 34.9 against 36–44 instead of CALIPER 31.3–41.7.
+  - P110's "same verdict ⇒ show only the printed range" swapped the paediatric engine range for the sheet's adult range, so the card said 36–44 and the text said 41.5–50.4.
+  - An unmapped row (1,25-(OH)₂ vitamin D, correctly not VIT_D) was in no count: 4 + 19 ≠ 24.
+- **Why it hid.** Every paediatric test used a mid-band age or a fractional one. M360 locked a 4-year-old to the "3 to <4" row.
+- **Rules.**
+  - Age arrives as completed years, so an age band is half-open. Probe every boundary at N and N + 0.5 (PB2 does this for the whole table).
+  - A display rule that picks "the" range must know which population the graded range came from.
+  - Every row read off the sheet appears in some count or list on the screen that counts.
+
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
 [environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).

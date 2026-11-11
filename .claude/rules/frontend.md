@@ -68,6 +68,7 @@ _engine = {
   urgency:  "emergency" | "soon" | "this_week" | "routine" | "none",   // soon = ۲۴ تا ۴۸ ساعت (2026-09-28، P56)
   abnormal: <number>,       // count only — kept for backward compat, prefer tests[]
   uncovered: [engine_key, …],   // keys no rule picked up — see the warning below
+  unread:   [printed_name, …],  // P135: sheet rows the engine doesn't know (printed text, not keys); ResultDashboard lists them under «نتایج شما»
   suppressed: <number>,         // findings dropped from the full text under an emergency blocker (2026-09-29, P60)
   suppressed_ids: [rule_id, …], //   …which ones
   context: { sex, age_text, pregnant, conditions_applied: [{ id, fa }] },   // specs/011: what the engine *used*; render the

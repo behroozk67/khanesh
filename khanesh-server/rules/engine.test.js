@@ -13424,3 +13424,29 @@ test("LV9: فریتینِ > ۱۰۰۰ جملهٔ کبد و وضعیتِ AST را 
   assert.ok(!f(900).must_say.includes("از 1000 بیشتر"));
   assert.equal(f(1200).urgency, "routine");
 });
+
+// ═══ P135 (گزارشِ کاربر ۲۰۲۶-۱۱-۱۱، کودکِ ۳ ساله) ═══
+test("PB1: کودکِ «۳ ساله» در ردیفِ «۳ تا <…» سنجیده می‌شود نه «۱–۳ سال» (ALP ِ ۴۹۵ طبیعی، Hct با CALIPER ِ ۳–<۴)", async () => {
+  const { runEngine } = await import("./adapter.js");
+  const e = runEngine({ patient: { age: 3, sex: "M" }, tests: [{ name: "ALP", value: "495", unit: "U/L", reference: "" }, { name: "Hct", value: "34.9", unit: "%", reference: "" }] });
+  const g = (k) => e.graded.find((x) => x.test === k);
+  assert.equal(g("ALP").range, "80–800");
+  assert.equal(g("ALP").abnormal, false);
+  assert.equal(g("HCT").range, "31.3–41.7");
+});
+
+test("PB2: هیچ مرزِ سالِ صحیحی در PED_REFS کودکِ روزِ تولد را در ردیفِ کوچک‌تر نمی‌گذارد", async () => {
+  const { PED_REFS } = await import("./refs_ped.js"); const { getRef } = await import("./refs.js");
+  const moved = [];
+  for (const [k, rows] of Object.entries(PED_REFS)) for (let N = 1; N < 16; N++) {
+    if (JSON.stringify(getRef(k, "M", N)) !== JSON.stringify(getRef(k, "M", N + 0.5))) moved.push(`${k}@${N}`);
+  }
+  assert.deepEqual(moved, []);
+});
+
+test("PB3: متنِ کودک بازهٔ سنیِ موتور را می‌گوید و بازهٔ بزرگسالِ برگه را فقط کنارش (Hct ِ ۳۴٫۹ با ۴۱٫۵–۵۰٫۴ِ چاپی، ۲ ساله)", async () => {
+  const { runEngine } = await import("./adapter.js"); const { runPatterns } = await import("./patterns.js");
+  const e = runEngine({ patient: { age: 2, sex: "M" }, tests: [{ name: "Hct", value: "34.9", unit: "%", reference: "41.5-50.4" }, { name: "Hb", value: "11.6", unit: "g/dL", reference: "13.5-17.5" }] });
+  const text = runPatterns(e).findings.map((f) => f.must_say).join(" ");
+  assert.match(text, /هماتوکریت 34\.9 است \(حد طبیعی 36–44؛ روی برگهٔ شما 41\.5–50\.4\)/);
+});

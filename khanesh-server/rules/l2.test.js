@@ -451,7 +451,8 @@ test("M359: INR — ۳٫۲ دیگر اورژانس نیست؛ ۴٫۵ تا < ۱۰
 });
 
 test("M360: هماتوکریتِ کودک (< ۱۶ سال) با بازهٔ CALIPER سنجیده می‌شود؛ بحرانِ HCT < ۲۱ هنوز اورژانس؛ بزرگسال بی‌تغییر", () => {
-  const kid = { age: 4, sex: "F" };
+  // P135-1: «۴ ساله» در CALIPER ردیفِ «۴ تا <۱۴» (۳۴٫۹–۴۳٫۷) است؛ این تست با مرزِ بستهٔ «≤ ۴» سبز بود. ۳ ساله = «۳ تا <۴» (۳۱٫۳–۴۱٫۷).
+  const kid = { age: 3, sex: "F" };
   const a = run([row("HCT", "33", "%"), row("Hb", "11.2", "g/dL")], kid);
   assert.ok(!ids(a).includes("low_rbc_hct_without_anemia"), ids(a).join());
   assert.ok(a.e.graded.some((g) => g.test === "HCT"));
