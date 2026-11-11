@@ -257,3 +257,28 @@ test("AI3-22: پنلِ ترکیبیِ همهٔ کلیدهای تازه ⇒ unmap
   assert.notEqual(r.p.overall_urgency, "emergency");
   for (const id of NEW_IDS) one(r, id);
 });
+
+// ── پاسخ‌های بازبین (P136، ۲۰۲۶-۱۱-۱۱): پرسش ۲ (ب)، ۴ (ب)، ۵ (ج) ──
+test("AI3-23: AChR 0.1 nmol/L ⇒ «مثبتِ ضعیف»؛ 0.8 ⇒ «اختصاصیِ بالا»؛ فوریت هر دو this_week", () => {
+  const w = one(run([T("AChR binding Ab", 0.1, "nmol/L", "<=0.02")]), "mg_antibody_result");
+  assert.match(w.must_say, /مثبتِ ضعیف/);
+  assert.match(w.must_say, /۰٫۴/);
+  const s = one(run([T("AChR binding Ab", 0.8, "nmol/L", "<=0.02")]), "mg_antibody_result");
+  assert.match(s.must_say, /اختصاصیِ بالایی/);
+  assert.doesNotMatch(s.must_say, /مثبتِ ضعیف/);
+  for (const f of [w, s]) assert.equal(f.urgency, "this_week");
+});
+
+test("AI3-24: جملهٔ بدون‌نمونه‌برداری فقط زیرِ ۱۸ سال؛ بزرگسال و سنِ نامعلوم بی‌آن", () => {
+  const t = [T("tTG IgA", 150, "U/mL", "<10")];
+  assert.match(one(run(t, { age: 10, sex: "F" }), "celiac_serology_result").must_say, /بدونِ نمونه‌برداری/);
+  assert.doesNotMatch(one(run(t, { age: 35, sex: "F" }), "celiac_serology_result").must_say, /بدونِ نمونه‌برداری/);
+  assert.doesNotMatch(one(run(t, { sex: "F" }), "celiac_serology_result").must_say, /بدونِ نمونه‌برداری/);
+});
+
+test("AI3-25: Ro/La در بارداری بی‌درصد، با پیگیریِ اکوی هفتهٔ ۱۶ تا ۲۶", () => {
+  const f = one(run([T("Anti-SSA/Ro", 3, "U", "<1.0")], { age: 30, sex: "F", pregnant: true }), "ana_family_result");
+  assert.match(f.must_say, /بلوکِ مادرزادیِ قلب/);
+  assert.match(f.must_say, /۱۶ تا ۲۶/);
+  assert.doesNotMatch(f.must_say, /[۰-۹0-9]+٪/);
+});
