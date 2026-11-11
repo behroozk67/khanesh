@@ -1,6 +1,6 @@
 # Khanesh — LabMate
 
-<sub>Condensed from the 2623-line version (full text: `git show 68fcc07:CLAUDE.md`). Structure, commands and
+<sub>Condensed from the 2623-line version (full text: `git show 87ba305:CLAUDE.md`). Structure, commands and
 the Lab Notebook were last verified against the tree in 2026-10/11. Counts and baselines below are
 **not** quotable — re-measure.</sub>
 
@@ -148,7 +148,7 @@ gate stages `eval-planner`, `eval-builder`, `eval-medical-reviewer`, `eval-traje
 Real mistakes made in this repo. **Keeping it current:** when a change of yours (or a review of it) corrects something you
 got wrong, append an entry in the same session before reporting done: title, commit, what was tried, what it did to the
 patient-facing output, the generalizing rule. Log wrong *output*, not wrong turns. A repeat goes under the existing entry.
-(Full entries with measurements: `git show 68fcc07:CLAUDE.md`.)
+(Full entries with measurements: `git show 87ba305:CLAUDE.md`.)
 
 **N1 — Wiring a test is not adding a test.** `NAME_MAP` + `refs.js` without a `patterns_*.js` rule ⇒ `unmatched_abnormal`
 («توضیح آماده‌ای نداریم» next to a clearly abnormal number). Verify `unmatched_abnormal` is absent on the panel.
