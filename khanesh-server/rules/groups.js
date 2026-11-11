@@ -102,7 +102,8 @@ const RULE_GROUP_LISTS = {
     prenatal_ntd_afp prenatal_nt_raised prenatal_ue3_very_low prenatal_risk_intermediate prenatal_risk_unrated prenatal_papp_a_low
     prenatal_window_invalid prenatal_risk_low prenatal_marker_notes prenatal_concentration_unread`),
   immune: T(`ana_family_result anca_result hla_b27_result anti_ccp_result complement_result ssc_antibody_result
-    myositis_antibody_result antiphospholipid_result rf_positive indirect_coombs_result`),
+    myositis_antibody_result antiphospholipid_result rf_positive indirect_coombs_result
+    celiac_serology_result liver_autoantibody_result mg_antibody_result immunoglobulin_result dnaseb_result`),
   infect: T(`hcv_screen_reactive hbv_screen_reactive hiv_screen_reactive brucella_active brucella_2me_only brucella_wright_only
     anti_hbs_result anti_hbc_result aso_result blood_culture_result hpylori_igm_result syphilis_screen_result rubella_igg_status
     h_pylori_result`),

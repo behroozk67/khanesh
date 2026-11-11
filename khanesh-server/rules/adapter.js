@@ -846,6 +846,10 @@ const NO_RANGE_KEYS = new Set(["RETIC_ABS", "HBA", "HBS", "HBC", "HBE", "SICKLE"
 // ═══ P116 (بازبینی ۲۰۲۶-۱۰-۲۷) ═══
 // ۱) دو شاخصِ تیروئیدی که موتور برایشان مرجعِ داخلی ندارد ولی برگه بازه چاپ می‌کند: بازهٔ خودِ برگه سنجه است.
 const PRINTED_REF_ONLY_KEYS = new Set(["T3UP", "FTI"]);
+// specs/023 (P136، G1): مرزِ آنتی‌بادیِ TPO و RF کیت‌به‌کیت فرق می‌کند. «Anti-TPO 20، برگه <30» با بازهٔ داخلیِ ۰–۹ «بالاست»
+//   گفته می‌شد و «RF 18، برگه <15» با ۰–۲۰ «طبیعی» و بی‌یافته. بازهٔ چاپ‌شدهٔ همان ردیف مقدم است؛ بی‌بازهٔ چاپی، refs.js مثلِ قبل.
+//   (هم‌شکلِ P114 برای LDH، ولی کودک هم: این دو کلید بازهٔ کودکانهٔ جدا ندارند.)
+const PRINTED_FIRST_KEYS = new Set(["ANTI_TPO", "RF"]);
 // ۲) سنجه‌هایی که «تخفیفِ» بازهٔ چاپ‌شده هرگز به آن‌ها نمی‌رسد (خطرِ بالا: پتاسیم، سدیم، قند، تروپونین، انعقاد، CBC).
 const PRINTED_RELAX_EXEMPT = new Set([
   "K", "NA", "CA", "MG", "PHOS", "GLU_F", "GLU_RANDOM", "TROPONIN_I", "TROPONIN_T", "INR", "PT", "PTT", "D_DIMER",
@@ -2241,6 +2245,8 @@ export function ocrToEngineInput(ocr) {
       if (nv != null && !looksGraded && ek === "CRP_Q" && censoredIndeterminate(ek, t, nv, ocr)) { unmapped.push(t.name); continue; }
       if (nv != null && !looksGraded) {
         if (ek === "CRP_Q") { t = resolveRowUnit("CRP_Q", t, nv); if (!t) continue; }
+        // specs/023 (P136، G1): بازهٔ چاپ‌شدهٔ RF پیش از continue ثبت می‌شود تا PRINTED_FIRST_KEYS آن را ببیند.
+        if (ek === "RF" && t.reference && !("RF" in printedRefsAll)) printedRefsAll.RF = String(t.reference);
         // mg/dL → mg/L برای CRP (برگه‌های ایرانی هر دو را می‌دهند)
         tests[ek] = (ek === "CRP_Q" && /mg\/dl/i.test(String(t.unit || "")))
           ? +(nv * BRANCH_FACTORS.CRP_MGDL_TO_MGL).toFixed(1)
@@ -2886,7 +2892,7 @@ export function runEngine(ocr, opts = {}) {
   const ungraded = {};
   for (const k of noReader) ungraded[k] = { value: noReaderValues[k], reason: "no_range" };
   // specs/012 (P68، C1): Anti-Tg/TRAb فقط در برابرِ بازهٔ چاپ‌شدهٔ همان ردیف — دلیلِ یکتا «assay_printed» (N25: هیچ خوانندهٔ دیگری این دلیل را نمی‌خواند).
-  for (const [k, a] of Object.entries(serologyAssay ?? {})) ungraded[k] = { value: a.value, cmp: a.cmp, shown: a.shown, unit: a.unit, state: a.state, raw: a.raw, reference: a.reference, ...(a.name ? { name: a.name } : {}), reason: "assay_printed" };
+  for (const [k, a] of Object.entries(serologyAssay ?? {})) ungraded[k] = { value: a.value, cmp: a.cmp, shown: a.shown, unit: a.unit, state: a.state, raw: a.raw, reference: a.reference, ...(a.name ? { name: a.name } : {}), ...(a.titre ? { titre: true } : {}), reason: "assay_printed" };
   const hcgPositive = (tests.HCG != null && tests.HCG > HCG_POSITIVE_ABOVE) ||
     Object.entries(qual).some(([k, v]) => HCG_QUAL_NAME_RE.test(k) && /pos|positive|مثبت|\+/i.test(String(v)));
   const FEMALE_CYCLE_KEYS = new Set(["LH", "FSH", "E2", "PROG"]);
@@ -3149,7 +3155,8 @@ export function runEngine(ocr, opts = {}) {
     //   پیش‌تر «بالاتر از حد طبیعی» و یافتهٔ همولیز می‌شد.
     //   ⚠️ فقط بزرگسال: در کودک، قاعدهٔ P96 عمداً درجه‌بندی را با بازهٔ موتور نگه می‌دارد و سقفِ چاپ‌شده را
     //   فقط برای فوریت به کار می‌برد (p96.test.js) — این تصمیم دست‌نخورده می‌ماند.
-    const printedOwn = key === "LDH" && !(age != null && age < 16) ? printedRangePair(printedRefs.LDH) : null;
+    const printedOwn = key === "LDH" && !(age != null && age < 16) ? printedRangePair(printedRefs.LDH)
+      : PRINTED_FIRST_KEYS.has(key) ? printedRangePair(printedRefsAll[key]) : null;
     const ref = absRef ?? printedOwn ?? ((NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF }));
     if (!ref) {
       // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): T3 Uptake و FTI موتور برایشان مرجعِ داخلی ندارد، ولی خودِ آزمایشگاه بازه

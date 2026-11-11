@@ -236,8 +236,9 @@ export const isFecalBloodName = (name) => {
 
 const AI_RE = {
   FIT: FECAL_BLOOD_RE,
-  ANA: /^(ana|antinuclearantibod(y|ies)|antinuclearab|antinuclear|anf|آنتیبادیضدهسته|آنتینوکلئار)(ifa|if|hep2|titer|titre|screen|screening|test|qualitative)?$/,
-  ANTI_DSDNA: /^(anti)?(dsdna|doublestrandeddna|dna)(ab|antibody|antibodies|igg|elisa|ifa)?$/,
+  // specs/023 (P136، G2): «ANA (IIF)» ⇒ k0 «anaiif» و «FANA» (Fluorescent ANA) پیش‌تر unmapped بودند.
+  ANA: /^(f?ana|antinuclearantibod(y|ies)|antinuclearab|antinuclear|anf|آنتیبادیضدهسته|آنتینوکلئار)(ifa|if|iif|hep2|hep2iif|iifhep2|titer|titre|screen|screening|test|qualitative)?$/,
+  ANTI_DSDNA: /^(anti)?(dsdna|doublestrandeddna|dna)(ab|antibody|antibodies|igg|elisa|ifa|clift|crithidia|cliftifa|iif)?$/,
   ANTI_RO: /^(antiro|antiroab|antirossa|antissaro|antissa|ssa|rossa|antiro52|antiro60)$/,
   ANTI_LA: /^(antila|antilaab|antilassb|antissbla|antissb|ssb|lassb)$/,
   C_ANCA: /^(canca|cancaifa|cancaigg|cytoplasmicanca)$/,
@@ -254,7 +255,7 @@ const AI_RE = {
   ANTI_SM: /^(antism|smith|antismith|antismithab|antismab|antismantibody|smab|antismigg)$/,
   ANTI_RNP: /^(antirnp|antiu1rnp|u1rnp|rnp|antirnpab|antirnpantibody|antiu1rnpab|rnpab)$/,
   SCL70: /^(scl70|antiscl70|antitopoisomerasei|antitopoi|topoisomerasei|antitopo1|antiscl70ab|scl70ab)$/,
-  ANTI_CENTROMERE: /^(anticentromere|anticentromereab|centromereab|anticenpb|cenpb|anticentromereantibody)$/,
+  ANTI_CENTROMERE: /^(anticentromereb?|anticentromerebab|anticentromereab|centromereb?ab|centromereb|anticenpb|cenpb|anticentromereantibody)$/,
   JO1: /^(jo1|antijo1|antijo1ab|jo1ab|antijo1antibody)$/,
   ACL_IGG: /^((anti)?cardiolipin(ab|antibody|antibodies)?|acl)igg$/,
   ACL_IGM: /^((anti)?cardiolipin(ab|antibody|antibodies)?|acl)igm$/,
@@ -263,6 +264,32 @@ const AI_RE = {
   B2GPI_IGM: /^(anti)?(b2|β2|beta2)(gpi|glycoproteini?)(ab|antibody)?igm$/,
   B2GPI: /^(anti)?(b2|β2|beta2)(gpi|glycoproteini?)(ab|antibody)?$/,
   LUPUS_AC: /^(lupusanticoagulant|lac|lupusac|drvvt|dilutedrussellsviperventime|lupusanticoagulantscreen)$/,
+  // ═══ specs/023 (P136، راهنمای گوگل‌درایوِ کاربر): کلیدهای تازهٔ خودایمنی — همه فقط در برابرِ بازهٔ چاپ‌شدهٔ همان ردیف (C1) ═══
+  // 🔴 پیش از این همه unmapped بودند («تفسیر نشدند»)، حتی tTG-IgAِ ۱۵ برابرِ حدِ بالا (N2).
+  ACL_IGA: /^((anti)?cardiolipin(ab|antibody|antibodies)?|acl)iga$/,
+  ANTI_HISTONE: /^(anti)?histone(ab|antibody|antibodies|igg)?$/,
+  ANTI_DNASEB: /^(anti)?(dnaseb|dnasb|deoxyribonucleaseb|adnaseb|antidnasebtiter)(ab|antibody|titer|titre)?$/,
+  CH50: /^(ch50|complementch50|ch50complement|totalhemolyticcomplement|totalhaemolyticcomplement|totalcomplementactivity|hemolyticcomplement)$/,
+  // سلیاک
+  TTG_IGA: /^((anti)?(ttg|ttga|tga|tissuetransglutaminase|transglutaminase)(ab|antibody|antibodies)?iga(ab|antibody)?|iga(anti)?(ttg|tissuetransglutaminase))$/,
+  TTG_IGG: /^((anti)?(ttg|ttga|tga|tissuetransglutaminase|transglutaminase)(ab|antibody|antibodies)?igg(ab|antibody)?|igg(anti)?(ttg|tissuetransglutaminase))$/,
+  DGP_IGG: /^(anti)?(dgp|deamidatedgliadin(peptides?)?|gliadindeamidated(peptides?)?)(ab|antibody|antibodies)?igg$/,
+  DGP_IGA: /^(anti)?(dgp|deamidatedgliadin(peptides?)?|gliadindeamidated(peptides?)?)(ab|antibody|antibodies)?iga$/,
+  EMA_IGA: /^(anti)?(ema|endomysial|endomysium)(ab|antibody|antibodies)?(iga)?(ab|antibody|ifa|iif)?$/,
+  // ایمونوگلوبولین‌های سرم (شریکِ سلیاک و هپاتیت خودایمنی) — غلظت؛ فقط با واحدِ غلظت (routeSerology).
+  IGA_TOTAL: /^(iga|totaliga|igatotal|serumiga|igaserum|totalserumiga|immunoglobulina|totalimmunoglobulina)$/,
+  IGG: /^(igg|totaligg|iggtotal|serumigg|iggserum|totalserumigg|immunoglobuling|totalimmunoglobuling)$/,
+  IGM: /^(igm|totaligm|igmtotal|serumigm|igmserum|totalserumigm|immunoglobulinm|totalimmunoglobulinm)$/,
+  IGE: /^(ige|totalige|igetotal|serumige|igeserum|totalserumige|immunoglobuline|totalimmunoglobuline)$/,
+  // کبدِ خودایمن
+  ASMA: /^(asma|asmaifa|asmaiif|antismoothmuscle(ab|antibody|antibodies)?|smoothmuscle(ab|antibody|antibodies)|antiactin|antifactin|factin(ab|antibody)?)$/,
+  ANTI_LKM1: /^((anti)?lkm1?(ab|antibody|ifa|iif)?|(anti)?liverkidneymicrosom(e|al)(type1)?(ab|antibody|antibodies)?)$/,
+  ANTI_SLA: /^(anti)?(sla|slalp|solubleliverantigen(liverpancreas)?)(ab|antibody)?$/,
+  AMA_M2: /^(amam2|antim2|antiamam2|m2ama|amam2ab|antimitochondrialm2(ab|antibody)?|antimitochondrialantibodym2)$/,
+  AMA: /^(ama|amaifa|amaiif|antimitochondrial(ab|antibody|antibodies)?|mitochondrial(ab|antibody|antibodies))$/,
+  // میاستنی
+  ACHR: /^(anti)?(achr|acetylcholinereceptor)(binding)?(ab|antibody|antibodies)?(binding)?$/,
+  ANTI_MUSK: /^(anti)?(musk|musclespecifickinase|musclespecifictyrosinekinase)(ab|antibody|antibodies)?$/,
   // P77 — تومورمارکرها و گوارش: بی‌نمره؛ فقط محدودهٔ چاپ‌شده. بی‌محدوده هم یافته می‌سازد (قیدِ «محدوده روی برگه نیست»)، نه unmapped.
   // specs/019: «CEA (Carcinoembryonic Antigen)» همان دو نامِ بالا کنارِ هم است (k0 پرانتز را می‌اندازد)؛ فارسی فقط همان شکلی که
   //   در محتوای خودِ اپ آمده (extra.cancer.js)، نه حدس. «CA 15.3 (Breast)» و «CA 125 Ovarian» عمداً نیستند: روی برگهٔ واقعی دیده نشده‌اند (N2).
@@ -285,7 +312,21 @@ export const AI_KEYS = Object.keys(AI_RE);
 //    HLA-B27 فقط واژه دارد. AFP بی‌واحد هنوز unmapped است (M105، دو معنا).
 export const AI_NOREF = new Set(AI_KEYS.filter((k) => k !== "HLA_B27"));
 const AI_QUAL_ONLY = new Set(["HLA_B27"]);   // ژن/آنتی‌ژن: فقط حاضر/غایب، عددِ مقایسه‌پذیر ندارد
-const AI_RANGE_ONLY = new Set(["C3", "C4"]);  // غلظت: کلمه معنا ندارد (⇒ unmapped)؛ عدد فقط در برابرِ بازهٔ چاپ‌شده: below|within|above
+const AI_RANGE_ONLY = new Set(["C3", "C4", "CH50", "IGG", "IGA_TOTAL", "IGM", "IGE"]);  // غلظت: کلمه معنا ندارد (⇒ unmapped)؛ عدد فقط در برابرِ بازهٔ چاپ‌شده: below|within|above
+// specs/023 (N25): «IgG»/«IgM» تنها روی برگه گاهی زیرِ عنوانِ CMV/توکسو چاپ می‌شود (AU/mL، index). ایمونوگلوبولینِ سرم فقط با واحدِ غلظتِ خودش.
+const IG_UNIT_RE = { IGG: /(mg|g)\s*\/\s*(dl|l)\b/i, IGA_TOTAL: /(mg|g)\s*\/\s*(dl|l)\b/i, IGM: /(mg|g)\s*\/\s*(dl|l)\b/i, IGE: /(k?iu|ku|u|ng)\s*\/\s*ml\b/i };
+// specs/023 (P136): تیترِ بی‌واژهٔ آنتی‌بادی‌های کبدی — IAIHG (ANA/ASMA/LKM1 ≥ 1:40) و AMA در PBC (< 1:40 منفی)، به نقلِ راهنمای کاربر.
+export const LIVER_AB_TITRE_CUT = 40;
+const TITRE_CUT = { ASMA: LIVER_AB_TITRE_CUT, ANTI_LKM1: LIVER_AB_TITRE_CUT, AMA: LIVER_AB_TITRE_CUT };
+/** تیتر در برابرِ تیترِ چاپ‌شدهٔ همان ردیف («<1:10»، «≥ 1:40»، «Negative < 1:20»): above | within | null. */
+function titreVsPrinted(titre, reference) {
+  const m = String(reference ?? "").match(/(<=|>=|[<>≤≥])?\s*1\s*[:/]\s*(\d+)/);
+  if (!m || titre == null) return null;
+  const op = m[1] ?? "<", cut = Number(m[2]);
+  if (op === "<") return titre >= cut ? "above" : "within";
+  if (op === "≤" || op === "<=") return titre > cut ? "above" : "within";
+  return titre >= cut ? "above" : "within";   // «>1:N»/«≥1:N» = مرزِ مثبت
+}
 export const autoKeyOf = (key) => {
   const k = k0(key);
   // P113: FIT با رقم در نام («Occult Blood-1(FOB)») — همان تابعِ تک‌منبع، پیش از حلقهٔ الگوها.
@@ -328,7 +369,12 @@ export function readAutoValue(raw, id = null) {
     if (v.state === "equiv") return { state: "equiv" };
     return { state: "unknown" };
   }
-  if (/^\d+\s*[:/]\s*\d+$/.test(s)) return { state: "titre", titre: Number(s.split(/[:/]/)[1]) };
+  if (/^\d+\s*[:/]\s*\d+$/.test(s)) {
+    const titre = Number(s.split(/[:/]/)[1]);
+    // specs/023: آنتی‌بادی‌های کبدی مرزِ تیترِ ثابت دارند (TITRE_CUT) — مثلِ ANA ≥ 1:80.
+    if (id && TITRE_CUT[id]) return { state: titre >= TITRE_CUT[id] ? "pos" : "neg", titre, bare: true, cut: TITRE_CUT[id] };
+    return { state: "titre", titre };
+  }
   const v = qualVerdict(s);
   if (v.state === "pos" || v.state === "neg") {
     const m = s.match(/1\s*[:/]\s*(\d+)/);
@@ -371,14 +417,14 @@ function assayRoute(abKey, t, sexHint, q) {
 export function autoAbState(e, id) {
   const u = e.ungraded?.[id];
   if (u?.reason === "assay_printed") {
-    return { state: u.state, value: u.value, cmp: u.cmp, shown: u.shown, unit: u.unit, reference: u.reference, raw: u.raw, name: u.name, assay: true };
+    return { state: u.state, value: u.value, cmp: u.cmp, shown: u.shown, unit: u.unit, reference: u.reference, raw: u.raw, name: u.name, assay: true, ...(u.titre ? { titreRow: true } : {}) };
   }
   // P113: ردیفِ FIT/FOB با رقم در نام («Occult Blood-1(FOB)») از الگوی ساده رد می‌شود؛
   //   یک منبعِ تصمیم (isFecalBloodName) هم برای qual و هم برای gateِ adapter.
   const row = Object.entries(e.qual ?? {}).find(([name]) => (id === "FIT" ? isFecalBloodName(name) : AI_RE[id].test(k0(name))));
   if (row) {
     const v = readAutoValue(row[1], id);
-    if (v.state === "pos" || v.state === "neg") return { state: v.state, raw: String(row[1]).trim(), name: row[0], titre: v.titre, patterns: v.patterns ?? [], bare: !!v.bare };
+    if (v.state === "pos" || v.state === "neg") return { state: v.state, raw: String(row[1]).trim(), name: row[0], titre: v.titre, patterns: v.patterns ?? [], bare: !!v.bare, ...(v.cut ? { cut: v.cut } : {}) };
   }
   return { state: "absent" };
 }
@@ -403,7 +449,19 @@ export function routeSerology(key, t, sexHint = null) {
       const hasRange = /\d/.test(String(t.reference ?? ""));
       if (/mom|multiples?\s*of/i.test(all) || !(hasConc || hasRange)) return { to: "unmapped" };
     }
+    // specs/023 (N25): ایمونوگلوبولینِ سرم فقط با واحدِ غلظتِ خودش؛ «IgG 250 AU/mL» زیرِ CMV ایمونوگلوبولینِ کل نیست.
+    if (IG_UNIT_RE[aiKey] && !IG_UNIT_RE[aiKey].test(`${t.unit ?? ""} ${t.value ?? ""} ${t.reference ?? ""}`)) return { to: "unmapped" };
     const v = readAutoValue(t.value, aiKey);
+    // specs/023 (P136، G2): تیترِ بی‌واژه در برابرِ تیترِ چاپ‌شدهٔ همان ردیف («Anti-dsDNA (CLIFT) 1:20»، مرجع «<1:10»).
+    //   پیش‌تر هر تیترِ بی‌واژه (غیر از ANA) «بی‌حکم» می‌شد، حتی وقتی برگه مرزِ تیتر را چاپ کرده بود.
+    if (aiKey !== "ANA" && /^\s*1\s*[:/]\s*\d+\s*$/.test(faDigits(t.value))) {
+      const titre = Number(faDigits(t.value).split(/[:/]/)[1]);
+      const tv = titreVsPrinted(titre, t.reference);
+      if (tv) {
+        const raw = String(t.value).trim();
+        return { to: "assay", key: aiKey, value: titre, cmp: null, shown: raw, unit: null, state: tv, raw, reference: String(t.reference), titre: true, ...(t.name ? { name: String(t.name) } : {}) };
+      }
+    }
     if ((v.state === "pos" || v.state === "neg") && !AI_RANGE_ONLY.has(aiKey)) return { to: "qual" };
     // تیترِ بی‌واژه (غیر از ANA) و نتیجهٔ مرزی («+/-»، Equivocal، Trace): نه مثبت نه منفی — یافتهٔ «بی‌حکم» (state=titre|equiv)، نه unmapped.
     if ((v.state === "titre" || v.state === "equiv") && AI_NOREF.has(aiKey)) {

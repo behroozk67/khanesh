@@ -70,6 +70,12 @@ export const FA_NAMES = {
   // P77
   ANTI_SM: "آنتی‌بادی Anti-Sm", ANTI_RNP: "آنتی‌بادی Anti-RNP (U1-RNP)", SCL70: "آنتی‌بادی Scl-70", ANTI_CENTROMERE: "آنتی‌بادی سانترومر", JO1: "آنتی‌بادی Anti-Jo-1",
   ACL_IGG: "کاردیولیپین IgG", ACL_IGM: "کاردیولیپین IgM", ACL: "آنتی‌کاردیولیپین", B2GPI_IGG: "آنتی-β2 گلیکوپروتئین I (IgG)", B2GPI_IGM: "آنتی-β2 گلیکوپروتئین I (IgM)", B2GPI: "آنتی-β2 گلیکوپروتئین I", LUPUS_AC: "لوپوس‌آنتی‌کوآگولان",
+  // specs/023 (P136)
+  ACL_IGA: "کاردیولیپین IgA", ANTI_HISTONE: "آنتی‌بادی ضدِ هیستون", ANTI_DNASEB: "آنتی‌دی‌اِن‌آز B (Anti-DNase B)", CH50: "کمپلمانِ کل (CH50)",
+  TTG_IGA: "آنتی‌بادی tTG-IgA (ترانس‌گلوتامینازِ بافتی)", TTG_IGG: "آنتی‌بادی tTG-IgG", DGP_IGG: "آنتی‌بادی گلیادینِ دآمینه (DGP-IgG)", DGP_IGA: "آنتی‌بادی گلیادینِ دآمینه (DGP-IgA)", EMA_IGA: "آنتی‌بادی اندومیزیوم (EMA)",
+  IGA_TOTAL: "IgA تامِ سرم", IGG: "IgG سرم", IGM: "IgM سرم", IGE: "IgE تامِ سرم",
+  ASMA: "آنتی‌بادی ضدِ عضلهٔ صاف (ASMA)", ANTI_LKM1: "آنتی‌بادی LKM-1", ANTI_SLA: "آنتی‌بادی SLA/LP", AMA: "آنتی‌بادی ضدِ میتوکندری (AMA)", AMA_M2: "آنتی‌بادی AMA-M2",
+  ACHR: "آنتی‌بادی گیرندهٔ استیل‌کولین (AChR)", ANTI_MUSK: "آنتی‌بادی MuSK",
   CEA: "CEA", AFP: "AFP (آلفافتوپروتئین)", CA125: "CA 125", CA199: "CA 19-9", CA153: "CA 15-3", B2M: "بتا-۲ میکروگلوبولین", CALCITONIN: "کلسی‌تونین", CGA: "کروموگرانین A",
   PSA_TOTAL: "PSA کل", PSA_FREE: "Free PSA", PSA_RATIO: "درصد Free PSA", CALPROTECTIN: "کالپروتکتین مدفوع", FIT: "خونِ مخفی در مدفوع (FIT/FOBT)",
   // specs/013: غربالگریِ سرمِ مادر — کلیدهای جدا از AFP (تومورمارکر) و HCG (تستِ بارداری)، N25.

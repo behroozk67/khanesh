@@ -322,6 +322,13 @@ Rules:
 
 **N54 — The static SEO page put a direction-less sentence under «بالا بودن»; the REF test pages had none of the app's content.** (Commit: this change.) `gen-static-heads.mjs` rendered `EXTRA_TESTS[key].results[0]` as «بالا بودن X» and `results[1]` as «پایین بودن X», but `results[]` has no direction: on 236 live pages, D-dimer said «منفی بودن… خبرِ خوب است» under «بالا بودن D-dimer». The same file read `EXTRA_TESTS` only, so the 46 `REF` pages (B12, INR, PT…) never showed their `TEST_PAGES` content, and Google left them «Crawled – currently not indexed». Rules: a label that claims a direction needs a field that has one; the static HTML Google reads is a second renderer of the same content, so diff what it prints against `TestPage`/`ExtraTestPage`.
 
+**N55 — Anti-TPO 20 against the sheet's «<30» was told «TPO بالاست»; RF 18 against «<15» was silently normal.** (specs/023, P136; commit: this change.)
+- **What happened:** both keys were graded against one kit's range in `refs.js` (0–9 and 0–20), ignoring the range printed on the same row.
+- **Patient-facing effect:** a false thyroid-autoimmunity alarm in one direction, and a missed positive RF in the other. The TPO text also quoted no number.
+- **Rules:**
+  - A kit-dependent antibody stored as a graded key needs the printed range first (`PRINTED_FIRST_KEYS`, the P114 shape); "the assay path reads the printed range" only covers keys that take that path.
+  - Probe the printed limit in both directions (below and above the engine's limit). A probe that sits mid-range never shows either error.
+
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
 [environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).

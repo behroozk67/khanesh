@@ -64,6 +64,12 @@ function lineOf(a, id) {
     const where = a.state === "below" ? "پایین‌تر از" : a.state === "within" ? "داخلِ" : "بالاتر از";
     return `${nm} روی برگهٔ شما ${num} است و ${where} ${a.state === "within" ? "محدودهٔ" : "مرزِ"} چاپ‌شدهٔ همان ردیف است.`;
   }
+  if (a.bare && a.cut) {
+    // specs/023: آنتی‌بادی‌های کبدی (ASMA، LKM-1، AMA) — مرزِ تیترِ ۱:۴۰ (IAIHG / PBC، P136).
+    return a.state === "pos"
+      ? `نتیجهٔ ${nm} روی برگهٔ شما «${a.raw}» است؛ تیترِ ۱:${faNum(a.cut)} یا بیشتر مثبت شمرده می‌شود.`
+      : `نتیجهٔ ${nm} روی برگهٔ شما «${a.raw}» است؛ تیترِ کمتر از ۱:${faNum(a.cut)} منفی شمرده می‌شود.`;
+  }
   if (a.bare) {
     return a.state === "pos"
       ? `نتیجهٔ ${nm} روی برگهٔ شما «${a.raw}» است؛ تیتر ۱:۸۰ یا بیشتر روی سلول‌های HEp-2 مثبت شمرده می‌شود.`
@@ -75,10 +81,14 @@ function lineOf(a, id) {
     : `نتیجهٔ ${nm} روی برگهٔ شما «${a.raw}» است (منفی).`;
 }
 
+const faNum = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
 const CRITERIA_NOTE = "معیارهای طبقه‌بندی (EULAR/ACR و ...) برای پژوهش و کمک به تشخیص‌اند و جایگزینِ قضاوتِ پزشک نیستند.";
 
 // ═══════════ ۱) ANA و آنتی‌بادی‌های اختصاصیِ هسته‌ای ═══════════
-const ANA_IDS = ["ANA", "ANTI_DSDNA", "ANTI_SM", "ANTI_RNP", "ANTI_RO", "ANTI_LA"];
+// specs/023: ANTI_HISTONE در همین خانواده (یک یافته، N20) ولی «اختصاصی» نیست (SPECIFIC).
+const ANA_IDS = ["ANA", "ANTI_DSDNA", "ANTI_SM", "ANTI_RNP", "ANTI_RO", "ANTI_LA", "ANTI_HISTONE"];
+const HISTONE_TEXT = "آنتی‌بادی ضدِ هیستون در لوپوسِ ناشی از دارو بسیار شایع است (مثلاً پس از بعضی داروهای فشارِ خون، قلب، ضدِسل یا ضدِتشنج)، ولی در لوپوسِ بی‌دارو هم دیده می‌شود؛ پس به‌تنهایی علت را نشان نمی‌دهد. داروهایی را که در ماه‌های اخیر شروع کرده‌اید به پزشک بگویید و هیچ دارویی را خودسرانه قطع نکنید.";
+const CLIFT_RE = /clift|crithidia/i;
 const SPECIFIC = ["ANTI_DSDNA", "ANTI_SM", "ANTI_RNP", "ANTI_RO", "ANTI_LA"];
 
 // الگوی فلورسانس (ICAP). عبارتِ «گزارش شده» عمدی است: ارتباط است، نه تشخیص.
@@ -112,7 +122,9 @@ function anaBuild(e, { pregnant }) {
   if (isPos(st.ANTI_DSDNA) || isPos(st.ANTI_SM)) {
     parts.push("در همان معیارها anti-dsDNA یا anti-Sm هر کدام ۶ امتیاز دارند، به شرطی که آزمایش اختصاصیتِ بالا (دست‌کم ۹۰٪) داشته باشد؛ ولی امتیازدهی علائمِ بالینی هم می‌خواهد و از روی آزمایش به‌تنهایی حساب نمی‌شود.");
   }
+  if (isPos(st.ANTI_DSDNA) && CLIFT_RE.test(`${st.ANTI_DSDNA.name ?? ""}`)) parts.push("روشِ CLIFT (روی کریتیدیا) اختصاصی‌ترین روشِ سنجشِ anti-dsDNA است و نتیجهٔ مثبتش شرطِ اختصاصیتِ معیار را برآورده می‌کند.");
   if (isPos(st.ANTI_SM)) parts.push("anti-Sm از آنتی‌بادی‌های بسیار اختصاصی‌تر برای لوپوس است.");
+  if (isPos(st.ANTI_HISTONE)) parts.push(HISTONE_TEXT);
   if (isPos(st.ANTI_RNP)) {
     parts.push("تیترِ بالای anti-U1RNP پیش‌شرطِ تقریباً همهٔ معیارهای «بیماری مختلطِ بافت‌همبند» (MCTD) است" +
       (isPos(st.ANTI_SM) ? "؛ ولی در معیار Sharp مثبت‌بودنِ anti-Sm این تشخیص را کنار می‌گذارد، و اینجا هر دو مثبت‌اند" : "") +
@@ -141,6 +153,8 @@ function anaBuild(e, { pregnant }) {
       "معنای آن به علائم و به آزمایش‌های اختصاصی‌ترِ بعدی بستگی دارد.");
     if (!present(st.ANTI_DSDNA)) parts.push("آزمایشِ anti-dsDNA روی این برگه نیست.");
     if (!present(st.ANTI_RO) && !present(st.ANTI_LA)) parts.push("آنتی‌بادی‌های Ro و La (پنل ENA) هم روی این برگه نیست.");
+  } else if (isPos(st.ANTI_HISTONE)) {
+    if (!present(st.ANA)) parts.push("ANA روی این برگه نیست.");
   } else if (ANA_IDS.some((id) => isUnsure(st[id]))) {
     parts.push(`${UNSURE_NOTE} ANA و آنتی‌بادی‌های اختصاصی‌ترش (anti-dsDNA، Sm، RNP، Ro، La) برای بررسیِ بیماری‌های خودایمنی‌اند. اگر درد و تورمِ مفصل، بثورات پوستی، حساسیت به نور یا خشکیِ چشم و دهان دارید، آن را با پزشک مطرح کنید.`);
     if (!present(st.ANA)) parts.push("ANA روی این برگه نیست.");
@@ -164,6 +178,7 @@ function anaBuild(e, { pregnant }) {
     headline: specificPos
       ? "آنتی‌بادی‌های اختصاصیِ هسته‌ای (anti-dsDNA / Sm / RNP / Ro / La) در آزمایش شما مثبت یا بالاتر از مرز است"
       : anaPos ? "آزمایش ANA شما مثبت است"
+        : isPos(st.ANTI_HISTONE) ? "آنتی‌بادی ضدِ هیستون در آزمایش شما مثبت یا بالاتر از مرز است"
         : ANA_IDS.some((id) => isUnsure(st[id])) ? "نتیجهٔ آزمایش‌های ANA / آنتی‌بادی‌های هسته‌ای شما" : "آزمایش‌های ANA / آنتی‌بادی‌های هسته‌ای شما منفی است",
     must_say: parts.join(" "),
     suggest,
@@ -260,6 +275,7 @@ function rfLine(e) {
 /** ACR/EULAR 2010: مثبتِ ضعیف = بالاتر از ULN تا ۳×ULN، قوی = بیش از ۳×ULN — ULN از محدودهٔ چاپ‌شدهٔ همان ردیف. */
 function ccpStrength(a) {
   if (!a.assay || a.state !== "above") return a.assay ? null : "word";
+  if (a.titreRow) return null;   // specs/023: تیتر در برابرِ تیترِ چاپی — مضربِ ULN معنا ندارد
   const pr = parseReference(a.reference);
   const uln = pr?.hi;
   if (uln == null || !(uln > 0) || a.cmp) return null;
@@ -300,18 +316,29 @@ function ccpBuild(e) {
 // ═══════════ ۵) کمپلمان C3 / C4 ═══════════
 // فقط در برابرِ بازهٔ چاپ‌شدهٔ همان ردیف؛ جهتِ مهم «پایین» است (C1). پایین ⇒ this_week؛ بالا/داخل ⇒ routine.
 function complementBuild(e) {
-  const c3 = autoAbState(e, "C3"), c4 = autoAbState(e, "C4");
+  const c3 = autoAbState(e, "C3"), c4 = autoAbState(e, "C4"), ch50 = autoAbState(e, "CH50");
   const items = [["C3", c3], ["C4", c4]].filter(([, a]) => present(a));
-  const low = items.some(([, a]) => a.state === "below");
+  const all = [...items, ...(present(ch50) ? [["CH50", ch50]] : [])];
+  const ch50Low = ch50.state === "below";
+  const low = items.some(([, a]) => a.state === "below") || ch50Low;
+  const c34Low = items.some(([, a]) => a.state === "below");
   const bothLow = c3.state === "below" && c4.state === "below";
-  const lines = items.map(([id, a]) => {
+  const lines = all.map(([id, a]) => {
     if (isUnsure(a)) return lineOf(a, id);   // بی‌محدودهٔ چاپی / مرزی: «داخل/بالا/پایین» نگو
     const num = `${a.shown}${a.unit ? ` ${a.unit}` : ""}`;
     const where = a.state === "below" ? "پایین‌تر از" : a.state === "above" ? "بالاتر از" : "داخلِ";
     return `${faName(id)} روی برگهٔ شما ${num} است و ${where} محدودهٔ چاپ‌شدهٔ همان ردیف است.`;
   });
   const parts = [...lines];
-  if (low) {
+  // specs/023 (P136): CH50ِ پایین کنارِ C3 و C4ِ داخلِ محدوده الگوی کمبودِ ارثیِ یکی از اجزای کمپلمان است، نه مصرف در فعالیتِ لوپوس.
+  if (ch50Low && !c34Low) {
+    const c34Normal = c3.state === "within" && c4.state === "within";
+    parts.push((c34Normal
+      ? "CH50 فعالیتِ کلِ مسیرِ کلاسیکِ کمپلمان را می‌سنجد. پایین بودنش در حالی که C3 و C4 داخلِ محدوده‌اند بیشتر به کمبودِ (اغلب ارثیِ) یکی از اجزای دیگرِ کمپلمان اشاره دارد؛ کمبودِ اجزای انتهایی با عفونت‌های مکررِ مننگوکوکی و کمبودِ اجزای ابتدایی با لوپوسِ زودرس همراه گزارش شده است. "
+      : "CH50 فعالیتِ کلِ مسیرِ کلاسیکِ کمپلمان را می‌سنجد و پایین بودنش یعنی یکی از اجزای این مسیر کم است یا مصرف شده؛ C3 و C4 کمک می‌کنند معلوم شود کدام. " +
+        (items.length ? "" : "C3 و C4 روی این برگه نیست. ")) +
+      "نمونهٔ دیرمانده یا گرم‌شده هم CH50 را به‌طورِ کاذب پایین نشان می‌دهد، پس معمولاً تکرار می‌شود. این نتیجه را با متخصصِ ایمونولوژی بالینی یا روماتولوژی مطرح کنید.");
+  } else if (c34Low) {
     parts.push(
       "کمپلمان بخشی از دستگاه ایمنی است و در بعضی بیماری‌های خودایمنی با فعالیتِ بیماری مصرف می‌شود و پایین می‌آید؛ " +
       "ولی علت‌های دیگری هم دارد (مثل بیماری شدید کبدی، سوءتغذیه، یا کمبودِ ارثی). این نتیجه به‌تنهایی تشخیص نیست و باید کنارِ علائم، آزمایش ادرار، کراتینین و آنتی‌بادی‌هایی مثل anti-dsDNA تفسیر شود. " +
@@ -323,13 +350,14 @@ function complementBuild(e) {
     parts.push("بالا بودنِ کمپلمان معمولاً بازتابِ التهاب یا عفونت است (جزو واکنش‌گرهای فازِ حاد)، و داخلِ محدوده بودنش فقط دربارهٔ همین عدد است.");
   }
   if (items.length === 1) parts.push(`${items[0][0] === "C3" ? "C4" : "C3"} روی این برگه نیست.`);
+  // N18: CH50ِ تنها هم یافته می‌سازد؛ متنِ «بالا/داخل» برای CH50ِ تنها از شاخهٔ پیش‌فرض می‌آید.
   const urgency = urgencyOf(low);
   return {
     pattern: "complement_result", urgency, action: ACTION[urgency],
-    headline: low ? "کمپلمان C3 یا C4 شما پایین‌تر از محدودهٔ چاپ‌شده است" : "نتیجهٔ کمپلمان (C3 / C4) شما",
+    headline: c34Low ? "کمپلمان C3 یا C4 شما پایین‌تر از محدودهٔ چاپ‌شده است" : ch50Low ? "فعالیتِ کلِ کمپلمان (CH50) شما پایین‌تر از محدودهٔ چاپ‌شده است" : present(ch50) && !items.length ? "نتیجهٔ کمپلمانِ کل (CH50) شما" : "نتیجهٔ کمپلمان (C3 / C4) شما",
     must_say: parts.join(" "),
     suggest: [], warnings: low ? [CAUTION_DRUG] : [],
-    explains: items.map(([id]) => id),
+    explains: all.map(([id]) => id),
   };
 }
 
@@ -390,10 +418,25 @@ function jo1Build(e) {
 }
 
 // ═══════════ ۸) آنتی‌فسفولیپید ═══════════
-const APL_IDS = ["LUPUS_AC", "ACL_IGG", "ACL_IGM", "ACL", "B2GPI_IGG", "B2GPI_IGM", "B2GPI"];
+const APL_IDS = ["LUPUS_AC", "ACL_IGG", "ACL_IGM", "ACL", "B2GPI_IGG", "B2GPI_IGM", "B2GPI", "ACL_IGA"];
+// specs/023 (P136، راهنمای کاربر): تیترِ ELISA در معیارِ ACR/EULAR 2023 — ۴۰–۷۹ متوسط، ≥ ۸۰ بالا؛ زیرِ ۴۰ شمرده نمی‌شود.
+export const APS_MODERATE = 40, APS_HIGH = 80;
+const APS_BAND_IDS = ["ACL_IGG", "ACL_IGM", "B2GPI_IGG", "B2GPI_IGM"];
+const APS_UNIT_RE = /^(gpl|mpl|u|u\/ml|gplu|mplu|gpl\/ml|mpl\/ml|gplu\/ml|mplu\/ml)$/i;
+function apsBand(a) {
+  if (!a.assay || a.state !== "above" || a.cmp || a.titreRow || !APS_UNIT_RE.test(String(a.unit ?? "").replace(/\s+/g, ""))) return null;
+  return a.value >= APS_HIGH ? "high" : a.value >= APS_MODERATE ? "moderate" : "low";
+}
+const APS_BAND_FA = {
+  low: "بالاتر از مرزِ آزمایشگاه است ولی زیرِ ۴۰ واحد، یعنی کمتر از سطحی که معیارِ ۲۰۲۳ می‌شمارد؛ با این حال باید ۱۲ هفته بعد تکرار شود",
+  moderate: "در محدودهٔ «متوسط» معیارِ ۲۰۲۳ (۴۰ تا ۷۹ واحد) است",
+  high: "در محدودهٔ «بالا»ی معیارِ ۲۰۲۳ (۸۰ واحد یا بیشتر) است",
+};
 function aplBuild(e) {
   const st = stateOf(e, APL_IDS);
-  const pos = APL_IDS.some((id) => isPos(st[id]));
+  // specs/023: کاردیولیپین IgA جزو آنتی‌بادی‌های معیارِ APS نیست ⇒ IgAِ تنها «این هفته» نمی‌گیرد.
+  const pos = APL_IDS.some((id) => id !== "ACL_IGA" && isPos(st[id]));
+  const igaOnly = !pos && isPos(st.ACL_IGA);
   const urgency = urgencyOf(pos);
   const parts = APL_IDS.filter((id) => present(st[id])).map((id) => lineOf(st[id], id));
   const posOf = (ids) => ids.some((id) => isPos(st[id]));
@@ -404,19 +447,28 @@ function aplBuild(e) {
       "مثبت‌بودنِ یک نوبت کافی نیست: باید دست‌کم ۱۲ هفته بعد با نمونهٔ مستقل تکرار و تأیید شود (معیار Sydney)، و نوعِ IgG وزنِ بیشتری از IgM دارد. " +
       "در معیارهای ۲۰۲۳ ACR/EULAR برای روشِ ELISA تیترِ متوسط ۴۰ تا ۷۹ و بالا ۸۰ واحد یا بیشتر است (واحد و روشِ آزمایشگاهِ شما ممکن است فرق کند، پس به محدودهٔ چاپ‌شدهٔ برگه تکیه کنید)؛ " +
       "طبقه‌بندیِ سندرم آنتی‌فسفولیپید به یک رویدادِ بالینی (لخته یا عارضهٔ بارداری) هم نیاز دارد و از روی آزمایش به‌تنهایی حاصل نمی‌شود.");
+    for (const id of APS_BAND_IDS) {
+      const b = apsBand(st[id]);
+      if (b) parts.push(`${faName(id)} (${st[id].shown} ${st[id].unit}) ${APS_BAND_FA[b]}.`);
+    }
+    if (isPos(st.ACL_IGA)) parts.push("کاردیولیپین IgA جزو آنتی‌بادی‌های معیارِ طبقه‌بندیِ سندرم آنتی‌فسفولیپید نیست و به‌تنهایی وزنی ندارد.");
     if (la && acl && b2) parts.push("مثبت‌بودنِ هر سه آزمایش (لوپوس‌آنتی‌کوآگولان، کاردیولیپین و بتا-۲ گلیکوپروتئین I) پرخطرترین الگو شمرده می‌شود.");
     for (const [id, nm] of [["LUPUS_AC", "لوپوس‌آنتی‌کوآگولان"]]) if (!present(st[id])) parts.push(`${nm} روی این برگه نیست.`);
     if (!APL_IDS.some((id) => /^ACL/.test(id) && present(st[id]))) parts.push("کاردیولیپین روی این برگه نیست.");
     if (!APL_IDS.some((id) => /^B2GPI/.test(id) && present(st[id]))) parts.push("بتا-۲ گلیکوپروتئین I روی این برگه نیست.");
+  } else if (igaOnly) {
+    parts.push("کاردیولیپین IgA جزو آنتی‌بادی‌های معیارِ طبقه‌بندیِ سندرم آنتی‌فسفولیپید نیست و به‌تنهایی وزنی ندارد؛ آزمایش‌های معیار لوپوس‌آنتی‌کوآگولان، کاردیولیپین IgG/IgM و بتا-۲ گلیکوپروتئین I IgG/IgM‌اند و پزشک تصمیم می‌گیرد لازم است یا نه.");
   } else if (APL_IDS.some((id) => isUnsure(st[id]))) {
     parts.push(UNSURE_NOTE + " آنتی‌فسفولیپید (لوپوس‌آنتی‌کوآگولان، کاردیولیپین، بتا-۲ گلیکوپروتئین I) با خطرِ لخته و عوارضِ بارداری مرتبط است و مثبت‌بودنش باید ۱۲ هفته بعد تأیید شود.");
   } else {
     parts.push("این فقط دربارهٔ همین آزمایش‌هاست؛ سندرم آنتی‌فسفولیپید با سه آزمایش (لوپوس‌آنتی‌کوآگولان، کاردیولیپین، بتا-۲ گلیکوپروتئین I) بررسی می‌شود و منفی‌بودنِ یکی از آن‌ها بقیه را رد نمی‌کند.");
   }
+  // specs/023 (P136): لوپوس‌آنتی‌کوآگولان آزمایشِ انعقادی است و داروهای ضدانعقاد (هپارین، وارفارین، داروهای خوراکیِ تازه) نتیجه‌اش را مخدوش می‌کنند؛ ELISA نه.
+  if (present(st.LUPUS_AC)) parts.push("نتیجهٔ لوپوس‌آنتی‌کوآگولان زیرِ اثرِ داروهای ضدانعقاد (هپارین، وارفارین و داروهای خوراکیِ جدید) قابلِ اعتماد نیست؛ اگر چنین دارویی مصرف می‌کنید به پزشک بگویید. سنجش‌های کاردیولیپین و بتا-۲ گلیکوپروتئین I از این داروها اثر نمی‌پذیرند.");
   const ex = explainsOf(e, st);
   return {
     pattern: "antiphospholipid_result", urgency, action: ACTION[urgency],
-    headline: pos ? "آنتی‌بادی آنتی‌فسفولیپید در آزمایش شما مثبت یا بالاتر از مرز است" : APL_IDS.some((id) => isUnsure(st[id])) ? "نتیجهٔ آزمایش‌های آنتی‌فسفولیپید شما" : "آزمایش‌های آنتی‌فسفولیپید شما منفی یا داخلِ محدودهٔ چاپ‌شده است",
+    headline: pos ? "آنتی‌بادی آنتی‌فسفولیپید در آزمایش شما مثبت یا بالاتر از مرز است" : igaOnly ? "کاردیولیپین IgA شما بالاتر از مرز است" : APL_IDS.some((id) => isUnsure(st[id])) ? "نتیجهٔ آزمایش‌های آنتی‌فسفولیپید شما" : "آزمایش‌های آنتی‌فسفولیپید شما منفی یا داخلِ محدودهٔ چاپ‌شده است",
     must_say: parts.join(" "),
     suggest: pos ? ["بررسی توسط متخصص روماتولوژی"] : [],
     warnings: pos ? ["بدونِ نظرِ پزشک داروی ضدانعقاد یا آسپرین را شروع یا قطع نکنید."] : [],
@@ -669,17 +721,240 @@ function giBuild(e) {
   };
 }
 
+// ═══════════ specs/023 (P136، راهنمای گوگل‌درایوِ کاربر): سلیاک، کبدِ خودایمن، میاستنی، ایمونوگلوبولین‌ها، آنتی‌دی‌اِن‌آز B ═══════════
+// 🔴 پیش از این همهٔ این ردیف‌ها unmapped بودند («تفسیر نشدند»). منبع: خلاصهٔ ثانویهٔ کاربر؛ منابعِ اصلی باز نشدند ⇒ `sources` خالی.
+// ⚠️ هر جملهٔ «شریک» سه‌حالته است (بالا/داخل/روی برگه نیست — N4). هیچ‌کدام اورژانس نیست؛ هیچ‌کدام تشخیص نمی‌گذارد.
+const gradedOf = (e, key) => e.graded?.find((x) => x.test === key && x.value != null);
+const ulnMultiple = (a) => {
+  if (!a.assay || a.state !== "above" || a.cmp || a.titreRow) return null;
+  const hi = parseReference(a.reference)?.hi;
+  return hi > 0 ? a.value / hi : null;
+};
+const fmt1 = (x) => (Math.round(x * 10) / 10).toString();
+// غلظت (ایمونوگلوبولین): «پایین‌تر از / بالاتر از *محدودهٔ*» — نه «مرزِ» آنتی‌بادی.
+function concLine(a, id) {
+  if (!a.assay || !["below", "above", "within"].includes(a.state)) return lineOf(a, id);
+  const where = a.state === "below" ? "پایین‌تر از" : a.state === "above" ? "بالاتر از" : "داخلِ";
+  return `${faName(id)} روی برگهٔ شما ${a.shown}${a.unit ? ` ${a.unit}` : ""} است و ${where} محدودهٔ چاپ‌شدهٔ همان ردیف است.`;
+}
+
+// ── سلیاک ──
+export const TTG_NO_BIOPSY_ULN_MULTIPLE = 10;   // P136: ≥ ۱۰×ULN + EMA در نمونهٔ دوم (ESPGHAN، کودکان) — به نقلِ راهنما
+const CELIAC_IDS = ["TTG_IGA", "TTG_IGG", "DGP_IGA", "DGP_IGG", "EMA_IGA"];
+const celiacPresent = (e) => CELIAC_IDS.some((id) => present(autoAbState(e, id)));
+const GLUTEN_NOTE = "همهٔ این آزمایش‌ها فقط وقتی معتبرند که هنوز گلوتن (نان و غذاهای گندمی، جو) می‌خورید؛ پیش از تمام شدنِ بررسی‌ها رژیمِ بدونِ گلوتن را شروع نکنید.";
+// «4-10 Weak positive» روی همان ردیف: عددِ داخلِ این باند مرزی است، نه «بازه خوانده نشد» (US2-5).
+const WEAK_BAND_RE = /([\d.]+)\s*[-–]\s*([\d.]+)\s*:?\s*(weak(ly)?\s*positive|borderline|equivocal|grey|gray|مرزی|ضعیف)/i;
+function weakBand(a) {
+  if (!a.assay || a.cmp || a.value == null || !["noref", "above", "within"].includes(a.state)) return a;
+  const m = String(a.reference ?? "").match(WEAK_BAND_RE);
+  if (!m) return a;
+  const lo = Number(m[1]), hi = Number(m[2]);
+  if (a.value >= lo && a.value <= hi) return { ...a, state: "equiv", raw: `${a.shown}${a.unit ? ` ${a.unit}` : ""}` };
+  if (a.state === "noref") return { ...a, state: a.value > hi ? "above" : "within" };
+  return a;
+}
+function celiacBuild(e) {
+  const st = Object.fromEntries(CELIAC_IDS.map((id) => [id, weakBand(autoAbState(e, id))]));
+  const iga = autoAbState(e, "IGA_TOTAL");
+  const pos = CELIAC_IDS.some((id) => isPos(st[id]));
+  const urgency = urgencyOf(pos);
+  const parts = CELIAC_IDS.filter((id) => present(st[id])).map((id) => lineOf(st[id], id));
+  if (present(iga)) parts.push(concLine(iga, "IGA_TOTAL"));
+  const suggest = [];
+  const igaLow = iga.state === "below", igaOk = iga.state === "within" || iga.state === "above";
+  if (pos) {
+    const m = ulnMultiple(st.TTG_IGA);
+    if (m != null) parts.push(`tTG-IgA شما حدود ${fmt1(m)} برابرِ حدِ بالای چاپ‌شدهٔ برگه است.`);
+    parts.push("آنتی‌بادی‌های سلیاک (به‌ویژه tTG-IgA) آزمایشِ اصلیِ خونیِ بیماریِ سلیاک (حساسیتِ خودایمن به گلوتن) هستند. مثبت بودنشان احتمالِ سلیاک را بالا می‌برد ولی به‌تنهایی تشخیص نیست؛ تأیید معمولاً با آندوسکوپی و نمونه‌برداری از دوازدهه توسطِ متخصصِ گوارش است.");
+    if (m != null && m >= TTG_NO_BIOPSY_ULN_MULTIPLE) {
+      parts.push("در کودکان، وقتی tTG-IgA دست‌کم ۱۰ برابرِ حدِ بالا باشد و آنتی‌بادی اندومیزیوم (EMA) در نمونهٔ خونِ دوم هم مثبت شود، متخصصِ گوارشِ کودکان گاهی بدونِ نمونه‌برداری تشخیص می‌گذارد؛ این تصمیمِ متخصص است و در بزرگسالان معمولاً نمونه‌برداری انجام می‌شود.");
+      if (!present(st.EMA_IGA)) parts.push("EMA روی این برگه نیست.");
+    }
+    if (isPos(st.EMA_IGA)) parts.push("آنتی‌بادی اندومیزیوم (EMA) اختصاصی‌ترین آزمایشِ خونیِ سلیاک است.");
+    if ((isPos(st.TTG_IGG) || isPos(st.DGP_IGG)) && !isPos(st.TTG_IGA) && !isPos(st.EMA_IGA)) {
+      parts.push(igaOk
+        ? "وقتی IgA تامِ خون طبیعی است، آنتی‌بادی‌های نوعِ IgG (tTG-IgG یا DGP-IgG) به‌تنهایی ارزشِ تشخیصیِ کمتری دارند و آزمایشِ اصلی tTG-IgA است."
+        : igaLow ? "چون IgA تامِ شما پایین است، آنتی‌بادی‌های نوعِ IgG آزمایشِ درستِ سلیاک‌اند و مثبت بودنشان مهم است." : "");
+    }
+    suggest.push("بررسی توسط متخصص گوارش");
+  } else if (isNeg(st.TTG_IGA)) {
+    if (igaLow) {
+      parts.push("چون IgA تامِ شما پایین‌تر از محدوده است، منفی بودنِ tTG-IgA قابلِ اعتماد نیست: در کمبودِ IgA این آزمایش به‌طورِ کاذب منفی می‌شود. برای سلیاک باید آزمایشِ نوعِ IgG (DGP-IgG یا tTG-IgG) انجام شود.");
+      if (!present(st.DGP_IGG) && !present(st.TTG_IGG)) suggest.push("DGP-IgG یا tTG-IgG");
+    } else if (igaOk) {
+      parts.push("IgA تامِ شما داخلِ محدوده است، پس منفی بودنِ tTG-IgA معتبر است و شواهدی از سلیاک در این آزمایش دیده نشد.");
+    } else if (!present(iga)) {
+      parts.push("IgA تام روی این برگه نیست. برای اینکه منفی بودنِ tTG-IgA قابلِ اعتماد باشد معمولاً IgA تام هم اندازه گرفته می‌شود، چون کمبودِ IgA در افرادِ مبتلا به سلیاک شایع‌تر است و آزمایش را به‌طورِ کاذب منفی می‌کند.");
+      suggest.push("Total IgA (IgA تام)");
+    }
+  } else if (CELIAC_IDS.some((id) => isUnsure(st[id]))) {
+    parts.push(UNSURE_NOTE + " آنتی‌بادی‌های سلیاک (tTG، DGP، EMA) آزمایش‌های خونیِ بیماریِ سلیاک‌اند.");
+  } else {
+    parts.push("این فقط دربارهٔ همین آزمایش‌هاست.");
+  }
+  if (typeof e.age === "number" && e.age < 2) parts.push("در کودکِ زیرِ ۲ سال tTG-IgA حساسیتِ کمتری دارد و معمولاً همراهِ DGP-IgG سنجیده می‌شود.");
+  parts.push(GLUTEN_NOTE);
+  parts.push("اگر اسهال یا نفخِ طولانی، کاهشِ وزن، کم‌خونیِ فقرِ آهن، یا (در کودک) کندیِ رشد دارید، آن را به پزشک بگویید.");
+  return {
+    pattern: "celiac_serology_result", urgency, action: ACTION[urgency],
+    headline: pos ? "آنتی‌بادی‌های سلیاک در آزمایش شما مثبت یا بالاتر از مرز است" : "نتیجهٔ آزمایش‌های سلیاک شما",
+    must_say: parts.filter(Boolean).join(" "),
+    suggest, warnings: pos ? ["پیش از نظرِ متخصص رژیمِ بدونِ گلوتن را شروع نکنید؛ نتیجهٔ بررسی‌ها را مخدوش می‌کند."] : [],
+    explains: [...CELIAC_IDS.filter((id) => present(st[id])), ...(present(iga) ? ["IGA_TOTAL"] : [])],
+  };
+}
+
+// ── کبدِ خودایمن ──
+const LIVER_AB_IDS = ["ASMA", "ANTI_LKM1", "ANTI_SLA", "AMA", "AMA_M2"];
+function enzLine(e, keys, faList) {
+  const gs = keys.map((k) => gradedOf(e, k)).filter(Boolean);
+  if (!gs.length) return `${faList} روی این برگه نیست.`;
+  const high = gs.filter((g) => g.abnormal && g.dir === "high");
+  return high.length
+    ? `${high.map((g) => `${faName(g.test)} ${g.value}`).join("، ")} روی همین برگه بالاتر از محدوده است و باید همراهِ این آنتی‌بادی دیده شود.`
+    : `${gs.map((g) => faName(g.test)).join(" و ")} روی همین برگه داخلِ محدوده ${gs.length > 1 ? "هستند" : "است"}.`;
+}
+function liverAbBuild(e) {
+  const st = stateOf(e, LIVER_AB_IDS);
+  const aihPos = ["ASMA", "ANTI_LKM1", "ANTI_SLA"].some((id) => isPos(st[id]));
+  const pbcPos = ["AMA", "AMA_M2"].some((id) => isPos(st[id]));
+  const pos = aihPos || pbcPos;
+  const urgency = urgencyOf(pos);
+  const parts = LIVER_AB_IDS.filter((id) => present(st[id])).map((id) => lineOf(st[id], id));
+  if (aihPos) {
+    parts.push("این آنتی‌بادی‌ها با «هپاتیت خودایمنی» مرتبط‌اند: ASMA (همراهِ ANA) بیشتر در نوعِ ۱، LKM-1 در نوعِ ۲ که در کودکان و نوجوانان شایع‌تر است، و SLA/LP بسیار اختصاصی است. تشخیص به آنزیم‌های کبد، سطحِ IgG، ردِ هپاتیت‌های ویروسی و اغلب نمونه‌برداری از کبد نیاز دارد و با متخصصِ گوارش و کبد است.");
+    parts.push(enzLine(e, ["ALT", "AST"], "آنزیم‌های کبد (ALT و AST)"));
+    const igg = autoAbState(e, "IGG");
+    parts.push(igg.state === "above" ? "IgG سرم هم روی همین برگه بالاتر از محدوده است (در هپاتیت خودایمنی معمولاً بالا می‌رود)."
+      : igg.state === "within" ? "IgG سرم روی همین برگه داخلِ محدوده است." : present(igg) ? "" : "IgG سرم روی این برگه نیست.");
+  }
+  if (pbcPos) {
+    parts.push("AMA (به‌ویژه نوعِ M2) نشانگرِ اصلیِ «کلانژیتِ صفراویِ اولیه» (PBC) است، بیماریِ خودایمنِ مجاری صفراویِ ریزِ کبد که بیشتر در زنانِ میانسال دیده می‌شود؛ تشخیص با آلکالن فسفاتاز (ALP) و نظرِ متخصص گذاشته می‌شود.");
+    parts.push(enzLine(e, ["ALP"], "آلکالن فسفاتاز (ALP)"));
+  }
+  if (!pos) {
+    parts.push(LIVER_AB_IDS.some((id) => isUnsure(st[id]))
+      ? UNSURE_NOTE + " این آنتی‌بادی‌ها برای بررسیِ بیماری‌های خودایمنِ کبد (هپاتیت خودایمنی و کلانژیتِ صفراویِ اولیه) به کار می‌روند."
+      : "این فقط دربارهٔ همین آزمایش‌هاست؛ منفی بودن بیماریِ خودایمنِ کبد را کاملاً رد نمی‌کند (در فرمِ حادِ هپاتیت خودایمنی گاهی آنتی‌بادی‌ها در ابتدا منفی‌اند).");
+  }
+  return {
+    pattern: "liver_autoantibody_result", urgency, action: ACTION[urgency],
+    headline: pos ? "آنتی‌بادی‌های مرتبط با بیماریِ خودایمنِ کبد در آزمایش شما مثبت یا بالاتر از مرز است" : "نتیجهٔ آنتی‌بادی‌های کبدِ خودایمن",
+    must_say: parts.filter(Boolean).join(" "),
+    suggest: pos ? ["بررسی توسط متخصص گوارش"] : [], warnings: pos ? [CAUTION_DRUG] : [],
+    explains: LIVER_AB_IDS.filter((id) => present(st[id])),
+  };
+}
+
+// ── میاستنی گراویس ──
+export const ACHR_BINDING_POS_NMOL = 0.02;   // P136: بی‌بازهٔ چاپی و فقط با واحدِ nmol/L (Mayo، به نقلِ راهنما)
+function achrState(a) {
+  if (a.assay && a.state === "noref" && !a.cmp && a.value != null && /nmol\s*\/\s*l/i.test(String(a.unit ?? "")) && !String(a.reference ?? "").trim().replace("undefined", "")) {
+    return { ...a, state: a.value > ACHR_BINDING_POS_NMOL ? "above" : "within", fallback: true };
+  }
+  return a;
+}
+function mgBuild(e) {
+  const achr = achrState(autoAbState(e, "ACHR")), musk = autoAbState(e, "ANTI_MUSK");
+  const pos = isPos(achr) || isPos(musk);
+  const urgency = urgencyOf(pos);
+  const parts = [];
+  if (present(achr)) parts.push(achr.fallback
+    ? `${faName("ACHR")} روی برگهٔ شما ${achr.shown} ${achr.unit} است؛ بازه روی برگه چاپ نشده و در روشِ رایج بیش از ${ACHR_BINDING_POS_NMOL} nmol/L مثبت شمرده می‌شود، پس این نتیجه ${achr.state === "above" ? "مثبت" : "منفی"} است.`
+    : lineOf(achr, "ACHR"));
+  if (present(musk)) parts.push(lineOf(musk, "ANTI_MUSK"));
+  if (pos) {
+    parts.push("این آنتی‌بادی‌ها آزمایشِ اصلیِ «میاستنی گراویس»‌اند، بیماریِ خودایمنی که انتقالِ پیام از عصب به عضله را مختل می‌کند و ضعفِ پلک، دوبینی، ضعفِ عضلاتِ صورت، بلع یا اندام‌ها را می‌دهد که با خستگی بدتر می‌شود. مثبت بودن با علائمِ مناسب تشخیص را بسیار محتمل می‌کند، ولی تشخیص و درمان با متخصصِ مغز و اعصاب است.");
+    if (isPos(achr)) parts.push("در بخشی از بیماران با AChRِ مثبت تومورِ غدهٔ تیموس (تیموما) هم هست، پس پزشک معمولاً تصویربرداریِ قفسهٔ سینه می‌خواهد.");
+    if (isPos(musk)) parts.push("آنتی‌بادی MuSK بیشتر در بیمارانی دیده می‌شود که AChR منفی دارند.");
+  } else if ([achr, musk].some(isUnsure)) {
+    parts.push(UNSURE_NOTE + " این آنتی‌بادی‌ها برای بررسیِ میاستنی گراویس (ضعفِ عضلهٔ خستگی‌پذیر) به کار می‌روند.");
+  } else {
+    parts.push("منفی بودن میاستنی را رد نمی‌کند: در فرمِ فقط-چشمی بخشِ قابلِ‌توجهی از بیماران منفی‌اند، بعضی آنتی‌بادی MuSK دارند و گاهی آنتی‌بادی ماه‌ها بعد مثبت می‌شود؛ اگر افتادگیِ پلک، دوبینی یا ضعفِ خستگی‌پذیر دارید با متخصصِ مغز و اعصاب مطرح کنید.");
+  }
+  const suggest = pos ? ["بررسی توسط متخصص مغز و اعصاب"] : isNeg(achr) && !present(musk) ? ["Anti-MuSK"] : [];
+  return {
+    pattern: "mg_antibody_result", urgency, action: ACTION[urgency],
+    headline: pos ? "آنتی‌بادی‌های میاستنی گراویس در آزمایش شما مثبت یا بالاتر از مرز است" : "نتیجهٔ آنتی‌بادی‌های میاستنی گراویس",
+    must_say: parts.join(" "), suggest,
+    warnings: ["اگر تنگیِ نفس یا اختلالِ بلع دارید، فوراً به اورژانس بروید."],
+    explains: ["ACHR", "ANTI_MUSK"].filter((id) => e.ungraded?.[id]?.reason === "assay_printed"),
+  };
+}
+
+// ── ایمونوگلوبولین‌های سرم (شریک؛ تفسیرِ نقصِ ایمنی خارج از دامنه) ──
+const IG_IDS = ["IGG", "IGA_TOTAL", "IGM", "IGE"];
+function igBuild(e) {
+  // یک مالک برای هر آنالیت (N20): وقتی آزمایشِ سلیاک روی برگه است IgA تام مالِ celiac_serology_result است.
+  const ids = IG_IDS.filter((id) => !(id === "IGA_TOTAL" && celiacPresent(e)));
+  const st = stateOf(e, ids);
+  const items = ids.filter((id) => present(st[id]));
+  const child = typeof e.age === "number" && e.age < 16;
+  const low = items.filter((id) => id !== "IGE" && st[id].state === "below");
+  const high = items.filter((id) => id !== "IGE" && st[id].state === "above");
+  const parts = items.map((id) => {
+    const a = st[id];
+    if (child && a.state === "below") return `${faName(id)} روی برگهٔ شما ${a.shown}${a.unit ? ` ${a.unit}` : ""} است و کمتر از عددِ پایینِ بازهٔ چاپ‌شده (${a.reference}) است.`;
+    return concLine(a, id);
+  });
+  if (low.length) parts.push(child
+    ? "سطحِ ایمونوگلوبولین‌ها در کودکان با سن تغییر می‌کند و در خردسالان به‌طورِ طبیعی پایین‌تر از بزرگسال است؛ اگر بازهٔ چاپ‌شده برای بزرگسال باشد، این عدد را نمی‌توان «پایین» خواند. برگه را به پزشکِ کودکان نشان دهید، به‌ویژه اگر کودک عفونت‌های مکرر یا شدید دارد."
+    : "ایمونوگلوبولین‌ها آنتی‌بادی‌های کلیِ خون‌اند. پایین بودنشان می‌تواند از کمبودِ ارثی یا اکتسابیِ ساختِ آنتی‌بادی، از دست رفتنِ پروتئین از کلیه یا روده، یا داروهایی مثل کورتون باشد. اگر عفونت‌های مکرر یا شدید (سینوزیت، ذات‌الریه، عفونتِ گوش) دارید به پزشک بگویید؛ بررسی‌اش با متخصصِ ایمونولوژی بالینی است.");
+  if (high.length) parts.push("بالا بودنِ ایمونوگلوبولین‌ها معمولاً بازتابِ التهاب یا عفونتِ طولانی، بیماریِ کبد یا بیماری‌های خودایمنی است؛ گاهی هم دلیلش ساختِ یک نوع آنتی‌بادیِ یکسان (گاموپاتی) است که با الکتروفورزِ پروتئین مشخص می‌شود.");
+  if (st.IGE?.state === "above") parts.push("IgE بالا بیشتر با آلرژی (آسم، آبریزشِ آلرژیکِ بینی، اگزما) و عفونت‌های انگلی همراه است و به‌تنهایی تشخیص نیست.");
+  if (!low.length && !high.length && st.IGE?.state !== "above") parts.push(items.some((id) => isUnsure(st[id])) ? UNSURE_NOTE : "این فقط دربارهٔ همین اعداد است.");
+  return {
+    pattern: "immunoglobulin_result", urgency: "routine", action: ACTION.routine,
+    headline: low.length ? "یک یا چند ایمونوگلوبولینِ سرمِ شما پایین‌تر از بازهٔ چاپ‌شده است" : "نتیجهٔ ایمونوگلوبولین‌های سرم",
+    must_say: parts.join(" "), suggest: [], warnings: [],
+    explains: items,
+  };
+}
+
+// ── آنتی‌دی‌اِن‌آز B (کنارِ ASO) ──
+// P136: سقفِ سنی وقتی بازه چاپ نشده (U/mL، Mayo/Children's Colorado به نقلِ راهنما): < ۵ سال ۲۵۰، ۵–۱۷ سال ۳۷۵، ≥ ۱۸ سال ۳۰۰.
+export const DNASEB_ULN_BY_AGE = [[5, 250], [18, 375], [Infinity, 300]];
+const dnasebUln = (age) => (typeof age === "number" ? DNASEB_ULN_BY_AGE.find(([lim]) => age < lim)[1] : null);
+function dnasebBuild(e) {
+  let a = autoAbState(e, "ANTI_DNASEB");
+  const uln = dnasebUln(e.age);
+  let line = lineOf(a, "ANTI_DNASEB");
+  if (a.assay && a.state === "noref" && !a.cmp && a.value != null && uln != null && (!a.unit || /u\s*\/\s*ml/i.test(a.unit)) && !(a.reference && String(a.reference).trim() && String(a.reference) !== "undefined")) {
+    a = { ...a, state: a.value > uln ? "above" : "within" };
+    line = `${faName("ANTI_DNASEB")} روی برگهٔ شما ${a.shown}${a.unit ? ` ${a.unit}` : ""} است؛ بازه روی برگه چاپ نشده و حدِ بالای تقریبیِ همین سن حدود ${uln} U/mL است، پس این عدد ${a.state === "above" ? "بالاتر از آن" : "در همان محدوده"} است.`;
+  }
+  const high = isPos(a);
+  const aso = Object.keys(e.qual ?? {}).some((n) => /^(aso|antistreptolysin)/.test(String(n).toLowerCase().replace(/[\s.\-_()/]/g, "")));
+  return {
+    pattern: "dnaseb_result", urgency: "routine", action: ACTION.routine,
+    headline: high ? "آنتی‌دی‌اِن‌آز B بالاتر از حدِ معمول است" : "نتیجهٔ آنتی‌دی‌اِن‌آز B",
+    must_say: `${line} ` + (high
+      ? "این آنتی‌بادی مثلِ ASO نشانِ برخوردِ چند هفته تا چند ماهِ اخیرِ بدن با استرپتوکوکِ گروه A است؛ مدتِ بیشتری بالا می‌ماند و در عفونت‌های پوستی هم بالا می‌رود که ASO گاهی بالا نمی‌رود. خودش بیماری را ثابت نمی‌کند و فقط کنارِ علائمی مثل دردِ مفاصل، تب، ادرارِ تیره یا تورمِ صورت و پا معنا پیدا می‌کند؛ در کودکانِ مدرسه‌ای سطحِ طبیعی بالاتر است."
+      : isUnsure(a) ? UNSURE_NOTE : "یعنی در این آزمایش شواهدی از برخوردِ اخیر با استرپتوکوکِ گروه A دیده نشد.") +
+      (aso ? "" : " ASO روی این برگه نیست."),
+    suggest: [], warnings: high ? ["اگر تب، دردِ مفاصل، ادرارِ تیره یا تورمِ صورت و پا دارید، زودتر به پزشک مراجعه کنید."] : [],
+    ...(e.ungraded?.ANTI_DNASEB?.reason === "assay_printed" ? { explains: ["ANTI_DNASEB"] } : {}),
+  };
+}
+
 const ctx = (e) => ({ pregnant: e.pregnant === true });
 export const RULES_AUTOIMMUNE = [
   { id: "ana_family_result", match: (e) => anyPresent(stateOf(e, ANA_IDS)), build: (e) => anaBuild(e, ctx(e)) },
   { id: "anca_result", match: (e) => anyPresent(stateOf(e, ANCA_IDS)), build: ancaBuild },
   { id: "hla_b27_result", match: (e) => autoAbState(e, "HLA_B27").state !== "absent", build: b27Build },
   { id: "anti_ccp_result", match: (e) => autoAbState(e, "ANTI_CCP").state !== "absent", build: ccpBuild },
-  { id: "complement_result", match: (e) => ["C3", "C4"].some((id) => autoAbState(e, id).state !== "absent"), build: complementBuild },
+  { id: "complement_result", match: (e) => ["C3", "C4", "CH50"].some((id) => autoAbState(e, id).state !== "absent"), build: complementBuild },
   { id: "ssc_antibody_result", match: (e) => anyPresent(stateOf(e, SSC_IDS)), build: sscBuild },
   { id: "myositis_antibody_result", match: (e) => autoAbState(e, "JO1").state !== "absent", build: jo1Build },
   { id: "antiphospholipid_result", match: (e) => anyPresent(stateOf(e, APL_IDS)), build: aplBuild },
   { id: "tumor_markers_result", match: (e) => anyPresent(stateOf(e, TM_IDS)), build: tmBuild },
   { id: "psa_result", match: (e) => anyPresent(stateOf(e, PSA_IDS)), build: psaBuild },
   { id: "gi_stool_result", match: (e) => anyPresent(stateOf(e, GI_IDS)), build: giBuild },
+  // specs/023 (P136)
+  { id: "celiac_serology_result", match: celiacPresent, build: celiacBuild },
+  { id: "liver_autoantibody_result", match: (e) => anyPresent(stateOf(e, LIVER_AB_IDS)), build: liverAbBuild },
+  { id: "mg_antibody_result", match: (e) => ["ACHR", "ANTI_MUSK"].some((id) => present(autoAbState(e, id))), build: mgBuild },
+  { id: "immunoglobulin_result", match: (e) => IG_IDS.some((id) => present(autoAbState(e, id)) && !(id === "IGA_TOTAL" && celiacPresent(e))), build: igBuild },
+  { id: "dnaseb_result", match: (e) => present(autoAbState(e, "ANTI_DNASEB")), build: dnasebBuild },
 ];

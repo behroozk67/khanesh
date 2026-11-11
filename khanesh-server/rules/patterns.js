@@ -120,6 +120,12 @@ export const SUGGEST_TESTS = {
   "Anti-MPO": ["MPO"],
   "Anti-PR3": ["PR3"],
   "بررسی توسط متخصص روماتولوژی": ["_REFERRAL_RHEUM"],
+  // specs/023 (P136)
+  "بررسی توسط متخصص گوارش": ["_REFERRAL_GI"],
+  "بررسی توسط متخصص مغز و اعصاب": ["_REFERRAL_NEURO"],
+  "Total IgA (IgA تام)": ["IGA_TOTAL"],
+  "DGP-IgG یا tTG-IgG": ["DGP_IGG", "TTG_IGG"],
+  "Anti-MuSK": ["ANTI_MUSK"],
   "FT3": ["FT3"],
   "TSH و FT4": ["TSH", "FT4"],
   "ACTH": ["ACTH"],   // P46: cushing_likely وقتی ACTH روی برگه نیست پیشنهادش می‌کند (N8)
