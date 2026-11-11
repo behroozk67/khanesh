@@ -68,7 +68,7 @@ async function withServer(extraEnv, fn) {
       ...process.env, NODE_ENV: "production", PORT: String(port), DB_FILE: dbFile, AUTH_REQUIRED: "true", JWT_SECRET,
       AVALAI_API_KEY: "test-key-never-used", ALLOWED_ORIGINS: "https://test.local", TRUST_PROXY: "", RATE_LIMIT_MAX: "1000",
       ZARINPAL_MERCHANT_ID: "11111111-1111-1111-1111-111111111111", ZARINPAL_SANDBOX: "false",
-      REQUIRE_PAYMENT: "true", PAYMENT_EXEMPT_PHONES: "", PAYMENT_TEST_PHONES: "", SITE_ORIGIN: "https://example.test", RECONCILE_MS: "0",
+      FREE_LEDGER_SALT: "test-salt", REQUIRE_PAYMENT: "true", PAYMENT_EXEMPT_PHONES: "", PAYMENT_TEST_PHONES: "", SITE_ORIGIN: "https://example.test", RECONCILE_MS: "0",
       ...extraEnv,
     },
   });
@@ -407,5 +407,87 @@ test("تاریخچه فقط نتیجهٔ تحویل‌شده را می‌بین�
       if (!hist.count) await new Promise((r) => setTimeout(r, 100));
     }
     assert.equal(hist.count, 1, "بعد از پرداخت با همان مالک ثبت می‌شود");
+  });
+});
+
+
+// ── هدیهٔ ثبت‌نام: ۲ تفسیرِ رایگان با همهٔ امکانات در یک ماهِ اول؛ بعد پلن ──
+const DAY = 86400000;
+const grant = (db, phone, n, daysLeft) => db.run("UPDATE users SET free_credits = ?, trial_until = ? WHERE phone = ?", [n, new Date(Date.now() + daysLeft * DAY).toISOString(), phone]);
+const userRow = (db, phone) => db.get("SELECT credits, free_credits FROM users WHERE phone = ?", [phone]);
+
+test("هدیهٔ ثبت‌نام: دو تفسیرِ رایگان با امکاناتِ کامل، سومی به پیش‌فاکتور می‌رسد", async () => {
+  await withServer({}, async ({ tokenFor, call, db }) => {
+    const u = await tokenFor("09120000001");
+    await grant(db, "09120000001", 2, 30);
+    const plan = (await call("GET", "/api/plan", u)).body;
+    assert.deepEqual([plan.credits, plan.freeCredits, plan.needsPlan, plan.planId], [2, 2, false, "empire"], "اپ credits را ۲ می‌بیند و امکاناتِ کامل دارد");
+    for (let i = 1; i <= 2; i++) {
+      const job = await runJob(call, u, PANEL);
+      assert.notEqual(job.status, "awaiting_payment", `تفسیرِ رایگانِ ${i}`);
+      assert.ok(job.result?._engine?.expert, "نمای تخصصی (امکاناتِ کامل) در دورهٔ هدیه باز است");
+    }
+    const after = (await call("GET", "/api/plan", u)).body;
+    assert.deepEqual([after.credits, after.needsPlan], [0, true]);
+    assert.equal((await runJob(call, u, PANEL)).status, "awaiting_payment", "سومی باید پلن بخرد");
+  });
+});
+
+test("هدیهٔ ثبت‌نام: بعد از یک ماه می‌سوزد، ریست نمی‌شود و اعتبارِ خریداری‌شده دست‌نخورده می‌ماند", async () => {
+  await withServer({}, async ({ tokenFor, call, db }) => {
+    const u = await tokenFor("09120000001");
+    await grant(db, "09120000001", 2, -1);   // مهلت دیروز تمام شد
+    await db.run("UPDATE users SET credits = 2 WHERE phone = '09120000001'");
+    const plan = (await call("GET", "/api/plan", u)).body;
+    assert.deepEqual([plan.credits, plan.freeCredits, plan.planId], [2, 0, "starter"], "رایگانِ منقضی شمرده نمی‌شود و امکاناتِ کامل برمی‌گردد");
+    assert.notEqual((await runJob(call, u, PANEL)).status, "awaiting_payment");
+    assert.deepEqual(await userRow(db, "09120000001"), { credits: 1, free_credits: 2 }, "از خریداری‌شده کم شد، رایگانِ منقضی دست نخورد");
+    await db.run("UPDATE users SET credits = 0 WHERE phone = '09120000001'");
+    assert.equal((await runJob(call, u, PANEL)).status, "awaiting_payment", "ماهِ دوم بدونِ پلن پیش‌فاکتور");
+  });
+});
+
+test("هدیهٔ ثبت‌نام: خریدار اول رایگان را مصرف می‌کند", async () => {
+  await withServer({}, async ({ tokenFor, call, db }) => {
+    const u = await tokenFor("09120000001");
+    await give(db, "09120000001", 2, "empire");
+    await grant(db, "09120000001", 2, 30);
+    assert.notEqual((await runJob(call, u, PANEL)).status, "awaiting_payment");
+    assert.deepEqual(await userRow(db, "09120000001"), { credits: 2, free_credits: 1 });
+    assert.equal((await call("GET", "/api/plan", u)).body.credits, 3);
+  });
+});
+
+test("هدیهٔ ثبت‌نام: دو تحلیلِ هم‌زمان با ۱ اعتبارِ رایگان، فقط یکی بی‌پرداخت تحویل می‌شود", async () => {
+  await withServer({}, async ({ tokenFor, call, db }) => {
+    const u = await tokenFor("09120000001");
+    await grant(db, "09120000001", 1, 30);
+    const jobs = await Promise.all([runJob(call, u, PANEL), runJob(call, u, PANEL)]);
+    assert.deepEqual(jobs.map((j) => j.status === "awaiting_payment").sort(), [false, true], JSON.stringify(jobs.map((j) => j.status)));
+    assert.deepEqual(await userRow(db, "09120000001"), { credits: 0, free_credits: 0 });
+  });
+});
+
+test("هدیهٔ ثبت‌نام: شمارهٔ معاف و REQUIRE_PAYMENT=false بی‌تغییر می‌مانند و هدیه را مصرف نمی‌کنند", async () => {
+  const EXEMPT = "09120000009";
+  await withServer({ PAYMENT_EXEMPT_PHONES: EXEMPT }, async ({ tokenFor, call, db }) => {
+    const e = await tokenFor(EXEMPT);
+    await grant(db, EXEMPT, 2, 30);
+    const plan = (await call("GET", "/api/plan", e)).body;
+    assert.deepEqual([plan.credits, plan.freeCredits, plan.needsPlan], [0, 0, false], "معاف: عدد مثل قبل");
+    assert.notEqual((await runJob(call, e, PANEL)).status, "awaiting_payment");
+    assert.deepEqual(await userRow(db, EXEMPT), { credits: 0, free_credits: 2 });
+  });
+  const TESTER = "09120000005";
+  await withServer({ REQUIRE_PAYMENT: "false", PAYMENT_TEST_PHONES: TESTER }, async ({ tokenFor, call, db }) => {
+    const t = await tokenFor(TESTER);
+    await grant(db, TESTER, 2, 30);
+    const tp = (await call("GET", "/api/plan", t)).body;
+    assert.deepEqual([tp.credits, tp.freeCredits, tp.needsPlan], [0, 0, true], "شمارهٔ تستِ درگاه هدیه نمی‌گیرد");
+    assert.equal((await runJob(call, t, PANEL)).status, "awaiting_payment", "همان بارِ اول به درگاه می‌رسد");
+    const n = await tokenFor("09120000006");
+    await grant(db, "09120000006", 2, 30);
+    assert.notEqual((await runJob(call, n, PANEL)).status, "awaiting_payment");
+    assert.deepEqual(await userRow(db, "09120000006"), { credits: 0, free_credits: 2 });
   });
 });

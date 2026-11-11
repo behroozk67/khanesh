@@ -1,6 +1,6 @@
 // دسترسی به قابلیت‌ها بر اساس پلنِ ثبت‌شده در سرور (users.active_plan).
 // پلن را فقط verify موفقِ پرداخت عوض می‌کند؛ کلاینت فقط آن را نمایش می‌دهد.
-import { getUserPlan } from './database.js';
+import { getUserPlan, getTrialUntil } from './database.js';
 import { paymentExempt } from './paymentExempt.js';
 
 // هم‌خوان با khanesh/src/userPlan.js — قابلیت‌هایی که سرور خودش قفل می‌کند.
@@ -15,8 +15,13 @@ const paymentsOff = () => process.env.REQUIRE_PAYMENT === 'false';
 /** پلنِ مؤثرِ کاربر. ناشناس (AUTH خاموش، dev/test) و شمارهٔ معاف (PAYMENT_EXEMPT_PHONES) محدود نمی‌شوند. */
 export async function planOf(user) {
   if (paymentsOff() || !user || user.anonymous || !user.userId || paymentExempt(user)) return 'unicorn';
-  const row = await getUserPlan(user.userId);
-  return row?.active_plan || 'starter';
+  const plan = (await getUserPlan(user.userId))?.active_plan || 'starter';
+  // یک ماهِ اولِ ثبت‌نام (هدیهٔ ثبت‌نام): همهٔ امکاناتِ پلنِ پایش سلامت؛ خانواده فقط با خرید.
+  if (plan === 'starter') {
+    const until = await getTrialUntil(user.userId);
+    if (until && until > new Date().toISOString()) return 'empire';
+  }
+  return plan;
 }
 
 export async function planAllows(user, feature) {

@@ -46,6 +46,7 @@ async function withServer(nodeEnv, extraEnv, fn) {
       ZARINPAL_SANDBOX: "false",
       TRUST_PROXY: "",
       PAYMENT_EXEMPT_PHONES: "",
+      FREE_LEDGER_SALT: "test-salt",
       REQUIRE_PAYMENT: "true",   // مستقل از .envِ محلی؛ سقفِ روزانه به آن وابسته است
       ...extraEnv,
     },
@@ -210,6 +211,7 @@ for (const [name, env, label] of [
   ["مرچنت خالی", { ZARINPAL_MERCHANT_ID: "" }, "ZARINPAL"],
   ["ZARINPAL_SANDBOX روشن", { ZARINPAL_SANDBOX: "true" }, "ZARINPAL"],
   ["USE_GRAPH روشن (/api/labmat/analyze بی‌پرداخت)", { USE_GRAPH: "true" }, "USE_GRAPH"],
+  ["نمکِ دفترِ هدیه جا افتاده", { FREE_LEDGER_SALT: "" }, "FREE_LEDGER_SALT"],
 ]) {
   test(`بوتِ production رد می‌شود: ${name}`, async () => {
     const { code, stderr } = await bootResult(env);

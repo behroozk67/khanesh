@@ -1,6 +1,7 @@
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import path from 'path';
+import { createHash } from 'node:crypto';
 
 // ⚠️ اتصال *تنبل* است و عمداً در سطحِ ماژول باز نمی‌شود.
 //    باز کردنش هنگامِ import یعنی هر چیزی که این فایل را import کند — از جمله
@@ -186,8 +187,51 @@ export async function initDb() {
   if (!ucols.some((c) => c.name === 'active_plan')) {
     await db.exec("ALTER TABLE users ADD COLUMN active_plan TEXT DEFAULT 'starter'");
   }
+  // هدیهٔ ثبت‌نام: free_credits جدا از credits خریداری‌شده؛ trial_until (ISO) پایانِ یک ماهِ اول است.
+  // حساب‌های موجود هر دو را صفر/NULL می‌گیرند، پس هدیه فقط برای ثبت‌نام‌های بعد از استقرار است.
+  if (!ucols.some((c) => c.name === 'free_credits')) {
+    await db.exec('ALTER TABLE users ADD COLUMN free_credits INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!ucols.some((c) => c.name === 'trial_until')) {
+    await db.exec('ALTER TABLE users ADD COLUMN trial_until TEXT');
+  }
+  // دفترِ هدیه: با حذفِ حساب و ثبت‌نامِ دوباره با همان شماره، هدیه دوباره داده نمی‌شود. کلید هشِ شماره است، نه خودِ شماره.
+  await db.exec(`CREATE TABLE IF NOT EXISTS free_grant_ledger (
+    identity_hash TEXT PRIMARY KEY, remaining INTEGER NOT NULL, trial_until TEXT NOT NULL)`);
+  // برای سقفِ روزانهٔ کل: زمانِ هدیه (NULL برای هدیهٔ یک‌بارهٔ کاربرانِ موجود، تا سقف را مصرف نکند)
+  const lcols = await db.all('PRAGMA table_info(free_grant_ledger)');
+  if (!lcols.some((x) => x.name === 'granted_at')) await db.exec('ALTER TABLE free_grant_ledger ADD COLUMN granted_at TEXT');
 
+  await grantExistingUsersV2(db);
   console.log("✅ Database initialized");
+}
+
+/**
+ * یک‌بار: کاربرانِ موبایلیِ موجود هم هدیهٔ ثبت‌نام (۲ تفسیر، یک ماه) را می‌گیرند. user_version=2 جلوی تکرار را می‌گیرد.
+ * ردیفِ دفتر با granted_at=NULL ساخته می‌شود تا سقفِ روزانهٔ ثبت‌نام‌های تازه را مصرف نکند.
+ * production بدونِ نمک بوت رد می‌شود؛ مهاجرت هم در آن حالت اجرا نمی‌شود تا هشِ اشتباه در دفتر نماند.
+ */
+async function grantExistingUsersV2(db) {
+  const { user_version: v } = await db.get('PRAGMA user_version');
+  const n = signupCredits();
+  if (v >= 2 || n === 0) return;
+  if (process.env.NODE_ENV === 'production' && !process.env.FREE_LEDGER_SALT) return;
+  const trial = new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString();
+  const release = await beginTx(db);
+  try {
+    const rows = await db.all('SELECT id, phone FROM users WHERE phone IS NOT NULL AND trial_until IS NULL');
+    for (const u of rows) {
+      await db.run('INSERT OR IGNORE INTO free_grant_ledger (identity_hash, remaining, trial_until) VALUES (?, ?, ?)', [identityHash(u.phone), n, trial]);
+      await db.run('UPDATE users SET free_credits = ?, trial_until = ? WHERE id = ?', [n, trial, u.id]);
+    }
+    await db.exec('PRAGMA user_version = 2');
+    await db.exec('COMMIT');
+  } catch (e) {
+    await db.exec('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    release();
+  }
 }
 
 /**
@@ -230,7 +274,27 @@ export async function getUser(phone) {
 
 export async function createUser(phone) {
   const db = await dbConn();
-  const result = await db.run(`INSERT INTO users (phone) VALUES (?)`, [phone]);
+  // هدیهٔ ثبت‌نام فقط برای حسابِ موبایلی (ایمیل هدیه ندارد). دفتر مانع هدیهٔ دوباره بعد از حذفِ حساب می‌شود:
+  // ردیفِ دفتر هست ⇒ همان ماندهٔ قبلی و همان مهلت؛ نیست ⇒ هدیهٔ تازه، مگر سقفِ روزانهٔ کل پر باشد.
+  // shortcut: سقف «بخوان، بعد بنویس» است؛ ثبت‌نامِ هم‌زمان می‌تواند چند هدیه از سقف بگذرد. اگر مسئله شد، در تراکنش ببر.
+  const hash = identityHash(phone);
+  const n = signupCredits();
+  let g = await db.get(`SELECT remaining, trial_until FROM free_grant_ledger WHERE identity_hash = ?`, [hash]);
+  if (!g && n > 0) {
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const day = (await db.get(`SELECT COUNT(*) c FROM free_grant_ledger WHERE granted_at > ?`, [since])).c;
+    if (day >= envInt('FREE_SIGNUP_DAILY_MAX', 200)) {
+      console.error(`[FREE-GRANT] هدیه داده نشد: سقفِ روزانهٔ کل (امروز ${day} هدیه).`);
+    } else {
+      const trial = new Date(Date.now() + TRIAL_DAYS * 86400000).toISOString();
+      await db.run(
+        `INSERT OR IGNORE INTO free_grant_ledger (identity_hash, remaining, trial_until, granted_at) VALUES (?, ?, ?, ?)`,
+        [hash, n, trial, new Date().toISOString()]
+      );
+      g = await db.get(`SELECT remaining, trial_until FROM free_grant_ledger WHERE identity_hash = ?`, [hash]);
+    }
+  }
+  const result = await db.run(`INSERT INTO users (phone, free_credits, trial_until) VALUES (?, ?, ?)`, [phone, g?.remaining ?? 0, g?.trial_until ?? null]);
   return { id: result.lastID, phone };
 }
 
@@ -313,6 +377,9 @@ export async function deleteUserCascade(userId) {
     await db.run(`DELETE FROM lab_events WHERE ${owners}`, ownerArgs);
     await db.run(`DELETE FROM family_members WHERE user_id = ?`, [userId]);
     await db.run(`DELETE FROM profiles WHERE user_id = ?`, [userId]);
+    // ماندهٔ هدیه در دفتر می‌ماند تا حذف + ثبت‌نامِ دوباره با همان شماره هدیه را برنگرداند
+    const u = await db.get(`SELECT phone, free_credits FROM users WHERE id = ?`, [userId]);
+    if (u?.phone) await db.run(`UPDATE free_grant_ledger SET remaining = ? WHERE identity_hash = ?`, [u.free_credits, identityHash(u.phone)]);
     await db.run(`DELETE FROM users WHERE id = ?`, [userId]);
     await db.exec('COMMIT');
   } catch (e) {
@@ -644,10 +711,51 @@ export async function addUserCredits(userId, creditsToAdd, planId) {
   );
 }
 
-export async function deductUserCredit(userId) {
+const TRIAL_DAYS = 30;
+// FREE_SIGNUP_CREDITS=0 هدیه را خاموش می‌کند؛ نبود/نامعتبر ⇒ ۲. (نه `Number(x) || 2`: آن صفر را ۲ می‌کرد.)
+function envInt(name, dflt) {
+  const n = Number.parseInt(process.env[name], 10);
+  return Number.isInteger(n) && n >= 0 ? n : dflt;
+}
+const signupCredits = () => envInt('FREE_SIGNUP_CREDITS', 2);
+// نمکِ جدا از JWT_SECRET: عوض‌شدنِ راز نباید دفترِ هدیه را بی‌اثر کند. هرگز عوضش نکن. production بدونِ آن بوت نمی‌شود.
+const saltHash = (kind, v) => createHash('sha256').update(`${process.env.FREE_LEDGER_SALT || 'dev'}:${kind}:${v}`).digest('hex');
+const identityHash = (phone) => saltHash('id', phone);
+
+/** ماندهٔ هدیهٔ ثبت‌نام که هنوز در مهلتش است (پس از یک ماه می‌سوزد و ریست نمی‌شود). */
+export async function getFreeCredits(userId) {
+  if (!userId) return 0;
+  const db = await dbConn();
+  const row = await db.get(`SELECT free_credits FROM users WHERE id = ? AND trial_until > ?`, [userId, new Date().toISOString()]);
+  return row?.free_credits ?? 0;
+}
+
+/** تا این زمان کاربر امکاناتِ پلنِ پایش سلامت را دارد (هدیهٔ ثبت‌نام)؛ NULL برای حساب‌های قدیمی. */
+export async function getTrialUntil(userId) {
+  if (!userId) return null;
+  const db = await dbConn();
+  return (await db.get(`SELECT trial_until FROM users WHERE id = ?`, [userId]))?.trial_until ?? null;
+}
+
+/**
+ * یک تفسیر از اعتبار کم می‌کند: free=true ⇒ اول هدیهٔ ثبت‌نام (اگر مهلتش نگذشته)، بعد خریداری‌شده.
+ * یک UPDATE (SET روی مقدارِ قدیمیِ ردیف حساب می‌شود)، پس دو درخواستِ هم‌زمان یک اعتبار را دو بار نمی‌گیرند و منفی نمی‌شود.
+ */
+export async function deductUserCredit(userId, { free = false } = {}) {
   if (!userId) return false;
   const db = await dbConn();
-  const r = await db.run(`UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0`, [userId]);
+  if (!free) {
+    const r = await db.run(`UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0`, [userId]);
+    return r.changes === 1;
+  }
+  const now = new Date().toISOString();
+  const r = await db.run(
+    `UPDATE users
+     SET free_credits = CASE WHEN free_credits > 0 AND trial_until > ? THEN free_credits - 1 ELSE free_credits END,
+         credits      = CASE WHEN free_credits > 0 AND trial_until > ? THEN credits ELSE credits - 1 END
+     WHERE id = ? AND ((free_credits > 0 AND trial_until > ?) OR credits > 0)`,
+    [now, now, userId, now]
+  );
   return r.changes === 1;
 }
 

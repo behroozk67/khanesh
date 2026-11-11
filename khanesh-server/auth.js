@@ -255,9 +255,9 @@ router.post('/verify-otp', otpVerifyLimiter, async (req, res) => {
   const err = checkCode(`phone:${phone}`, req.body?.code);
   if (err) return res.status(400).json({ error: err });
   try {
+    const dev = String(req.get('x-device-id') ?? req.body?.deviceId ?? '').trim();
     const user = await findOrCreate(getUser, createUser, phone);
     // اتصالِ تاریخچهٔ ثبت‌شده روی همین دستگاه به حسابِ کاربر
-    const dev = String(req.get('x-device-id') ?? req.body?.deviceId ?? '').trim();
     if (/^[A-Za-z0-9_-]{8,64}$/.test(dev)) {
       const devOwner = `d:${createHash('sha256').update(dev).digest('hex').slice(0, 24)}`;
       await linkDeviceHistoryToUser(devOwner, `u:${user.id}`).catch(() => {});

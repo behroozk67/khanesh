@@ -87,7 +87,7 @@ import {
   initDb, createJobRecord, updateJobResult, getUserJobs, getJobById,
   getLatestCompletedJob, saveContactMessage,
   createPaymentRecord, getPaymentByAuthority, markPaymentVerifying, settlePaymentRecord, listStuckPayments, markPaymentFailed,
-  getUserCredits, addUserCredits, deductUserCredit, getUserPlan, countRecentJobs
+  getUserCredits, addUserCredits, deductUserCredit, getUserPlan, countRecentJobs, getFreeCredits
 } from "./database.js";
 import { notifyNewContactMessage } from "./notifier.js";
 import { getZarinpalConfig, requestPayment, verifyPayment, listUnverified } from "./zarinpal.js";
@@ -514,6 +514,10 @@ function paymentApplies(user) {
   return !!real && !paymentExempt(user)
     && (process.env.REQUIRE_PAYMENT !== "false" || paymentExempt(user, process.env.PAYMENT_TEST_PHONES));
 }
+
+// سهمیهٔ رایگانِ ماهانه فقط وقتی پرداخت واقعاً روشن است: با REQUIRE_PAYMENT=false شمارهٔ PAYMENT_TEST_PHONES
+// برای تستِ درگاه است و باید همان بارِ اول به پیش‌فاکتور برسد. ناشناس و معاف از paymentApplies بیرون‌اند.
+const freeQuotaApplies = (user) => paymentApplies(user) && process.env.REQUIRE_PAYMENT !== "false";
 
 // OCR و مدل پیش از پیش‌فاکتور اجرا می‌شوند، پس کاربرِ بی‌اعتبار بی‌پرداخت هزینه می‌سازد: سقفش کمتر است.
 // شمارش از جدولِ jobs است تا ری‌استارت سقف را صفر نکند؛ dailyUserLimiterِ در-حافظه جلوی رگبارِ هم‌زمان را می‌گیرد.
@@ -2205,7 +2209,7 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, withMember, an
 
       // اگر کاربر وارد شده و اعتبار از پیش خریداری‌شده دارد
       const hasCredit = (!skipPayment && userId && !req.user.anonymous)
-        ? await deductUserCredit(userId)
+        ? await deductUserCredit(userId, { free: freeQuotaApplies(req.user) })
         : false;
 
       if (skipPayment || hasCredit) {
@@ -2321,9 +2325,11 @@ app.get("/api/plan", requireAllowedOrigin, requireAuth, withMember, async (req, 
   // needsPlan: پرداخت برای این کاربر برقرار است و اعتبار ندارد ⇒ کلاینت پیش از تفسیر به /pricing می‌برد.
   const real = req.user?.userId && !req.user.anonymous;
   const applies = paymentApplies(req.user);
-  const credits = row?.credits ?? 0;
+  // credits = خریداری‌شده + سهمیهٔ رایگانِ این ماه، تا اپِ موبایلِ بی‌تغییر درست نشان دهد؛ freeCredits جداگانه.
+  const freeCredits = freeQuotaApplies(req.user) ? await getFreeCredits(req.user.userId) : 0;
+  const credits = (row?.credits ?? 0) + freeCredits;
   const hasLatestResult = !!real && !!(await getLatestCompletedJob(req.user.userId, "", req.memberId ?? null));
-  res.json({ planId, credits, paymentsOff: process.env.REQUIRE_PAYMENT === "false", needsPlan: !!applies && credits <= 0, paymentApplies: !!applies, hasLatestResult, plans: Object.values(PLAN_CONFIG).map(({ id, name, price, credits: c }) => ({ id, name, price, credits: c })) });
+  res.json({ planId, credits, freeCredits, paymentsOff: process.env.REQUIRE_PAYMENT === "false", needsPlan: !!applies && credits <= 0, paymentApplies: !!applies, hasLatestResult, plans: Object.values(PLAN_CONFIG).map(({ id, name, price, credits: c }) => ({ id, name, price, credits: c })) });
 });
 
 // ============================================================
@@ -2702,6 +2708,8 @@ function assertProductionConfig() {
   if (getZarinpalConfig().isSandbox) bad.push("ZARINPAL_MERCHANT_ID/ZARINPAL_SANDBOX");
   // /api/labmat/analyze پرداخت و کسرِ اعتبار ندارد؛ روشن بودنش یعنی تفسیرِ رایگان برای هر کاربرِ واردشده.
   if (USE_GRAPH) bad.push("USE_GRAPH");
+  // دفترِ هدیهٔ ثبت‌نام با این نمک هش می‌شود؛ نبودنش یعنی هشِ قابل‌حدس با مقدارِ پیش‌فرضِ داخلِ مخزن.
+  if (process.env.FREE_SIGNUP_CREDITS !== "0" && !process.env.FREE_LEDGER_SALT) bad.push("FREE_LEDGER_SALT");
   if (bad.length) throw new Error(`تنظیماتِ ناامن در production: ${bad.join(", ")}`);
 }
 

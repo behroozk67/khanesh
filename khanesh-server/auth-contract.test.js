@@ -235,7 +235,8 @@ test("T34: مهاجرتِ users — پایگاهِ قدیمی (phone NOT NULL) �
   const u = await createUserWithEmail("new@example.ir");
   assert.ok(u.id > 1);
   const chk = await open({ filename: oldFile, driver: sqlite3.Database });
-  assert.equal((await chk.get("PRAGMA user_version")).user_version, 1);
+  assert.equal((await chk.get("PRAGMA user_version")).user_version, 2);   // 1 = users بازسازی، 2 = هدیهٔ یک‌بارهٔ کاربرانِ موجود
+  assert.equal((await chk.get("SELECT free_credits f FROM users WHERE id = 1")).f, 2, "کاربرِ قدیمی هدیه می‌گیرد");
   assert.equal((await chk.get("SELECT user_id FROM jobs WHERE id='j1'")).user_id, 1);
   // پایگاهی که profiles را بی‌ستونِ age_recorded_at ساخته بود، با ALTER به‌روز می‌شود (بازبینیِ کد #1).
   assert.ok((await chk.all("PRAGMA table_info(profiles)")).some((c) => c.name === "age_recorded_at"));
