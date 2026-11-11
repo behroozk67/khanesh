@@ -41,7 +41,8 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA, h
           fontWeight: "800",
           lineHeight: 1.1,
           direction: "rtl",
-          color: ink 
+          whiteSpace: "nowrap", // «آزمایار اپ» دوکلمه‌ای است و در هدرِ صفحه‌های محتوا دوخطی می‌شد
+          color: ink
         }}>
           {BRAND_FA}
         </span>
@@ -51,6 +52,7 @@ export function LabMateLogo({ height = 68, variant = "dark", title = BRAND_FA, h
           fontWeight: "700", 
           color: sloganInk,
           direction: "rtl",
+          whiteSpace: "nowrap",
           marginTop: '4px'
         }}>
           {BRAND_SLOGAN}
