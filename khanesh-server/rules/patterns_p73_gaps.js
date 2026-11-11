@@ -475,6 +475,16 @@ const ammoniaMildHigh = {
 function whoSeverity(e, hb) {
   return e.age == null ? null : anemiaSeverityFa(e, hb);
 }
+// برگهٔ HIS (۲۰۲۶-۱۱-۱۱، P137): Hctِ پایینِ همان برگه زیرِ کارتِ کم‌خونی در «توضیح نداریم» می‌افتاد (N18).
+//   «هم‌سو» فقط وقتی دو عدد با هم جورند (Hb÷Hct×۱۰۰ = MCHC در ۲۸–۳۸)؛ Hct ۱۸ کنارِ Hb ۹ جور نیست و در تورِ بی‌توضیح می‌ماند (M179c).
+//   ⚠️ عمداً بیرون از build: RULE_READS سورسِ قاعده را می‌خواند و نامِ کلید در آن، Hctِ ناسازگار را هم «پوشش‌داده» می‌کرد؛
+//   این‌جا پوشش فقط از متنِ دیده‌شده می‌آید.
+function concordantLowHctLine(e, hb) {
+  const h = g(e, "HCT");
+  if (!lo(h) || !(h.value > 0)) return "";
+  const mchc = hb.value / h.value * 100;
+  return mchc >= 28 && mchc <= 38 ? `هماتوکریت هم ${h.value} است (حد طبیعی ${h.range}) و هم‌سو با هموگلوبینِ پایین است. ` : "";
+}
 const anemiaHbAlone = {
   id: "anemia_hb_alone",
   match: (e) => lo(g(e, "HGB")) && !anyFires(e, P73_OWNERS.anemia),
@@ -491,6 +501,7 @@ const anemiaHbAlone = {
     // P107 (L12): در بارداری Hb < ۹ ⇒ ارجاعِ صریح به پزشکِ زنان/ماما در همین هفته (جمله، نه فوریتِ تازه).
     const pregLow = !!e.pregnant && hb.value < 9;
     const sev = whoSeverity(e, hb.value);
+    const hctLine = concordantLowHctLine(e, hb);
     return {
       pattern: "anemia_hb_alone",
       urgency,
@@ -500,6 +511,7 @@ const anemiaHbAlone = {
       must_say:
         `هموگلوبین شما ${hb.value} است (حد طبیعی ${hb.range})؛ یعنی کم‌خونی. ` +
         (sev ? `بر پایهٔ طبقه‌بندیِ سازمان جهانی بهداشت برای سن${e.pregnant ? " و بارداریِ" : "ِ"} شما، این کم‌خونیِ ${sev} است. ` : "") +
+        hctLine +
         "هموگلوبین به‌تنهایی علت را نمی‌گوید. برای پیدا کردنِ علت معمولاً حجمِ گلبول قرمز (MCV) و بقیهٔ شاخص‌های CBC، فریتین (ذخیرهٔ آهن)، رتیکولوسیت، و در صورتِ لزوم B12 و فولات خواسته می‌شود؛ چون درمانِ هر نوع فرق دارد و بدونِ دانستنِ علت نباید خودسرانه قرصِ آهن شروع کرد. " +
         comp(e, K.MCV, "حجم گلبول قرمز (MCV)") + " " + comp(e, K.FERRITIN, "فریتین") +
         (anemiaInflammationFa(e) ? ` ${anemiaInflammationFa(e).trim()}` : ""),

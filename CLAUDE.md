@@ -329,6 +329,18 @@ Rules:
   - A kit-dependent antibody stored as a graded key needs the printed range first (`PRINTED_FIRST_KEYS`, the P114 shape); "the assay path reads the printed range" only covers keys that take that path.
   - Probe the printed limit in both directions (below and above the engine's limit). A probe that sits mid-range never shows either error.
 
+**N56 — A hospital HIS sheet: LDH 338 against «Adult: <65year up to 480 / >65year up to 530» was told high; Hb «%g» was not judged; urea and ALP vanished.** (P137; commit: this change.)
+- **What happened:**
+  - `parseReference` knew sex bands, not age bands, so the LDH range was unread and the engine's 100–250 came back. That produced a false finding, three extra tests recommended, and a cut health score with LDH as the worst value in «خون‌سازی».
+  - `%g` was missing from the g/dL spellings. The 4-band Hb range was unreadable and the sheet had no MCHC/MCH, so nothing decided the unit.
+  - Tariff names («اندازه گیری کمی اوره خون/سرم/ پلاسما») and OCR's «(ALP (ALK» were unmapped. The same OCR shape had already been fixed for AST/ALT only.
+- **What I got wrong on the way:** my first report blamed «تا N», found on a synthetic panel. The real sheet's cause was the age bands. **Reproduce on the real sheet text before naming a cause.**
+  - The user's document also claimed "anaemia in a man". The interpretation had run with a female profile.
+- **Rules:**
+  - A multi-band printed range picks the band from sex *and* age, and gives a verdict only when every non-excluded band agrees (N50).
+  - Stripping name affixes is a fallback after an exact miss. It never strips a specimen that changes identity (urine).
+  - `RULE_READS` scans a rule's source, so naming a key in `build` marks it covered even when the text omits it. A conditional mention belongs in a helper outside `build`.
+
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
 [environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).

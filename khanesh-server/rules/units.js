@@ -336,7 +336,8 @@ export function toConventional(engineKey, value, unit) {
 // املاهای رایجِ واحدِ متعارف روی برگه‌ها (پس از normUnit). ng/L = pg/mL و µg/L = ng/mL عیناً برابرند.
 const CONV_ALIASES = {
   'mg/dL':  ['mg/dl', 'mg%', 'mgr/dl', 'mgr%', 'mg/100ml', 'mg/deciliter'],
-  'g/dL':   ['g/dl', 'gr/dl', 'gm/dl', 'g%', 'gr%', 'g/100ml'],
+  // «%g» (برگهٔ HIS ۲۰۲۶-۱۱-۱۱): گرم در صد میلی‌لیتر، همان g/dL با ترتیبِ عکس.
+  'g/dL':   ['g/dl', 'gr/dl', 'gm/dl', 'g%', 'gr%', 'g/100ml', '%g', '%gr', '%gm'],
   'µg/dL':  ['µg/dl', 'μg/dl', 'ug/dl', 'mcg/dl', 'µg%', 'mcg%'],
   'ng/mL':  ['ng/ml', 'µg/l', 'μg/l', 'ug/l', 'mcg/l'],
   'pg/mL':  ['pg/ml', 'ng/l'],
@@ -491,7 +492,9 @@ const LOWER_RE = new RegExp(`^(?:>|≥|>=)\\s*${N}\\D*$`);
 function parseSegment(seg) {
   const s = seg
     // P110-ج (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): «Up to: 6» با دونقطه null می‌شد ⇒ CRPِ ۵ کنارِ «Up to: 6» «ممکن است خارج از محدوده» می‌خواند.
-    .replace(/(up\s*to|less\s*than|کمتر\s*از)\s*:?/g, '<').replace(/(more\s*than|greater\s*than|بیشتر\s*از)\s*:?/g, '>')
+    .replace(/(up\s*to|less\s*than|کمتر\s*از)\s*:?/g, '<')
+    // «تا 480» (فقط در آغاز؛ «10 تا 20» جداکنندهٔ بازه است و RANGE_RE آن را می‌خواند).
+    .replace(/^\s*تا\s*:?/, '<').replace(/(more\s*than|greater\s*than|بیشتر\s*از)\s*:?/g, '>')
     .replace(/[()[\]]/g, ' ').replace(/^[^\d<>≤≥]+/, '').trim();
   let m;
   if ((m = s.match(RANGE_RE))) { const lo = +m[1], hi = +m[2]; return lo < hi ? { lo, hi } : null; }
@@ -504,6 +507,8 @@ function asciiRef(str) {
   return String(str).replace(/[۰-۹٠-٩٫]/g, (c) => FA_DIGITS[c])
     // «1,000-5,000»: کامای پیش از دقیقاً سه رقم جداکنندهٔ هزارگان است، نه ممیز (پیش‌تر {lo:1, hi:5} می‌شد).
     .replace(/(\d),(\d{3})(?!\d)/g, '$1$2')
+    // OCR «female : 0 .6-1.3»: فاصلهٔ پیش از ممیز (برگهٔ HIS ۲۰۲۶-۱۱-۱۱).
+    .replace(/(\d)\s+\.(?=\d)/g, '$1.')
     .replace(/,/g, '.').trim().toLowerCase();
 }
 
@@ -512,10 +517,13 @@ function asciiRef(str) {
  * پوشش: «0.6-1.2»، «<200»، «(13.5-17.5)»، «Desirable:<200»، «0.6-1.2 mg/dL» و خطِ دوجنسی
  * («M: 0.7-1.3 F: 0.6-1.1»): با جنسِ معلوم همان جنس، وگرنه پوششِ هر دو (کمینهٔ lo، بیشینهٔ hi).
  */
-export function parseReference(str, sex = null) {
+export function parseReference(str, sex = null, age = null) {
   if (str == null) return null;
   const s = asciiRef(str);
   if (!s) return null;
+  // برگهٔ HIS (۲۰۲۶-۱۱-۱۱): باندهای سنی («Adult : <65year: up to 480 >65year: up to 530»، «Male… Children… newborn…»).
+  const banded = parseLabelledBands(s, sex, age);
+  if (banded !== undefined) return banded;
   const parts = s.split(/(male|female|(?<![a-z])[mf](?![a-z])|مرد|زن)/);
   if (parts.length > 1) {
     // برچسب *بعد* از عدد («13-17 (M) 12-15 (F)») یا برچسبِ سوم («Child»): جفت‌کردنِ برچسب و بازه مبهم است —
@@ -538,6 +546,70 @@ export function parseReference(str, sex = null) {
   return parseSegment(s);
 }
 
+// ═══ باندهای برچسب‌دارِ سن (+ جنس) — برگهٔ HIS ۲۰۲۶-۱۱-۱۱ ═══
+// «LDH 338، Adult : <65year: up to 480 u/l >65year:up to 530 u/l» خوانده نمی‌شد ⇒ بازهٔ موتور (۱۰۰–۲۵۰) ⇒ «بالا»، یافتهٔ همولیز
+//   و کسرِ امتیاز. قاعده (N50): هر باندی که با سن/جنسِ بیمار *ناسازگار نیست* نامزد است؛ فقط اگر همهٔ نامزدها یک بازه بدهند
+//   همان برگردانده می‌شود، وگرنه null («شاهد نیست»). سن به سالِ کامل است (N53): «>65» برای ۶۵ ساله «شاید» است.
+// فقط وقتی دست‌کم یک برچسبِ سنی و دو باند هست؛ وگرنه `undefined` ⇒ مسیرِ قبلی دست‌نخورده.
+const AGE_LABEL_SRC = String.raw`adults?|بزرگسال(?:ان)?|child(?:ren)?|kids?|کودک(?:ان)?|infants?|شیرخوار(?:ان)?|newborns?|neonates?|نوزاد(?:ان)?|(?:<=|>=|<|>|≤|≥)\s*\d+\s*(?:years?|yrs?|y|سال)(?![a-z])|\d+\s*(?:-|to|تا)\s*\d+\s*(?:years?|yrs?|y|سال)(?![a-z])`;
+const SEX_LABEL_SRC = String.raw`female|male|(?<![a-z])(?:women|men)(?![a-z])|(?<![a-z])[mf](?![a-z])|مرد|زن`;
+const BAND_LABEL_RE = new RegExp(`(${AGE_LABEL_SRC})|(${SEX_LABEL_SRC})`, 'g');
+const CHILD_AGE = /^(child|kid|کودک)/, NEWBORN_AGE = /^(newborn|neonate|نوزاد)/, INFANT_AGE = /^(infant|شیرخوار)/, ADULT_AGE = /^(adult|بزرگسال)/;
+
+/** یک شرطِ سنی برای سنِ `age` (سالِ کامل): 'yes' | 'no' | 'maybe'. */
+function ageFits(label, age, hasYoung) {
+  if (age == null) return 'maybe';
+  if (ADULT_AGE.test(label)) return age >= 18 ? 'yes' : age < 12 ? 'no' : 'maybe';
+  if (NEWBORN_AGE.test(label)) return age < 1 ? 'maybe' : 'no';
+  if (INFANT_AGE.test(label)) return age < 1 ? 'yes' : 'no';
+  if (CHILD_AGE.test(label)) return age >= 18 ? 'no' : (age >= 12 || (age < 1 && hasYoung)) ? 'maybe' : 'yes';
+  let m;
+  if ((m = label.match(/^(<=|>=|<|>|≤|≥)\s*(\d+)/))) {
+    const n = +m[2], op = m[1];
+    if (op === '<') return age < n ? 'yes' : 'no';
+    if (op === '>=' || op === '≥') return age >= n ? 'yes' : 'no';
+    if (op === '>') return age > n ? 'yes' : age === n ? 'maybe' : 'no';
+    return age < n ? 'yes' : age === n ? 'maybe' : 'no';   // ≤ n
+  }
+  if ((m = label.match(/^(\d+)\s*(?:-|to|تا)\s*(\d+)/))) {
+    const a = +m[1], b = +m[2];
+    return age >= a && age < b ? 'yes' : age === b ? 'maybe' : 'no';
+  }
+  return 'maybe';
+}
+
+function parseLabelledBands(s, sex, age) {
+  const labels = [...s.matchAll(BAND_LABEL_RE)];
+  if (!labels.some((l) => l[1])) return undefined;
+  // متنِ پیش از اولین برچسب عدد دارد ⇒ جفت‌کردنِ برچسب و بازه مبهم است (همان قاعدهٔ خطِ دوجنسی).
+  if (/\d/.test(s.slice(0, labels[0].index))) return null;
+  const bands = [];
+  let cur = { ages: [], sex: null };
+  for (let i = 0; i < labels.length; i++) {
+    const l = labels[i];
+    if (l[1]) cur.ages.push(l[1].trim());
+    else cur.sex = /^(m|male|men|مرد)$/.test(l[2]) ? 'M' : 'F';
+    const seg = s.slice(l.index + l[0].length, i + 1 < labels.length ? labels[i + 1].index : s.length);
+    if (!/\d/.test(seg)) continue;   // «Adult : <65year:» — برچسب‌های پشتِ‌سرِهم یک باند‌اند
+    const range = parseSegment(seg.replace(/^[\s:：\-=]+/, ''));
+    if (!range) return null;
+    bands.push({ ...cur, range });
+    cur = { ages: [], sex: null };
+  }
+  if (bands.length < 2) return undefined;
+  const hasYoung = bands.some((b) => b.ages.some((a) => NEWBORN_AGE.test(a) || INFANT_AGE.test(a)));
+  const hasChild = bands.some((b) => b.ages.some((a) => CHILD_AGE.test(a) || NEWBORN_AGE.test(a) || INFANT_AGE.test(a)));
+  const cands = bands.filter((b) => {
+    // باندِ فقط-جنس کنارِ باندِ کودک/نوزاد، باندِ بزرگسال است.
+    const ages = b.ages.length ? b.ages : hasChild ? ['adult'] : [];
+    if (ages.some((a) => ageFits(a, age, hasYoung) === 'no')) return false;
+    return !(b.sex && sex && b.sex !== sex);
+  });
+  if (!cands.length) return null;
+  const same = cands.every((b) => b.range.lo === cands[0].range.lo && b.range.hi === cands[0].range.hi);
+  return same ? cands[0].range : null;
+}
+
 /**
  * واحدِ نوشته‌شده *داخلِ* ستونِ مرجع («0.6-1.2 mg/dL») — اگر یکی از سیستم‌های این کلید باشد، همان است.
  * این خودِ واحدِ چاپ‌شده است، فقط در ستونِ دیگر.
@@ -557,8 +629,8 @@ export function unitInReference(key, reference) {
 }
 
 /** عدد نسبت به محدودهٔ چاپ‌شدهٔ همان ردیف: 'above' | 'below' | 'within' | null. واحدش هرچه باشد، عدد و محدوده یکی است. */
-export function printedVerdict(reference, value, sex = null) {
-  const r = parseReference(reference, sex);
+export function printedVerdict(reference, value, sex = null, age = null) {
+  const r = parseReference(reference, sex, age);
   if (!r || value == null || !Number.isFinite(value)) return null;
   if (r.hi != null && value > r.hi) return 'above';
   if (r.lo != null && value < r.lo) return 'below';
@@ -641,7 +713,7 @@ export function extraUnitContradicted(key, unit, reference, sex, age) {
   const u0 = normUnit(unit);
   const alt = u0 && (EXTRA_PRINTED_UNITS[key] ?? []).find(([re]) => re.test(u0));
   if (!alt) return false;
-  const printed = parseReference(reference, sex);
+  const printed = parseReference(reference, sex, age);
   const band = getRef(key, sex, age ?? 40);
   if (!printed || !band) return false;
   // محدوده به کدام بازه نزدیک‌تر است: بازهٔ متعارفِ موتور (واحدِ اصلی) یا همان بازه در واحدِ چاپ‌شده؟
@@ -677,7 +749,7 @@ export function decideUnit(key, value, reference, sex, age) {
   // ⚠️ نوزاد: بازهٔ موتور برای بیلی‌روبینِ نوزاد بازهٔ نوزادی نیست؛ مقایسه با آن ×۱.۳۷ «µmol/L» را
   //    برمی‌گزید و «۱۴ mg/dL» به «۰.۸۲ mg/dL، طبیعی» تبدیل می‌شد (بازبینی، B1). تعیین نمی‌کنیم.
   const bandMismatch = /^BILI_/.test(key) && age != null && age < 1;
-  const printed = parseReference(reference, sex);
+  const printed = parseReference(reference, sex, age);
   const band = getRef(key, sex, age ?? 40);
   // ۲۰۲۶-۱۰-۱۶: دروازه برای *هر سیستمِ نامزد* است، نه کلِ کلید — برای کلیدِ دوسیستمی همان minSystemRatio است (رفتار یکی)؛
   //   برای T3 «80-200» هنوز ng/dL تعیین می‌شود ولی «0.52-2.1» (nmol/L یا ng/mL؟) تعیین‌نشده می‌ماند.

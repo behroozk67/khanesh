@@ -61,6 +61,9 @@ function norm(s) {
     .replace(/[\s._\-\/()%#,]/g, "")   // «،»/«,» هم: «Glucose, Fasting»، «Potassium, Serum»
     .replace(/[يی]/g, "ی")
     .replace(/[كک]/g, "ک")
+    // برگهٔ ایرانی (۲۰۲۶-۱۱-۱۱): «ة/ۀ» ⇒ «ه»؛ کشیده (ـ) و اعراب حذف — هیچ کلیدی در NAME_MAP این نویسه‌ها را ندارد.
+    .replace(/[ةۀ]/g, "ه")
+    .replace(/[ـً-ْ]/g, "")
     .replace(/\u200c/g, "")   // نیم‌فاصله
     .trim();
 }
@@ -215,6 +218,8 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   urinecalcium24h: "U_CA", calcium24hurine: "U_CA", ucalcium: "U_CA",
   کلسیمادرار: "U_CA", کلسیمادرار۲۴ساعته: "U_CA", دفعکلسیمادرار: "U_CA",
   ast: "AST", sgot: "AST", astsgot: "AST",
+  // برگهٔ HIS (۲۰۲۶-۱۱-۱۱): OCR «ALP (ALK)» را «(ALP (ALK» برمی‌گرداند ⇒ «alpalk»؛ همان شکلِ astsgot/altsgpt.
+  alpalk: "ALP", alkalp: "ALP",
   alt: "ALT", sgpt: "ALT", altsgpt: "ALT",
   alkp: "ALP", alp: "ALP", alkalinephosphatase: "ALP",
   bilit: "BILI_T", bilid: "BILI_D",   // P111: املاي واقعیِ برگه («BILIT»/«BILID» چاپ می‌شود)
@@ -683,7 +688,24 @@ function resolveAlias(key) {
     const b = NAME_MAP[key.slice(i)];
     if (a && b && a === b) return a;
   }
+  // برگهٔ HIS (۲۰۲۶-۱۱-۱۱): نامِ تعرفه‌ایِ «اندازه گیری کمی اوره خون/سرم/ پلاسما» ⇒ «اوره». فقط وقتی نامِ خام نگاشت نشد.
+  const base = stripHisAffixes(key);
+  if (base !== key) return NAME_MAP[base] ?? resolveAlias(base);
   return undefined;
+}
+
+// پیشوندِ تعرفه و پسوندِ نمونهٔ *خونی*. «ادرار/urine» عمداً نیست: کراتینینِ ادرار ≠ کراتینینِ سرم (N25).
+//   حذف هیچ نامِ موجودِ NAME_MAP را به کلیدِ دیگری نمی‌برد (بررسیِ ۹۹۴ نام، HIS1 در his_names.test.js).
+const HIS_PREFIXES = ["اندازهگیریکمی", "اندازهگیریکیفی", "اندازهگیری", "سنجشکمی", "سنجش"];
+const HIS_SPECIMEN_SUFFIXES = ["پلاسما", "سرم", "خون", "serum", "plasma"];
+export function stripHisAffixes(key) {
+  let s = key;
+  for (const p of HIS_PREFIXES) if (s.startsWith(p) && s.length > p.length + 1) { s = s.slice(p.length); break; }
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const x of HIS_SPECIMEN_SUFFIXES) if (s.endsWith(x) && s.length > x.length + 1) { s = s.slice(0, -x.length); changed = true; }
+  }
+  return s;
 }
 
 // ═══ specs/004 (FR-011): مخففِ دوحرفی فقط با واحدِ غلظتِ سرم/پلاسما ═══
@@ -2805,9 +2827,9 @@ function absPrintedRange(printed, key = "") {
 
 /** P114: بازهٔ چاپ‌شدهٔ یک ردیف → [lo, hi] در واحدِ موتور؛ یک‌طرفهٔ «< 530» با کفِ ۰.
  *  برای LDH که سقفِ کیت‌ها ۲۴۰–۵۳۰ است، مرجعِ خودِ آزمایشگاه سنجهٔ درست است. */
-function printedRangePair(printed) {
+function printedRangePair(printed, age = null) {
   if (!printed) return null;
-  const p = parseReference(String(printed), null);
+  const p = parseReference(String(printed), null, age);
   if (!p || p.hi == null || !(p.hi > 0)) return null;
   return [p.lo ?? 0, p.hi];
 }
@@ -2931,7 +2953,7 @@ export function runEngine(ocr, opts = {}) {
   };
   for (const [key, { value, reference }] of Object.entries(unitUnknown)) {
     const band = getRef(key, sex, age ?? 40, { pregnant: pregnantF });
-    const printed = parseReference(reference, sex);
+    const printed = parseReference(reference, sex, age);
     const neonatalBili = /^BILI_/.test(key) && age != null && age < 1;
     const entry = { value, reason: "unit_unknown", alt: verdictsAcrossSystems(key, value, sex, age),
       units: UNIT_PROFILE[key].systems.length, ...(unitUnknown[key].printedUnit ? { printedUnit: unitUnknown[key].printedUnit } : {}) };
@@ -2947,7 +2969,7 @@ export function runEngine(ocr, opts = {}) {
     if (scale != null) {
       entry.basis = "printed_range";
       entry.printed = { lo: printed.lo, hi: printed.hi };
-      entry.position = printedVerdict(reference, value, sex);
+      entry.position = printedVerdict(reference, value, sex, age);
       entry.urgency = entry.position === "within" ? "none" : urgencyOfReading(key, value * scale);
       // بیرون از محدودهٔ خودِ آزمایشگاه هرگز «بی‌اهمیت» نیست
       if (entry.position !== "within") entry.urgency = maxUrg(entry.urgency, "routine");
@@ -2992,7 +3014,7 @@ export function runEngine(ocr, opts = {}) {
         entry.neonatal = newborn;
         // متن از محدودهٔ خودِ آزمایشگاه حرف بزند، نه از بازهٔ بزرگسالِ موتور («۱۵۰ کنارِ <205» داخلِ محدوده است).
         if (printed) Object.assign(entry, { basis: "printed_range", printed: { lo: printed.lo, hi: printed.hi },
-          position: printedVerdict(reference, value, sex) });
+          position: printedVerdict(reference, value, sex, age) });
         // 🔴 بازبینی B9: نوزادِ زیرِ یک ماه، بی‌محدوده — «کمینهٔ خوانش‌ها» ۲۰ را «این هفته» می‌کرد، در حالی که همان
         //    ۲۰ با mg/dL چاپ‌شده bilirubin_emergency است. خوانشِ µmol/L با بازه‌ای سنجیده می‌شود که نوزادی نیست
         //    (ریشهٔ B1)، پس کمینه اینجا کم‌خوانی است. بدترین خوانش برنده است. هزینهٔ آگاهانه: عددِ بی‌واحدِ ۱۲.۵ تا ۶۰
@@ -3001,7 +3023,7 @@ export function runEngine(ocr, opts = {}) {
           const worst = urgs.reduce((a, b) => (URG_RANK[a] >= URG_RANK[b] ? a : b));
           if (worst === "emergency" && possible.length > 1) entry.worstReading = true;
           entry.urgency = maxUrg(entry.urgency, worst);
-        } else if (printedVerdict(reference, value, sex) === "above" && urgs.length) {
+        } else if (printedVerdict(reference, value, sex, age) === "above" && urgs.length) {
           entry.urgency = maxUrg(entry.urgency, urgs.reduce((a, b) => (URG_RANK[a] >= URG_RANK[b] ? a : b)));
         }
       }
@@ -3011,10 +3033,10 @@ export function runEngine(ocr, opts = {}) {
   // بند ۵ (تصمیمِ «ب»): CK-MBِ بی‌واحد — همان قاعدهٔ unit_unknown_values، با «دو واحدِ رایج» و بی‌هیچ خوانشِ تبدیلی (دو سنجه، نه دو واحدِ
   //   یک سنجه). فوریت عادی؛ محدودهٔ چاپ‌شدهٔ همان ردیف، اگر بود، فقط جملهٔ «در/بیرون از محدودهٔ آزمایشگاه» را می‌سازد و فوریت را بالا نمی‌برد.
   if (ckmbUnitless && tests.CK_MB == null) {
-    const printed = parseReference(ckmbUnitless.reference, sex);
+    const printed = parseReference(ckmbUnitless.reference, sex, age);
     const entry = { value: ckmbUnitless.value, reason: "unit_unknown", units: 2, urgency: "routine" };
     if (printed) Object.assign(entry, { basis: "printed_range", printed: { lo: printed.lo, hi: printed.hi },
-      position: printedVerdict(ckmbUnitless.reference, ckmbUnitless.value, sex) });
+      position: printedVerdict(ckmbUnitless.reference, ckmbUnitless.value, sex, age) });
     else Object.assign(entry, { basis: "readings", level: "none" });
     ungraded.CK_MB = entry;
   }
@@ -3024,7 +3046,7 @@ export function runEngine(ocr, opts = {}) {
     const cbc = tests.WBC != null || Object.keys(tests).some((k) => /^(NEUT|LYMPH|MONO|EOS|BASO)_(PCT|ABS)$/.test(k));
     // P96 (تصمیمِ بازبین ۲۰۲۶-۱۰-۰۶): بازهٔ Mixed را عددِ ثابتِ موتور نمی‌دهد؛ فقط اگر برگه بازهٔ چاپ‌شدهٔ خودِ دستگاه دارد، موقعیتِ عدد نسبت به *همان* گفته می‌شود.
     if (cbc) ungraded.MIXED = { value: diffMixed.value, unit: diffMixed.unit, reason: "diff_mixed",
-      ...(diffMixed.reference && printedVerdict(diffMixed.reference, diffMixed.value, sex) ? { reference: String(diffMixed.reference), position: printedVerdict(diffMixed.reference, diffMixed.value, sex) } : {}) };
+      ...(diffMixed.reference && printedVerdict(diffMixed.reference, diffMixed.value, sex, age) ? { reference: String(diffMixed.reference), position: printedVerdict(diffMixed.reference, diffMixed.value, sex, age) } : {}) };
     else unmapped.push(diffMixed.name);
   }
 
@@ -3056,7 +3078,7 @@ export function runEngine(ocr, opts = {}) {
 
     // P96 (تصمیمِ کاربر/بازبین ۲۰۲۶-۱۰-۰۶، [209] — سنِ ۲): کراتینینِ شیرخوار/نوپا (< ۳ سال، همان بازهٔ سنیِ ردیفِ RCPCH در refs_ped.js) فقط وقتی برگه بازهٔ چاپ‌شده دارد حکم می‌گیرد. بازهٔ RCPCH به روشِ سنجشِ
     //   Jaffe/آنزیمی و به سنِ دقیق حساس است و بدونِ بازهٔ خودِ آزمایشگاه پرچمِ بالینی نمی‌دهیم؛ عدد نام برده می‌شود (noRef) تا بی‌صدا گم نشود (N28).
-    if (key === "CREAT" && age != null && age < 3 && !(printedRefs.CREAT && parseReference(printedRefs.CREAT, sex))) {
+    if (key === "CREAT" && age != null && age < 3 && !(printedRefs.CREAT && parseReference(printedRefs.CREAT, sex, age))) {
       noRef.push(key);
       ungraded.CREAT = { value, reason: "infant_no_printed_range" };
       continue;
@@ -3155,7 +3177,7 @@ export function runEngine(ocr, opts = {}) {
     //   پیش‌تر «بالاتر از حد طبیعی» و یافتهٔ همولیز می‌شد.
     //   ⚠️ فقط بزرگسال: در کودک، قاعدهٔ P96 عمداً درجه‌بندی را با بازهٔ موتور نگه می‌دارد و سقفِ چاپ‌شده را
     //   فقط برای فوریت به کار می‌برد (p96.test.js) — این تصمیم دست‌نخورده می‌ماند.
-    const printedOwn = key === "LDH" && !(age != null && age < 16) ? printedRangePair(printedRefs.LDH)
+    const printedOwn = key === "LDH" && !(age != null && age < 16) ? printedRangePair(printedRefs.LDH, age)
       // آنتی‌بادیِ پایین هرگز غیرطبیعی نیست: فقط سقفِ چاپی («RF 3، برگه 5–20» نباید «پایین» شود).
       : PRINTED_FIRST_KEYS.has(key) ? (printedRangePair(printedRefsAll[key]) ? [0, printedRangePair(printedRefsAll[key])[1]] : null) : null;
     const ref = absRef ?? printedOwn ?? ((NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF }));
@@ -3163,7 +3185,7 @@ export function runEngine(ocr, opts = {}) {
       // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): T3 Uptake و FTI موتور برایشان مرجعِ داخلی ندارد، ولی خودِ آزمایشگاه بازه
       //   چاپ کرده (۲۴–۳۵٪ و ۱٫۴–۳٫۴). پیش‌تر «محدوده مرجع ندارد — تفسیر نشد» می‌شدند. حالا بازهٔ چاپ‌شده
       //   (بی‌هیچ تبدیلِ واحد؛ عدد و بازه از یک ستون‌اند) سنجه است و منبعش صریح نوشته می‌شود.
-      const ownRef = PRINTED_REF_ONLY_KEYS.has(key) && printedRefsAll[key] ? parseReference(printedRefsAll[key], sex) : null;
+      const ownRef = PRINTED_REF_ONLY_KEYS.has(key) && printedRefsAll[key] ? parseReference(printedRefsAll[key], sex, age) : null;
       const ownPrinted = ownRef && ownRef.hi > 0 ? [ownRef.lo ?? 0, ownRef.hi] : null;
       if (ownPrinted) {
         graded.push({ test: key, value, range: `${ownPrinted[0]}–${ownPrinted[1]}`,
@@ -3367,7 +3389,7 @@ export function runEngine(ocr, opts = {}) {
     const raw = printedRefsAll[g.test];
     const m = /^(-?[\d.]+)–(-?[\d.]+)$/.exec(String(g.range ?? ""));
     if (!raw || !m) continue;
-    const pr0 = parseReference(raw, sex);
+    const pr0 = parseReference(raw, sex, age);
     if (!pr0) continue;
     const f = convFactor.get(g.test) ?? 1;
     const pr = { lo: pr0.lo == null ? null : pr0.lo * f, hi: pr0.hi == null ? null : pr0.hi * f };
@@ -3394,13 +3416,13 @@ export function runEngine(ocr, opts = {}) {
     if (g.ctcaeGrade != null && g.ctcaeGrade > 1) continue;
     const raw = printedRefsAll?.[g.test];
     if (!raw) continue;
-    const pr = parseReference(raw, sex);
+    const pr = parseReference(raw, sex, age);
     const band = getRef(g.test, sex, age ?? 40, { pregnant: pregnantF });
     if (!pr || !band) continue;
     const near = (a, b) => !(a > 0 && b > 0) || (a / b <= 1.5 && b / a <= 1.5);
     if (pr.hi != null && !near(pr.hi, band[1])) continue;
     if (pr.lo != null && !near(pr.lo, band[0])) continue;
-    if (printedVerdict(raw, g.value, sex) !== "within") continue;
+    if (printedVerdict(raw, g.value, sex, age) !== "within") continue;
     Object.assign(g, {
       abnormal: false, dir: null, patient: null, tag: "normal",
       fa: "در محدودهٔ چاپ‌شدهٔ برگه", printedNormal: true, printedRange: String(raw),
@@ -3459,7 +3481,7 @@ export function runEngine(ocr, opts = {}) {
     // سنِ بارداری (هفته) — فقط بارداریِ اعلام‌شده با هفتهٔ واردشده؛ نبودنش یعنی «نامعلوم» (تا فریزها دست نخورند).
     ...(gestWeeksF != null ? { gestWeeks: gestWeeksF } : {}),
     // P96: سقفِ چاپ‌شدهٔ LDH — برای کودک ULN از بازهٔ خودِ برگه گرفته می‌شود (isolated_ldh_elevation).
-    ...(printedRefs.LDH && parseReference(printedRefs.LDH, sex)?.hi > 0 ? { ldhPrintedHi: parseReference(printedRefs.LDH, sex).hi } : {}),
+    ...(printedRefs.LDH && parseReference(printedRefs.LDH, sex, age)?.hi > 0 ? { ldhPrintedHi: parseReference(printedRefs.LDH, sex, age).hi } : {}),
     unitConversions,
     noRef,
     diffFailed,
