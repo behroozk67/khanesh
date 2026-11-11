@@ -22,7 +22,7 @@ import { LabMateMark } from './LabMateLogo.jsx';
 import { loadProfile } from './onboarding/profileStore.js';
 import {
   BAND_TONE, DISCLAIMER_FA, EMERGENCY_BANNER, STATE_RANK, clamp, fmtNum, fmtDate,
-  normTest, scoreSystemsOf, scoreTone, toFa, TONE_WORD, NO_SCORE_FA,
+  normTest, scoreSystemsOf, scoreTone, toFa, TONE_WORD, NO_SCORE_FA, RADAR_MIN_SYSTEMS,
 } from './resultModel.js';
 import './ResultReport.css';
 
@@ -110,7 +110,7 @@ function Radar({ systems, overall, tone, why }) {
 
   return (
     <>
-      {n >= 3 && (
+      {n >= RADAR_MIN_SYSTEMS && (
         <svg className="krep__radar" viewBox="0 0 100 100" role="img"
           aria-label={`امتیازِ دستگاه‌های بدن: ${scored.map((s) => `${s.title} ${toFa(s.score)}`).join('، ')}`}>
           <defs>
@@ -140,7 +140,7 @@ function Radar({ systems, overall, tone, why }) {
       )}
       {overall != null && (
         <p className="krep__overall">
-          {n < 3 && <><b className={`krep-t-${tone}`}>{toFa(overall)}</b>{' '}</>}
+          {n < RADAR_MIN_SYSTEMS && <><b className={`krep-t-${tone}`}>{toFa(overall)}</b>{' '}</>}
           <span>مرورِ سریع از ۱۰۰</span>{' '}
           <small className={`krep-t-${tone}`}>{TONE_WORD[tone]}</small>
         </p>

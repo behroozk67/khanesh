@@ -149,3 +149,20 @@ test("HIS9: Mixedِ بالاتر از بازهٔ برگه ⇒ یافتهٔ routi
     assert.ok(mixedLine(e2, p2.findings), String(mx));
   }
 });
+
+// ── P139 (کاربر ۲۰۲۶-۱۱-۱۱): عدد و رادارِ سلامت فقط با دست‌کم ۴ دستگاه ──
+test("HIS10: کمتر از ۴ دستگاه ⇒ بی‌عددِ کل (one_system) ولی امتیازِ هر دستگاه می‌ماند؛ ۴ دستگاه ⇒ عدد", async () => {
+  const { healthScore, MIN_SYSTEMS } = await import("./score.js");
+  assert.equal(MIN_SYSTEMS, 4);
+  const three = [T("Ca", 7.2, "mg/dL", "8.5-10.5"), T("Albumin", 2.5, "g/dL"), T("Creatinine", 2.1, "mg/dL"),
+    T("Na", 138, "mEq/L"), T("Cl", 100, "mEq/L"), T("HCO3", 18, "mEq/L")];
+  const e3 = runEngine({ patient: { age: 50, sex: "M" }, tests: three }); const s3 = healthScore(e3, runPatterns(e3));
+  assert.equal(s3.value, null); assert.equal(s3.reason, "one_system");
+  assert.equal(s3.systems.filter((x) => x.score != null).length, 3);
+  const e4 = runEngine({ patient: { age: 50, sex: "M" }, tests: [...three, T("Hb", 14, "g/dL"), T("WBC", 7, ""), T("PLT", 250, "")] });
+  const s4 = healthScore(e4, runPatterns(e4));
+  assert.ok(s4.value != null, JSON.stringify(s4.reason));
+  // برگهٔ HIS: خون‌سازی، کبد، کلیه ⇒ ۳ دستگاه ⇒ بی‌عدد.
+  const eh = runEngine({ patient: { age: 40, sex: "F" }, tests: SHEET });
+  assert.equal(healthScore(eh, runPatterns(eh)).reason, "one_system");
+});

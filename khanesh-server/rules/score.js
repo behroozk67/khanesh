@@ -26,7 +26,9 @@ export const URGENCY_CAP = { emergency: 35, soon: 55, this_week: 75, routine: 90
 const SYSTEM_CAP_URGENCIES = new Set(['soon', 'this_week', 'routine']);
 
 export const MIN_BUCKETS = 5;
-export const MIN_SYSTEMS = 2;
+// P139 (کاربر ۲۰۲۶-۱۱-۱۱): عددِ «سلامت» از دو دستگاه بیش از آنچه برگه می‌داند ادعا می‌کرد (CBC + یک آزمایش). کمتر از ۴ ⇒ فقط امتیازِ هر دستگاه.
+//   reason همان 'one_system' می‌ماند (قرارداد با کلاینت)؛ معنایش «کمتر از MIN_SYSTEMS دستگاه» است.
+export const MIN_SYSTEMS = 4;
 const MEAN_W = 0.65, WORST_W = 0.35, WORST_SYSTEM_SLACK = 30;
 
 /** هشت دستگاه، به همین ترتیب در خروجی. */

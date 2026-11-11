@@ -6,7 +6,7 @@ import { LabMateMark } from './LabMateLogo.jsx';
 import { recordScore, hashStr } from './scoreHistory.js';
 import './ResultDashboard.css';
 import {
-  BAND_TONE, NO_SCORE_FA, STATE_RANK, SYS_TITLE, TONE_WORD, clamp, defaultAsText,
+  BAND_TONE, NO_SCORE_FA, RADAR_MIN_SYSTEMS, STATE_RANK, SYS_TITLE, TONE_WORD, clamp, defaultAsText,
   fmtDate, fmtNum, normTest, num, scoreSystemsOf, scoreTone, sysKey, toFa,
 } from './resultModel.js';
 
@@ -479,7 +479,7 @@ function RadarCard({ id, systems, overall, score, urgency, focusKey, onSelect })
         info="عددِ مرور از حکمِ موتور ساخته می‌شود: در محدوده کامل، هرچه دورتر از محدوده (برحسبِ پهنای همان محدوده) کمتر، و هرگز بیشتر از درجهٔ شدت (CTCAE) اگر موتور داده باشد. آزمایش‌های هم‌خانواده (مثل PT و INR) یک‌بار شمرده می‌شوند. دستگاهی که یافته‌ای با فوریتِ مشخص دارد از سقفِ همان فوریت بالاتر نمی‌رود. عددِ کل میانگینِ وزنیِ دستگاه‌هاست و بیش از ۳۰ واحد از ضعیف‌ترین دستگاه بالاتر نمی‌رود. در برگهٔ اورژانسی عددی نشان داده نمی‌شود. این عدد برای مرورِ سریع است، جای نظرِ پزشک را نمی‌گیرد و اعتبارسنجیِ بالینی نشده است."
       />
       {why && n > 0 && <p className="kd-countline kd-countline--why">{why}</p>}
-      {n >= 3 ? (
+      {n >= RADAR_MIN_SYSTEMS ? (
         <div className="kd-radar__plot">
           <svg viewBox="0 0 100 100" aria-hidden="true">
             {[0.25, 0.5, 0.75].map((k) => (
