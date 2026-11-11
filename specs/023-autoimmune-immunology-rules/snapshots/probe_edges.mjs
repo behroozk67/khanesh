@@ -1,0 +1,17 @@
+const R = "file:///C:/Users/surface/Desktop/khanesh-project/khanesh-server/rules/";
+const { runEngine } = await import(R + "adapter.js"); const { runPatterns } = await import(R + "patterns.js");
+const T = (name, value, unit, reference = "") => ({ name, value: String(value), unit, reference });
+const one = (label, tests, pt = { age: 35, sex: "F" }) => { const e = runEngine({ patient: pt, tests }); const p = runPatterns(e);
+  console.log(`\n## ${label} → ${p.overall_urgency} unmapped=${JSON.stringify(e.unmapped)} graded=${e.graded.map(g=>g.test+":"+g.range+":"+g.abnormal).join(",")}`);
+  for (const f of p.findings) console.log(`  [${f.rule_id}] ${f.urgency}: ${(f.must_say || "").slice(0, 300)}`); };
+one("TPO 20 printed <30", [T("Anti-TPO", 20, "IU/mL", "<30")]);
+one("TPO 20 no range", [T("Anti-TPO", 20, "IU/mL", "")]);
+one("Anti-Centromere", [T("Anti-Centromere", 3, "U", "<1.0")]);
+one("ANA (IIF) 1:160", [T("ANA (IIF)", "1:160", "", "")]);
+one("ANA 0.5 U neg", [T("ANA", "0.5", "U", "<1.0")]);
+one("ANA ELISA 2 weak", [T("ANA", "2.0", "Index", "<1.0 Negative, 1.1-2.9 weak positive")]);
+one("dsDNA 120 child 8y", [T("Anti-dsDNA", 120, "IU/mL", "<100")], { age: 8, sex: "F" });
+one("Anti-dsDNA CLIFT 1:20", [T("Anti-dsDNA (CLIFT)", "1:20", "", "<1:10")]);
+one("aCL IgG 30 (low pos)", [T("Anticardiolipin IgG", 30, "GPL", "<20")]);
+one("ASO 450 adult", [T("ASO", 450, "IU/mL", "")]);
+one("RF 18 with <15 printed", [T("RF", 18, "IU/mL", "<15")]);
