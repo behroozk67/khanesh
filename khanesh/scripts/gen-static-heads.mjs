@@ -66,7 +66,7 @@ const footerHtml = `
       </div>
       <div>
         <a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu' style="background:#fff;border-radius:8px;padding:6px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.1);border:1px solid #e2e8f0" title="نماد اعتماد الکترونیکی آزمایار (اینماد)">
-          <img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu' alt='نماد اعتماد الکترونیکی' style='cursor:pointer;width:80px;height:auto;display:block' code='M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu'>
+          <img referrerpolicy='origin' id='enamad-seal-img-static' src='https://trustseal.enamad.ir/logo.aspx?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu' onerror="this.onerror=null;this.src='/enamad.webp';" alt='نماد اعتماد الکترونیکی' loading='lazy' decoding='async' width='80' height='87' style='cursor:pointer;width:80px;height:auto;display:block' code='M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu'>
         </a>
       </div>
     </div>

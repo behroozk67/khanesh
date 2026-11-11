@@ -86,7 +86,9 @@ encryption at rest, and deletion are now open questions that the code does not a
 ## Rate limiting and `TRUST_PROXY`
 
 `POST /api/analyze` makes one or more billed AvalAI calls (OCR + analysis) and has no
-authentication, so it is rate-limited per client IP.
+authentication, so it is rate-limited per client IP. `/api/analyze/start` and `/api/labmat/analyze` also
+have `dailyUserLimiter`: 10 starts per signed-in user per 24 h, in memory (a restart resets it), with
+`PAYMENT_EXEMPT_PHONES` numbers and anonymous requests exempt.
 
 ⚠️ **`TRUST_PROXY` must match the real deployment.** Behind Nginx, `req.ip` is the proxy's
 address unless Express is told how many hops to trust:

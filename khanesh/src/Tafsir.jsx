@@ -618,8 +618,17 @@ export default function Tafsir() {
             >
               <img
                 referrerPolicy="origin"
+                id="enamad-seal-img-tafsir"
                 src="https://trustseal.enamad.ir/logo.aspx?id=8488659&Code=M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
                 alt="نماد اعتماد الکترونیکی اینماد"
+                loading="lazy"
+                decoding="async"
+                width="75"
+                height="82"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = "/enamad.webp";
+                }}
                 style={{ cursor: 'pointer', width: '75px', height: 'auto', display: 'block' }}
                 code="M4ajbdzV1RRAtLResAT3LFUtlu4MDGuu"
               />
