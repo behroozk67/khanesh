@@ -451,6 +451,13 @@ export function routeSerology(key, t, sexHint = null) {
     }
     // specs/023 (N25): ایمونوگلوبولینِ سرم فقط با واحدِ غلظتِ خودش؛ «IgG 250 AU/mL» زیرِ CMV ایمونوگلوبولینِ کل نیست.
     if (IG_UNIT_RE[aiKey] && !IG_UNIT_RE[aiKey].test(`${t.unit ?? ""} ${t.value ?? ""} ${t.reference ?? ""}`)) return { to: "unmapped" };
+    // N25: «EMA» روی برگهٔ خون همان آزمونِ اتصالِ eosin-5'-maleimide (اسفروسیتوز، ٪ یا MCF) هم هست. EMAِ عددی فقط با نامِ صریحِ
+    //   IgA/اندومیزیوم/آنتی‌بادی و هرگز با ٪ یا MCF؛ نامِ بی‌پسوندِ «EMA» فقط با واژه یا تیتر.
+    if (aiKey === "EMA_IGA") {
+      const all = `${t.unit ?? ""} ${t.value ?? ""} ${t.reference ?? ""}`;
+      const explicit = /iga|endomys|ab$|antibod/.test(k);
+      if (/%|mcf|fluorescen/i.test(all) || (!explicit && qualVerdict(faDigits(t.value)).state === "num" && !/^\s*1\s*[:/]\s*\d+\s*$/.test(faDigits(t.value)))) return { to: "unmapped" };
+    }
     const v = readAutoValue(t.value, aiKey);
     // specs/023 (P136، G2): تیترِ بی‌واژه در برابرِ تیترِ چاپ‌شدهٔ همان ردیف («Anti-dsDNA (CLIFT) 1:20»، مرجع «<1:10»).
     //   پیش‌تر هر تیترِ بی‌واژه (غیر از ANA) «بی‌حکم» می‌شد، حتی وقتی برگه مرزِ تیتر را چاپ کرده بود.

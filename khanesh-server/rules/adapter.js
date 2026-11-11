@@ -3156,7 +3156,8 @@ export function runEngine(ocr, opts = {}) {
     //   ⚠️ فقط بزرگسال: در کودک، قاعدهٔ P96 عمداً درجه‌بندی را با بازهٔ موتور نگه می‌دارد و سقفِ چاپ‌شده را
     //   فقط برای فوریت به کار می‌برد (p96.test.js) — این تصمیم دست‌نخورده می‌ماند.
     const printedOwn = key === "LDH" && !(age != null && age < 16) ? printedRangePair(printedRefs.LDH)
-      : PRINTED_FIRST_KEYS.has(key) ? printedRangePair(printedRefsAll[key]) : null;
+      // آنتی‌بادیِ پایین هرگز غیرطبیعی نیست: فقط سقفِ چاپی («RF 3، برگه 5–20» نباید «پایین» شود).
+      : PRINTED_FIRST_KEYS.has(key) ? (printedRangePair(printedRefsAll[key]) ? [0, printedRangePair(printedRefsAll[key])[1]] : null) : null;
     const ref = absRef ?? printedOwn ?? ((NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF }));
     if (!ref) {
       // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): T3 Uptake و FTI موتور برایشان مرجعِ داخلی ندارد، ولی خودِ آزمایشگاه بازه

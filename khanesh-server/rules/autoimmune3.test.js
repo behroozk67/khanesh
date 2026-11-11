@@ -61,6 +61,12 @@ test("AI3-02: RF 18 با برگهٔ «<15» بالاست (rf_positive)؛ RF 12 �
   const b = run([T("RF", 12, "IU/mL", "<15")]);
   assert.equal(b.e.graded.find((x) => x.test === "RF").abnormal, false);
   assert.ok(!b.f.some((f) => f.rule_id === "rf_positive"));
+  // آنتی‌بادیِ پایین غیرطبیعی نیست: «RF 3، برگه 5–20» و «TPO 2، برگه 1–34» نه «پایین» و نه «توضیح نداریم».
+  for (const [n, v, ref, key] of [["RF", 3, "5-20", "RF"], ["Anti-TPO", 2, "1-34", "ANTI_TPO"]]) {
+    const r = run([T(n, v, "IU/mL", ref)]);
+    assert.equal(r.e.graded.find((x) => x.test === key).abnormal, false, n);
+    assert.ok(!r.f.some((f) => f.rule_id === "unmatched_abnormal"), n);
+  }
 });
 
 test("AI3-03: بی‌بازهٔ چاپی، TPO و RF مثلِ قبل با بازهٔ داخلی سنجیده می‌شوند", () => {
@@ -232,6 +238,12 @@ test("AI3-21: هم‌نام‌ها (N25): IgGِ با AU/mL، IgG4، IgG index، 
   assert.ok(!r.f.some((f) => NEW_IDS.includes(f.rule_id)));
   const tg = run([T("Thyroglobulin", 20, "ng/mL", "<55"), T("Anti-Tg", 200, "IU/mL", "<115")]);
   assert.ok(!tg.f.some((f) => NEW_IDS.includes(f.rule_id)));
+  // «EMA» با ٪ آزمونِ eosin-5'-maleimide (اسفروسیتوز) است، نه آنتی‌بادی اندومیزیوم.
+  for (const t of [T("EMA", 65, "%", ">80"), T("EMA binding test", 65, "%", ">80"), T("EMA", 40, "MCF", "")]) {
+    const r = run([t]);
+    assert.ok(!r.f.some((f) => f.rule_id === "celiac_serology_result"), `${t.name} ${t.unit} نباید سلیاک شود`);
+  }
+  assert.ok(run([T("EMA", "Positive")]).f.some((f) => f.rule_id === "celiac_serology_result"));
 });
 
 // ── FR-015: هیچ ردیفِ تازه‌ای در «تفسیر نشدند» یا «توضیح نداریم» ──
