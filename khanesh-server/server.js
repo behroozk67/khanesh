@@ -1548,7 +1548,7 @@ const analyzeHandler = async (req, res) => {
       const specLine = specimenLine(engineOut.specimen, patternOut.findings);
       if (specLine) ocrWarnings.push(specLine);
       // بند ۵: ردیفِ Mixedِ افتراقیِ CBC — شناخته، بی‌حکم؛ یک جملهٔ توضیح به‌جای «تفسیرشان نمی‌کند».
-      const mxLine = mixedLine(engineOut);
+      const mxLine = mixedLine(engineOut, patternOut.findings);
       if (mxLine) ocrWarnings.push(mxLine);
       // P49: مقداری که یافته‌ای تفسیرش کرده (ویلسون، آنتی‌بادی کنارِ B12ِ پایین) در این خط نمی‌آید.
       const noRefShown = unexplainedNoRef(engineOut.noRef, patternOut.findings);

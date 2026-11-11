@@ -72,7 +72,7 @@ const RULE_GROUP_LISTS = {
     transferrin_abnormal smear_rbc_size hct_rbc_high iron_markers_high anemia_hb_alone iron_low_alone rdw_high tibc_high tibc_low`),
   wbc: T(`extreme_leukocytosis leukocytosis neutrophilia leukopenia severe_neutropenia mild_neutropenia neutrophil_count_missing
     monocytosis monocytopenia lymphopenia eosinophilia basophilia viral_lymphocytosis differential_without_wbc
-    band_neutrophil_discordance bandemia cll_suspicion_nccn cml_suspicion`),
+    band_neutrophil_discordance bandemia cll_suspicion_nccn cml_suspicion mixed_cells_high`),
   plt: T(`platelet_indices_context severe_thrombocytopenia thrombocytopenia thrombocytosis mpv_abnormal isolated_thrombocytopenia`),
   coag: T(`dic_pattern dic_isth_score d_dimer_elevated coagulation_abnormal coag_other_direction fibrinogen_pregnancy_low
     factor_activity factor_inhibitor vwf_panel antithrombin_abnormal thrombin_time_abnormal`),

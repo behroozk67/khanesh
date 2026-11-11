@@ -118,3 +118,34 @@ test("HIS7: نامِ فارسی همان کلید و همان خروجیِ ام�
     return [p.overall_urgency, ...p.findings.map((f) => f.rule_id ?? f.pattern)].join(","); };
   for (const [fa, en, v, u, r] of pairs) assert.equal(out(fa, v, u, r), out(en, v, u, r), fa);
 });
+
+// ── P138 (تصمیمِ بازبین ۲۰۲۶-۱۱-۱۱: ۱=ج، ۲=د) ──
+test("HIS8: LDH فقط با یافتهٔ همولیز در «خون‌سازی» است؛ LDHِ تنها خون‌سازی را جریمه نمی‌کند ولی برگه را سقف می‌زند", async () => {
+  const { healthScore } = await import("./score.js");
+  const base = [T("Hb", 13, "g/dL"), T("WBC", 7, ""), T("PLT", 250, ""), T("Creatinine", 0.9, "mg/dL"), T("ALT", 20, "U/L"),
+    T("AST", 20, "U/L"), T("FBS", 90, "mg/dL"), T("TSH", 2, "mIU/L"), T("Cholesterol", 180, "mg/dL"), T("LDH", 600, "U/L", "<250")];
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: base }); const p = runPatterns(e); const s = healthScore(e, p);
+  assert.equal(s.systems.find((x) => x.id === "blood").score, 100);
+  assert.equal(s.points.LDH, undefined);
+  assert.ok(s.value < 100, "یافتهٔ LDH هنوز امتیازِ برگه را پایین می‌آورد");
+  const h = runEngine({ patient: { age: 40, sex: "F" }, tests: [T("LDH", 700, "U/L", "<250"), T("WBC", 7, "", "4-10"),
+    T("Haptoglobin", 10, "mg/dL", "30-200"), T("Hb", 9, "g/dL", "12-16"), T("Retic", 6, "%", "0.5-2.5"), T("Indirect bilirubin", 2.5, "mg/dL", "<0.8")] });
+  const hp = runPatterns(h);
+  assert.ok(hp.findings.some((f) => f.pattern === "hemolysis_likely"));
+  assert.ok(healthScore(h, hp).points.LDH != null, "با همولیز، LDH در خون‌سازی شمرده می‌شود");
+});
+
+test("HIS9: Mixedِ بالاتر از بازهٔ برگه ⇒ یافتهٔ routine با گامِ بعد؛ پایین/داخل ⇒ بی‌یافته؛ جملهٔ بی‌حکم تکرار نمی‌شود", async () => {
+  const { mixedLine } = await import("./prompt.js");
+  const cbc = (mx) => [T("WBC", 7, "x1000/µl", "4-10"), T("Neutrophils", 60, "%", ""), T("Lymphocytes", 25, "%", ""), T("MXD", mx, "%", "3-15")];
+  const e = runEngine({ patient: { age: 40, sex: "F" }, tests: cbc(18) }); const p = runPatterns(e);
+  assert.deepEqual(ids(p), ["mixed_cells_high"]);
+  assert.equal(p.overall_urgency, "routine");
+  assert.match(p.findings[0].must_say, /^ردیفِ «Mixed» شما 18 % است و بالاتر از بازهٔ چاپ‌شدهٔ همان آزمایشگاه \(3-15\)/);
+  assert.equal(mixedLine(e, p.findings), null);
+  for (const mx of [2, 6.7]) {
+    const e2 = runEngine({ patient: { age: 40, sex: "F" }, tests: cbc(mx) }); const p2 = runPatterns(e2);
+    assert.deepEqual(ids(p2), [], String(mx));
+    assert.ok(mixedLine(e2, p2.findings), String(mx));
+  }
+});

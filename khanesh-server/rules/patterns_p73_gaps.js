@@ -691,8 +691,30 @@ const bloodPhAbnormal = {
   },
 };
 
+// ── P138-۲ (تصمیمِ بازبین ۲۰۲۶-۱۱-۱۱، «د»): Mixed/MXDِ بالاتر از بازهٔ چاپیِ همان آزمایشگاه ──
+// Mixed جمعِ مونوسیت، ائوزینوفیل و بازوفیل است؛ عدد نمی‌گوید کدام بالاست. پس حکمِ تازه‌ای نیست، فقط گامِ بعد. پایین‌بودن یافته نمی‌سازد.
+// موقعیت از بازهٔ خودِ برگه است (adapter، P96)؛ آستانهٔ موتور ندارد.
+const mixedCellsHigh = {
+  id: "mixed_cells_high",
+  match: (e) => e.ungraded?.MIXED?.reason === "diff_mixed" && e.ungraded.MIXED.position === "above",
+  build: (e) => {
+    const m = e.ungraded.MIXED;
+    return {
+      pattern: "mixed_cells_high",
+      urgency: "routine",
+      headline: "ردیفِ «Mixed» در شمارشِ گلبول‌های سفید بالاتر از بازهٔ برگه است",
+      must_say:
+        `ردیفِ «Mixed» شما ${m.value}${m.unit ? ` ${m.unit}` : ""} است و بالاتر از بازهٔ چاپ‌شدهٔ همان آزمایشگاه (${m.reference}). ` +
+        "Mixed جمعِ مونوسیت، ائوزینوفیل و بازوفیل است که این دستگاه جدا نشمرده؛ پس از روی همین عدد معلوم نیست کدام‌یک بالاست. " +
+        "شمارشِ افتراقیِ کامل یا بررسیِ لامِ خونِ محیطی این را روشن می‌کند.",
+      action: ACT.routine,
+      suggest: ["لام خون محیطی (شمارش افتراقی دستی)"],
+    };
+  },
+};
+
 export const RULES_P73_GAPS = [
   hctRbcHigh, bilirubinTotalAlone, ckElevatedAlone, albuminLowAlone, albuminHighAlone, ironMarkersHigh,
   totalT4Abnormal, bicarbonateLow, pctIntermediate, ammoniaMildHigh, anemiaHbAlone, ironLowAlone,
-  rdwHigh, tibcHigh, tibcLow, biliDirectHigh, biliIndirectHigh, bloodPhAbnormal,
+  rdwHigh, tibcHigh, tibcLow, biliDirectHigh, biliIndirectHigh, bloodPhAbnormal, mixedCellsHigh,
 ];

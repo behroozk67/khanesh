@@ -63,7 +63,7 @@ const BUCKETS = {
   flc: ['KAPPA_FLC', 'LAMBDA_FLC'],
 };
 
-// ⚠️ جای‌گذاری‌های قضاوتی (P97، باز برای بازبین): CK/میوگلوبین ⇒ بیرون از امتیاز (P108، EXCLUDED)؛ آمیلاز/لیپاز ⇒ کبد؛ اسید-باز ⇒ الکترولیت؛
+// ⚠️ جای‌گذاری‌های قضاوتی (P97، باز برای بازبین؛ LDH: P138-۱ ⇒ فقط با یافتهٔ همولیز، در healthScore): CK/میوگلوبین ⇒ بیرون از امتیاز (P108، EXCLUDED)؛ آمیلاز/لیپاز ⇒ کبد؛ اسید-باز ⇒ الکترولیت؛
 //    U_CA (ادرارِ ۲۴ساعته) ⇒ کلیه؛ B12/فولات ⇒ خون‌سازی؛ ویتامین D/PTH ⇒ مواد معدنی.
 const SYSTEM_MEMBERS = {
   blood: ['red_mass', 'red_indices', 'rdw', 'iron_transport', 'flc', 'WBC', 'PLT', 'MPV', 'NEUT_ABS', 'LYMPH_ABS',
@@ -169,10 +169,13 @@ export function healthScore(engineOut, patternOut) {
   const count = { scored: 0, out: 0, near: 0, levels: { mild: 0, moderate: 0, marked: 0, critical: 0 }, no_level: 0, excluded: 0, unread: 0 };
   const abnormalKeys = new Set();
   const critical = new Set();
+  // P138-۱ (تصمیمِ بازبین ۲۰۲۶-۱۱-۱۱، «ج»): LDH فقط وقتی «خون‌سازی» است که همین برگه همولیز را نشان داده (یافتهٔ hemolysis_likely)؛
+  //   وگرنه منبعش نامعلوم است (عضله، کبد، قلب، کلیه…) و مثلِ CK بیرون از امتیاز می‌ماند — یافته‌اش از راهِ سقفِ فوریت می‌نشیند.
+  const ldhInBlood = (po.findings ?? []).some((f) => f?.rule_id === 'hemolysis_pattern' && f.pattern === 'hemolysis_likely');
   for (const g of graded) {
     const p = testPoints(g);
     if (p == null) continue;
-    if (!SCORE_TABLE[g.test]) { count.excluded++; continue; }
+    if (!SCORE_TABLE[g.test] || (g.test === 'LDH' && !ldhInBlood)) { count.excluded++; continue; }
     points[g.test] = p;
     count.scored++;
     // P97-ب: «لب‌مرز» = در محدوده ولی نزدیکِ لبه (پرچمِ خودِ موتور، نه آستانهٔ تازه). برای خطِ اولِ کارت.

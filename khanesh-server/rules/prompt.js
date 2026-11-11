@@ -643,9 +643,11 @@ export function unexplainedNoRef(noRef, findings) {
 
 // ═══ بند ۵ (LIS ۲۰۲۶-۱۰-۰۶، تصمیمِ «الف»): Mixed — شناخته، بی‌حکم ═══
 // ۱۲۸ از ۲۳۶ درخواست «Mixed» را در «تفسیرشان نمی‌کند … حتماً با پزشک» می‌دیدند. یک جملهٔ توضیح، بی‌«بالا/پایین»، بی‌دستور. عددِ برگه (N5).
-export function mixedLine(engineOut) {
+export function mixedLine(engineOut, findings = []) {
   const m = engineOut?.ungraded?.MIXED;
   if (!m || m.reason !== "diff_mixed") return null;
+  // P138-۲: Mixedِ بالا یافتهٔ خودش را دارد (mixed_cells_high)؛ جملهٔ «بی‌حکم» کنارش تکرار و متناقض‌نما بود.
+  if ((findings ?? []).some((f) => f?.rule_id === "mixed_cells_high")) return null;
   const where = m.position === "above" ? "بالاتر از" : m.position === "below" ? "پایین‌تر از" : m.position === "within" ? "داخلِ" : null;
   return `ردیفِ «Mixed» (${m.value}${m.unit ? ` ${m.unit}` : ""}) در شمارشِ افتراقیِ گلبول‌های سفید، جمعِ مونوسیت، ائوزینوفیل و بازوفیل است ` +
     "که این دستگاه جدا نشمرده؛ موتور دربارهٔ آن جداگانه حکمی نمی‌دهد" +
