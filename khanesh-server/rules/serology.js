@@ -294,14 +294,14 @@ const AI_RE = {
   // specs/019: «CEA (Carcinoembryonic Antigen)» همان دو نامِ بالا کنارِ هم است (k0 پرانتز را می‌اندازد)؛ فارسی فقط همان شکلی که
   //   در محتوای خودِ اپ آمده (extra.cancer.js)، نه حدس. «CA 15.3 (Breast)» و «CA 125 Ovarian» عمداً نیستند: روی برگهٔ واقعی دیده نشده‌اند (N2).
   CEA: /^(cea|carcinoembryonicantigen|serumcea|ceacarcinoembryonicantigen|carcinoembryonicantigencea|آنتیژنکارسینوامبریونیک)$/,
-  AFP: /^(afp|alphafetoprotein|αfetoprotein|alphafetoproteinserum|serumafp|afpserum|afptumormarker)$/,
+  AFP: /^(afp|alphafetoprotein|αfetoprotein|alphafetoproteinserum|serumafp|afpserum|afptumormarker|آلفافیتوپروتئین)$/,
   CA125: /^(ca125|cancerantigen125|ca125ii)$/,
   CA199: /^(ca199|cancerantigen199)$/,
   CA153: /^(ca153|cancerantigen153)$/,
   B2M: /^(b2m|beta2microglobulin|β2microglobulin|beta2m|b2microglobulin|serumb2m|β2m|microglobulinbeta2)$/,
   CALCITONIN: /^(calcitonin|serumcalcitonin|thyrocalcitonin|basalcalcitonin)$/,
   CGA: /^(cga|chromogranina|chromogranin|serumchromogranina)$/,
-  PSA_TOTAL: /^(psa|totalpsa|psatotal|tpsa|prostatespecificantigen|psatotalserum|psaserum)$/,
+  PSA_TOTAL: /^(psa|totalpsa|psatotal|tpsa|prostatespecificantigen|psatotalserum|psaserum|پیاسای|پیاسایتوتال|پیاسایتام)$/,
   PSA_FREE: /^(freepsa|psafree|fpsa|freeprostatespecificantigen)$/,
   PSA_RATIO: /^(freepsaratio|freepsapercent|freetotalpsa|freetotalpsaratio|psafreetotal|fpsatpsa|psaratio|ratiofreetotalpsa|freepsatotalpsa|percentfreepsa|pfreepsa)$/,
   CALPROTECTIN: /^(calprotectin|fecalcalprotectin|faecalcalprotectin|stoolcalprotectin|calprotectinfecal|calprotectinstool|fcalprotectin)$/,

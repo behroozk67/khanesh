@@ -10,7 +10,7 @@
 // ============================================================
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runEngine, NAME_MAP, stripHisAffixes } from "./adapter.js";
+import { runEngine, NAME_MAP, stripHisAffixes, keyForName, ALEF_FOLDED, FA_EQUIV } from "./adapter.js";
 import { runPatterns } from "./patterns.js";
 import { parseReference, recognizedUnit } from "./units.js";
 
@@ -85,4 +85,36 @@ test("HIS5: برگهٔ واقعی، مردِ ۴۰ ساله ⇒ کم‌خونیِ
   const p = runPatterns(runEngine({ patient: { age: 40, sex: "M" }, tests: SHEET }));
   assert.deepEqual(ids(p), ["anemia_hb_alone"]);
   assert.match(p.findings[0].must_say, /هماتوکریت هم 39 است \(حد طبیعی 41–50\)/);
+});
+
+test("HIS3b: یک برچسبِ سنی پس از عدد مثلِ پیش خوانده می‌شود (بازبینی)؛ واحدِ RTLِ «%mg»؛ نشانه‌های نامرئی", () => {
+  assert.deepEqual(parseReference("13.5-17.5 (adult)", "M", 40), { lo: 13.5, hi: 17.5 });
+  assert.deepEqual(parseReference("0-40 U/L adults", "M", 40), { lo: 0, hi: 40 });
+  assert.deepEqual(parseReference("<200 (Adult)", "M", 40), { lo: null, hi: 200 });
+  assert.deepEqual(parseReference("Adult: 0.6-1.2", "M", 40), { lo: 0.6, hi: 1.2 });
+  assert.ok(recognizedUnit("GLU_F", "%mg"));
+  assert.ok(recognizedUnit("HGB", "‫%g‬"));
+  for (const n of ["اوره‏", "‫اوره‬", "اوره‍", "أوره", "كراتينين"]) assert.ok(keyForName(n), JSON.stringify(n));
+});
+
+test("HIS6: تاکردنِ الف/همزه هیچ برخوردی ندارد، و نامِ بی‌قیدِ غیرادراری به کلیدِ ادرار/مدفوع/منی نمی‌رسد", () => {
+  assert.deepEqual([...ALEF_FOLDED].filter(([, v]) => v === null).map(([k]) => k), []);
+  for (const k of Object.keys(NAME_MAP)) {
+    if (/urin|ادرار|stool|مدفوع|csf|semen|منی|مایع|fluid|^u[a-z]/i.test(k)) continue;
+    for (const sfx of [" خون", " سرم", " پلاسما"]) {
+      const t = keyForName(k + sfx);
+      if (t) assert.equal(t, NAME_MAP[k], `${k}${sfx}`);
+    }
+  }
+});
+
+test("HIS7: نامِ فارسی همان کلید و همان خروجیِ املای انگلیسی را می‌گیرد", () => {
+  for (const [en, fas] of Object.entries(FA_EQUIV)) for (const fa of fas) assert.equal(keyForName(fa), NAME_MAP[en], fa);
+  const pairs = [["سی آر پی", "CRP", 25, "mg/L", "<6"], ["تروپونین", "Troponin", 0.5, "ng/mL", "<0.04"],
+    ["تروپونین T", "Troponin T", 50, "ng/L", "<14"], ["پی اس ای", "PSA", 8, "ng/mL", "<4"],
+    ["آلفا فیتوپروتئین", "AFP", 30, "ng/mL", "<10"], ["اسید اوریک", "Uric acid", 9, "mg/dL", "3.5-7"],
+    ["نیتروژن اوره خون", "BUN", 30, "mg/dL", "7-20"], ["سرعت رسوب", "ESR", 60, "mm/h", "<20"]];
+  const out = (n, v, u, r) => { const p = runPatterns(runEngine({ patient: { age: 50, sex: "M" }, tests: [T(n, v, u, r)] }));
+    return [p.overall_urgency, ...p.findings.map((f) => f.rule_id ?? f.pattern)].join(","); };
+  for (const [fa, en, v, u, r] of pairs) assert.equal(out(fa, v, u, r), out(en, v, u, r), fa);
 });

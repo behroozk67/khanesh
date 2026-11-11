@@ -63,7 +63,9 @@ function norm(s) {
     .replace(/[كک]/g, "ک")
     // برگهٔ ایرانی (۲۰۲۶-۱۱-۱۱): «ة/ۀ» ⇒ «ه»؛ کشیده (ـ) و اعراب حذف — هیچ کلیدی در NAME_MAP این نویسه‌ها را ندارد.
     .replace(/[ةۀ]/g, "ه")
-    .replace(/[ـً-ْ]/g, "")
+    .replace(/[ـً-ٰٕ]/g, "")
+    // نشانه‌های نامرئیِ جهت/اتصال از متنِ کپی‌شدهٔ HIS (U+200B/D–F، U+202A–E، U+2066–9، U+FEFF)؛ هیچ کلیدی آن‌ها را ندارد.
+    .replace(/[​‍-‏‪-‮⁦-⁩﻿]/g, "")
     .replace(/\u200c/g, "")   // نیم‌فاصله
     .trim();
 }
@@ -552,6 +554,62 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   fti: "FTI", freethyroxineindex: "FTI",
 };
 
+// ═══ P137 (برگه‌های ایرانی ۲۰۲۶-۱۱-۱۱): نامِ فارسیِ رایج ⇒ *همان* کلیدی که املای انگلیسیِ هم‌معنا می‌گیرد ═══
+// هدف از NAME_MAPِ انگلیسی خوانده می‌شود، پس معنای پاییندستی (درصد/مطلقِ افتراقی، شاخه‌های واحد) عیناً به ارث می‌رسد.
+// ⚠️ عمداً نیستند (N25، هویت به صفحه بسته است): «گلبول سفید/قرمز» (رسوبِ ادرار هم همین نام را دارد)، «پروتئین»، «قند» و
+//    «بیلی روبین» بی‌قید، «آنتی بادی تیروئید» (TPO یا Tg)، «هپاتیت ب»؛ و CRP/تروپونین/PSA/AFP که از مسیرِ خودشان می‌روند.
+// نامی که از پیش کلید دارد دست نمی‌خورد (??=)؛ املای انگلیسیِ ناموجود هنگامِ بارگذاری خطا می‌دهد (گارد HIS7).
+const FA_EQUIV = {
+  uricacid: ["اسید اوریک", "اوریک اسید"],
+  totalcholesterol: ["کلسترول تام", "کلسترول توتال"],
+  fbs: ["قند ناشتا", "گلوکز ناشتا", "قند خون ناشتا"],
+  phosphorus: ["فسفر"],
+  magnesium: ["منیزیم", "منیزیوم"],
+  albumin: ["آلبومین"],
+  totalprotein: ["پروتئین تام", "پروتئین توتال"],
+  totalbilirubin: ["بیلی روبین توتال", "بیلی روبین تام"],
+  directbilirubin: ["بیلی روبین مستقیم"],
+  indirectbilirubin: ["بیلی روبین غیرمستقیم", "بیلی روبین غیر مستقیم"],
+  tibc: ["ظرفیت تام اتصال آهن"],
+  vitamind: ["ویتامین دی"],
+  hba1c: ["هموگلوبین A1c", "هموگلوبین گلیکوزیله", "هموگلوبین گلیکوزیله شده"],
+  t4: ["تیروکسین", "تی 4"],
+  t3: ["تری یدوتیرونین", "تی 3"],
+  tsh: ["تی اس اچ", "هورمون محرک تیروئید"],
+  alkalinephosphatase: ["آلکالین فسفاتاز", "فسفاتاز قلیایی"],
+  ldh: ["لاکتات دهیدروژناز"],
+  ck: ["کراتین کیناز", "کراتین فسفوکیناز", "سی پی کا"],
+  amylase: ["آمیلاز"],
+  lipase: ["لیپاز"],
+  ggt: ["گاما جی تی", "گاما گلوتامیل ترانسفراز"],
+  esr: ["سرعت رسوب گلبول قرمز", "سرعت رسوب", "ای اس آر"],
+  hdl: ["اچ دی ال", "اچ دی ال کلسترول"],
+  ldl: ["ال دی ال", "ال دی ال کلسترول"],
+  bun: ["نیتروژن اوره"],
+  pt: ["زمان پروترومبین", "پی تی"],
+  aptt: ["پی تی تی", "زمان ترومبوپلاستین نسبی"],
+  inr: ["آی ان آر"],
+  b12: ["ب 12"],
+  chloride: ["کلر", "کلراید", "کلرید"],
+  bicarbonate: ["بی کربنات"],
+  ast: ["آسپارتات آمینوترانسفراز"],
+  alt: ["آلانین آمینوترانسفراز"],
+  retic: ["رتیکولوسیت"],
+  creactiveprotein: ["پروتئین واکنشی C", "سی آر پی"],
+  mcv: ["میانگین حجم گلبولی"],
+  neutrophils: ["نوتروفیل"],
+  lymphocytes: ["لنفوسیت"],
+  monocytes: ["مونوسیت"],
+  eosinophils: ["ائوزینوفیل"],
+  basophils: ["بازوفیل"],
+};
+for (const [en, fas] of Object.entries(FA_EQUIV)) {
+  const target = NAME_MAP[en];
+  if (!target) throw new Error(`FA_EQUIV: «${en}» در NAME_MAP نیست`);
+  for (const fa of fas) NAME_MAP[norm(fa)] ??= target;
+}
+export { FA_EQUIV };
+
 // ═══════════ آنالیزِ مایع منی (P47) ═══════════
 // 🔴 باگِ واقعی: برگهٔ منی `pH`، `WBC`، `RBC` و `Volume` دارد — همان نام‌های آزمایش ادرار و CBC.
 //    pH به «Urine pH» می‌رفت و RBCِ «8-10» قاعدهٔ hematuria را فعال می‌کرد: بیمار می‌خواند «در
@@ -691,8 +749,18 @@ function resolveAlias(key) {
   // برگهٔ HIS (۲۰۲۶-۱۱-۱۱): نامِ تعرفه‌ایِ «اندازه گیری کمی اوره خون/سرم/ پلاسما» ⇒ «اوره». فقط وقتی نامِ خام نگاشت نشد.
   const base = stripHisAffixes(key);
   if (base !== key) return NAME_MAP[base] ?? resolveAlias(base);
-  return undefined;
+  // «أ/إ/آ/ٱ» ⇒ «ا» و «ئ/ؤ» (P137): فقط پس از خطا، و فقط اگر شکلِ تاشده در NAME_MAP یک هدف دارد (ALEF_FOLDED).
+  return ALEF_FOLDED.get(foldAlef(key)) ?? undefined;
 }
+
+const foldAlef = (k) => k.replace(/[أإآٱ]/g, "ا").replace(/ئ/g, "ی").replace(/ؤ/g, "و");
+// نامی که پس از تاشدن به دو هدفِ متفاوت می‌رسد کنار گذاشته می‌شود (null)؛ گارد HIS6.
+const ALEF_FOLDED = new Map();
+for (const [k, v] of Object.entries(NAME_MAP)) {
+  const f = foldAlef(k);
+  ALEF_FOLDED.set(f, ALEF_FOLDED.has(f) && ALEF_FOLDED.get(f) !== v ? null : v);
+}
+export { foldAlef, ALEF_FOLDED };
 
 // پیشوندِ تعرفه و پسوندِ نمونهٔ *خونی*. «ادرار/urine» عمداً نیست: کراتینینِ ادرار ≠ کراتینینِ سرم (N25).
 //   حذف هیچ نامِ موجودِ NAME_MAP را به کلیدِ دیگری نمی‌برد (بررسیِ ۹۹۴ نام، HIS1 در his_names.test.js).
@@ -895,6 +963,8 @@ export const isHbAmbiguousName = (name) => !!HB_AMBIGUOUS[norm(name)];
 function mapKey(key) {
   return NAME_MAP[key] ?? resolveAlias(key);
 }
+/** نامِ چاپ‌شده ⇒ کلیدِ موتور، فقط از روی نام (بی‌زمینهٔ صفحه/واحد). برای تست و پروبِ املاها (P137). */
+export const keyForName = (name) => mapKey(norm(name)) ?? null;
 
 // ---------- پارسِ تیتر ----------
 // ⚠️ toNum() هر چیزِ غیر رقم را دور می‌ریزد، پس toNum("1/160") = ۱۱۶۰ می‌دهد.
@@ -1687,7 +1757,7 @@ export function ocrToEngineInput(ocr) {
     //   واحدی است که این کلید می‌شناسد (recognizedUnit یا واحدِ خودِ موتور) جدا می‌شود؛ هر متنِ دیگری دست نمی‌خورد (حدس نمی‌زنیم).
     //   پیش از همهٔ شاخه‌ها، چون تروپونین/CRP شاخهٔ ویژهٔ خود را پیش از نگاشتِ عمومی دارند.
     if (!String(t.unit ?? "").trim()) {
-      const trop = /troponin|ctn[it]|hs.?ctn|^tn[it]$|cardiactroponin/.test(key);   // همان regexِ شاخهٔ تروپونینِ پایین
+      const trop = /troponin|ctn[it]|hs.?ctn|^tn[it]$|cardiactroponin|تروپونین/.test(key);   // همان regexِ شاخهٔ تروپونینِ پایین
       let k0 = trop ? "TROPONIN_I" : mapKey(key);
       if (k0?.endsWith("_PCT") && String(t.name).includes("#")) k0 = k0.replace("_PCT", "_ABS");
       const sm = k0 && String(t.value ?? "").match(/^\s*([<>≤≥]?\s*[\d۰-۹٠-٩][\d۰-۹٠-٩.,٫]*)\s*([^\d\s۰-۹٠-٩].*?)\s*$/);
@@ -2160,7 +2230,7 @@ export function ocrToEngineInput(ocr) {
     //    اشکال رایج: Troponin، cTnI، cTnT، hs-cTnI، TnI، TnT.
     //    اگر مقدار عددی باشد، به کلید عددی TROPONIN_I بفرست تا با مرجع
     //    [0, 0.6] سنجیده شود. اگر کلمه‌ای (positive/مثبت) باشد، کیفی بماند.
-    if (/troponin|ctn[it]|hs.?ctn|^tn[it]$|cardiactroponin/.test(key)) {
+    if (/troponin|ctn[it]|hs.?ctn|^tn[it]$|cardiactroponin|تروپونین/.test(key)) {
       const tv = toNum(t.value);
       if (tv != null) {
         t = resolveRowUnit("TROPONIN_I", t, tv);
@@ -2208,7 +2278,7 @@ export function ocrToEngineInput(ocr) {
         // M24 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۳، P106): hs-cTnT حدِ صدکِ ۹۹ِ خودش را دارد — ۱۴ ng/L (Roche Elecsys، Fourth Universal Definition
         //   of MI) — نه آستانهٔ محافظه‌کارانهٔ ۳۰ ng/L ِ cTnI. «hs-cTnT 30 ng/L» (آسیبِ میوکارد) «طبیعی» و بی‌یافته بود. حدِ چاپ‌شدهٔ ردیف
         //   همچنان مقدم است؛ فقط سنجهٔ hs (نام یا واحدِ ng/L).
-        if (tests._trop_hs && tests._trop_uln == null && /ctnt|^tnt$|^hstnt|troponint/.test(key)) {
+        if (tests._trop_hs && tests._trop_uln == null && /ctnt|^tnt$|^hstnt|troponint|تروپونینt/.test(key)) {
           tests._trop_uln = TNT_HS_99TH_UGL;
           tests._trop_uln_tnt = true;
         }

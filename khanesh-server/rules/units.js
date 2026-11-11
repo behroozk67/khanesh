@@ -223,7 +223,8 @@ const FA_UNITS = [
  *    رفتار می‌کرد (FR-009).
  */
 export function normUnit(u) {
-  let s = String(u ?? '').toLowerCase().replace(/[\s‌‏‎]+/g, '')
+  // نشانه‌های نامرئیِ جهت (U+200B/D، U+202A–E، U+2066–9، U+FEFF) از متنِ کپی‌شدهٔ HIS (P137).
+  let s = String(u ?? '').toLowerCase().replace(/[\s​‍‪-‮⁦-⁩﻿‌‏‎]+/g, '')
     .replace(/[()[\]{}]/g, '').replace(/\.+$/, '').trim();
   for (const [re, en] of FA_UNITS) if (re.test(s)) return en;
   // P110-ج (برگهٔ واقعی): «micg/dl» (T4) و «microg/dl» همان mcg ⇒ µg/dL؛ پیش‌تر ناشناخته بود و واحد «چاپ‌نشده» گزارش می‌شد.
@@ -335,10 +336,10 @@ export function toConventional(engineKey, value, unit) {
 
 // املاهای رایجِ واحدِ متعارف روی برگه‌ها (پس از normUnit). ng/L = pg/mL و µg/L = ng/mL عیناً برابرند.
 const CONV_ALIASES = {
-  'mg/dL':  ['mg/dl', 'mg%', 'mgr/dl', 'mgr%', 'mg/100ml', 'mg/deciliter'],
+  'mg/dL':  ['mg/dl', 'mg%', 'mgr/dl', 'mgr%', 'mg/100ml', 'mg/deciliter', '%mg', '%mgr'],   // «%mg»: ترتیبِ عکسِ RTL (P137)
   // «%g» (برگهٔ HIS ۲۰۲۶-۱۱-۱۱): گرم در صد میلی‌لیتر، همان g/dL با ترتیبِ عکس.
   'g/dL':   ['g/dl', 'gr/dl', 'gm/dl', 'g%', 'gr%', 'g/100ml', '%g', '%gr', '%gm'],
-  'µg/dL':  ['µg/dl', 'μg/dl', 'ug/dl', 'mcg/dl', 'µg%', 'mcg%'],
+  'µg/dL':  ['µg/dl', 'μg/dl', 'ug/dl', 'mcg/dl', 'µg%', 'mcg%', '%µg', '%μg', '%ug', '%mcg'],
   'ng/mL':  ['ng/ml', 'µg/l', 'μg/l', 'ug/l', 'mcg/l'],
   'pg/mL':  ['pg/ml', 'ng/l'],
   'ng/dL':  ['ng/dl'],
@@ -582,7 +583,8 @@ function parseLabelledBands(s, sex, age) {
   const labels = [...s.matchAll(BAND_LABEL_RE)];
   if (!labels.some((l) => l[1])) return undefined;
   // متنِ پیش از اولین برچسب عدد دارد ⇒ جفت‌کردنِ برچسب و بازه مبهم است (همان قاعدهٔ خطِ دوجنسی).
-  if (/\d/.test(s.slice(0, labels[0].index))) return null;
+  //   ⚠️ بازبینی: «13.5-17.5 (adult)» (یک برچسب پس از عدد) پیش‌تر از مسیرِ قبلی خوانده می‌شد ⇒ همان مسیر (undefined)، نه null.
+  if (/\d/.test(s.slice(0, labels[0].index))) return undefined;
   const bands = [];
   let cur = { ages: [], sex: null };
   for (let i = 0; i < labels.length; i++) {
