@@ -320,6 +320,8 @@ Rules:
   - A display rule that picks "the" range must know which population the graded range came from.
   - Every row read off the sheet appears in some count or list on the screen that counts.
 
+**N54 — The static SEO page put a direction-less sentence under «بالا بودن»; the REF test pages had none of the app's content.** (Commit: this change.) `gen-static-heads.mjs` rendered `EXTRA_TESTS[key].results[0]` as «بالا بودن X» and `results[1]` as «پایین بودن X», but `results[]` has no direction: on 236 live pages, D-dimer said «منفی بودن… خبرِ خوب است» under «بالا بودن D-dimer». The same file read `EXTRA_TESTS` only, so the 46 `REF` pages (B12, INR, PT…) never showed their `TEST_PAGES` content, and Google left them «Crawled – currently not indexed». Rules: a label that claims a direction needs a field that has one; the static HTML Google reads is a second renderer of the same content, so diff what it prints against `TestPage`/`ExtraTestPage`.
+
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
 [environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).

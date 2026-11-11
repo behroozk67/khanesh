@@ -5,7 +5,7 @@ import "./site.css";
 export default function HowToCapture() {
   useSeoHead({
     title: "چطور از برگهٔ آزمایش عکس بگیریم؟ — راهنمای کیفیت تصویر",
-    description: "۴ اصل ساده برای ثبت عکس واضح و بدون خطای برگه آزمایش جهت تشخیص دقیق اعداد با OCR و هوش بالینی آزمایار.",
+    description: "۴ اصل ساده برای ثبت عکس واضح و بدون خطای برگه آزمایش جهت تشخیص دقیق اعداد با OCR و هوش بالینی آزمایار اپ.",
     canonical: "/how-to-capture",
     ogType: "article",
   });

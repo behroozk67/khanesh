@@ -313,7 +313,7 @@ export default function History() {
   return (
     <div className="hist-page">
       <header className="hist-top">
-        <Link to="/app" className="hist-logo" aria-label="آزمایار"><LabMateLogo /></Link>
+        <Link to="/app" className="hist-logo" aria-label="آزمایار اپ"><LabMateLogo /></Link>
         <Link to="/profile" className="hist-back">پروفایل</Link>
       </header>
 

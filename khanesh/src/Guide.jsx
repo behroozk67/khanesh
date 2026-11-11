@@ -186,7 +186,7 @@ export default function Guide({ c }) {
   const rawDesc = c.seo?.description || c.card?.p?.[0] || (typeof c.about === "string" ? c.about : null);
   const seoDesc = rawDesc
     ? (typeof rawDesc === "string" ? rawDesc : "").replace(/\s+/g, " ").trim()
-    : "راهنمای جامع، محدوده مرجع و تفسیر بالینی آزمایش پزشکی به زبان ساده در آزمایار.";
+    : "راهنمای جامع، محدوده مرجع و تفسیر بالینی آزمایش پزشکی به زبان ساده در آزمایار اپ.";
 
   const jsonLd = useMemo(() => {
     if (isTest) {

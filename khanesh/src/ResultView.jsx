@@ -270,7 +270,7 @@ function printFileName(sampleDate) {
     }).format(new Date(t));
   } catch { stamp = ""; }
   stamp = stamp.replace(/[۰-۹]/g, (d) => FA_DIGITS.indexOf(d)).replace(/[\s/]+/g, "-").replace(/-+$/, "");
-  return stamp ? `آزمایار-تفسیر-آزمایش-${stamp}` : "آزمایار-تفسیر-آزمایش";
+  return stamp ? `آزمایار-اپ-تفسیر-آزمایش-${stamp}` : "آزمایار-اپ-تفسیر-آزمایش";
 }
 
 export default function ResultView({ result, asText, asList }) {

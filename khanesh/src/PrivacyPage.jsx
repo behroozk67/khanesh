@@ -67,7 +67,7 @@ export default function PrivacyPage() {
         <section style={{ marginBottom: "2.5rem" }}>
           <h2 className="site-h3" style={{ marginBottom: "0.8rem", color: "var(--brand)" }}>۷. تماس با مسئول حریم خصوصی و امنیت</h2>
           <p>
-            در صورت وجود هرگونه ابهام، پیشنهاد یا درخواست حذف داده، می‌توانید مستقیماً با نشانی ایمیل اختصاصی امنیت به آدرس <code>security@azmayarapp.ir</code> یا از طریق <Link to="/contact">صفحه تماس با آزمایار</Link> با ما در ارتباط باشید.
+            در صورت وجود هرگونه ابهام، پیشنهاد یا درخواست حذف داده، می‌توانید مستقیماً با نشانی ایمیل اختصاصی امنیت به آدرس <code>security@azmayarapp.ir</code> یا از طریق <Link to="/contact">صفحه تماس با آزمایار اپ</Link> با ما در ارتباط باشید.
           </p>
         </section>
 

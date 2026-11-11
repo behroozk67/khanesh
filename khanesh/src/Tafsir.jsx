@@ -598,7 +598,7 @@ export default function Tafsir() {
         <footer className="site-footer">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
             <p style={{ margin: 0 }}>
-              © ۱۴۰۵ آزمایار (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آزمایش‌های پزشکی.
+              © ۱۴۰۵ آزمایار اپ (AzmayarApp.ir) — سامانهٔ هوشمند تفسیر آزمایش‌های پزشکی.
             </p>
             <a
               referrerPolicy="origin"
@@ -614,7 +614,7 @@ export default function Tafsir() {
                 boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
                 border: '1px solid #e2e8f0',
               }}
-              title="نماد اعتماد الکترونیکی آزمایار (اینماد)"
+              title="نماد اعتماد الکترونیکی آزمایار اپ (اینماد)"
             >
               <img
                 referrerPolicy="origin"

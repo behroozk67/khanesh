@@ -32,7 +32,7 @@ export default function PaymentSimulatedPage() {
         <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "10px", margin: "16px 0", fontSize: "13px", lineHeight: "1.8" }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "#64748b" }}>پذیرنده:</span>
-            <b>سامانه هوشمند آزمایار (AzmayarApp)</b>
+            <b>سامانه هوشمند آزمایار اپ (AzmayarApp)</b>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "#64748b" }}>شناسه تراکنش:</span>
