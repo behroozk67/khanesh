@@ -227,7 +227,7 @@ export default function Landing() {
         {
           "@type": "WebApplication",
           "name": BRAND_FA,
-          "alternateName": ["AzmayarApp", "LabMate", "تفسیر آزمایش خون آزمایار اپ"],
+          "alternateName": ["AzmayarApp", "تفسیر آزمایش خون آزمایار اپ"],
           "url": "https://azmayarapp.ir/",
           "description": "سامانه تفسیر هوشمند برگه آزمایش پزشکی بر پایه قواعد و منابع بالینی",
           "applicationCategory": "HealthApplication",

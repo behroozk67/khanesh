@@ -440,7 +440,7 @@ for (const p of uniquePaths) {
         {
           "@type": "WebApplication",
           name: BRAND_FA,
-          alternateName: ["AzmayarApp", "LabMate", "تفسیر آزمایش خون آزمایار اپ"],
+          alternateName: ["AzmayarApp", "تفسیر آزمایش خون آزمایار اپ"],
           url: `${ORIGIN}/`,
           description,
           applicationCategory: "HealthApplication",
