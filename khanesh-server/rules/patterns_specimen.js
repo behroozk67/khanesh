@@ -250,4 +250,49 @@ const ascitesRunyon = {
   },
 };
 
-export const RULES_SPECIMEN = [csfLow, pleuralLow, pregProteinuria, ascitesRunyon];
+// ── specs/024 (P141): کلرید عرق — Tietz فصلِ ۲۴ (استخراجِ ثانویه، تأییدنشده). مرزها: < ۳۰ بعید، ۳۰ تا < ۶۰ بینابینی،
+//   ۶۰–۱۶۰ هم‌خوان با CF، > ۱۶۰ بیرون از حدِ عملکردی (خطای نمونه). فقط با واحدِ چاپیِ mmol/L یا mEq/L (N3)؛ زیرِ دو هفته بی‌حکم
+//   (استثنای خودِ منبع). عددِ میانِ دو باند (۲۹٫۵) به باندِ بالاتر می‌رود: منبع باندها را با عددِ صحیح نوشته و بیش‌خوانی امن‌تر است (اصلِ II).
+//   سرتیتر نامِ بیماری را نمی‌برد. فوریت‌ها D3 است (تصمیمِ کاربر، پیش‌فرضِ پیشنهادی). هیچ‌کدام اورژانس نیست.
+const SWEAT_ACTION = {
+  this_week: "این هفته نتیجه را به پزشکِ متخصص (ریه یا گوارشِ کودکان) نشان دهید.",
+  routine: "در نوبتِ عادی نتیجه را به پزشکی که آزمایش را خواسته نشان دهید.",
+};
+const SWEAT_REPEAT = "تکرار کلرید عرق", SWEAT_GENE = "آزمایش ژنتیک CFTR";
+function sweatState(e) {
+  const row = e.ungraded?.SWEAT_CL;
+  const unit = String(row?.unit ?? "").replace(/\s+/g, "").toLowerCase();
+  if (typeof row?.value !== "number" || !["mmol/l", "meq/l"].includes(unit)) return { state: "unread" };
+  if (e.age != null && e.age < 14 / 365) return { state: "too_young" };
+  const v = row.value;
+  return { v, state: v <= 29 ? "unlikely" : v <= 59 ? "intermediate" : v <= 160 ? "consistent" : "implausible" };
+}
+const sweatChloride = {
+  id: "sweat_chloride_result",
+  match: (e) => e.ungraded?.SWEAT_CL != null,
+  build: (e) => {
+    const { v, state } = sweatState(e);
+    const TEXT = {
+      unlikely: [`کلرید عرق شما ${v} میلی‌مول در لیتر است. مقدارِ کمتر از ۳۰ در منابعِ آزمایشگاهی «احتمالِ فیبروز کیستیک کم» شمرده می‌شود. اگر پزشک به‌خاطرِ علائم این آزمایش را خواسته، تصمیمِ نهایی با اوست.`, "routine", []],
+      intermediate: [`کلرید عرق شما ${v} میلی‌مول در لیتر است و در محدودهٔ بینابینی (۳۰ تا ۵۹) قرار دارد. این عدد به‌تنهایی بیماری را تأیید یا رد نمی‌کند؛ معمولاً آزمایش ظرفِ چند هفته تکرار می‌شود و ممکن است پزشک آزمایشِ ژنتیک را هم پیشنهاد کند.`, "this_week", [SWEAT_REPEAT, SWEAT_GENE]],
+      consistent: [`کلرید عرق شما ${v} میلی‌مول در لیتر است. مقدارِ ۶۰ و بالاتر با معیارهای تشخیصیِ فیبروز کیستیک هم‌خوان است، ولی تشخیص با یک عدد قطعی نمی‌شود: پزشکِ متخصص آن را با علائم، تکرارِ آزمایش یا آزمایشِ ژنتیک تأیید می‌کند.`, "this_week", [SWEAT_REPEAT, SWEAT_GENE]],
+      implausible: [`کلرید عرق شما ${v} میلی‌مول در لیتر گزارش شده است. مقدارِ بالاتر از ۱۶۰ از نظرِ فیزیولوژیک بعید است و معمولاً از خطای جمع‌آوری یا اندازه‌گیریِ نمونه است؛ این آزمایش باید تکرار شود و از این عدد نتیجه‌ای گرفته نمی‌شود.`, "routine", [SWEAT_REPEAT]],
+      too_young: ["کلرید عرق در نوزادِ کمتر از دو هفته قابلِ اتکا نیست و معمولاً پس از دو هفتگی انجام یا تکرار می‌شود؛ این نتیجه را به پزشکِ کودک نشان دهید.", "routine", [SWEAT_REPEAT]],
+      unread: ["کلرید عرق روی برگه هست ولی واحدِ آن (میلی‌مول در لیتر) خوانده نشد، پس دربارهٔ آن قضاوت نمی‌کنیم؛ برگه را به پزشک نشان دهید.", "routine", []],
+    };
+    const [must_say, urgency, suggest] = TEXT[state];
+    return {
+      pattern: "sweat_chloride_result",
+      urgency,
+      // explains فقط برای عددِ خوانده‌شده: score.js آن را بیرون از امتیاز می‌گذارد؛ بی‌واحد «خوانده‌نشده» می‌ماند.
+      ...(v != null ? { key_number: v, explains: ["SWEAT_CL"] } : {}),
+      headline: "نتیجهٔ آزمایشِ کلرید عرق شما",
+      must_say,
+      action: SWEAT_ACTION[urgency],
+      suggest,
+      warnings: [],
+    };
+  },
+};
+
+export const RULES_SPECIMEN = [csfLow, pleuralLow, pregProteinuria, ascitesRunyon, sweatChloride];

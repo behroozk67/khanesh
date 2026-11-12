@@ -193,6 +193,8 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   na: "NA", serumna: "NA", sodium: "NA",
   k: "K", serumk: "K", potassium: "K",
   cl: "CL", chloride: "CL",
+  // specs/024 (P141): کلرید عرق آزمایشِ دیگری است (نه کلرِ سرم، N25)؛ هر املا «عرق/sweat» دارد. رسانانیِ عرق عمداً نگاشت نمی‌شود.
+  sweatchloride: "SWEAT_CL", sweatcl: "SWEAT_CL", chloridesweat: "SWEAT_CL", sweatchlorideconcentration: "SWEAT_CL", کلریدعرق: "SWEAT_CL", کلرعرق: "SWEAT_CL",
   ca: "CA", calcium: "CA", کلسیم: "CA",
   mg: "MG", magnesium: "MG",
   phos: "PHOS", phosphorus: "PHOS", p: "PHOS",
@@ -902,6 +904,8 @@ const UNIT_KEPT = new Set(["PDW", "PLT_CRIT", "P_LCR", "CERULOPLASMIN", "U_COPPE
   // specs/021 (G4): PCR بی‌بازه است؛ در ungraded هم می‌نشیند تا امتیازِ برگه آن را «خوانده‌نشده» بشمارد (score.js) و برگه با
   //   PCRِ تفسیرنشده «مطلوب» نشود (اصلِ II). واحدِ چاپ‌شده (mg/mmol، mg/g، mg/mg) همراهش می‌ماند.
   "UPCR",
+  // specs/024 (P141): کلرید عرق بازهٔ خونی ندارد؛ sweat_chloride_result آن را با واحدِ چاپی از ungraded می‌خواند.
+  "SWEAT_CL",
   // P93-ب: قندهای آزمونِ تحملِ قند (۱ و ۳ساعته، چالشِ ۵۰ گرمی) — mmol/L فقط با واحدِ چاپ‌شده تبدیل می‌شود (N3).
   "GLU_1H", "GLU_3H", "GLU_GCT",
   // P53 پرسش ۴ و ۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): ZPP فقط با µmol/mol، sTfR فقط با mg/L تفسیر می‌شوند، و درصدِ

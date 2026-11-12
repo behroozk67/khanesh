@@ -193,8 +193,11 @@ export function healthScore(engineOut, patternOut) {
 
   // ردیف‌هایی که موتور خواند ولی حکم نداد (بی‌واحد، بی‌محدوده، نامعلوم) — در شمارش گفته می‌شوند، نه پنهان.
   // specs/019: تومورمارکر نه نمره دارد و نه «داده‌ای که نخوانده‌ایم» برای دستگاه‌های بدن است؛ نه سبز را می‌گیرد نه عدد را (FR-014).
+  // specs/024 (P141): کلرید عرق هم بیرون از امتیاز است — ولی فقط وقتی sweat_chloride_result آن را خوانده (explains)؛
+  //   کلرید عرقِ بی‌واحد همچنان «خوانده‌نشده» شمرده می‌شود. کلرید عرقِ طبیعی ۹۸ «high» را ۹۰ «mid» می‌کرد (کلاسِ N46).
+  const sweatRead = (po.findings ?? []).some((f) => f.rule_id === 'sweat_chloride_result' && f.explains?.includes('SWEAT_CL'));
   count.unread = (Array.isArray(engineOut?.unmapped) ? engineOut.unmapped.length : 0)
-    + Object.keys(engineOut?.ungraded ?? {}).filter((k) => !TM_KEYS.has(k)).length;
+    + Object.keys(engineOut?.ungraded ?? {}).filter((k) => !TM_KEYS.has(k) && !(k === 'SWEAT_CL' && sweatRead)).length;
 
   // سقفِ هر دستگاه از یافته‌های نمایش‌داده‌شده. findings فقط نمایش‌داده‌شده‌هاست؛ «یافتهٔ تکمیلی»ِ فشرده
   // (supplementary_ids) هم سقف نمی‌گذارد (FR-011). یافته‌ای که به هیچ کلیدِ graded نسبت داده نشد ⇒ سقفِ کلِ برگه.
@@ -207,6 +210,7 @@ export function healthScore(engineOut, patternOut) {
     //   دیگر نه. «سبز نشدنِ» برگه کنارِ یافتهٔ «این هفته» همچنان از urgencyِ کل می‌آید (پایین‌تر).
     // specs/020 (P132): psa_result هم — PSAِ طبیعی ۹۸ «high» را ۹۰ «mid» می‌کرد.
     if ((f.rule_id === 'tumor_markers_result' || f.rule_id === 'psa_result') && f.explains?.length && f.explains.every((k) => TM_KEYS.has(k))) continue;
+    if (f.rule_id === 'sweat_chloride_result' && f.explains?.includes('SWEAT_CL')) continue;   // specs/024 (P141)
     const keys = findingKeys(f, abnormalKeys);
     if (!keys) { sheetCap = Math.min(sheetCap, URGENCY_CAP[f.urgency]); continue; }
     for (const k of keys) {

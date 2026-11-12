@@ -13450,3 +13450,123 @@ test("PB3: متنِ کودک بازهٔ سنیِ موتور را می‌گوید
   const text = runPatterns(e).findings.map((f) => f.must_say).join(" ");
   assert.match(text, /هماتوکریت 34\.9 است \(حد طبیعی 36–44؛ روی برگهٔ شما 41\.5–50\.4\)/);
 });
+
+// ═══ specs/024 (P141) — Tietz فصلِ ۲۴: فقط شکاف‌ها (شبه‌هیپوناترمی، کلرید عرق) ═══
+const T24 = (name, value, unit, reference = "") => ({ name, value: String(value), unit, reference });
+const go24 = (tests, patient = { age: 45, sex: "M" }) => { const e = runEngine({ patient, tests }); return { e, p: runPatterns(e) }; };
+const f24 = (r, id) => r.p.findings.find((f) => f.rule_id === id);
+const PSEUDO_NA_RE = /ذراتِ چربی یا پروتئین بخشی از حجمِ نمونه/;
+const hasPseudoNa = (r) => r.p.findings.some((f) => (f.warnings ?? []).some((w) => PSEUDO_NA_RE.test(w)));
+
+// CH24-1 — سدیمِ پایین کنارِ تری‌گلیسریدِ خیلی بالا هیچ هشدارِ «شاید روشِ اندازه‌گیری» نداشت. فقط هشدار؛ فوریت و متن همان.
+test("CH24-1: سدیمِ پایین + TG ≥ ۱۰۰۰ ⇒ هشدارِ شبه‌هیپوناترمی روی sodium_critical؛ فوریت/متن/key_number بی‌تغییر", () => {
+  const na = T24("Sodium", 128, "mmol/L", "135-145");
+  const both = go24([na, T24("Triglyceride", 2000, "mg/dL", "<150")]);
+  const alone = go24([na]);
+  const s = f24(both, "sodium_critical");
+  assert.ok((s.warnings ?? []).some((w) => PSEUDO_NA_RE.test(w)), "هشدار روی کارتِ سدیم");
+  assert.equal(s.urgency, "this_week");
+  assert.equal(s.must_say, f24(alone, "sodium_critical").must_say);
+  assert.equal(s.key_number, f24(alone, "sodium_critical").key_number);
+});
+
+// CH24-2 — کنترل‌های منفی و لبه‌ها: TG/TP زیرِ برش، سدیمِ تنها، لبهٔ اورژانسِ ۱۲۰، سدیمِ تصحیح‌شده با قند.
+test("CH24-2: شبه‌هیپوناترمی — لبه‌های TG/TP، گیتِ اورژانس، واحدِ mmol/L، سدیمِ تصحیح‌شده", async () => {
+  const { PSEUDO_HYPONA_TG_MGDL, PSEUDO_HYPONA_TP_GDL } = await import("./preanalytical.js");
+  assert.deepEqual([PSEUDO_HYPONA_TG_MGDL, PSEUDO_HYPONA_TP_GDL], [1000, 10]);
+  const na = (v) => T24("Sodium", v, "mmol/L", "135-145");
+  const tg = (v, u = "mg/dL") => T24("Triglyceride", v, u, u === "mg/dL" ? "<150" : "<1.7");
+  const tp = (v) => T24("Total Protein", v, "g/dL", "6.4-8.3");
+  assert.equal(hasPseudoNa(go24([na(128), tg(400)])), false, "TG 400");
+  assert.equal(hasPseudoNa(go24([na(128)])), false, "سدیمِ تنها");
+  assert.equal(hasPseudoNa(go24([na(128), tg(999)])), false, "TG 999");
+  assert.equal(hasPseudoNa(go24([na(128), tg(1000)])), true, "TG 1000");
+  assert.equal(hasPseudoNa(go24([na(128), tp(9.9)])), false, "TP 9.9");
+  assert.equal(hasPseudoNa(go24([na(128), tp(10)])), true, "TP 10");
+  assert.equal(hasPseudoNa(go24([na(128), tg(22.6, "mmol/L")])), true, "TG mmol/L با واحدِ چاپی");
+  const e120 = go24([na(120), tg(2000)]);
+  assert.equal(hasPseudoNa(e120), false, "Na 120: اورژانس رقیق نمی‌شود");
+  assert.equal(f24(e120, "sodium_critical").urgency, "emergency");
+  assert.equal(hasPseudoNa(go24([na(121), tg(2000)])), true, "Na 121");
+  assert.equal(hasPseudoNa(go24([na(140), tg(2000)])), false, "سدیمِ طبیعی");
+  assert.equal(hasPseudoNa(go24([na(128), T24("Glucose", 800, "mg/dL", "70-140"), tg(2000)])), false, "سدیمِ تصحیح‌شده با قند");
+});
+
+const SWEAT_HEAD = "نتیجهٔ آزمایشِ کلرید عرق شما";
+// متن‌ها برای کودک از childVoice و برای نوزاد (< ۲۸ روز) از neonatalVoice می‌گذرند (رفتارِ موجودِ موتور، نه این قاعده).
+const { childVoice: cv24, neonatalVoice: nv24 } = await import("./neonatal.js");
+const sweat = (v, unit = "mmol/L", name = "Sweat Chloride", age = 4) => go24([T24(name, v, unit)], { age, sex: "F" });
+
+// CH24-3 — کلرید عرق با هر املایی «تفسیر نشد» بود (unmapped). رسانانیِ عرق آزمایشِ دیگری است و دست نمی‌خورد.
+test("CH24-3: املاهای کلرید عرق ⇒ یک یافتهٔ sweat_chloride_result با سرتیترِ خنثی؛ رسانایی unmapped می‌ماند", () => {
+  for (const name of ["Sweat Chloride", "Sweat chloride", "Chloride (sweat)", "Sweat Cl", "کلرید عرق"]) {
+    const r = sweat(65, "mmol/L", name);
+    const f = f24(r, "sweat_chloride_result");
+    assert.ok(f, name);
+    assert.equal(f.headline, cv24(SWEAT_HEAD), name);
+    assert.equal(f.urgency, "this_week", name);
+    assert.equal(r.e.unmapped.includes(name), false, name);
+  }
+  const c = go24([T24("Sweat conductivity", 55, "mmol/L")], { age: 4, sex: "F" });
+  assert.ok(c.e.unmapped.includes("Sweat conductivity"));
+  assert.equal(f24(c, "sweat_chloride_result"), undefined);
+});
+
+// CH24-4 — باندها با لبه‌ها، دو واحد، و دو حالتِ بی‌حکم.
+test("CH24-4: کلرید عرق — باندهای <۳۰ / ۳۰–۵۹ / ۶۰–۱۶۰ / >۱۶۰، mEq/L، بی‌واحد، زیرِ دو هفته", () => {
+  const S = {
+    unlikely: (v) => `کلرید عرق شما ${v} میلی‌مول در لیتر است. مقدارِ کمتر از ۳۰ در منابعِ آزمایشگاهی «احتمالِ فیبروز کیستیک کم» شمرده می‌شود. اگر پزشک به‌خاطرِ علائم این آزمایش را خواسته، تصمیمِ نهایی با اوست.`,
+    intermediate: (v) => `کلرید عرق شما ${v} میلی‌مول در لیتر است و در محدودهٔ بینابینی (۳۰ تا ۵۹) قرار دارد. این عدد به‌تنهایی بیماری را تأیید یا رد نمی‌کند؛ معمولاً آزمایش ظرفِ چند هفته تکرار می‌شود و ممکن است پزشک آزمایشِ ژنتیک را هم پیشنهاد کند.`,
+    consistent: (v) => `کلرید عرق شما ${v} میلی‌مول در لیتر است. مقدارِ ۶۰ و بالاتر با معیارهای تشخیصیِ فیبروز کیستیک هم‌خوان است، ولی تشخیص با یک عدد قطعی نمی‌شود: پزشکِ متخصص آن را با علائم، تکرارِ آزمایش یا آزمایشِ ژنتیک تأیید می‌کند.`,
+    implausible: (v) => `کلرید عرق شما ${v} میلی‌مول در لیتر گزارش شده است. مقدارِ بالاتر از ۱۶۰ از نظرِ فیزیولوژیک بعید است و معمولاً از خطای جمع‌آوری یا اندازه‌گیریِ نمونه است؛ این آزمایش باید تکرار شود و از این عدد نتیجه‌ای گرفته نمی‌شود.`,
+  };
+  const U = { unlikely: "routine", intermediate: "this_week", consistent: "this_week", implausible: "routine" };
+  const cases = [[29, "unlikely"], [29.5, "intermediate"], [30, "intermediate"], [59, "intermediate"], [59.5, "consistent"], [60, "consistent"],
+    [160, "consistent"], [160.5, "implausible"], [161, "implausible"]];
+  for (const unit of ["mmol/L", "mEq/L"]) for (const [v, st] of cases) {
+    const f = f24(sweat(v, unit), "sweat_chloride_result");
+    assert.equal(f?.must_say, cv24(S[st](v)), `${v} ${unit}`);
+    assert.equal(f.urgency, U[st], `${v} ${unit}`);
+    assert.equal(f.key_number, v, `${v} ${unit}`);
+  }
+  assert.doesNotMatch(f24(sweat(161), "sweat_chloride_result").must_say, /هم‌خوان است/);
+  const noUnit = f24(sweat(65, ""), "sweat_chloride_result");
+  assert.equal(noUnit?.must_say, cv24("کلرید عرق روی برگه هست ولی واحدِ آن (میلی‌مول در لیتر) خوانده نشد، پس دربارهٔ آن قضاوت نمی‌کنیم؛ برگه را به پزشک نشان دهید."));
+  assert.equal(noUnit.urgency, "routine");
+  assert.equal(noUnit.key_number, undefined);
+  const baby = f24(sweat(65, "mmol/L", "Sweat Chloride", 0.02), "sweat_chloride_result");
+  assert.equal(baby?.must_say, nv24("کلرید عرق در نوزادِ کمتر از دو هفته قابلِ اتکا نیست و معمولاً پس از دو هفتگی انجام یا تکرار می‌شود؛ این نتیجه را به پزشکِ کودک نشان دهید."));
+  // کفِ نوزاد (N26/P63): هر یافتهٔ نوزادِ < ۲۸ روز دست‌کم «soon» است؛ این قاعده آن را عوض نمی‌کند.
+  assert.equal(baby.urgency, "soon");
+  assert.equal(f24(sweat(65, "mmol/L", "Sweat Chloride", 0.05), "sweat_chloride_result")?.must_say, nv24(S.consistent(65)));
+  // بزرگسال: متنِ قرارداد بی‌تبدیل.
+  assert.equal(f24(sweat(25, "mmol/L", "Sweat Chloride", 30), "sweat_chloride_result")?.must_say, S.unlikely(25));
+});
+
+// CH24-5 — N25: کلرِ سرم کنارِ کلرید عرق همان حکمِ قبل را می‌گیرد؛ کلیدِ خام به متن نمی‌رسد.
+test("CH24-5: کلرید عرق کلرِ سرم را عوض نمی‌کند و SWEAT_CL هرگز graded یا در متن نیست", () => {
+  const cl = T24("Chloride", 100, "mmol/L", "98-107");
+  const a = go24([cl], { age: 4, sex: "F" });
+  const b = go24([cl, T24("Sweat Chloride", 65, "mmol/L")], { age: 4, sex: "F" });
+  const g = (r) => r.e.graded.find((x) => x.test === "CL");
+  assert.deepEqual([g(b).value, g(b).abnormal], [g(a).value, g(a).abnormal]);
+  assert.equal(b.e.graded.some((x) => x.test === "SWEAT_CL"), false);
+  const text = b.p.findings.map((f) => [f.headline, f.must_say, f.action, ...(f.suggest ?? [])].join(" ")).join(" ");
+  assert.equal(text.includes("SWEAT_CL"), false);
+});
+
+// CH24-6 — کلاسِ N46: کلرید عرقِ *طبیعی* امتیازِ برگهٔ سالم را ۹۸ «high» → ۹۰ «mid» می‌کرد (unread + سقفِ برگه). سنجیده پیش از اصلاحِ score.js.
+test("CH24-6: کلرید عرقِ خوانده‌شده امتیاز را تکان نمی‌دهد؛ بی‌واحد همچنان «خوانده‌نشده» است", async () => {
+  const { healthScore } = await import("./score.js");
+  const base = [T24("Albumin", 4.4, "g/dL"), T24("Creatinine", 0.6, "mg/dL"), T24("FBS", 90, "mg/dL"), T24("hs-CRP", 0.3, "mg/L"),
+    T24("Lymph %", 30, "%"), T24("MCV", 85, "fL"), T24("RDW-CV", 12.5, "%"), T24("WBC", 6.5, "x10^3/uL"), T24("Neutrophils %", 60, "%")];
+  const sc = (extra) => { const r = go24([...base, ...extra], { age: 10, sex: "F" }); return healthScore(r.e, r.p); };
+  const a = sc([]);
+  assert.equal(typeof a.value, "number", "پیش‌شرط");
+  for (const v of [20, 45, 70]) {
+    const b = sc([T24("Sweat Chloride", v, "mmol/L")]);
+    assert.deepEqual([b.value, b.count.unread], [a.value, a.count.unread], `sweat ${v}`);
+  }
+  assert.equal(sc([T24("Sweat Chloride", 20, "mmol/L")]).band, a.band, "طبیعی باند را هم پایین نمی‌آورد");
+  assert.equal(sc([T24("Sweat Chloride", 20, "")]).count.unread, a.count.unread + 1, "بی‌واحد خوانده‌نشده است");
+});

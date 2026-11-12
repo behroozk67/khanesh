@@ -116,7 +116,7 @@ const RULE_GROUP_LISTS = {
   stool: T(`stool_melena stool_clay_colored stool_fresh_blood stool_parasite_found stool_mucus_present stool_undigested_food
     stool_loose_consistency gi_stool_result`),
   general: T(`neonatal_reference_context adult_only_reference_child qual_equivocal_result lab_comment_note sex_unknown_value
-    csf_glucose_low pleural_glucose_low ascites_runyon_pattern unit_unknown_values ph_type_ambiguous`),
+    csf_glucose_low pleural_glucose_low sweat_chloride_result ascites_runyon_pattern unit_unknown_values ph_type_ambiguous`),
 };
 
 export const RULE_GROUP = Object.freeze(Object.fromEntries(
