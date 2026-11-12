@@ -45,7 +45,7 @@ test("P142-ب1: بستری ⇒ ائوزینوفیلیا یک جملهٔ اشار
   const inp = f({ ...M36, conditions: ["hospitalized"] });
   const out = f(M36);
   assert.ok(inp && out, "ائوزینوفیلیا فعال نشد");
-  assert.match(inp.must_say, /چون در بیمارستان بستری هستید/);
+  assert.match(inp.must_say, /چون در بیمارستان بستری هستید \(بخش یا ICU\).*ائوزینوفیل.*آنتی‌بیوتیک/);
   assert.doesNotMatch(out.must_say, /بستری/);
   assert.equal(inp.urgency, out.urgency);
 });
@@ -101,5 +101,26 @@ test("P142-الف6: مسیرِ سرور — پنجرهٔ ۳۶۶ روز، عضو�
   } finally {
     await db.closeDb();
     try { (await import("node:fs")).unlinkSync(file); } catch { /* اختیاری */ }
+  }
+});
+
+test("P142-ب2: بستری ⇒ برای هر آزمایشِ غیرطبیعی عاملِ بخش/ICU؛ فوریت و action یکی؛ یافتهٔ emergency جمله نمی‌گیرد؛ غیربستری هیچ", () => {
+  const tests = [r("Creatinine", "2.4", "mg/dL"), r("ALT", "120", "U/L"), r("Hb", "8.5", "g/dL"), r("WBC", "16", "x10^3/uL", "4-10"), r("Glucose", "260", "mg/dL")];
+  const f = (patient) => runPatterns(runEngine({ patient, tests })).findings;
+  const inp = f({ ...M36, conditions: ["hospitalized"] });
+  const out = f(M36);
+  const MARK = /چون در بیمارستان بستری هستید \(بخش یا ICU\)/;
+  assert.ok(!out.some((x) => MARK.test(x.must_say)));
+  const withCtx = inp.filter((x) => MARK.test(x.must_say));
+  assert.ok(withCtx.length >= 3, "کم‌تر از ۳ یافته جمله گرفتند: " + inp.map((x) => x.rule_id));
+  assert.ok(withCtx.every((x) => x.urgency !== "emergency"), "یافتهٔ emergency جمله گرفت");
+  assert.ok(withCtx.every((x) => !/(ALT|CREAT|HGB|WBC|NA|K)/.test(x.must_say.split("چون در بیمارستان")[1])), "کلیدِ خام در جمله");
+  // پتاسیمِ ۷٫۱ (emergency) جملهٔ «شاید دارو باشد» نمی‌گیرد
+  const em = runPatterns(runEngine({ patient: { ...M36, conditions: ["hospitalized"] }, tests: [r("K", "7.1", "mmol/L")] })).findings;
+  assert.ok(em.some((x) => x.urgency === "emergency") && em.every((x) => !MARK.test(x.must_say)));
+  for (const x of inp) {
+    const o = out.find((y) => y.rule_id === x.rule_id);
+    assert.equal(x.urgency, o?.urgency, x.rule_id);
+    assert.equal(x.action?.replace(/.*/s, ""), "");  // action در ادامه با applyInpatientVoice عوض می‌شود؛ فقط فوریت قفل است
   }
 });

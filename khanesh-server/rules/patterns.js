@@ -789,7 +789,7 @@ export function runPatterns(engineOut) {
   applyMinorCap(findings, engineOut);
 
   // ═══ کفِ فوریتِ نوزادی (P57 پرسش ۵) ═══ — پیش از انتخاب، تا blocks_others و ترتیب با فوریتِ نهایی کار کنند.
-  applyInpatientContext(findings, engineOut);   // P142-ب: بستری ⇒ یک جملهٔ اشاره؛ پیش از صداهای کودک/نوزاد تا «شما» تبدیل شود
+  applyInpatientContext(findings, engineOut, (f, k) => RULE_READS.get(f.rule_id)?.has(k) && textNamesTest(String(f.must_say ?? ""), k));   // P142-ب: بستری ⇒ یک جملهٔ اشاره؛ پیش از صداهای کودک/نوزاد تا «شما» تبدیل شود
   applyNeonatalFloor(findings, engineOut);
   applyNeonatalVoice(findings, engineOut);
   applyChildVoice(findings, engineOut);
