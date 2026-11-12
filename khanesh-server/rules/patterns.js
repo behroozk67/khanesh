@@ -29,7 +29,7 @@ import { RULES_REVIEW1013 } from "./patterns_review1013.js";
 import { rankOf, applyQualGloss, applyPrintedRange } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { rowQuoteFa, absOnlyQuoteFa, printedOf } from "./printed.js";
-import { applyInpatientVoice } from "./inpatient.js";
+import { applyInpatientVoice, applyInpatientContext } from "./inpatient.js";
 import { applyMinorCap } from "./minor.js";
 import { PRO_TEXT } from "./pro_text.js";
 import { applyNeonatalFloor, applyNeonatalVoice, applyChildVoice, isNeonate } from "./neonatal.js";
@@ -789,6 +789,7 @@ export function runPatterns(engineOut) {
   applyMinorCap(findings, engineOut);
 
   // ═══ کفِ فوریتِ نوزادی (P57 پرسش ۵) ═══ — پیش از انتخاب، تا blocks_others و ترتیب با فوریتِ نهایی کار کنند.
+  applyInpatientContext(findings, engineOut);   // P142-ب: بستری ⇒ یک جملهٔ اشاره؛ پیش از صداهای کودک/نوزاد تا «شما» تبدیل شود
   applyNeonatalFloor(findings, engineOut);
   applyNeonatalVoice(findings, engineOut);
   applyChildVoice(findings, engineOut);

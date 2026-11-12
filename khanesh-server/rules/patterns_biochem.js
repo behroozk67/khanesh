@@ -150,7 +150,7 @@ export const LIVER_PERSIST_WEEKS = 4;
 const LIVER_REPEAT_FA = "۴ تا ۱۲ هفته بعد";
 const faDigits = (n) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
 const PERSIST_FA = faDigits(LIVER_PERSIST_WEEKS);
-function liverVisit(e, current, borderline = true) {
+function liverVisit(e, current, borderline = true, relapse = false) {
   if ((typeof e.age === "number" && e.age < 16) || e.pregnant) return null;
   const highs = current.filter((g) => g?.abnormal && g.dir === "high");
   if (!highs.length) return null;
@@ -168,10 +168,24 @@ function liverVisit(e, current, borderline = true) {
   }
   const prevNormal = highs.filter((g) => prev(g) && !prev(g).abnormal);
   if (prevNormal.length) {
-    return { kind: "new", sentence: `در آزمایشِ قبلیِ شما (حدودِ ${wk} هفته پیش) ${prevNormal.map((g) => `${fa(g)} طبیعی بود (${prev(g).value})`).join(" و ")}؛ پس این افزایشِ تازه است و تکرارِ آزمایش نشان می‌دهد ماندگار است یا نه.` };
+    return { kind: "new", sentence: `در آزمایشِ قبلیِ شما (حدودِ ${wk} هفته پیش) ${prevNormal.map((g) => `${fa(g)} طبیعی بود (${prev(g).value})`).join(" و ")}${relapse ? "." : "؛ پس این افزایشِ تازه است و تکرارِ آزمایش نشان می‌دهد ماندگار است یا نه."}` };
   }
   // «در دست نداریم» ≠ «قبلاً نبوده»: کاربر ممکن است قبلاً جای دیگر آزمایش داده باشد. و مرزی (< ۲×ULN) با بالاتر از آن یک جمله نمی‌شود.
   return { kind: "single", sentence: `تا الان فقط همین یک نتیجهٔ آنزیم‌های کبدِ شما نزدِ ما ثبت شده است؛ اگر پیش‌تر هم آزمایش داده‌اید و بالا بوده، برگهٔ قبلی را به پزشک نشان دهید. یک بار بالا بودن هنوز «افزایشِ پایدار» نیست؛ بالا ماندن در آزمایش‌هایی با فاصلهٔ دست‌کم ${PERSIST_FA} هفته مهم‌تر است.${borderline ? "" : " ولی این افزایش بیش از دو برابرِ حدِ بالای طبیعی است و مرزی نیست؛ برای بررسیِ علت منتظرِ آزمایشِ بعدی نمانید."}` };
+}
+
+// ═══ P142-الف (درخواستِ کاربر ۲۰۲۶-۱۱-۱۲): ALT/AST الان > ۲×ULN و در یک سالِ اخیر هم > ۲×ULN بوده ═══
+// فقط متن: فوریت، آستانه و دستور دست نمی‌خورند. کودک (< ۱۶) و بارداری بیرون‌اند (همان مرزِ liverVisit). بیرونِ `build` است
+// تا نام کلیدها در RULE_READS نیاید (N56). e.liverYear را adapter.js (liverYearEvent) از سابقهٔ ذخیره‌شده می‌سازد.
+function liverYearSentence(e, current) {
+  const ly = e.liverYear;
+  if (!ly || (typeof e.age === "number" && e.age < 16) || e.pregnant) return "";
+  if (!current.some((g) => g?.abnormal && g.dir === "high" && (timesUln(g) ?? 0) > 2)) return "";
+  // همان نوبتی که جملهٔ نوبتِ قبلی (پایدار/زودرس/…) پیش‌تر گفته، دوباره گفته نمی‌شود، با هر نوعی.
+  if (e.prior && Math.abs(e.prior.weeks - ly.days / 7) < 0.2) return "";
+  const ago = ly.days < 60 ? `${faDigits(Math.round(ly.days / 7))} هفته` : `${faDigits(ly.months)} ماه`;
+  const x = faDigits(ly.x).replace(".", "٫");
+  return `در سابقهٔ آزمایش‌های ثبت‌شدهٔ شما، حدودِ ${ago} پیش ${faName(ly.key)} شما ${ly.value} بوده، یعنی حدودِ ${x} برابرِ حدِ بالای طبیعی؛ پس این افزایشِ چشمگیر در یک سالِ اخیر تکرار شده است. افزایشِ تکرارشونده بیشتر به یک علتِ ماندگار یا عودکننده می‌خورد (مثلاً کبدِ چرب، هپاتیتِ مزمن، دارو یا الکل، بیماری‌های خودایمنی) تا یک اتفاقِ گذرا؛ پس علت باید پیگیری شود و نتیجهٔ آزمایشِ قبلی را هم به پزشک نشان دهید.`;
 }
 
 // P77-۲ (تصمیمِ بازبین؛ منبع: جدولِ panicِ APSA، وابسته به آزمایشگاه): منیزیمِ ≥ ۴٫۹ mg/dL پنیک است.
@@ -1754,7 +1768,8 @@ export const RULES_BIOCHEM = [
       const hy = hyLawPattern(e);
       const borderline = !hy && liverBorderline(e);
       // P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): پایداریِ ALT/AST — فقط زیرِ آسیبِ شدید (نه Hy، نه ~۱۰×، نه درجهٔ ۴).
-      const visit = !hy && !marked && maxG < 4 ? liverVisit(e, [alt, ast], borderline) : null;
+      const yearS = liverYearSentence(e, [alt, ast]);   // P142-الف: سابقهٔ >۲×ULN در یک سال (اول، تا «افزایشِ تازه است» با آن نخواند)
+      const visit = !hy && !marked && maxG < 4 ? liverVisit(e, [alt, ast], borderline, !!yearS) : null;
       const baseUrgency = maxG >= 4 ? "emergency" : marked || hy ? "soon" : borderline ? "routine" : "this_week";
       const urgency = visit?.kind === "persistent" ? "soon" : baseUrgency;
       // هپاتیت/سونوگرافی/ALP/GGT فقط برای ALTِ تأییدشده (پایدار) یا ≥ ۲×ULN — یعنی نه برای تک‌نوبتِ مرزی.
@@ -1787,7 +1802,9 @@ export const RULES_BIOCHEM = [
           (borderline
             ? "این افزایش کمتر از دو برابرِ حدِ بالای طبیعی است (در راهنمای کالج گوارش آمریکا «مرزی» نامیده می‌شود)؛ شایع است و اغلب با چربیِ کبد، وزن، الکل یا دارو مربوط است، ولی باید تکرار و پیگیری شود. "
             : "") +
-          (visit ? visit.sentence + " " : "") +
+          // P142-الف: با سابقهٔ >۲×ULN در یک سال، «تنها همین یک نتیجه نزد ماست» دروغ می‌شود؛ جملهٔ سابقه جایش می‌آید.
+          (visit && !(yearS && visit.kind === "single") ? visit.sentence + " " : "") +
+          (yearS ? yearS + " " : "") +
           (astLead ? AST_LEAD_SENTENCE : "") +
           (visit && ckHigh
             ? ckFold

@@ -496,6 +496,18 @@ export async function getLatestCompletedJob(userId, excludeJobId = '', memberId 
   try { return { id: row.id, created_at: row.created_at, result: JSON.parse(row.result_json) }; } catch { return null; }
 }
 
+/** P142-الف: همهٔ نتیجه‌های کامل‌شدهٔ همین بیمار در `days` روزِ اخیر (جدیدترین اول) — برای «سابقهٔ ALT/AST در یک سال». */
+export async function getRecentCompletedJobs(userId, excludeJobId = '', memberId = null, days = 366, limit = 24) {
+  const db = await dbConn();
+  const rows = await db.all(
+    `SELECT id, created_at, result_json FROM jobs WHERE user_id = ? AND id != ? AND member_id IS ? AND status = 'completed' AND result_json IS NOT NULL AND created_at >= datetime('now', ?) ORDER BY created_at DESC, rowid DESC LIMIT ?`,
+    [userId, excludeJobId, memberId, `-${Math.floor(days)} days`, limit]
+  );
+  const out = [];
+  for (const row of rows) { try { out.push({ id: row.id, created_at: row.created_at, result: JSON.parse(row.result_json) }); } catch { /* ردیفِ خراب نادیده */ } }
+  return out;
+}
+
 export async function getJobById(jobId, userId) {
   const db = await dbConn();
   const row = await db.get(`SELECT * FROM jobs WHERE id = ? AND user_id = ?`, [jobId, userId]);

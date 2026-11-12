@@ -2888,6 +2888,39 @@ function priorVisit(ocr, sex, age) {
   return PRIOR_KEYS.some((k) => out[k]) ? out : null;
 }
 
+// ═══ P142-الف (درخواستِ کاربر ۲۰۲۶-۱۱-۱۲): ALT/AST بیش از ۲×ULN در یک سالِ اخیر ═══
+// ورودی: ocr.priorHistory = [{ date, graded, sex?, age? }] (همهٔ نوبت‌های ذخیره‌شده؛ priorFromStoredResult). همان قیدهای شخص‌یکی
+// (جنس، سن) و تاریخِ پیش‌از-نمونه که priorVisit دارد. خروجی: بالاترین افزایشِ >۲×ULN در ≤۳۶۵ روز، یا null.
+export const LIVER_YEAR_DAYS = 365;
+export const LIVER_YEAR_X = 2;
+export const LIVER_YEAR_MIN_DAYS = 14;
+function liverYearEvent(ocr, sex, age) {
+  const hist = ocr?.priorHistory;
+  if (!Array.isArray(hist) || !hist.length) return null;
+  const sd = sampleDateOf(ocr);
+  const t1 = sd ? Date.parse(sd) : Date.now();
+  if (!Number.isFinite(t1)) return null;
+  let best = null;
+  for (const h of hist) {
+    const t0 = Date.parse(h?.date);
+    if (!Number.isFinite(t0) || t0 >= t1) continue;
+    const days = (t1 - t0) / 864e5;
+    // کمتر از دو هفته ⇒ «سابقه» نیست: همان برگه با تاریخِ ناخوانا دوباره فرستاده شده (تلاشِ مجدد بعد از خطا) یا همان روز است.
+    if (days > LIVER_YEAR_DAYS || days < LIVER_YEAR_MIN_DAYS) continue;
+    if (h.sex && sex && h.sex !== sex) continue;
+    if (typeof h.age === "number" && typeof age === "number" && Math.abs(age - (h.age + days / 365.25)) > PRIOR_AGE_TOLERANCE_Y) continue;
+    for (const g of Array.isArray(h.graded) ? h.graded : []) {
+      if (!PRIOR_KEYS.includes(g?.test) || typeof g.value !== "number") continue;
+      const nums = String(g.range ?? "").split(/[–-]/).map(Number).filter(Number.isFinite);
+      const uln = nums.length >= 2 ? nums[nums.length - 1] : null;
+      if (!uln || !(g.value > LIVER_YEAR_X * uln)) continue;
+      const x = g.value / uln;
+      if (!best || x > best.x) best = { key: g.test, value: g.value, x: +x.toFixed(1), days: Math.round(days), months: Math.max(1, Math.round(days / 30.4)) };
+    }
+  }
+  return best;
+}
+
 /** P113: بازهٔ چاپ‌شدهٔ ردیفِ *_ABS را به واحدِ موتور (/µL) می‌برد.
  *  برگه‌ها این بازه را در ۱۰³/µL می‌چاپند («0.10 - 1.20») و موتور مقدار را در /µL نگه می‌دارد؛
  *  اگر هر دو کران زیرِ ۱۰۰ باشند مقیاس ۱۰³ است. بی‌بازه یا نامعتبر ⇒ null (بازهٔ داخلی می‌ماند). */
@@ -3514,6 +3547,7 @@ export function runEngine(ocr, opts = {}) {
   return {
     ...(prior ? { prior } : {}),
     ...(pv?.notEarlier ? { priorNotEarlier: true } : {}),
+    ...((ly) => (ly ? { liverYear: ly } : {}))(liverYearEvent(ocr, sex, age)),
     ...(sampleDate ? { sample_date: sampleDate } : {}),
     sex, age,
     pregnant: pregnantF,

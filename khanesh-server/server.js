@@ -37,6 +37,8 @@ import "./env.js";
 // ماکروسیتیک «رژیم غنی از آهن» پیشنهاد می‌داد که بالینی غلط است.
 // راه‌حل: الگو را کد تعیین می‌کند، مدل فقط فارسی می‌نویسد.
 import { parseSampleDate } from "./rules/sampledate.js";
+import { priorFromStoredResult } from "./rules/priorStored.js";
+export { priorFromStoredResult };
 import { runEngine, isSemenPage, isHbElectroPage, isHbAmbiguousName, isPlaceholderValue, inferAge, inferSex, mergeIdentityTag } from "./rules/adapter.js";
 import { bareUrineShape } from "./rules/specimen.js";
 // P117: کلیدهای مشاهدهٔ برگهٔ مدفوع (یک منبع با موتور) — برای جداکردنِ خطِ «مشاهدهٔ چاپ‌شده» از «بی‌بازه»ها.
@@ -85,7 +87,7 @@ import profileRouter, { withMember } from "./profile.js";
 import historyRouter, { recordAnalysis, ownerOf } from "./historyRoutes.js";
 import {
   initDb, createJobRecord, updateJobResult, getUserJobs, getJobById,
-  getLatestCompletedJob, saveContactMessage,
+  getLatestCompletedJob, getRecentCompletedJobs, saveContactMessage,
   createPaymentRecord, getPaymentByAuthority, markPaymentVerifying, settlePaymentRecord, listStuckPayments, markPaymentFailed,
   getUserCredits, addUserCredits, deductUserCredit, getUserPlan, countRecentJobs, getFreeCredits
 } from "./database.js";
@@ -134,25 +136,6 @@ export function ageText(years) {
  *   • بقیه — وقتی یافته‌ای نمایش‌داده‌شده آن را در applied_conditions اعلام کرد (مثلاً شاخهٔ dm2 در lipid_profile).
  * بازبینیِ کد: پیش‌تر هر dm2ِ گزارش‌شده «لحاظ‌شده» نوشته می‌شد، حتی روی برگهٔ فقط-CBC.
  */
-/**
- * P108-ج: ردیفِ ذخیره‌شدهٔ jobs ⇒ `prior` ِ موتور ({ date, graded, sex }). فقط ALT/AST؛ نتیجهٔ بی‌_engine ⇒ null.
- * تاریخ: `_engine.context.sample_date` (چاپ‌شده روی برگه) اگر هست، وگرنه created_at (SQLite، UTC بی‌منطقه ⇒ «Z»).
- */
-export function priorFromStoredResult(row) {
-  const eng = row?.result?._engine;
-  if (!Array.isArray(eng?.tests)) return null;
-  const graded = eng.tests.filter((t) => t.key === "ALT" || t.key === "AST")
-    .map((t) => ({ test: t.key, value: t.value, abnormal: t.abnormal, dir: t.dir, range: t.range }));
-  if (!graded.length || !row.created_at) return null;
-  // تاریخِ نمونهٔ چاپ‌شده بر تاریخِ بارگذاری مقدم است (برگهٔ قدیمیِ امروز آپلودشده).
-  const c = String(row.created_at);
-  const date = eng.context?.sample_date ?? (/[zZ]|[+-]\d\d:?\d\d$/.test(c) ? c : c.replace(" ", "T") + "Z");
-  const sex = eng.context?.sex === "مرد" ? "M" : eng.context?.sex === "زن" ? "F" : null;
-  // سن از همان متنِ context («۳۸ سال»، «۶ ماه») با همان خواننده‌ای که برگه را می‌خواند.
-  const age = eng.context?.age_text ? inferAge({ patient: { age: eng.context.age_text } }) : null;
-  return { date, graded, ...(sex ? { sex } : {}), ...(typeof age === "number" ? { age } : {}) };
-}
-
 export function engineContext(engineOut, patternOut) {
   const reported = new Set(activeConditionIds(engineOut.conditions));
   const used = new Set((patternOut?.findings ?? []).flatMap((f) => f.applied_conditions ?? []));
@@ -1404,7 +1387,11 @@ const analyzeHandler = async (req, res) => {
     let routedByQual = false;   // specs/011: برگه فقط به‌خاطرِ ردیف‌های کیفیِ صاحب‌دار در مسیرِ موتور ماند
     if (lastMergedOcr) {
       // P108-ج: نوبتِ قبلیِ کاربرِ واردشده (فقط /start، فقط کاربرِ غیرناشناس) برای پایداریِ ALT/AST.
-      engineCandidate = runEngine(req.priorLabs ? { ...lastMergedOcr, prior: req.priorLabs } : lastMergedOcr, { diagnostics: true });
+      engineCandidate = runEngine({
+        ...lastMergedOcr,
+        ...(req.priorLabs ? { prior: req.priorLabs } : {}),
+        ...(req.priorHistory ? { priorHistory: req.priorHistory } : {}),
+      }, { diagnostics: true });
       // job c138671c (D10): برای نوزاد، فهرستِ «برای مطالعهٔ بیشتر» فقط صفحه‌های عمومیِ شمارشِ خونِ بزرگسال بود.
       //   صفحهٔ نوزادیِ MedlinePlus (وجودش ۲۰۲۶-۰۹-۲۸ بررسی شد) اضافه می‌شود — همان فهرست، نه منبعِ نتیجه‌گیری.
       if (isNeonate(engineCandidate.age) && !medlineSources.includes(NEWBORN_MEDLINE_URL)) {
@@ -2277,11 +2264,17 @@ app.post("/api/analyze/start", requireAllowedOrigin, requireAuth, withMember, an
   };
 
   // P108-ج: آخرین نتیجهٔ ذخیره‌شدهٔ همین کاربر ⇒ نوبتِ قبلیِ ALT/AST. ناشناس (AUTH خاموش) هرگز: همه userId=1اند.
-  const priorP = req.user && req.user.userId && !req.user.anonymous
+  const signedIn = req.user && req.user.userId && !req.user.anonymous;
+  const priorP = signedIn
     ? getLatestCompletedJob(req.user.userId, jobId, req.memberId ?? null).then(priorFromStoredResult).catch(() => null)
     : Promise.resolve(null);
-  priorP.then((prior) => {
+  // P142-الف: سابقهٔ یک سالهٔ ALT/AST (همهٔ نوبت‌ها، نه فقط آخری) برای «بیش از دو برابر در یک سال اخیر».
+  const historyP = signedIn
+    ? getRecentCompletedJobs(req.user.userId, jobId, req.memberId ?? null).then((rows) => rows.map(priorFromStoredResult).filter(Boolean)).catch(() => [])
+    : Promise.resolve([]);
+  Promise.all([priorP, historyP]).then(([prior, history]) => {
     if (prior) req.priorLabs = prior;
+    if (history.length) req.priorHistory = history;
     return analyzeHandler(req, shim);
   }).catch((err) => {
     console.error("Job failed:", err.name, err.message);
