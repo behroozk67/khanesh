@@ -243,7 +243,7 @@ test("TMM14: قرارداد v2 — abnormal:null ⇔ بی‌حکم؛ نامِ ف
 
 // specs/020 (P132، FR-007 اصلاح‌شده): PSA روی پروفایلِ زن ⇒ پرچم + یک جمله، *افزون بر* حکم (حکم و فوریت پنهان نمی‌شوند — اصلِ II).
 const PSA_SEX_FA = "PSA آزمایشِ مخصوصِ پروستات است و جنسِ ثبت‌شده برای این برگه زن است؛ اگر این برگه مالِ شخصِ دیگری نیست، جنسِ پروفایل را بررسی کنید و برگه را به پزشک نشان دهید.";
-test("TMM15: PSA روی پروفایلِ زن — حکم همان، sexMismatch و جمله؛ مرد و CA 125ِ مرد بی‌پرچم", () => {
+test("TMM15: PSA روی پروفایلِ زن — حکم همان، sexMismatch و جمله؛ مرد بی‌پرچم؛ CA 125ِ مرد ردیفِ بی‌پرچم ولی جمله می‌گیرد (P140 تصمیمِ ۵ را عوض کرد، TMM19)", () => {
   const f = go20({ age: 60, sex: "F" }, [T20("PSA", 1.2, "ng/mL", "< 4.0")]);
   assert.deepEqual([row20(f, "PSA_TOTAL")?.verdict, row20(f, "PSA_TOTAL")?.sexMismatch], ["within", true]);
   assert.ok(say20(f, "psa_result").includes(PSA_SEX_FA));
@@ -257,7 +257,7 @@ test("TMM15: PSA روی پروفایلِ زن — حکم همان، sexMismatch 
   assert.equal(say20(u, "psa_result").includes("جنسِ ثبت‌شده"), false);
   const ca = go20(M45, [T20("CA 125", 10, "U/mL", "0-35")]);
   assert.equal(row20(ca, "CA125")?.sexMismatch, undefined);
-  assert.equal(say20(ca, "tumor_markers_result").includes("جنسِ ثبت‌شده"), false);
+  assert.equal(say20(ca, "tumor_markers_result").includes("جنسِ ثبت‌شده"), true, "P140: جملهٔ CA 125ِ مرد (قبلاً بی‌پرچم، P132 تصمیمِ ۵)");
 });
 
 // specs/020 (FR-006/SC-004): هیچ قاعدهٔ فصلِ ۲۰ (نیازمندِ سابقه/جراحی/تصویربرداری/فنوتیپ) به کد نیامده — گزینهٔ C.
@@ -279,4 +279,24 @@ test("TMM16: جاروی سکوت — واژه‌های قواعدِ فصلِ ۲�
     }
   }
   assert.equal(n, 5, "هر پنل یافتهٔ خودش را بسازد");
+});
+
+// P140 (تأییدِ کاربر ۲۰۲۶-۱۱-۱۲؛ Tietz فصلِ ۲۰ «CA 125 در مرد» و «CA 19-9 با انسدادِ صفراوی»). هر دو جمله *افزون بر* حکم‌اند.
+test("TMM19: CA 125 روی جنسِ مرد جملهٔ جنس می‌گیرد؛ زن و جنسِ نامعلوم نه؛ فوریت عوض نمی‌شود", () => {
+  const sentence = /CA 125 آزمایشِ مخصوصِ سرطانِ تخمدان است و جنسِ ثبت‌شده برای این برگه مرد است/;
+  const man = go20(M45, [T20("CA 125", 50, "U/mL", "< 35")]);
+  assert.match(say20(man, "tumor_markers_result"), sentence);
+  assert.equal(urg20(man, "tumor_markers_result"), "this_week", "حکم و فوریت پنهان نمی‌شوند");
+  for (const p of [{ age: 45, sex: "F" }, { age: 45 }]) {
+    assert.doesNotMatch(say20(go20(p, [T20("CA 125", 50, "U/mL", "< 35")]), "tumor_markers_result"), /جنسِ ثبت‌شده برای این برگه مرد/);
+  }
+});
+
+test("TMM20: CA 19-9 بالا + نشانگرِ کلستاز/بیلی‌روبینِ بالا روی همان برگه ⇒ جملهٔ مخصوصِ برگه؛ بدونِ آن‌ها یا با CA 19-9 داخلِ محدوده نه", () => {
+  const sentence = /روی همین برگه .* هم بالاتر از حد طبیعی است\. انسدادِ مجاریِ صفراوی/;
+  const both = go20(M60, [T20("CA 19-9", 120, "U/mL", "< 37"), T20("ALP", 600, "U/L", "80-300"), T20("Bilirubin total", 4, "mg/dL", "0.1-1.2")]);
+  assert.match(say20(both, "tumor_markers_result"), sentence);
+  assert.equal(urg20(both, "tumor_markers_result"), "this_week", "فوریت پایین نمی‌آید");
+  assert.doesNotMatch(say20(go20(M60, [T20("CA 19-9", 120, "U/mL", "< 37")]), "tumor_markers_result"), sentence);
+  assert.doesNotMatch(say20(go20(M60, [T20("CA 19-9", 20, "U/mL", "< 37"), T20("ALP", 600, "U/L", "80-300")]), "tumor_markers_result"), sentence);
 });
