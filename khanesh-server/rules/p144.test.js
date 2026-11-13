@@ -217,3 +217,27 @@ test("P144-R5b (قفل): نوزادِ ۱۰ روزه ⇒ بی C8؛ ۲ روزه ب
   assert.doesNotMatch(thy(run([tsh(20)], { age: 10 / 365, sex: "M" }).out).must_say, /روزِ ۳ تا ۵/);
   assert.equal(thy(run([tsh(10)], { age: 2 / 365, sex: "M" }).out), undefined);
 });
+
+// ═══ US6 (commitِ جدا) ═══
+test("P144-R6a: TSHِ بزرگسال 0.45 بی‌بازهٔ چاپی ⇒ طبیعی (کفِ ۰٫۴)؛ یافتهٔ پرکاری نه", () => {
+  const { e, out } = run([tsh(0.45), ft4(1.2)]);
+  assert.equal(e.graded.find((g) => g.test === "TSH").abnormal, false);
+  assert.equal(thy(out), undefined);
+});
+
+test("P144-R6b: TSH 0.39 ⇒ پایین، همان متنِ تحت‌بالینیِ امروز", () => {
+  const f = find(run([tsh(0.39), ft4(1.2)]).out, "thyroid_hyper_subclinical");
+  assert.match(f.must_say, /0\.4–4\.5/);
+  assert.match(f.must_say, /این پرکاری خفیف/);
+});
+
+test("P144-R6c: TSH 0.40 ⇒ طبیعی (لبه شامل، مثلِ ۰٫۵ ِ پیشین)", () => {
+  assert.equal(run([tsh(0.4), ft4(1.2)]).e.graded.find((g) => g.test === "TSH").abnormal, false);
+});
+
+// ⚠️ TSH کلیدِ printed-first نیست: بازهٔ چاپی فقط می‌تواند «غیرطبیعیِ» موتور را وتو کند، نه خودش حکم بدهد. پس برگه‌ای با «0.5-4.5»
+//   (یا Siemens «0.55-4.78») و TSH 0.45 دیگر پایین خوانده نمی‌شود. این رفتارِ واقعی است (spec US6-3 اشتباه فرض کرده بود)؛ پرسشِ P144.
+test("P144-R6d (قفل): بازهٔ چاپی «0.5-4.5» با TSH 0.45 ⇒ طبیعی (بازهٔ موتور حکم می‌دهد)؛ 0.3 ⇒ پایین", () => {
+  assert.equal(run([tsh(0.45, "0.5-4.5"), ft4(1.2)]).e.graded.find((x) => x.test === "TSH").abnormal, false);
+  assert.equal(run([tsh(0.3, "0.5-4.5"), ft4(1.2)]).e.graded.find((x) => x.test === "TSH").dir, "low");
+});

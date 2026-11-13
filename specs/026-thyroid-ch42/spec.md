@@ -143,7 +143,8 @@ A patient who reported hypothyroidism uploads a follow-up TSH. Today a low TSH i
 
 1. **Given** an adult TSH of 0.45 with no printed range, **Then** it is within range (the new lower limit is 0.4), and no hyperthyroid finding appears.
 2. **Given** TSH 0.39 with no printed range, **Then** it is low, and the text is today's subclinical text.
-3. **Given** a printed range, **Then** the printed range keeps deciding, as today.
+3. ~~**Given** a printed range, **Then** the printed range keeps deciding, as today.~~
+   **Corrected during implementation:** TSH is not a printed-first key. A printed range can only veto an abnormal engine verdict; it never decides alone. A sheet that prints «0.5-4.5» with TSH 0.45 is therefore no longer flagged low. Test R6d locks this, and it is a P144 reviewer question.
 4. **Given** the change, **Then** `TSH_SUPPRESSED`, the paediatric rows and every rule reading `TSH.dir === "low"` are re-probed at 0.39, 0.40, 0.45 and 0.5 (N23).
 5. **Sequencing.** US6 changes the quoted «حد طبیعی 0.5–4.5» in every finding that graded TSH on the fallback, which is almost every probe panel. So US6 is its own step and its own commit. It has its own before/after, and the diff is proven to be only that range string (plus the T1 panels) before it is re-baselined. US1–US5 are diffed against `before.txt` first, while the range is still 0.5.
 

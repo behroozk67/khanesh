@@ -182,23 +182,23 @@
   - reviewer questions: TSH ≥ 10 urgency, the TSH upper limit, a dedicated levothyroxine condition;
   - cross-references to P68, P72, P119, P136 and P143;
   - the list of tests.
-- [ ] T037 Commit 1: «feat(rules): P144 Tietz فصل ۴۲ — کم‌کاریِ ثبت‌شده، TSH ≥۱۰/<۰٫۱، تیروگلوبولین، بارداری، نوزاد». Stage only the touched files, plus `specs/026-thyroid-ch42`. Never `.impeccable`. The pre-commit hook must pass without `SKIP_HOOKS`.
+- [X] T037 Commit 1: «feat(rules): P144 Tietz فصل ۴۲ — کم‌کاریِ ثبت‌شده، TSH ≥۱۰/<۰٫۱، تیروگلوبولین، بارداری، نوزاد». Stage only the touched files, plus `specs/026-thyroid-ch42`. Never `.impeccable`. The pre-commit hook must pass without `SKIP_HOOKS`.
 
 ## Phase 8: User Story 6, TSH fallback lower limit 0.4 (P3, commit 2)
 
 **Goal**: with no printed range, an adult TSH of 0.4–0.49 is normal. Every other diff is only the range string.
 
-- [ ] T038 [US6] In `khanesh-server/rules/p144.test.js`, add tests R6a–R6d.
+- [X] T038 [US6] In `khanesh-server/rules/p144.test.js`, add tests R6a–R6d.
   - **R6a** — adult TSH 0.45 with no printed range. Expect no `thyroid` finding.
   - **R6b** — TSH 0.39. Expect `thyroid_hyper_subclinical`.
   - **R6c** — TSH 0.40. Expect normal (edge inclusive, like `refs.js` treats 0.5 today).
   - **R6d** — a printed «0.5-4.5» with TSH 0.45 is still low (printed range wins).
   - Prove R6a and R6c red.
-- [ ] T039 [US6] Change `TSH.both` from `[0.5, 4.5]` to `[0.4, 4.5]` in `khanesh-server/rules/refs.js`. Update the comment to cite P144, Tietz pp. 820/825 and the Iranian kit inserts.
-- [ ] T040 [P] [US6] Change `tsh.range` `low` from 0.5 to 0.4 in `khanesh/src/labRefs.js`, and update the TSH row in `docs/reviews/REF_DIFF.md`.
-- [ ] T041 [US6] N23 sweep. Run `grep -n '"TSH"' khanesh-server/rules/*.js` and list every `dir === "low"` or `lln` reader. Probe the adult values 0.39 / 0.40 / 0.45 / 0.50 and the paediatric rows (unchanged).
-- [ ] T042 [US6] Run `probe_ch42.mjs > after.txt` and diff it against `after_us1-5.txt`. Only `0.5–4.5` → `0.4–4.5` may change, plus T1 tsh 0.45 noref losing its finding. Then run the full `npm test`, metamorphic, and `npm run lint` in `khanesh/`.
-- [ ] T043 [US6] Add US6 to the P144 entry in `MEDICAL_RULES.md`. Commit 2: «fix(refs): P144 کفِ TSHِ بزرگسال ۰٫۵ ⇒ ۰٫۴ (کیت‌های رایجِ ایران، Tietz)».
+- [X] T039 [US6] Change `TSH.both` from `[0.5, 4.5]` to `[0.4, 4.5]` in `khanesh-server/rules/refs.js`. Update the comment to cite P144, Tietz pp. 820/825 and the Iranian kit inserts.
+- [X] T040 [P] [US6] Change `tsh.range` `low` from 0.5 to 0.4 in `khanesh/src/labRefs.js`, and update the TSH row in `docs/reviews/REF_DIFF.md`.
+- [X] T041 [US6] N23 sweep. Run `grep -n '"TSH"' khanesh-server/rules/*.js` and list every `dir === "low"` or `lln` reader. Probe the adult values 0.39 / 0.40 / 0.45 / 0.50 and the paediatric rows (unchanged).
+- [X] T042 [US6] Run `probe_ch42.mjs > after.txt` and diff it against `after_us1-5.txt`. Only `0.5–4.5` → `0.4–4.5` may change, plus T1 tsh 0.45 noref losing its finding. Then run the full `npm test`, metamorphic, and `npm run lint` in `khanesh/`.
+- [X] T043 [US6] Add US6 to the P144 entry in `MEDICAL_RULES.md`. Commit 2: «fix(refs): P144 کفِ TSHِ بزرگسال ۰٫۵ ⇒ ۰٫۴ (کیت‌های رایجِ ایران، Tietz)».
 
 ## Phase 9: Polish
 
