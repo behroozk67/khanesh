@@ -187,6 +187,12 @@ export const NAME_MAP = {   // export فقط برای metamorphic.test.js (هم�
   // ناشتای OGTT همان قندِ ناشتاست (و «ناشتا» نام برده شده).
   gttfasting: "GLU_F", ogttfasting: "GLU_F", fastinggtt: "GLU_F", gtt0h: "GLU_F", ogtt0h: "GLU_F", glucose0h: "GLU_F",
   hemoglobina1c: "HBA1C", hba1c: "HBA1C", a1c: "HBA1C",
+  // P143 (specs/025): انسولین و سی‌پپتید پیش‌تر نگاشت نداشتند و بی‌صدا گم می‌شدند (N2). آنتی‌بادیِ ضدِ انسولین (IAA)، HOMA-IR و پروانسولین
+  //   عمداً نه (N25): هر کدام هویتِ جداست و بی‌قاعده در «خوانده‌نشده» می‌ماند.
+  insulin: "INSULIN", fastinginsulin: "INSULIN", insulinfasting: "INSULIN", seruminsulin: "INSULIN", insulinserum: "INSULIN",
+  انسولین: "INSULIN", انسولینسرم: "INSULIN", انسولینناشتا: "INSULIN",
+  cpeptide: "C_PEPTIDE", cpep: "C_PEPTIDE", cpept: "C_PEPTIDE", connectingpeptide: "C_PEPTIDE", cpeptidefasting: "C_PEPTIDE", fastingcpeptide: "C_PEPTIDE",
+  سیپپتاید: "C_PEPTIDE", سیپپتید: "C_PEPTIDE", پپتیدc: "C_PEPTIDE",
   urea: "UREA", اوره: "UREA", bun: "UREA_N", bloodureanitrogen: "UREA_N", ureanitrogen: "UREA_N",
   creatinine: "CREAT", cr: "CREAT", کراتینین: "CREAT",
   creatinin: "CREAT", creatnine: "CREAT", cretinine: "CREAT", serumcreatinine: "CREAT",
@@ -944,6 +950,9 @@ const PRINTED_REF_ONLY_KEYS = new Set(["T3UP", "FTI"]);
 //   گفته می‌شد و «RF 18، برگه <15» با ۰–۲۰ «طبیعی» و بی‌یافته. بازهٔ چاپ‌شدهٔ همان ردیف مقدم است؛ بی‌بازهٔ چاپی، refs.js مثلِ قبل.
 //   (هم‌شکلِ P114 برای LDH، ولی کودک هم: این دو کلید بازهٔ کودکانهٔ جدا ندارند.)
 const PRINTED_FIRST_KEYS = new Set(["ANTI_TPO", "RF"]);
+// P143 (specs/025، D3): انسولین و سی‌پپتید کیت‌به‌کیت فرق می‌کنند و *پایین* هم معنا دارد ⇒ بازهٔ چاپ‌شده با هر دو لبه.
+//   ردیفِ تبدیل‌شده (pmol/L ⇒ µIU/mL) بازهٔ چاپ‌شده‌اش با همان ضریب مقیاس می‌شود (عدد و بازه از یک ستون‌اند، N12).
+const PRINTED_FIRST_BOTH_KEYS = new Set(["INSULIN", "C_PEPTIDE"]);
 // ۲) سنجه‌هایی که «تخفیفِ» بازهٔ چاپ‌شده هرگز به آن‌ها نمی‌رسد (خطرِ بالا: پتاسیم، سدیم، قند، تروپونین، انعقاد، CBC).
 const PRINTED_RELAX_EXEMPT = new Set([
   "K", "NA", "CA", "MG", "PHOS", "GLU_F", "GLU_RANDOM", "TROPONIN_I", "TROPONIN_T", "INR", "PT", "PTT", "D_DIMER",
@@ -2934,6 +2943,17 @@ function absPrintedRange(printed, key = "") {
 
 /** P114: بازهٔ چاپ‌شدهٔ یک ردیف → [lo, hi] در واحدِ موتور؛ یک‌طرفهٔ «< 530» با کفِ ۰.
  *  برای LDH که سقفِ کیت‌ها ۲۴۰–۵۳۰ است، مرجعِ خودِ آزمایشگاه سنجهٔ درست است. */
+// P143 (D3): the printed range is in the printed unit. A row the adapter converted (pmol/L ⇒ µIU/mL) has its range
+//   scaled by the same factor (value/raw from that row's unitConversions entry), so a converted value is never
+//   compared with an unconverted range (N12).
+function printedBothScaled(pair, conv) {
+  if (!pair) return null;
+  const f = conv && typeof conv.raw === "number" && conv.raw > 0 && typeof conv.value === "number" ? conv.value / conv.raw : 1;
+  if (f === 1) return pair;
+  const round = (x) => (Math.abs(x) >= 100 ? Math.round(x) : Math.abs(x) >= 10 ? +x.toFixed(1) : +x.toFixed(2));
+  return [round(pair[0] * f), round(pair[1] * f)];
+}
+
 function printedRangePair(printed, age = null) {
   if (!printed) return null;
   const p = parseReference(String(printed), null, age);
@@ -3286,7 +3306,9 @@ export function runEngine(ocr, opts = {}) {
     //   فقط برای فوریت به کار می‌برد (p96.test.js) — این تصمیم دست‌نخورده می‌ماند.
     const printedOwn = key === "LDH" && !(age != null && age < 16) ? printedRangePair(printedRefs.LDH, age)
       // آنتی‌بادیِ پایین هرگز غیرطبیعی نیست: فقط سقفِ چاپی («RF 3، برگه 5–20» نباید «پایین» شود).
-      : PRINTED_FIRST_KEYS.has(key) ? (printedRangePair(printedRefsAll[key]) ? [0, printedRangePair(printedRefsAll[key])[1]] : null) : null;
+      : PRINTED_FIRST_KEYS.has(key) ? (printedRangePair(printedRefsAll[key]) ? [0, printedRangePair(printedRefsAll[key])[1]] : null)
+      : PRINTED_FIRST_BOTH_KEYS.has(key) ? printedBothScaled(printedRangePair(printedRefsAll[key]), unitConversions.find((c) => c.test === key))
+      : null;
     const ref = absRef ?? printedOwn ?? ((NO_RANGE_KEYS.has(key) || ungradedByAge) ? null : getRef(key, sex, age, { pregnant: pregnantF }));
     if (!ref) {
       // P116 (بازبینی ۲۰۲۶-۱۰-۲۷): T3 Uptake و FTI موتور برایشان مرجعِ داخلی ندارد، ولی خودِ آزمایشگاه بازه

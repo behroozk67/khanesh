@@ -78,7 +78,7 @@ const RULE_GROUP_LISTS = {
     factor_activity factor_inhibitor vwf_panel antithrombin_abnormal thrombin_time_abnormal`),
   inflam: T(`crp_pos_esr_normal crp_elevated esr_elevated sepsis_markers hscrp_ascvd_risk pct_intermediate`),
   glucose: T(`dka_pattern hhs_pattern gestational_diabetes_range random_glucose_above_range glycemia hypoglycemia
-    severe_hyperglycemia_uncertain_ketosis eag_result bhb_result`),
+    severe_hyperglycemia_uncertain_ketosis eag_result bhb_result hba1c_low hypoglycemia_insulin_not_suppressed`),
   lipid: T(`lipid_profile severe_hypercholesterolemia familial_hypercholesterolemia_youth apob_elevated atherogenic_index`),
   kidney: T(`kidney albuminuria_pattern nephrotic_pattern glomerulonephritis_pattern ckd_pattern_diagnostic creatinine_emergency
     urea_bun_emergency isolated_urea_elevation creatinine_low urea_low hyperuricemia uric_acid_low urine_calcium_abnormal`),
@@ -103,7 +103,8 @@ const RULE_GROUP_LISTS = {
     prenatal_window_invalid prenatal_risk_low prenatal_marker_notes prenatal_concentration_unread`),
   immune: T(`ana_family_result anca_result hla_b27_result anti_ccp_result complement_result ssc_antibody_result
     myositis_antibody_result antiphospholipid_result rf_positive indirect_coombs_result
-    celiac_serology_result liver_autoantibody_result mg_antibody_result immunoglobulin_result dnaseb_result`),
+    celiac_serology_result liver_autoantibody_result mg_antibody_result immunoglobulin_result dnaseb_result
+    insulin_result islet_autoantibody_result`),
   infect: T(`hcv_screen_reactive hbv_screen_reactive hiv_screen_reactive brucella_active brucella_2me_only brucella_wright_only
     anti_hbs_result anti_hbc_result aso_result blood_culture_result hpylori_igm_result syphilis_screen_result rubella_igg_status
     h_pylori_result`),

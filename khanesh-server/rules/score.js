@@ -97,6 +97,8 @@ export const EXCLUDED = Object.freeze(Object.fromEntries(
     // ۲۰۲۶-۱۰-۱۶ (P108): CK و میوگلوبین مالِ عضله‌اند نه قلب؛ CKِ ۳۵۷ِ پس از ورزش «قلب ۵۵» می‌ساخت. دستگاهِ عضله نداریم؛
     //   یافتهٔ CK (رابدومیولیز، ck_elevated_alone) هنوز از راهِ سقفِ فوریت در امتیاز می‌نشیند.
     .concat(['CK', 'MYOGLOBIN'].map((k) => [k, 'آنزیمِ عضله است، نه شاخصِ قلب؛ دستگاهِ عضله در امتیاز نیست']))
+    // P143 (specs/025): انسولین/سی‌پپتید کیت‌وابسته‌اند و بی‌قندِ همان نمونه دربارهٔ کارِ دستگاه حکمی نمی‌دهند؛ یافته‌شان از راهِ فوریت می‌نشیند.
+    .concat(['INSULIN', 'C_PEPTIDE'].map((k) => [k, 'انسولین و سی‌پپتید بی‌قندِ همان نمونه دربارهٔ کارِ یک دستگاه حکمی نمی‌دهند']))
 ));
 
 const RANGE_RE = /^(-?\d+(?:\.\d+)?)–(-?\d+(?:\.\d+)?)$/;
@@ -196,8 +198,10 @@ export function healthScore(engineOut, patternOut) {
   // specs/024 (P141): کلرید عرق هم بیرون از امتیاز است — ولی فقط وقتی sweat_chloride_result آن را خوانده (explains)؛
   //   کلرید عرقِ بی‌واحد همچنان «خوانده‌نشده» شمرده می‌شود. کلرید عرقِ طبیعی ۹۸ «high» را ۹۰ «mid» می‌کرد (کلاسِ N46).
   const sweatRead = (po.findings ?? []).some((f) => f.rule_id === 'sweat_chloride_result' && f.explains?.includes('SWEAT_CL'));
+  // P143 (specs/025): anti-GAD/IA-2 read against the printed cut-off is read, not unread. Only «noref» still counts.
+  const isletRead = (k) => (k === 'ANTI_GAD' || k === 'ANTI_IA2') && engineOut?.ungraded?.[k]?.state !== 'noref';
   count.unread = (Array.isArray(engineOut?.unmapped) ? engineOut.unmapped.length : 0)
-    + Object.keys(engineOut?.ungraded ?? {}).filter((k) => !TM_KEYS.has(k) && !(k === 'SWEAT_CL' && sweatRead)).length;
+    + Object.keys(engineOut?.ungraded ?? {}).filter((k) => !TM_KEYS.has(k) && !(k === 'SWEAT_CL' && sweatRead) && !isletRead(k)).length;
 
   // سقفِ هر دستگاه از یافته‌های نمایش‌داده‌شده. findings فقط نمایش‌داده‌شده‌هاست؛ «یافتهٔ تکمیلی»ِ فشرده
   // (supplementary_ids) هم سقف نمی‌گذارد (FR-011). یافته‌ای که به هیچ کلیدِ graded نسبت داده نشد ⇒ سقفِ کلِ برگه.
@@ -211,6 +215,9 @@ export function healthScore(engineOut, patternOut) {
     // specs/020 (P132): psa_result هم — PSAِ طبیعی ۹۸ «high» را ۹۰ «mid» می‌کرد.
     if ((f.rule_id === 'tumor_markers_result' || f.rule_id === 'psa_result') && f.explains?.length && f.explains.every((k) => TM_KEYS.has(k))) continue;
     if (f.rule_id === 'sweat_chloride_result' && f.explains?.includes('SWEAT_CL')) continue;   // specs/024 (P141)
+    // P143: a negative or uninterpreted islet antibody is not a finding about a body system. A negative anti-GAD took
+    //   a healthy sheet from 100 to 90 (the N46 shape). A positive one still caps.
+    if (f.rule_id === 'islet_autoantibody_result' && f.score_neutral) continue;
     const keys = findingKeys(f, abnormalKeys);
     if (!keys) { sheetCap = Math.min(sheetCap, URGENCY_CAP[f.urgency]); continue; }
     for (const k of keys) {

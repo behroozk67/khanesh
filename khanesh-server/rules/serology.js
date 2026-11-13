@@ -257,6 +257,10 @@ const AI_RE = {
   SCL70: /^(scl70|antiscl70|antitopoisomerasei|antitopoi|topoisomerasei|antitopo1|antiscl70ab|scl70ab)$/,
   ANTI_CENTROMERE: /^(anticentromereb?|anticentromerebab|anticentromereab|centromereb?ab|centromereb|anticenpb|cenpb|anticentromereantibody)$/,
   JO1: /^(jo1|antijo1|antijo1ab|jo1ab|antijo1antibody)$/,
+  // P143 (specs/025): islet autoantibodies. The verdict comes only from the printed cut-off or a qualitative word; without
+  //   one the row is «read, not interpreted» (AI_NOREF). Before this they were unmapped (N2).
+  ANTI_GAD: /^(anti)?gad(65)?(ab|antibody|antibodies|igg)?$|^antiglutamicaciddecarboxylase(65)?(ab|antibody|antibodies)?$/,
+  ANTI_IA2: /^(anti)?ia2a?(ab|antibody|antibodies)?$|^(anti)?isletantigen2(ab|antibody|antibodies)?$/,
   ACL_IGG: /^((anti)?cardiolipin(ab|antibody|antibodies)?|acl)igg$/,
   ACL_IGM: /^((anti)?cardiolipin(ab|antibody|antibodies)?|acl)igm$/,
   ACL: /^((anti)?cardiolipin(ab|antibody|antibodies)?|acl)$/,

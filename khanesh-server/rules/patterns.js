@@ -94,6 +94,10 @@ export const SUGGEST_TESTS = {
   // specs/024 (P141): پیشنهادهای sweat_chloride_result؛ کلیدِ ساختگی ⇒ هرگز «اندازه‌گیری‌شده» نیست.
   "تکرار کلرید عرق": ["_REPEAT_SWEAT_CL"],
   "آزمایش ژنتیک CFTR": ["_GENE_CFTR"],
+  // P143 (specs/025): پیشنهادهای hypoglycemia_insulin_not_suppressed / islet_autoantibody_result
+  "سی‌پپتید": ["C_PEPTIDE"],
+  "پروانسولین": ["_PROINSULIN"],
+  "غربالگری سولفونیل‌اوره": ["_SULFONYLUREA"],
   // P73 (N8): suggestِ anemia_hb_alone؛ وقتی MCV روی برگه هست آن قاعده اصلاً فعال نمی‌شود، پس این ردیف فقط برای کامل‌بودنِ جدول است.
   "شاخص‌های گلبول قرمز (MCV، MCH)": ["MCV"],
   "آهن سرم": ["IRON"],

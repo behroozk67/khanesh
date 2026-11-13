@@ -47,6 +47,8 @@ export const MINOR_TABLE = {
   // کلسیمِ ادرارِ ۲۴ساعته: آستانهٔ جنسیتیِ تصمیم‌شده (W04، P87) خودش مرزِ بالینی است.
   U_CA: both(T1),
   GLU_F: both(T1), GLU_2H: both(T1), GLU_RANDOM: both(T1), HBA1C: both(T1),
+  // P143: انسولین و سی‌پپتید ردهٔ ۱ (هم‌خانوادهٔ قند؛ معنایشان به قندِ همان نمونه بسته است، نه به فاصله از مرز).
+  INSULIN: both(T1), C_PEPTIDE: both(T1),
   HGB: both(T1), HCT: both(T1), HBA2: both(T1), HBF: both(T1), BAND_ABS: both(T1),
   PT: both(T1), INR: both(T1), APTT: both(T1), FIB: both(T1), DDIMER: both(T1), ATIII: both(T1), TT: both(T1),
   TROPONIN_I: both(T1), CK_MB: both(T1), BNP: both(T1), NTPROBNP: both(T1), PCT_SEPSIS: both(T1),

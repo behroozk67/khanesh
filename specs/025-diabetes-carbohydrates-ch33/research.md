@@ -54,6 +54,9 @@ Nothing from this list is rebuilt.
   - Conversions are added to `units.js` (only when the unit is printed): insulin pmol/L → µIU/mL ÷ 6.945 (the same factor P69 proposes), C-peptide nmol/L → ng/mL ÷ 0.331, and C-peptide pmol/L → ng/mL ÷ 331.
   - A printed range in the original unit is used **without** conversion: value and range come from one column (N12/N3, "a converted value must not be compared to a printed range").
   - **Verify while implementing**: how the adapter treats a printed range on a row whose value it converts. Read the existing path, for example HbA1c mmol/mol with a printed range. Don't assume it.
+    - **Verified (T003)**: `printedRefsAll` keeps the range in the printed unit. The value is converted by `toConventional`, and the ratio `value/raw` is in `unitConversions` (the same source as the `printedRanges` display at adapter.js ~3500). `printedBothScaled` scales the pair by that ratio.
+    - Probe «G4 ins pmol»: 200 pmol/L against «18–173» is graded 28.8 against 2.59–24.9, high. Test US2b covers both directions.
+    - Insulin and C-peptide are in `SI_CONVERSIONS`, so a unitless value goes to `decideUnit` (no guess; probe «G4 ins unitless» gives `unit_unknown_values`).
   - A unitless value with no range is not graded (`decideUnit`, N3).
 - **Grading mode**: `binary`. No CTCAE grade.
 - **Alternative**: Tietz ranges as fallback. Rejected under condition 2.

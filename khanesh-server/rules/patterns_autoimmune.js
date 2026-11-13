@@ -959,8 +959,38 @@ function dnasebBuild(e) {
   };
 }
 
+// ═══ P143 (specs/025، D7): islet autoantibodies (anti-GAD، IA-2). Verdict only from the printed cut-off or a word;
+//   never a diagnosis. Positive with glucose/HbA1c already in the diabetes range on the same sheet ⇒ this week. ═══
+const ISLET_IDS = ["ANTI_GAD", "ANTI_IA2"];
+function isletBuild(e) {
+  const st = stateOf(e, ISLET_IDS);
+  const shown = Object.entries(st).filter(([, a]) => present(a));
+  const lines = shown.map(([id, a]) => lineOf(a, id)).join(" ");
+  const pos = shown.some(([, a]) => isPos(a));
+  const unsure = shown.some(([, a]) => isUnsure(a));
+  const t = Object.fromEntries((e.graded ?? []).map((g) => [g.test, g.value]));
+  const dmOnSheet = t.GLU_F >= 126 || t.HBA1C >= 6.5 || t.GLU_2H >= 200 || t.GLU_RANDOM >= 200;
+  const urgency = pos && dmOnSheet ? "this_week" : "routine";
+  // A qualitative row's line already says «(مثبت)»/«(منفی)»; only a number read against the printed cut-off needs the word.
+  const assay = shown.some(([, a]) => a.assay);
+  const tail = pos
+    ? `${assay ? "یعنی مثبت است. " : ""}این آنتی‌بادی به نفعِ نوعِ خودایمنیِ دیابت (نوع ۱ یا دیابتِ خودایمنیِ دیررسِ بزرگسالی، LADA) است، ولی به‌تنهایی تشخیص نیست و پزشک آن را با قند و سی‌پپتید کنار هم می‌سنجد.`
+    : unsure
+      ? "این نتیجه تفسیر نشد؛ مرزِ مثبت را آزمایشگاهِ خودتان می‌تواند بگوید."
+      : `${assay ? "یعنی منفی است؛ " : ""}منفی‌بودنِ این آنتی‌بادی نوعِ خودایمنیِ دیابت را کاملاً رد نمی‌کند.`;
+  return {
+    pattern: "islet_autoantibody_result", urgency, action: ACTION[urgency],
+    headline: pos ? "آنتی‌بادیِ مرتبط با دیابتِ خودایمنی مثبت است" : "نتیجهٔ آنتی‌بادیِ مرتبط با دیابتِ خودایمنی",
+    must_say: `${lines} ${tail}`,
+    suggest: pos && !t.C_PEPTIDE ? ["سی‌پپتید"] : [], warnings: [],
+    ...(pos ? {} : { score_neutral: true }),   // P143: read only by score.js (negative or uninterpreted ⇒ no score cap)
+    ...(explainsOf(e, st).length ? { explains: explainsOf(e, st) } : {}),
+  };
+}
+
 const ctx = (e) => ({ pregnant: e.pregnant === true });
 export const RULES_AUTOIMMUNE = [
+  { id: "islet_autoantibody_result", match: (e) => anyPresent(stateOf(e, ISLET_IDS)), build: isletBuild },
   { id: "ana_family_result", match: (e) => anyPresent(stateOf(e, ANA_IDS)), build: (e) => anaBuild(e, ctx(e)) },
   { id: "anca_result", match: (e) => anyPresent(stateOf(e, ANCA_IDS)), build: ancaBuild },
   { id: "hla_b27_result", match: (e) => autoAbState(e, "HLA_B27").state !== "absent", build: b27Build },

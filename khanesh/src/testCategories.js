@@ -39,6 +39,7 @@ const MAP = {
 
   // قند
   GLU_F: "glycemia", GLU_2H: "glycemia", GLU_RANDOM: "glycemia", HBA1C: "glycemia",
+  INSULIN: "glycemia", C_PEPTIDE: "glycemia",   // P143 (specs/025)
 
   // چربی
   CHOL: "lipids", TG: "lipids", HDL: "lipids", LDL: "lipids",

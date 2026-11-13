@@ -45,3 +45,16 @@ These are drafts. They are final only when implemented and quoted in the commit 
 3. Without `dm2` and without the new analytes, output is byte-identical to `before.txt`.
 4. Every new rule id has a `RULE_GROUP` entry (GR1), and every `suggest` string has a `SUGGEST_TESTS` row.
 5. Every rule that owns a key quotes that key's number in `must_say` (N52).
+
+## Drift from the drafts (as implemented, 2026-11-13)
+
+The implemented strings are the ones in `khanesh-server/rules/patterns_biochem.js` and `patterns_autoimmune.js`. `snapshots/after.txt` prints them in full.
+
+- **Exogenous:** «پزشک باید آن را هرچه زودتر بررسی کند» replaces «همین حالا», which would have competed with the emergency's final action (N20).
+- **Low insulin or lone C-peptide at glucose < 54** (`insulin_result`, a new branch): «قند خونِ همین نمونه {g} است. وقتی قند پایین است، بدن ترشحِ انسولین را کم می‌کند؛ پایین بودنِ {انسولین|سی‌پپتید} همان چیزی است که در این حالت انتظار می‌رود و نشان می‌دهد علتِ قندِ پایین احتمالاً انسولینی نیست که خودِ بدن زیادی بسازد. علت را پزشک بررسی می‌کند.»
+- **dm2 in the not-suppressed finding:** this sentence is appended to the exogenous shape: «اگر برای دیابت انسولین تزریق می‌کنید، دوزِ همان انسولین شایع‌ترین علتِ این الگوست.» The endogenous shape gets «اگر برای دیابت داروی خوراکیِ محرکِ انسولین (مثل گلی‌بنکلامید) مصرف می‌کنید، همان دارو شایع‌ترین علتِ این الگوست.»
+- **Anti-GAD tails:**
+  - «یعنی مثبت است.» / «یعنی منفی است؛» appear only after a number read against the cut-off, because a qualitative line already says «(مثبت)» or «(منفی)».
+  - The negative tail is «منفی‌بودنِ این آنتی‌بادی نوعِ خودایمنیِ دیابت را کاملاً رد نمی‌کند.»
+  - With no cut-off: «این نتیجه تفسیر نشد؛ مرزِ مثبت را آزمایشگاهِ خودتان می‌تواند بگوید.»
+- **D6 direction:** the clause is inserted after «(کم‌خونی یا اندازهٔ غیرعادیِ گلبول‌ها)،»: «و چون همین برگه کمبودِ آهن را نشان می‌دهد، HbA1c ممکن است بیشتر از واقع باشد» or «و چون رتیکولوسیت (گلبولِ قرمزِ جوان) بالاست، HbA1c ممکن است کمتر از واقع باشد».

@@ -158,6 +158,9 @@ normal result. Get spellings from real sheets (`research`); no fuzzy matching (`
 plus split `a+b` when both halves map to one key). A qualitative name must pass `NAME_MAP` *and* `QUALITATIVE`. Widening a matcher
 can create a false positive (anti-HBs vs HBsAg). Recurs on every new analyte family (hemostasis, neutrophils, LIS exports,
 random glucose, OGTT): check both `dir`s, and ask which population prints the name most.
+Repeated in P143: fasting insulin, C-peptide and anti-GAD were unmapped and silently dropped. The first owner rule
+for insulin also left low insulin at glucose 45 with no owner, and a lone C-peptide too. **A new key needs an owner
+for every `dir` in every context, low glucose included. Probe for `unmatched_abnormal`, not just "my finding fired".**
 
 **N3 — Grading against the wrong unit.** WBC 7000 vs 4.4–11 ⇒ false leukocytosis; troponin ng/L vs µg/L ⇒ false ER referral.
 Normalize in `adapter.js` with thresholds far above any real value; never reintroduce urea→BUN. A key with a bespoke adapter branch
@@ -340,6 +343,15 @@ Rules:
   - A multi-band printed range picks the band from sex *and* age, and gives a verdict only when every non-excluded band agrees (N50).
   - Stripping name affixes is a fallback after an exact miss. It never strips a specimen that changes identity (urine).
   - `RULE_READS` scans a rule's source, so naming a key in `build` marks it covered even when the text omits it. A conditional mention belongs in a helper outside `build`.
+
+**N57 — A known diabetic was told to «confirm the diagnosis», and a negative anti-GAD lowered the score.** (specs/025, P143; commit: this change.)
+- **What happened:**
+  - With the `dm2` condition active, HbA1c 7.8 got «برای قطعی‌شدن تشخیص، این آزمایش باید یک بار دیگر تکرار شود», HbA1c 6.2 got «پیش‌دیابت… از پیشرفت به دیابت جلوگیری», and FBS 150 was treated the same way.
+  - Only the LDL arm (`dmTarget`) had ever read the condition. `glycemia` spoke as if every sheet were a first diagnosis.
+  - While closing the gap, the new negative anti-GAD finding took a healthy sheet from 100 to 90 (the N46 shape again).
+- **Rules:**
+  - An active condition changes the *wording* of every finding about that disease, not only the one rule that once read it. When activating a condition, grep every rule that describes the same disease.
+  - A new finding that owns no scored key must state its score behaviour. Run `healthScore` on a clean sheet with and without the new row before calling it done.
 
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),

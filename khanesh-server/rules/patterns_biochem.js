@@ -6,7 +6,7 @@ import { ADULT_REFS } from "./refs.js";
 import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 import { isNeonate } from "./neonatal.js";
 import { SURVIVAL_LIMITS, parseReference } from "./units.js";
-import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION } from "./patterns_utils.js";
+import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION, ferritinBelowIdCut, hbVariantState, HB_VARIANT_FA } from "./patterns_utils.js";
 import { hemolysisRuleFires } from "./patterns_hematology.js";   // P105 (M7): ژیلبرِ «بی‌خطرترین» کنارِ همولیزِ فعال گفته نمی‌شود
 
 /**
@@ -30,6 +30,18 @@ function mgChain(e) {
 function lowestGlucose(...vals) {
   const xs = vals.filter((x) => x != null);
   return xs.length ? Math.min(...xs) : null;
+}
+// P143 (D4): قندِ < ۵۴ (سطحِ ۲ِ hypoglycemia)، بیرونِ نوزادی — مرزِ تقسیمِ insulin_result / hypoglycemia_insulin_not_suppressed.
+function insulinNotSuppressed(e) {
+  if (!insulinLowGlucose(e)) return false;
+  const ins = e.graded.find((g) => g.test === "INSULIN");
+  return !!ins && ins.dir !== "low";
+}
+function insulinLowGlucose(e) {
+  if (isNeonate(e.age)) return false;
+  const t = val(e);
+  const g = lowestGlucose(t.GLU_F, t.GLU_2H, t.GLU_RANDOM);
+  return g != null && g < 54;
 }
 
 // ~۱۰× سقفِ مرجع: ALT > ۳۶۰ (سقف ≈۳۶) یا AST > ۳۳۰ (سقف ≈۳۳) — عددِ P72 (تصمیمِ کاربر)، یک تعریف برای liver_pattern و هم‌ردیفانش.
@@ -1382,7 +1394,11 @@ export const RULES_BIOCHEM = [
 
       // N4/N21 (۲۰۲۶-۱۱-۰۸، برگهٔ واقعی: FBS 124 + HbA1c 7.8): قندِ ناشتای چاپ‌شده که زیرِ ۱۲۶ است در متن نه نام برده می‌شد نه تفسیر؛
       //   شاخهٔ «نامطمئن» حتی می‌گفت «قندِ ناشتا را بخواهید». ADA 2.1: دو آزمایشِ ناهم‌خوان ⇒ آزمایشِ بالاتر از حد تکرار می‌شود.
-      const fbsNote = t.GLU_F != null && t.GLU_F < 126
+      // P143 (specs/025، D1/D2): دیابتیِ گزارش‌شده (dm2) — عدد برای «تشخیص» یا «پیش‌دیابت» نیست، برای «کنترل» است.
+      //   فقط متن؛ فوریت و شاخه‌ها همان. هدفِ ۷٪ (ADA، از طریقِ استخراجِ Tietz؛ منبع در این جلسه باز نشد) — در انتظارِ بازبینی.
+      const known = knownDiabetic(e);
+      const dmClause = known ? knownDiabeticClause(t, eagPhrase !== "") : "";
+      const fbsNote = known ? "" : t.GLU_F != null && t.GLU_F < 126
         ? (t.GLU_F >= 100
           ? ` قندِ ناشتای شما ${t.GLU_F} است؛ این عدد در محدودهٔ پیش‌دیابت (۱۰۰ تا ۱۲۵) است و به حدِ دیابت (۱۲۶) نرسیده. وقتی HbA1c و قندِ ناشتا با هم نمی‌خوانند، پزشک معمولاً همان آزمایشِ بالاتر از حد را تکرار می‌کند.`
           : ` قندِ ناشتای شما ${t.GLU_F} است و در محدودهٔ طبیعی است؛ این با HbA1c نمی‌خواند و پزشک معمولاً آزمایشِ بالاتر از حد را تکرار می‌کند.`)
@@ -1401,9 +1417,10 @@ export const RULES_BIOCHEM = [
         const acuteStress = onlyRandom && !confirmed
           ? " قندِ تصادفی در بیماریِ حاد یا استرسِ جسمی (مثل بستری، عفونت، جراحی، سرمِ دکستروز یا داروهای کورتونی) می‌تواند موقتاً بالا برود؛ برای همین HbA1c و قندِ ناشتا، پس از بهبودیِ بیماریِ حاد، تعیین‌کننده‌اند."
           : "";
-        const dxPhrase = (confirmed
+        const dxPhrase = (known ? dmClause : (confirmed
           ? "چون دو آزمایشِ مستقل هر دو در محدودهٔ دیابت هستند، طبق معیارها این نتیجه به‌تنهایی برای تشخیص دیابت کافی است و برای اثبات نیازی به تکرار ندارد."
-          : (glHits.length ? glHits.join(" ") + " " : "") + "برای قطعی‌شدن تشخیص، این آزمایش باید یک بار دیگر تکرار شود — نتیجه را نهایی نگیرید، ولی معطل هم نکنید.") + (confirmed ? "" : fbsNote) + acuteStress;
+          : (glHits.length ? glHits.join(" ") + " " : "") + "برای قطعی‌شدن تشخیص، این آزمایش باید یک بار دیگر تکرار شود — نتیجه را نهایی نگیرید، ولی معطل هم نکنید.") + (confirmed ? "" : fbsNote) + acuteStress)
+          + (t.HBA1C != null && t.HBA1C > A1C_VARIANT_ABOVE ? " " + A1C_VARIANT_SENTENCE : "");
         const warnings = [];
         if (marked) {
           warnings.push(
@@ -1417,6 +1434,7 @@ export const RULES_BIOCHEM = [
           // فقط وقتی صاحبِ قند «soon» است. اگر emergency باشد (DKA/HHS/>۵۰۰) این یافته this_week می‌ماند: دومین emergency برای یک عدد M91c را می‌شکند.
           urgency: glucoseOwnerUrgency(e) === "soon" ? "soon" : "this_week",
           headline: marked ? "قند خون شما بسیار بالاست و در محدودهٔ دیابت قرار دارد"
+            : known ? (t.HBA1C != null && !a1cBad ? (t.HBA1C >= A1C_TARGET ? "HbA1c شما بالاتر از هدفِ رایجِ درمان است" : "HbA1c شما در محدودهٔ هدفِ رایجِ درمان است") : "قند خون شما بالاتر از حدِ طبیعی است")
             : confirmed ? "قند خون شما در محدودهٔ دیابت است"
             : "قند خون شما در محدودهٔ دیابت است؛ تشخیص با تکرار آزمایش قطعی می‌شود",
           ...(eag != null ? { key_number: eag } : {}),
@@ -1427,10 +1445,11 @@ export const RULES_BIOCHEM = [
             ? "زمانِ مراجعه را یافتهٔ «قندِ بسیار بالا» تعیین می‌کند؛ این برگه را همراه ببرید."
             : "این هفته وقت بگیرید" + (marked ? "؛ در صورت داشتن علائم بالا همین امروز." : "."),
           // فهرست پایهٔ دیابتِ تازه‌تشخیص (ADA بخش ۲/۴/۱۲). اگر قطعی است دیگر «تکرار قند» لازم نیست.
-          suggest: confirmed
+          suggest: confirmed || known
             ? ["HbA1c برای پایش", "ACR ادرار", "eGFR", "پروفایل چربی", "معاینهٔ ته‌چشم"]
             : ["تکرار قند ناشتا", "HbA1c", "ACR ادرار", "eGFR", "پروفایل چربی"],
           warnings,
+          ...(known ? { applied_conditions: ["dm2"] } : {}),
         };
       }
       // N4/N20 (لایهٔ ۲): HbA1c ≥ ۶٫۵ با شمارشِ خونِ غیرطبیعی (a1cBad) از dmHits بیرون می‌ماند و به‌اشتباه به «پیش‌دیابت» می‌افتاد
@@ -1442,21 +1461,115 @@ export const RULES_BIOCHEM = [
           urgency: "this_week",
           key_number: t.HBA1C,
           headline: "HbA1c شما در محدودهٔ دیابت است، ولی ممکن است دقیق نباشد",
-          must_say: `HbA1c شما ${t.HBA1C}٪ است که در محدودهٔ دیابت (۶٫۵٪ و بالاتر) قرار می‌گیرد. ولی چون شمارش خونِ شما طبیعی نیست (کم‌خونی یا اندازهٔ غیرعادیِ گلبول‌ها)، HbA1c ممکن است بیشتر یا کمتر از واقع باشد؛ پس به‌تنهایی نمی‌شود دیابت را با آن قطعی یا رد کرد.${t.GLU_F != null ? (fbsNote || ` قندِ ناشتای شما ${t.GLU_F} هم روی برگه است و در محدودهٔ دیابت (۱۲۶ و بالاتر) است؛ پزشک این دو را کنار هم می‌سنجد.`) : " قندِ خونِ ناشتا این را روشن می‌کند."}`,
+          must_say: `HbA1c شما ${t.HBA1C}٪ است که در محدودهٔ دیابت (۶٫۵٪ و بالاتر) قرار می‌گیرد. ولی چون شمارش خونِ شما طبیعی نیست (کم‌خونی یا اندازهٔ غیرعادیِ گلبول‌ها)، ${a1cDoubtClause(e, t)}؛ ${known ? "پس برای سنجیدنِ کنترلِ قند به‌تنهایی قابلِ اتکا نیست." : "پس به‌تنهایی نمی‌شود دیابت را با آن قطعی یا رد کرد."}${known ? (t.GLU_F != null ? ` قندِ ناشتای شما ${t.GLU_F} است؛ پزشک این دو را کنار هم می‌سنجد.` : "") : t.GLU_F != null ? (fbsNote || ` قندِ ناشتای شما ${t.GLU_F} هم روی برگه است و در محدودهٔ دیابت (۱۲۶ و بالاتر) است؛ پزشک این دو را کنار هم می‌سنجد.`) : " قندِ خونِ ناشتا این را روشن می‌کند."}${t.HBA1C > A1C_VARIANT_ABOVE ? " " + A1C_VARIANT_SENTENCE : ""}`,
           action: t.GLU_F != null ? "این هفته با پزشک مطرح کنید و HbA1c و قندِ ناشتا را با هم نشان دهید." : "این هفته با پزشک مطرح کنید و قندِ ناشتا را بخواهید.",
           suggest: t.GLU_F != null ? ["تکرار HbA1c و قند ناشتا"] : ["تکرار قند ناشتا", "HbA1c"],
           warnings: a1cWarn,
+          ...(known ? { applied_conditions: ["dm2"] } : {}),
         };
       }
       return {
         pattern: "prediabetes_range",
         urgency: "routine",
         headline: "قند خون شما کمی بالاتر از حد طبیعی است",
-        must_say: eagPhrase +
-          "این در محدودهٔ «پیش‌دیابت» است. در این مرحله تغییر رژیم غذایی و تحرک بیشترین اثر را دارد و می‌تواند از پیشرفت به دیابت جلوگیری کند.",
+        must_say: eagPhrase + (known ? dmClause
+          : "این در محدودهٔ «پیش‌دیابت» است. در این مرحله تغییر رژیم غذایی و تحرک بیشترین اثر را دارد و می‌تواند از پیشرفت به دیابت جلوگیری کند."),
         action: "نوبت عادی با پزشک.",
-        suggest: ["تکرار قند ناشتا", "HbA1c"],
+        suggest: known ? ["HbA1c برای پایش"] : ["تکرار قند ناشتا", "HbA1c"],
         warnings: a1cWarn,
+        ...(known ? { applied_conditions: ["dm2"] } : {}),
+      };
+    },
+  },
+
+  // ═══ P143 (specs/025، D5): HbA1c پایین مالک نداشت ⇒ «توضیح آماده‌ای نداریم». عدد از بازهٔ درجه‌بندی (کودک: PED_REFS). ═══
+  {
+    id: "hba1c_low",
+    match: (e) => e.graded.some((g) => g.test === "HBA1C" && g.abnormal && g.dir === "low"),
+    build: (e) => {
+      const t = val(e);
+      const g = e.graded.find((x) => x.test === "HBA1C");
+      const hgb = e.graded.find((x) => x.test === "HGB");
+      const countOff = !!(hgb?.abnormal || (t.MCV != null && (t.MCV < 80 || t.MCV > 100)));
+      const v = hbVariantState(e);
+      const variantTxt = v ? ` روی همین برگه ${v.variants.map((x) => HB_VARIANT_FA[x.key]).join(" و ")} هم دیده می‌شود که می‌تواند همین اثر را داشته باشد.` : "";
+      return {
+        pattern: "hba1c_low",
+        urgency: countOff ? "this_week" : "routine",
+        key_number: g.value,
+        headline: "HbA1c شما پایین‌تر از حد معمول است",
+        must_say: `HbA1c شما ${g.value}٪ است که پایین‌تر از حدِ معمول (${g.range}) است. چنین عددی کم پیش می‌آید و بیشتر به عمرِ کوتاه‌ترِ گلبول‌های قرمز (مثلاً همولیز، خون‌ریزیِ اخیر یا تزریقِ خون) یا به نوعی هموگلوبینِ متفاوت مربوط است که روشِ اندازه‌گیری را به هم می‌زند، نه به قندِ پایین. در این حالت HbA1c برای سنجیدنِ قند قابلِ اتکا نیست.${variantTxt}`,
+        action: countOff ? "این هفته با پزشک مطرح کنید و شمارشِ خون را همراه ببرید." : "نوبت عادی با پزشک.",
+        suggest: ["CBC", "رتیکولوسیت", "الکتروفورز هموگلوبین"],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══ P143 (specs/025، US2-6): انسولین / سی‌پپتیدِ غیرطبیعی بدونِ قندِ پایین ═══
+  //   با قندِ < ۵۴ مالکِ این دو hypoglycemia_insulin_not_suppressed است (فضای ورودی تقسیم شده؛ هر دو هم‌زمان نمی‌آیند).
+  {
+    id: "insulin_result",
+    // advisor review: with glucose < 54, a low insulin (correctly suppressed) or a lone C-peptide was ownerless and
+    //   landed in «توضیح آماده‌ای نداریم». This rule owns every abnormal row the not-suppressed rule doesn't take.
+    match: (e) => !insulinNotSuppressed(e) && e.graded.some((g) => (g.test === "INSULIN" || g.test === "C_PEPTIDE") && g.abnormal),
+    build: (e) => {
+      const ins = e.graded.find((g) => g.test === "INSULIN");
+      const cp = e.graded.find((g) => g.test === "C_PEPTIDE");
+      const line = (g, fa) => `${fa} شما ${g.value} است (${g.range}) و ${g.dir === "high" ? "بالاتر از" : g.dir === "low" ? "پایین‌تر از" : "در"} محدوده است.`;
+      const parts = [];
+      if (ins) parts.push(line(ins, "انسولینِ ناشتای"));
+      if (cp) parts.push(line(cp, "سی‌پپتیدِ"));
+      if (insulinLowGlucose(e)) {
+        const t = val(e);
+        parts.push(`قند خونِ همین نمونه ${lowestGlucose(t.GLU_F, t.GLU_2H, t.GLU_RANDOM)} است. وقتی قند پایین است، بدن ترشحِ انسولین را کم می‌کند؛ پایین بودنِ ${ins ? "انسولین" : "سی‌پپتید"} همان چیزی است که در این حالت انتظار می‌رود و نشان می‌دهد علتِ قندِ پایین احتمالاً انسولینی نیست که خودِ بدن زیادی بسازد. علت را پزشک بررسی می‌کند.`);
+      } else if (ins) parts.push(ins.dir === "high"
+        ? "انسولین را باید همراهِ قندِ همان نمونه تفسیر کرد؛ انسولینِ بالا با قندِ طبیعی معمولاً یعنی بدن برای نگه داشتنِ قند انسولینِ بیشتری لازم دارد (مقاومت به انسولین). پزشک آن را با وزن، فشار و چربیِ خون کنار هم می‌سنجد."
+        : "انسولین را باید همراهِ قندِ همان نمونه تفسیر کرد؛ پزشک آن را با قند و وضعیتِ کلیِ شما کنار هم می‌سنجد.");
+      else parts.push("سی‌پپتید همراهِ انسولینی که خودِ بدن می‌سازد ترشح می‌شود و نشان می‌دهد لوزالمعده چقدر انسولین می‌سازد؛ پزشک آن را همراهِ قندِ همان نمونه تفسیر می‌کند.");
+      return {
+        pattern: "insulin_result",
+        urgency: "routine",
+        key_number: (ins ?? cp).value,
+        headline: ins ? `انسولینِ شما ${ins.dir === "high" ? "بالاتر" : ins.dir === "low" ? "پایین‌تر" : "در محدوده"}${ins.dir ? " از حدِ طبیعی" : ""} است` : "سی‌پپتیدِ شما خارج از محدوده است",
+        must_say: parts.join(" "),
+        action: "نوبت عادی با پزشک.",
+        suggest: [],
+        warnings: [],
+      };
+    },
+  },
+
+  // ═══ P143 (specs/025، D4): انسولینِ مهارنشده در قندِ پایین — همیشه کنارِ اورژانسِ hypoglycemia، هرگز جای آن ═══
+  //   آستانهٔ قند همان سطحِ ۲ِ hypoglycemia (< ۵۴)؛ «مهارنشده» = انسولین زیرِ بازهٔ در حالِ استفاده نیست (در انتظارِ بازبینی).
+  //   نوزاد نه: بازهٔ قندِ نوزاد خودش است (P107l).
+  {
+    id: "hypoglycemia_insulin_not_suppressed",
+    match: (e) => insulinNotSuppressed(e),
+    build: (e) => {
+      const t = val(e);
+      const glu = lowestGlucose(t.GLU_F, t.GLU_2H, t.GLU_RANDOM);
+      const ins = e.graded.find((g) => g.test === "INSULIN");
+      const cp = e.graded.find((g) => g.test === "C_PEPTIDE");
+      const exo = cp?.dir === "low";
+      // advisor review: for a reported diabetic their own treatment is the commonest cause of both shapes; say so before the rarer causes.
+      const dmTx = knownDiabetic(e)
+        ? (exo ? " اگر برای دیابت انسولین تزریق می‌کنید، دوزِ همان انسولین شایع‌ترین علتِ این الگوست." : " اگر برای دیابت داروی خوراکیِ محرکِ انسولین (مثل گلی‌بنکلامید) مصرف می‌کنید، همان دارو شایع‌ترین علتِ این الگوست.")
+        : "";
+      const must_say = (exo
+        ? `قند خون شما ${glu} است، انسولین ${ins.value} ${ins.dir === "high" ? "بالاست" : "پایین نیامده"} ولی سی‌پپتید ${cp.value} پایین است. سی‌پپتید همراهِ انسولینی که خودِ بدن می‌سازد ترشح می‌شود؛ این الگو بیشتر با انسولینی جور است که از بیرون (تزریق) وارد بدن شده است. پزشک باید آن را هرچه زودتر بررسی کند.`
+        : `قند خون شما ${glu} است و در همین نمونه انسولین ${ins.value}${cp ? ` و سی‌پپتید ${cp.value}` : ""} است. وقتی قند این‌قدر پایین است، بدن معمولاً ترشحِ انسولین را تقریباً قطع می‌کند؛ این‌که انسولین پایین نیامده یعنی بدن هنوز انسولین می‌سازد. این الگو علت‌های مختلفی دارد و بررسی‌اش کارِ پزشک (معمولاً متخصصِ غدد) است.${cp ? "" : " سنجشِ سی‌پپتید در همان نمونه کمک می‌کند علت روشن‌تر شود."}`) + dmTx;
+      return {
+        pattern: "hypoglycemia_insulin_not_suppressed",
+        urgency: "soon",
+        key_number: ins.value,
+        headline: "در قندِ پایین، انسولینِ شما پایین نیامده است",
+        must_say,
+        always_show: true,
+        brief: must_say,
+        action: "ظرفِ ۲۴ تا ۴۸ ساعت با پزشک (ترجیحاً متخصصِ غدد) مطرح کنید.",
+        suggest: [...(cp ? [] : ["سی‌پپتید"]), "پروانسولین", "غربالگری سولفونیل‌اوره"],
+        warnings: [],
       };
     },
   },
@@ -2520,6 +2633,41 @@ const GDM_FAST_EARLY = 100;
 const MOH_EARLY_PRE = 93;
 const CC = Object.freeze({ F: 95, H1: 180, H2: 155, H3: 140 });
 const GCT = Object.freeze({ POS: 140, DM: 200 });
+// ═══ P143 (specs/025، Tietz فصل‌های ۲۲/۳۳ — فقط شکاف‌ها؛ منبع در این جلسه باز نشد، همه در انتظارِ بازبینی) ═══
+// D1: هدفِ رایجِ درمانِ HbA1c برای دیابتیِ گزارش‌شده، جدا از بازهٔ مرجع (N22). ≥ ۷ «بالاتر از هدف».
+const A1C_TARGET = 7;
+// D5: HbA1c خارج از ۴–۱۵٪ نادر است؛ واریانتِ هموگلوبین یا عمرِ کوتاهِ گلبول (مرزها اکید).
+const A1C_VARIANT_ABOVE = 15;
+const A1C_VARIANT_SENTENCE = "HbA1c بالای ۱۵٪ کم دیده می‌شود؛ پزشک ممکن است بخواهد با قندِ خون یا روشِ دیگری مطمئن شود که هموگلوبینِ متفاوت یا خطای روش در کار نیست.";
+/** دیابتِ گزارش‌شده و بیرونِ بارداری (در بارداری gestational_diabetes_range مالک است). */
+function knownDiabetic(e) {
+  return !!e.conditions?.includes("dm2") && !e.pregnant;
+}
+/** D1/D2: جملهٔ «کنترل، نه تشخیص». withEag ⇒ «HbA1c شما … است» پیش‌تر گفته شده و تکرار نمی‌شود. */
+function knownDiabeticClause(t, withEag) {
+  const parts = [];
+  if (t.HBA1C != null) {
+    const lead = withEag ? "" : `HbA1c شما ${t.HBA1C}٪ است. `;
+    parts.push(lead + (t.HBA1C >= A1C_TARGET
+      ? "برای کسی که دیابتش از قبل تشخیص داده شده، این عدد بالاتر از هدفِ رایجِ درمان (کمتر از ۷٪) است؛ یعنی قند در چند ماهِ گذشته کمتر از حدِ مطلوب کنترل شده. هدفِ دقیقِ هر نفر و تغییرِ درمان را پزشکِ خودش تعیین می‌کند."
+      : "برای کسی که دیابتش از قبل تشخیص داده شده، این عدد در محدودهٔ هدفِ رایجِ درمان (کمتر از ۷٪) است. هدفِ دقیقِ هر نفر را پزشکِ خودش تعیین می‌کند."));
+  }
+  const gl = [["GLU_F", "قندِ ناشتای شما"], ["GLU_2H", "قندِ دو ساعتهٔ شما"], ["GLU_RANDOM", "قندِ تصادفیِ شما"]]
+    .filter(([k]) => t[k] != null && t[k] >= (k === "GLU_F" ? 100 : 140))
+    .map(([k, fa]) => `${fa} ${t[k]} است.`);
+  if (gl.length) parts.push(`${gl.join(" ")} چون دیابتِ شما از قبل تشخیص داده شده، این عدد برای تشخیص نیست؛ نشان می‌دهد قندتان الان چقدر کنترل است. پزشک آن را با هدفی که برای شما گذاشته مقایسه می‌کند.`);
+  return parts.join(" ");
+}
+/** D6 (N21): جهتِ تردیدِ HbA1c وقتی خودِ برگه نشان می‌دهد؛ هر دو یا هیچ ⇒ دوسویه (متنِ پیشین). */
+function a1cDoubtClause(e, t) {
+  const ida = t.MCV != null && t.MCV < 80 && ferritinBelowIdCut(e);
+  const retic = e.graded.find((g) => g.test === "RETIC");
+  const hemo = !!(retic?.abnormal && retic.dir === "high");
+  if (ida && !hemo) return "و چون همین برگه کمبودِ آهن را نشان می‌دهد، HbA1c ممکن است بیشتر از واقع باشد";
+  if (hemo && !ida) return "و چون رتیکولوسیت (گلبولِ قرمزِ جوان) بالاست، HbA1c ممکن است کمتر از واقع باشد";
+  return "HbA1c ممکن است بیشتر یا کمتر از واقع باشد";
+}
+
 function gdmState(e) {
   if (e?.pregnant !== true) return null;
   const g = (k) => e.graded?.find((x) => x.test === k)?.value ?? null;

@@ -40,7 +40,7 @@ Not mapped, and they must stay unmapped (N25): `insulinantibody`, `antiinsulin`,
 |---|---|---|
 | not low | not low | `endogenous` |
 | not low | absent | `endogenous_cp_unknown` (C-peptide is suggested, never asserted) |
-| high | low | `exogenous` |
+| not low | low | `exogenous` (as implemented, any insulin that is not low counts, not only high; C-peptide suppressed with insulin not suppressed is the exogenous shape) |
 | low | any | no finding (insulin appropriately suppressed) |
 | absent | any | no finding |
 

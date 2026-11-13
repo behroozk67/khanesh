@@ -37,6 +37,11 @@ export const SI_CONVERSIONS = {
   GLU_F:      { si: /^mmol\/l$/, factor: 18.0182, conv: 'mg/dL' },
   GLU_2H:     { si: /^mmol\/l$/, factor: 18.0182, conv: 'mg/dL' },
   GLU_RANDOM: { si: /^mmol\/l$/, factor: 18.0182, conv: 'mg/dL' },
+  // P143 (specs/025): insulin pmol/L ÷ 6.945 (the same factor as P69) and C-peptide nmol/L ÷ 0.331 (molar mass ~3020 g/mol).
+  //   The pmol/L C-peptide reading is in EXTRA_PRINTED_UNITS. Being here gives each key a UNIT_PROFILE row: a unitless value
+  //   goes to decideUnit, gets a unit only from a decisive printed range, and is never guessed (N3).
+  INSULIN:   { si: /^pmol\/l$/, factor: 1 / 6.945, conv: 'µIU/mL' },
+  C_PEPTIDE: { si: /^nmol\/l$/, factor: 1 / 0.331, conv: 'ng/mL' },
 
   // ---- لیپید ----
   CHOL: { si: /^mmol\/l$/, factor: 38.67, conv: 'mg/dL' },
@@ -155,6 +160,8 @@ export const EXTRA_PRINTED_UNITS = {
   //   عمداً در SI_CONVERSIONS نیست (درسِ M177/P48): آن‌جا بودن یعنی ردیفِ UNIT_PROFILE و آن‌وقت decideUnit
   //   سراغِ عددِ *بی‌واحد* هم می‌رود.
   T4:   [[/^ng\/ml$/, 0.1, 'µg/dL']],
+  // P143: C-peptide in pmol/L (1 ng/mL = 331 pmol/L).
+  C_PEPTIDE: [[/^pmol\/l$/, 1 / 331, 'ng/mL']],
 };
 
 
@@ -343,6 +350,8 @@ const CONV_ALIASES = {
   'ng/mL':  ['ng/ml', 'µg/l', 'μg/l', 'ug/l', 'mcg/l'],
   'pg/mL':  ['pg/ml', 'ng/l'],
   'ng/dL':  ['ng/dl'],
+  // P143: for insulin, µIU/mL = µU/mL = mIU/L; the number is the same, so there is no conversion.
+  'µIU/mL': ['µiu/ml', 'μiu/ml', 'uiu/ml', 'µu/ml', 'μu/ml', 'uu/ml', 'miu/l', 'mu/l'],
   'mg/24h': ['mg/24h', 'mg/24hr', 'mg/24hrs', 'mg/d', 'mg/day'],
   'µg/24h': ['µg/24h', 'μg/24h', 'ug/24h', 'mcg/24h', 'µg/24hr', 'ug/24hr', 'mcg/24hr', 'µg/d', 'ug/d', 'mcg/d', 'µg/day', 'μg/day', 'ug/day', 'mcg/day'],
 };
@@ -382,6 +391,10 @@ const LOINC = {
   TROPONIN_I: { mass: '10839-9', substance: null, hs: '89579-7', note: 'µg/L و ng/L هر دو جرمی‌اند؛ ng/L کدِ hs دارد' },
   CRP_Q: { mass: '1988-5', substance: null, note: 'mg/L و mg/dL هر دو جرمی‌اند' },
   ACR: { mass: '9318-7', substance: null, note: 'mg/g و mg/mmol؛ کدِ mg/mmol در API یافت نشد' },
+  // P143 (checked against the NLM clinicaltables API, 2026-11-13). Insulin's conventional unit is Units/volume, so its
+  //   "mass" slot holds 20448-7.
+  INSULIN: { mass: '20448-7', substance: '14796-7', note: 'واحدِ متعارفِ انسولین µIU/mL است (Units/volume)' },
+  C_PEPTIDE: { mass: '1986-9', substance: '14633-2' },
 };
 const LOINC_FAMILY = {
   GLU_F: 'GLU', GLU_2H: 'GLU', GLU_RANDOM: 'GLU', CORTISOL_AM: 'CORTISOL', CORTISOL_DST: 'CORTISOL',
@@ -433,6 +446,7 @@ UNIT_PROFILE.CA.plausibleSi = [4.5, 13.5];
 UNIT_PROFILE.CREAT.plausible = [0.2, 20];
 /** بیلی‌روبینِ تام: گامِ اندازه فقط برای نوزادِ زیرِ یک ماه (mg/dL ≥ ۲ و ≤ ۴۰؛ µmol/L معادلِ زیرِ ۲ mg/dL بعد از تولد غیرمحتمل است). */
 export const NEONATAL_BILI_PLAUSIBLE = [2, 40];
+UNIT_PROFILE.C_PEPTIDE.systems.push(sys('pmol/L', 'pmol/l', 1 / 331, (u) => u === 'pmol/l'));   // P143
 UNIT_PROFILE.TESTO.systems.push(sys('ng/mL', 'ng/ml', BRANCH_FACTORS.TESTO_NGML_TO_NGDL, (u) => u === 'ng/ml'));
 // شاخه‌های اختصاصی: واحدِ «متعارف» همان است که refs.js می‌خواهد.
 UNIT_PROFILE.TROPONIN_I = { key: 'TROPONIN_I', loinc: LOINC.TROPONIN_I, plausible: null, systems: [

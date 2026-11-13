@@ -93,6 +93,12 @@ export const ADULT_REFS = {
   // ⚠️ بدون این ردیف، getRef برای بزرگسال null می‌داد و HbA1c هرگز
   //    درجه‌بندی نمی‌شد؛ در نتیجه الگوی قند برای بزرگسالان آن را نادیده می‌گرفت.
   HBA1C:   { both: [4, 5.6],    unit: '%' },
+  // P143 (specs/025): user condition 2, «the range most used in Iran». These are the ranges the immunoassay kits common in
+  //   Iranian labs print, not Tietz's (2–25 µIU/mL and 0.78–1.89 ng/mL; an upper limit of 1.89 would mark ordinary sheets
+  //   high, the N55 shape). Fallback only: the row's printed range comes first (PRINTED_FIRST_BOTH_KEYS in adapter).
+  //   Awaiting review.
+  INSULIN:   { both: [2.6, 24.9], unit: 'µIU/mL' },
+  C_PEPTIDE: { both: [1.1, 4.4],  unit: 'ng/mL' },
   URIC:    { M: [3.5, 7.2], F: [2.5, 6.2], unit: 'mg/dL' },
   // هنری، فصل ۲۰ «Specific Proteins»، Table 20.2: آلبومین 39–51 g/L → 3.9–5.1 g/dL.
   // تصمیمِ بازبین ۱۹ مرداد ۱۴۰۵ (P44-الف/C1): منبع هنری شد.
