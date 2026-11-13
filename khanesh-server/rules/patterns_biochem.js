@@ -32,13 +32,17 @@ function lowestGlucose(...vals) {
   return xs.length ? Math.min(...xs) : null;
 }
 // P143 (D4): قندِ < ۵۴ (سطحِ ۲ِ hypoglycemia)، بیرونِ نوزادی — مرزِ تقسیمِ insulin_result / hypoglycemia_insulin_not_suppressed.
+// Second review: C-peptide 6 (high) at glucose 45 with no insulin row was told «پایین بودنِ سی‌پپتید… انتظار می‌رود»,
+//   the reverse direction (N12). A C-peptide that is not low with no insulin row is the same "not suppressed" shape.
 function insulinNotSuppressed(e) {
   if (!insulinLowGlucose(e)) return false;
   const ins = e.graded.find((g) => g.test === "INSULIN");
-  return !!ins && ins.dir !== "low";
+  const cp = e.graded.find((g) => g.test === "C_PEPTIDE");
+  return ins ? ins.dir !== "low" : !!cp && cp.dir !== "low";
 }
 function insulinLowGlucose(e) {
-  if (isNeonate(e.age)) return false;
+  // A newborn has its own glucose range (P107l). The engine's "low" stands for < 54 (neonatal hyperinsulinism is real).
+  if (isNeonate(e.age)) return e.graded.some((g) => ["GLU_F", "GLU_2H", "GLU_RANDOM"].includes(g.test) && g.abnormal && g.dir === "low");
   const t = val(e);
   const g = lowestGlucose(t.GLU_F, t.GLU_2H, t.GLU_RANDOM);
   return g != null && g < 54;
@@ -1523,9 +1527,18 @@ export const RULES_BIOCHEM = [
       if (insulinLowGlucose(e)) {
         const t = val(e);
         parts.push(`قند خونِ همین نمونه ${lowestGlucose(t.GLU_F, t.GLU_2H, t.GLU_RANDOM)} است. وقتی قند پایین است، بدن ترشحِ انسولین را کم می‌کند؛ پایین بودنِ ${ins ? "انسولین" : "سی‌پپتید"} همان چیزی است که در این حالت انتظار می‌رود و نشان می‌دهد علتِ قندِ پایین احتمالاً انسولینی نیست که خودِ بدن زیادی بسازد. علت را پزشک بررسی می‌کند.`);
-      } else if (ins) parts.push(ins.dir === "high"
-        ? "انسولین را باید همراهِ قندِ همان نمونه تفسیر کرد؛ انسولینِ بالا با قندِ طبیعی معمولاً یعنی بدن برای نگه داشتنِ قند انسولینِ بیشتری لازم دارد (مقاومت به انسولین). پزشک آن را با وزن، فشار و چربیِ خون کنار هم می‌سنجد."
-        : "انسولین را باید همراهِ قندِ همان نمونه تفسیر کرد؛ پزشک آن را با قند و وضعیتِ کلیِ شما کنار هم می‌سنجد.");
+      } else if (ins) {
+        // Second review (N4): «با قندِ طبیعی» was said next to FBS 180 and with no glucose on the sheet. There are three states.
+        const glu = e.graded.filter((g) => ["GLU_F", "GLU_2H", "GLU_RANDOM"].includes(g.test));
+        const gluHigh = glu.some((g) => g.abnormal && g.dir === "high");
+        parts.push(ins.dir !== "high"
+          ? "انسولین را باید همراهِ قندِ همان نمونه تفسیر کرد؛ پزشک آن را با قند و وضعیتِ کلیِ شما کنار هم می‌سنجد."
+          : !glu.length
+            ? "انسولین را باید همراهِ قندِ همان نمونه تفسیر کرد و قندِ همان نمونه روی این برگه نیست؛ انسولینِ بالا اغلب نشانهٔ مقاومت به انسولین است، ولی بی‌قند نمی‌شود درباره‌اش قضاوت کرد. پزشک آن را با قند، وزن، فشار و چربیِ خون کنار هم می‌سنجد."
+            : gluHigh
+              ? "انسولینِ بالا کنارِ قندِ بالا معمولاً یعنی بدن به انسولین مقاوم شده است (مقاومت به انسولین) و با وجودِ انسولینِ زیاد قند را پایین نگه نمی‌دارد. پزشک آن را با وزن، فشار و چربیِ خون کنار هم می‌سنجد."
+              : "انسولین را باید همراهِ قندِ همان نمونه تفسیر کرد؛ انسولینِ بالا با قندِ طبیعی معمولاً یعنی بدن برای نگه داشتنِ قند انسولینِ بیشتری لازم دارد (مقاومت به انسولین). پزشک آن را با وزن، فشار و چربیِ خون کنار هم می‌سنجد.");
+      }
       else parts.push("سی‌پپتید همراهِ انسولینی که خودِ بدن می‌سازد ترشح می‌شود و نشان می‌دهد لوزالمعده چقدر انسولین می‌سازد؛ پزشک آن را همراهِ قندِ همان نمونه تفسیر می‌کند.");
       return {
         pattern: "insulin_result",
@@ -1542,7 +1555,7 @@ export const RULES_BIOCHEM = [
 
   // ═══ P143 (specs/025، D4): انسولینِ مهارنشده در قندِ پایین — همیشه کنارِ اورژانسِ hypoglycemia، هرگز جای آن ═══
   //   آستانهٔ قند همان سطحِ ۲ِ hypoglycemia (< ۵۴)؛ «مهارنشده» = انسولین زیرِ بازهٔ در حالِ استفاده نیست (در انتظارِ بازبینی).
-  //   نوزاد نه: بازهٔ قندِ نوزاد خودش است (P107l).
+  //   For a newborn, "low" means the graded low of its own glucose range (P107l), not < 54. A C-peptide that is not low with no insulin row is the same shape.
   {
     id: "hypoglycemia_insulin_not_suppressed",
     match: (e) => insulinNotSuppressed(e),
@@ -1551,19 +1564,19 @@ export const RULES_BIOCHEM = [
       const glu = lowestGlucose(t.GLU_F, t.GLU_2H, t.GLU_RANDOM);
       const ins = e.graded.find((g) => g.test === "INSULIN");
       const cp = e.graded.find((g) => g.test === "C_PEPTIDE");
-      const exo = cp?.dir === "low";
+      const exo = !!ins && cp?.dir === "low";
       // advisor review: for a reported diabetic their own treatment is the commonest cause of both shapes; say so before the rarer causes.
       const dmTx = knownDiabetic(e)
         ? (exo ? " اگر برای دیابت انسولین تزریق می‌کنید، دوزِ همان انسولین شایع‌ترین علتِ این الگوست." : " اگر برای دیابت داروی خوراکیِ محرکِ انسولین (مثل گلی‌بنکلامید) مصرف می‌کنید، همان دارو شایع‌ترین علتِ این الگوست.")
         : "";
       const must_say = (exo
         ? `قند خون شما ${glu} است، انسولین ${ins.value} ${ins.dir === "high" ? "بالاست" : "پایین نیامده"} ولی سی‌پپتید ${cp.value} پایین است. سی‌پپتید همراهِ انسولینی که خودِ بدن می‌سازد ترشح می‌شود؛ این الگو بیشتر با انسولینی جور است که از بیرون (تزریق) وارد بدن شده است. پزشک باید آن را هرچه زودتر بررسی کند.`
-        : `قند خون شما ${glu} است و در همین نمونه انسولین ${ins.value}${cp ? ` و سی‌پپتید ${cp.value}` : ""} است. وقتی قند این‌قدر پایین است، بدن معمولاً ترشحِ انسولین را تقریباً قطع می‌کند؛ این‌که انسولین پایین نیامده یعنی بدن هنوز انسولین می‌سازد. این الگو علت‌های مختلفی دارد و بررسی‌اش کارِ پزشک (معمولاً متخصصِ غدد) است.${cp ? "" : " سنجشِ سی‌پپتید در همان نمونه کمک می‌کند علت روشن‌تر شود."}`) + dmTx;
+        : `قند خون شما ${glu} است و در همین نمونه ${[ins ? `انسولین ${ins.value}` : "", cp ? `سی‌پپتید ${cp.value}` : ""].filter(Boolean).join(" و ")} است. وقتی قند این‌قدر پایین است، بدن معمولاً ترشحِ انسولین را تقریباً قطع می‌کند؛ این‌که ${ins ? "انسولین" : "سی‌پپتید"} پایین نیامده یعنی بدن هنوز انسولین می‌سازد. این الگو علت‌های مختلفی دارد و بررسی‌اش کارِ پزشک (معمولاً متخصصِ غدد) است.${cp ? "" : " سنجشِ سی‌پپتید در همان نمونه کمک می‌کند علت روشن‌تر شود."}`) + dmTx;
       return {
         pattern: "hypoglycemia_insulin_not_suppressed",
         urgency: "soon",
-        key_number: ins.value,
-        headline: "در قندِ پایین، انسولینِ شما پایین نیامده است",
+        key_number: (ins ?? cp).value,
+        headline: `در قندِ پایین، ${ins ? "انسولینِ" : "سی‌پپتیدِ"} شما پایین نیامده است`,
         must_say,
         always_show: true,
         brief: must_say,

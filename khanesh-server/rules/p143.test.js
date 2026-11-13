@@ -188,3 +188,32 @@ test("P143-US5b: Anti-GAD منفی یا داخلِ مرز امتیازِ برگ�
   }
   assert.ok(sc([r("Anti-GAD", "25", "IU/mL", "<10")]).value < clean.value);
 });
+
+// ═══ Second review (2026-11-13): three errors in the text the patient sees, all red on commit 2da1f21 ═══
+test("P143-R1: high C-peptide at glucose 45 with no insulin ⇒ «not suppressed», not «a low C-peptide is expected» (N12)", () => {
+  const { out } = run([r("C-Peptide", "6", "ng/mL", "1.1-4.4"), r("FBS", "45", "mg/dL")], F);
+  const f = find(out, "hypoglycemia_insulin_not_suppressed");
+  assert.ok(f, ids(out).join(","));
+  assert.match(f.must_say, /سی‌پپتید 6/);
+  assert.match(f.must_say, /این‌که سی‌پپتید پایین نیامده/);
+  assert.ok(!ids(out).includes("insulin_result"));
+  for (const x of out.findings) assert.doesNotMatch(x.must_say ?? "", /پایین بودنِ سی‌پپتید همان چیزی است/);
+});
+
+test("P143-R2: high insulin with high glucose or no glucose ⇒ never «با قندِ طبیعی» (N4)", () => {
+  const hi = r("Insulin", "35", "µIU/mL", "2.6-24.9");
+  const withHigh = find(run([hi, r("FBS", "180", "mg/dL")], F).out, "insulin_result");
+  assert.doesNotMatch(withHigh.must_say, /با قندِ طبیعی/);
+  assert.match(withHigh.must_say, /کنارِ قندِ بالا/);
+  const alone = find(run([hi], F).out, "insulin_result");
+  assert.doesNotMatch(alone.must_say, /با قندِ طبیعی/);
+  assert.match(alone.must_say, /قندِ همان نمونه روی این برگه نیست/);
+  assert.match(find(run([hi, r("FBS", "88", "mg/dL")], F).out, "insulin_result").must_say, /با قندِ طبیعی/);
+});
+
+test("P143-R3: newborn with low glucose and high insulin ⇒ «not suppressed» beside the newborn emergency, not «با قندِ طبیعی»", () => {
+  const { out } = run([r("Glucose", "30", "mg/dL"), r("Insulin", "30", "µIU/mL", "2.6-24.9")], { age: 3 / 365, sex: "M" });
+  assert.ok(ids(out).includes("hypoglycemia_insulin_not_suppressed"), ids(out).join(","));
+  assert.equal(out.overall_urgency, "emergency");
+  for (const x of out.findings) assert.doesNotMatch(x.must_say ?? "", /با قندِ طبیعی/);
+});

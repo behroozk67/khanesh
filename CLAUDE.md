@@ -352,6 +352,7 @@ Rules:
 - **Rules:**
   - An active condition changes the *wording* of every finding about that disease, not only the one rule that once read it. When activating a condition, grep every rule that describes the same disease.
   - A new finding that owns no scored key must state its score behaviour. Run `healthScore` on a clean sheet with and without the new row before calling it done.
+  - Second review, before deploy: a high C-peptide at glucose 45 was told «a low C-peptide is expected» (reversed direction). A high insulin next to FBS 180 was told «with normal glucose». **For a sentence about a partner analyte, write a branch per direction and per state (high / normal / missing), and probe each one.** My green tests only checked the shapes I had written.
 
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
