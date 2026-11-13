@@ -161,6 +161,9 @@ random glucose, OGTT): check both `dir`s, and ask which population prints the na
 Repeated in P143: fasting insulin, C-peptide and anti-GAD were unmapped and silently dropped. The first owner rule
 for insulin also left low insulin at glucose 45 with no owner, and a lone C-peptide too. **A new key needs an owner
 for every `dir` in every context, low glucose included. Probe for `unmatched_abnormal`, not just "my finding fired".**
+Repeated in P146: the dipstick pad «Blood/Hb: Trace» on a 7-year-old's ward sheet went to «تفسیر نشدند». My first fix claimed every
+`blood+hb` name and `continue`d, which would have swallowed a numeric «Blood Hb 13 g/dL» too. **A name widened for a dipstick pad is
+gated on the dipstick value set; a number falls through to normal mapping.**
 
 **N3 — Grading against the wrong unit.** WBC 7000 vs 4.4–11 ⇒ false leukocytosis; troponin ng/L vs µg/L ⇒ false ER referral.
 Normalize in `adapter.js` with thresholds far above any real value; never reintroduce urea→BUN. A key with a bespoke adapter branch

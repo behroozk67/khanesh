@@ -1,7 +1,7 @@
 import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence , epithelialState , squamousSentence, ungradedFa } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { bunToUrea } from "./refs.js";
-import { canBePregnant } from "./patterns_utils.js";
+import { canBePregnant, mayMenstruate } from "./patterns_utils.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 
@@ -362,7 +362,24 @@ export const RULES_NEPHROLOGY = [
     // 🔴 تا 395a5d7 این یافته بی‌توجه به میکروسکوپ همیشه «خون (گلبول قرمز) دیده شده» می‌گفت — حتی وقتی
     //    فقط نوار مثبت بود و میکروسکوپ گلبولی ندیده بود. نوار به *رنگدانه* واکنش می‌دهد، نه به سلول.
     //    سه حالت (FR-011، اصلِ دوم)؛ فوریت در هر سه this_week می‌ماند (V12).
-    build: (e) => {
+    build: (e) => hematuriaMensesGate(e, hematuriaBuild(e)),
+  },
+];
+
+// P146 (برگهٔ بستریِ کودکِ ۷ ساله): «در دوره‌ی قاعدگی نمونه آلوده می‌شود» و «در خانم‌ها … خارج از دوره قاعدگی» به کودک و مرد
+//   گفته می‌شد. همان دروازهٔ P107 (mayMenstruate)؛ جنس/سنِ نامعلومِ بزرگسال ⇒ بایت‌به‌بایت همان متنِ قبلی (M167c).
+const MENSES_CLAUSE = " (مثلاً در دوره‌ی قاعدگی نمونه آلوده می‌شود)";
+const REPEAT_UA_MENSES = "تکرار آزمایش ادرار (در خانم‌ها بهتر است خارج از دوره قاعدگی)";
+function hematuriaMensesGate(e, f) {
+  if (mayMenstruate(e)) return f;
+  return {
+    ...f,
+    must_say: f.must_say.replace(MENSES_CLAUSE, ""),
+    suggest: f.suggest.map((s) => (s === REPEAT_UA_MENSES ? "تکرار آزمایش ادرار" : s)),
+  };
+}
+
+function hematuriaBuild(e) {
       const blood = urinePositive(e, BLOOD_RE);
       // وضعیت، نه عدد: «RBC: Many» ردیفِ *چاپ‌شده* است، نه «روی برگه نیست» (بازبینی #۲، M169b).
       // سیلندر اینجا شمرده نمی‌شود (V11).
@@ -411,9 +428,9 @@ export const RULES_NEPHROLOGY = [
           "هاپتوگلوبین",
         ],
       };
-    },
-  },
+}
 
+const RULES_NEPHROLOGY_B = [
   // ── گلوکوزوری (قند در ادرار) ──
   {
     id: "glycosuria_pattern",
@@ -808,8 +825,9 @@ export const RULES_NEPHROLOGY = [
       };
     },
   }];
+RULES_NEPHROLOGY.push(...RULES_NEPHROLOGY_B);   // P146: آرایه برای بیرون‌کشیدنِ hematuriaBuild دو تکه شد؛ ترتیبِ قاعده‌ها همان است
 
-// ═══ merged from patterns_nephrology_new.js (2026-09-29): appended verbatim, nothing edited or deduplicated. ═══
+//═══ merged from patterns_nephrology_new.js (2026-09-29): appended verbatim, nothing edited or deduplicated. ═══
 // No rule id existed in both files. Array order in patterns.js is unchanged: RULES_NEPHROLOGY then its _NEW array.
 
 /** نسبتِ BUN/Cr که بالاتر از آن (همراه Hbِ پایین) پرچمِ «soon» می‌خورد. P59، ۲۰۲۶-۰۹-۳۰؛ منبع: BUNCR_UGIB_META. */

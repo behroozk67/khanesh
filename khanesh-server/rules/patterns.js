@@ -96,6 +96,8 @@ export const SUGGEST_TESTS = {
   // P144 (specs/026): پیشنهادِ thyroid_thyroglobulin وقتی Anti-Tg روی برگه نیست.
   "آنتی‌بادی ضد تیروگلوبولین (Anti-Tg)": ["ANTI_TG"],
   "آزمایش ژنتیک CFTR": ["_GENE_CFTR"],
+  // P146: آزمایشِ کاملِ ادرار کلیدِ موتور ندارد (ردیف‌هایش در qual‌اند)؛ «_UA» را runPatterns وقتی می‌گذارد که نوار/رسوبِ ادرار روی برگه است.
+  "آزمایش کامل ادرار": ["_UA"],
   // P143 (specs/025): پیشنهادهای hypoglycemia_insulin_not_suppressed / islet_autoantibody_result
   "سی‌پپتید": ["C_PEPTIDE"],
   "پروانسولین": ["_PROINSULIN"],
@@ -241,6 +243,8 @@ export const SUGGEST_TESTS = {
 };
 
 /** آیا این پیشنهاد، آزمایشی است که همین حالا اندازه‌گیری شده؟ */
+// نامِ قانونیِ ردیف‌های نوار و رسوبِ ادرار در qual (adapter.js): «Urine …»، نیتریت، استراز، اوروبیلینوژن. کشتِ ادرار عمداً نه (آزمایشِ دیگری است).
+const UA_ROW_RE = /^(Urine (?!Culture)|Nitrite$|Leukocyte Esterase$|Urobilinogen$)/;
 export function alreadyMeasured(suggestion, measuredKeys) {
   const keys = SUGGEST_TESTS[suggestion];
   if (keys) return keys.every((k) => measuredKeys.has(k));
@@ -559,6 +563,7 @@ export function runPatterns(engineOut) {
   const measured = new Set([...(engineOut?.graded ?? []).map((g) => g.test), ...Object.keys(engineOut?.hemostasis ?? {}),
     ...Object.keys(engineOut?.ungraded ?? {}),
     ...AI_KEYS.filter((id) => autoAbState(engineOut ?? {}, id).state !== "absent")]);
+  if (Object.keys(engineOut?.qual ?? {}).some((k) => UA_ROW_RE.test(k))) measured.add("_UA");
   for (const f of findings) {
     if (f.suggest?.length) {
       f.suggest = f.suggest.filter((s) => !alreadyMeasured(s, measured));

@@ -2114,6 +2114,12 @@ export function ocrToEngineInput(ocr) {
     // ═══ P109 (برگهٔ واقعی ۲۰۲۶-۱۰-۱۶): ردیف‌های ادراری با نامِ صریح ═══
     // «Blood (RBC/Hgb)» نامِ پدِ خونِ نوار است (پد هم گلبولِ قرمز و هم هموگلوبین را می‌بیند) — سرم هرگز این نام را ندارد؛
     //   فقط با مقدارِ نواری (فهرستِ بسته، N6)، وگرنه «تفسیر نشدند».
+    // P146: «Blood/Hb» (برگهٔ بستریِ کودکِ ۷ ساله) هم همین پد است و به «تفسیر نشدند» می‌رفت. فقط با مقدارِ نواری؛
+    //   عدد («Blood Hb 13 g/dL») از این شاخه رد می‌شود و راهِ عادیِ نگاشت را می‌رود (N2: گشادکردنِ تطبیق).
+    if (/^(urine)?blood(hb|hgb|hemoglobin)$/.test(key) && DIPSTICK_VALUE_RE.test(String(t.value ?? "").trim())) {
+      qual["Urine Blood"] = String(t.value).trim();
+      continue;
+    }
     if (/^(urine)?blood(rbchgb|rbchb|hgbrbc|hbrbc|rbchemoglobin|hemoglobinrbc)$/.test(key)) {
       const raw = String(t.value ?? "").trim();
       if (DIPSTICK_VALUE_RE.test(raw)) qual["Urine Blood"] = raw; else unmapped.push(t.name);

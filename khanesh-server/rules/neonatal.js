@@ -100,6 +100,8 @@ export function childVoice(text) {
   for (let i = 0; i < parts.length; i += 2) {
     if (!parts[i] || CHILD_KEEP_YOU.test(parts[i])) continue;
     parts[i] = parts[i]
+      // P146: «اگر ورزش سنگین کرده‌اید» در گزارشِ کودک خطاب به والد بود («کرده‌اید» در CHILD_VERB نیست)
+      .replace(/اگر ورزش سنگین کرده‌اید/g, "اگر فرزندتان ورزش یا فعالیتِ بدنیِ سنگین داشته،")
       .replace(/اگر\s+([^،؛]{1,60}?)\s+(دارید|کردید|داشتید)(?=[\s،.؛:)»]|$)/g, (m, x, verb) =>
         CHILD_SYMPTOM_START.test(x) && !/شما|کودک|(ید|ند|است)(\s|$)/.test(x) ? `اگر کودک ${x} ${CHILD_VERB[verb]}` : m)
       .replace(/(کودک|فرزند)ِ?\s+شما(?=[\s،.؛:)»]|$)/g, "کودک")

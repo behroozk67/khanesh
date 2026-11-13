@@ -1583,6 +1583,12 @@ export function mergeRbcMorph(items) {
   }
   return [...by.values()];
 }
+// P107 (L7)، P146: قاعدگی فقط برای کسی که می‌تواند قاعده شود؛ جنس/سنِ نامعلوم ⇒ true (متنِ قبلی). پیش‌تر در patterns_hematology.js.
+export function mayMenstruate(e) {
+  if (e.sex === "M") return false;
+  const a = typeof e.age === "number" ? e.age : null;
+  return a == null || (a >= 10 && a < 55);
+}
 /** حالتِ یک نوعِ ریخت‌شناسی روی همین برگه: null ⇒ روی برگه نیست. */
 export function rbcMorphOf(e, kind) {
   return (e?.rbcMorph ?? []).find((i) => i.kind === kind) ?? null;

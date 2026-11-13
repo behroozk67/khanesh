@@ -1,4 +1,4 @@
-import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis as actionUnlessAnemiaCrisisBase, urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
+import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis as actionUnlessAnemiaCrisisBase, urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, mayMenstruate, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
 // P117: فهرستِ بستهٔ رنگِ سیاه از یک منبع (stool.js) — قاعدهٔ ملنا و رنگِ مدفوع یک واژگان دارند.
 import { STOOL_BLACK_RE } from "./stool.js";
 import { anemiaInflammationFa, anemiaInflammationSuggest, rbcMorphOf, bandNeutDiscordance, anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";
@@ -533,11 +533,6 @@ function indicesImplausible(e) {
 
 // P107 (L7): «قاعدگیِ سنگین» برای مرد و کودک نوشته می‌شد. علت‌ها به جنس و سن بسته‌اند؛ جنس/سنِ نامعلوم ⇒ همان متنِ قبلی
 //   (حذفِ یک علتِ ممکن بدتر از ذکرِ یک علتِ نامربوط است).
-function mayMenstruate(e) {
-  if (e.sex === "M") return false;
-  const a = typeof e.age === "number" ? e.age : null;
-  return a == null || (a >= 10 && a < 55);
-}
 function ironCauseFa(e) {
   if (mayMenstruate(e)) return ". شایع‌ترین علت‌ها خون‌ریزی مزمن (مثلاً قاعدگی سنگین یا دستگاه گوارش) و دریافت ناکافی آهن است.";
   if (typeof e.age === "number" && e.age < 16)
@@ -857,7 +852,9 @@ export const RULES_HEMATOLOGY = [
           ? `گلبول سفید شما ${w.value} است — خیلی کم (حد طبیعی ${w.range}). توان بدن برای مقابله با عفونت کاهش یافته و همین باعث اهمیت فوری آن است.` +
             neutLowClause(e)
           : `گلبول سفید شما ${w.value} است (حد طبیعی ${w.range}). ` +
-            "گلبول سفید دفاع بدن در برابر عفونت است؛ کم بودن خفیف آن می‌تواند موقت باشد (مثلاً پس از یک عفونت ویروسی یا با برخی داروها) یا نیاز به بررسی مغز استخوان داشته باشد. تکرار آزمایش معمولاً اولین قدم است." +
+            // P146: «یا نیاز به بررسی مغز استخوان داشته باشد» کنارِ کاهشِ خفیف (۴٫۶ در کودکِ بستری) هراس می‌ساخت؛ مغز استخوان قدمِ
+            //   بعد از *ماندگاری* است، نه گزینهٔ هم‌وزنِ «موقت». جمله شرطی شد، حذف نه.
+            "گلبول سفید دفاع بدن در برابر عفونت است؛ کم بودن خفیف آن اغلب موقت است (مثلاً پس از یک عفونت ویروسی یا با برخی داروها). تکرار آزمایش معمولاً اولین قدم است؛ اگر در تکرار هم پایین بماند، پزشک بررسی‌های بیشتری انجام می‌دهد که گاهی بررسی مغز استخوان را هم شامل می‌شود." +
             neutLowClause(e),
         action: severe
           ? "بدون اتلاف وقت فوراً به اورژانس مراجعه کنید."

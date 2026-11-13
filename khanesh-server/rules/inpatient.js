@@ -9,6 +9,7 @@
 // ============================================================
 
 import { faName } from "./names.js";
+import { CHILD_VOICE_MAX_AGE } from "./neonatal.js";
 
 export const onInpatient = (e) => Array.isArray(e?.conditions) && e.conditions.includes("hospitalized");
 
@@ -16,7 +17,8 @@ export const INPATIENT_NOW_ACTION = "همین حالا این نتیجه را ب
 export const INPATIENT_ROUND_ACTION = "این نتیجه را در ویزیتِ بعدیِ پزشکِ معالج مطرح کنید.";
 
 // جمله‌ای که *کجا برو / کی برو* می‌گوید. محتوا (تکرار آزمایش، قطعِ دارو، …) این واژه‌ها را ندارد و می‌ماند.
-const WHERE_WHEN = /اورژانس|۱۱۵|مطب|وقت بگیرید|نوبتِ?\s*(عادی|بعدی)|مراجعه|تماس بگیرید|این هفته|همین امروز|همین چند روز|همین حالا|فوراً|فورا|اسرع وقت|اولین فرصت|منتظر|برگه را همراه|هفته‌های پیشِ رو|۲۴ تا ۴۸ ساعت|زودتر/;
+// P146: «با پزشک مطرح کنید تا علت بررسی شود» کنارِ «در ویزیتِ بعدیِ پزشکِ معالج مطرح کنید» تکرار بود؛ فقط شکلِ بی‌شرط (آغازِ جمله).
+const WHERE_WHEN = /^با پزشک مطرح کنید|اورژانس|۱۱۵|مطب|وقت بگیرید|نوبتِ?\s*(عادی|بعدی)|مراجعه|تماس بگیرید|این هفته|همین امروز|همین چند روز|همین حالا|فوراً|فورا|اسرع وقت|اولین فرصت|منتظر|برگه را همراه|هفته‌های پیشِ رو|۲۴ تا ۴۸ ساعت|زودتر/;
 const SENT = /(?<=[.؟!؛])\s+/;
 const CONDITIONAL = /^(اگر|مگر|چنانچه|در صورتِ?)\s/;
 const SYMPTOM_ALARM = /^(علائم|علامت‌های|نشانه‌های)\s/;   // فقط جمله‌ای که *فهرستِ* علائم است، نه «… می‌تواند نشانهٔ X باشد»
@@ -113,22 +115,30 @@ export const INPATIENT_FACTORS = {
   TSH: { any: THYROID }, FT3: { low: THYROID }, T3: { low: THYROID },
 };
 const INPATIENT_MARK = "چون در بیمارستان بستری هستید";
+const INPATIENT_MARK_CHILD = "چون فرزندتان در بیمارستان بستری است";
 
 /** owns(f, key): یافته f آن آزمایش را می‌خواند *و* در متنش نامش را آورده (patterns.js: RULE_READS + textNamesTest). */
 export function applyInpatientContext(findings, engineOut, owns) {
   if (engineOut?._probe || !onInpatient(engineOut) || typeof owns !== "function") return;
+  // P146 (برگهٔ بستریِ کودکِ ۷ ساله): AST/CK در دو یافته (کبد و LDH) هر بار همان پاراگرافِ «چون بستری هستید … » را می‌گرفتند —
+  //   سه بار در یک گزارش. هر آزمایش فقط یک بار عامل می‌گیرد (اولین یافته‌ای که نامش را برده). و کودکِ زیرِ ۱۲ (لحنِ والد، P79):
+  //   «هستید» را childVoice عوض نمی‌کند ⇒ جملهٔ والد از همین‌جا.
+  const mark = typeof engineOut.age === "number" && engineOut.age < CHILD_VOICE_MAX_AGE ? INPATIENT_MARK_CHILD : INPATIENT_MARK;
+  const seen = new Set();
   for (const f of findings) {
     if (typeof f.must_say !== "string" || f.urgency === "emergency" || f.must_say.includes("بستری")) continue;
     const byFactor = new Map();
     for (const g of engineOut.graded ?? []) {
-      if (!g.abnormal) continue;
+      if (!g.abnormal || seen.has(g.test)) continue;
       const fac = INPATIENT_FACTORS[g.test]?.[g.dir] ?? INPATIENT_FACTORS[g.test]?.any;
       if (!fac || !owns(f, g.test)) continue;
-      byFactor.set(fac, [...(byFactor.get(fac) ?? []), faName(g.test)]);
+      byFactor.set(fac, [...(byFactor.get(fac) ?? []), g.test]);
     }
     if (!byFactor.size) continue;
-    const items = [...byFactor].slice(0, 3).map(([fac, names]) => `${[...new Set(names)].join(" و ")}: ${fac}`);
-    f.must_say = `${f.must_say.trimEnd()} ${INPATIENT_MARK} (بخش یا ICU)، عواملِ درمان و بیماریِ حاد هم می‌توانند این نتیجه‌ها را تغییر دهند — ${items.join("؛ ")}. پزشکِ معالج این اعداد را همراهِ داروها و روندِ روزهای قبل می‌سنجد.`;
+    const used = [...byFactor].slice(0, 3);
+    for (const [, keys] of used) keys.forEach((k) => seen.add(k));
+    const items = used.map(([fac, keys]) => `${[...new Set(keys.map(faName))].join(" و ")}: ${fac}`);
+    f.must_say = `${f.must_say.trimEnd()} ${mark} (بخش یا ICU)، عواملِ درمان و بیماریِ حاد هم می‌توانند این نتیجه‌ها را تغییر دهند — ${items.join("؛ ")}. پزشکِ معالج این اعداد را همراهِ داروها و روندِ روزهای قبل می‌سنجد.`;
     (f.applied_conditions ??= []).includes("hospitalized") || f.applied_conditions.push("hospitalized");
   }
 }
