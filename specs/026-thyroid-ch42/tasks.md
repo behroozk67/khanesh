@@ -204,7 +204,7 @@
 
 - [X] T044 Run the `code-reviewer` agent on commits 1 and 2. Fix confirmed findings in a follow-up commit, with a test for each one.
 - [X] T045 If a review or probe corrected wrong output, append a Lab Notebook entry (N58) to `CLAUDE.md`.
-- [ ] T046 Deploy from a clean `git worktree` of `HEAD`. Use the procedure in memory `reference-deploy-server`. Then `curl` `/api/health`, and run one live analyze probe with TSH 14 + FT4 1.1. Do not push.
+- [X] T046 Deploy from a clean `git worktree` of `HEAD`. Use the procedure in memory `reference-deploy-server`. Then `curl` `/api/health`, and run one live analyze probe with TSH 14 + FT4 1.1. Do not push.
 
 ## Dependencies
 
