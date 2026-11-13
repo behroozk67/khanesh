@@ -243,8 +243,8 @@ export const SUGGEST_TESTS = {
 };
 
 /** آیا این پیشنهاد، آزمایشی است که همین حالا اندازه‌گیری شده؟ */
-// نامِ قانونیِ ردیف‌های نوار و رسوبِ ادرار در qual (adapter.js): «Urine …»، نیتریت، استراز، اوروبیلینوژن. کشتِ ادرار عمداً نه (آزمایشِ دیگری است).
-const UA_ROW_RE = /^(Urine (?!Culture)|Nitrite$|Leukocyte Esterase$|Urobilinogen$)/;
+// P146: نشانگرهای قویِ نوار در qual (هم‌شکلِ isDipstickStrongKey در adapter.js).
+const UA_STRONG_RE = /^(Urine Specific Gravity|Nitrite|Leukocyte Esterase|Urobilinogen)$/;
 export function alreadyMeasured(suggestion, measuredKeys) {
   const keys = SUGGEST_TESTS[suggestion];
   if (keys) return keys.every((k) => measuredKeys.has(k));
@@ -563,7 +563,10 @@ export function runPatterns(engineOut) {
   const measured = new Set([...(engineOut?.graded ?? []).map((g) => g.test), ...Object.keys(engineOut?.hemostasis ?? {}),
     ...Object.keys(engineOut?.ungraded ?? {}),
     ...AI_KEYS.filter((id) => autoAbState(engineOut ?? {}, id).state !== "absent")]);
-  if (Object.keys(engineOut?.qual ?? {}).some((k) => UA_ROW_RE.test(k))) measured.add("_UA");
+  { // کاملِ ادرار = پدِ خون (همان که قاعدهٔ عضله برایش ادرار می‌خواهد) یا دست‌کم دو نشانگرِ قویِ نوار؛ یک ردیف (مثلاً کتونِ سرم که «Urine Ketone» می‌شود) نه
+    const q = Object.keys(engineOut?.qual ?? {});
+    if (q.includes("Urine Blood") || q.filter((k) => UA_STRONG_RE.test(k)).length >= 2) measured.add("_UA");
+  }
   for (const f of findings) {
     if (f.suggest?.length) {
       f.suggest = f.suggest.filter((s) => !alreadyMeasured(s, measured));

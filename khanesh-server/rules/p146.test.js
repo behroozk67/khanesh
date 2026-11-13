@@ -101,4 +101,7 @@ test("P146-9: «آزمایش کامل ادرار» وقتی کاملِ ادرا�
   const noUa = CHILD_SHEET.filter((t) => !/Color|Appearance|PH|Gravity|Protein|Blood\/Hb|Glucose|Urobilinogen|Bilirubin|Nitrite|Ketone|Leuko|\/HPF/.test(t.name + (t.unit ?? "")));
   const q = run(noUa, WARD7).p;
   assert.ok(q.findings.some((f) => (f.suggest ?? []).includes("آزمایش کامل ادرار")), "قفل: بی‌ادرار پیشنهاد می‌ماند");
+  // قفل: یک ردیفِ تک («Ketone 1+»، که کتونِ سرم هم می‌تواند باشد) کاملِ ادرار نیست
+  const one = run([...noUa, T("Ketone", "1+")], WARD7).p;
+  assert.ok(one.findings.some((f) => (f.suggest ?? []).includes("آزمایش کامل ادرار")), "یک ردیفِ کتون کاملِ ادرار شمرده شد");
 });

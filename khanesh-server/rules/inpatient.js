@@ -125,7 +125,9 @@ export function applyInpatientContext(findings, engineOut, owns) {
   //   «هستید» را childVoice عوض نمی‌کند ⇒ جملهٔ والد از همین‌جا.
   const mark = typeof engineOut.age === "number" && engineOut.age < CHILD_VOICE_MAX_AGE ? INPATIENT_MARK_CHILD : INPATIENT_MARK;
   const seen = new Set();
-  for (const f of findings) {
+  // فوری‌ترین یافته اول (پیش‌تر ترتیبِ پردازش): جمله روی کارتی می‌نشیند که بیشتر دیده می‌شود، نه روی یافتهٔ روتینی که شاید بعداً پنهان شود (N18).
+  const RANK = { emergency: 0, soon: 1, this_week: 2, routine: 3, none: 4 };
+  for (const f of [...findings].sort((a, b) => (RANK[a.urgency] ?? 5) - (RANK[b.urgency] ?? 5))) {
     if (typeof f.must_say !== "string" || f.urgency === "emergency" || f.must_say.includes("بستری")) continue;
     const byFactor = new Map();
     for (const g of engineOut.graded ?? []) {
