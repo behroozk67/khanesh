@@ -108,6 +108,8 @@ function flcRatioFa(e) {
     ? ` نسبتِ کاپا به لامبدا ${s.ratio} است و خارج از محدودهٔ ${s.range}${s.renal ? " (مخصوصِ کاهشِ کارِ کلیه)" : ""} قرار دارد؛ یعنی افزایش نامتقارن است.`
     : ` نسبتِ کاپا به لامبدا ${s.ratio} است و در محدودهٔ ${s.range}${s.renal ? " (مخصوصِ کاهشِ کارِ کلیه)" : ""} قرار دارد؛ افزایشِ هم‌زمانِ هر دو معمولاً از کاهشِ دفعِ کلیوی یا التهاب است و به‌تنهایی نشانهٔ اختلالِ سلولِ پلاسما نیست.`;
 }
+// P144 (بازبینیِ دوم): دیالیز بازهٔ نسبتِ FLC را عوض می‌کند ⇒ applied_conditions، تا لحنِ مدل و «تفسیر بر پایهٔ…» آن را بدانند.
+const flcDialysis = (e) => (flcState(e).ratio != null && Array.isArray(e.conditions) && e.conditions.includes("dialysis") ? { applied_conditions: ["dialysis"] } : {});
 const flcUrgency = (e) => (flcState(e).ratio != null && !flcState(e).abnormal ? "routine" : "this_week");
 
 export const RULES_MALIGNANCY = [
@@ -127,6 +129,7 @@ export const RULES_MALIGNANCY = [
       return {
         pattern: "monoclonal_gammopathy_lambda",
         urgency: flcUrgency(e),
+        ...flcDialysis(e),
         headline: "افزایش زنجیره سبک لامبدا (Lambda FLC)",
         must_say: `میزان پروتئین لامبدا در آزمایش شما ${lam.value} (حد طبیعی ${lam.range}) است که بالاتر از حد طبیعی است.` + flcRatioFa(e) +
           (flcState(e).abnormal !== false
@@ -152,6 +155,7 @@ export const RULES_MALIGNANCY = [
       return {
         pattern: "monoclonal_gammopathy_kappa",
         urgency: flcUrgency(e),
+        ...flcDialysis(e),
         headline: "افزایش زنجیره سبک کاپا (Kappa FLC)",
         must_say: `میزان پروتئین کاپا در آزمایش شما ${kap.value} (حد طبیعی ${kap.range}) است که بالاتر از حد طبیعی است.` +
           (lamH ? ` لامبدا هم ${lamH.value} (حد طبیعی ${lamH.range}) و بالاتر از حد است.` : "") + flcRatioFa(e) +

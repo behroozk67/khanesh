@@ -538,6 +538,8 @@ export const RULES_NEPHROLOGY = [
         return {
           pattern: "kidney_dialysis",
           urgency: "routine",
+          // P144 (بازبینیِ دوم): لحنِ مدل و «تفسیر بر پایهٔ…» فقط بیماریِ به‌کاررفته را می‌گیرند (applied_conditions)؛ بی این فیلد دیالیز به مدل نمی‌رسید.
+          applied_conditions: ["dialysis"],
           headline: "کراتینین شما بالاتر از حد معمول است (بیمار دیالیزی)",
           must_say:
             (cr ? `کراتینین شما ${cr.value} است. ` : "") +

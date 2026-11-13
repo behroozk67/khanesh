@@ -441,6 +441,7 @@ export const RULES_MINERAL_BONE = [
       return {
         pattern: "secondary_hyperparathyroidism_renal",
         urgency: "this_week",
+        ...(dialysis(e) ? { applied_conditions: ["dialysis"] } : {}),   // P144: همان دلیلِ kidney_dialysis
         key_number: pth.value,
         headline: "پرکاری پاراتیروئید در زمینهٔ کاهش کار کلیه",
         must_say:

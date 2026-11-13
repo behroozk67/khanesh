@@ -282,3 +282,20 @@ test("P144-R8b (پرسشِ ۸): «کم‌کاری تیروئید» فقط وقت
   assert.equal(pl([r("Hb", "9.5", "g/dL")])["بیماری_زمینه‌ای"], undefined);
   assert.deepEqual(pl([tsh(8), ft4(1.0)])["بیماری_زمینه‌ای"], ["کم‌کاری تیروئید"]);
 });
+
+test("P144-R8c (بازبینیِ دوم): بیماریِ فعالی که موتور به کار برد به لحنِ مدل می‌رسد — دیالیز، بستری، سرطان، دیابت، کم‌کاری", async () => {
+  const { buildEnginePrompt } = await import("./prompt.js");
+  const cases = [
+    ["dialysis", [r("Creatinine", "8", "mg/dL"), r("Urea", "150", "mg/dL"), r("K", "5.6", "mEq/L")]],
+    ["hospitalized", [r("Hb", "9", "g/dL")]],
+    ["cancer", [r("Hb", "7.5", "g/dL")]],
+    ["dm2", [r("LDL cholesterol", "114", "mg/dL")]],
+    ["hypothyroid", [tsh(8), ft4(1.0)]],
+  ];
+  for (const [id, tests] of cases) {
+    const patient = { age: 60, sex: "M", conditions: [id] };
+    const { e, out } = run(tests, patient);
+    const pl = JSON.parse(buildEnginePrompt(e, out, "", { conditions: [id] }).content).patient;
+    assert.ok((pl["بیماری_زمینه‌ای"] ?? []).length === 1, `${id}: ${JSON.stringify(pl)}`);
+  }
+});

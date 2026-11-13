@@ -364,6 +364,7 @@ Rules:
   - A tail you add to one branch inherits every guard its sibling branches already have. Grep the guard (`thyroidCancerContext`) and apply it to each new tail.
   - "Conditional" means every sentence, not only the first one.
   - Before writing "the printed range still decides", probe it: is the key in `PRINTED_FIRST_KEYS`?
+- **Second review:** I narrowed the model's tone context from "active" to "used" (`applied_conditions`). Dialysis then vanished from the prompt, because the dialysis branches never wrote that field. A Cr 8 `routine` finding reached the model with no mention of dialysis. **Before filtering on a field, grep that every producer writes it, and test every value of the set (P144-R8c).**
 
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
