@@ -201,7 +201,8 @@ export function healthScore(engineOut, patternOut) {
   // P143 (specs/025): anti-GAD/IA-2 read against the printed cut-off is read, not unread. Only «noref» still counts.
   const isletRead = (k) => (k === 'ANTI_GAD' || k === 'ANTI_IA2') && engineOut?.ungraded?.[k]?.state !== 'noref';
   count.unread = (Array.isArray(engineOut?.unmapped) ? engineOut.unmapped.length : 0)
-    + Object.keys(engineOut?.ungraded ?? {}).filter((k) => !TM_KEYS.has(k) && !(k === 'SWEAT_CL' && sweatRead) && !isletRead(k)).length;
+    // P144: تیروگلوبولین عمداً بی‌حکم نقل می‌شود (مثلِ تومورمارکر) — «خوانده‌نشده» نیست.
+    + Object.keys(engineOut?.ungraded ?? {}).filter((k) => !TM_KEYS.has(k) && k !== 'THYROGLOBULIN' && !(k === 'SWEAT_CL' && sweatRead) && !isletRead(k)).length;
 
   // سقفِ هر دستگاه از یافته‌های نمایش‌داده‌شده. findings فقط نمایش‌داده‌شده‌هاست؛ «یافتهٔ تکمیلی»ِ فشرده
   // (supplementary_ids) هم سقف نمی‌گذارد (FR-011). یافته‌ای که به هیچ کلیدِ graded نسبت داده نشد ⇒ سقفِ کلِ برگه.
@@ -218,6 +219,8 @@ export function healthScore(engineOut, patternOut) {
     // P143: a negative or uninterpreted islet antibody is not a finding about a body system. A negative anti-GAD took
     //   a healthy sheet from 100 to 90 (the N46 shape). A positive one still caps.
     if (f.rule_id === 'islet_autoantibody_result' && f.score_neutral) continue;
+    // P144: thyroid_thyroglobulin (فقط نقلِ تیروگلوبولین) دربارهٔ هیچ دستگاهی حکم نمی‌دهد (کلاسِ N46).
+    if (f.rule_id === 'thyroid' && f.score_neutral) continue;
     const keys = findingKeys(f, abnormalKeys);
     if (!keys) { sheetCap = Math.min(sheetCap, URGENCY_CAP[f.urgency]); continue; }
     for (const k of keys) {

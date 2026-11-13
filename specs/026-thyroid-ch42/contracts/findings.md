@@ -71,3 +71,14 @@ These are drafts. They become final only when implemented and quoted in the comm
 3. No raw key (`THYROGLOBULIN`) appears in any patient string (M32).
 4. Every `suggest` string has a `SUGGEST_TESTS` row.
 5. A clean sheet's health score is unchanged by a Tg row.
+
+## Drift from the drafts (as implemented, 2026-11-13)
+
+The implemented strings live in `khanesh-server/rules/patterns_endocrine_rheum.js`, under `knownHypoLowText`, `knownHypoHighText`, `antibodyContextTail`, `thyroglobulinSentence` and `NEWBORN_TSH_TIMING`. `snapshots/after_us1-5.txt` prints them in full.
+
+- **C1:** FT4 is three-state. A normal FT4 also gets «FT4 در محدوده است ({v}؛ حد طبیعی {r}).», and absent gets `missingFa("FT4")`. The draft only had high and absent.
+- **C1/C2:** the magnitude clause («TSHِ شما بسیار پایین (کمتر از ۰٫۱) است.» or «TSHِ شما خیلی بالاتر از حد است.») comes right after the TSH sentence, not at the end.
+- **C5/C6 in `thyroid_antibody_positive`:** when TSH is measured, the tail reads «TSHِ این برگه طبیعی است. {C5}{ C6}». When TSH is absent, the «TSH لازم است» sentence is kept and C5/C6 follow it.
+- **C7, anti-Tg within the printed range:** «… روی همین برگه داخلِ محدودهٔ چاپ‌شده است، پس بعید است…». «منفی» is used only for a qualitative negative.
+- **C7, Tg-only finding:** `explains: ["THYROGLOBULIN"]`, `score_neutral: true`.
+- **Urgency:** `T7 tg alone` went from `none` to `routine`. A previously dropped row now has an owner, so urgency only rises. SC-004 is read as "no urgency falls".

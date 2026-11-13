@@ -38,7 +38,7 @@ const UBT_RE = /^(ubt|ureabreathtest|c13ubt|c14ubt|c13ureabreathtest|c14ureabrea
 const ANTI_TG_RE = /^(antitg|antitgab|antithyroglobulin|antithyroglobulinab|antithyroglobulinantibody|antithyroglobulinantibodies|tgab|tgantibody|thyroglobulinantibody|thyroglobulinab|atg|آنتیتیروگلوبولین|آنتیبادیضدتیروگلوبولین)$/;
 const TRAB_RE = /^(trab|tsi|tbii|tshreceptorab|tshreceptorantibody|tshreceptorantibodies|tshrab|tshrantibody|thyroidstimulatingimmunoglobulin|thyroidstimulatingimmunoglobulins|antitshreceptor|antitshr|آنتیبادیگیرندهtsh)$/;
 // خودِ تیروگلوبولین (نشانگرِ پیگیریِ سرطانِ تیروئید) — نه آنتی‌بادی‌اش. «Tg»ِ تنها عمداً این‌جا نیست: تری‌گلیسیرید است (N25).
-const THYROGLOBULIN_RE = /^(thyroglobulin|serumthyroglobulin|tgthyroglobulin|تیروگلوبولین)$/;
+const THYROGLOBULIN_RE = /^(thyroglobulin|serumthyroglobulin|tgthyroglobulin|thyroglobulintg|تیروگلوبولین|تیروگلوبولینسرم)$/;
 
 // P109 (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): IgM/IgAِ هلیکوباکتر پیش‌تر عمداً بی‌خواننده (unmapped) بود. حالا به qual می‌رود و تنها خواننده‌اش
 //   hpylori_igm_result است — بی‌حکم (مثبت/منفی عفونتِ فعال را نشان نمی‌دهد) و با معرفیِ آزمایشِ معتبر. h_pylori_result آن را نمی‌خواند
@@ -503,6 +503,14 @@ export function routeSerology(key, t, sexHint = null) {
     // N5: عدد همان‌طور که چاپ شده نقل می‌شود («3.0»، نه «3»).
     const shown = (faDigits(t.value).trim().match(/^[<>≤≥]?\s*[\d.,]+/) ?? [String(q.n)])[0].replace(/\s+/g, "");
     return { to: "assay", key: abKey, value: q.n, cmp: q.cmp, shown, unit: printedUnit(t), state, raw: String(t.value).trim(), reference: String(t.reference) };
+  }
+  // P144 (specs/026): تیروگلوبولین — غلظت است نه آنتی‌بادی، پس abVerdict نه (N49). فقط نقلِ عدد و بازهٔ چاپ‌شده (state «quoted»):
+  //   بازهٔ جمعیتی پس از برداشتنِ تیروئید بی‌معناست. پس از Anti-Tg بررسی می‌شود تا آنتی‌بادی هرگز پروتئین خوانده نشود (N25).
+  if (THYROGLOBULIN_RE.test(k)) {
+    const q = qualState(faDigits(t.value));
+    if (q.state !== "num") return { to: "unmapped" };
+    const shown = (faDigits(t.value).trim().match(/^[<>≤≥]?\s*[\d.,]+/) ?? [String(q.n)])[0].replace(/\s+/g, "");
+    return { to: "assay", key: "THYROGLOBULIN", value: q.n, cmp: q.cmp, shown, unit: printedUnit(t), state: "quoted", raw: String(t.value).trim(), reference: t.reference == null ? null : String(t.reference) };
   }
   return null;
 }

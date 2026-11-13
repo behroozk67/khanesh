@@ -93,6 +93,8 @@ export const SUGGEST_TESTS = {
   "ژن HFE (هموکروماتوز)": ["_GENE_HFE"],
   // specs/024 (P141): پیشنهادهای sweat_chloride_result؛ کلیدِ ساختگی ⇒ هرگز «اندازه‌گیری‌شده» نیست.
   "تکرار کلرید عرق": ["_REPEAT_SWEAT_CL"],
+  // P144 (specs/026): پیشنهادِ thyroid_thyroglobulin وقتی Anti-Tg روی برگه نیست.
+  "آنتی‌بادی ضد تیروگلوبولین (Anti-Tg)": ["ANTI_TG"],
   "آزمایش ژنتیک CFTR": ["_GENE_CFTR"],
   // P143 (specs/025): پیشنهادهای hypoglycemia_insulin_not_suppressed / islet_autoantibody_result
   "سی‌پپتید": ["C_PEPTIDE"],

@@ -2,6 +2,7 @@ import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, wh
 import { faName } from "./names.js";
 import { canBePregnant } from "./patterns_utils.js";
 import { thyroidAbState, isThyroglobulinKey } from "./serology.js";
+import { getPedRef, PED_REFS } from "./refs_ped.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
 import { repeatDeltaFa } from "./biovar.js";
 import { normUnit } from "./units.js";
@@ -93,7 +94,9 @@ export const RULES_ENDOCRINE_RHEUM = [
       const ft3 = e.graded.find((g) => g.test === "FT3");
       const t3 = e.graded.find((g) => g.test === "T3");
       const tpo = e.graded.find((g) => g.test === "ANTI_TPO");
-      return tsh?.abnormal || ft4?.abnormal || ft3?.abnormal || t3?.abnormal || tpo?.abnormal || thyroidAbNotable(e);
+      // P144: تیروگلوبولینِ روی برگه هم یافته می‌سازد (unmapped نمی‌ماند — N2).
+      return tsh?.abnormal || ft4?.abnormal || ft3?.abnormal || t3?.abnormal || tpo?.abnormal || thyroidAbNotable(e) ||
+        e.ungraded?.THYROGLOBULIN?.reason === "assay_printed";
     },
     // specs/012 (P68): Anti-Tg و TRAb در همین یافته — یک یافته برای تیروئید (N20). بدنهٔ قبلی دست‌نخورده و درون‌خطی می‌ماند
     //   (RULE_READS منبعِ خودِ قاعده را می‌خواند؛ بیرون بردنش پوشش را عوض می‌کرد — N23). بی‌آنتی‌بادی، خروجی بایت‌به‌بایت همان است (S08).
@@ -255,13 +258,17 @@ export const RULES_ENDOCRINE_RHEUM = [
         // بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N18 + N29): «TSH 5.85 + T3 24» عددِ T3 را نمی‌گفت و فوریتِ T3ِ تنها (this_week) را پایین می‌آورد.
         const t3LowFa = t3Low ? hormoneRowsFa("low").split(" و ").filter((s) => !s.startsWith("FT4")).join(" و ") : "";
         const t3Floor = ft4Missing && t3Low;
+        const known = knownHypothyroid(e);
         return {
           pattern: `thyroid_hypo_${overt ? "overt" : ft4Missing ? "ft4_unmeasured" : "subclinical"}`,
           urgency: overt || referEndo || t3Floor ? "this_week" : "routine",
           sources: referEndo ? ["ETA_SCH_2013"] : undefined,
+          ...(known ? { applied_conditions: ["hypothyroid"] } : {}),
           headline: "غده تیروئید شما کندتر از حد معمول کار می‌کند",
           must_say:
-            `TSH شما ${tsh.value} است (حد طبیعی ${tsh.range})` +
+            (known
+              ? knownHypoHighText(tsh, ft4, overt, missingFa)
+              : `TSH شما ${tsh.value} است (حد طبیعی ${tsh.range})` +
             (overt && ft4 != null ? ` و هورمون تیروئید FT4 پایین است (${ft4.value}؛ حد طبیعی ${ft4.range})` : "") +
             ". تیروئید غده‌ای در گردن است که سرعت سوخت‌وساز بدن را تنظیم می‌کند؛ TSH بالا یعنی بدن دارد غدهٔ کم‌کار را بیشتر تحریک می‌کند. " +
             (overt
@@ -274,7 +281,10 @@ export const RULES_ENDOCRINE_RHEUM = [
                       ? `${missingFa("FT4")}، ولی T4 تامِ شما ${t4.value} (حد طبیعی ${t4.range}) در محدوده است؛ همراه با TSHِ بالا این الگو بیشتر به کم‌کاریِ خفیف («تحت‌بالینی») می‌خورد تا کم‌کاریِ واضح. FT4 دقیق‌تر است و برای تأیید همین را بخواهید.`
                       : `${missingFa("FT4")}؛ بدونِ این هورمونِ تیروئید نمی‌توان گفت این کم‌کاری خفیف است یا واضح، پس قدمِ بعد اندازه‌گیریِ FT4 است.`;
                   })()
-                : "چون هورمون تیروئید (FT4) هنوز طبیعی است، این کم‌کاری خفیف («تحت‌بالینی») است؛ برای تأیید معمولاً چند هفته بعد تکرار می‌شود و اغلب فقط پیگیری لازم دارد.") +
+                // P144 (US2، C3): TSH ≥ TSH_ENDO_REFER با FT4ِ طبیعی «خفیف… اغلب فقط پیگیری» نیست؛ فوریت همان routine (P72/M305).
+                : Number(tsh.value) >= TSH_ENDO_REFER
+                  ? "هورمون تیروئید (FT4) هنوز طبیعی است، پس این کم‌کاریِ «تحت‌بالینی» است؛ ولی TSHِ ۱۰ یا بالاتر حدی است که پزشکان معمولاً در آن درمان را در نظر می‌گیرند. برای تأیید معمولاً چند هفته بعد تکرار می‌شود و تصمیم با پزشک است."
+                  : "چون هورمون تیروئید (FT4) هنوز طبیعی است، این کم‌کاری خفیف («تحت‌بالینی») است؛ برای تأیید معمولاً چند هفته بعد تکرار می‌شود و اغلب فقط پیگیری لازم دارد.")) +
             (t3LowFa ? ` ${t3LowFa} هم پایین است، که با کم‌کاریِ تیروئید جور است.` : "") +
             // بازبینیِ کد (P84، M4): T3ِ تامِ بالا با FT4ِ سنجیده به این شاخه می‌رسد — نامش بیاید و جهتش انکار نشود (N12/N18).
             (t3TotalHigh && !ft3HighFree
@@ -291,7 +301,9 @@ export const RULES_ENDOCRINE_RHEUM = [
             // به بیمارِ مرد هم گفته می‌شد. فقط در کم‌کاریِ واضح، نه تحت‌بالینی.
             (overt && canBePregnant(e)
               ? " اگر باردار هستید یا قصد بارداری دارید، این یافته اهمیت بیشتری دارد و باید زودتر با پزشک مطرح شود."
-              : ""),
+              : "") +
+            // P144 (US5، C8): فقط زمانِ غربالگری. ردیفِ «زیرِ ۳ روز» خودش جهشِ پس از تولد را حساب کرده؛ عددِ بالاتر از آن توضیح‌داده‌شده نیست.
+            (gradedOnNewbornTshRow(e) ? " " + NEWBORN_TSH_TIMING : ""),
           action: overt ? "این هفته وقت بگیرید."
             : referEndo ? "این هفته با پزشک مطرح کنید و ارجاع به متخصص غدد و آزمایش FT4 را بخواهید."
             : t3Floor ? "این هفته با پزشک مطرح کنید و آزمایش FT4 را بخواهید تا معلوم شود کم‌کاری خفیف است یا واضح."
@@ -310,18 +322,23 @@ export const RULES_ENDOCRINE_RHEUM = [
         const ft4Missing = !overt && ft4 == null;
         // تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳ (P72 پرسش ۳، قرینهٔ TSH ≥ ۱۰): TSHِ < ۰٫۱ بی‌FT4 ⇒ این هفته + ارجاع به متخصص غدد.
         const referEndo = ft4Missing && Number(tsh.value) < TSH_SUPPRESSED;
+        const known = knownHypothyroid(e);
         return {
           pattern: `thyroid_hyper_${overt ? "overt" : ft4Missing ? "ft4_unmeasured" : "subclinical"}`,
           urgency: overt || referEndo ? "this_week" : "routine",
           sources: referEndo ? ["ATA_HYPER_2016"] : undefined,
-          headline: "غده تیروئید شما پرکارتر از حد معمول است",
-          must_say:
+          ...(known ? { applied_conditions: ["hypothyroid"] } : {}),
+          headline: known ? "TSH شما پایین‌تر از حد طبیعی است" : "غده تیروئید شما پرکارتر از حد معمول است",
+          must_say: known ? knownHypoLowText(tsh, ft4, overt, ft4Missing, missingFa) :
             `TSH شما ${tsh.value} است (حد طبیعی ${tsh.range})` +
             (overt && ft4 != null ? ` و هورمون تیروئید FT4 بالاست (${ft4.value}؛ حد طبیعی ${ft4.range})` : "") +
             ". TSH پایین یعنی هورمون تیروئید بیش از نیاز بدن ساخته می‌شود؛ پرکاری تیروئید می‌تواند باعث تپش قلب، لاغری، لرزش، تعریق، گرمایی‌شدن و بی‌قراری شود. شایع‌ترین علت آن بیماری خودایمنی گریوز است. " +
             (overt ? "چون هورمون تیروئید (FT4) هم بالاست، این یک پرکاری واضح است."
               : ft4Missing ? `${missingFa("FT4")}؛ بدونِ این هورمونِ تیروئید نمی‌توان گفت این پرکاری خفیف است یا واضح، پس قدمِ بعد اندازه‌گیریِ FT4 است.`
-              : "چون FT4 هنوز طبیعی است، این پرکاری خفیف («تحت‌بالینی») است؛ برای تأیید معمولاً چند هفته بعد تکرار می‌شود."),
+              // P144 (US2، C4): TSH < TSH_SUPPRESSED با FT4ِ طبیعی «خفیف» نیست؛ فوریت همان routine.
+              : Number(tsh.value) < TSH_SUPPRESSED
+                ? "FT4 هنوز طبیعی است، پس این پرکاریِ «تحت‌بالینی» است؛ ولی TSHِ کمتر از ۰٫۱ یعنی کاملاً سرکوب شده و این دیگر نوعِ خفیف نیست. برای تأیید معمولاً تکرار می‌شود و پزشک باید آن را بررسی کند."
+                : "چون FT4 هنوز طبیعی است، این پرکاری خفیف («تحت‌بالینی») است؛ برای تأیید معمولاً چند هفته بعد تکرار می‌شود."),
           action: overt ? "این هفته وقت بگیرید."
             : referEndo ? "این هفته با پزشک مطرح کنید و ارجاع به متخصص غدد و آزمایش FT4 را بخواهید؛ TSHِ بسیار پایین باید تکرار و پیگیری شود."
             : ft4Missing ? "نوبت عادی با پزشک؛ آزمایش FT4 را بخواهید تا معلوم شود پرکاری خفیف است یا واضح."
@@ -341,14 +358,19 @@ export const RULES_ENDOCRINE_RHEUM = [
       // 🔴 بازبینیِ متامورفیک ۲۰۲۶-۱۰-۰۵ (N18): FT3/T3ِ غیرطبیعی هم شرط است — «FT3 17.6 + TPO 36» اینجا «اگر بقیهٔ هورمون‌ها
       //    طبیعی باشند» و «نوبتِ عادی» می‌گرفت و ۱۷٫۶ هیچ‌جا نمی‌آمد. حالا به شاخهٔ TSHِ سنجیده‌نشده (this_week، TPO را هم می‌گوید) می‌رود.
       if (tpoHigh && !tshHigh && !tshLow && !ft4Low && !ft4High && !t3High && !t3Low) {
+        const known = knownHypothyroid(e);
         return {
           pattern: "thyroid_tpo_positive",
           urgency: "routine",
+          ...(known ? { applied_conditions: ["hypothyroid"] } : {}),
           headline: "آنتی‌بادی تیروئید (TPO) شما بالاست",
           must_say:
             // specs/023 (P136، N5): عدد و بازه نقل می‌شود؛ بازه از برگه وقتی چاپ شده (PRINTED_FIRST_KEYS در adapter).
             `آنتی‌بادی TPO شما ${tpo.value} است (حد طبیعی ${tpo.range}) و بالاتر از آن است. ` + "این نشان می‌دهد سیستم ایمنی بدن با تیروئید تعامل دارد که می‌تواند به نوعی التهاب خودایمنی تیروئید مربوط باشد. " +
-            "در این مرحله اگر بقیه‌ی هورمون‌ها طبیعی باشند، اغلب فقط پیگیری لازم است، چون گاهی با گذر زمان به کم‌کاری تیروئید می‌انجامد.",
+            // P144 (C5/C6): «گاهی به کم‌کاری می‌انجامد» برای کسی که کم‌کاری دارد غلط است، و «اغلب فقط پیگیری» در بارداری با توصیهٔ پایش تناقض دارد.
+            (known || e.pregnant === true
+              ? antibodyContextTail(e)
+              : "در این مرحله اگر بقیه‌ی هورمون‌ها طبیعی باشند، اغلب فقط پیگیری لازم است، چون گاهی با گذر زمان به کم‌کاری تیروئید می‌انجامد."),
           action: "نوبت عادی با پزشک. معمولاً تیروئید به‌صورت دوره‌ای پایش می‌شود.",
           suggest: ["پایش دوره‌ای TSH", "بررسی توسط پزشک"],
           warnings: [],
@@ -685,7 +707,72 @@ function abValueFa(a) {
 //   آن‌جا «هاشیموتو» و «اغلب فقط پیگیری» اطمینانِ کاذب است. نشانه: سرطانِ ثبت‌شده (فعال در conditions.js) یا ردیفِ تیروگلوبولین روی برگه.
 function thyroidCancerContext(e) {
   if ((e.conditions ?? []).includes("cancer")) return true;
+  // P144 (FR-004a): تیروگلوبولینِ نگاشت‌شده دیگر در unmapped نیست؛ بی این خط «Tg + Anti-Tg بالا» به متنِ «هاشیموتو… اغلب فقط پیگیری» می‌افتاد.
+  if (e.ungraded?.THYROGLOBULIN?.reason === "assay_printed") return true;
   return [...(e.unmapped ?? []), ...Object.keys(e.qual ?? {})].some((n) => isThyroglobulinKey(n));
+}
+
+// ── P144 (specs/026) ──
+// کم‌کاریِ تیروئیدِ ثبت‌شده (ACTIVE_CONDITIONS). گزینه «بیماری» را ثبت می‌کند نه «دارو»، پس هر جمله شرطی است.
+function knownHypothyroid(e) {
+  return !!e.conditions?.includes("hypothyroid");
+}
+
+// C1: TSHِ پایین در کم‌کاریِ ثبت‌شده. FT4 سه‌حالته (بالا / در محدوده / روی برگه نیست).
+function knownHypoLowText(tsh, ft4, overt, ft4Missing, missingFa) {
+  return `TSH شما ${tsh.value} است (حد طبیعی ${tsh.range}). ` +
+    (Number(tsh.value) < TSH_SUPPRESSED ? "TSHِ شما بسیار پایین (کمتر از ۰٫۱) است. " : "") +
+    "چون کم‌کاری تیروئید دارید: اگر لووتیروکسین (قرص تیروئید) مصرف می‌کنید، شایع‌ترین علتِ TSHِ پایین این است که دوزِ قرص بیش از نیازِ بدن است. " +
+    "اگر دارو مصرف نمی‌کنید، پزشک علت‌های دیگر را بررسی می‌کند. دوز را فقط پزشک تغییر می‌دهد؛ خودسرانه قرص را کم یا قطع نکنید." +
+    (overt && ft4 ? ` FT4 هم بالاست (${ft4.value}؛ حد طبیعی ${ft4.range}).`
+      : ft4Missing ? ` ${missingFa("FT4")}.`
+      : ft4 ? ` FT4 در محدوده است (${ft4.value}؛ حد طبیعی ${ft4.range}).` : "");
+}
+
+// C2: TSHِ بالا در کم‌کاریِ ثبت‌شده. جای جملهٔ C3 (≥ ۱۰) را هم می‌گیرد؛ دو متن روی هم نمی‌آیند.
+function knownHypoHighText(tsh, ft4, overt, missingFa) {
+  return `TSH شما ${tsh.value} است (حد طبیعی ${tsh.range}). ` +
+    (Number(tsh.value) >= TSH_ENDO_REFER ? "TSHِ شما خیلی بالاتر از حد است. " : "") +
+    "چون کم‌کاری تیروئید دارید، این یعنی بدن هنوز هورمونِ تیروئیدِ کافی ندارد. اگر لووتیروکسین مصرف می‌کنید، شایع‌ترین علت این است که دوزِ فعلی کافی نیست یا قرص به‌طورِ منظم خورده نشده است. " +
+    "پزشک دوز را با همین عدد تنظیم می‌کند و معمولاً چند هفته پس از هر تغییرِ دوز آزمایش تکرار می‌شود." +
+    (overt && ft4 ? ` FT4 هم پایین است (${ft4.value}؛ حد طبیعی ${ft4.range}).`
+      : ft4 ? ` FT4 در محدوده است (${ft4.value}؛ حد طبیعی ${ft4.range}).`
+      : ` ${missingFa("FT4")}؛ برای تنظیمِ دوز، FT4 هم کمک می‌کند.`);
+}
+
+// C5/C6: دنبالهٔ آنتی‌بادیِ TPO/Anti-Tg به‌جای «اغلب فقط پیگیری». فقط با شرطِ ثبت‌شده یا بارداریِ قطعی (=== true).
+function antibodyContextTail(e) {
+  return [
+    knownHypothyroid(e) && "چون کم‌کاری تیروئید دارید، این آنتی‌بادی به احتمالِ زیاد همان علتِ کم‌کاریِ شماست (التهابِ خودایمنیِ تیروئید، هاشیموتو) و یافتهٔ تازه‌ای نیست.",
+    e.pregnant === true && "چون باردار هستید، این یافته اهمیتِ بیشتری دارد: آنتی‌بادی‌های تیروئید حتی وقتی TSH طبیعی است با خطرِ بیشتری برای بارداری و با التهابِ تیروئید پس از زایمان همراه‌اند. معمولاً TSH (و FT4) در طولِ بارداری و پس از زایمان دوباره سنجیده می‌شود؛ این نتیجه را به پزشکِ زنانِ خود نشان دهید.",
+  ].filter(Boolean).join(" ");
+}
+
+// C8: TSH روی ردیفِ «زیرِ ۳ روزِ» اطفال سنجیده شد (همان ردیف، نه سنِ بازمحاسبه‌شده — N53).
+const NEWBORN_TSH_TIMING = "غربالگریِ تیروئیدِ نوزاد معمولاً روزِ ۳ تا ۵ پس از تولد انجام می‌شود؛ این نتیجه باید در همان بازه، طبقِ نظرِ پزشک یا برنامهٔ غربالگری، تکرار یا تأیید شود.";
+function gradedOnNewbornTshRow(e) {
+  return e.age != null && getPedRef("TSH", e.age) === PED_REFS.TSH[0].range;
+}
+
+// C7: تیروگلوبولین — فقط نقلِ عدد و بازهٔ چاپ‌شده، بی‌حکم (بازهٔ جمعیتی پس از برداشتنِ تیروئید بی‌معناست؛ N49: خوانندهٔ آنتی‌بادی نه).
+//   Anti-Tg سه‌حالته؛ حالتِ «بالا/مثبت» را جملهٔ زمینهٔ سرطانِ Anti-Tg (thyroidAbSentences) می‌گوید، این‌جا تکرار نمی‌شود.
+const ANTI_TG_SUGGEST = "آنتی‌بادی ضد تیروگلوبولین (Anti-Tg)";
+function thyroglobulinSentence(e) {
+  const t = e.ungraded?.THYROGLOBULIN;
+  if (t?.reason !== "assay_printed") return { text: "", suggest: [] };
+  const ref = t.reference && String(t.reference).trim() && String(t.reference) !== "undefined" ? ` (محدودهٔ چاپ‌شده: ${t.reference})` : "";
+  let text = `تیروگلوبولینِ شما ${t.shown}${t.unit ? " " + t.unit : ""} است${ref}. ` +
+    "تیروگلوبولین بیشتر برای پیگیریِ کسانی به کار می‌رود که برای سرطانِ تیروئید درمان شده‌اند؛ معنای عددش به این بستگی دارد که تیروئید برداشته شده یا نه و آزمایش در چه شرایطی انجام شده، پس تفسیرش با پزشکِ معالج است. " +
+    "این آزمایش به‌تنهایی آزمایشِ تشخیصِ سرطان نیست.";
+  const ab = thyroidAbState(e, "ANTI_TG");
+  const suggest = [];
+  if (ab.state === "neg" || ab.state === "within") {
+    text += ` آنتی‌بادی ضد تیروگلوبولین (Anti-Tg) روی همین برگه ${ab.state === "neg" ? "منفی" : "داخلِ محدودهٔ چاپ‌شده"} است، پس بعید است این آنتی‌بادی عددِ تیروگلوبولین را به هم زده باشد.`;
+  } else if (ab.state === "absent") {
+    text += ` برای تفسیرِ تیروگلوبولین، ${ANTI_TG_SUGGEST} هم باید سنجیده شود؛ روی این برگه نیست.`;
+    suggest.push(ANTI_TG_SUGGEST);
+  }
+  return { text, suggest };
 }
 
 function thyroidAbSentences(e, { tsh, ft4 }) {
@@ -740,13 +827,17 @@ function thyroidAbSentences(e, { tsh, ft4 }) {
 function thyroidWithAntibodies(e, core) {
   const tgPresent = thyroidAbState(e, "ANTI_TG").state !== "absent";
   const trPresent = thyroidAbState(e, "TRAB").state !== "absent";
-  if (!tgPresent && !trPresent) return core(e);   // بی‌آنتی‌بادی: همان خروجیِ قبلی (S08)
+  const tglob = thyroglobulinSentence(e);   // P144 (C7)
+  if (!tgPresent && !trPresent && !tglob.text) return core(e);   // بی‌آنتی‌بادی و بی‌تیروگلوبولین: همان خروجیِ قبلی (S08)
 
   const g = (k) => e.graded.find((x) => x.test === k);
   const tsh = g("TSH"), ft4 = g("FT4");
   const coreAbnormal = ["TSH", "FT4", "FT3", "T3", "ANTI_TPO"].some((k) => g(k)?.abnormal);
-  const { text, tr, cancerCtx } = thyroidAbSentences(e, { tsh, ft4 });
+  const { text: abText, tr, tg, cancerCtx } = thyroidAbSentences(e, { tsh, ft4 });
+  // تیروگلوبولین پیش از Anti-Tg می‌آید: جملهٔ Anti-Tg دربارهٔ اثرش روی همین عدد است.
+  const text = [tglob.text, abText].filter(Boolean).join(" ");
   const trNotable = ["above", "pos"].includes(tr.state);
+  const abNotable = trNotable || ["above", "pos"].includes(tg.state);
   const sources = trNotable ? ["ATA_HYPER_2016"] : [];
 
   if (coreAbnormal) {
@@ -755,19 +846,37 @@ function thyroidWithAntibodies(e, core) {
       ...f,
       must_say: `${f.must_say} ${text}`,
       // TRAb روی همین برگه است — پیشنهادِ «آنتی‌بادی گیرندهٔ TSH (TRAb)» درخواستِ دوبارهٔ آزمایشِ انجام‌شده است (N8).
-      suggest: trPresent ? (f.suggest ?? []).filter((s) => !/TRAb/.test(s)) : f.suggest,
+      suggest: [...(trPresent ? (f.suggest ?? []).filter((s) => !/TRAb/.test(s)) : (f.suggest ?? [])), ...tglob.suggest],
       ...(sources.length ? { sources: [...(f.sources ?? []), ...sources] } : {}),
     };
   }
 
+  // فقط تیروگلوبولین (بی آنتی‌بادیِ بالا/مثبت و بی هورمونِ غیرطبیعی) — P144 (C7): یافتهٔ جدا، بی‌حکم، بی‌نمره.
+  if (!abNotable) {
+    return {
+      pattern: "thyroid_thyroglobulin",
+      urgency: "routine",
+      headline: "نتیجهٔ تیروگلوبولینِ شما",
+      must_say: text,
+      action: "در نوبتِ پیگیریِ خود به پزشکِ معالج نشان دهید.",
+      suggest: tglob.suggest,
+      warnings: [],
+      explains: ["THYROGLOBULIN"],
+      score_neutral: true,
+    };
+  }
+
   // فقط آنتی‌بادی غیرطبیعی است (match تضمین می‌کند دست‌کم یکی بالا/مثبت است).
-  const suggest = [...(tsh ? [] : ["TSH"]), ...(ft4 ? [] : ["FT4"])];
+  const suggest = [...(tsh ? [] : ["TSH"]), ...(ft4 ? [] : ["FT4"]), ...tglob.suggest];
   // یادداشتِ ۶ِ بازبینی: فقط آنچه سنجیده شده را «طبیعی» می‌گوییم؛ و در زمینهٔ سرطان اطمینانِ «فقط پیگیری» نمی‌دهیم (B5).
+  // P144 (C5/C6): با کم‌کاریِ ثبت‌شده یا بارداری، «اغلب فقط پیگیری» جایش را به دنبالهٔ همان زمینه می‌دهد.
   const measured = [tsh && "TSH", ft4 && "FT4"].filter(Boolean);
+  const ctxTail = antibodyContextTail(e);
   const tail = trNotable || cancerCtx ? ""
     : measured.length
-      ? ` ${measured.join(" و ")}ِ این برگه ${measured.length > 1 ? "طبیعی‌اند" : "طبیعی است"}؛ اغلب فقط پیگیریِ دوره‌ای لازم است.`
-      : " TSH روی این برگه نیست؛ برای دانستنِ این‌که تیروئید درست کار می‌کند یا نه، TSH لازم است.";
+      ? ` ${measured.join(" و ")}ِ این برگه ${measured.length > 1 ? "طبیعی‌اند" : "طبیعی است"}` + (ctxTail ? `. ${ctxTail}` : "؛ اغلب فقط پیگیریِ دوره‌ای لازم است.")
+      : " TSH روی این برگه نیست؛ برای دانستنِ این‌که تیروئید درست کار می‌کند یا نه، TSH لازم است." + (ctxTail ? ` ${ctxTail}` : "");
+  const known = knownHypothyroid(e) && !trNotable && !cancerCtx;
   return {
     pattern: "thyroid_antibody_positive",
     urgency: "routine",
@@ -776,6 +885,7 @@ function thyroidWithAntibodies(e, core) {
     action: "در نوبتِ عادی با پزشک مطرح کنید.",
     suggest,
     warnings: [],
+    ...(known ? { applied_conditions: ["hypothyroid"] } : {}),
     ...(sources.length ? { sources } : {}),
   };
 }

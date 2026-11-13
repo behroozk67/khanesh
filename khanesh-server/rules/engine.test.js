@@ -12302,7 +12302,8 @@ test("M280: کاتالوگِ ده بیماریِ زمینه‌ای — شناس�
   assert.deepEqual(r.unknown, ["سرماخوردگی"]);
   // فقط این سه مورد فعال‌اند تا بازبین P66 را تأیید کند — افزودنِ بی‌صدای یکی اینجا قرمز می‌شود.
   // عمداً ۲ ⇒ ۳ (P72، تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳): `dialysis` — فقط `kidney`/`creatinine_emergency`/`urea_bun_emergency` می‌خوانند (M310).
-  assert.deepEqual([...M280_ACTIVE].sort(), ["cancer", "dialysis", "dm2", "hospitalized"]);   // ۳ ⇒ ۴ عمداً (۲۰۲۶-۱۰-۰۸، تصمیمِ کاربر): فقط لحنِ دستور
+  // P144 (specs/026): hypothyroid فعال شد — فقط متنِ تیروئید، فوریت دست‌نخورده.
+  assert.deepEqual([...M280_ACTIVE].sort(), ["cancer", "dialysis", "dm2", "hospitalized", "hypothyroid"]);   // ۳ ⇒ ۴ عمداً (۲۰۲۶-۱۰-۰۸، تصمیمِ کاربر): فقط لحنِ دستور
 });
 
 test("M281: بیمارِ سرطانی با شناسه همان درجهٔ CTCAE را می‌گیرد که با برچسبِ قدیمی؛ بی‌بیماری، CTCAE نه", () => {

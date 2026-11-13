@@ -30,7 +30,9 @@ export const NONE_ID = "none";
 // dialysis: P72 (تصمیمِ کاربر ۲۰۲۶-۱۰-۰۳) — کراتینین/اوره/eGFRِ بالا برای بیمارِ دیالیزی اورژانس نیست؛ فقط `kidney`،
 //   `creatinine_emergency` و `urea_bun_emergency` آن را می‌خوانند (patterns_nephrology.js). اورژانس‌های دیگر (K، Hb، …) دست‌نخورده‌اند.
 // hospitalized: گزینهٔ الفِ ۲۰۲۶-۱۰-۰۸ (کاربر) — فقط لحنِ دستور (rules/inpatient.js)؛ فوریت و آستانه دست‌نخورده.
-export const ACTIVE_CONDITIONS = new Set(["dm2", "cancer", "dialysis", "hospitalized"]);
+// hypothyroid: P144 (specs/026) — فقط متن: TSHِ غیرطبیعی به‌عنوانِ بررسیِ دوز، همیشه شرطی («اگر لووتیروکسین مصرف می‌کنید»)،
+//   چون این گزینه «بیماری» را ثبت می‌کند نه «دارو». فوریت و آستانه دست‌نخورده (patterns_endocrine_rheum.js، knownHypothyroid).
+export const ACTIVE_CONDITIONS = new Set(["dm2", "cancer", "dialysis", "hospitalized", "hypothyroid"]);
 
 const BY_ID = new Map(CONDITIONS.map((c) => [c.id, c]));
 const BY_FA = new Map(CONDITIONS.map((c) => [c.fa, c.id]));

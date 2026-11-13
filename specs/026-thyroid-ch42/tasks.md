@@ -10,17 +10,17 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Measure the baseline. On a `git archive HEAD khanesh-server` tree with `node_modules` linked by `mklink /J`, run `npm test`. Record pass/fail/total in `specs/026-thyroid-ch42/quickstart.md` §1, and name every pre-existing failure.
-- [ ] T002 Record the rule ids before any change. Run `node -e "import('./rules/patterns.js').then(m=>console.log(m.RULES.map(r=>r.id).sort().join('\n')))"` and write the output to `specs/026-thyroid-ch42/snapshots/ids_before.txt`.
-- [ ] T003 Confirm that `specs/026-thyroid-ch42/snapshots/before.txt` is reproducible. Re-run `probe_ch42.mjs` on the clean tree and diff it against `before.txt`. The diff must be empty.
+- [X] T001 Measure the baseline. On a `git archive HEAD khanesh-server` tree with `node_modules` linked by `mklink /J`, run `npm test`. Record pass/fail/total in `specs/026-thyroid-ch42/quickstart.md` §1, and name every pre-existing failure.
+- [X] T002 Record the rule ids before any change. Run `node -e "import('./rules/patterns.js').then(m=>console.log(m.RULES.map(r=>r.id).sort().join('\n')))"` and write the output to `specs/026-thyroid-ch42/snapshots/ids_before.txt`.
+- [X] T003 Confirm that `specs/026-thyroid-ch42/snapshots/before.txt` is reproducible. Re-run `probe_ch42.mjs` on the clean tree and diff it against `before.txt`. The diff must be empty.
 
 ## Phase 2: Foundational (blocking)
 
-- [ ] T004 Create `khanesh-server/rules/p144.test.js`.
+- [X] T004 Create `khanesh-server/rules/p144.test.js`.
   - Add a local `run(tests, patient)` helper that calls `runEngine` then `runPatterns`, the same way `p143.test.js` does.
   - Add a `textOf(pattern)` helper.
   - Write no assertions yet.
-- [ ] T005 Allocate P144 in `MEDICAL_RULES.md`: add a stub heading after P143, «### P144 — تیروئید (Tietz فصلِ ۴۲، specs/026): فقط شکاف‌ها (۲۰۲۶-۱۱-۱۳) — در حالِ پیاده‌سازی». Its body is filled in T036 (N37).
+- [X] T005 Allocate P144 in `MEDICAL_RULES.md`: add a stub heading after P143, «### P144 — تیروئید (Tietz فصلِ ۴۲، specs/026): فقط شکاف‌ها (۲۰۲۶-۱۱-۱۳) — در حالِ پیاده‌سازی». Its body is filled in T036 (N37).
 
 **Checkpoint**: the harness exists. Every story phase below follows the same loop: write tests → see them go red on `HEAD` → implement → see them go green.
 
@@ -32,7 +32,7 @@
 
 ### Tests
 
-- [ ] T006 [US1] In `khanesh-server/rules/p144.test.js`, add tests R1a–R1g.
+- [X] T006 [US1] In `khanesh-server/rules/p144.test.js`, add tests R1a–R1g.
   - **R1a** — `hypothyroid` + TSH 0.2 + FT4 1.6. Expect:
     - `thyroid_hyper_subclinical`;
     - text contains «اگر لووتیروکسین» and «0.2»;
@@ -48,32 +48,32 @@
   - **R1e** — `hypothyroid` + TSH 2. Expect no `thyroid` finding.
   - **R1f** — `hypothyroid` + TPO 60 (<34) + TSH 2. Expect «همان علتِ کم‌کاریِ شماست», and not «به کم‌کاری تیروئید می‌انجامد».
   - **R1g** — panels R1a/R1c with no condition must produce `must_say` byte-identical to `before.txt`.
-- [ ] T007 [US1] Update M280 in `khanesh-server/rules/engine.test.js` (line ~12305). The expected active set becomes `["cancer","dialysis","dm2","hospitalized","hypothyroid"]`, with the comment «P144: کم‌کاری تیروئید فعال شد (فقط متن)».
-- [ ] T008 [US1] Prove T006 and T007 are red on `HEAD`. Copy only `p144.test.js` into the T001 archive tree, run `node --test rules/p144.test.js`, and record which tests fail.
+- [X] T007 [US1] Update M280 in `khanesh-server/rules/engine.test.js` (line ~12305). The expected active set becomes `["cancer","dialysis","dm2","hospitalized","hypothyroid"]`, with the comment «P144: کم‌کاری تیروئید فعال شد (فقط متن)».
+- [X] T008 [US1] Prove T006 and T007 are red on `HEAD`. Copy only `p144.test.js` into the T001 archive tree, run `node --test rules/p144.test.js`, and record which tests fail.
 
 ### Implementation
 
-- [ ] T009 [US1] Add `"hypothyroid"` to `ACTIVE_CONDITIONS` in `khanesh-server/rules/conditions.js`. Update the comment above the set to name P144.
-- [ ] T010 [US1] Add the helper `knownHypothyroid(e)` near `thyroidCancerContext` in `khanesh-server/rules/patterns_endocrine_rheum.js`. It returns `!!e.conditions?.includes("hypothyroid")`. It does not depend on pregnancy (research D1).
-- [ ] T011 [US1] Change the `tshLow` branch of `thyroid` in `khanesh-server/rules/patterns_endocrine_rheum.js` (line ~308).
+- [X] T009 [US1] Add `"hypothyroid"` to `ACTIVE_CONDITIONS` in `khanesh-server/rules/conditions.js`. Update the comment above the set to name P144.
+- [X] T010 [US1] Add the helper `knownHypothyroid(e)` near `thyroidCancerContext` in `khanesh-server/rules/patterns_endocrine_rheum.js`. It returns `!!e.conditions?.includes("hypothyroid")`. It does not depend on pregnancy (research D1).
+- [X] T011 [US1] Change the `tshLow` branch of `thyroid` in `khanesh-server/rules/patterns_endocrine_rheum.js` (line ~308).
   - When `knownHypothyroid(e)`:
     - build `must_say` from contract C1, adding the < 0.1, FT4-high and FT4-missing clauses;
     - set the headline to «TSH شما پایین‌تر از حد طبیعی است»;
     - set `applied_conditions: ["hypothyroid"]`;
     - keep `urgency`, `action`, `warnings`, `suggest` and `key_number` unchanged.
   - The path without the condition is unchanged.
-- [ ] T012 [US1] Change the `tshHigh` branch of `thyroid` in the same file (line ~239).
+- [X] T012 [US1] Change the `tshHigh` branch of `thyroid` in the same file (line ~239).
   - When `knownHypothyroid(e)`:
     - replace the explanatory sentence and the overt/subclinical/missing sentence with contract C2;
     - make the FT4 clause three-state, and add «خیلی بالاتر» at TSH ≥ `TSH_ENDO_REFER`;
     - keep the T3, TPO, `secondaryHits` and pregnancy clauses in their current order;
     - set `applied_conditions: ["hypothyroid"]`;
     - keep urgency and action unchanged.
-- [ ] T013 [US1] Under `knownHypothyroid(e)`, swap two tails in the same file:
+- [X] T013 [US1] Under `knownHypothyroid(e)`, swap two tails in the same file:
   - the `thyroid_tpo_positive` tail (line ~350) becomes contract C5;
   - in `thyroidWithAntibodies` (line ~767), `tail` loses «اغلب فقط پیگیریِ دوره‌ای لازم است».
   - Add `applied_conditions: ["hypothyroid"]` to both findings.
-- [ ] T014 [US1] Run `node --test rules/p144.test.js rules/engine.test.js`. R1a–R1g and M280 must pass.
+- [X] T014 [US1] Run `node --test rules/p144.test.js rules/engine.test.js`. R1a–R1g and M280 must pass.
 
 **Checkpoint**: US1 is complete. The T4 panels match quickstart §2.
 
@@ -83,7 +83,7 @@
 
 **Independent test**: probe panels T2 (9.9 / 10 / 14) and T3 (0.05 / 0.2).
 
-- [ ] T015 [US2] In `khanesh-server/rules/p144.test.js`, add tests R2a–R2f.
+- [X] T015 [US2] In `khanesh-server/rules/p144.test.js`, add tests R2a–R2f.
   - **R2a** — TSH 10 + FT4 1.1. Expect C3 text, without «اغلب فقط پیگیری» or «خفیف».
   - **R2b** — TSH 9.9. Expect `must_say` equal to `before.txt`.
   - **R2c** — TSH 0.099 + FT4 1.3. Expect C4 text, without «خفیف».
@@ -91,9 +91,9 @@
   - **R2e** — the urgency of R2a and R2c is `routine`.
   - **R2f** — a 9-year-old with TSH 12 + FT4 normal also gets C3: it is already abnormal against 0.5–5.0.
   - Prove all of them red on `HEAD`, in the same way as T008.
-- [ ] T016 [US2] In the `tshHigh` subclinical branch (`!overt && !ft4Missing && !knownHypothyroid`) of `khanesh-server/rules/patterns_endocrine_rheum.js`, select the sentence by `Number(tsh.value) >= TSH_ENDO_REFER`: C3, or today's mild sentence.
-- [ ] T017 [US2] In the `tshLow` subclinical branch, select the sentence by `Number(tsh.value) < TSH_SUPPRESSED`: C4, or today's sentence.
-- [ ] T018 [US2] Run `node --test rules/p144.test.js` and get it green.
+- [X] T016 [US2] In the `tshHigh` subclinical branch (`!overt && !ft4Missing && !knownHypothyroid`) of `khanesh-server/rules/patterns_endocrine_rheum.js`, select the sentence by `Number(tsh.value) >= TSH_ENDO_REFER`: C3, or today's mild sentence.
+- [X] T017 [US2] In the `tshLow` subclinical branch, select the sentence by `Number(tsh.value) < TSH_SUPPRESSED`: C4, or today's sentence.
+- [X] T018 [US2] Run `node --test rules/p144.test.js` and get it green.
 
 ## Phase 5: User Story 3, thyroglobulin is read, never dropped (P2)
 
@@ -101,7 +101,7 @@
 
 **Independent test**: the T7 panels, including `nocond`, and `healthScore` with and without Tg.
 
-- [ ] T019 [US3] In `khanesh-server/rules/p144.test.js`, add tests R3a–R3h.
+- [X] T019 [US3] In `khanesh-server/rules/p144.test.js`, add tests R3a–R3h.
   - **R3a** — «Thyroglobulin 2.5 ng/mL» alone. Expect:
     - finding `thyroid_thyroglobulin`;
     - text contains «2.5» and «آزمایشِ تشخیصِ سرطان نیست»;
@@ -117,37 +117,37 @@
   - **R3g** — `healthScore` of a clean CBC sheet is equal with and without a Tg row.
   - **R3h** — the text contains no forbidden word from contract C7 («تومور ندارید», «پاک», «درمان شده‌اید»).
   - Prove R3a, R3c and R3e red on `HEAD`. R3c is green on `HEAD`; it is a lock against regression, so record that.
-- [ ] T020 [US3] In `khanesh-server/rules/serology.js` (line ~496):
+- [X] T020 [US3] In `khanesh-server/rules/serology.js` (line ~496):
   - after the `abKey` block, so that `ANTI_TG_RE` wins first, add a branch for `THYROGLOBULIN_RE`;
   - extend that regex with `thyroglobulintg`;
   - a numeric value (including censored `<x`) returns `{ to: "assay", key: "THYROGLOBULIN", value, cmp, shown, unit: printedUnit(t), state: "quoted", raw, reference }`;
   - a non-numeric value returns `{ to: "unmapped" }`;
   - never call `abVerdict` (N49).
-- [ ] T021 [US3] In `khanesh-server/rules/patterns_endocrine_rheum.js`:
+- [X] T021 [US3] In `khanesh-server/rules/patterns_endocrine_rheum.js`:
   - `thyroidCancerContext` adds `|| e.ungraded?.THYROGLOBULIN?.reason === "assay_printed"`;
   - add the helper `thyroglobulinSentence(e)`, built from contract C7 with the three anti-Tg states. It lives **outside** `build` (N56 `RULE_READS`).
-- [ ] T022 [US3] In the same file:
+- [X] T022 [US3] In the same file:
   - `thyroid.match` adds `|| !!e.ungraded?.THYROGLOBULIN`;
   - `thyroidWithAntibodies` treats Tg as present;
   - with an abnormal core, append `thyroglobulinSentence` before the anti-Tg text;
   - with no abnormal core and no notable antibody, return pattern `thyroid_thyroglobulin` with the C7 headline, action and urgency `routine`;
   - with a notable antibody and no abnormal core, keep `thyroid_antibody_positive`, with the Tg sentence first.
-- [ ] T023 [P] [US3] Add `THYROGLOBULIN: "تیروگلوبولین"` to `FA_NAMES` in `khanesh-server/rules/names.js`.
-- [ ] T024 [P] [US3] Add a `SUGGEST_TESTS` row for «آنتی‌بادی ضد تیروگلوبولین (Anti-Tg)» in `khanesh-server/rules/patterns.js` if it is not already there.
-- [ ] T025 [US3] Run R3g. If the score drops, add an exemption in `khanesh-server/rules/score.js` next to line 216: a `thyroid` finding whose `explains` all sit in `{THYROGLOBULIN, ANTI_TG, TRAB}`. Re-run until green.
-- [ ] T026 [US3] Run `node --test rules/p144.test.js rules/serology.test.js rules/score.test.js` and get it green.
+- [X] T023 [P] [US3] Add `THYROGLOBULIN: "تیروگلوبولین"` to `FA_NAMES` in `khanesh-server/rules/names.js`.
+- [X] T024 [P] [US3] Add a `SUGGEST_TESTS` row for «آنتی‌بادی ضد تیروگلوبولین (Anti-Tg)» in `khanesh-server/rules/patterns.js` if it is not already there.
+- [X] T025 [US3] Run R3g. If the score drops, add an exemption in `khanesh-server/rules/score.js` next to line 216: a `thyroid` finding whose `explains` all sit in `{THYROGLOBULIN, ANTI_TG, TRAB}`. Re-run until green.
+- [X] T026 [US3] Run `node --test rules/p144.test.js rules/serology.test.js rules/score.test.js` and get it green.
 
 ## Phase 6: User Story 4, pregnancy and thyroid antibodies (P2)
 
 **Goal**: when `pregnant === true`, TPO or anti-Tg is high or positive, and TSH is not abnormal, the C6 tail replaces «اغلب فقط پیگیری».
 
-- [ ] T027 [US4] In `khanesh-server/rules/p144.test.js`, add tests R4a–R4d.
+- [X] T027 [US4] In `khanesh-server/rules/p144.test.js`, add tests R4a–R4d.
   - **R4a** — pregnant + TPO 60 (<34) + TSH 2. Expect C6 text, without «اغلب فقط پیگیری».
   - **R4b** — not pregnant, same panel. Expect `before.txt` text.
   - **R4c** — pregnant + anti-Tg 150 (<115) + TSH 2. Expect C6.
   - **R4d** — pregnant + `hypothyroid` + TPO. Expect C5 followed by C6.
   - Prove all of them red on `HEAD`.
-- [ ] T028 [US4] In `khanesh-server/rules/patterns_endocrine_rheum.js`:
+- [X] T028 [US4] In `khanesh-server/rules/patterns_endocrine_rheum.js`:
   - add the C6 tail to `thyroid_tpo_positive`, and to the `thyroidWithAntibodies` antibody-only `tail`;
   - gate it on `e.pregnant === true`;
   - when both condition and pregnancy apply, emit C5 then C6;
@@ -157,7 +157,7 @@
 
 **Goal**: a TSH graded high on the `< 3 days` paediatric row gets C8 and nothing else.
 
-- [ ] T029 [US5] In `khanesh-server/rules/p144.test.js`, add tests R5a–R5c.
+- [X] T029 [US5] In `khanesh-server/rules/p144.test.js`, add tests R5a–R5c.
   - **R5a** — age 2/365 + TSH 20. Expect:
     - text contains «روزِ ۳ تا ۵»;
     - text does not contain «طبیعی است» or «فیزیولوژیک»;
@@ -165,18 +165,18 @@
   - **R5b** — age 10/365 + TSH 20. Expect no C8.
   - **R5c** — age 2/365 + TSH 10, which is within 5.2–14.6. Expect no finding.
   - Prove R5a red on `HEAD`.
-- [ ] T030 [US5] In the `tshHigh` branch of `khanesh-server/rules/patterns_endocrine_rheum.js`:
+- [X] T030 [US5] In the `tshHigh` branch of `khanesh-server/rules/patterns_endocrine_rheum.js`:
   - append C8 when `getPedRef("TSH", e.age)?.maxAge` equals the `D(3)` row bound. Import what is needed from `refs_ped.js`; do not recompute an age literal.
   - This applies to both the condition and no-condition paths.
 
 **Checkpoint (commit 1)**: US1–US5 are done.
 
-- [ ] T031 Run `node ../specs/026-thyroid-ch42/snapshots/probe_ch42.mjs > ../specs/026-thyroid-ch42/snapshots/after_us1-5.txt` and diff it against `before.txt`. Every changed panel must be listed in quickstart §2. Any other diff is a bug.
-- [ ] T032 Run the full `npm test`. The failures must equal the T001 set. `node --test rules/metamorphic.test.js` must be green with no new `ALLOWED_DROPS`.
-- [ ] T033 Check rule ids. Write the current ids to `specs/026-thyroid-ch42/snapshots/ids_after.txt` and diff it against `ids_before.txt`. The diff must be empty (N16).
-- [ ] T034 For every probe panel carrying Tg, `unmatched_abnormal` must be absent.
-- [ ] T035 Write a contract drift section at the end of `specs/026-thyroid-ch42/contracts/findings.md`, quoting the implemented strings if they differ from C1–C8.
-- [ ] T036 Fill the P144 body in `MEDICAL_RULES.md`:
+- [X] T031 Run `node ../specs/026-thyroid-ch42/snapshots/probe_ch42.mjs > ../specs/026-thyroid-ch42/snapshots/after_us1-5.txt` and diff it against `before.txt`. Every changed panel must be listed in quickstart §2. Any other diff is a bug.
+- [X] T032 Run the full `npm test`. The failures must equal the T001 set. `node --test rules/metamorphic.test.js` must be green with no new `ALLOWED_DROPS`.
+- [X] T033 Check rule ids. Write the current ids to `specs/026-thyroid-ch42/snapshots/ids_after.txt` and diff it against `ids_before.txt`. The diff must be empty (N16).
+- [X] T034 For every probe panel carrying Tg, `unmatched_abnormal` must be absent.
+- [X] T035 Write a contract drift section at the end of `specs/026-thyroid-ch42/contracts/findings.md`, quoting the implemented strings if they differ from C1–C8.
+- [X] T036 Fill the P144 body in `MEDICAL_RULES.md`:
   - decisions D1–D5;
   - the conditional wording rule;
   - reviewer questions: TSH ≥ 10 urgency, the TSH upper limit, a dedicated levothyroxine condition;
