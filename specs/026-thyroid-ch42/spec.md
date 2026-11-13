@@ -50,7 +50,8 @@ The extraction's §7 counts (13 🆕 / 5 ➕ / 6 ♻️) are not reused. Each it
 | G3 | Reported `hypothyroid` condition: TSH 0.2 + FT4 1.6, and TSH 8 + FT4 1.0 (T4) | The condition is stored but not active (P66), so the text is identical to a first diagnosis. The low TSH is told «شایع‌ترین علت آن بیماری خودایمنی گریوز است», and the high TSH is told «اغلب فقط پیگیری لازم دارد». For a patient on levothyroxine, the likeliest cause of either is the dose (extraction: `RULE_SUBCLIN_HYPER_01`, next step "review the levothyroxine dose"). This is the N57/P143 `dm2` shape again. |
 | G4 | Pregnant, TPO 60 (< 34), TSH 2.0 (T6) | «اغلب فقط پیگیری لازم است». No word about pregnancy. The extraction (`RULE_PREG_AITD_RISK_02`) says thyroid antibodies in a euthyroid pregnancy call for TSH/FT4 monitoring through pregnancy and the postpartum period. |
 | G5 | Thyroglobulin 2.5 ng/mL alone; Tg 0.2 + anti-Tg 150 (< 115) with `cancer` (T7) | `Thyroglobulin` sits in `unmapped`. Its number is never interpreted, and the anti-Tg sentence talks about a Tg result that the engine never read. |
-| G6 | Neonate aged 2 days, TSH 20 (T9) | Graded against 5.2–14.6 and urgency `soon`, with «کم‌کاری». No word that TSH rises physiologically after birth, or that screening is meant for days 3–5 (extraction: `RULE_NEONATAL_TSH_SURGE_01`). |
+| G6 | Neonate aged 2 days, TSH 20 (T9) | Graded against 5.2–14.6 and urgency `soon`, with «کم‌کاری». Nothing says when the screening sample should be taken (extraction: `RULE_NEONATAL_TSH_SURGE_01`, days 3–5). The `< 3 days` row already accounts for the surge, so a value above it is **not** explained by the surge. |
+| G3b | `hypothyroid` + TPO 60 (< 34), TSH 2 (T4) | «گاهی با گذر زمان به کم‌کاری تیروئید می‌انجامد», said to someone who already has hypothyroidism. |
 | G7 | TSH 0.45 with no printed range (T1) | Graded low against 0.5–4.5, which gives `thyroid_hyper_subclinical` and «گریوز». Tietz's lower limit is 0.4, and the kits common in Iran print 0.27–0.4. |
 
 ## User Scenarios & Testing *(mandatory)*
@@ -65,8 +66,14 @@ A patient who reported hypothyroidism uploads a follow-up TSH. Today a low TSH i
 
 **Acceptance Scenarios**:
 
-1. **Given** the `hypothyroid` condition and TSH below range with FT4 normal or high, **Then** the text says that for someone treated for hypothyroidism, a low TSH most often means the thyroid hormone dose is more than needed. It quotes the TSH number, and says the doctor decides on any dose change. The text does not say «شایع‌ترین علت آن بیماری خودایمنی گریوز است».
-2. **Given** the `hypothyroid` condition and TSH above range, **Then** the text says the current dose may not be enough, or the tablets may not have been taken regularly or were taken with food. It does not say «اغلب فقط پیگیری لازم دارد».
+0. **The condition means "has hypothyroidism", not "takes levothyroxine".** Every new sentence is conditional, in the P143 shape: «اگر برای کم‌کاری تیروئید لووتیروکسین مصرف می‌کنید، …». No sentence assumes a dose exists.
+1. **Given** the `hypothyroid` condition and TSH below range with FT4 normal or high, **Then** the text says that, if the patient takes levothyroxine, the most common cause of a low TSH is a dose higher than needed. It quotes the TSH number, and says the doctor decides on any dose change. «شایع‌ترین علت آن بیماری خودایمنی گریوز است» is not said as the first explanation.
+2. **Given** the `hypothyroid` condition and TSH above range, **Then** the text says that, if the patient takes levothyroxine, the dose may not be enough, or the tablets may have been missed or taken with food. It does not say «اغلب فقط پیگیری لازم دارد».
+2a. **Precedence with US2:** with the condition, the condition's text replaces the US2 ≥ 10 / < 0.1 wording. The magnitude is still stated, for example «TSH 14 بسیار بالاتر از حد است». One text wins, and the two never stack.
+2b. **Every reader that describes the disease** (N57) is checked under the condition:
+   - `thyroid_tpo_positive` and the `thyroid_antibody_positive` tail drop «گاهی با گذر زمان به کم‌کاری تیروئید می‌انجامد» / «اغلب فقط پیگیری». They say instead that this antibody is a common cause of the hypothyroidism already diagnosed.
+   - `hypothyroid_dyslipidemia_link` and the `interpret.js` TSH classifier text are read, and their behaviour is recorded in the plan. They change only if they assert a first diagnosis.
+2c. The condition appears in `_engine.context.conditions_applied` and in the model's tone context only on sheets where a thyroid analyte was read. This is the same limit `dm2` uses, and the plan states where it is enforced.
 3. **Given** the `hypothyroid` condition and TSH within range, **Then** no new finding appears. No sentence is generated about a normal value (N35).
 4. **Given** no condition is reported, **Then** the output is byte-identical to today on every probe panel.
 5. **Given** the condition is active with low FT4 and low TSH (central pattern), or with high TSH and high FT4, **Then** those branches keep their current text. The condition only rewrites the primary hypo- and hyper branches.
@@ -98,6 +105,7 @@ A patient who reported hypothyroidism uploads a follow-up TSH. Today a low TSH i
 
 **Acceptance Scenarios**:
 
+0. **Blocking precondition.** Today the anti-Tg cancer context (`thyroidCancerContext`, B5) detects thyroglobulin only by finding its row in `unmapped` or `qual`. Mapping Tg removes it from there. Without a fix, «Tg 0.2 + anti-Tg 150 (<115)» with no `cancer` condition falls back to the Hashimoto text and «اغلب فقط پیگیری». That is the false reassurance B5 exists to prevent. The reader MUST recognise the mapped Tg key. The probe `T7 tg + antitg pos nocond` locks today's cancer-context text, and it must survive.
 1. **Given** «Thyroglobulin 2.5 ng/mL», **Then** the row is recognised and quoted with its number. It is never in `unmapped`.
 2. **Given** a thyroglobulin row, **Then** the text says Tg is mainly used to follow people treated for thyroid cancer, that its meaning depends on whether the thyroid was removed and on the treating doctor's protocol, and that it is not a cancer test. No verdict from a normal-population reference range is given, because that range is meaningless after thyroidectomy.
 3. **Given** Tg with anti-Tg above range or positive on the same sheet, **Then** one sentence says the Tg number may be falsely low and cannot be relied on. **Given** anti-Tg within range or negative, **Then** it says that anti-Tg is negative, so this interference is unlikely. **Given** anti-Tg absent, **Then** it says anti-Tg is needed to interpret Tg, and it is suggested as a test.
@@ -116,13 +124,16 @@ A patient who reported hypothyroidism uploads a follow-up TSH. Today a low TSH i
 
 ---
 
-### User Story 5: A newborn's TSH in the first days is read with the physiological surge in mind (Priority: P3)
+### User Story 5: A newborn's TSH in the first days carries the screening timing, never a reassurance (Priority: P3)
+
+**Why it is limited to timing**: the `< 3 days` row (5.2–14.6) already allows for the post-birth surge. A TSH graded high against it has exceeded the surge-adjusted range. Saying "TSH rises physiologically after birth" would soften a possible congenital hypothyroidism, which is time-critical.
 
 **Acceptance Scenarios**:
 
-1. **Given** age < 3 days and TSH above the paediatric range, **Then** one sentence is added: TSH rises sharply in the first hours after birth and falls over the next days, which is why the screening test is done on days 3–5. The result should still be followed up as the doctor or screening programme advises.
+1. **Given** TSH graded high against the `< 3 days` paediatric row, **Then** one sentence is added: the newborn thyroid screening test is done on days 3–5 after birth, and this result should be repeated or confirmed in that window, as the doctor or screening programme advises. Nothing in the sentence implies the value is explained or normal.
 2. **Given** the sentence, **Then** urgency is unchanged (the N26 newborn floor stays). The 5.2–14.6 range is not changed.
-3. **Given** age ≥ 3 days, **Then** the text is unchanged.
+3. **Given** the gate, **Then** it is the paediatric row that actually graded the value, not a recomputed age. Intake sends whole years (N53). The plan must show that a real sheet can deliver an age in days or hours (for example «48 h»). If no path can, US5 is dropped and recorded as not executable.
+4. **Given** a TSH graded against any other row, **Then** the text is unchanged.
 
 ---
 
@@ -134,6 +145,7 @@ A patient who reported hypothyroidism uploads a follow-up TSH. Today a low TSH i
 2. **Given** TSH 0.39 with no printed range, **Then** it is low, and the text is today's subclinical text.
 3. **Given** a printed range, **Then** the printed range keeps deciding, as today.
 4. **Given** the change, **Then** `TSH_SUPPRESSED`, the paediatric rows and every rule reading `TSH.dir === "low"` are re-probed at 0.39, 0.40, 0.45 and 0.5 (N23).
+5. **Sequencing.** US6 changes the quoted «حد طبیعی 0.5–4.5» in every finding that graded TSH on the fallback, which is almost every probe panel. So US6 is its own step and its own commit. It has its own before/after, and the diff is proven to be only that range string (plus the T1 panels) before it is re-baselined. US1–US5 are diffed against `before.txt` first, while the range is still 0.5.
 
 ### Edge Cases
 
@@ -150,11 +162,12 @@ A patient who reported hypothyroidism uploads a follow-up TSH. Today a low TSH i
 ### Functional Requirements
 
 - **FR-001**: The items listed under "Already in the engine" and "Not executable" MUST NOT produce new rules or change existing thresholds.
-- **FR-002**: The `hypothyroid` condition MUST become active (recorded in P144, P66 procedure). It rewrites only the primary hypo- and hyper-branch wording of `thyroid`. Without the condition, output MUST be byte-identical on every probe panel.
+- **FR-002**: The `hypothyroid` condition MUST become active (recorded in P144, P66 procedure). Test M280 pins the active set (`["cancer","dialysis","dm2","hospitalized"]`) and is updated deliberately. Under the condition, the condition rewrites the primary hypo- and hyper-branch wording and every reader listed in US1-2b, always conditionally («اگر لووتیروکسین مصرف می‌کنید»). Without the condition, output MUST be byte-identical on every probe panel.
 - **FR-003**: With FT4 normal, TSH ≥ 10 MUST NOT be described as «خفیف» or «اغلب فقط پیگیری». TSH < 0.1 MUST NOT be described as «خفیف». The edges are the engine's existing constants. No new number is introduced.
 - **FR-004**: Thyroglobulin MUST be recognised and quoted, with its three-state anti-Tg sentence, and MUST NOT be graded against a population reference range.
 - **FR-005**: In pregnancy, a positive TPO or anti-Tg with TSH not abnormal MUST carry the monitoring sentence.
-- **FR-006**: A newborn under 3 days with high TSH MUST carry the surge sentence, with no change to range or urgency.
+- **FR-004a**: `thyroidCancerContext` MUST still detect thyroglobulin after it is mapped.
+- **FR-006**: A TSH graded high against the `< 3 days` row MUST carry the screening-timing sentence and no reassurance, with no change to range or urgency. If no input path delivers an age under 3 days, FR-006 is dropped.
 - **FR-007**: The adult fallback TSH range MUST change from 0.5–4.5 to 0.4–4.5. The client copy (`labRefs.js`) MUST be checked and any divergence recorded in `REF_DIFF.md`.
 - **FR-008**: No new finding or sentence MUST lower the urgency of any panel (metamorphic). No new `ALLOWED_DROPS`.
 - **FR-009**: Every new number and decision MUST be recorded under **P144** in `MEDICAL_RULES.md` «در انتظارِ بازبینی», in the same commit as its behaviour (N37). P68, P72, P119 and P136 are cross-referenced, not re-decided.
@@ -180,7 +193,7 @@ A patient who reported hypothyroidism uploads a follow-up TSH. Today a low TSH i
 
 ### Measurable Outcomes
 
-- **SC-001**: On all probe panels G1–G7, the patient text changes as specified, and every other panel in `before.txt` is byte-identical.
+- **SC-001**: Before US6, the probe panels for G1–G6 change as specified, and every other panel in `before.txt` is byte-identical. After US6, the diff against the pre-US6 output contains only the TSH range string and the T1 panels.
 - **SC-002**: A sheet printing thyroglobulin leaves 0 thyroglobulin rows in the unmapped list.
 - **SC-003**: The existing suite and `metamorphic.test.js` stay green with no new `ALLOWED_DROPS`. The only failure allowed is the pre-existing one, re-measured on `HEAD`.
 - **SC-004**: No panel's overall urgency differs from `before.txt`, except where the TSH fallback change (US6) removes a false finding (TSH 0.4–0.49 with no printed range).
@@ -191,5 +204,5 @@ A patient who reported hypothyroidism uploads a follow-up TSH. Today a low TSH i
 - Activating `hypothyroid` is the same kind of decision as `dm2` (P143). The user's request to implement "what improves interpretation" is taken as covering it. It is recorded in P144 as a reviewer question, not a settled one.
 - "Most used in Iran" for TSH is judged from common kit inserts (Roche Elecsys, Abbott Architect, Iranian ELISA kits), not from a document opened this session. It is a reviewer question.
 - The ≥ 10 and < 0.1 edges reuse `TSH_ENDO_REFER` and `TSH_SUPPRESSED`. Urgency for FT4-normal subclinical stays `routine` (P72/M305). Whether TSH ≥ 10 with FT4 normal should become `this_week` is listed as a P144 question.
-- The newborn surge sentence uses only the extraction's qualitative statement and the "days 3–5" screening window. No number from the 25–160 peak is shown to the patient.
+- The newborn sentence uses only the "days 3–5" screening window. No number from the 25–160 peak is shown, and the surge is not offered as an explanation.
 - Spellings for thyroglobulin come from the existing `THYROGLOBULIN_RE` plus the extraction §4-a (Thyroglobulin, Serum Thyroglobulin, تیروگلوبولین). No fuzzy matching is added, and «Tg» alone is not mapped.
