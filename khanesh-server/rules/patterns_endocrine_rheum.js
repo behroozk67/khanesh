@@ -259,10 +259,13 @@ export const RULES_ENDOCRINE_RHEUM = [
         const t3LowFa = t3Low ? hormoneRowsFa("low").split(" و ").filter((s) => !s.startsWith("FT4")).join(" و ") : "";
         const t3Floor = ft4Missing && t3Low;
         const known = knownHypothyroid(e);
+        // P144 (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۳، پرسشِ ۱ِ بازبین): TSH ≥ TSH_ENDO_REFER با FT4ِ *طبیعی* هم this_week — پیش‌تر routine بود، در حالی که
+        //   همان TSH بی‌FT4 this_week می‌گرفت (برگهٔ کامل‌تر ⇒ فوریتِ کمتر، N29). ارجاعِ اجباری به متخصص غدد نه؛ منبعِ آستانه همان ETA 2013.
+        const sevSub = !overt && !ft4Missing && Number(tsh.value) >= TSH_ENDO_REFER;
         return {
           pattern: `thyroid_hypo_${overt ? "overt" : ft4Missing ? "ft4_unmeasured" : "subclinical"}`,
-          urgency: overt || referEndo || t3Floor ? "this_week" : "routine",
-          sources: referEndo ? ["ETA_SCH_2013"] : undefined,
+          urgency: overt || referEndo || t3Floor || sevSub ? "this_week" : "routine",
+          sources: referEndo || sevSub ? ["ETA_SCH_2013"] : undefined,
           ...(known ? { applied_conditions: ["hypothyroid"] } : {}),
           headline: "غده تیروئید شما کندتر از حد معمول کار می‌کند",
           must_say:
@@ -307,6 +310,7 @@ export const RULES_ENDOCRINE_RHEUM = [
           action: overt ? "این هفته وقت بگیرید."
             : referEndo ? "این هفته با پزشک مطرح کنید و ارجاع به متخصص غدد و آزمایش FT4 را بخواهید."
             : t3Floor ? "این هفته با پزشک مطرح کنید و آزمایش FT4 را بخواهید تا معلوم شود کم‌کاری خفیف است یا واضح."
+            : sevSub ? "این هفته با پزشک مطرح کنید؛ معمولاً آزمایش برای تأیید تکرار می‌شود و پزشک دربارهٔ درمان تصمیم می‌گیرد."
             : ft4Missing ? "نوبت عادی با پزشک؛ آزمایش FT4 را بخواهید تا معلوم شود کم‌کاری خفیف است یا واضح."
             : "نوبت عادی. معمولاً این آزمایش چند هفته بعد تکرار می‌شود.",
           suggest: [...(tpoHigh ? ["FT4"] : ["FT4", "آنتی‌بادی TPO"]), ...(referEndo ? ["بررسی توسط متخصص غدد"] : [])],

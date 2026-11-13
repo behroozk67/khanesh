@@ -20,7 +20,12 @@ import { SPECIMEN_FA, FLUID_TYPE_FA } from "./specimen.js";
 import { activeConditionIds, conditionFa } from "./conditions.js";
 import { INTERP_GROUPS, groupOf, orderFindings, renderGroupedMustSay } from "./groups.js";
 
-const activeFa = (input) => activeConditionIds(input).map(conditionFa);
+// P144: بیماریِ فعالی که موتور واقعاً به کار برد — همان تعریفِ engineContext در server.js.
+const usedConditionsFa = (engineOut, patterns, input) => {
+  const used = new Set((patterns?.findings ?? []).flatMap((f) => f.applied_conditions ?? []));
+  if ((engineOut?.graded ?? []).some((g) => g.ctcaeGrade != null)) used.add("cancer");
+  return activeConditionIds(input).filter((id) => used.has(id)).map(conditionFa);
+};
 import { isNeonate, neonatalVoice } from "./neonatal.js";
 
 // ⚠️ سقفِ «حداکثر N جمله» در interpretation با قاعدهٔ ۱ («must_say را کامل
@@ -141,7 +146,10 @@ export function buildEnginePrompt(engineOut, patterns, medlineContext = "", pati
       ...(patientContext?.pregnant ? { باردار: true } : {}),
       // ⚠️ specs/011 (P66, FR-019): فقط بیماری‌هایی که موتور واقعاً لحاظشان کرد. «فشار خون» در اینجا یعنی
       //    مدل می‌تواند دربارهٔ چیزی بنویسد که هیچ قاعده‌ای نسنجیده — همان ادعای «لحاظ شد» که ممنوع است.
-      ...(activeFa(patientContext?.conditions).length ? { بیماری_زمینه‌ای: activeFa(patientContext.conditions) } : {}),
+      // P144 (بازبینیِ بالینی، پرسشِ ۸): «فعال» کافی نبود — «کم‌کاری تیروئید» روی برگهٔ فقط-CBC هم به مدل می‌رسید. حالا همان قاعدهٔ
+      //    engineContext (server.js): فقط بیماری‌ای که یافته‌ای آن را در applied_conditions اعلام کرد (cancer: وقتی درجهٔ CTCAE گرفت).
+      ...(usedConditionsFa(engineOut, patterns, patientContext?.conditions).length
+        ? { بیماری_زمینه‌ای: usedConditionsFa(engineOut, patterns, patientContext.conditions) } : {}),
     },
     overall_urgency: patterns.overall_urgency,
     overall_urgency_fa: URGENCY_FA[patterns.overall_urgency],

@@ -6085,7 +6085,7 @@ test("M103: قواعدِ تکراریِ فصل ۲۵ هیچ یافتهٔ تازه
   const panels = [
     [[["TSH", "6.0"], ["FT4", "0.6", "ng/dL"]], ["thyroid_hypo_overt[this_week]"]],   // FT4 ۰٫۶ (بازهٔ فرانت ۰٫۷–۲٫۰؛ ۲۰۲۶-۱۰-۰۳)
     [[["TSH", "4.8"], ["FT4", "1.2", "ng/dL"]], ["thyroid_hypo_subclinical[routine]"]],
-    [[["TSH", "12"], ["FT4", "1.2", "ng/dL"]], ["thyroid_hypo_subclinical[routine]"]],
+    [[["TSH", "12"], ["FT4", "1.2", "ng/dL"]], ["thyroid_hypo_subclinical[this_week]"]],   // P144 پرسشِ ۱ (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۳) عمداً: TSH ≥ ۱۰ با FT4 طبیعی ⇒ this_week
     [[["TSH", "1.0"], ["FT4", "0.6", "ng/dL"]], ["thyroid_ft4_abnormal[this_week]"]],   // P107-L18 (تصمیمِ کاربر، ۲۰۲۶-۱۰-۱۳) عمداً: FT4 پایین + TSH طبیعی ⇒ this_week + ارجاع به متخصصِ غدد (قبلاً routine)
     [[["TSH", "0.3"], ["FT4", "0.6", "ng/dL"]], ["thyroid_central_hypo[this_week]"]],
     [[["TSH", "0.05"], ["FT4", "3.0", "ng/dL"]], ["thyroid_hyper_overt[this_week]"]],
@@ -12355,7 +12355,9 @@ test("M282c: قندِ ۲۰۹ روی برگه — متن همان شاخهٔ بر
 });
 
 test("M283: فقط بیماریِ فعال به مدل می‌رسد — «فشار خون» در payload نیست، «دیابت نوع ۲» هست", () => {
-  const e = runEngine({ patient: { age: 54, sex: "M" }, tests: [{ name: "LDL cholesterol", value: "175", unit: "mg/dL" }] });
+  // P144 (پرسشِ ۸ِ بازبین، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۳): «فعال» دیگر کافی نیست؛ فقط بیماری‌ای که یافته‌ای به کار برد (applied_conditions).
+  //   پس موتور هم باید dm2 را ببیند و پنل باید شاخهٔ dm2 را روشن کند: LDL 114 (هدفِ < ۱۰۰). قبلاً LDL 175 بی‌شرط در موتور.
+  const e = runEngine({ patient: { age: 54, sex: "M", conditions: ["dm2"] }, tests: [{ name: "LDL cholesterol", value: "114", unit: "mg/dL" }] });
   const p = runPatterns(e);
   const pl = (conditions) => JSON.parse(m283Prompt(e, p, "", { conditions }).content).patient;
   const both = pl(["htn", "dm2"]);
@@ -12831,7 +12833,9 @@ test("M311: TSHِ ≥ ۱۰ وقتی FT4 روی برگه نیست ⇒ این هف
   const lo = t([{ name: "TSH", value: "9.9" }]).p.findings.find((x) => x.rule_id === "thyroid");
   assert.equal(lo.urgency, "routine"); assert.doesNotMatch(lo.action, /متخصص غدد/);
   const withFt4 = t([{ name: "TSH", value: "12" }, { name: "FT4", value: "1.2", unit: "ng/dL" }]).p.findings.find((x) => x.rule_id === "thyroid");
-  assert.equal(withFt4.pattern, "thyroid_hypo_subclinical"); assert.equal(withFt4.urgency, "routine");
+  // P144 (پرسشِ ۱ِ بازبین، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۳): TSH ≥ ۱۰ با FT4ِ طبیعی هم this_week، ولی بی ارجاعِ اجباری به متخصص غدد.
+  assert.equal(withFt4.pattern, "thyroid_hypo_subclinical"); assert.equal(withFt4.urgency, "this_week");
+  assert.doesNotMatch(withFt4.action, /متخصص غدد/);
   // منبعِ بازشده: ETA 2013 توصیهٔ ۱۳ بر finding می‌نشیند (تأییدِ کاربر ۲۰۲۶-۱۰-۰۳)
   assert.ok((f.sources ?? []).includes("ETA_SCH_2013"), "منبع ETA به یافته وصل نشد");
 });

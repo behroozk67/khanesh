@@ -80,12 +80,13 @@ test("P144-R1h: کم‌کاریِ ثبت‌شده فعال است و فقط وق
 });
 
 // ═══ US2 ═══
-test("P144-R2a: TSH 10 و 14 با FT4 طبیعی ⇒ «حدی که پزشکان درمان را در نظر می‌گیرند»؛ «خفیف»/«اغلب فقط پیگیری» نه؛ routine", () => {
+test("P144-R2a: TSH 10 و 14 با FT4 طبیعی ⇒ «حدی که پزشکان درمان را در نظر می‌گیرند»؛ «خفیف»/«اغلب فقط پیگیری» نه؛ this_week", () => {
   for (const v of [10, 14]) {
     const f = find(run([tsh(v), ft4(1.1)]).out, "thyroid_hypo_subclinical");
     assert.match(f.must_say, /حدی است که پزشکان معمولاً در آن درمان را در نظر می‌گیرند/, String(v));
     assert.doesNotMatch(f.must_say, /خفیف|اغلب فقط پیگیری/);
-    assert.equal(f.urgency, "routine");
+    // P144 پرسشِ ۱ (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۳): routine ⇒ this_week
+    assert.equal(f.urgency, "this_week");
   }
 });
 
@@ -262,4 +263,22 @@ test("P144-R7c: سنِ ۰ (برگهٔ «0 Y») ⇒ جملهٔ غربالگریِ
   const f = thy(run([tsh(15)], { age: 0, sex: "M" }).out);
   assert.ok(f);
   assert.doesNotMatch(f.must_say, /روزِ ۳ تا ۵/);
+});
+
+// ═══ تصمیم‌های کاربر روی پرسش‌های بازبین (۲۰۲۶-۱۱-۱۳) ═══
+test("P144-R8a (پرسشِ ۱): TSH 9.9 با FT4 طبیعی routine؛ 10 و 14 this_week (با و بی کم‌کاریِ ثبت‌شده)، بی ارجاعِ اجباری", () => {
+  assert.equal(find(run([tsh(9.9), ft4(1.1)]).out, "thyroid_hypo_subclinical").urgency, "routine");
+  for (const patient of [F, HYPO]) for (const v of [10, 14]) {
+    const f = find(run([tsh(v), ft4(1.1)], patient).out, "thyroid_hypo_subclinical");
+    assert.equal(f.urgency, "this_week", `${v} ${JSON.stringify(patient)}`);
+    assert.ok(!f.suggest.includes("بررسی توسط متخصص غدد"));
+    assert.match(f.action, /^این هفته/);
+  }
+});
+
+test("P144-R8b (پرسشِ ۸): «کم‌کاری تیروئید» فقط وقتی به مدل می‌رسد که یافته‌ای آن را به کار برد", async () => {
+  const { buildEnginePrompt } = await import("./prompt.js");
+  const pl = (tests) => { const { e, out } = run(tests, HYPO); return JSON.parse(buildEnginePrompt(e, out, "", { conditions: ["hypothyroid"] }).content).patient; };
+  assert.equal(pl([r("Hb", "9.5", "g/dL")])["بیماری_زمینه‌ای"], undefined);
+  assert.deepEqual(pl([tsh(8), ft4(1.0)])["بیماری_زمینه‌ای"], ["کم‌کاری تیروئید"]);
 });
