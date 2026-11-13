@@ -3,7 +3,18 @@ import { LabMateLogo } from "../LabMateLogo.jsx";
 import { toFaDigits } from "../digits.js";
 import Icon from "./icons.jsx";
 import LabHelix from "./LabHelix.jsx";
+import { clearProfile } from "./profileStore.js";
 import "./onboarding.css";
+
+// «خروج» در قابِ مشترک: بیمارِ بی‌اعتبار به پرسش‌های آغازین فرستاده می‌شود و پروفایل را نمی‌بیند؛ بدونِ این دکمه راهی برای عوض‌کردنِ حساب نبود.
+function hasToken() {
+  try { return !!localStorage.getItem("auth_token"); } catch { return false; }
+}
+function signOut() {
+  try { localStorage.removeItem("auth_token"); } catch { /* حالتِ خصوصی */ }
+  clearProfile();
+  window.location.assign("/app");
+}
 
 // قابِ مشترکِ صفحه‌های ورود و پرسش‌های آغازین: لوگو یا «بازگشت»، پیشرفتِ «۲ از ۴»، تیتر.
 export default function OnbShell({ step, total = 4, onBack, title, lede, variant, children }) {
@@ -28,6 +39,7 @@ export default function OnbShell({ step, total = 4, onBack, title, lede, variant
             </span>
           </div>
         )}
+        {hasToken() && <button type="button" className="onb-back" onClick={signOut}>خروج از حساب</button>}
       </div>
       <main className="onb-card">
         <h1 className="onb-title">{title}</h1>
