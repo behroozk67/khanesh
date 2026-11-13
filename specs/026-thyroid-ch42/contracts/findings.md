@@ -82,3 +82,6 @@ The implemented strings live in `khanesh-server/rules/patterns_endocrine_rheum.j
 - **C7, anti-Tg within the printed range:** «… روی همین برگه داخلِ محدودهٔ چاپ‌شده است، پس بعید است…». «منفی» is used only for a qualitative negative.
 - **C7, Tg-only finding:** `explains: ["THYROGLOBULIN"]`, `score_neutral: true`.
 - **Urgency:** `T7 tg alone` went from `none` to `routine`. A previously dropped row now has an owner, so urgency only rises. SC-004 is read as "no urgency falls".
+- **C2 after code review (P144-R7b):** «… یا قرص به‌طورِ منظم خورده نشده است؛ پزشک دوز را با همین عدد تنظیم می‌کند و معمولاً چند هفته پس از هر تغییرِ دوز آزمایش تکرار می‌شود. اگر دارو مصرف نمی‌کنید، پزشک دربارهٔ لزومِ درمان تصمیم می‌گیرد.» With FT4 absent: «… ؛ اندازه‌گیریِ FT4 به تفسیرِ دقیق‌ترِ این عدد کمک می‌کند.»
+- **C5/C6 after code review (P144-R7a):** `thyroid_tpo_positive` has no tail at all in a cancer follow-up context (a reported cancer, or a thyroglobulin row).
+- **C8 after code review (P144-R7c):** fires only when age > 0.

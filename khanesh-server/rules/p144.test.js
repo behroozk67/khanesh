@@ -241,3 +241,25 @@ test("P144-R6d (قفل): بازهٔ چاپی «0.5-4.5» با TSH 0.45 ⇒ طب�
   assert.equal(run([tsh(0.45, "0.5-4.5"), ft4(1.2)]).e.graded.find((x) => x.test === "TSH").abnormal, false);
   assert.equal(run([tsh(0.3, "0.5-4.5"), ft4(1.2)]).e.graded.find((x) => x.test === "TSH").dir, "low");
 });
+
+// ═══ بازبینیِ کد (۲۰۲۶-۱۱-۱۳، پس از 14b3838) — سه خطای متن، هر سه روی 14b3838 قرمز ═══
+test("P144-R7a (N20/B5): کم‌کاریِ ثبت‌شده + تیروگلوبولین + TPO بالا ⇒ «هاشیموتو… یافتهٔ تازه‌ای نیست» کنارِ متنِ سرطان نمی‌آید", () => {
+  for (const patient of [HYPO, { ...HYPO, conditions: ["cancer", "hypothyroid"] }, { ...F, conditions: ["cancer"] }]) {
+    const f = thy(run([TG("0.5"), r("Anti-TPO", "300", "IU/mL", "<35"), tsh(1.0)], patient).out);
+    assert.doesNotMatch(f.must_say, /هاشیموتو|یافتهٔ تازه‌ای نیست|اغلب فقط پیگیری/, JSON.stringify(patient));
+    assert.match(f.must_say, /300/);
+  }
+});
+
+test("P144-R7b: کم‌کاریِ ثبت‌شده + TSH 14 بی FT4 ⇒ هیچ جمله‌ای دوز را مسلم نمی‌گیرد؛ شاخهٔ «اگر دارو مصرف نمی‌کنید» هست", () => {
+  const f = thy(run([tsh(14)], HYPO).out);
+  assert.match(f.must_say, /اگر دارو مصرف نمی‌کنید/);
+  assert.doesNotMatch(f.must_say, /برای تنظیمِ دوز، FT4/);
+  assert.doesNotMatch(f.must_say, /(^|\. )پزشک دوز را با همین عدد تنظیم می‌کند/);
+});
+
+test("P144-R7c: سنِ ۰ (برگهٔ «0 Y») ⇒ جملهٔ غربالگریِ نوزاد نمی‌آید", () => {
+  const f = thy(run([tsh(15)], { age: 0, sex: "M" }).out);
+  assert.ok(f);
+  assert.doesNotMatch(f.must_say, /روزِ ۳ تا ۵/);
+});

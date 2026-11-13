@@ -354,6 +354,17 @@ Rules:
   - A new finding that owns no scored key must state its score behaviour. Run `healthScore` on a clean sheet with and without the new row before calling it done.
   - Second review, before deploy: a high C-peptide at glucose 45 was told «a low C-peptide is expected» (reversed direction). A high insulin next to FBS 180 was told «with normal glucose». **For a sentence about a partner analyte, write a branch per direction and per state (high / normal / missing), and probe each one.** My green tests only checked the shapes I had written.
 
+**N58 — A patient with known hypothyroidism and a thyroglobulin row was told «Hashimoto, nothing new», next to a cancer follow-up sentence.** (specs/026, P144; commit: this change.)
+- **What happened:**
+  - Activating `hypothyroid` added a context tail to `thyroid_tpo_positive`, and I checked the cancer context (B5) only in the antibody-only branch. So TPO 300 + Tg 0.5 got «همان علتِ کم‌کاریِ شما (هاشیموتو) و یافتهٔ تازه‌ای نیست». A thyroidectomy patient on levothyroxine is exactly who ticks «کم‌کاری تیروئید».
+  - The high-TSH text said «پزشک دوز را با همین عدد تنظیم می‌کند» unconditionally, to someone who may be untreated.
+  - The newborn screening sentence fired at age 0, which can be a «0 Y» infant.
+- **Also found while implementing:** the spec claimed a printed TSH range "keeps deciding". TSH is not printed-first: a printed range only vetoes an abnormal engine verdict. So lowering the fallback to 0.4 silently un-flags 0.4–0.49 on a sheet printing «0.5-4.5».
+- **Rules:**
+  - A tail you add to one branch inherits every guard its sibling branches already have. Grep the guard (`thyroidCancerContext`) and apply it to each new tail.
+  - "Conditional" means every sentence, not only the first one.
+  - Before writing "the printed range still decides", probe it: is the key in `PRINTED_FIRST_KEYS`?
+
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
 [environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).
