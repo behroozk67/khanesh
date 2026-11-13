@@ -45,7 +45,7 @@ The extraction's own counts are inconsistent. §7 says 12 🆕 and then lists 13
 |---|---|---|
 | G1 | HbA1c 3.5 % | `unmatched_abnormal`: «برای این ترکیب توضیح آماده‌ای نداریم». No owner for a low HbA1c (N1/N18). |
 | G2 | HbA1c 16 % | Ordinary `diabetes_range` text, with no word that a value this far out can come from a haemoglobin variant or a method problem. |
-| G3 | HbA1c 7.8 % with the active `dm2` condition | «برای قطعی‌شدن تشخیص، این آزمایش باید یک بار دیگر تکرار شود». A known diabetic is told to confirm a diagnosis they already have, and hears nothing about the treatment target (N22). |
+| G3 | HbA1c 7.8 % with the active `dm2` condition. The same shape appears at HbA1c 6.2 («پیش‌دیابت») and at FBS 150 (found during planning). | «برای قطعی‌شدن تشخیص، این آزمایش باید یک بار دیگر تکرار شود». A known diabetic is told to confirm a diagnosis they already have, and hears nothing about the treatment target (N22). |
 | G4 | «Insulin 30 µIU/mL (2.6–24.9)» with FBS 45 | `Insulin` is unmapped, so it is silently ignored (N2). Inappropriately high insulin during hypoglycaemia is never mentioned. C-peptide is the same. |
 | G5 | HbA1c 6.7 + Hb 10.5, MCV 72, ferritin 8 | «HbA1c ممکن است بیشتر یا کمتر از واقع باشد». The same sheet proves iron deficiency, which pushes HbA1c **up**, yet the text names no direction (N21). |
 
@@ -65,6 +65,8 @@ A patient who reported type 2 diabetes uploads a sheet with HbA1c 7.8 %. Today t
 2. **Given** the `dm2` condition is active and HbA1c is 6.8 %, **When** the sheet is interpreted, **Then** the text says the value is within the common target and still says the doctor sets each patient's target.
 3. **Given** no condition is reported and HbA1c is 7.8 %, **When** the sheet is interpreted, **Then** the output is byte-identical to today (`diabetes_range`).
 4. **Given** the `dm2` condition is active and HbA1c is exactly 7.0 %, **Then** it is «at or above the target» (the edge belongs to the upper side), and 6.9 is within target.
+5. *(Added during planning; the probe is in `snapshots/before.txt`.)* **Given** the `dm2` condition is active and HbA1c is 6.2 %, **Then** the text does not say «پیش‌دیابت». **Given** the condition is active and FBS is 150, **Then** it does not ask to repeat the test «to confirm the diagnosis». Instead it says the number shows how well blood sugar is controlled and that the doctor compares it with the patient's own target. No numeric glucose target is given, because the extraction has none.
+6. **Given** any of the above, **Then** urgency is the same as today for the same numbers. Only the wording changes.
 
 ---
 
