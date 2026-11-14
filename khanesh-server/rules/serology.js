@@ -48,8 +48,20 @@ export const isHpyloriIgmKey = (key) => HP_IGM_RE.test(k0(key));
 export const isSyphilisKey = (key) => SYPH_RE.test(k0(key));
 export const isRubellaIggKey = (key) => RUBELLA_IGG_RE.test(k0(key));
 export const isIctKey = (key) => ICT_RE.test(k0(key));
-export const isAntiTgKey = (key) => ANTI_TG_RE.test(k0(key));
-export const isTrabKey = (key) => TRAB_RE.test(k0(key));
+// P148 (برگهٔ گریوز): «TRAb (TSH Receptor Ab)» و «Anti-Thyroglobulin (Anti-Tg)» یکجا به `trabtshreceptorab` می‌چسبیدند و unmapped می‌شدند؛
+//   TRAb دوباره درخواست شد. بیرون و درونِ پرانتز جدا سنجیده می‌شوند و فقط وقتی هر دو یک کلید بدهند (بی‌حدس، N2).
+const PAREN_NAME_RE = /^(.+?)\s*\(([^()]+)\)\s*$/;
+const thyroidAbKeyOf = (s) => (ANTI_TG_RE.test(k0(s)) ? "ANTI_TG" : TRAB_RE.test(k0(s)) ? "TRAB" : null);
+export function thyroidAbKeyFor(name) {
+  const direct = thyroidAbKeyOf(name);
+  if (direct) return direct;
+  const m = PAREN_NAME_RE.exec(String(name ?? ""));
+  if (!m) return null;
+  const a = thyroidAbKeyOf(m[1]);
+  return a && a === thyroidAbKeyOf(m[2]) ? a : null;
+}
+export const isAntiTgKey = (key) => thyroidAbKeyFor(key) === "ANTI_TG";
+export const isTrabKey = (key) => thyroidAbKeyFor(key) === "TRAB";
 export const isThyroglobulinKey = (key) => THYROGLOBULIN_RE.test(k0(key));
 export function isHpyloriKey(key) {
   const k = k0(key);
@@ -493,7 +505,8 @@ export function routeSerology(key, t, sexHint = null) {
   if (RUBELLA_IGG_RE.test(k)) {
     return rubellaRead(t.value, t.reference).state === "unknown" ? { to: "unmapped" } : { to: "qual" };
   }
-  const abKey = ANTI_TG_RE.test(k) ? "ANTI_TG" : TRAB_RE.test(k) ? "TRAB" : null;
+  // P148: adapter کلیدِ نرمال‌شده می‌دهد (پرانتز رفته)؛ شکستنِ «X (Y)» فقط روی نامِ چاپ‌شده ممکن است.
+  const abKey = thyroidAbKeyFor(key) ?? (t?.name ? thyroidAbKeyFor(t.name) : null);
   if (abKey) {
     const q = qualState(faDigits(t.value));
     if (q.state === "pos" || q.state === "neg") return { to: "qual" };
@@ -518,12 +531,11 @@ export function routeSerology(key, t, sexHint = null) {
 /** وضعیتِ یک آنتی‌بادیِ تیروئید (Anti-Tg یا TRAb) روی برگه: absent | above | within | pos | neg */
 export function thyroidAbState(e, which) {
   const key = which === "ANTI_TG" ? "ANTI_TG" : "TRAB";
-  const re = which === "ANTI_TG" ? ANTI_TG_RE : TRAB_RE;
   const u = e.ungraded?.[key];
   if (u?.reason === "assay_printed") {
     return { state: u.state, value: u.value, cmp: u.cmp, shown: u.shown, unit: u.unit, reference: u.reference, raw: u.raw };
   }
-  const row = Object.entries(e.qual ?? {}).find(([name]) => re.test(k0(name)));
+  const row = Object.entries(e.qual ?? {}).find(([name]) => thyroidAbKeyFor(name) === key);
   if (row) {
     const q = qualState(row[1]);
     if (q.state === "pos") return { state: "pos", raw: String(row[1]).trim(), name: row[0] };

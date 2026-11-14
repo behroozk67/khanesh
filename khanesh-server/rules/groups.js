@@ -210,7 +210,10 @@ export class GroupedText {
       for (const s of splitSentences(this.texts[g])) {
         const m = groupsMentioned(s);
         const others = [...m].filter((x) => x !== g);
-        if (others.length === 1 && !m.has(g) && this.active.has(others[0])) moved.push([others[0], s]);
+        // P148: جملهٔ پرانتزی دنبالهٔ جملهٔ قبل است، نه جملهٔ مستقل — «(این مقدار با آلبومین تصحیح شده؛ … 10.6.)» فقط «آلبومین» را
+        //   نام می‌برد و از بندِ کلسیم به پاراگرافِ کبد می‌رفت؛ بیمار ۱۱٫۲ را بی‌توضیح دید.
+        if (/^\s*\(/.test(s)) keep.push(s);
+        else if (others.length === 1 && !m.has(g) && this.active.has(others[0])) moved.push([others[0], s]);
         else keep.push(s);
       }
       this.texts[g] = keep.join(" ");

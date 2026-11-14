@@ -6,6 +6,7 @@ import { ADULT_REFS } from "./refs.js";
 import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 import { isNeonate } from "./neonatal.js";
 import { SURVIVAL_LIMITS, parseReference } from "./units.js";
+import { overtThyrotoxicosis, THYROTOX_RECHECK_FA } from "./patterns_utils.js";
 import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION, ferritinBelowIdCut, hbVariantState, HB_VARIANT_FA } from "./patterns_utils.js";
 import { hemolysisRuleFires } from "./patterns_hematology.js";   // P105 (M7): ژیلبرِ «بی‌خطرترین» کنارِ همولیزِ فعال گفته نمی‌شود
 
@@ -71,6 +72,36 @@ function hyLawPattern(e) {
   return { bili: bt.value };
 }
 /** ALT/AST ِ بالا همه < ۲×ULN و ALP بالا نیست (ACG 2017: borderline). */
+// ═══ P148 (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴، برگهٔ گریوز؛ ATA 2016): آنزیمِ کبدِ خفیف کنارِ پرکاریِ آشکارِ تیروئید ═══
+// ALP < ۱٫۵×ULN، ALT/AST < ۲×ULN، بیلی‌روبینِ بالا نیست ⇒ پرکاری علتِ محتمل گفته می‌شود (ALP از استخوان)؛ «مسیرِ صفرا»، سونوگرافی و
+//   هشدارِ الکل نمی‌آیند و GGT (جداکنندهٔ کبد از استخوان) می‌ماند. آستانه‌های ۱٫۵ و ۲ پیشنهادِ همین تصمیم‌اند، نه عددِ راهنما.
+//   بیرونِ build تا کلیدها در RULE_READS نیایند (N56).
+const THYRO_LIVER_ALP_MAX = 1.5, THYRO_LIVER_AT_MAX = 2;
+function liverThyroCtx(e) {
+  if (!overtThyrotoxicosis(e)) return null;
+  const f = (k) => e.graded.find((g) => g.test === k);
+  const hi = (x) => x?.abnormal && x.dir === "high";
+  const bt = f("BILI_T"), alp = f("ALP");
+  if (hi(bt)) return null;
+  for (const k of ["ALT", "AST"]) { const x = f(k); if (hi(x) && !(timesUln(x) < THYRO_LIVER_AT_MAX)) return null; }
+  if (hi(alp) && !(timesUln(alp) < THYRO_LIVER_ALP_MAX)) return null;
+  const alpHigh = hi(alp);
+  return {
+    alpHigh,
+    sentence: `پرکاری تیروئید (که روی همین برگه هست) خودش می‌تواند آنزیم‌های کبد${alpHigh ? " و آلکالن فسفاتاز (از استخوان، نه از کبد)" : ""} را کمی بالا ببرد.` +
+      (alpHigh ? " GGT نشان می‌دهد آلکالن فسفاتاز از کبد است یا از استخوان." : "") + " این آزمایش‌ها پس از کنترلِ تیروئید تکرار شوند.",
+  };
+}
+// P148 (تصمیمِ کاربر): کلسیمِ کمی بالا (< ۱۱ mg/dL، آستانهٔ پیشنهادیِ همین تصمیم) کنارِ پرکاریِ آشکار ⇒ اثرِ گردشِ استخوان اول گفته می‌شود.
+const THYRO_CA_MAX = 11;
+function caThyroCtx(e) {
+  const ca = e.graded.find((g) => g.test === "CA");
+  return overtThyrotoxicosis(e) && ca?.abnormal === true && ca.dir === "high" && ca.value < THYRO_CA_MAX;
+}
+// P148: «بیش از دو برابر» فقط وقتی ALT یا AST واقعاً ≥ ۲×ULN است؛ پیش‌تر هر ALPِ بالا «مرزی» را خاموش می‌کرد و همین جمله را می‌ساخت (ALT ۱٫۸×).
+function liverAtOver2x(e) {
+  return ["ALT", "AST"].some((k) => { const x = e.graded.find((g) => g.test === k); return x?.abnormal && x.dir === "high" && timesUln(x) >= 2; });
+}
 function liverBorderline(e) {
   const f = (k) => e.graded.find((g) => g.test === k);
   const highs = ["ALT", "AST"].map(f).filter((x) => x?.abnormal && x.dir === "high");
@@ -834,9 +865,14 @@ export const RULES_BIOCHEM = [
       //    شرطِ انحصارِ match بالا)؛ دو نسخهٔ جدا یعنی اولین ویرایشِ بعدی
       //    یکی را عوض کند و دیگری را نه — و آن حالت، سکوتِ اورژانس است.
       const critical = caCritical(e);            // ≥۱۴ یا ≤۶.۵ → نیاز به اورژانس
-      const corrNote = e.indices.ca_correction_applied
-        ? ` (این مقدار با آلبومین تصحیح شده؛ اندازه‌گیری‌شده روی برگه ${e.indices.ca_measured}.)`
-        : "";
+      // P148 (تصمیمِ کاربر): عددِ برگه اول؛ تصحیح‌شده «برآورد» است، نه «کلسیمِ شما» (N5). پیش‌تر ۱۱٫۲ «کلسیم خون شما» بود و ۱۰٫۶ِ برگه در
+      //   پرانتزِ آخر، که GroupedText آن را به پاراگرافِ کبد برد.
+      const corrected = !!e.indices.ca_correction_applied;
+      const caLead = corrected
+        ? `کلسیمِ روی برگهٔ شما ${e.indices.ca_measured} است؛ چون آلبومینِ شما پایین است، کلسیمِ مؤثر حدود ${v}`
+        : `کلسیم خون شما ${v}`;
+      // P148 (تصمیمِ کاربر، ATA 2016/Tietz): کلسیمِ کمی بالا کنارِ پرکاریِ آشکارِ تیروئید — گردشِ استخوان؛ PTH می‌ماند، ترتیب عوض می‌شود.
+      const thyroCa = high && caThyroCtx(e);
       // فوریت: بحرانی→اورژانس، متوسط/شدید (گرید ۲+)→این هفته، خفیف (گرید ۱)→عادی
       const urgency = critical ? "emergency" : (grade >= 2 ? "this_week" : "routine");
       const mild = urgency === "routine";
@@ -848,16 +884,17 @@ export const RULES_BIOCHEM = [
         ...(v != null ? { key_number: v } : {}),
         headline: high ? "کلسیم خون شما بالاست" : "کلسیم خون شما پایین است",
         must_say:
-          `کلسیم خون شما ${v}${rangeTxt} است و ${high ? "بالاتر" : "پایین‌تر"} از حد طبیعی قرار دارد. ` +
-          (high
+          `${caLead}${rangeTxt} ${corrected ? "برآورد می‌شود" : "است"} و ${high ? "بالاتر" : "پایین‌تر"} از حد طبیعی قرار دارد. ` +
+          (thyroCa
+            ? `پرکاری تیروئید (که روی همین برگه هست) با افزایشِ گردشِ استخوان می‌تواند کلسیم را کمی بالا ببرد؛ اگر پس از کنترلِ تیروئید هم بالا ماند، پرکاریِ غدهٔ پاراتیروئید باید بررسی شود. `
+            : high
             ? "شایع‌ترین علت‌های کلسیم بالا پرکاری غدهٔ پاراتیروئید و بعضی بیماری‌ها هستند و حتماً باید علت‌یابی شود. "
             : "کلسیم پایین می‌تواند از کمبود ویتامین D، مشکل پاراتیروئید یا کاهش منیزیم باشد. ") +
           // P146: کلسیمِ ۸٫۷ (درجهٔ ۱، داخلِ بازهٔ چاپیِ برگه) با «بی‌نظمی ضربان قلب» بزرگ‌نمایی می‌شد؛ تغییرِ خفیف معمولاً بی‌علامت است.
           (mild
             ? "این تغییرِ خفیف معمولاً علامتی ایجاد نمی‌کند، ولی بهتر است علتش بررسی شود."
             : "کلسیم علاوه بر استخوان، در انقباض عضله، کار اعصاب و ضربان قلب نقش دارد؛ به همین دلیل تغییر زیاد آن می‌تواند باعث گرفتگی عضلانی یا بی‌نظمی ضربان قلب شود" +
-              (critical ? " — و در این حد نیاز به رسیدگی فوری دارد." : ".")) +
-          corrNote,
+              (critical ? " — و در این حد نیاز به رسیدگی فوری دارد." : ".")),
         action: critical
           ? "همین حالا به اورژانس مراجعه کنید."
           : mild
@@ -1477,12 +1514,21 @@ export const RULES_BIOCHEM = [
           ...(known ? { applied_conditions: ["dm2"] } : {}),
         };
       }
+      // P148 (برگهٔ گریوز): بی‌HbA1c، متن «این در محدودهٔ پیش‌دیابت است» می‌گفت بی‌آنکه بگوید «این» کدام عدد است (N5)، و همان صفحه
+      //   FBS 106 را «در محدودهٔ طبیعی» شمرد. حالا عددِ هر آزمایشِ در محدودهٔ پیش‌دیابت گفته می‌شود.
+      const preNums = [["GLU_F", "قندِ ناشتای شما", 100, 126], ["GLU_2H", "قندِ دو ساعتهٔ شما", 140, 200]]
+        .filter(([k, , lo, hi]) => t[k] != null && t[k] >= lo && t[k] < hi)
+        .map(([k, fa]) => `${fa} ${t[k]} است. `);
+      const preGlucose = preNums.length > 0;
+      if (t.HBA1C != null && eag == null && t.HBA1C >= 5.7) preNums.push(`HbA1c شما ${t.HBA1C}٪ است. `);
       return {
         pattern: "prediabetes_range",
         urgency: "routine",
         headline: "قند خون شما کمی بالاتر از حد طبیعی است",
         must_say: eagPhrase + (known ? dmClause
-          : "این در محدودهٔ «پیش‌دیابت» است. در این مرحله تغییر رژیم غذایی و تحرک بیشترین اثر را دارد و می‌تواند از پیشرفت به دیابت جلوگیری کند."),
+          : preNums.join("") + (preNums.length + (eagPhrase ? 1 : 0) > 1 ? "این عددها" : "این") + " در محدودهٔ «پیش‌دیابت» است. در این مرحله تغییر رژیم غذایی و تحرک بیشترین اثر را دارد و می‌تواند از پیشرفت به دیابت جلوگیری کند." +
+            // P148 (تصمیمِ کاربر): پرکاریِ آشکارِ تیروئید قند را کمی بالا می‌برد (Tietz/Williams)؛ برچسب می‌ماند، با قید.
+            (preGlucose && overtThyrotoxicosis(e) ? ` پرکاری تیروئید (که روی همین برگه هست) می‌تواند قند را کمی بالا ببرد؛ قضاوتِ نهایی دربارهٔ قند پس از کنترلِ تیروئید است.` : "")),
         action: "نوبت عادی با پزشک.",
         suggest: known ? ["HbA1c برای پایش"] : ["تکرار قند ناشتا", "HbA1c"],
         warnings: a1cWarn,
@@ -1900,7 +1946,8 @@ export const RULES_BIOCHEM = [
       const borderline = !hy && liverBorderline(e);
       // P108-ج (تصمیمِ کاربر ۲۰۲۶-۱۰-۱۶): پایداریِ ALT/AST — فقط زیرِ آسیبِ شدید (نه Hy، نه ~۱۰×، نه درجهٔ ۴).
       const yearS = liverYearSentence(e, [alt, ast]);   // P142-الف: سابقهٔ >۲×ULN در یک سال (اول، تا «افزایشِ تازه است» با آن نخواند)
-      const visit = !hy && !marked && maxG < 4 ? liverVisit(e, [alt, ast], borderline, !!yearS) : null;
+      const visit = !hy && !marked && maxG < 4 ? liverVisit(e, [alt, ast], borderline || !liverAtOver2x(e), !!yearS) : null;
+      const thyro = !hy && !marked && maxG < 4 ? liverThyroCtx(e) : null;
       const baseUrgency = maxG >= 4 ? "emergency" : marked || hy ? "soon" : borderline ? "routine" : "this_week";
       const urgency = visit?.kind === "persistent" ? "soon" : baseUrgency;
       // هپاتیت/سونوگرافی/ALP/GGT فقط برای ALTِ تأییدشده (پایدار) یا ≥ ۲×ULN — یعنی نه برای تک‌نوبتِ مرزی.
@@ -1948,7 +1995,9 @@ export const RULES_BIOCHEM = [
             ? "آنزیم‌های کبدی خیلی بالا هستند، که می‌تواند نشانه‌ی یک آسیب فعال و قابل‌توجه کبد باشد (مثلاً التهاب حاد کبد). این حتماً و سریع باید بررسی شود. " +
               (ischemicToxicRange(e) ? ISCHEMIC_TOXIC_SENTENCE : "")
             : "") +
-          (kind === "cholestatic"
+          (thyro
+            ? (kind === "cholestatic" ? "" : narrowWorkup && !ckFold ? (liverNums.length > 1 ? "این اعداد نشان می‌دهند" : "این عدد نشان می‌دهد") + " سلول‌های کبد تحریک شده‌اند. " : "") + thyro.sentence
+            : kind === "cholestatic"
             ? "این الگو بیشتر به مسیر خروج صفرا مربوط است تا خود سلول‌های کبد."
             : narrowWorkup
               // P110: کنارِ «منشأ عضلانی محتمل است» (ckFold) جملهٔ «سلول‌های کبد تحریک شده‌اند» خلافِ همان را می‌گفت.
@@ -1970,7 +2019,9 @@ export const RULES_BIOCHEM = [
               ? "در نوبتِ عادی با پزشک مطرح کنید و بخواهید آزمایشِ کبد تکرار شود. لیست کامل داروها و مکمل‌هایتان را همراه ببرید."
               : "این هفته وقت بگیرید. لیست کامل داروها و مکمل‌هایتان را همراه ببرید.",
         ...(ckFold ? { ck_folded: true, explains: ["CK"] } : {}),
-        suggest: [...(astLead ? ["CK"] : []), ...(narrowWorkup
+        suggest: [...(astLead ? ["CK"] : []), ...(thyro
+          ? (thyro.alpHigh ? ["GGT"] : [])
+          : narrowWorkup
           ? [ckFold ? "تکرار ALT، AST و CK" : "تکرار ALT و AST"]
           : kind === "cholestatic"
             ? ["GGT", "بیلی‌روبین مستقیم و غیرمستقیم", "سونوگرافی شکم"]
@@ -1978,7 +2029,7 @@ export const RULES_BIOCHEM = [
               ? ["ALP", "GGT", "هپاتیت B و C", "سونوگرافی شکم"]
               : ["AST", "GGT", "هپاتیت B و C", "سونوگرافی شکم"])],
         // P110-ج: الکل، استامینوفن و مکملِ گیاهی یک بار و فقط همین‌جا (action دیگر تکرارشان نمی‌کند).
-        warnings: ["تا تکرارِ آزمایش الکل ننوشید، و تا وقتی پزشک نگفته مکملِ گیاهی یا دوزِ بالای استامینوفن مصرف نکنید."],
+        warnings: thyro ? [] : ["تا تکرارِ آزمایش الکل ننوشید، و تا وقتی پزشک نگفته مکملِ گیاهی یا دوزِ بالای استامینوفن مصرف نکنید."],
         // P110-ج: متنِ تخصصیِ همین برگه (expert.js این را بر rule.pro مقدم می‌گیرد) — افتراقی به ترتیبِ احتمال و پیگیریِ مرحله‌ای، هم‌مرحله با نمای ساده.
         pro: liverPro(e, { ckHigh: !!ckHigh, stage: narrowWorkup ? 0 : 1, ckFold }),
       };

@@ -91,7 +91,9 @@ export function applyPrintedRange(findings, e) {
   for (const g of e.graded ?? []) {
     const printed = pr[g.test];
     if (!printed || !g.range) continue;
-    const re = new RegExp(`(${escRe(g.value)}[^.؛\\n]{0,60}?حد طبیعی\\s*)${escRe(g.range)}(?=\\))`, "g");
+    // P148 (برگهٔ گریوز): «FT4 بالاست (3.4؛ حد طبیعی 0.7–2)» — «؛»ِ بلافاصله پس از عدد مرزِ بند نیست، شکلِ نقلِ همین عدد است.
+    //   بی‌آن، در یک جمله TSH بازهٔ برگه (0.35–4.94) و FT4 بازهٔ موتور (0.7–2) می‌گرفت.
+    const re = new RegExp(`(${escRe(g.value)}(?:؛\\s*)?[^.؛\\n]{0,60}?حد طبیعی\\s*)${escRe(g.range)}(?=\\))`, "g");
     // P110 (گزارشِ کاربر ۲۰۲۶-۱۰-۱۶: «بازهٔ موتور و بازهٔ برگه در هر جمله تکرار می‌شود»): وقتی بازهٔ برگه همان حکمِ موتور را می‌دهد،
     //   فقط بازهٔ برگه گفته می‌شود (همان که روی کاغذ است، N5). دو بازه فقط وقتی می‌آیند که حکمشان فرق دارد (اسید اوریکِ ۸٫۲ با سقفِ
     //   ۷٫۲ِ موتور و ۸٫۲ِ برگه) — آن‌جا گفتنِ هر دو همان صداقتی است که این تابع برایش ساخته شد.
@@ -1593,3 +1595,15 @@ export function mayMenstruate(e) {
 export function rbcMorphOf(e, kind) {
   return (e?.rbcMorph ?? []).find((i) => i.kind === kind) ?? null;
 }
+
+// ═══ P148 (برگهٔ گریوز، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴؛ ATA 2016 توصیهٔ ۱۵ و «Technical remarks»ِ آن) ═══
+// پرکاریِ آشکارِ تیروئید روی همین برگه: TSH پایین و FT4 یا FT3 بالا (جهت از graded.dir، N12). ATA: «low WBC counts are common in
+//   patients with GD … abnormal liver enzymes are frequently seen in patients with thyrotoxicosis»، و ALPِ بالا در پرکاری استخوانی است.
+//   کلیدها عمداً این‌جا خوانده می‌شوند، بیرونِ منبعِ قاعده‌ها (RULE_READS پوششِ تور را عوض نکند — N56).
+export function overtThyrotoxicosis(e) {
+  const g = (k) => e?.graded?.find((x) => x.test === k);
+  const tsh = g("TSH");
+  if (!(tsh?.abnormal && tsh.dir === "low")) return false;
+  return ["FT4", "FT3"].some((k) => { const x = g(k); return x?.abnormal === true && x.dir === "high"; });
+}
+export const THYROTOX_RECHECK_FA = "پس از کنترلِ تیروئید تکرار شود";

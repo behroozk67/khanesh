@@ -379,6 +379,18 @@ Rules:
   - Turning a blocker off is a text change on every panel it covered. Re-run those panels and read every sentence that was hidden before, especially conditionals and «repeat in N weeks».
   - When a rule stops claiming a key, check that the remaining owner quotes the number (N52).
 
+**N60 — A Graves sheet: calcium 11.2 with no explanation, "more than twice the limit" for ALT 1.8×, and TRAb re-requested though it was on the sheet.** (P148; commit: this change.)
+- **What happened:**
+  - `GroupedText.#relocate` moved the parenthetical «(این مقدار با آلبومین تصحیح شده؛ … 10.6.)» into the liver paragraph, because it names only «آلبومین». The calcium paragraph said 11.2, a number not on the sheet, with nothing beside it.
+  - `liverVisit` said «بیش از دو برابرِ حدِ بالای طبیعی» whenever `liverBorderline` was false. Any high ALP makes it false.
+  - «TRAb (TSH Receptor Ab)» was unmapped. The adapter hands routing a normalized key, `trabtshreceptorab`, where the parentheses are already gone.
+- **My own slip, caught by the freeze diff:** the new iron-deficiency sentence said «فریتین این دو را از هم جدا می‌کند» on a sheet whose ferritin of 6 had already decided it.
+- **Rules:**
+  - A sentence-mover keyed on test names must not move a dependent clause. A parenthetical belongs to the sentence before it.
+  - "Not X" with several reasons doesn't license one specific claim. Test the claim's own condition (ALT/AST ≥ 2×).
+  - Structure in a printed name (`X (Y)`) is lost after normalization. Disambiguate on `t.name`.
+  - A sentence that recommends a test checks that the test isn't already on the sheet (N8).
+
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
 [environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).

@@ -119,13 +119,13 @@ const FREEZE = {
   // بازپایهٔ عمدی (باگِ ۴، LIS ۲۰۲۶-۱۰-۰۵): در thyroid، lis_ldh، lis_serum، fluid_bare و neonate فقط فیلدِ brief/brief_warnings ِ
   // unit_unknown_values عوض شد (عددِ برگه در نسخهٔ کوتاه)؛ خروجی بدونِ این دو فیلد در هر ۱۱ پنل بایت‌به‌بایت همان است (stash).
   // هش‌های قبلی: 0c3a87d251beba49، b4aca598b9885e65، e5639cb63a569a3d، fbc60061d1a28af4، 3c0fe6147ac78fa5.
-  cbc_ida: [{ sex: "F", age: 30 }, [row("Hb", "9.5", "g/dL"), row("MCV", "70", "fL"), row("Ferritin", "6", "ng/mL"), row("WBC", "6.1"), row("PLT", "250")], "5aea52ee4a5253ff"],
+  cbc_ida: [{ sex: "F", age: 30 }, [row("Hb", "9.5", "g/dL"), row("MCV", "70", "fL"), row("Ferritin", "6", "ng/mL"), row("WBC", "6.1"), row("PLT", "250")], "32f0f4781239ac06"], // P148 (عمدی، fdiff148): زنِ ۳۰ ساله ⇒ جملهٔ قاعدگی، action، suggest بی FOBT
   // بازپایهٔ عمدی (P108، ۲۰۲۶-۱۰-۱۶): فقط رشتهٔ بازهٔ کراتینینِ مرد «0.6–1.2» ⇒ «0.6–1.3» (diffِ کامل). قبلی a25b0d7b6c56186a.
   // بازپایهٔ عمدی (۲۰۲۶-۱۰-۱۶، حذفِ محاسبهٔ eGFR): همین پنل کراتینین دارد؛ indices دیگر egfr ندارد (فقط bun_cr می‌ماند)
   //   و متنِ کلیه هیچ اشاره‌ای به «کار کلیه» نمی‌کند. درجه‌بندی و یافته‌ها دست‌نخورده (CREAT 1.0 طبیعی، بی‌یافته).
   //   قبلی 204e0d93ecb7bb4b. اثباتِ عمدی‌بودن: احیای محاسبهٔ eGFR در adapter همان هش را برمی‌گرداند.
-  bmp: [{ sex: "M", age: 55 }, [row("Na", "138"), row("K", "4.2"), row("Creatinine", "1.0", "mg/dL"), row("Urea", "30", "mg/dL"), row("FBS", "95", "mg/dL")], "18391a0a8f5e6980"],
-  lipid_dm: [{ sex: "M", age: 50 }, [row("Cholesterol", "210", "mg/dL"), row("LDL", "114", "mg/dL"), row("HDL", "38", "mg/dL"), row("TG", "240", "mg/dL"), row("FBS", "209", "mg/dL")], "d650a6979b47a0fb"],   // بازپایهٔ عمدی P110 (۲۰۲۶-۱۰-۱۶): یک جملهٔ ناشتا به‌جای دو (diffِ کامل فقط همین). قبلی 7daeb3138c9d7c90.   // بازپایهٔ عمدی ۲۰۲۶-۱۰-۰۷: فقط headline/must_sayِ diabetes_range (FBS 209). اثبات: برگرداندنِ همان دو hunk در یک کپی ⇒ 2065fd25af68fbf4.
+  bmp: [{ sex: "M", age: 55 }, [row("Na", "138"), row("K", "4.2"), row("Creatinine", "1.0", "mg/dL"), row("Urea", "30", "mg/dL"), row("FBS", "95", "mg/dL")], "12b8d0d1fed29185"], // P148 (عمدی، fdiff148): فقط رشتهٔ بازهٔ FBS ۷۰–۱۱۰ → ۷۰–۹۹؛ حکم و یافته‌ها یکسان
+  lipid_dm: [{ sex: "M", age: 50 }, [row("Cholesterol", "210", "mg/dL"), row("LDL", "114", "mg/dL"), row("HDL", "38", "mg/dL"), row("TG", "240", "mg/dL"), row("FBS", "209", "mg/dL")], "84971a63bfab1fe7"],   // P148 (عمدی، fdiff148): فقط رشتهٔ بازهٔ FBS ۷۰–۱۱۰ → ۷۰–۹۹ (و نمرهٔ ناشی از آن)؛ یافته‌ها یکسان. قبلی d650a6979b47a0fb.   // بازپایهٔ عمدی P110 (۲۰۲۶-۱۰-۱۶): یک جملهٔ ناشتا به‌جای دو (diffِ کامل فقط همین). قبلی 7daeb3138c9d7c90.   // بازپایهٔ عمدی ۲۰۲۶-۱۰-۰۷: فقط headline/must_sayِ diabetes_range (FBS 209). اثبات: برگرداندنِ همان دو hunk در یک کپی ⇒ 2065fd25af68fbf4.
   // بازپایهٔ عمدی (باگِ ۶): فقط پیشوندِ عددیِ تازهٔ liver_pattern؛ بی‌آن همان 3547cf8469405703.
   liver: [{ sex: "F", age: 45 }, [row("AST", "120"), row("ALT", "150"), row("ALP", "200"), row("Total Bilirubin", "2.1", "mg/dL")], "ce23476c8506c7b2"], // P108-ج (عمدی): فقط جملهٔ «تک‌نوبت» در must_sayِ liver_pattern (diff کامل ۲۰۲۶-۱۰-۱۶)
   thyroid: [{ sex: "F", age: 35 }, [row("TSH", "8.2"), row("FT4", "0.9")], "65124dcbce4bc75f"], /* P144 US6 عمدی: فقط رشتهٔ بازهٔ TSH (۰٫۵ ⇒ ۰٫۴)؛ قبلی 5fa44e1713a9ec1d */
