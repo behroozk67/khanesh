@@ -6,7 +6,8 @@ import { ADULT_REFS } from "./refs.js";
 import { mineralAxis, caCritical } from "./patterns_mineral_bone.js";
 import { isNeonate } from "./neonatal.js";
 import { SURVIVAL_LIMITS, parseReference } from "./units.js";
-import { overtThyrotoxicosis, THYROTOX_RECHECK_FA } from "./patterns_utils.js";
+import { THYROTOX_RECHECK_FA } from "./patterns_utils.js";
+import { overtThyrotoxicosis } from "./patterns_endocrine_rheum.js";
 import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION, ferritinBelowIdCut, hbVariantState, HB_VARIANT_FA } from "./patterns_utils.js";
 import { hemolysisRuleFires } from "./patterns_hematology.js";   // P105 (M7): ژیلبرِ «بی‌خطرترین» کنارِ همولیزِ فعال گفته نمی‌شود
 
@@ -98,9 +99,10 @@ function caThyroCtx(e) {
   const ca = e.graded.find((g) => g.test === "CA");
   return overtThyrotoxicosis(e) && ca?.abnormal === true && ca.dir === "high" && ca.value < THYRO_CA_MAX;
 }
-// P148: «بیش از دو برابر» فقط وقتی ALT یا AST واقعاً ≥ ۲×ULN است؛ پیش‌تر هر ALPِ بالا «مرزی» را خاموش می‌کرد و همین جمله را می‌ساخت (ALT ۱٫۸×).
+// P148: «بیش از دو برابر» فقط وقتی یکی از ALT/AST/ALP واقعاً ≥ ۲×ULN است؛ پیش‌تر هر ALPِ بالا «مرزی» را خاموش می‌کرد و همین جمله را
+//   می‌ساخت (ALT ۱٫۸×، ALP ۱٫۱×). ALP هم شمرده می‌شود (بازبینیِ advisor): ALT 50 + ALP 700 تصویرِ صفراویِ آشکار است.
 function liverAtOver2x(e) {
-  return ["ALT", "AST"].some((k) => { const x = e.graded.find((g) => g.test === k); return x?.abnormal && x.dir === "high" && timesUln(x) >= 2; });
+  return ["ALT", "AST", "ALP"].some((k) => { const x = e.graded.find((g) => g.test === k); return x?.abnormal && x.dir === "high" && timesUln(x) >= 2; });
 }
 function liverBorderline(e) {
   const f = (k) => e.graded.find((g) => g.test === k);
@@ -1526,7 +1528,7 @@ export const RULES_BIOCHEM = [
         urgency: "routine",
         headline: "قند خون شما کمی بالاتر از حد طبیعی است",
         must_say: eagPhrase + (known ? dmClause
-          : preNums.join("") + (preNums.length + (eagPhrase ? 1 : 0) > 1 ? "این عددها" : "این") + " در محدودهٔ «پیش‌دیابت» است. در این مرحله تغییر رژیم غذایی و تحرک بیشترین اثر را دارد و می‌تواند از پیشرفت به دیابت جلوگیری کند." +
+          : preNums.join("") + (preNums.length + (eagPhrase ? 1 : 0) > 1 ? "این عددها در محدودهٔ «پیش‌دیابت» هستند." : "این در محدودهٔ «پیش‌دیابت» است.") + " در این مرحله تغییر رژیم غذایی و تحرک بیشترین اثر را دارد و می‌تواند از پیشرفت به دیابت جلوگیری کند." +
             // P148 (تصمیمِ کاربر): پرکاریِ آشکارِ تیروئید قند را کمی بالا می‌برد (Tietz/Williams)؛ برچسب می‌ماند، با قید.
             (preGlucose && overtThyrotoxicosis(e) ? ` پرکاری تیروئید (که روی همین برگه هست) می‌تواند قند را کمی بالا ببرد؛ قضاوتِ نهایی دربارهٔ قند پس از کنترلِ تیروئید است.` : "")),
         action: "نوبت عادی با پزشک.",

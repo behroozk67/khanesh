@@ -146,3 +146,49 @@ test("P148-9: کم‌خونیِ میکروسیتیکِ زنِ ۳۴ ساله — 
   const w47 = byId(run(EUTHYROID, { age: 47, sex: "F" }).p, "microcytic_anemia");
   assert.ok(w47.suggest.some((s) => /FOBT/.test(s)), "از ۴۵ سالگی FOBT می‌ماند");
 });
+
+// ── بازبینیِ advisor روی eafda2f (هر کدام روی eafda2f قرمز) ──
+const OVER = [T("TSH", "0.05", "mIU/L"), T("FT4", "2.4", "ng/dL"), T("WBC", "3.5", "10^3/uL"), T("ALT", "50", "U/L"), T("Calcium", "10.5", "mg/dL"),
+  T("FBS", "105", "mg/dL"), T("Hb", "11.5", "g/dL"), T("MCV", "76", "fL")];
+const allText = (p) => p.findings.map((f) => [f.must_say, f.action, ...(f.warnings ?? [])].join(" ")).join(" ");
+
+test("P148-10: نوتروفیلِ ۱۷۱۰ (پایین درجه‌خورده) کنارِ پرکاری ⇒ «در محدودهٔ طبیعی» گفته نمی‌شود", () => {
+  const w = byId(run([...GRAVES, T("Neut", "45", "%")]).p, "leukopenia").must_say;
+  assert.doesNotMatch(w, /در محدودهٔ طبیعی/);
+  assert.match(w, /بیماری گریوز، کاهشِ خفیفِ گلبول سفید شایع/);
+  assert.match(w, /1710|٪45/, "عددِ نوتروفیل باید بیاید");
+});
+
+test("P148-11 (N58): کم‌کاریِ ثبت‌شده یا زمینهٔ سرطان با TSH پایین + FT4 بالا ⇒ نه «گریوز»، نه «پس از کنترلِ تیروئید»، نه جملهٔ داروی ضدتیروئید", () => {
+  for (const patient of [{ age: 50, sex: "F", conditions: ["hypothyroid"] }, { age: 45, sex: "F", conditions: ["cancer"] }]) {
+    const t = allText(run(OVER, patient).p);
+    assert.doesNotMatch(t, /به‌ویژه بیماری گریوز|پس از کنترلِ تیروئید|داروی ضدتیروئید|که روی همین برگه هست/, JSON.stringify(patient));
+  }
+  assert.match(allText(run(OVER, { age: 50, sex: "F" }).p), /پس از کنترلِ تیروئید/, "بی‌سابقه، زمینهٔ پرکاری می‌آید");
+});
+
+test("P148-12: بارداری ⇒ بی «متی‌مازول» (PTU در سه‌ماههٔ اول) و بی «خونریزیِ ماهانه»", () => {
+  const PG = { age: 30, sex: "F", pregnant: true };
+  const t = allText(run(GRAVES, PG).p);
+  assert.match(t, /داروی ضدتیروئید/);
+  assert.doesNotMatch(t, /متی‌مازول|خونریزیِ ماهانه|قاعدگیِ پرحجم/);
+  const ida = byId(run(swap(EUTHYROID, "Hemoglobin", { value: "9.5" }), PG).p, "microcytic_anemia");
+  assert.ok(ida, "کم‌خونیِ میکروسیتیک در بارداری یافته دارد");
+  assert.doesNotMatch(ida.must_say + ida.action, /خونریزیِ ماهانه|قاعدگیِ پرحجم/);
+});
+
+test("P148-13: ALT 50 + ALP 700 (۲٫۳×) ⇒ «بیش از دو برابر … منتظرِ آزمایشِ بعدی نمانید» می‌ماند", () => {
+  const f = byId(run([T("ALT", "50", "U/L"), T("ALP", "700", "U/L")], { age: 50, sex: "M" }).p, "liver_pattern");
+  assert.match(f.must_say, /بیش از دو برابرِ حدِ بالای طبیعی است و مرزی نیست/);
+});
+
+test("P148-14: محورِ PTH با آلبومینِ ۳٫۰ ⇒ عددِ برگه صریح و تصحیح‌شده «برآورد»؛ بی پرانتزِ آخر", () => {
+  const f = byId(run([T("Calcium", "10.6", "mg/dL"), T("Albumin", "3.0", "g/dL"), T("PTH", "120", "pg/mL")], { age: 50, sex: "F" }).p, "hpt_primary");
+  assert.match(f.must_say, /کلسیمِ روی برگهٔ شما 10\.6 است؛ 11\.7 برآوردِ آن/);
+  assert.doesNotMatch(f.must_say, /\(این مقدار با آلبومین/);
+});
+
+test("P148-15: دو آزمایشِ قند در محدودهٔ پیش‌دیابت ⇒ «این عددها … هستند»", () => {
+  const f = byId(run([T("FBS", "110", "mg/dL"), T("2hpp", "150", "mg/dL")], { age: 40, sex: "M" }).p, "glycemia");
+  assert.match(f.must_say, /این عددها در محدودهٔ «پیش‌دیابت» هستند/);
+});

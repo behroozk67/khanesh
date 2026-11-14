@@ -20,13 +20,16 @@ const TSH_SUPPRESSED = 0.1;
 //   (WBC) count with differential, and a liver profile including bilirubin and transaminases.» ۱۶: «A differential WBC count should be
 //   obtained during febrile illness and at the onset of pharyngitis in all patients taking antithyroid medication.»
 // جملهٔ پایه فقط وقتی گلبولِ سفید یا آنزیمِ کبد روی همین برگه غیرطبیعی است. بیرونِ قاعده تا کلیدها در RULE_READS نیایند (N56).
-const ATD_FEVER_WARNING = "اگر بعد از شروعِ داروی ضدتیروئید (مثل متی‌مازول) تب یا گلودرد گرفتید، همان روز شمارشِ خون با شمارشِ افتراقی بدهید.";
+// بازبینیِ advisor: در بارداری (به‌ویژه سه‌ماههٔ اول) PTU ترجیح دارد ⇒ مثالِ «متی‌مازول» حذف می‌شود.
+const atdExample = (e) => (e?.context?.pregnant || e?.pregnant ? "" : " (مثل متی‌مازول)");
+const atdFeverWarning = (e) => `اگر بعد از شروعِ داروی ضدتیروئید${atdExample(e)} تب یا گلودرد گرفتید، همان روز شمارشِ خون با شمارشِ افتراقی بدهید.`;
 function atdBaselineSentence(e) {
+  if (!overtThyrotoxicosis(e)) return "";   // N58: نه کم‌کاریِ ثبت‌شده، نه زمینهٔ سرطانِ تیروئید
   const f = (k) => e.graded.find((g) => g.test === k);
   const lo = (x) => x?.abnormal && x.dir === "low", hi = (x) => x?.abnormal && x.dir === "high";
   const parts = [(lo(f("WBC")) || lo(f("NEUT_ABS"))) && "شمارشِ گلبول سفید", (hi(f("ALT")) || hi(f("AST"))) && "آنزیم‌های کبد"].filter(Boolean);
   if (!parts.length) return "";
-  return ` اگر قرار است داروی ضدتیروئید (مثل متی‌مازول) شروع کنید، این ${parts.join(" و ")} را به پزشک نشان دهید؛ این داروها به‌ندرت روی ${parts.length > 1 ? "هر دو" : "آن"} اثر می‌گذارند و عددِ پیش از درمان مبنای مقایسه است.`;
+  return ` اگر قرار است داروی ضدتیروئید${atdExample(e)} شروع کنید، این ${parts.join(" و ")} را به پزشک نشان دهید؛ این داروها به‌ندرت روی ${parts.length > 1 ? "هر دو" : "آن"} اثر می‌گذارند و عددِ پیش از درمان مبنای مقایسه است.`;
 }
 
 // ── P49-ب (تأییدِ عاملی ۲۰۲۶-۱۰-۰۳، نه بازبینِ انسانی): MMAِ بالا کنارِ B12ِ پایین/مرزی شاهدِ کمبودِ بافتی است ──
@@ -372,7 +375,7 @@ export const RULES_ENDOCRINE_RHEUM = [
                 "اگر تپش قلب شدید یا نامنظم، تنگی نفس یا درد سینه دارید، زودتر مراجعه کنید.",
                 "اگر تب بالا همراه ضربان قلب بسیار تند و بی‌قراری یا گیجی شدید پیدا کردید، فوراً به اورژانس بروید (می‌تواند نشانهٔ «طوفان تیروئیدی»، یک وضعیت اورژانسی، باشد).",
                 // P148 (ATA 2016 توصیهٔ ۱۶): شمارشِ افتراقی در تب/گلودرد در هر بیمارِ تحتِ داروی ضدتیروئید.
-                ...(known ? [] : [ATD_FEVER_WARNING]),
+                ...(overtThyrotoxicosis(e) ? [atdFeverWarning(e)] : []),
               ]
             : [],
           key_number: tsh.value,
@@ -744,6 +747,17 @@ function thyroidCancerContext(e) {
 // کم‌کاریِ تیروئیدِ ثبت‌شده (ACTIVE_CONDITIONS). گزینه «بیماری» را ثبت می‌کند نه «دارو»، پس هر جمله شرطی است.
 function knownHypothyroid(e) {
   return !!e.conditions?.includes("hypothyroid");
+}
+
+// P148: پرکاریِ آشکارِ تیروئید روی همین برگه — TSH پایین و FT4 یا FT3 بالا (جهت از graded.dir، N12). زمینهٔ کبد/کلسیم/WBC/قند/MCV.
+//   ⚠️ گاردِ N58 (بازبینیِ advisor): کم‌کاریِ ثبت‌شده (لووتیروکسینِ زیاد) و زمینهٔ سرطانِ تیروئید (سرکوبِ عمدیِ TSH) «پرکاریِ گریوزی»
+//   نیستند؛ متنِ «به‌ویژه بیماری گریوز» و «پس از کنترلِ تیروئید» آن‌جا غلط است. کلیدها بیرونِ منبعِ قاعده‌ها (RULE_READS، N56).
+export function overtThyrotoxicosis(e) {
+  if (knownHypothyroid(e) || thyroidCancerContext(e)) return false;
+  const g = (k) => e?.graded?.find((x) => x.test === k);
+  const tsh = g("TSH");
+  if (!(tsh?.abnormal && tsh.dir === "low")) return false;
+  return ["FT4", "FT3"].some((k) => { const x = g(k); return x?.abnormal === true && x.dir === "high"; });
 }
 
 // C1: TSHِ پایین در کم‌کاریِ ثبت‌شده. FT4 سه‌حالته (بالا / در محدوده / روی برگه نیست).

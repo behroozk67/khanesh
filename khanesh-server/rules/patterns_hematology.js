@@ -1,7 +1,8 @@
 import { isthDdimerPoints, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, isthScore, ISTH_OVERT_FROM, ISTH_DDIMER_MODERATE_NGML, ISTH_PLT_1, ISTH_PLT_2, anemiaCrisisOwns, actionUnlessAnemiaCrisis as actionUnlessAnemiaCrisisBase, urineBiliSentence, crisisArm, ferritinBelowIdCut, ferritinIdCut, isPedAge, ironLowForAcd, hba2State, hba2Measured, hba2Clause, ferritinMicroClause, mayMenstruate, stfrIndex, stfrIndexHigh, STFR_INDEX_ID_ABOVE, zppState, ZPP_HIGH_ABOVE, hbVariantState, HB_VARIANT_FA, macroMcvCut, microMcvCut, hctRecord } from "./patterns_utils.js";
 // P117: فهرستِ بستهٔ رنگِ سیاه از یک منبع (stool.js) — قاعدهٔ ملنا و رنگِ مدفوع یک واژگان دارند.
 import { STOOL_BLACK_RE } from "./stool.js";
-import { overtThyrotoxicosis, THYROTOX_RECHECK_FA } from "./patterns_utils.js";
+import { THYROTOX_RECHECK_FA, absQuoteFa } from "./patterns_utils.js";
+import { overtThyrotoxicosis } from "./patterns_endocrine_rheum.js";
 // ═══ P148 (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴؛ ATA 2016: «low WBC counts are common in patients with GD») ═══
 // WBC ≥ ۳ کنارِ پرکاریِ آشکار و نوتروفیلِ مطلقِ ≥ ۱۵۰۰ (یا ناسنجیده) ⇒ جملهٔ «مغز استخوان» جایش را به توضیحِ پرکاری می‌دهد.
 //   ۳ و ۱۵۰۰ پیشنهادِ همین تصمیم‌اند (ATA فقط ANC < ۱۰۰۰ را مرزِ «تجدیدنظر در شروعِ دارو» می‌داند). بیرونِ build (RULE_READS، N56).
@@ -11,6 +12,8 @@ const THYRO_WBC_MIN = 3, THYRO_ANC_MIN = 1500;
 //   FOBT فقط از ۴۵ سالگی (موتور ورودیِ علامتِ گوارشی ندارد؛ جملهٔ علامت در action می‌آید). مرزهای ۱۶/۴۵/۵۰ پیشنهادِ همین تصمیم‌اند.
 const IDA_WOMAN_MIN_AGE = 16, IDA_WOMAN_MAX_AGE = 50, IDA_FOBT_MIN_AGE = 45;
 function idaYoungWoman(e) {
+  // بازبینیِ advisor: در بارداریِ اعلام‌شده «خونریزیِ ماهانه» و «قاعدگیِ پرحجم» غلط است ⇒ متنِ قبلی (همان گاردِ liverBorderline).
+  if (e?.context?.pregnant || e?.pregnant) return false;
   return e?.sex === "F" && typeof e.age === "number" && e.age >= IDA_WOMAN_MIN_AGE && e.age <= IDA_WOMAN_MAX_AGE;
 }
 function idaWomanSentence(e, { mentzerKnown, a2Measured, ferritinKnown }) {
@@ -26,8 +29,13 @@ function wbcThyroSentence(e) {
   const w = e.graded.find((g) => g.test === "WBC"), n = e.graded.find((g) => g.test === "NEUT_ABS");
   if (!(w?.value >= THYRO_WBC_MIN)) return null;
   if (n && !(n.value >= THYRO_ANC_MIN)) return null;
+  // بازبینیِ advisor: ANCِ ۱۵۰۰ تا کفِ بازه «پایین» درجه می‌خورد و neutLowClause خودش می‌گوید ⇒ این‌جا «طبیعی» گفته نمی‌شود (N12)؛
+  //   درصدِ چاپ‌شده با absQuoteFa (N5)؛ ANCِ ناسنجیده به‌خاطرِ دیفِ ناقص «روی برگه نیست» نیست (N4) — مالکش neutrophil_count_missing است.
+  const nClause = n
+    ? (n.abnormal ? "" : `${absQuoteFa(e, "NEUT_ABS", "نوتروفیل (مهم‌ترین گلبولِ ضدِعفونت)", n, false)} و در محدودهٔ طبیعی است. `)
+    : e.ungraded?.NEUT_ABS ? "" : "شمارشِ افتراقی (نوتروفیل‌ها) روی این برگه نیست و باید سنجیده شود. ";
   return "گلبول سفید دفاع بدن در برابر عفونت است. در پرکاری تیروئید (که روی همین برگه هست)، به‌ویژه بیماری گریوز، کاهشِ خفیفِ گلبول سفید شایع و معمولاً بی‌خطر است. " +
-    (n ? `نوتروفیل‌ها (مهم‌ترین گلبول‌های ضدِعفونت) ${n.value} و در محدودهٔ طبیعی‌اند. ` : "شمارشِ افتراقی (نوتروفیل‌ها) روی این برگه نیست و باید سنجیده شود. ") +
+    nClause +
     `این آزمایش ${THYROTOX_RECHECK_FA}.`;
 }
 import { anemiaInflammationFa, anemiaInflammationSuggest, rbcMorphOf, bandNeutDiscordance, anemiaSeverityFa, infantAnemiaNoGrade, levelGrade, ungradedFa, MCHC_PLAUSIBLE_GDL, MCH_PLAUSIBLE_PG } from "./patterns_utils.js";

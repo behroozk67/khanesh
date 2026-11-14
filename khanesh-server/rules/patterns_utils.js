@@ -1599,11 +1599,5 @@ export function rbcMorphOf(e, kind) {
 // ═══ P148 (برگهٔ گریوز، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴؛ ATA 2016 توصیهٔ ۱۵ و «Technical remarks»ِ آن) ═══
 // پرکاریِ آشکارِ تیروئید روی همین برگه: TSH پایین و FT4 یا FT3 بالا (جهت از graded.dir، N12). ATA: «low WBC counts are common in
 //   patients with GD … abnormal liver enzymes are frequently seen in patients with thyrotoxicosis»، و ALPِ بالا در پرکاری استخوانی است.
-//   کلیدها عمداً این‌جا خوانده می‌شوند، بیرونِ منبعِ قاعده‌ها (RULE_READS پوششِ تور را عوض نکند — N56).
-export function overtThyrotoxicosis(e) {
-  const g = (k) => e?.graded?.find((x) => x.test === k);
-  const tsh = g("TSH");
-  if (!(tsh?.abnormal && tsh.dir === "low")) return false;
-  return ["FT4", "FT3"].some((k) => { const x = g(k); return x?.abnormal === true && x.dir === "high"; });
-}
+//   تابع در patterns_endocrine_rheum.js است (کنارِ knownHypothyroid و thyroidCancerContext که گاردش‌اند).
 export const THYROTOX_RECHECK_FA = "پس از کنترلِ تیروئید تکرار شود";
