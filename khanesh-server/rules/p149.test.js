@@ -93,3 +93,19 @@ test("P149-8: «… پس از چند هفته کافی است» زیرِ دست�
   assert.doesNotMatch(rec("soon", "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید."), /چند هفته/);
   assert.match(rec("this_week", "این هفته با پزشک وقت بگیرید."), /چند هفته کافی/);
 });
+
+test("P149-9: گلومرولونفریت (تنها مالکِ کراتینین و ادرار وقتی kidney و urine_cast_rbc کنار می‌روند) عددها را می‌گوید (N52)", () => {
+  const { p, recs } = run(SLE);
+  const gn = byId(p, "glomerulonephritis_pattern");
+  for (const s of [gn.must_say, gn.brief]) {
+    assert.match(s, /کراتینین 1\.45/);
+    assert.match(s, /پروتئین «3\+»/);
+    assert.match(s, /«25-30»/);
+  }
+  assert.ok(recs.some((r) => /الکترولیت/.test(r)), recs.join("\n"));
+});
+
+test("P149-10: «ANA (EIA) Positive» دیگر بی‌صدا دور ریخته نمی‌شود", () => {
+  const { p } = run([T("ANA (EIA)", "Positive", null, "Negative")], { age: 30, sex: "F" });
+  assert.match(byId(p, "ana_family_result")?.must_say ?? "", /مثبت/);
+});

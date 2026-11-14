@@ -86,6 +86,16 @@ function esteraseWithoutCellsFires(e) {
 export { utiFires, bacteriuriaFires, bacteriaSignificant, esteraseWithoutCellsFires };
 // urine_rows.js همین ثابت‌ها را می‌خواند تا ردیفِ فهرست با قاعدهٔ متن یک آستانه داشته باشد.
 export { LE_RE, NIT_RE, WBC_RE, BLOOD_RE, RBC_RE, URINE_RBC_UPPER_HPF, URINE_WBC_UPPER_HPF };
+// P149: مقدارهای چاپ‌شدهٔ ادرار برای متنِ گلومرولونفریت (عینِ برگه، N5). ردیفِ سیلندر («RBC Cast») گلبولِ قرمزِ آزاد نیست.
+function gnUrineFa(e) {
+  const nk = (s) => String(s).toLowerCase().replace(/[\s.\-_()/%#:]/g, "");
+  const find = (re, not) => Object.entries(e.qual ?? {}).find(([k]) => re.test(nk(k)) && !(not && not.test(nk(k))))?.[1];
+  const prot = find(/^(urine)?protein|^uprotein|proteinuria|پروتئین/, /creatinine|ratio/);
+  const blood = find(/urineblood|urblood|خونادرار|hematuria/);
+  const rbc = find(/rbc|گلبولقرمز/, /cast|سیلندر|blood/);
+  return [prot && `پروتئین «${String(prot).trim()}»`, blood && `خون «${String(blood).trim()}»`, rbc && `گلبولِ قرمز «${String(rbc).trim()}» در هر میدانِ میکروسکوپ`]
+    .filter(Boolean).join("، ");
+}
 
 // «کلیه در حدِ اورژانس»: CTCAE درجهٔ ≥ ۳ کراتینین. هم `kidney.build` (urgency/blocks_others) و هم `kidney.match`
 //   (واگذاری به glomerulonephritis_pattern) از همین یک تعریف می‌خوانند — کپیِ شرط در دو جا همان N20 است.
@@ -800,6 +810,7 @@ const RULES_NEPHROLOGY_B = [
 
   // ═══════════ الگوی گلومرولونفریت (کیس Geraldine) ═══════════
   // هماچوری + پروتئینوری + (کراتینین بالا یا کم‌خونی) با هم.
+  // P149 (N52/N59): با فعال شدنِ این یافته kidney و urine_cast_rbc کنار می‌روند؛ پس عددِ کراتینین و مقدارهای ادرار باید همین‌جا گفته شوند.
   {
     id: "glomerulonephritis_pattern",
     match: (e) => isGlomerulonephritis(e),
@@ -815,17 +826,19 @@ const RULES_NEPHROLOGY_B = [
       //   «progression to kidney failure within weeks to months»، «Initiate treatment early»): با سیلندرِ گلبولِ قرمز و کراتینینِ بالا
       //   ۲۴–۴۸ ساعت. یک عددِ کراتینین حاد بودن را نشان نمی‌دهد؛ زمان‌بندی تصمیمِ کاربر است، نه عددِ منبع.
       const soon = rbcCast && crHigh;
+      const crFa = crHigh ? `کراتینین ${cr.value}${cr.range ? ` (حد طبیعی ${cr.range})` : ""}` : null;
+      const uFa = gnUrineFa(e);
       return {
         pattern: "glomerulonephritis_pattern",
         urgency: soon ? "soon" : "this_week",
         keep_under_blocker: true,   // P147-۲: علتِ احتمالیِ یافتهٔ فوری‌تر، زیرِ آن کامل می‌ماند
         // N18 (لایهٔ ۲): زیرِ اورژانسِ kidney (Cr ≥ ۴) این یافته کاملاً پنهان می‌شد و بیمار هیچ‌جا نمی‌شنید که ادرارش خون و پروتئین دارد.
         always_show: true,
-        brief: "همچنین در ادرارِ شما هم خون و هم پروتئین دیده می‌شود؛ این ترکیب کنارِ بالا بودنِ کراتینین می‌تواند به التهابِ کلیه (گلومرولونفریت) اشاره کند و پزشک باید آن‌ها را با هم ببیند." + ureaRows,
+        brief: `همچنین در ادرارِ شما هم خون و هم پروتئین دیده می‌شود${uFa ? ` (${uFa})` : ""}؛ این ترکیب کنارِ ${crFa ? `${crFa} ` : "بالا بودنِ کراتینین "}می‌تواند به التهابِ کلیه (گلومرولونفریت) اشاره کند و پزشک باید آن‌ها را با هم ببیند.` + ureaRows,
         headline: "ترکیب نتایج ادرار و خون شما به یک التهاب کلیه اشاره دارد",
         must_say:
-          "هم خون و هم پروتئین در ادرار دیده می‌شود" +
-          (crHigh ? " و شاخص کار کلیه هم بالاست" : "") +
+          "هم خون و هم پروتئین در ادرار دیده می‌شود" + (uFa ? ` (${uFa})` : "") +
+          (crHigh ? ` و شاخص کار کلیه هم بالاست — ${crFa}` : "") +
           ". این ترکیب می‌تواند نشانه‌ی نوعی التهاب در کلیه (گلومرولونفریت) باشد که باید حتماً و به‌زودی بررسی شود." +
           ureaRows +
           (rbcCast
@@ -837,7 +850,7 @@ const RULES_NEPHROLOGY_B = [
           : "این هفته با پزشک مطرح کنید. این برگه را همراه ببرید. اگر ورم، کاهش ادرار یا فشار خون بالا دارید، زودتر مراجعه کنید.",
         // بررسیِ سیلندر روی این برگه انجام شده (هر ردیفِ سیلندری، حتی منفی) ⇒ درخواستِ دوباره‌اش همان
         // کلاسِ N8 است: «آزمایشی که روی برگه هست».
-        suggest: ["بررسی توسط پزشک (احتمالاً نفرولوژی)", "عملکرد کلیه",
+        suggest: ["بررسی توسط پزشک (احتمالاً نفرولوژی)", "عملکرد کلیه", ...(crHigh ? ["الکترولیت‌ها"] : []),   // P149: پیش‌تر از kidney
           ...(cast.read.length ? [] : ["آزمایش کامل ادرار با بررسی کست"])],
         warnings: [],
       };
