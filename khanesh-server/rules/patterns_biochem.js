@@ -110,7 +110,9 @@ function cirrhosisFires(e) {
   // ⚠️ عمداً albLowMarker و نه `abnormal && dir === "low"`: این قاعده با
   //    حدِ پایینِ ۳.۵ نوشته شده بود و وقتی بازهٔ مرجع به هنری (۳.۹) رفت،
   //    بی‌سروصدا شل شد. رجوع به توضیحِ ALB_LOW_MARKER_GDL در patterns_utils.js.
-  const albLow = albLowMarker(e);
+  // P147-۷ (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): وقتی پروتئینوریِ شدید آلبومینِ پایین را توضیح می‌دهد (nephrotic_pattern)، آلبومین نشانهٔ کبد
+  //   شمرده نمی‌شود — برگهٔ لوپوس (آلبومین از ادرار، پلاکت از پان‌سیتوپنی، بیلی‌روبین از همولیز) «بیماری مزمن کبد» می‌گرفت.
+  const albLow = albLowMarker(e) && !isNephrotic(e);
   const plt = e.graded.find((g) => g.test === "PLT");
   const pltLow = plt?.abnormal && plt.dir === "low";
   const bili = e.graded.find((x) => x.test === "BILI_T");

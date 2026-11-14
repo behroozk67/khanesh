@@ -23,7 +23,7 @@
 import { autoAbState } from "./serology.js";
 import { faName } from "./names.js";
 import { parseReference } from "./units.js";
-import { canBePregnant } from "./patterns_utils.js";
+import { canBePregnant, isGlomerulonephritis, microMcvCut } from "./patterns_utils.js";
 
 const ACTION = {
   routine: "در نوبتِ عادی با پزشک مطرح کنید.",
@@ -176,6 +176,7 @@ function anaBuild(e, { pregnant }) {
   return {
     pattern: "ana_family_result",
     urgency, action: ACTION[urgency],
+    ...(anaPos || specificPos ? { keep_under_blocker: true } : {}),   // P147-۲
     headline: specificPos
       ? "آنتی‌بادی‌های اختصاصیِ هسته‌ای (anti-dsDNA / Sm / RNP / Ro / La) در آزمایش شما مثبت یا بالاتر از مرز است"
       : anaPos ? "آزمایش ANA شما مثبت است"
@@ -355,6 +356,7 @@ function complementBuild(e) {
   const urgency = urgencyOf(low);
   return {
     pattern: "complement_result", urgency, action: ACTION[urgency],
+    ...(c34Low ? { keep_under_blocker: true } : {}),   // P147-۲
     headline: c34Low ? "کمپلمان C3 یا C4 شما پایین‌تر از محدودهٔ چاپ‌شده است" : ch50Low ? "فعالیتِ کلِ کمپلمان (CH50) شما پایین‌تر از محدودهٔ چاپ‌شده است" : present(ch50) && !items.length ? "نتیجهٔ کمپلمانِ کل (CH50) شما" : "نتیجهٔ کمپلمان (C3 / C4) شما",
     must_say: parts.join(" "),
     suggest: [], warnings: low ? [CAUTION_DRUG] : [],
@@ -989,6 +991,49 @@ function isletBuild(e) {
 }
 
 const ctx = (e) => ({ pregnant: e.pregnant === true });
+// ═══════════ P147-۴ اتصالِ لوپوس (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴) ═══════════
+// منبع (خوانده‌شده ۲۰۲۶-۱۱-۱۴، Merck Professional، SLE): «Serum complement levels (C3, C4) are often depressed in active disease and
+//   are usually lowest in patients with active nephritis»؛ «Red blood cell (RBC) and/or white blood cell casts suggest active nephritis»؛
+//   «Hematologic manifestations include anemia (… autoimmune hemolytic anemia), leukopenia …, and thrombocytopenia»؛ کومبسِ مستقیم در
+//   تعریفِ همولیزِ خودایمنیِ معیار؛ «Proteinuria can be estimated by the urine protein/creatinine ratio».
+// هر یافته جدا حرف می‌زد و هیچ‌جا گفته نمی‌شد این‌ها با هم یک تصویرند. فوریتِ تازه نمی‌سازد (this_week، زیرِ اجزای خودش)، تشخیص نمی‌گذارد.
+// ⚠️ شرط در کمکیِ بیرونِ قاعده است: RULE_READS کلیدهای نام‌برده در متنِ match/build را «پوشش‌داده» می‌شمارد و این یافته عددِ
+//   شمارشِ خون/کراتینین را نقل نمی‌کند (آن‌ها مالِ یافته‌های خودشان‌اند).
+function lupusLinkState(e) {
+  const st = stateOf(e, ["ANA", "ANTI_DSDNA", "ANTI_SM"]);
+  const c3 = autoAbState(e, "C3"), c4 = autoAbState(e, "C4");
+  const serology = isPos(st.ANA) && (isPos(st.ANTI_DSDNA) || isPos(st.ANTI_SM) || c3.state === "below" || c4.state === "below");
+  if (!serology) return null;
+  const low = (k) => { const g = e.graded.find((x) => x.test === k); return !!(g?.abnormal && g.dir === "low"); };
+  const kidney = isGlomerulonephritis(e);
+  // کم‌خونیِ میکروسیتیک (الگوی کمبودِ آهن) «درگیریِ خونیِ لوپوس» شمرده نمی‌شود؛ رده‌های دیگر هر کدام کافی‌اند.
+  const microcytic = (() => { const m = e.graded.find((x) => x.test === "MCV"); return !!(m && m.value < microMcvCut(e)); })();
+  const blood = ["HGB", "WBC", "PLT", "LYMPH_ABS"].filter((k) => low(k) && !(k === "HGB" && microcytic));
+  if (!kidney && !blood.length) return null;
+  return { kidney, anemia: blood.includes("HGB"), blood: blood.length > 0, comp: c3.state === "below" || c4.state === "below", ds: isPos(st.ANTI_DSDNA) || isPos(st.ANTI_SM) };
+}
+function lupusLinkBuild(e) {
+  const s = lupusLinkState(e);
+  const sero = ["ANA مثبت", s.ds ? "آنتی‌بادیِ اختصاصی‌ترِ مثبت (anti-dsDNA یا anti-Sm)" : null, s.comp ? "کمپلمانِ پایین" : null].filter(Boolean);
+  const organ = [s.kidney ? "نشانه‌های التهابِ کلیه در ادرار و خون" : null, s.blood ? "کاهشِ رده‌های خون" : null].filter(Boolean);
+  return {
+    pattern: "lupus_activity_link",
+    urgency: "this_week", action: ACTION.this_week,
+    keep_under_blocker: true,
+    headline: "چند یافتهٔ این برگه با هم به یک بیماریِ خودایمنی اشاره دارند",
+    must_say:
+      `روی همین برگه ${sero.join("، ")} کنارِ ${organ.join(" و ")} دیده می‌شود. ` +
+      "این یافته‌ها با هم در فعالیتِ بیماری‌های خودایمنی مثل لوپوس دیده می‌شوند؛ این تشخیص نیست و پزشک باید آن‌ها را با هم ببیند" +
+      (s.kidney ? "، به‌ویژه درگیریِ کلیه که درمانِ زودهنگام را مهم می‌کند." : "."),
+    suggest: [
+      "بررسی توسط متخصص روماتولوژی",
+      ...(s.kidney ? ["بررسی توسط پزشک (احتمالاً نفرولوژی)", "نسبت پروتئین به کراتینین ادرار"] : []),
+      ...(s.anemia ? ["تست کومبس"] : []),
+    ],
+    warnings: [CAUTION_DRUG],
+  };
+}
+
 export const RULES_AUTOIMMUNE = [
   { id: "islet_autoantibody_result", match: (e) => anyPresent(stateOf(e, ISLET_IDS)), build: isletBuild },
   { id: "ana_family_result", match: (e) => anyPresent(stateOf(e, ANA_IDS)), build: (e) => anaBuild(e, ctx(e)) },
@@ -996,6 +1041,7 @@ export const RULES_AUTOIMMUNE = [
   { id: "hla_b27_result", match: (e) => autoAbState(e, "HLA_B27").state !== "absent", build: b27Build },
   { id: "anti_ccp_result", match: (e) => autoAbState(e, "ANTI_CCP").state !== "absent", build: ccpBuild },
   { id: "complement_result", match: (e) => ["C3", "C4", "CH50"].some((id) => autoAbState(e, id).state !== "absent"), build: complementBuild },
+  { id: "lupus_activity_link", match: (e) => !!lupusLinkState(e), build: lupusLinkBuild },   // P147-۴
   { id: "ssc_antibody_result", match: (e) => anyPresent(stateOf(e, SSC_IDS)), build: sscBuild },
   { id: "myositis_antibody_result", match: (e) => autoAbState(e, "JO1").state !== "absent", build: jo1Build },
   { id: "antiphospholipid_result", match: (e) => anyPresent(stateOf(e, APL_IDS)), build: aplBuild },

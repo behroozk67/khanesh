@@ -111,6 +111,9 @@ const FREEZE = {
   // بازپایهٔ عمدی (P96، ۲۰۲۶-۱۰-۰۶، تصمیمِ بازبین): lis_serum (Ca بی‌واحدِ ۹٫۱ ⇒ فقط mg/dL ⇒ سنجیده، دیگر «واحد نامعلوم» نمی‌گیرد؛ Mg و P هنوز نامعلوم) و neonate
   //   (بیلی‌روبینِ ۱۲ برای نوزادِ زیرِ یک ماه ⇒ فقط mg/dL ⇒ با بازهٔ نوزادی سنجیده می‌شود). ۹ پنلِ دیگر بایت‌به‌بایت همان‌اند (اثبات: اسکریپتِ مقایسهٔ هش).
   //   هش‌های قبلی: lis_serum 48f0eca26cde3f82، neonate b2f1145f953500bd.
+  // بازپایهٔ عمدی (P147-۵، fdiff147): fluid_bare — LDH 306ِ بی‌بازه با سقفِ ۴۷۰ طبیعی است ⇒ isolated_ldh_elevation حذف شد، چیزِ دیگری نه (قبلی 8531fb546310bbb6).
+  // بازپایهٔ عمدی (P147-۵، fdiff147): سقفِ پیش‌فرضِ LDH ۴۷۰ ⇒ ۲×ULN = ۹۴۰ ⇒ lis_ldh (۸۶۴، بی‌بازه) دوباره routine؛ فقط urgency، action و
+  //   overall عوض شد. قبلی cb6e1b255fd08014.
   // بازپایهٔ عمدی (P96، بند ۳): lis_ldh (LDH ۸۶۴ ≥ ۲×ULN ⇒ this_week). اثبات: diff کاملِ خروجی روی درختِ پیش از P96 فقط سه مسیر را عوض می‌کند:
   //   findings[0].urgency (routine ⇒ this_week)، findings[0].action، findings[0].raisedByP96 (پرچمِ تازه)، overall_urgency. هش‌های قبلی lis_ldh: 23dec6ae7a15b4c3.
   // بازپایهٔ عمدی (باگِ ۴، LIS ۲۰۲۶-۱۰-۰۵): در thyroid، lis_ldh، lis_serum، fluid_bare و neonate فقط فیلدِ brief/brief_warnings ِ
@@ -128,9 +131,9 @@ const FREEZE = {
   thyroid: [{ sex: "F", age: 35 }, [row("TSH", "8.2"), row("FT4", "0.9")], "65124dcbce4bc75f"], /* P144 US6 عمدی: فقط رشتهٔ بازهٔ TSH (۰٫۵ ⇒ ۰٫۴)؛ قبلی 5fa44e1713a9ec1d */
   urinalysis: [{ sex: "F", age: 28 }, [row("Urine Protein", "+1"), row("Nitrite", "Positive"), row("WBC", "10-12", "/hpf"), row("RBC", "2-3", "/hpf")], "3f28e6213d7b156b"],
   coag: [{ sex: "M", age: 60 }, [row("PT", "19"), row("PTT", "42"), row("PT INR", "1.7")], "a706a5fd28501c0e"] /* specs/022 P134-G5 عمدی؛ با خاموش‌کردنِ coagPlainClause همان 6583cf22c1f12265 */,
-  lis_ldh: [{ sex: "F", age: 32 }, [row("AST", "35"), row("ALT", "26"), row("LDH", "864"), row("T. Bilirubin(Clot)", "0.41"), row("Direct Bili.", "0.1")], "cb6e1b255fd08014"],
+  lis_ldh: [{ sex: "F", age: 32 }, [row("AST", "35"), row("ALT", "26"), row("LDH", "864"), row("T. Bilirubin(Clot)", "0.41"), row("Direct Bili.", "0.1")], "98b111f56e7fad18"],
   lis_serum: [{ sex: "F", age: 40 }, [row("Serum Ca", "9.1"), row("serum Mg", "2"), row("serum p", "4"), row("Serum Protein", "7")], "9159183844ddacfe"],
-  fluid_bare: [{ sex: "F", age: 46 }, [row("Glucose", "122"), row("LDH", "306"), row("Total Protein", "6.6")], "8531fb546310bbb6"],
+  fluid_bare: [{ sex: "F", age: 46 }, [row("Glucose", "122"), row("LDH", "306"), row("Total Protein", "6.6")], "2b856aad0ac0e6c6"],
   // بازپایهٔ عمدی (P104، ۲۰۲۶-۱۰-۱۳): بیلی‌روبینِ ۱۲ِ نوزادِ < ۱۴ روز دیگر «طبیعی» graded نیست ⇒ ungraded (neonatal_hour_chart) +
   //   یافتهٔ neonatal_bilirubin_hour_chart (soon). اثبات: با غیرفعال‌کردنِ همان شاخه در adapter همان 3f4ef5adc6e6c72b ِ قبلی به دست آمد
   //   و diff ِ خروجیِ کامل فقط همین دو تغییر بود.

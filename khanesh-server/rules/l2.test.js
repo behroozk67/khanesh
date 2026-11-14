@@ -384,8 +384,12 @@ test("M351: پیشنهادِ آزمایشی که روی همین برگه هست
 test("M352: MDS — با Hb 8 · MCV 108 · PLT 60 در ۷۰ سالگی فقط یک یافتهٔ «شک به MDS» می‌آید؛ زیر ۶۰ سال و MCV > 102 هنوز anemia_macrocytic_mds", () => {
   const old = run([row("Hb", "8", "g/dL"), row("MCV", "108", "fL"), row("PLT", "60", "10^3/uL")], { age: 70, sex: "M" });
   assert.ok(ids(old).includes("mds_suspicion") && !ids(old).includes("anemia_macrocytic_mds"), ids(old).join());
+  // ⚠️ عمداً عوض شد (P147-۶، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): anemia_macrocytic_mds زیرِ ۵۰ سال فعال نمی‌شود؛ ۵۵ سالگی (زیرِ ۶۰ِ mds_suspicion) همان رفتار.
+  const mid = run([row("Hb", "8", "g/dL"), row("MCV", "108", "fL"), row("PLT", "60", "10^3/uL")], { age: 55, sex: "M" });
+  assert.ok(ids(mid).includes("anemia_macrocytic_mds") && !ids(mid).includes("mds_suspicion"), ids(mid).join());
   const young = run([row("Hb", "8", "g/dL"), row("MCV", "108", "fL"), row("PLT", "60", "10^3/uL")], { age: 40, sex: "M" });
-  assert.ok(ids(young).includes("anemia_macrocytic_mds") && !ids(young).includes("mds_suspicion"), ids(young).join());
+  assert.ok(!ids(young).includes("anemia_macrocytic_mds") && !ids(young).includes("mds_suspicion"), ids(young).join());
+  assert.ok(ids(young).includes("macrocytic_anemia") && ids(young).includes("thrombocytopenia") && !ids(young).includes("unexplained_abnormal"), ids(young).join());
   // کاهش نوتروفیل هنوز توضیح دارد (RULE_READS)
   const neut = run([row("Hb", "8", "g/dL"), row("MCV", "108", "fL"), row("PLT", "60", "10^3/uL"), row("NEUT#", "1.2", "10^3/uL"), row("WBC", "5", "10^3/uL")], { age: 70, sex: "M" });
   assert.ok(!ids(neut).includes("unexplained_abnormal"), ids(neut).join());

@@ -70,14 +70,15 @@ test("P96-۲: INRِ تنها و خفیف (≤ ۱٫۲) با aPTT طبیعی ⇒ r
 test("P96-۳: LDHِ تنها routine است فقط وقتی < ۲×ULN، CBC غیرطبیعی نیست، بیلی‌روبین بالا نیست، شبهِ همولیز نیست؛ کودک: ULN از بازهٔ چاپ‌شده", () => {
   const cbc = [row("Hb", "14", "g/dL"), row("Platelet", "250")];
   const ldh = (tests, patient = { sex: "F", age: 34 }) => find(run(tests, patient).p, "isolated_ldh_elevation");
-  assert.equal(ldh([row("LDH", "450"), ...cbc]).urgency, "routine");
-  assert.equal(ldh([row("LDH", "600"), ...cbc]).urgency, "this_week", "≥ ۲×ULN (۲۵۰)");
-  assert.equal(ldh([row("LDH", "450"), row("Hb", "9", "g/dL"), row("Platelet", "250")]).urgency, "this_week", "Hbِ پایین");
-  assert.equal(ldh([row("LDH", "450"), row("Hb", "14", "g/dL"), row("Platelet", "90")]).urgency, "this_week", "پلاکتِ پایین");
-  assert.equal(ldh([row("LDH", "450"), row("T.Bili", "3", "mg/dL"), ...cbc]).urgency, "this_week", "بیلی‌روبینِ بالا");
-  assert.equal(ldh([row("LDH", "450"), row("AST", "80"), row("ALT", "20"), ...cbc]).urgency, "this_week", "LDH+AST بالا با ALTِ طبیعی ⇒ شبهِ همولیز");
+  // P147-۵: سقفِ پیش‌فرض ۲۵۰ ⇒ ۴۷۰ (کیت‌های DGKCِ ایران)؛ «LDHِ بالا» ۶۰۰ است و ۲×ULN = ۹۴۰ (بود ۴۵۰ و ۵۰۰).
+  assert.equal(ldh([row("LDH", "600"), ...cbc]).urgency, "routine");
+  assert.equal(ldh([row("LDH", "1000"), ...cbc]).urgency, "this_week", "≥ ۲×ULN (۴۷۰)");
+  assert.equal(ldh([row("LDH", "600"), row("Hb", "9", "g/dL"), row("Platelet", "250")]).urgency, "this_week", "Hbِ پایین");
+  assert.equal(ldh([row("LDH", "600"), row("Hb", "14", "g/dL"), row("Platelet", "90")]).urgency, "this_week", "پلاکتِ پایین");
+  assert.equal(ldh([row("LDH", "600"), row("T.Bili", "3", "mg/dL"), ...cbc]).urgency, "this_week", "بیلی‌روبینِ بالا");
+  assert.equal(ldh([row("LDH", "600"), row("AST", "80"), row("ALT", "20"), ...cbc]).urgency, "this_week", "LDH+AST بالا با ALTِ طبیعی ⇒ شبهِ همولیز");
   // نبودِ CBC شاهدِ غیرطبیعی نیست ⇒ مانع نمی‌شود.
-  assert.equal(ldh([row("LDH", "450")]).urgency, "routine");
+  assert.equal(ldh([row("LDH", "600")]).urgency, "routine");
   // کودک: ULN از بازهٔ چاپ‌شده. ۶۷۷ با «0-1000» (۲×=۲۰۰۰) routine؛ ۹۰۰ با «0-400» (۲×=۸۰۰) this_week.
   const kid = { sex: "M", age: 8 }, kcbc = [row("Hb", "13", "g/dL"), row("Platelet", "300")];
   assert.equal(ldh([row("LDH", "677", "", "0-1000"), ...kcbc], kid).urgency, "routine");

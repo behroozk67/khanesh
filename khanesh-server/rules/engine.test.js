@@ -3870,7 +3870,9 @@ test("M59c: B12 برابر ۱۸۰ همچنان مالِ قاعدهٔ مرزی ا
 //   • LDH=۱۸۰ در بالغ «پایین» علامت می‌خورد — ترساندن بابتِ عددِ طبیعی.
 // این تست‌ها روی کدِ پیش از اصلاح قرمز می‌شوند (N10).
 // ============================================================
-test("M60: LDH=۳۰۰ در بالغ بالاست و LDH=۱۸۰ طبیعی", () => {
+// 🔴 P147-۵ (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): سقفِ بازهٔ پیش‌فرضِ بالغ (برگهٔ بی‌بازهٔ چاپ‌شده) ۲۵۰ ⇒ ۴۷۰، هم‌خانوادهٔ کیت‌های DGKCِ ایران.
+//   ⇒ LDH=۳۰۰ بی‌بازه حالا طبیعی است؛ LDH=۵۰۰ بالا. حدِ پایین ۱۰۰ ماند، پس LDH=۱۸۰ همچنان «پایین» نمی‌شود (نیمهٔ دیگرِ P24).
+test("M60: بی‌بازهٔ چاپ‌شده — LDH=۵۰۰ در بالغ بالاست، ۳۰۰ و ۱۸۰ طبیعی (P147، کیت‌های DGKCِ ایران)", () => {
   const g = (v) => {
     const e = runEngine({
       patient: { age: "45", sex: "M" },
@@ -3878,9 +3880,10 @@ test("M60: LDH=۳۰۰ در بالغ بالاست و LDH=۱۸۰ طبیعی", () =
     });
     return e.graded.find((x) => x.test === "LDH");
   };
-  const high = g(300);
-  assert.equal(high.abnormal, true, "LDH=۳۰۰ نباید طبیعی گرفته شود");
+  const high = g(500);
+  assert.equal(high.abnormal, true, "LDH=۵۰۰ نباید طبیعی گرفته شود");
   assert.equal(high.dir, "high");
+  assert.equal(g(300).abnormal, false, "LDH=۳۰۰ با سقفِ ۴۷۰ طبیعی است");
 
   const norm = g(180);
   assert.equal(norm.abnormal, false, "LDH=۱۸۰ طبیعی است و نباید «پایین» علامت بخورد");
@@ -3924,11 +3927,12 @@ test("M60c: زیرِ یک سال با بازهٔ کودک سنجیده نمی‌
 // هاپتوگلوبینِ طبیعی) شاخهٔ ldh_muscle_not_hemolysis را دارد که به بیمار
 // می‌گوید این الگو به عضله می‌خورد نه به شکستنِ گلبول قرمز. با بازهٔ قدیمی
 // LDH=۳۰۰ طبیعی بود، پس ldhHigh غلط می‌شد و این شاخه *اصلاً دست‌نیافتنی* بود.
+// P147-۵: سقفِ پیش‌فرض ۴۷۰ شد؛ از اینجا تا M61e و در M74b/c «LDHِ بالا»ی بی‌بازه ۶۰۰ است (بود ۲۹۰/۳۰۰/۴۰۰). شکلِ هر آزمون همان است.
 test("M60d: تلهٔ عضله با LDH=۳۰۰ قابل‌دسترس می‌شود", () => {
   const e = runEngine({
     patient: { age: "45", sex: "M" },
     tests: [
-      { name: "LDH", value: "300" }, { name: "CK", value: "900" },
+      { name: "LDH", value: "600" }, { name: "CK", value: "900" },
       { name: "AST", value: "80" }, { name: "ALT", value: "30" },
       { name: "Haptoglobin", value: "150" },
     ],
@@ -3981,7 +3985,7 @@ const ldhRun = (tests, patient) =>
   runPatterns(runEngine({ patient: patient ?? { age: "45", sex: "M" }, tests }));
 
 test("M61: LDHِ بالای منفرد دیگر به «توضیح آماده نداریم» نمی‌افتد", () => {
-  const r = ldhRun([...LDH_HEALTHY, { name: "LDH", value: "300" }]);
+  const r = ldhRun([...LDH_HEALTHY, { name: "LDH", value: "600" }]);
   const ids = r.findings.map((f) => f.rule_id);
   assert.ok(ids.includes("isolated_ldh_elevation"), `فعال‌شده‌ها: ${ids.join("، ") || "هیچ"}`);
   assert.ok(!ids.includes("unmatched_abnormal"), `تورِ عمومی نباید بماند؛ ${ids.join("، ")}`);
@@ -3989,7 +3993,7 @@ test("M61: LDHِ بالای منفرد دیگر به «توضیح آماده ن�
 });
 
 test("M61b: متن، مسیرِ بازتابیِ منبع را به همان ترتیب می‌گوید", () => {
-  const f = ldhRun([...LDH_HEALTHY, { name: "LDH", value: "300" }])
+  const f = ldhRun([...LDH_HEALTHY, { name: "LDH", value: "600" }])
     .findings.find((x) => x.rule_id === "isolated_ldh_elevation");
   const say = f.must_say;
   // ۱) غیراختصاصی‌بودنِ LDH — نکتهٔ صریحِ منبع. بدونِ آن، «LDH بالا» در ذهنِ
@@ -4012,7 +4016,7 @@ test("M61b: متن، مسیرِ بازتابیِ منبع را به همان ت�
 
 test("M61c: سه‌شاخهٔ «هست / نیست» — نه ادعای طبیعی‌بودنِ تستِ نداده", () => {
   // هیچ‌کدام روی برگه نیست → هر سه درخواست می‌شوند و هیچ‌جا نمی‌گوید طبیعی‌اند.
-  const none = ldhRun([...LDH_HEALTHY, { name: "LDH", value: "300" }])
+  const none = ldhRun([...LDH_HEALTHY, { name: "LDH", value: "600" }])
     .findings.find((x) => x.rule_id === "isolated_ldh_elevation");
   assert.equal(none.suggest.length, 3, `باید هر سه درخواست شوند: ${JSON.stringify(none.suggest)}`);
   assert.ok(
@@ -4022,7 +4026,7 @@ test("M61c: سه‌شاخهٔ «هست / نیست» — نه ادعای طبیع
 
   // هر سه روی برگه و طبیعی → هیچ‌کدام دوباره «درخواست» نمی‌شود (N8).
   const all = ldhRun([
-    ...LDH_HEALTHY, { name: "LDH", value: "300" },
+    ...LDH_HEALTHY, { name: "LDH", value: "600" },
     { name: "Haptoglobin", value: "150" }, { name: "Retic", value: "1.0" },
     { name: "Total bilirubin", value: "0.8", unit: "mg/dL" }, { name: "Direct bilirubin", value: "0.2", unit: "mg/dL" },
   ]).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
@@ -4036,7 +4040,7 @@ test("M61d: هاپتوگلوبینِ طبیعی، «همولیز رد شد» ت�
   //    بالا می‌رود، پس می‌تواند افتِ ناشی از همولیزِ واقعی را بپوشاند. نبودنِ
   //    این جمله یعنی «طبیعی» به «رد شد» ترجمه می‌شود — همان کلاسِ N4.
   const f = ldhRun([
-    ...LDH_HEALTHY, { name: "LDH", value: "300" }, { name: "Haptoglobin", value: "150" },
+    ...LDH_HEALTHY, { name: "LDH", value: "600" }, { name: "Haptoglobin", value: "150" },
   ]).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
   assert.ok(/رد نمی‌کند/.test(f.must_say), `قید نبود: ${f.must_say}`);
 });
@@ -4045,14 +4049,14 @@ test("M61e: کنترلِ منفی — هرگز هم‌زمان با قاعدهٔ
   // همولیزِ واقعی: هاپتوگلوبینِ پایین + رتیکولوسیتِ بالا + LDHِ بالا.
   const real = ldhRun([
     { name: "Hemoglobin", value: "9", unit: "g/dL" }, { name: "MCV", value: "90" },
-    { name: "LDH", value: "400" }, { name: "Haptoglobin", value: "20" }, { name: "Retic", value: "8" },
+    { name: "LDH", value: "600" }, { name: "Haptoglobin", value: "20" }, { name: "Retic", value: "8" },
   ]).findings.map((x) => x.rule_id);
   assert.ok(real.includes("hemolysis_pattern"), `فعال‌شده‌ها: ${real.join("، ")}`);
   assert.ok(!real.includes("isolated_ldh_elevation"), `دو متن دربارهٔ یک عدد: ${real.join("، ")}`);
 
   // تلهٔ عضله: شاخهٔ ldh_muscle_not_hemolysis هم مالِ همان قاعده است.
   const muscle = ldhRun([
-    { name: "LDH", value: "300" }, { name: "CK", value: "900" },
+    { name: "LDH", value: "600" }, { name: "CK", value: "900" },
     { name: "AST", value: "80" }, { name: "ALT", value: "30" }, { name: "Haptoglobin", value: "150" },
   ]).findings.map((x) => x.rule_id);
   assert.ok(muscle.includes("hemolysis_pattern"), `فعال‌شده‌ها: ${muscle.join("، ")}`);
@@ -4482,8 +4486,11 @@ test("M73b: تقسیمِ دونیمه فقط با توافقِ دو نیمه —
 // ---------- M74: LDHِ بالا و آنزیم‌های کبدیِ طبیعیِ همان برگه ----------
 // قاعده فقط شاخهٔ «بالا» داشت، پس روی این برگه کبد را جزوِ علت‌های ممکن نام
 // می‌برد و هیچ‌جا نمی‌گفت AST و ALT همان‌جا بررسی و طبیعی بوده‌اند.
+// P147-۵: برگهٔ ۰۸۱۰ بازهٔ LDH چاپ نکرده؛ با سقفِ پیش‌فرضِ ۴۷۰ (کیت‌های DGKCِ ایران) LDH 290 آن طبیعی شد. شکلِ آزمون (LDHِ بالا کنارِ
+//   آنزیم‌های طبیعیِ همان برگه) با LDH=600 حفظ می‌شود.
+const SHEET_0810_LDH_HIGH = () => { const s = SHEET_0810(); s.tests = s.tests.map((t) => (t.name === "LDH" ? { ...t, value: "600" } : t)); return s; };
 test("M74: LDHِ بالا با AST/ALTِ طبیعی، طبیعی‌بودنشان را می‌گوید", () => {
-  const f = runPatterns(runEngine(SHEET_0810()))
+  const f = runPatterns(runEngine(SHEET_0810_LDH_HIGH()))
     .findings.find((x) => x.rule_id === "isolated_ldh_elevation");
   assert.ok(f, "قاعدهٔ LDH فعال نشد");
   assert.match(f.must_say, /AST و ALT .*طبیعی/,
@@ -4493,14 +4500,14 @@ test("M74: LDHِ بالا با AST/ALTِ طبیعی، طبیعی‌بودنشا�
 test("M74b: CKِ طبیعی هم گفته می‌شود، و CKِ نبوده ادعا نمی‌سازد", () => {
   const withCk = runPatterns(runEngine({
     patient: { age: 54, sex: "M" },
-    tests: [{ name: "LDH", value: "290" }, { name: "CK", value: "90" }],
+    tests: [{ name: "LDH", value: "600" }, { name: "CK", value: "90" }],
   })).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
   assert.match(withCk.must_say, /CK .*طبیعی است/, `CKِ طبیعی گفته نشد: ${withCk.must_say}`);
 
   // ⚠️ N4 از سمتِ عکس: وقتی CK روی برگه نیست، هیچ جمله‌ای دربارهٔ عضله نباید
   //    ادعای وضعیت کند — نه «طبیعی»، نه «بالا».
   const noCk = runPatterns(runEngine({
-    patient: { age: 54, sex: "M" }, tests: [{ name: "LDH", value: "290" }],
+    patient: { age: 54, sex: "M" }, tests: [{ name: "LDH", value: "600" }],
   })).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
   assert.ok(!/CK .*طبیعی/.test(noCk.must_say), `دربارهٔ CKِ نبوده ادعا شد: ${noCk.must_say}`);
 });
@@ -4508,7 +4515,7 @@ test("M74b: CKِ طبیعی هم گفته می‌شود، و CKِ نبوده ا�
 test("M74c: ALTِ طبیعی بدونِ AST، نمی‌گوید ASTِ نبوده طبیعی است", () => {
   const f = runPatterns(runEngine({
     patient: { age: 54, sex: "M" },
-    tests: [{ name: "LDH", value: "290" }, { name: "SGPT", value: "22" }],
+    tests: [{ name: "LDH", value: "600" }, { name: "SGPT", value: "22" }],
   })).findings.find((x) => x.rule_id === "isolated_ldh_elevation");
   assert.match(f.must_say, /AST روی برگهٔ شما نیست/, `متن: ${f.must_say}`);
   assert.ok(!/AST و ALT .*طبیعی/.test(f.must_say), "ادعای طبیعی‌بودنِ تستِ نبوده");
@@ -4550,7 +4557,7 @@ test("M75c: منبعِ ADA فقط روی شاخهٔ خودش می‌نشیند،
 // تورِ قبلی فقط «مدل هیچ نداد» را می‌گرفت (length === 0). روی برگهٔ واقعی مدل
 // فهرست را کوتاه کرد و «HbA1c» افتاد — کلاسِ N18.
 test("M76: پیشنهادِ افتاده از فهرستِ مدل برگردانده می‌شود", () => {
-  const e = runEngine(SHEET_0810());
+  const e = runEngine(SHEET_0810_LDH_HIGH());   // P147-۵: هاپتوگلوبین از یافتهٔ LDH می‌آید
   const p = runPatterns(e);
   const modelRecs = ["این هفته وقت بگیرید.", "درخواست آزمایش تکرار قند ناشتا از پزشک"];
   const back = missingSuggestions(modelRecs, p, e);
@@ -6423,7 +6430,7 @@ test("M104d: برگه‌های فقط-ادرار و فقط-CBC — تفسیر ب
     // ⚠️ C3 عمداً عوض شد (M187): microcytic_anemia حالا RBCِ بالا و RDWِ بالا را نام می‌برد و خطِ «بی‌توضیح» حذف شد؛ یافته‌ها/فوریت/اقدام همان.
     // ⚠️ عمداً عوض شد — P53 پرسش ۱۶ (تصمیمِ کاربر ۲۰۲۶-۰۹-۲۴): در microcytic_ida_likely فقط دو چیز — بازهٔ MCV از ردیفِ نمره‌دار («۸۰ تا ۱۰۰» → «80–96») و، وقتی فریتین روی برگه است، جملهٔ فریتینِ همان برگه به‌جای «فریتین باید اندازه‌گیری شود». سنجیده شد (freezediff، 953f513 در برابرِ درختِ کاری): یافته‌ها، فوریت و اقدام یکسان‌اند.
     C3: [{ age: 35, sex: "F" }, [["Hb", "9.5", "g/dL"], ["MCV", "70"], ["RDW", "17"], ["RBC", "5.2"]], "c28284a71e61800a"],
-    C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8", "g/dL"]], "9ce14dc1f63eb7b4"], // P95 (عمدی، proof95): maha بی‌نشانگرِ همولیز فعال نمی‌شود؛ severe_thrombocytopenia همان Hb/لام/LDH، «فوراً به اورژانس» و هشدارِ «منتظرِ نوبت نمانید» را گرفت؛ فوریت همان. // P91 (عمدی): متنِ maha_ttp_suspicion بی‌نشانگرِ همولیز بی‌نامِ TTP/HUS؛ با متنِ قدیمِ maha همان d1fd65864640b7f3. // ⚠️ M191: پان‌سیتوپنی سه عدد + آزمایش‌های علت‌یابی (freezediff).
+    C4: [{ age: 55, sex: "M" }, [["WBC", "2.1"], ["PLT", "40"], ["Hb", "8", "g/dL"]], "658fcdf479702d6c"], // P147-۱ (عمدی، fdiff147): پان‌سیتوپنی soon با «ظرف یکی دو روز» و ۲۴–۴۸ ساعت؛ leukopenia با هندآف فعال نمی‌شود (پیش‌تر پنهان)؛ قبلی 9ce14dc1f63eb7b4. // P95 (عمدی، proof95): maha بی‌نشانگرِ همولیز فعال نمی‌شود؛ severe_thrombocytopenia همان Hb/لام/LDH، «فوراً به اورژانس» و هشدارِ «منتظرِ نوبت نمانید» را گرفت؛ فوریت همان. // P91 (عمدی): متنِ maha_ttp_suspicion بی‌نشانگرِ همولیز بی‌نامِ TTP/HUS؛ با متنِ قدیمِ maha همان d1fd65864640b7f3. // ⚠️ M191: پان‌سیتوپنی سه عدد + آزمایش‌های علت‌یابی (freezediff).
     // ⚠️ C5 عمداً عوض شد — P53 پرسش ۵ (M197، آستانهٔ غربالگریِ WHO): پیش‌تر RBCِ ۶.۴ به unmatched_abnormal
     //    می‌رفت («فقط اقدامِ روتین»)؛ حالا Hb=17.5 داخلِ بازهٔ موتور ولی بالای آستانهٔ WHOِ مرد (۱۶.۵) است، پس
     //    erythrocytosis_who_screen فعال می‌شود و RBC را در متن نام می‌برد. سنجیده شد: تنها فرق همین یافتهٔ تازه است.
@@ -8152,7 +8159,11 @@ test("M166b: جملهٔ سیلندر GN را جز همان جمله دست نم�
   const without = findPat(uaRun([["Creatinine", "2.4", "mg/dL"], ...uaRows(urine)]), "glomerulonephritis_pattern");
   const withCast = findPat(uaRun([["Creatinine", "2.4", "mg/dL"], ...uaRows([["RBC Casts", "5-8", "/lpf"], ...urine])]), "glomerulonephritis_pattern");
   assert.ok(without && withCast);
-  for (const k of ["urgency", "headline", "action"]) assert.equal(withCast[k], without[k], `${k} عوض شد`);
+  // ⚠️ عمداً عوض شد (P147-۳، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): سیلندرِ گلبولِ قرمز + کراتینینِ بالا ⇒ GN ۲۴–۴۸ ساعت؛ بی‌سیلندر همان this_week.
+  assert.equal(without.urgency, "this_week");
+  assert.equal(withCast.urgency, "soon");
+  assert.match(withCast.action, /۲۴ تا ۴۸ ساعت/);
+  assert.equal(withCast.headline, without.headline, "headline عوض شد");
   assert.ok(withCast.must_say.startsWith(without.must_say), "متنِ قبلیِ GN حذف یا دست‌کاری شد");
   // 🔴 روی 395a5d7: وقتی سیلندر روی همان برگه بود، باز «آزمایش کامل ادرار با بررسی کست» درخواست می‌شد.
   assert.ok(!withCast.suggest.includes("آزمایش کامل ادرار با بررسی کست"), "آزمایشی که روی برگه هست دوباره خواسته شد");
@@ -8974,7 +8985,9 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   // ⚠️ اندیسِ ۲ باز هم عمداً عوض شد (P114، ۲۰۲۶-۱۰-۲۷): جملهٔ MCHC («غلظتِ هموگلوبین داخلِ گلبول …»)
   //   به must_sayِ microcytic_ida_likely اضافه شد تا MCHC از خطِ «توضیحِ آماده نداریم» بیرون بیاید.
   //   سنجیده شد (diffِ همان پنل): تنها فرق، همان یک جمله است؛ یافته‌ها/فوریت/اقدام همان. قبلی a7643510fa9e6ac3.
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","862c661d924acbff","dc7c4e1e1b6de999","1f07ceaf3545185d","533579b1749fa223","dd3f16a57359abb0","c979a7f9f4e6d5f6","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
+  // P147-۱ (عمدی، fdiff147): پنلِ ۸ (Hb 9 · WBC 2 · PLT 60) پان‌سیتوپنیِ soon می‌گیرد، نه blocker؛ normocytic_anemia متنِ کامل و
+  //   پیشنهادهایش را می‌گیرد. قبلی c979a7f9f4e6d5f6.
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","862c661d924acbff","dc7c4e1e1b6de999","1f07ceaf3545185d","533579b1749fa223","dd3f16a57359abb0","f3608850252d5293","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
   // ⚠️ اندیسِ ۸ (PLT 90، Hb/WBCِ طبیعی) عمداً عوض شد — بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، N20): thrombocytopenia کنارِ isolated_thrombocytopenia
   //   کنار رفت؛ isolated عدد/بازه (به‌جای «به زیر ۱۰۰ هزار») و «تکرار CBC» گرفت. فوریت همان this_week (proof4.mjs، کپیِ pre4).
   assert.deepEqual(P.map(snap), EXPECTED);
@@ -11156,8 +11169,10 @@ const j40NoBlocker = (rows = J40_ROWS) =>
 
 test("M240: job 40b8a901 — تریاژ اورژانسی دست‌نخورده و هر پنج ردیفِ بی‌توضیح (LYMPH_ABS/K/UREA/MCHC/PT) صاحب دارد", () => {
   const { e, p } = j40Run();
-  assert.equal(p.overall_urgency, "emergency");
-  assert.equal(p.has_critical, true);
+  // ⚠️ عمداً عوض شد (P147-۱، تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): Hb 7.1 / PLT 53 / ANC ~۲۹۰۰ — هیچ ردهٔ بحرانی (Hb < 7، PLT < 20، ANC < 500)
+  //   ندارد ⇒ پان‌سیتوپنی ۲۴–۴۸ ساعت و دیگر blocker نیست. پتاسیم و اوره هم soon‌اند.
+  assert.equal(p.overall_urgency, "soon");
+  assert.equal(p.has_critical, false);
   const ids = p.findings.map((f) => f.pattern);
   for (const id of ["pancytopenia", "normocytic_anemia", "hyperkalemia", "coagulation_abnormal", "isolated_urea_elevation"]) {
     assert.ok(ids.includes(id), `${id} نیامد: ${ids}`);
@@ -11249,9 +11264,11 @@ test("M240e: F6 — پتاسیمِ غیربحرانی اقدامِ صریح می
   assert.match(k.action, /اگر تپش قلب، ضعف شدید یا بی‌حسی دارید، زودتر مراجعه کنید/);
   const { e, p } = j40Run();
   const recs = buildEngineRecommendations(p, e);
-  assert.match(recs[0], /همین امروز با پزشک تماس بگیرید/, `دستورِ نهایی: ${recs[0]}`);
+  // P147-۱: دستورِ نهایی دیگر «همین امروز»ِ پان‌سیتوپنیِ اورژانسی نیست؛ ۲۴–۴۸ ساعت. پتاسیم دیگر brief نمی‌گیرد، پس حدِّ علائم
+  //   از actionِ کاملِ خودش می‌آید (نه brief_warnings).
+  assert.match(recs[0], /۲۴ تا ۴۸ ساعت/, `دستورِ نهایی: ${recs[0]}`);
   assert.ok(recs.some((r) => /پتاسیم را با نمونهٔ تازه تکرار کنید/.test(r)), recs.join("\n"));
-  assert.ok(recs.some((r) => /تپش قلب، ضعف شدید عضلانی یا بی‌حسی.*اورژانس/.test(r)), recs.join("\n"));
+  assert.ok(recs.some((r) => /اگر تپش قلب، ضعف شدید یا بی‌حسی دارید/.test(r)), recs.join("\n"));
   assert.ok(!recs.some((r) => /این هفته با پزشک مطرح کنید/.test(r)), "رقیبِ «این هفته» کنارِ دستورِ نهایی (N20): " + recs.join("\n"));
   // K بحرانی دست نخورده
   const crit = fffFind(j40Run(j40With("Serum K", "6.5")).p, "hyperkalemia");
@@ -11317,22 +11334,26 @@ test("M241b: یافتهٔ تکمیلی فوریتِ خودش را نگه می‌
 test("M241c: یافتهٔ کم‌فوریتی که فقط کلیدهایی را می‌گوید که متنِ دیگری گفته، پنهان می‌ماند — اورژانس رقیق نمی‌شود، ولی شمارشش در suppressed_ids می‌آید", () => {
   const { p } = j40Run();                       // پان‌سیتوپنی؛ leukopenia و thrombocytopenia همان عددها را pancytopenia می‌گوید
   const ids = p.findings.map((f) => f.rule_id);
-  assert.equal(ids[0], "pancytopenia", "blocker همچنان اول است");
+  // ⚠️ عمداً عوض شد (P147-۱): پان‌سیتوپنیِ غیربحرانی blocker نیست؛ دو یافتهٔ تک‌رده‌ای حالا با هندآف اصلاً فعال نمی‌شوند (نه پنهان).
+  assert.ok(ids.includes("pancytopenia"), ids.join());
   assert.ok(!ids.includes("leukopenia") && !ids.includes("thrombocytopenia"), `تکراری نمایش داده شد: ${ids}`);
-  assert.deepEqual([...p.suppressed_ids].sort(), ["leukopenia", "thrombocytopenia"]);
+  assert.deepEqual(p.suppressed_ids, []);
   assert.deepEqual(p.supplementary_ids, []);
-  assert.equal(p.suppressed, 2);
+  assert.equal(p.suppressed, 0);
+  // همان پان‌سیتوپنی با یک ردهٔ بحرانی (PLT 15) هنوز blocker است و دو تکراری را می‌پوشاند — نه بیشتر.
+  const crit = j40Run(j40With("Platelet", "15")).p;
+  assert.equal(crit.findings.find((f) => f.rule_id === "pancytopenia")?.urgency, "emergency");
 });
 
 test("M241d: job 40b8a901 — K 5.9 و PT 14.5 در متنِ نمایشی نام برده می‌شوند (نه فقط در فهرستِ بی‌توضیح‌ها) و pancytopenia همچنان اورژانسیِ اول است", () => {
   const { p } = j40Run();
-  assert.equal(p.findings[0].rule_id, "pancytopenia");
-  assert.equal(p.findings[0].urgency, "emergency");
+  // ⚠️ عمداً عوض شد (P147-۱): پان‌سیتوپنیِ این برگه soon است (هیچ ردهٔ بحرانی ندارد)، نه اورژانسیِ اول.
+  assert.equal(p.findings.find((f) => f.rule_id === "pancytopenia")?.urgency, "soon");
   assert.ok(!p.findings.some((f) => f.rule_id === "unexplained_abnormal"), "هنوز بی‌توضیح");
   const k = p.findings.find((f) => f.rule_id === "potassium_critical");
   const c = p.findings.find((f) => f.rule_id === "coagulation_abnormal");
-  assert.match(k.must_say, /پتاسیم شما 5\.9/);
-  assert.match(c.must_say, /PT\) 14\.5/);
+  assert.match(k.must_say, /پتاسیم( خون)? شما 5\.9/);   // P147-۱: بی‌blocker متنِ کامل (نه brief) می‌آید
+  assert.match(c.must_say, /PT\)( شما)? 14\.5/);   // P147-۱: متنِ کامل «زمان پروترومبین (PT) شما 14.5»
 });
 
 test("M241e: job fff90f58 — WBC 36.6 زیرِ اورژانسِ ترومبوسیتوپنی توضیحِ قاعدهٔ خودش را دارد، نه یک سطر در فهرست", () => {

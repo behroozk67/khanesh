@@ -310,6 +310,9 @@ export const RULE_SOURCES = {
   // LDHِ بالای منفرد — متنش هیچ عددی ندارد؛ آنچه از منبع می‌آید *ترتیبِ* مسیرِ
   // بازتابی است (سه‌تایی اول، اسمیر بعد از تأیید) و غیراختصاصی‌بودنِ LDH.
   isolated_ldh_elevation: ["MERCK_PRO", "ARUP_CONSULT"],
+  // P147: هر دو از Merck Professional (صفحه‌های SLE و RPGN، خوانده‌شده ۲۰۲۶-۱۱-۱۴).
+  hemolytic_anemia_possible: ["MERCK_PRO"],
+  lupus_activity_link:  ["MERCK_PRO"],
   // انعقاد
   dic_pattern:          ["ISTH"],
   dic_isth_score:       ["ISTH"],
@@ -407,7 +410,7 @@ const blockerRankOf = (findings) =>
 /** یافتهٔ always_show که فقط به‌خاطر همین استثنا زیرِ یک blocker مانده و نسخهٔ کوتاهش (brief) را می‌گیرد. */
 function willBrief(f, findings) {
   const br = blockerRankOf(findings);
-  return Number.isFinite(br) && !!f.always_show && rank(f.urgency) > br && !!f.brief;
+  return Number.isFinite(br) && !!f.always_show && rank(f.urgency) > br && !!f.brief && !f.keep_under_blocker;
 }
 
 /** جملهٔ اولِ must_say — همان جمله‌ای که server.js برای key_number هم برمی‌دارد (عدد و جهت در آن است). */
@@ -856,7 +859,10 @@ export function runPatterns(engineOut) {
   //   موارد کم‌اهمیت‌تر طبق روال پنهان می‌شوند تا پیام اورژانس رقیق نشود —
   //   مگر اینکه عددی را توضیح بدهند که هیچ متنِ نمایشی نمی‌گوید (rescued، تورِ ایمنی ۲):
   //   آن‌ها «یافتهٔ تکمیلی» می‌شوند، نه حذف.
-  const isDemoted = (f) => hasBlocker && rank(f.urgency) > blockerRank && !f.always_show;
+  // P147-۲ (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): keep_under_blocker = یافته‌ای که علتِ احتمالیِ خودِ یافتهٔ فوری است (آنتی‌بادیِ خودایمنیِ مثبت،
+  //   کمپلمانِ پایین، گلومرولونفریت، اتصالِ لوپوس). زیرِ blocker کامل می‌ماند — با عدد و پیشنهادها؛ زمان‌بندیِ actionش را
+  //   buildEngineRecommendations مثلِ هر اقدامِ غیرنهایی کنار می‌گذارد (pickFinalAction همان فوری‌ترین می‌ماند).
+  const isDemoted = (f) => hasBlocker && rank(f.urgency) > blockerRank && !f.always_show && !f.keep_under_blocker;
   const demoted = findings.filter(isDemoted);
   const selected = findings.filter((f) => !isDemoted(f));
   // به ترتیبِ فوریت (پایدار) تا شمارهٔ «۱ از n» همان ترتیبی باشد که بعد از shown.sort دیده می‌شود.

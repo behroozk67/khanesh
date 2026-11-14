@@ -68,7 +68,7 @@ const RULE_GROUP_LISTS = {
     zpp_high stfr_index hgb_sex_unknown erythrocytosis erythrocytosis_who_screen severe_anemia_crisis macrocytic_anemia
     folate_deficiency microcytic_anemia normocytic_anemia low_rbc_hct_without_anemia spherocytes_dat spherocytosis_likely
     melena_microcytic_anemia rbc_indices_inconsistent rbc_indices_impossible rbc_indices_implausible neonatal_retic_mild
-    iron_deficiency_panel anemia_chronic_disease hemolysis_pattern overt_b12_deficiency borderline_b12_deficiency
+    iron_deficiency_panel anemia_chronic_disease hemolysis_pattern hemolytic_anemia_possible overt_b12_deficiency borderline_b12_deficiency
     transferrin_abnormal smear_rbc_size hct_rbc_high iron_markers_high anemia_hb_alone iron_low_alone rdw_high tibc_high tibc_low`),
   wbc: T(`extreme_leukocytosis leukocytosis neutrophilia leukopenia severe_neutropenia mild_neutropenia neutrophil_count_missing
     monocytosis monocytopenia lymphopenia eosinophilia basophilia viral_lymphocytosis differential_without_wbc
@@ -101,7 +101,7 @@ const RULE_GROUP_LISTS = {
     reproductive_hormone_context prenatal_profile_mismatch prenatal_risk_t18_t13_high prenatal_risk_t21_high prenatal_t21_pattern_fts
     prenatal_ntd_afp prenatal_nt_raised prenatal_ue3_very_low prenatal_risk_intermediate prenatal_risk_unrated prenatal_papp_a_low
     prenatal_window_invalid prenatal_risk_low prenatal_marker_notes prenatal_concentration_unread`),
-  immune: T(`ana_family_result anca_result hla_b27_result anti_ccp_result complement_result ssc_antibody_result
+  immune: T(`ana_family_result anca_result hla_b27_result anti_ccp_result complement_result lupus_activity_link ssc_antibody_result
     myositis_antibody_result antiphospholipid_result rf_positive indirect_coombs_result
     celiac_serology_result liver_autoantibody_result mg_antibody_result immunoglobulin_result dnaseb_result
     insulin_result islet_autoantibody_result`),

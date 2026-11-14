@@ -375,9 +375,12 @@ const isTimelineSentence = (s) => !CONDITIONAL.test(s) && (TIMING.test(maskInter
 const DIRECTIVE_TAIL = new RegExp(`(?:${DIRECTIVE.source})\\s*(?:و|—)\\s+(.+)$`);
 // «نوبت عادی با پزشک و تکرار آزمایش کلیه پس از چند هفته.» — سرِ بی‌فعل؛ دنباله‌اش بعد از «با پزشک و».
 const VISIT_AND_TAIL = /^[^.]*?با پزشک\s+و\s+(.+)$/;
+// P147: «… وقت بگیرید و این آزمایش‌ها را بخواهید.» بعد از رفتنِ زمان‌بندی تنها می‌ماند و به فهرستی اشاره می‌کرد که در همان جمله نیست
+//   (آزمایش‌ها جدا، «درخواست آزمایش X از پزشک»، می‌آیند) — سطرِ خالیِ «این آزمایش‌ها را بخواهید.» در توصیه‌ها.
+const DANGLING_REQUEST = /^این آزمایش‌ها را بخواهید\.?$/;
 function contentTail(s) {
   const tail = (s.match(DIRECTIVE_TAIL) ?? s.match(VISIT_AND_TAIL))?.[1]?.trim();
-  return tail && !isTimelineSentence(tail) ? tail : null;
+  return tail && !isTimelineSentence(tail) && !DANGLING_REQUEST.test(tail) ? tail : null;
 }
 /** شرطیِ «اگر X، زودتر/فوراً مراجعه کنید» وقتی دستورِ نهایی همان‌قدر یا فوری‌تر است چیزی اضافه نمی‌کند (کد #4). */
 function redundantConditional(s, finalStrength) {
@@ -397,6 +400,7 @@ function nonFinalRemainder(action, finalStrength) {
       if (!isTimelineSentence(s)) return s;
       const tail = contentTail(s);
       if (tail) return tail;
+      if (DANGLING_REQUEST.test((s.match(DIRECTIVE_TAIL) ?? s.match(VISIT_AND_TAIL))?.[1]?.trim() ?? "")) return null;   // P147
       if (CONTENT.test(s) || REQUEST.test(s) || (!finalIsEr && SPECIALIST.test(s))) return s.replace(TIMELINE_HEAD, "");
       return null;
     })

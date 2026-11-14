@@ -369,6 +369,16 @@ Rules:
   - Before writing "the printed range still decides", probe it: is the key in `PRINTED_FIRST_KEYS`?
 - **Second review:** I narrowed the model's tone context from "active" to "used" (`applied_conditions`). Dialysis then vanished from the prompt, because the dialysis branches never wrote that field. A Cr 8 `routine` finding reached the model with no mention of dialysis. **Before filtering on a field, grep that every producer writes it, and test every value of the set (P144-R8c).**
 
+**N59 — A blocker was hiding the cause of its own emergency; removing it exposed what it had been hiding.** (P147; commit: this change.)
+- **What happened:** pancytopenia was a fixed `emergency` with `blocks_others`. On a lupus-flare sheet it hid ten findings. ANA and complement kept only their first sentence, so anti-dsDNA 145 and C4 7 appeared nowhere, and the rheumatology/nephrology referrals dropped.
+- **My first fix exposed two new bugs:**
+  - The `kidney` routine finding came back saying «if the urine has no protein or blood… repeat in a few weeks», next to a GN finding whose urine had both.
+  - Once cirrhosis stopped counting nephrotic albumin, albumin 2.9 had no number anywhere: `nephrotic_pattern` never quoted it.
+- **Rules:**
+  - `blocks_others` assumes everything less urgent is noise. Findings that explain the blocker are not noise (`keep_under_blocker`).
+  - Turning a blocker off is a text change on every panel it covered. Re-run those panels and read every sentence that was hidden before, especially conditionals and «repeat in N weeks».
+  - When a rule stops claiming a key, check that the remaining owner quotes the number (N52).
+
 Detailed instructions are split across `.claude/rules/`: [architecture.md](.claude/rules/architecture.md) (engine vs LLM, 9-step request flow, legacy path),
 [rules-engine.md](.claude/rules/rules-engine.md) (grading modes, adding a test, guideline layer), [frontend.md](.claude/rules/frontend.md) (routes, `_engine` shape),
 [environment.md](.claude/rules/environment.md) (`.env`, auth, `TRUST_PROXY`), [notes.md](.claude/rules/notes.md) (privacy, Persian-only, proxying).

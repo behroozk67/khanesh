@@ -148,6 +148,16 @@ function mcvSizeClauseFa(e) {
 }
 // کم‌خونی هم وقتی در الگوی سه‌گانه است زمان‌بندیِ جدا نمی‌دهد (همان Hb در cytopenia_triplet نقل می‌شود؛ N20). بقیه‌اش همان wrapperِ پیشین.
 const TRIPLET_DEFER = "این کم‌خونی همراهِ کاهشِ پلاکت و لنفوسیت در همین برگه است؛ زمان‌بندیِ پیگیری را یافتهٔ «کاهشِ هم‌زمانِ سه ردهٔ خون» می‌گوید.";
+// P147-۱ (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): پان‌سیتوپنی فقط وقتی اورژانس است که یکی از سه رده خودش بحرانی باشد. ANCِ غایب «بحرانی» شمرده
+//   نمی‌شود؛ WBC < 2 را leukopenia با فوریتِ خودش می‌گیرد (آن شاخه زیرِ پان‌سیتوپنی کنار نمی‌رود).
+const PANCYTO_CRIT = { ANC: 500, PLT: 20, HGB: 7 };
+const MDS_TEXT_MIN_AGE = 50;   // P147-۶
+function pancytopeniaCritical(e) {
+  const t = val(e);
+  return (t.NEUT_ABS != null && t.NEUT_ABS < PANCYTO_CRIT.ANC) || (t.PLT != null && t.PLT < PANCYTO_CRIT.PLT) || (t.HGB != null && t.HGB < PANCYTO_CRIT.HGB);
+}
+/** پان‌سیتوپنی فعال است؟ (هندآف: قاعده‌های تک‌رده‌ای وقتی این فعال است عددشان را به آن می‌سپارند — N20). */
+const pancytopeniaFires = (e) => !!RULES_HEMATOLOGY.find((r) => r.id === "pancytopenia")?.match(e);
 function actionUnlessAnemiaCrisis(e, action) {
   const base = actionUnlessAnemiaCrisisBase(e, action);
   return base === action && action && cytopeniaTripletFires(e) ? TRIPLET_DEFER : base;
@@ -800,7 +810,8 @@ export const RULES_HEMATOLOGY = [
     id: "leukopenia",
     match: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
-      return w?.abnormal && w.dir === "low";
+      // P147-۱: پان‌سیتوپنیِ «۲۴–۴۸ ساعت» دیگر blocker نیست؛ WBCِ خفیف عددش را به آن می‌سپارد (یک زمان‌بندی). WBC < 2 کنار نمی‌رود.
+      return w?.abnormal && w.dir === "low" && !(w.value >= 2 && pancytopeniaFires(e));
     },
     build: (e) => {
       const w = e.graded.find((g) => g.test === "WBC");
@@ -1068,7 +1079,7 @@ export const RULES_HEMATOLOGY = [
     //   (قاعدهٔ زنده، نه آستانهٔ کپی‌شده — M91e). گارد L26.
     match: (e) => {
       const p = e.graded.find((g) => g.test === "PLT");
-      return p?.abnormal && p.dir === "low" && p.value >= 50 && !isolatedThrombocytopeniaFires(e);
+      return p?.abnormal && p.dir === "low" && p.value >= 50 && !isolatedThrombocytopeniaFires(e) && !pancytopeniaFires(e);   // P147-۱: هندآف
     },
     build: (e) => {
       const p = e.graded.find((g) => g.test === "PLT");
@@ -1154,6 +1165,8 @@ export const RULES_HEMATOLOGY = [
     build: (e) => {
       const g = (k) => e.graded.find((x) => x.test === k);
       const hgb = g("HGB"), wbc = g("WBC"), plt = g("PLT"), neut = g("NEUT_ABS");
+      // P147-۱ (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): اورژانس فقط وقتی یکی از سه رده خودش بحرانی است؛ وگرنه ۲۴–۴۸ ساعت و بی‌پوشاندنِ بقیه.
+      const crit = pancytopeniaCritical(e);
       const num = (x, fa) => (x ? `${fa} ${x.value} (حد طبیعی ${x.range})` : fa);
       const neutClause = !neut?.abnormal ? ""
         : neut.dir === "low"
@@ -1161,7 +1174,7 @@ export const RULES_HEMATOLOGY = [
           : ` نوتروفیل ${neut.value} بالاتر از حد طبیعی (${neut.range}) است؛ پزشک آن را کنارِ همین تصویر می‌سنجد.`;
       return {
         pattern: "pancytopenia",
-        urgency: "emergency",
+        urgency: crit ? "emergency" : "soon",
         headline: wbc?.abnormal && wbc.dir === "low" ? "هر سه نوع سلول خونی کمتر از حد طبیعی هستند" : "هموگلوبین، پلاکت و نوتروفیل‌ها هر سه کم‌اند",
         must_say:
           // 🔴 N4/N12 (لایهٔ ۲): match با ANC < 1500 هم فعال می‌شود حتی وقتی WBC در محدوده است؛ «هر سه پایین هستند» آن‌وقت
@@ -1169,12 +1182,15 @@ export const RULES_HEMATOLOGY = [
           (wbc?.abnormal && wbc.dir === "low"
             ? `${num(hgb, "هموگلوبین")}، ${num(wbc, "گلبول سفید")} و ${num(plt, "پلاکت")} — هر سه پایین هستند.`
             : `${num(hgb, "هموگلوبین")} و ${num(plt, "پلاکت")} پایین هستند و شمارشِ نوتروفیل‌ها هم کم است${wbc ? ` (گلبول سفیدِ کل ${wbc.value} در محدوده است)` : ""}.`) + neutClause + lymphClauseInPancytopenia(e) + " " +
-          "وقتی هر سه ردهٔ سلولی با هم افت می‌کنند، معمولاً مشکل از خودِ مغز استخوان (کارخانهٔ ساخت سلول‌های خونی) یا تخریب گستردهٔ آن‌هاست و نیاز به بررسی فوری دارد. " +
+          `وقتی هر سه ردهٔ سلولی با هم افت می‌کنند، معمولاً مشکل از خودِ مغز استخوان (کارخانهٔ ساخت سلول‌های خونی) یا تخریب گستردهٔ آن‌هاست و ${crit ? "نیاز به بررسی فوری دارد" : "باید زود (ظرف یکی دو روز) بررسی شود"}. ` +
           "یکی از علت‌های درمان‌پذیرِ آن کمبودِ ویتامین B12 یا فولات است؛ لام خون محیطی، رتیکولوسیت، B12، فولات و فریتین آزمایش‌های نخستِ علت‌یابی‌اند.",
-        action: actionUnlessAnemiaCrisis(e, "همین امروز با پزشک تماس بگیرید."),
+        action: actionUnlessAnemiaCrisis(e, crit ? "همین امروز با پزشک تماس بگیرید." : "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و این برگه را همراه ببرید."),
         suggest: ["لام خون محیطی", "رتیکولوسیت", "ویتامین B12", "فولات", "فریتین"],
         warnings: [],
-        blocks_others: true,
+        blocks_others: crit,
+        // P147-۱: «۲۴–۴۸ ساعت» زیرِ اورژانسِ دیگری (مثلاً ترومبوسیتوپنیِ شدید با PLT 31) نباید جملهٔ اولِ فشرده شود — نوتروفیل و
+        //   آزمایش‌های علت‌یابی در همین یافته‌اند (M191).
+        keep_under_blocker: true,
       };
     },
   },
@@ -1874,6 +1890,9 @@ export const RULES_HEMATOLOGY = [
       const hgb = e.graded.find((g) => g.test === "HGB");
       const isAnemia = hgb?.abnormal && hgb.dir === "low";
       if (!isAnemia) return false;
+      // P147-۶ (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): متن «به‌ویژه در سنین بالاتر» MDS را برای زنِ ۲۶ ساله هم می‌گفت. زیرِ ۵۰ فعال نمی‌شود؛
+      //   MCV را macrocytic_anemia و پلاکت را thrombocytopenia/pancytopenia می‌گیرند. سنِ نامعلوم ⇒ همان رفتارِ پیشین.
+      if (e.age != null && e.age < MDS_TEXT_MIN_AGE) return false;
 
       const t = val(e);
       const mcvHigh = t.MCV != null && t.MCV > 102;
@@ -2884,6 +2903,45 @@ export const RULES_HEMATOLOGY = [
     },
   },
 
+  // ═══════════ P147-۵ کم‌خونیِ احتمالاً همولیتیک (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴) ═══════════
+  // برگهٔ لوپوس: Hb 9.4، MCV 103.5، LDH 490، بیلی‌روبینِ تام 2.4 بی‌مستقیم ⇒ hemolysis_pattern (دو نشانگرِ مستقل لازم دارد) فعال
+  //   نمی‌شد، و متنِ ماکروسیتیک فقط B12/فولات می‌گفت. این قاعده «ممکن» می‌گوید، نه «همولیز»؛ تأیید با رتیکولوسیت، هاپتوگلوبین،
+  //   بیلی‌روبینِ مستقیم/غیرمستقیم و کومبس است. منبع (خوانده‌شده ۲۰۲۶-۱۱-۱۴، Merck Professional، SLE، تعریفِ همولیزِ خودایمنی):
+  //   «reticulocytosis, low haptoglobin, elevated indirect bilirubin, elevated lactate dehydrogenase) and a positive direct antiglobulin
+  //   (direct Coombs) test»؛ ترتیبِ مسیرِ بازتابی همان P24/P28 (Merck/ARUP).
+  // ⚠️ هرگز با hemolysis_pattern (شامل تلهٔ عضله) هم‌زمان نیست و isolated_ldh_elevation زیرِ آن کنار می‌رود (یک مالکِ LDH — N20).
+  //   شکلِ «LDH+AST بالا با ALTِ طبیعی» عمداً بیرون نمی‌ماند: همولیزِ نمونه هموگلوبینِ پایین نمی‌سازد، و همولیزِ درون‌رگی همین شکل را دارد.
+  //   جهت‌ها فقط از graded.dir (N12)، پس بازهٔ چاپ‌شدهٔ LDH (P114) همچنان تصمیم می‌گیرد. امتیاز: P138-۱ دست‌نخورده (LDH بیرون می‌ماند).
+  {
+    id: "hemolytic_anemia_possible",
+    match: (e) => {
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const ldh = e.graded.find((g) => g.test === "LDH");
+      return !!(hgb?.abnormal && hgb.dir === "low" && ldh?.abnormal && ldh.dir === "high") && hemolyticSupport(e).length > 0 && !hemolysisRuleFires(e);
+    },
+    build: (e) => {
+      const hgb = e.graded.find((g) => g.test === "HGB");
+      const ldh = e.graded.find((g) => g.test === "LDH");
+      const sup = hemolyticSupport(e);
+      const q = (x) => `${faName(x.test)} ${x.value} (حد طبیعی ${x.range})`;
+      return {
+        pattern: "hemolytic_anemia_possible",
+        urgency: "this_week",
+        headline: "کم‌خونی کنارِ LDHِ بالا ممکن است از تخریبِ گلبول‌های قرمز (همولیز) باشد",
+        must_say:
+          `هموگلوبین ${hgb.value} (حد طبیعی ${hgb.range}) پایین و LDH‏ ${ldh.value} (حد طبیعی ${ldh.range}) بالاست` +
+          (sup.length ? `؛ ${sup.map((s) => q(s.g)).join(" و ")} هم بالاست` : "") + ". " +
+          "این ترکیب می‌تواند نشانهٔ تخریبِ زودرسِ گلبول‌های قرمز (کم‌خونیِ همولیتیک) باشد؛ ولی LDH در آسیبِ بافت‌های دیگر هم بالا می‌رود، پس این فقط یک احتمال است. " +
+          sup.map((s) => s.say).filter(Boolean).join(" ") +
+          (sup.length ? " " : "") +
+          "همولیز با این آزمایش‌ها تأیید یا رد می‌شود: رتیکولوسیت، هاپتوگلوبین، بیلی‌روبینِ مستقیم و غیرمستقیم، و تست کومبس (که نوعِ خودایمنیِ آن را نشان می‌دهد).",
+        action: "این هفته با پزشک وقت بگیرید. این برگه را همراه ببرید.",
+        suggest: ["رتیکولوسیت", "هاپتوگلوبین", "بیلی‌روبین مستقیم و غیرمستقیم", "تست کومبس"],
+        warnings: [],
+      };
+    },
+  },
+
   // ═══════════ LDHِ بالای منفرد ═══════════
   //
   // 🔴 چرا این قاعده وجود دارد (P24 در MEDICAL_RULES.md): تا ۲۰۲۶-۰۸-۰۶ بازهٔ
@@ -2914,7 +2972,7 @@ export const RULES_HEMATOLOGY = [
       const ldh = e.graded.find((g) => g.test === "LDH");
       // جهت از graded.dir می‌آید، هرگز از مقایسه با یک آستانهٔ شدت — N12.
       if (!(ldh?.abnormal && ldh.dir === "high")) return false;
-      return !hemolysisRuleFires(e);
+      return !hemolysisRuleFires(e) && !hemolyticAnemiaFires(e);   // P147-۵: یک مالکِ LDH
     },
     build: (e) => {
       const t = val(e);
@@ -3157,6 +3215,29 @@ function erythroSoon(e) {
 }
 const ERYTHRO_SOON_ACTION = "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید. اگر سردردِ شدید، تاریِ دید، ضعف یا بی‌حسیِ یک طرفِ بدن، یا دردِ قفسهٔ سینه دارید، همین حالا به اورژانس بروید.";
 
+/**
+ * P147-۵: نشانه‌های پشتیبانِ همولیز کنارِ Hbِ پایین + LDHِ بالا (فقط جهت از graded.dir). بیرون از قاعده تا RULE_READS کلیدهایی را که
+ * فقط در یک جهت نقل می‌شوند «پوشش‌داده» نشمارد (N18). هر مورد عددش را در متن می‌آورد.
+ */
+function hemolyticSupport(e) {
+  const g = (k) => e.graded.find((x) => x.test === k);
+  const out = [];
+  const bili = g("BILI_T");
+  if (bili?.abnormal && bili.dir === "high") {
+    const direct = g("BILI_D") ?? g("BILI_I");
+    out.push({ g: bili, say: direct ? "" : "بیلی‌روبینِ مستقیم روی این برگه نیست، پس معلوم نیست افزایشِ بیلی‌روبین از نوعِ غیرمستقیم (همان که با همولیز بالا می‌رود) است یا نه." });
+  }
+  const retic = g("RETIC");
+  if (retic?.abnormal && retic.dir === "high") out.push({ g: retic, say: "رتیکولوسیتِ بالا یعنی مغزِ استخوان گلبولِ قرمزِ تازه را سریع‌تر می‌سازد، که با تخریبِ زودرس هم‌خوانی دارد." });
+  const mcv = g("MCV");
+  if (mcv && mcv.value > macroMcvCut(e)) out.push({ g: mcv, say: "در همولیز، گلبول‌های قرمزِ جوان (رتیکولوسیت‌ها) بزرگ‌ترند و MCV را بالا می‌برند؛ پس درشتیِ گلبول‌ها همیشه از کمبودِ ویتامین B12 یا فولات نیست." });
+  return out;
+}
+/** P147-۵: آیا hemolytic_anemia_possible فعال است؟ (isolated_ldh_elevation زیرِ آن کنار می‌رود.) */
+export function hemolyticAnemiaFires(e) {
+  const r = RULES_HEMATOLOGY.find((x) => x.id === "hemolytic_anemia_possible");
+  return r ? !!r.match(e) : false;
+}
 export function hemolysisRuleFires(e) {
   const r = RULES_HEMATOLOGY.find((x) => x.id === "hemolysis_pattern");
   return r ? r.match(e) : false;
