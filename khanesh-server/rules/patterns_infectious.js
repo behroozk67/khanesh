@@ -1,5 +1,6 @@
 import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, CRP_RE, RF_RE, qualVerdict } from "./patterns_utils.js";
 import { faName } from "./names.js";
+import { lupusLinkFires } from "./patterns_autoimmune.js";   // P149
 import { CTCAE_V5 } from "./ctcae.js";
 import { RULES_MALIGNANCY } from "./patterns_malignancy.js";
 import { preanalyticalCaveats, attachPreanalytical } from "./preanalytical.js";
@@ -340,7 +341,8 @@ export const RULES_INFECTIOUS = [
             : "برای پیگیریِ دقیق‌تر بهتر است CRP به‌صورت کمی (بر حسب mg/L) اندازه‌گیری شود تا بشود روند آن را با عدد دنبال کرد. ") +
           "پس این نتیجه به‌تنهایی تشخیص نیست؛ باید کنار علائم شما تفسیر شود.",
         action: "این هفته با پزشک مطرح کنید؛ اگر تب، درد موضعی یا علامت مشخصی دارید حتماً بگویید تا منشأ التهاب پیدا شود.",
-        suggest: quant ? ["ESR", "تکرار CRP"] : ["CRP کمی (mg/L)", "ESR"],
+        // P149 (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): کنارِ اتصالِ لوپوس، تکرارِ CRP علتی را روشن نمی‌کند — علت روی همین برگه گفته شده.
+        suggest: quant ? ["ESR", ...(lupusLinkFires(e) ? [] : ["تکرار CRP"])] : ["CRP کمی (mg/L)", "ESR"],
         warnings: [],
         ...(quant ? { key_number: q.value } : {}),
       };
@@ -367,6 +369,7 @@ export const RULES_INFECTIOUS = [
       const anemic = hgb?.abnormal && hgb.dir === "low";
       const marked = esr.value >= 100;
       const crpMeasured = e.graded.some((g) => g.test === "CRP_Q") || qualPositive(e, CRP_RE);
+      const lupus = lupusLinkFires(e);   // P149
       return {
         pattern: "esr_elevated",
         urgency: marked ? "this_week" : "routine",
@@ -387,8 +390,8 @@ export const RULES_INFECTIOUS = [
             : "معمولاً CRP را هم کنارش می‌سنجند: CRP سریع‌تر بالا و پایین می‌رود و برای تشخیصِ التهابِ تازه دقیق‌تر است. "),
         action: marked
           ? "این هفته با پزشک مطرح کنید تا علت پیدا شود؛ اگر تب، کاهش وزن بی‌دلیل، تعریق شبانه یا دردِ مداوم دارید حتماً بگویید."
-          : "با پزشک مطرح کنید. اگر علامتی ندارید، معمولاً تکرارِ آزمایش پس از چند هفته کافی است.",
-        suggest: ["CRP کمی (mg/L)", "تکرار ESR"],
+          : lupus ? "با پزشک مطرح کنید." : "با پزشک مطرح کنید. اگر علامتی ندارید، معمولاً تکرارِ آزمایش پس از چند هفته کافی است.",
+        suggest: ["CRP کمی (mg/L)", ...(lupus ? [] : ["تکرار ESR"])],
         warnings: [],
         key_number: esr.value,
       };

@@ -8429,7 +8429,7 @@ test("M170: پیشنهادِ «تکرار …» به «درخواست آزمای
 // sha هر برگه روی b9068df، پیش از مرحلهٔ ب (اندازه‌گیری‌شده، نه نوشته‌شده).
 // ⚠️ hem: P146 عمدی (fdiff146) — قاعدگی از hematuriaِ مرد؛ قبلی 79c3b1c3edcc6952.
 const UB_FROZEN = { uti: "f5a3594639e8c80b", hem: "9542a200ade9adec", rbccast: "e4ad5c0d2305304a", gran: "f96d3a80e3b86903",
-  biliD: "0ae9760e11a845d1", biliI: "d73f07f5581c19ae", biliE: "b6944cd0079a43a5", hemol: "8c9c9e6020419ee3" /* ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff). */ /* ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp) */,
+  biliD: "0ae9760e11a845d1", biliI: "195dcd9f2406fc80" /* P149: ژیلبر بی ALT/AST ⇒ «آنزیم‌های کبدی (ALT و AST) روی این برگه نیستند؛ اگر طبیعی باشند، …» (freezediff) */, biliE: "b6944cd0079a43a5", hemol: "8c9c9e6020419ee3" /* ⚠️ M191: فقط اقدامِ روتینِ unexplained_abnormal (freezediff). */ /* ⚠️ specs/008 (Q1): از سهمِ specs/008 فقط رشتهٔ بازهٔ Hb در متن عوض شد (هش‌های فعلی متنِ هم‌زمانِ microcytic_anemia از نشستِ دیگر را هم دارند — این دو تغییر جدا commit نشوند) (مثلاً «14–17.5» → «13.7–17.5») — سنجیده شد پیش از متنِ microcytic_anemia (M187): خروجیِ کاملِ پنل روی 9deba20 و درختِ کاری، پس از حذفِ رشتهٔ بازه، یکسان بود؛ از آن پس فرقِ دیگر فقط همان متن است (بازبینیِ دور ۲، CR11) (specs/008 cmp) */,
   bact: "2d753638ee88a4b4", tubcast: "ea3b269da2e1e80c" };
 const ubIds = (rows, patient) => uaIds(uaRun(rows, patient));
 const ubFind = (rows, id, patient) => uaRun(rows, patient).findings.find((f) => f.pattern === id || f.pattern?.startsWith(id));
@@ -9746,6 +9746,8 @@ test("M188d: actionِ غیرِنهایی — محتوا (تکرارِ آزمای
   for (const final of [WEEK, ER]) {
     for (const [a, re] of KEEP) {
       const r = rest(final, a);
+      // P149: «… پس از چند هفته کافی است» زیرِ دستورِ soon/اورژانس انتظاری را تأیید می‌کند که دستورِ نهایی رد کرده ⇒ می‌رود.
+      if (final === ER && /کافی است/.test(a)) { assert.doesNotMatch(r, /چند هفته/, `ER: «${r}»`); continue; }
       assert.match(r, re, `${final.urgency}: «${a}» ⇒ «${r}»`);
       // محتوای نگه‌داشته زمان‌بندیِ رقیب با خودش نمی‌آورد.
       assert.doesNotMatch(r, /این هفته|نوبت عادی/, `${final.urgency}: زمان‌بندیِ رقیب ماند: «${r}»`);

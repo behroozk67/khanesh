@@ -346,6 +346,11 @@ Rules:
   - A multi-band printed range picks the band from sex *and* age, and gives a verdict only when every non-excluded band agrees (N50).
   - Stripping name affixes is a fallback after an exact miss. It never strips a specimen that changes identity (urine).
   - `RULE_READS` scans a rule's source, so naming a key in `build` marks it covered even when the text omits it. A conditional mention belongs in a helper outside `build`.
+- **Repeated in P149 (lupus sheet, second round):** P147's GN, nephrotic and lupus-link fixes were green on a synthetic panel («Protein», «ANA»)
+  and never fired on the real sheet. «Protein (Urine)», «Blood/Hb (Urine)» and «ANA (CL)» were unmapped. The patient kept «مشکل مزمن کبد»,
+  «اگر در آزمایش ادرار نشانه‌ای … نباشد» and «ANA روی این برگه نیست» after the fix was deployed. **A fix made from a real sheet is tested on
+  that sheet's printed names, taken from the job's `extracted_tests`, not on names I retyped.** A specimen written as a suffix («X (Urine)»)
+  is identity, not an affix to strip: map it to the urine name, gated on the dipstick value set.
 
 **N57 — A known diabetic was told to «confirm the diagnosis», and a negative anti-GAD lowered the score.** (specs/025, P143; commit: this change.)
 - **What happened:**

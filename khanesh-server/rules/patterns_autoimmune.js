@@ -1012,6 +1012,8 @@ function lupusLinkState(e) {
   if (!kidney && !blood.length) return null;
   return { kidney, anemia: blood.includes("HGB"), blood: blood.length > 0, comp: c3.state === "below" || c4.state === "below", ds: isPos(st.ANTI_DSDNA) || isPos(st.ANTI_SM) };
 }
+/** P149: آیا lupus_activity_link فعال است؟ (CRP/ESR کنارش «تکرار» و «چند هفته صبر» نمی‌گویند.) */
+export function lupusLinkFires(e) { return !!lupusLinkState(e); }
 function lupusLinkBuild(e) {
   const s = lupusLinkState(e);
   const sero = ["ANA مثبت", s.ds ? "آنتی‌بادیِ اختصاصی‌ترِ مثبت (anti-dsDNA یا anti-Sm)" : null, s.comp ? "کمپلمانِ پایین" : null].filter(Boolean);

@@ -2199,6 +2199,17 @@ export function ocrToEngineInput(ocr) {
     //   استراز واژگانِ فقط‌ادرار است ⇒ روی هر صفحه‌ای؛ نامِ قانونی می‌گیرد تا LE_RE ِ قاعده‌ها («leukocyte|esterase») و
     //   PAD_ROW_RE (کنارگذاشتن از شمارشِ WBC) آن را بشناسند. مقدارِ بیرون از فهرستِ بسته ⇒ «تفسیر نشدند» (N6).
     //   املاهای قدیمی («Leukocyte Esterase»، «لکوسیت استراز») همان مسیرِ isQualitative را دارند — دست نمی‌خورند.
+    // P149 (برگهٔ لوپوس، N2/N56): «Protein (Urine)»، «Blood/Hb (Urine)» — نامِ مبهم + نمونهٔ صریحِ ادرار. پیش‌تر «تفسیر نشدند» و
+    //   الگوهای نفروتیک/گلومرولونفریت هرگز فعال نمی‌شدند. فقط با مقدارِ نواری (P146)؛ عدد همان مسیرِ عادی را می‌رود.
+    {
+      const base = key.match(/^(.+?)urine$/)?.[1];
+      const dn = base === "bloodhb" || base === "hbblood" ? "Urine Blood" : base ? DIPSTICK_AMBIG_NAME[base] : null;
+      const raw = String(t.value ?? "").trim();
+      if (dn && (base === "bilirubin" ? urineBiliValueState(raw) !== "unknown" : DIPSTICK_VALUE_RE.test(raw))) {
+        qual[dn] = raw;
+        continue;
+      }
+    }
     if (isLeKey(key) && !QUALITATIVE.has(key)) {
       if (DIPSTICK_VALUE_RE.test(String(t.value ?? "").trim())) qual["Leukocyte Esterase"] = String(t.value).trim();
       else unmapped.push(t.name);

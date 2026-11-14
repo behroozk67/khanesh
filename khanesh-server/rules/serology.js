@@ -249,7 +249,7 @@ export const isFecalBloodName = (name) => {
 const AI_RE = {
   FIT: FECAL_BLOOD_RE,
   // specs/023 (P136، G2): «ANA (IIF)» ⇒ k0 «anaiif» و «FANA» (Fluorescent ANA) پیش‌تر unmapped بودند.
-  ANA: /^(f?ana|antinuclearantibod(y|ies)|antinuclearab|antinuclear|anf|آنتیبادیضدهسته|آنتینوکلئار)(ifa|if|iif|hep2|hep2iif|iifhep2|titer|titre|screen|screening|test|qualitative)?$/,
+  ANA: /^(f?ana|antinuclearantibod(y|ies)|antinuclearab|antinuclear|anf|آنتیبادیضدهسته|آنتینوکلئار)(ifa|if|iif|hep2|hep2iif|iifhep2|titer|titre|screen|screening|test|qualitative|cl|clia|cia|elisa|eia)?$/,   // P149: «ANA (CL)»
   ANTI_DSDNA: /^(anti)?(dsdna|doublestrandeddna|dna)(ab|antibody|antibodies|igg|elisa|ifa|clift|crithidia|cliftifa|iif)?$/,
   ANTI_RO: /^(antiro|antiroab|antirossa|antissaro|antissa|ssa|rossa|antiro52|antiro60)$/,
   ANTI_LA: /^(antila|antilaab|antilassb|antissbla|antissb|ssb|lassb)$/,
@@ -372,7 +372,8 @@ export function anaPatternsOf(raw) {
 /** مقدارِ آزمایشِ خودایمنی: pos|neg (با تیترِ اختیاری) | titre (تیترِ بی‌واژه) | num | unknown. N6: مجموعهٔ بسته (qualVerdict).
  *  ANA (P77، EULAR/ACR 2019 + ICAP): تیترِ HEp-2 ≥ 1:80 مثبت، کمتر منفی؛ الگوی چاپ‌شده + تیترِ ≥ 1:80 هم مثبت است. */
 export function readAutoValue(raw, id = null) {
-  const s = faDigits(raw).trim();
+  // P149: «1:640 Titer» — واژهٔ واحد کنارِ تیتر (OCR گاهی واحد را در مقدار می‌گذارد) تیترِ برهنه را نخواندنی می‌کرد.
+  const s = faDigits(raw).trim().replace(/^(\d+\s*[:/]\s*\d+)\s*(titer|titre|تیتر)$/i, "$1");
   if (id === "ANA") {
     const t = s.match(/1\s*[:/]\s*(\d+)/);
     const titre = t ? Number(t[1]) : null;

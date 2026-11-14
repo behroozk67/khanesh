@@ -391,11 +391,15 @@ function redundantConditional(s, finalStrength) {
   return PURE_TIMELINE_CONSEQUENT.test(cons) && sentenceStrength(s) <= finalStrength;
 }
 /** از actionِ یافته‌ای که دستورِ نهایی نیست، چه چیزی می‌ماند. */
-function nonFinalRemainder(action, finalStrength) {
+// P149 (برگهٔ لوپوس): «اگر علامتی ندارید، معمولاً تکرارِ آزمایش پس از چند هفته کافی است.» کنارِ دستورِ «۲۴–۴۸ ساعت»/اورژانس
+//   انتظاری را تأیید می‌کند که دستورِ نهایی رد کرده. شرطی است، پس CONDITIONAL نگهش می‌داشت.
+const WAIT_SUFFICES = /(پس از|بعد از)\s+(یک|دو|سه|چند|\d+)\s+(هفته|ماه)[^.]*کافی/;
+function nonFinalRemainder(action, finalStrength, finalUrgent = false) {
   const finalIsEr = finalStrength >= 4;
   return actionSentences(action)
     .map((s) => {
       if (REASSURE.test(s)) return null;
+      if (finalUrgent && WAIT_SUFFICES.test(s)) return null;
       if (CONDITIONAL.test(s)) return redundantConditional(s, finalStrength) ? null : s;
       if (!isTimelineSentence(s)) return s;
       const tail = contentTail(s);
@@ -466,7 +470,7 @@ export function buildEngineRecommendations(patterns, engineOut) {
     if (f.action && f !== final) {
       // 🔴 کد #4: جمله‌ای که در فهرست هست («این برگه را همراه ببرید» در دستورِ نهایی) دوباره نمی‌آید.
       const soFar = normalizeRec(texts().join(" "));
-      const rest = nonFinalRemainder(f.action, finalStrength)
+      const rest = nonFinalRemainder(f.action, finalStrength, (URGENCY_RANK[final?.urgency] ?? 0) >= URGENCY_RANK.soon)
         .filter((s) => !(erNow && CONDITIONAL.test(s) && /اورژانس/.test(s)))
         .map((s) => s.replace(/؛$/, "."))
         .filter((s) => !soFar.includes(normalizeRec(s)));
