@@ -44,6 +44,21 @@ test("P147-1: پان‌سیتوپنی بی‌ردهٔ بحرانی ⇒ ۲۴–۴
   assert.ok(ids(w).includes("leukopenia"), ids(w).join());
 });
 
+test("P147-1b: یکی از سه رده اورژانسِ جدا دارد (PLT 40، WBC 1.8) ⇒ پان‌سیتوپنی «یکی دو روز / ۲۴–۴۸ ساعت» نمی‌گوید (N20)", () => {
+  for (const [rows, pt] of [
+    [[T("WBC", "2.1"), T("PLT", "40"), T("Hb", "8", "g/dL")], { age: 55, sex: "M" }],
+    [[T("Hb", "9", "g/dL"), T("WBC", "1.8"), T("PLT", "80")], { age: 40, sex: "M" }],
+  ]) {
+    const { p, recs } = run(rows, pt);
+    assert.equal(p.overall_urgency, "emergency");
+    const pan = byId(p, "pancytopenia");
+    assert.doesNotMatch(pan.must_say + pan.action, /یکی دو روز|۲۴ تا ۴۸/, pan.action);
+    assert.match(pan.action, /همان دستورِ فوریِ بالا/);
+    assert.ok(!recs.some((r) => /یکی دو روز|۲۴ تا ۴۸ ساعت/.test(r)), recs.join("\n"));
+    assert.match(recs[0], /اورژانس/);
+  }
+});
+
 test("P147-2: زیرِ اورژانسِ دیگر (PLT 15) یافته‌های خودایمنی و GN کامل می‌مانند — anti-dsDNA 145 و C4 7 و ارجاع‌ها", () => {
   const { p, recs } = run(swap(SLE, "PLT", "15"));
   assert.equal(p.overall_urgency, "emergency");
@@ -57,8 +72,9 @@ test("P147-2: زیرِ اورژانسِ دیگر (PLT 15) یافته‌های خ
   const all = recs.join("\n");
   assert.match(all, /روماتولوژی/);
   assert.match(all, /نفرولوژی/);
-  // دستورِ نهایی همان اورژانسِ فوری‌ترین است
-  assert.doesNotMatch(recs[0], /این هفته/);
+  // دستورِ نهایی همان اورژانسِ فوری‌ترین است، و هیچ سطری زمان‌بندیِ رقیب («این هفته»، «نوبتِ عادی»، «یکی دو روز») نمی‌آورد (M241b)
+  assert.match(recs[0], /اورژانس|همین امروز/);
+  assert.ok(!recs.some((r) => /این هفته|نوبتِ عادی|یکی دو روز|۲۴ تا ۴۸ ساعت/.test(r)), recs.join("\n"));
 });
 
 test("P147-3: GN با سیلندرِ گلبولِ قرمز و کراتینینِ بالا ⇒ ۲۴–۴۸ ساعت؛ کراتینینِ خفیف کنارِ GN «تکرار پس از چند هفته» نمی‌گوید", () => {

@@ -156,6 +156,14 @@ function pancytopeniaCritical(e) {
   const t = val(e);
   return (t.NEUT_ABS != null && t.NEUT_ABS < PANCYTO_CRIT.ANC) || (t.PLT != null && t.PLT < PANCYTO_CRIT.PLT) || (t.HGB != null && t.HGB < PANCYTO_CRIT.HGB);
 }
+// P147-۱ (N20): یکی از سه رده خودش اورژانسِ جدا دارد (ترومبوسیتوپنیِ شدید < ۵۰، WBC < 2، بحرانِ کم‌خونی) ولی به مرزِ بحرانیِ
+//   پان‌سیتوپنی نرسیده ⇒ پان‌سیتوپنی soon می‌ماند (تصمیمِ کاربر) ولی «ظرف یکی دو روز / ۲۴–۴۸ ساعت» نمی‌گوید؛ به همان دستورِ فوری ارجاع می‌دهد.
+//   از خودِ قاعده‌ها می‌پرسد، آستانه کپی نمی‌شود.
+const PANCYTO_SIBLING_DEFER = "همان دستورِ فوریِ بالا را دنبال کنید و این برگه را همراه ببرید؛ ادامهٔ بررسیِ کاهشِ هر سه رده با پزشک است.";
+function pancytoSiblingEmergency(e) {
+  const fires = (id) => { const r = RULES_HEMATOLOGY.find((x) => x.id === id); return !!r && !!r.match(e) && r.build(e).urgency === "emergency"; };
+  return fires("severe_thrombocytopenia") || fires("leukopenia") || anemiaCrisisOwns(e);
+}
 /** پان‌سیتوپنی فعال است؟ (هندآف: قاعده‌های تک‌رده‌ای وقتی این فعال است عددشان را به آن می‌سپارند — N20). */
 const pancytopeniaFires = (e) => !!RULES_HEMATOLOGY.find((r) => r.id === "pancytopenia")?.match(e);
 function actionUnlessAnemiaCrisis(e, action) {
@@ -1167,6 +1175,7 @@ export const RULES_HEMATOLOGY = [
       const hgb = g("HGB"), wbc = g("WBC"), plt = g("PLT"), neut = g("NEUT_ABS");
       // P147-۱ (تصمیمِ کاربر ۲۰۲۶-۱۱-۱۴): اورژانس فقط وقتی یکی از سه رده خودش بحرانی است؛ وگرنه ۲۴–۴۸ ساعت و بی‌پوشاندنِ بقیه.
       const crit = pancytopeniaCritical(e);
+      const sibling = !crit && pancytoSiblingEmergency(e);
       const num = (x, fa) => (x ? `${fa} ${x.value} (حد طبیعی ${x.range})` : fa);
       const neutClause = !neut?.abnormal ? ""
         : neut.dir === "low"
@@ -1182,9 +1191,9 @@ export const RULES_HEMATOLOGY = [
           (wbc?.abnormal && wbc.dir === "low"
             ? `${num(hgb, "هموگلوبین")}، ${num(wbc, "گلبول سفید")} و ${num(plt, "پلاکت")} — هر سه پایین هستند.`
             : `${num(hgb, "هموگلوبین")} و ${num(plt, "پلاکت")} پایین هستند و شمارشِ نوتروفیل‌ها هم کم است${wbc ? ` (گلبول سفیدِ کل ${wbc.value} در محدوده است)` : ""}.`) + neutClause + lymphClauseInPancytopenia(e) + " " +
-          `وقتی هر سه ردهٔ سلولی با هم افت می‌کنند، معمولاً مشکل از خودِ مغز استخوان (کارخانهٔ ساخت سلول‌های خونی) یا تخریب گستردهٔ آن‌هاست و ${crit ? "نیاز به بررسی فوری دارد" : "باید زود (ظرف یکی دو روز) بررسی شود"}. ` +
+          `وقتی هر سه ردهٔ سلولی با هم افت می‌کنند، معمولاً مشکل از خودِ مغز استخوان (کارخانهٔ ساخت سلول‌های خونی) یا تخریب گستردهٔ آن‌هاست و ${crit || sibling ? "نیاز به بررسی فوری دارد" : "باید زود (ظرف یکی دو روز) بررسی شود"}. ` +
           "یکی از علت‌های درمان‌پذیرِ آن کمبودِ ویتامین B12 یا فولات است؛ لام خون محیطی، رتیکولوسیت، B12، فولات و فریتین آزمایش‌های نخستِ علت‌یابی‌اند.",
-        action: actionUnlessAnemiaCrisis(e, crit ? "همین امروز با پزشک تماس بگیرید." : "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و این برگه را همراه ببرید."),
+        action: actionUnlessAnemiaCrisis(e, crit ? "همین امروز با پزشک تماس بگیرید." : sibling ? PANCYTO_SIBLING_DEFER : "ظرف ۲۴ تا ۴۸ ساعتِ آینده با پزشک مراجعه کنید و این برگه را همراه ببرید."),
         suggest: ["لام خون محیطی", "رتیکولوسیت", "ویتامین B12", "فولات", "فریتین"],
         warnings: [],
         blocks_others: crit,
