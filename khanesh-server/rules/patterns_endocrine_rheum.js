@@ -348,7 +348,8 @@ export const RULES_ENDOCRINE_RHEUM = [
         return {
           pattern: `thyroid_hyper_${overt ? "overt" : ft4Missing ? "ft4_unmeasured" : "subclinical"}`,
           urgency: overt || referEndo ? "this_week" : "routine",
-          sources: referEndo ? ["ATA_HYPER_2016"] : undefined,
+          // P148: جملهٔ پایه و هشدارِ تب/گلودرد از ATA 2016 (توصیه‌های ۱۵ و ۱۶).
+          sources: referEndo || overtThyrotoxicosis(e) ? ["ATA_HYPER_2016"] : undefined,
           ...(known ? { applied_conditions: ["hypothyroid"] } : {}),
           headline: known ? "TSH شما پایین‌تر از حد طبیعی است" : "غده تیروئید شما پرکارتر از حد معمول است",
           must_say: known ? knownHypoLowText(tsh, ft4, overt, ft4Missing, missingFa) :

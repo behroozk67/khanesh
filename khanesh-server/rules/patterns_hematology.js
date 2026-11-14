@@ -2108,7 +2108,9 @@ export const RULES_HEMATOLOGY = [
         suggest: thal
           ? thalWorkup
           : [fc ? null : "فریتین", t.IRON != null ? null : "آهن سرم", t.TIBC != null ? null : "TIBC",
-            idaYoungWoman(e) && e.age < IDA_FOBT_MIN_AGE ? null : "بررسی خون مخفی در مدفوع (FOBT)"].filter(Boolean),
+            idaYoungWoman(e) && e.age < IDA_FOBT_MIN_AGE ? null : "بررسی خون مخفی در مدفوع (FOBT)",
+            // P148 (BSG 2021 توصیهٔ ۲۵، سلیاک تا ۴٪): زنِ جوان با کمبودِ آهنِ تأییدشده یا پوشیده در التهاب ⇒ سرولوژیِ سلیاک.
+            idaYoungWoman(e) && ["low", "masked"].includes(fc?.state) ? "آنتی‌بادی tTG-IgA (سلیاک)" : null].filter(Boolean),
         forbid: ["B12", "فولات"],
         warnings: [
           "بدون تجویز پزشک قرص آهن نخورید. اگر علت آهن نباشد، آهن اضافی به بدن آسیب می‌زند.",

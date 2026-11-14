@@ -192,3 +192,14 @@ test("P148-15: دو آزمایشِ قند در محدودهٔ پیش‌دیاب�
   const f = byId(run([T("FBS", "110", "mg/dL"), T("2hpp", "150", "mg/dL")], { age: 40, sex: "M" }).p, "glycemia");
   assert.match(f.must_say, /این عددها در محدودهٔ «پیش‌دیابت» هستند/);
 });
+
+test("P148-16 (BSG 2021 توصیهٔ ۲۵): زنِ جوان با کمبودِ آهنِ تأییدشده ⇒ سرولوژیِ سلیاک؛ بی‌فریتین یا مرد ⇒ نه", () => {
+  const ida = [T("Hb", "9.5", "g/dL"), T("MCV", "70", "fL"), T("Ferritin", "6", "ng/mL")];
+  const tt = (rows, patient) => byId(run(rows, patient).p, "microcytic_anemia").suggest.includes("آنتی‌بادی tTG-IgA (سلیاک)");
+  assert.ok(tt(ida, { age: 30, sex: "F" }));
+  assert.ok(!tt(ida.slice(0, 2), { age: 30, sex: "F" }), "بی‌فریتین کمبودِ آهن تأیید نشده");
+  assert.ok(!tt(swap(ida, "Hb", { value: "11" }), { age: 40, sex: "M" }));
+  const { recs } = run(ida, { age: 30, sex: "F" });
+  assert.ok(recs.some((r) => /tTG-IgA \(سلیاک\)/.test(r)), recs.join(" | "));
+  assert.ok(!run([...ida, T("tTG IgA", "2", "U/mL", "<10")], { age: 30, sex: "F" }).recs.some((r) => /tTG-IgA \(سلیاک\)/.test(r)), "اندازه‌گیری‌شده دوباره درخواست نمی‌شود");
+});

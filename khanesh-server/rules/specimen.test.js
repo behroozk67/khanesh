@@ -119,7 +119,7 @@ const FREEZE = {
   // بازپایهٔ عمدی (باگِ ۴، LIS ۲۰۲۶-۱۰-۰۵): در thyroid، lis_ldh، lis_serum، fluid_bare و neonate فقط فیلدِ brief/brief_warnings ِ
   // unit_unknown_values عوض شد (عددِ برگه در نسخهٔ کوتاه)؛ خروجی بدونِ این دو فیلد در هر ۱۱ پنل بایت‌به‌بایت همان است (stash).
   // هش‌های قبلی: 0c3a87d251beba49، b4aca598b9885e65، e5639cb63a569a3d، fbc60061d1a28af4، 3c0fe6147ac78fa5.
-  cbc_ida: [{ sex: "F", age: 30 }, [row("Hb", "9.5", "g/dL"), row("MCV", "70", "fL"), row("Ferritin", "6", "ng/mL"), row("WBC", "6.1"), row("PLT", "250")], "32f0f4781239ac06"], // P148 (عمدی، fdiff148): زنِ ۳۰ ساله ⇒ جملهٔ قاعدگی، action، suggest بی FOBT
+  cbc_ida: [{ sex: "F", age: 30 }, [row("Hb", "9.5", "g/dL"), row("MCV", "70", "fL"), row("Ferritin", "6", "ng/mL"), row("WBC", "6.1"), row("PLT", "250")], "5461bf6558c75ac2"], // P148 (عمدی، fdiff148/148d): زنِ ۳۰ ساله ⇒ جملهٔ قاعدگی، action، suggest بی FOBT و با tTG (BSG 2021)، sources + BSG_IDA_2021
   // بازپایهٔ عمدی (P108، ۲۰۲۶-۱۰-۱۶): فقط رشتهٔ بازهٔ کراتینینِ مرد «0.6–1.2» ⇒ «0.6–1.3» (diffِ کامل). قبلی a25b0d7b6c56186a.
   // بازپایهٔ عمدی (۲۰۲۶-۱۰-۱۶، حذفِ محاسبهٔ eGFR): همین پنل کراتینین دارد؛ indices دیگر egfr ندارد (فقط bun_cr می‌ماند)
   //   و متنِ کلیه هیچ اشاره‌ای به «کار کلیه» نمی‌کند. درجه‌بندی و یافته‌ها دست‌نخورده (CREAT 1.0 طبیعی، بی‌یافته).

@@ -8990,7 +8990,8 @@ test("M180b: یادداشتِ MCHC جای اسفروسیتوز، بحران و �
   // P147-۱ (عمدی، fdiff147): پنلِ ۸ (Hb 9 · WBC 2 · PLT 60) پان‌سیتوپنیِ soon می‌گیرد، نه blocker؛ normocytic_anemia متنِ کامل و
   //   پیشنهادهایش را می‌گیرد. قبلی c979a7f9f4e6d5f6.
   // P148 (عمدی، fdiff148 روی e550656): پنلِ سوم (زنِ ۳۰ ساله، فریتین ۵) فقط microcytic_ida_likely — جملهٔ قاعدگی، action، suggest بی FOBT.
-  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","b44222a126bb02cd","dc7c4e1e1b6de999","1f07ceaf3545185d","533579b1749fa223","dd3f16a57359abb0","f3608850252d5293","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
+  //   P148 منابع (fdiff148d روی c1abaf3): همان پنل — sources + BSG_IDA_2021 و suggest + «آنتی‌بادی tTG-IgA (سلیاک)».
+  const EXPECTED = ["af9c7d7a7847315f","af9c7d7a7847315f","47b3d0aa15d94610","dc7c4e1e1b6de999","1f07ceaf3545185d","533579b1749fa223","dd3f16a57359abb0","f3608850252d5293","fbe81c2ef0ab5c79","069dca6b516e1253","1327339dfe505b04","af9c7d7a7847315f"];
   // ⚠️ اندیسِ ۸ (PLT 90، Hb/WBCِ طبیعی) عمداً عوض شد — بندِ ۴ LIS (۲۰۲۶-۱۰-۰۶، N20): thrombocytopenia کنارِ isolated_thrombocytopenia
   //   کنار رفت؛ isolated عدد/بازه (به‌جای «به زیر ۱۰۰ هزار») و «تکرار CBC» گرفت. فوریت همان this_week (proof4.mjs، کپیِ pre4).
   assert.deepEqual(P.map(snap), EXPECTED);
