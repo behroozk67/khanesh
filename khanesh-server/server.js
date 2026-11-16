@@ -745,7 +745,12 @@ async function readImage(imageDataUrl, label = "") {
       });
 
       const parsed = safeParseJson(raw);
-      if (!parsed) throw new Error("ocr_parse_failed");
+      if (!parsed) {
+        // فقط فراداده: طول، دلیلِ پایان، تعدادِ توکن و نویسهٔ اول/آخر — هرگز متنِ پاسخ (ممکن است دادهٔ بیمار باشد).
+        const t = String(raw).trim(), meta = avalai.lastReply;
+        console.warn(`OCR ${label} پاسخِ نامعتبر: len=${t.length} first=${JSON.stringify(t.slice(0, 1))} last=${JSON.stringify(t.slice(-1))} finish=${meta?.finish} tokens=${meta?.tokens}`);
+        throw new Error("ocr_parse_failed");
+      }
 
       const n = Array.isArray(parsed.tests) ? parsed.tests.length : 0;
       console.log(`OCR ${label} خواند: ${n} تست (تلاش ${attempt})`);

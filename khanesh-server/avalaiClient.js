@@ -26,6 +26,8 @@ export function createAvalAIClient({ apiKey, baseUrl, timeoutMs, fetchImpl }) {
   // آخرین شکستِ ارتباط — فقط کدِ خطا، هرگز بدنه یا URL با دادهٔ بیمار.
   // در /health دیده می‌شود تا «خطا داد» بدونِ حدس ریشه‌یابی شود.
   let lastFailure = null;
+  // P156: فرادادهٔ آخرین پاسخ (بی‌متن) — برای ریشه‌یابیِ ocr_parse_failed بی‌آنکه محتوای بالینی لاگ شود.
+  let lastReply = null;
 
   async function call({ model, messages, maxTokens = 2000, temperature = 0 }) {
     const doFetch = fetchImpl ?? fetch;
@@ -96,10 +98,12 @@ export function createAvalAIClient({ apiKey, baseUrl, timeoutMs, fetchImpl }) {
       );
     }
 
-    return data?.choices?.[0]?.message?.content || "{}";
+    const content = data?.choices?.[0]?.message?.content || "";
+    lastReply = { model, finish: finishReason ?? null, len: content.length, tokens: data?.usage?.completion_tokens ?? null };
+    return content || "{}";
   }
 
-  return { call, truncations, get lastFailure() { return lastFailure; } };
+  return { call, truncations, get lastFailure() { return lastFailure; }, get lastReply() { return lastReply; } };
 }
 
 // ============================================================
