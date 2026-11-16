@@ -753,6 +753,9 @@ function resolveAlias(key) {
     const a = NAME_MAP[key.slice(0, i)];
     const b = NAME_MAP[key.slice(i)];
     if (a && b && a === b) return a;
+    // P155 (جاب a57055d6): «F.B.S (Blood Sugar)» = «fbs»(GLU_F) + «bloodsugar»(GLU_RANDOM) به یک کلید نمی‌رسید و قندِ ۴۸۵ بی‌صدا
+    //   unmapped ماند (N2). «قندِ خونِ عمومی» + قیدِ ناشتا/۲ساعته یک آزمایش است و قید برنده است؛ دو قیدِ متفاوت (GLU_F + GLU_2H) هنوز رد می‌شود.
+    if ((a === "GLU_RANDOM" && (b === "GLU_F" || b === "GLU_2H")) || (b === "GLU_RANDOM" && (a === "GLU_F" || a === "GLU_2H"))) return a === "GLU_RANDOM" ? b : a;
   }
   // برگهٔ HIS (۲۰۲۶-۱۱-۱۱): نامِ تعرفه‌ایِ «اندازه گیری کمی اوره خون/سرم/ پلاسما» ⇒ «اوره». فقط وقتی نامِ خام نگاشت نشد.
   const base = stripHisAffixes(key);
