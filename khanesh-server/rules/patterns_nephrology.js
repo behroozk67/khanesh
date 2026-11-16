@@ -1,4 +1,4 @@
-import { serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence , epithelialState , squamousSentence, ungradedFa } from "./patterns_utils.js";
+import { bloodGlucoseHigh250, serologyReactive, qualPositive, qualValue, titreFa, hasInflammation, whoFerritinThreshold, whoInflamIronDeficiency, urinePositive, urineCellCount, urineGrade, isNephrotic, isGlomerulonephritis, isDIC, val, rankOf, levelGrade, castAxis, urineCellState, othersSentence , epithelialState , squamousSentence, ungradedFa } from "./patterns_utils.js";
 import { faName } from "./names.js";
 import { bunToUrea } from "./refs.js";
 import { canBePregnant, mayMenstruate } from "./patterns_utils.js";
@@ -483,6 +483,23 @@ const RULES_NEPHROLOGY_B = [
       const g = urineGrade(e, /ketone|کتون/i);
       const glu = urinePositive(e, /urine\s*glucose|u\s*glucose|قند\s*ادرار|گلوکز\s*ادرار/i);
       const heavy = g >= 3;   // +3
+
+      // P153: کتونِ ادرار کنارِ قندِ خونِ ≥ ۲۵۰ همان شرطِ dka_pattern است؛ «روزه‌داری/رژیم/استفراغ» و «اگر دیابت دارید» به این بیمار
+      //   علتِ بی‌خطر می‌دهد و با «همین حالا اورژانس» می‌جنگد (N20/N21). متن فقط به DKA ارجاع می‌دهد؛ فوریت/دستور را DKA دارد.
+      const fa = (n) => String(n).replace(/[0-9]/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
+      if (bloodGlucoseHigh250(e)) {
+        return {
+          pattern: "ketonuria_with_glucose",
+          urgency: "this_week",
+          headline: `در آزمایش ادرار شما کتون قابل‌توجه (+${fa(g)}) دیده شده است`,
+          must_say:
+            `کتون ادرار شما (+${fa(g)}) کنار قند خون بسیار بالاست. این ترکیب را روزه‌داری یا رژیم توضیح نمی‌دهد؛ ` +
+            "یعنی بدن به‌جای قند، چربی می‌سوزاند چون انسولین به اندازهٔ کافی کار نمی‌کند، و می‌تواند به کتواسیدوز دیابتی برسد — همان وضعیتِ فوریِ بالا.",
+          action: "این هفته با پزشک مطرح کنید.",
+          suggest: ["قند خون"],
+          warnings: [],
+        };
+      }
 
       // پایه‌ی توضیح مشترک
       const base =

@@ -68,3 +68,26 @@ test("P152-2: برگهٔ غیراورژانسی و نوزاد خلاصهٔ مد�
   const { e, p } = run([T("Potassium (K)", "5.9 mmol/L", "3.5 - 5.1")]);
   assert.equal(engineSummary(e, p), null);
 });
+
+// P153 (ایرادِ ۴): کتونِ ادرار کنارِ قندِ ۴۸۵ «روزه‌داری، رژیم، استفراغ» و «اگر دیابت دارید» می‌گرفت (در بندِ «موارد دیگرِ این برگه»).
+//   خودِ قاعده مستقیم ساخته می‌شود، چون زیرِ DKA فقط گاهی به‌صورتِ یافتهٔ تکمیلی دیده می‌شود.
+import { RULES } from "./patterns.js";
+test("P153-1: کتونِ ادرار + قندِ خونِ ≥ ۲۵۰ علتِ بی‌خطر نمی‌گوید؛ بی‌قندِ بالا متنِ قبلی می‌ماند", () => {
+  const rule = RULES.find((r) => r.id === "ketonuria_pattern");
+  const hi = runEngine({ tests: SHEET(), patient: M47 });
+  assert.ok(rule.match(hi));
+  const a = rule.build(hi);
+  assert.match(a.must_say, /این ترکیب را روزه‌داری یا رژیم توضیح نمی‌دهد/);
+  assert.doesNotMatch(a.must_say + a.headline + a.action, /روزه‌داری، گرسنگی|اگر دیابت دارید|استفراغ/);
+  assert.ok(a.headline.includes("+۳"), a.headline);
+  const lo = runEngine({ tests: [T("Ketone (Urine)", "3+", "Negative"), T("FBS", "110 mg/dL", "70 - 100")], patient: M47 });
+  assert.match(rule.build(lo).must_say, /روزه‌داری، گرسنگی/);
+});
+
+// P150 باقیمانده (کشفِ حینِ P153): hiddenِ تورِ «توضیح داده نشدند» به keep_under_blocker توجه نمی‌کرد؛ TG با وجودِ متنِ کاملش هنوز «بی‌توضیح» خوانده می‌شد.
+import { buildEngineFallbackResult as _fb } from "./prompt.js";
+test("P150-3: TG ≥ ۵۰۰ زیرِ DKA در «توضیحِ آماده نداریم» نمی‌آید", () => {
+  const { e, p } = run(SHEET());
+  assert.ok(!p.findings.some((f) => f.rule_id === "unexplained_abnormal" && /1150/.test(f.must_say)), "TG هنوز بی‌توضیح");
+  assert.doesNotMatch(_fb(e, p).interpretation, /توضیحِ آمادهٔ اختصاصی نداریم/);
+});

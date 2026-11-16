@@ -1601,3 +1601,13 @@ export function rbcMorphOf(e, kind) {
 //   patients with GD … abnormal liver enzymes are frequently seen in patients with thyrotoxicosis»، و ALPِ بالا در پرکاری استخوانی است.
 //   تابع در patterns_endocrine_rheum.js است (کنارِ knownHypothyroid و thyroidCancerContext که گاردش‌اند).
 export const THYROTOX_RECHECK_FA = "پس از کنترلِ تیروئید تکرار شود";
+
+/**
+ * P153: قندِ خونِ ≥ ۲۵۰ (ناشتا یا تصادفی) — همان آستانهٔ dka_pattern. عمداً اینجا و نه داخلِ بدنهٔ قاعده: RULE_READS سورسِ قاعده را
+ * برای نامِ کلید می‌خواند و تورِ ایمنیِ ۳ (patterns.js) یافتهٔ «بی‌کلیدِ graded» را زیرِ blocker به «تکمیلی» برمی‌گرداند؛ خواندنِ
+ * GLU_F در بدنهٔ ketonuria_pattern آن را از آن تور بیرون می‌برد و از نمای تخصصی می‌انداخت (CB12).
+ */
+export function bloodGlucoseHigh250(e) {
+  const t = val(e);
+  return (t.GLU_F ?? 0) >= 250 || (t.GLU_RANDOM ?? 0) >= 250;
+}

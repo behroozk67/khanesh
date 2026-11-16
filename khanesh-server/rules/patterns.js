@@ -643,7 +643,7 @@ export function runPatterns(engineOut) {
     //    «پوشش‌داده» می‌کردند: بازوفیلِ ۴۰۰۰ و لنفوسیتِ ۶۴۰۰ نه در متن بودند نه در این تور. یافتهٔ پنهان با RULE_READS هیچ پوششی نمی‌دهد؛ فقط اگر متنِ فشردهٔ «یافتهٔ تکمیلی» عددی را نام ببرد (rescued، پایین‌تر) پوشش با همان متن حساب می‌شود.
     const br = blockerRankOf(findings);
     const hidden = new Set(Number.isFinite(br)
-      ? findings.filter((f) => rank(f.urgency) > br && !f.always_show)
+      ? findings.filter((f) => rank(f.urgency) > br && !f.always_show && !f.keep_under_blocker)   // P150: همان isDemoted
       : []);
     const briefed = new Set(findings.filter((f) => willBrief(f, findings)));
     const covered = new Set();
