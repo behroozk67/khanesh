@@ -35,3 +35,22 @@ test("P150-2: TG زیرِ ۵۰۰ یا بدونِ آنزیمِ بالا، جمل�
   const lip = noAmy.findings.find((f) => f.rule_id === "lipid_profile")?.must_say ?? "";
   assert.doesNotMatch(lip, /هم‌زمان بالاست/);
 });
+
+// P151 (ایرادِ ۲ همان برگه): پتاسیمِ ۵٫۹ کنارِ DKA «شاید همولیز» و «۲۴ تا ۴۸ ساعت» می‌گرفت، زیرِ «همین حالا اورژانس».
+import { buildEngineRecommendations } from "./prompt.js";
+test("P151-1: پتاسیمِ بالای غیربحرانی کنارِ DKA همولیز را ادعا نمی‌کند و زمانِ ۲۴–۴۸ ساعت نمی‌دهد", () => {
+  const { e, p } = run(SHEET());
+  const k = p.findings.find((f) => f.rule_id === "potassium_critical");
+  const txt = [k.must_say, k.brief, ...(k.warnings ?? [])].join(" ");
+  assert.match(k.must_say, /کاذب فرض نکنید/);
+  assert.doesNotMatch(txt, /همولیز/);
+  const recs = buildEngineRecommendations(p, e).join(" | ");
+  assert.doesNotMatch(recs, /همولیز|۲۴ تا ۴۸/);
+  assert.match(recs, /همین حالا به اورژانس/);
+});
+test("P151-2: همان پتاسیم بی‌DKA رفتارِ قبلی (همولیز + ۲۴–۴۸ ساعت) را می‌گیرد", () => {
+  const { e, p } = run([T("Potassium (K)", "5.9 mmol/L", "3.5 - 5.1")]);
+  const recs = buildEngineRecommendations(p, e).join(" | ");
+  assert.match(recs, /همولیز/);
+  assert.match(recs, /۲۴ تا ۴۸/);
+});

@@ -252,7 +252,10 @@ export function preanalyticalCaveats(engineOut) {
 export function attachPreanalytical(findings, caveats) {
   const orphans = [];
   for (const c of caveats) {
-    const targets = findings.filter((f) => c.attachTo.includes(f.rule_id));
+    const owned = findings.filter((f) => c.attachTo.includes(f.rule_id));
+    // P151: یافته‌ای که خودش می‌گوید این کاوئات به زمینه‌اش نمی‌خورد (پتاسیمِ بالا در DKA) نه target است نه یتیم.
+    if (owned.length && owned.every((f) => f.skip_preanalytical)) continue;
+    const targets = owned.filter((f) => !f.skip_preanalytical);
     if (!targets.length) {
       orphans.push({ text: c.text, sources: c.sources });
       continue;
