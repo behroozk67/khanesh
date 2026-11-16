@@ -102,3 +102,13 @@ test("P154-1: کراتینین و WBC بالا کنارِ DKA در متنِ DKA 
   const plain = run([T("FBS", "485 mg/dL", "70 - 100"), T("Ketone (Urine)", "3+", "Negative")]).p.findings.find((f) => f.rule_id === "dka_pattern").must_say;
   assert.doesNotMatch(plain, /کم‌آبی|کراتینین|گلبول سفید/);
 });
+
+// P157 (جاب 8dae657f): نوتروفیلِ مطلقِ ۱۳۷۷۶ کنارِ DKA به «توضیح داده نشدند» می‌رفت — leukocytosis زیرِ blocker پنهان بود و متنِ DKA نوتروفیل را نمی‌نامید.
+test("P157-1: نوتروفیلِ مطلقِ بالا کنارِ DKA در متنِ DKA می‌آید و «توضیح داده نشدند» نمی‌شود", () => {
+  const rows = [T("F.B.S (Blood Sugar)", "485 mg/dL", "70 - 100"), T("W.B.C", "16.8 10^3/uL", "4.0 - 11.0"), T("Neutrophil %", "82.0 %", "45 - 75"),
+    T("Glucose (Urine)", "4+", "Negative"), T("Ketone (Urine)", "3+", "Negative")];
+  const { e, p } = run(rows);
+  assert.ok(e.graded.some((g) => g.test === "NEUT_ABS" && g.abnormal));
+  assert.match(p.findings.find((f) => f.rule_id === "dka_pattern").must_say, /نوتروفیل مطلق 13776/);
+  assert.ok(!p.findings.some((f) => f.rule_id === "unexplained_abnormal"), "نوتروفیل هنوز بی‌توضیح");
+});

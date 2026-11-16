@@ -14,11 +14,12 @@ import { hemolysisRuleFires, hemolyticAnemiaFires } from "./patterns_hematology.
 // P154: کراتینین و گلبول سفیدِ بالا کنارِ DKA فقط «عدد» می‌گرفتند (زیرِ blocker پنهان و در «موارد دیگر» بی‌ارتباط). DKA مالکِ توضیحشان می‌شود.
 function dkaCompanionTail(e) {
   const hi = (k) => { const g = e.graded.find((x) => x.test === k); return g?.abnormal && g.dir === "high" ? g : null; };
-  const cr = hi("CREAT"), wbc = hi("WBC");
+  const cr = hi("CREAT"), wbc = hi("WBC"), neu = hi("NEUT_ABS");   // P157: نوتروفیلِ مطلقِ بالا همان افزایشِ گلبول سفید است؛ بی‌نام‌بردن به «توضیح داده نشدند» می‌رفت
   const q = (g, n) => `${n} ${g.value}${g.range ? ` (حد طبیعی ${g.range})` : ""}`;
   const parts = [];
   if (cr) parts.push(`کم‌آبیِ بدن در این وضعیت شایع است و می‌تواند ${q(cr, "کراتینین")} را بالا ببرد`);
-  if (wbc) parts.push(`خودِ بیماری و استرسِ بدن می‌تواند ${q(wbc, "گلبول سفید")} را بالا ببرد؛ ولی عفونت یکی از محرک‌های رایجِ کتواسیدوز است و پزشک آن را جداگانه بررسی می‌کند`);
+  if (wbc) parts.push(`خودِ بیماری و استرسِ بدن می‌تواند ${q(wbc, "گلبول سفید")} را بالا ببرد${neu ? ` (بخشِ اصلیِ این افزایش از نوتروفیل‌هاست: ${q(neu, "نوتروفیل مطلق")})` : ""}؛ ولی عفونت یکی از محرک‌های رایجِ کتواسیدوز است و پزشک آن را جداگانه بررسی می‌کند`);
+  if (neu && !wbc) parts.push(`استرسِ بدن می‌تواند ${q(neu, "نوتروفیل مطلق")} را بالا ببرد`);
   return parts.length ? " " + parts.join("؛ ") + ". هر دو عدد را بعد از درمان دوباره می‌سنجند." .replace("هر دو عدد", cr && wbc ? "هر دو عدد" : "این عدد") : "";
 }
 
