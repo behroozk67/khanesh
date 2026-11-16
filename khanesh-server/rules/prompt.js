@@ -610,6 +610,13 @@ export function buildEngineFallbackResult(engineOut, patterns) {
  * بیشترش طبیعی نیست، null می‌گیرد و جمع‌بندیِ مدل می‌ماند.
  */
 export function engineSummary(engineOut, patterns) {
+  // P152: برگهٔ اورژانسی خلاصه‌اش را موتور می‌سازد؛ مدل «برخی مقادیر خارج از محدوده‌اند…» (نمونهٔ لحنِ خنثی در پرامپت) را عیناً کپی می‌کرد
+  //   و بالای صفحه از اورژانس چیزی نمی‌گفت. نوزاد (لحنِ جدا) و برگهٔ بی‌یافتهٔ اورژانسی بی‌تغییر می‌ماند.
+  if (patterns?.overall_urgency === "emergency" && !isNeonate(engineOut?.age)) {
+    const heads = [...new Set((patterns.findings ?? []).filter((f) => f.urgency === "emergency" && !f.minor && f.headline && f.rule_id !== "unexplained_abnormal").map((f) => f.headline))];
+    const act = buildEngineRecommendations(patterns, engineOut)[0];
+    if (heads.length && act) return heads.join("؛ ") + ". " + act;
+  }
   if (patterns?.overall_urgency !== "routine") return null;
   const graded = engineOut?.graded ?? [];
   const normal = graded.filter((g) => !g.abnormal).length;

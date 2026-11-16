@@ -54,3 +54,17 @@ test("P151-2: همان پتاسیم بی‌DKA رفتارِ قبلی (همولی
   assert.match(recs, /همولیز/);
   assert.match(recs, /۲۴ تا ۴۸/);
 });
+
+// P152 (ایرادِ ۳ همان برگه): summary برگهٔ اورژانسی «برخی مقادیر خارج از محدوده‌اند…» بود و از اورژانس چیزی نمی‌گفت.
+import { engineSummary } from "./prompt.js";
+test("P152-1: خلاصهٔ برگهٔ اورژانسی از موتور می‌آید و دستورِ اورژانس را می‌گوید", () => {
+  const { e, p } = run(SHEET());
+  const s = engineSummary(e, p);
+  assert.match(s, /وضعیت جدی و فوری/);
+  assert.match(s, /همین حالا به اورژانس/);
+  assert.doesNotMatch(s, /برخی مقادیر|توضیح داده نشدند/);
+});
+test("P152-2: برگهٔ غیراورژانسی و نوزاد خلاصهٔ مدل را نگه می‌دارند (null)", () => {
+  const { e, p } = run([T("Potassium (K)", "5.9 mmol/L", "3.5 - 5.1")]);
+  assert.equal(engineSummary(e, p), null);
+});
