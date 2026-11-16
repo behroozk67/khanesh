@@ -91,3 +91,14 @@ test("P150-3: TG ≥ ۵۰۰ زیرِ DKA در «توضیحِ آماده ندار
   assert.ok(!p.findings.some((f) => f.rule_id === "unexplained_abnormal" && /1150/.test(f.must_say)), "TG هنوز بی‌توضیح");
   assert.doesNotMatch(_fb(e, p).interpretation, /توضیحِ آمادهٔ اختصاصی نداریم/);
 });
+
+// P154 (ایرادِ ۵): کراتینین ۱.۶ و گلبول سفید ۱۷.۴ کنارِ DKA فقط عدد بودند؛ حالا DKA مالکِ توضیحشان است.
+test("P154-1: کراتینین و WBC بالا کنارِ DKA در متنِ DKA با عدد و علتِ محتمل می‌آیند؛ بی‌آن‌ها جمله نمی‌آید", () => {
+  const withAll = SHEET().concat([T("WBC", "17.4 10^3/uL", "4.5 - 11")]);
+  const d = run(withAll).p.findings.find((f) => f.rule_id === "dka_pattern").must_say;
+  assert.match(d, /کم‌آبیِ بدن.*کراتینین 1\.6/);
+  assert.match(d, /گلبول سفید 17\.4/);
+  assert.match(d, /عفونت یکی از محرک‌های رایجِ کتواسیدوز/);
+  const plain = run([T("FBS", "485 mg/dL", "70 - 100"), T("Ketone (Urine)", "3+", "Negative")]).p.findings.find((f) => f.rule_id === "dka_pattern").must_say;
+  assert.doesNotMatch(plain, /کم‌آبی|کراتینین|گلبول سفید/);
+});

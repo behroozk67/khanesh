@@ -11,6 +11,17 @@ import { overtThyrotoxicosis } from "./patterns_endocrine_rheum.js";
 import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION, ferritinBelowIdCut, hbVariantState, HB_VARIANT_FA } from "./patterns_utils.js";
 import { hemolysisRuleFires, hemolyticAnemiaFires } from "./patterns_hematology.js";   // P105 (M7): ژیلبرِ «بی‌خطرترین» کنارِ همولیزِ فعال گفته نمی‌شود
 
+// P154: کراتینین و گلبول سفیدِ بالا کنارِ DKA فقط «عدد» می‌گرفتند (زیرِ blocker پنهان و در «موارد دیگر» بی‌ارتباط). DKA مالکِ توضیحشان می‌شود.
+function dkaCompanionTail(e) {
+  const hi = (k) => { const g = e.graded.find((x) => x.test === k); return g?.abnormal && g.dir === "high" ? g : null; };
+  const cr = hi("CREAT"), wbc = hi("WBC");
+  const q = (g, n) => `${n} ${g.value}${g.range ? ` (حد طبیعی ${g.range})` : ""}`;
+  const parts = [];
+  if (cr) parts.push(`کم‌آبیِ بدن در این وضعیت شایع است و می‌تواند ${q(cr, "کراتینین")} را بالا ببرد`);
+  if (wbc) parts.push(`خودِ بیماری و استرسِ بدن می‌تواند ${q(wbc, "گلبول سفید")} را بالا ببرد؛ ولی عفونت یکی از محرک‌های رایجِ کتواسیدوز است و پزشک آن را جداگانه بررسی می‌کند`);
+  return parts.length ? " " + parts.join("؛ ") + ". هر دو عدد را بعد از درمان دوباره می‌سنجند." .replace("هر دو عدد", cr && wbc ? "هر دو عدد" : "این عدد") : "";
+}
+
 // P150 (برگهٔ «مرد ۴۷ ساله، قند ۴۸۵»): TG ≥ ۵۰۰ با آمیلاز/لیپازِ بالا. زیرِ blockerِ DKA هر دو یافته حذف می‌شدند و TG ۱۱۵۰ «توضیحِ آماده نداریم» می‌گرفت.
 const tgSevereOf = (e) => (val(e).TG ?? 0) >= 500 && !(e.age != null && e.age < 16);
 function tgPancreasTail(e) {
@@ -1146,7 +1157,8 @@ export const RULES_BIOCHEM = [
           (ketone ? "، وجود کتون" : "") +
           (hco3Low ? "، و اسیدی شدن خون" : "") +
           " می‌تواند نشانه‌ی وضعیتی به نام «کتواسیدوز دیابتی» باشد که نیاز به رسیدگی فوری پزشکی دارد. " +
-          "این وضعیت به‌خصوص در افراد دیابتی و هنگام بیماری یا نرسیدن انسولین رخ می‌دهد.",
+          "این وضعیت به‌خصوص در افراد دیابتی و هنگام بیماری یا نرسیدن انسولین رخ می‌دهد." +
+          dkaCompanionTail(e),
         action: "همین حالا به اورژانس مراجعه کنید. این برگه را همراه ببرید. معطل نکنید.",
         suggest: [],
         warnings: fullPicture
