@@ -60,7 +60,7 @@ import { engineSummary } from "./prompt.js";
 test("P152-1: خلاصهٔ برگهٔ اورژانسی از موتور می‌آید و دستورِ اورژانس را می‌گوید", () => {
   const { e, p } = run(SHEET());
   const s = engineSummary(e, p);
-  assert.match(s, /وضعیت جدی و فوری/);
+  assert.match(s, /کتواسیدوز دیابتی/);
   assert.match(s, /همین حالا به اورژانس/);
   assert.doesNotMatch(s, /برخی مقادیر|توضیح داده نشدند/);
 });
@@ -147,10 +147,10 @@ test("P159-1: نمای تخصصی برچسبِ «۲۴–۴۸» را برای K �
 });
 test("P159-2: خلاصهٔ DKA نامِ کتواسیدوز را می‌آورد؛ متنِ بالینی نرم‌شده", () => {
   const { e, p } = run(SHEET());
-  assert.match(engineSummary(e, p), /کتواسیدوزِ دیابتی/);
+  assert.match(engineSummary(e, p), /قند خون بسیار بالا همراه با کتون؛ این ترکیب می‌تواند کتواسیدوز دیابتی باشد/);
   const dka = p.findings.find((f) => f.rule_id === "dka_pattern").must_say;
-  assert.match(dka, /اگر بعد از درمان به حد طبیعی برنگشت/);
+  assert.match(dka, /اگر بعد از رفع کم‌آبی بالا ماند/);
   const k = p.findings.find((f) => f.rule_id === "potassium_critical").must_say;
   assert.doesNotMatch(k, /ذخیرهٔ کلِ بدن/);
-  assert.match(p.findings.find((f) => f.rule_id === "lipid_profile").must_say, /رد شدنِ لوزالمعده نیست/);
+  assert.match(p.findings.find((f) => f.rule_id === "lipid_profile").must_say, /کنارش نمی‌گذارد/);   // آیتم ۱ بازبین: متنِ فعلی می‌ماند
 });

@@ -614,7 +614,7 @@ export function engineSummary(engineOut, patterns) {
   //   و بالای صفحه از اورژانس چیزی نمی‌گفت. نوزاد (لحنِ جدا) و برگهٔ بی‌یافتهٔ اورژانسی بی‌تغییر می‌ماند.
   if (patterns?.overall_urgency === "emergency" && !isNeonate(engineOut?.age)) {
     // P159: سرنوشتِ «وضعیت جدی و فوری» بی‌نام است؛ برای DKA نامِ احتمالی‌اش در خلاصه می‌آید.
-    const headOf = (f) => (f.rule_id === "dka_pattern" ? "این نتایج ممکن است نشانهٔ یک وضعیت جدی و فوری (کتواسیدوزِ دیابتی) باشند" : f.headline);
+    const headOf = (f) => (f.rule_id === "dka_pattern" && /وجود کتون/.test(f.must_say ?? "") ? "قند خون بسیار بالا همراه با کتون؛ این ترکیب می‌تواند کتواسیدوز دیابتی باشد" : f.headline);
     const heads = [...new Set((patterns.findings ?? []).filter((f) => f.urgency === "emergency" && !f.minor && f.headline && f.rule_id !== "unexplained_abnormal").map(headOf))];
     const act = buildEngineRecommendations(patterns, engineOut)[0];
     if (heads.length && act) return heads.join("؛ ") + ". " + act;
