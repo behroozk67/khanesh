@@ -133,3 +133,24 @@ test("P158-2: شمارِ جملهٔ همراهِ DKA — یک عدد «این ع
   assert.match(d([T("Creatinine", "1.6 mg/dL", "0.7 - 1.3"), T("WBC", "17.4 10^3/uL", "4.5 - 11")]), /هر دو عدد را/);
   assert.match(d([T("Creatinine", "1.6 mg/dL", "0.7 - 1.3"), T("WBC", "17.4 10^3/uL", "4.5 - 11"), T("Neutrophil %", "82.0 %", "45 - 75")]), /این اعداد را/);
 });
+
+// P159 (بازبین #۳ و #۵): برچسبِ نمای تخصصیِ K زیرِ اورژانسِ قند، خلاصهٔ DKA با نام، و نرم‌کردنِ جمله‌های بالینی.
+import { buildExpertView } from "./expert.js";
+test("P159-1: نمای تخصصی برچسبِ «۲۴–۴۸» را برای K کنارِ DKA نشان نمی‌دهد", () => {
+  const { e, p } = run(SHEET());
+  const v = buildExpertView(e, p, null);
+  const k = v.findings.find((f) => /پتاسیم/.test(f.label));
+  assert.equal(k.urgency, "emergency");
+  assert.doesNotMatch(String(k.urgency_fa), /۲۴|۴۸/);
+  const alone = run([T("Potassium (K)", "5.9 mmol/L", "3.5 - 5.1")]);
+  assert.equal(buildExpertView(alone.e, alone.p, null).findings.find((f) => /پتاسیم/.test(f.label)).urgency, "soon", "بی‌قندِ بالا دست‌نخورده");
+});
+test("P159-2: خلاصهٔ DKA نامِ کتواسیدوز را می‌آورد؛ متنِ بالینی نرم‌شده", () => {
+  const { e, p } = run(SHEET());
+  assert.match(engineSummary(e, p), /کتواسیدوزِ دیابتی/);
+  const dka = p.findings.find((f) => f.rule_id === "dka_pattern").must_say;
+  assert.match(dka, /اگر بعد از درمان به حد طبیعی برنگشت/);
+  const k = p.findings.find((f) => f.rule_id === "potassium_critical").must_say;
+  assert.doesNotMatch(k, /ذخیرهٔ کلِ بدن/);
+  assert.match(p.findings.find((f) => f.rule_id === "lipid_profile").must_say, /رد شدنِ لوزالمعده نیست/);
+});

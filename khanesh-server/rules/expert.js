@@ -144,7 +144,9 @@ export function buildExpertView(engineOut, patternOut, score) {
   //   یک عدد نه). در نمای تخصصی بیمار کنارِ «اورژانس» برچسبِ «این هفته» نبیند: فقط برچسبِ نمایشی بالا می‌رود، فیلدِ موتور دست‌نخورده.
   const glucoseEmergency = shownFindings.some((s) => ["dka_pattern", "hhs_pattern", "severe_hyperglycemia_uncertain_ketosis"].includes(s.rule_id) && s.urgency === "emergency");
   const KETONE_UNDER_DKA = shownFindings.some((s) => s.rule_id === "dka_pattern" && s.urgency === "emergency");
-  const shownUrgency = (f) => ((f.rule_id === "glycemia" && glucoseEmergency) || (f.rule_id === "ketonuria_pattern" && KETONE_UNDER_DKA) ? "emergency" : f.urgency);
+  // P159: پتاسیمِ بالای غیربحرانی کنارِ این صاحبانِ اورژانس دستورش «در اورژانس بگویید…» است؛ برچسبِ «۲۴–۴۸ ساعت» با آن نمی‌خواند.
+  const K_UNDER_GLUCOSE_EMERGENCY = (f) => f.rule_id === "potassium_critical" && f.pattern === "hyperkalemia" && f.skip_preanalytical === true && glucoseEmergency;
+  const shownUrgency = (f) => ((f.rule_id === "glycemia" && glucoseEmergency) || (f.rule_id === "ketonuria_pattern" && KETONE_UNDER_DKA) || K_UNDER_GLUCOSE_EMERGENCY(f) ? "emergency" : f.urgency);
   const hiddenUrgency = shownUrgency;
   const findings = asArray(patternOut?.findings).map((f) => {
     const rule = RULE_BY_ID.get(f.rule_id);
