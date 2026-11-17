@@ -112,3 +112,24 @@ test("P157-1: نوتروفیلِ مطلقِ بالا کنارِ DKA در متن�
   assert.match(p.findings.find((f) => f.rule_id === "dka_pattern").must_say, /نوتروفیل مطلق 13776/);
   assert.ok(!p.findings.some((f) => f.rule_id === "unexplained_abnormal"), "نوتروفیل هنوز بی‌توضیح");
 });
+
+// P158 (بازبینِ P150–P157، یافتهٔ ۱ و ۲ و ۴): متنِ پتاسیمِ DKA فقط به dkaOwns بسته بود و به HHS/K بحرانی نمی‌رسید؛ شمارِ «هر دو عدد» با سه جمله غلط بود.
+test("P158-1: پتاسیمِ بالا کنارِ HHS (بی‌کتون) و کنارِ DKA با K ۶٫۲ همولیز/۲۴–۴۸ نمی‌گیرد؛ متنِ HHS «کتواسیدوز» نمی‌گوید", () => {
+  const hhs = run([T("FBS", "720 mg/dL", "70 - 100"), T("Potassium (K)", "5.9 mmol/L", "3.5 - 5.1")]);
+  const k = hhs.p.findings.find((f) => f.rule_id === "potassium_critical");
+  assert.ok(k, shown(hhs.p).join());
+  assert.match(k.must_say, /کاذب فرض نکنید/);
+  assert.doesNotMatch(k.must_say + k.brief, /کتواسیدوز|همولیز/);
+  assert.doesNotMatch(buildEngineRecommendations(hhs.p, hhs.e).join(" | "), /همولیز|۲۴ تا ۴۸/);
+  const dka = run(SHEET().map((t) => (/Potassium/.test(t.name) ? T("Potassium (K)", "6.2 mmol/L", "3.5 - 5.1") : t)));
+  const k2 = dka.p.findings.find((f) => f.rule_id === "potassium_critical");
+  assert.match(k2.must_say, /کاذب فرض نکنید/);
+  assert.doesNotMatch(k2.must_say + k2.brief, /همولیز/);
+});
+test("P158-2: شمارِ جملهٔ همراهِ DKA — یک عدد «این عدد»، دو «هر دو عدد»، سه «این اعداد»", () => {
+  const base = [T("FBS", "485 mg/dL", "70 - 100"), T("Ketone (Urine)", "3+", "Negative")];
+  const d = (extra) => run(base.concat(extra)).p.findings.find((f) => f.rule_id === "dka_pattern").must_say;
+  assert.match(d([T("Creatinine", "1.6 mg/dL", "0.7 - 1.3")]), /این عدد را بعد از درمان/);
+  assert.match(d([T("Creatinine", "1.6 mg/dL", "0.7 - 1.3"), T("WBC", "17.4 10^3/uL", "4.5 - 11")]), /هر دو عدد را/);
+  assert.match(d([T("Creatinine", "1.6 mg/dL", "0.7 - 1.3"), T("WBC", "17.4 10^3/uL", "4.5 - 11"), T("Neutrophil %", "82.0 %", "45 - 75")]), /این اعداد را/);
+});
