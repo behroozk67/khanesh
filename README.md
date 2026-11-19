@@ -10,6 +10,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-20+-68a063?style=flat-square&logo=node.js)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-8-646cff?style=flat-square&logo=vite)](https://vitejs.dev/)
+[![Expo](https://img.shields.io/badge/Expo-SDK%2058-000020?style=flat-square&logo=expo)](mobile/)
 [![Tests](https://img.shields.io/badge/Tests-1580%2B%20Passing-brightgreen?style=flat-square)](khanesh-server/)
 [![Clinical Engine](https://img.shields.io/badge/Clinical%20Engine-Deterministic-0284c7?style=flat-square)](khanesh-server/rules/)
 [![Security](https://img.shields.io/badge/Security-Policy%20%26%20Zero%20Leak-success?style=flat-square)](SECURITY.md)
@@ -34,11 +35,13 @@
   - [پیش‌نیازها](#پیشنیازها)
   - [راه‌اندازی بک‌اند](#راهاندازی-بکاند)
   - [راه‌اندازی فرانت‌اند](#راهاندازی-فرانتاند)
+  - [راه‌اندازی اپ موبایل](#راهاندازی-اپ-موبایل)
+- [اپ موبایل (Expo / React Native)](#اپ-موبایل-expo--react-native)
 - [کیفیت، تست‌ها و دروازه‌های اعتبارسنجی](#کیفیت-تستها-و-دروازههای-اعتبارسنجی)
 - [منابع علمی و رفرنس‌های بالینی](#منابع-علمی-و-رفرنسهای-بالینی)
 - [حریم خصوصی و امنیت داده‌ها](#حریم-خصوصی-و-امنیت-دادهها)
 - [سلب مسئولیت پزشکی](#سلب-مسئولیت-پزشکی)
-- [پروانه نرم‌افزار، امنیت و مرزهای کپی‌رایت](#پروانه-نرم‌افزار-امنیت-و-مرزهای-کپی‌رایت)
+- [پروانه نرم‌افزار، امنیت و مرزهای کپی‌رایت](#پروانه-نرمافزار-امنیت-و-مرزهای-کپیرایت)
 
 ---
 
@@ -154,6 +157,11 @@ khanesh-project/
 │   ├── auth.js               # احراز هویت توکنی و ارسال کد تایید با SMS.ir
 │   └── server.js             # سرور اصلی API و پایپ‌لاین تحلیل
 │
+├── mobile/                   # اپ موبایل اندروید/iOS (Expo SDK 58 + React Native + expo-router)
+│   ├── src/app/              صفحه‌ها با مسیرِ فایلی: خانه، تاریخچه، آزمایش‌ها، چالش‌ها، پروفایل، تفسیر، نتیجه
+│   ├── src/lib/              کلاینت API (startJob/pollJob) · engine (نمایشِ خروجی سرور) · تاریخچه، چالش، پرداخت، تم
+│   ├── src/content/khanesh/  ⚙️ تولیدشده از khanesh/src با scripts/sync-content.mjs — دستی ویرایش نکن
+│   └── README.md             راه‌اندازی، بیلد EAS و قواعد توسعهٔ اپ
 ├── deploy/                   # اسکریپت‌های استقرار پروداکشن، Nginx، SSL و سرویس‌های systemd
 ├── MEDICAL_RULES.md          # سند بالینی و دفترچه ثبت تصمیم‌های پزشکی (Single Source of Truth)
 └── CLAUDE.md                 # دفترچه حوادث مهندسی و راهنمای تفصیلی قوانین پروژه
@@ -177,6 +185,13 @@ khanesh-project/
 - **موتور قواعد بالینی:** معماری اختصاصی Pure JS بدون سربار، با پوشش لایه‌ای
 - **ارتباط هوش مصنوعی:** AvalAI API (مدل‌های Gemini 2.5 Flash و GPT-4o-mini جهت OCR و فرمت‌بندی)
 - **سرویس‌های جانبی:** درگاه پیامک اعتبارسنجی SMS.ir، ربات پشتیبانی تلگرام و سرویس SMTP ایمیل
+
+### اپ موبایل (Client — Android / iOS)
+- **فریم‌ورک:** Expo SDK 58 + React Native 0.88 + React 19، مسیریابی با expo-router (typed routes) و React Compiler
+- **زبان و جهت:** فارسی و RTL اجباری (`expo-localization` با `forcesRTL`)، فونت وزیرمتن، دو پالت روشن/تیره
+- **پردازش سند:** PDF.js داخل اپ (بدون CDN و بدون Worker) — سرور فقط تصویر می‌گیرد
+- **ذخیرهٔ محلی:** تاریخچه و چالش‌ها روی دستگاه (`expo-sqlite`)، توکن ورود در `expo-secure-store`
+- **خروجی:** APK (پروفایل `preview`) و AAB برای Google Play (پروفایل `production`) با EAS — جزئیات: [`mobile/README.md`](mobile/README.md)
 
 ---
 
@@ -235,6 +250,32 @@ npm install
 npm run dev
 ```
 اپلیکیشن در آدرس `http://localhost:5173` در دسترس خواهد بود و درخواست‌های `/api/*` را به پورت `8787` بک‌اند هدایت می‌کند.
+
+### راه‌اندازی اپ موبایل
+
+```bash
+cd mobile
+npm install
+cp .env.example .env.local   # EXPO_PUBLIC_API_URL — بیلدِ release فقط https:// می‌پذیرد
+npx expo start
+```
+
+شبیه‌ساز اندروید میزبان را روی `http://10.0.2.2:8787` می‌بیند؛ برای گوشی واقعی IP شبکهٔ محلی ویندوز را بده. `prestart` دادهٔ دانشنامه را از `khanesh/src` سینک می‌کند. ساخت APK/AAB با پروفایل‌های `eas.json` (جزئیات: [`mobile/README.md`](mobile/README.md)).
+
+---
+
+## اپ موبایل (Expo / React Native)
+
+کلاینت رسمی اندروید/iOS آزمایار اپ در پوشهٔ [`mobile/`](mobile/) است: **Expo SDK 58، React Native 0.88، React 19، expo-router**، کاملاً فارسی و RTL، با شناسهٔ `ir.azmayarapp.app` و نسخهٔ `1.0.3`.
+
+| | |
+|---|---|
+| **امکانات** | خوانش عکس / PDF / ورود دستی · نمرهٔ برگه، رادار دستگاه‌ها و سن زیستی · تاریخچهٔ روی دستگاه با مقایسهٔ RCV · چالش‌های عادت · دانشنامهٔ آزمایش‌ها · گزارش PDF · پلن و پرداخت · تم روشن/تیره |
+| **مرز بالینی** | همان قانون سایت: اپ هیچ آستانه، بازه یا فوریتی نمی‌سازد و فقط خروجی `khanesh-server` را نمایش می‌دهد |
+| **دادهٔ بیمار** | تاریخچه و چالش‌ها فقط روی دستگاه؛ توکن ورود در SecureStore؛ `android.allowBackup` خاموش |
+| **نصب و انتشار** | APK از پروفایل `preview` (فقط ARM، R8 و shrink روشن)، AAB برای Google Play از پروفایل `production` |
+
+راهنمای کامل اجرا، بیلد و قواعد توسعه: [`mobile/README.md`](mobile/README.md).
 
 ---
 

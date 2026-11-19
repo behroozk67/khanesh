@@ -46,7 +46,10 @@ red at once has several possible causes (missing deps, a hang, a `before` hook T
   `avalaiClient.test.js` (injected fetch), `metamorphic.test.js` (worse value ⇒ urgency never lower; added test ⇒ urgency
   never lower; format/alias/order invariance; exceptions only in `ALLOWED_DROPS` with a clinical reason), plus
   `specimen/serology/score/expert/lis1005/review*.test.js`. **Never name a manual probe script `test-*.js` or `*.test.js`.**
-- No npm workspace — two independent `package.json`s.
+- **Mobile:** `mobile/` — Expo SDK 58, React Native 0.88, React 19, expo-router. Client only: no thresholds, no clinical
+  judgment; it renders `khanesh-server` output. `prestart`/`pretsc` run `scripts/sync-content.mjs`, which copies the
+  encyclopaedia from `khanesh/src` into `mobile/src/content/khanesh/` and throws on score-threshold drift.
+- No npm workspace — three independent `package.json`s (`khanesh`, `khanesh-server`, `mobile`).
 
 ## File Structure (map, not inventory)
 
@@ -61,6 +64,8 @@ khanesh-project/
 │                           units.js · preanalytical.js · biovar.js · guidelines.js · names.js (FA_NAMES) · prompt.js · coverage.js
 │                           patterns.js (aggregator) + ~21 patterns_<system>.js · patterns_utils.js · minor.js · neonatal.js
 │                           expert.js · pro_text.js · inpatient.js · score.js · serology.js · specimen.js · prenatal.js
+├── mobile/                 Expo app (expo-router): src/app/ (screens) · src/lib/ (api, engine, history, challenges,
+│                           token-store, theme) · src/content/khanesh/ (generated — never hand-edit) · src/components/
 ├── .claude/                agents/ · rules/ · skills/ · eval-gate/ · settings.local.json
 ├── .githooks/pre-commit    test/lint gate (core.hooksPath)
 ├── MEDICAL_RULES.md        ⭐ clinical decision register (P-numbers) — pending human review
@@ -99,6 +104,10 @@ suppression/dedup. Rule count is not quotable — `node -e "import('./rules/patt
 npm run dev | build | lint | preview  npm install; node server.js | npm start; npm run dev (nodemon)
                                       npm test        # node --test, all *.test.js
                                       npm run test:coverage   # lines 85 / branches 70 / functions 85
+
+# mobile/ (needs no server running; talks to EXPO_PUBLIC_API_URL)
+npm install; npx expo start           npx expo lint; npx tsc --noEmit   # both re-run the content sync first
+node src/lib/selfcheck.ts             # pure history/challenge logic
 ```
 One file: `node --test rules/engine.test.js`. Needs `khanesh-server/.env` with `AVALAI_API_KEY`
 ([environment.md](.claude/rules/environment.md)). The hook's output is **not** a baseline for `HEAD`.
@@ -116,6 +125,16 @@ shape. Making it default requires routing its output through the step-8 nets; a 
 (owner-scoped, N24) · `POST /api/labmat/analyze` (graph, 503 when off) · `GET /health`. Async exists because a 3-page sheet
 takes 90–150 s. `jobStore.js` is in-memory with TTL: restart drops jobs; behind a load balancer a poll can miss the instance.
 Client: `analyzeJob.js` keeps the job id in `localStorage`.
+
+## Mobile Client (`mobile/`)
+
+Expo app for Android/iOS (`ir.azmayarapp.app`) — same service, same engine, zero clinical logic. `src/lib/api.ts` is the
+only network client (`startJob` → job id in AsyncStorage → `pollJob` every 2 s; a network drop is `degraded`, not a
+failed analysis). Every clinical string and number comes from the server's `_engine`; raw engine keys never render.
+RTL is forced by the `expo-localization` plugin (`I18nManager.forceRTL` is ignored in Expo Go on SDK 58); on web
+`document.dir` does it. Release builds refuse any `EXPO_PUBLIC_API_URL` that is not `https://` — build with
+`https://azmayarapp.ir`. History and challenges live on the device only (`/api/history` is a paid server feature).
+Details: `mobile/README.md`.
 
 ## Git Hooks
 

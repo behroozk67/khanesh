@@ -1,0 +1,75 @@
+{
+  "expo": {
+    "name": "آزمایار اپ",
+    "slug": "azmayar",
+    "version": "1.0.3",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "azmayar",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "ir.azmayarapp.app"
+    },
+    "android": {
+      "package": "ir.azmayarapp.app",
+      "versionCode": 3,
+      "allowBackup": false,
+      "adaptiveIcon": {
+        "backgroundColor": "#DCEFED",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
+    },
+    "web": {
+      "output": "server",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#DCEFED",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 280
+        }
+      ],
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-font",
+      "expo-sharing",
+      [
+        "expo-localization",
+        {
+          "forcesRTL": true
+        }
+      ],
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "برای عکس گرفتن از برگهٔ آزمایش به دوربین نیاز است.",
+          "photosPermission": "برای انتخاب عکس برگهٔ آزمایش از گالری به دسترسی نیاز است.",
+          "microphonePermission": false
+        }
+      ],
+      ["expo-build-properties", { "android": { "enableProguardInReleaseBuilds": true, "enableShrinkResourcesInReleaseBuilds": true } }]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "7b834f22-5ece-435f-9109-87f7ce88d33f"
+      }
+    },
+    "owner": "sakar67"
+  }
+}
