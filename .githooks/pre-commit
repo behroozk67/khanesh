@@ -31,16 +31,35 @@ STAGED=$(git diff --cached --name-only --diff-filter=ACMRD)
 
 NEED_BACKEND=0
 NEED_FRONTEND=0
+NEED_MOBILE=0
 echo "$STAGED" | grep -q '^khanesh-server/.*\.\(js\|mjs\|json\)$' && NEED_BACKEND=1
 echo "$STAGED" | grep -q '^khanesh/.*\.\(js\|jsx\|mjs\|json\)$' && NEED_FRONTEND=1
+# TypeScript app: ts/tsx must be in the list, otherwise a mobile-only commit matches nothing.
+echo "$STAGED" | grep -q '^mobile/.*\.\(ts\|tsx\|js\|mjs\|json\)$' && NEED_MOBILE=1
 
-if [ "$NEED_BACKEND" = 0 ] && [ "$NEED_FRONTEND" = 0 ]; then
+if [ "$NEED_BACKEND" = 0 ] && [ "$NEED_FRONTEND" = 0 ] && [ "$NEED_MOBILE" = 0 ]; then
   exit 0
 fi
 
 DIRS=""
 [ "$NEED_BACKEND" = 1 ] && DIRS="$DIRS khanesh-server"
 [ "$NEED_FRONTEND" = 1 ] && DIRS="$DIRS khanesh"
+
+# The mobile content check compares mobile/src/content with khanesh/src, so both trees (and the score
+# constant in khanesh-server/rules/score.js) must be in the index tree even when only mobile/ is staged.
+# Deduplicated: a repeated dir would archive twice and the second junction link would fail (EEXIST).
+ARCHIVE_DIRS="$DIRS"
+add_archive_dir() {
+  case " $ARCHIVE_DIRS " in
+    *" $1 "*) ;;
+    *) ARCHIVE_DIRS="$ARCHIVE_DIRS $1" ;;
+  esac
+}
+if [ "$NEED_MOBILE" = 1 ]; then
+  add_archive_dir mobile
+  add_archive_dir khanesh
+  add_archive_dir khanesh-server
+fi
 
 # ── ساختِ درختِ ایندکس در یک پوشهٔ موقت ────────────────────────────────────
 #
@@ -105,7 +124,7 @@ cleanup() {
   # رمزگشا: rmdir روی junction فقط لینک را برمی‌دارد نه هدف را — و node
   # (همان سازوکارِ ساختنِ لینک بالا) همین تضمین را می‌دهد؛ «cmd //c rmdir» اینجا
   # مثلِ «cmd //c mklink» اجرا نمی‌شد و لینک سرِ جایش می‌ماند.
-  for _d in $DIRS; do
+  for _d in $ARCHIVE_DIRS; do
     _nm="$WORKDIR/$_d/node_modules"
     [ -e "$_nm" ] || continue
     if is_windows; then
@@ -138,7 +157,7 @@ prepare_index_tree() {
 
   WORKDIR=$(mktemp -d 2>/dev/null) || return 1
 
-  for d in $DIRS; do
+  for d in $ARCHIVE_DIRS; do
     git archive "$tree" "$d" 2>/dev/null | tar -x -C "$WORKDIR" || return 1
     [ -d "$WORKDIR/$d" ] || return 1
 
@@ -181,6 +200,7 @@ fi
 printf '\n\033[36mpre-commit: بررسی روی ایندکس\033[0m\n'
 
 FAILED=""
+SKIPPED=""
 
 run_check() {
   # run_check <label> <dir> <command...>
@@ -200,6 +220,25 @@ fi
 
 if [ "$NEED_FRONTEND" = 1 ]; then
   run_check "frontend lint" "khanesh" npm run lint --silent
+fi
+
+if [ "$NEED_MOBILE" = 1 ]; then
+  # The generated encyclopedia is committed; drift means khanesh/src changed without re-running the sync.
+  run_check "mobile content sync" "mobile" node scripts/sync-content.mjs --check
+  # Typecheck/lint need dependencies; count the skip instead of passing silently (N15).
+  if [ -d "$BASE/mobile/node_modules/typescript" ]; then
+    # tsc directly, not `npm run tsc`: the npm lifecycle would run pretsc (a write into the temp tree) and
+    # couple the gate to that side effect; content drift is already checked above.
+    run_check "mobile typecheck" "mobile" node node_modules/typescript/bin/tsc --noEmit
+    run_check "mobile lint" "mobile" npm run lint --silent
+  else
+    printf '\n\033[33m⏭  mobile typecheck/lint skipped: mobile/node_modules نصب نیست\033[0m\n'
+    SKIPPED="$SKIPPED\n  - mobile typecheck + lint (node_modules missing)"
+  fi
+fi
+
+if [ -n "$SKIPPED" ]; then
+  printf '\n\033[33mskipped checks (not run, not passed):\033[0m%b\n' "$SKIPPED"
 fi
 
 if [ -n "$FAILED" ]; then

@@ -106,8 +106,8 @@ npm run dev | build | lint | preview  npm install; node server.js | npm start; n
                                       npm run test:coverage   # lines 85 / branches 70 / functions 85
 
 # mobile/ (needs no server running; talks to EXPO_PUBLIC_API_URL)
-npm install; npx expo start           npx expo lint; npx tsc --noEmit   # both re-run the content sync first
-node src/lib/selfcheck.ts             # pure history/challenge logic
+npm install; npx expo start           npx expo lint; npm run tsc   # `npm run tsc` re-runs the content sync first (pretsc); `npx tsc` does not
+node src/lib/selfcheck.ts             # pure history/challenge logic; npm run sync:check = content drift, no writes
 ```
 One file: `node --test rules/engine.test.js`. Needs `khanesh-server/.env` with `AVALAI_API_KEY`
 ([environment.md](.claude/rules/environment.md)). The hook's output is **not** a baseline for `HEAD`.
@@ -139,7 +139,9 @@ Details: `mobile/README.md`.
 ## Git Hooks
 
 `core.hooksPath=.githooks`. Pre-commit, only for the sub-project with staged files: backend `.js/.mjs/.json` → `npm test`;
-frontend `.js/.jsx/.mjs/.json` → `npm run lint`. It gates the **index** (`git write-tree` + `git archive` into a temp dir,
+frontend `.js/.jsx/.mjs/.json` → `npm run lint`; mobile `.ts/.tsx/.js/.mjs/.json` → content drift (`sync-content --check`) and,
+when `mobile/node_modules` is installed, `npm run tsc` + `npm run lint` (the skip is printed and counted, never silent).
+It gates the **index** (`git write-tree` + `git archive` into a temp dir,
 `node_modules` linked via `mklink /J`, `.env` deliberately not). If the index tree can't be built, the commit is blocked.
 `SKIP_HOOKS=1` bypasses — **never** use it to get past a clinical contract test. Fresh clone: `git config core.hooksPath .githooks`.
 

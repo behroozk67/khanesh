@@ -56,12 +56,13 @@
   },
   "scripts": {
     "start": "expo start",
-    "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "tsc": "tsc --noEmit",
     "sync": "node scripts/sync-content.mjs",
+    "sync:check": "node scripts/sync-content.mjs --check",
     "prestart": "node scripts/sync-content.mjs",
     "pretsc": "node scripts/sync-content.mjs"
   },

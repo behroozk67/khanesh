@@ -58,7 +58,7 @@ npx expo start
 
 `EXPO_PUBLIC_API_URL` آدرس `khanesh-server` است: روی پروداکشن `https://azmayarapp.ir`، روی شبیه‌ساز اندروید `http://10.0.2.2:8787`، روی گوشی در شبکهٔ محلی `http://<IP ویندوز>:8787`. بیلدِ release آدرسی جز `https://` را رد می‌کند.
 
-`npm start` و `npx tsc` هر دو اول `scripts/sync-content.mjs` را اجرا می‌کنند (`prestart`/`pretsc`). اسکریپت دو چیدمان را می‌شناسد: اپ به‌عنوان پوشهٔ `mobile/` این مخزن (منبع سایت در `../khanesh/src`) و اپ به‌عنوان چک‌اوت مستقل (منبع سایت در `../khanesh-project/khanesh/src`). اگر منبع پیدا نشود، کپیِ کامیت‌شدهٔ `src/content/khanesh/` دست‌نخورده می‌ماند (مثلاً در بیلد ابری EAS) — پس این پوشه همیشه باید همراه تغییرِ محتوای سایت کامیت شود.
+`npm start` و `npm run tsc` هر دو اول `scripts/sync-content.mjs` را اجرا می‌کنند (`prestart`/`pretsc`)؛ `npx tsc` این lifecycle را دور می‌زند و sync نمی‌کند. اسکریپت دو چیدمان را می‌شناسد: اپ به‌عنوان پوشهٔ `mobile/` این مخزن (منبع سایت در `../khanesh/src`) و اپ به‌عنوان چک‌اوت مستقل (منبع سایت در `../khanesh-project/khanesh/src`). اگر منبع پیدا نشود، کپیِ کامیت‌شدهٔ `src/content/khanesh/` دست‌نخورده می‌ماند (مثلاً در بیلد ابری EAS) — پس این پوشه همیشه باید همراه تغییرِ محتوای سایت کامیت شود. برای بررسیِ نبودِ drift بدونِ نوشتن: `npm run sync:check`.
 
 ## ساخت APK / AAB
 
