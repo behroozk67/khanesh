@@ -121,8 +121,12 @@ export default function Home() {
                 <T style={{ fontSize: 14 }}>
                   {last.daysSince === 0 ? "امروز" : `${faDigits(last.daysSince)} روز پیش`} · {faDigits(last.total)} آزمایش
                 </T>
-                <T style={{ fontSize: 12, color: last.abnormal ? C.warn : C.good }}>
-                  {last.abnormal ? `${faDigits(last.abnormal)} مورد بیرون از محدوده` : "همه در محدوده"}
+                <T style={{ fontSize: 12, color: last.abnormal || last.noVerdict ? C.warn : C.good }}>
+                  {last.abnormal
+                    ? `${faDigits(last.abnormal)} مورد بیرون از محدوده`
+                    : last.noVerdict
+                      ? `${faDigits(last.noVerdict)} مورد بدون حکم (محدوده خوانده نشد)`
+                      : "همه در محدوده"}
                 </T>
               </View>
               <Ionicons name="chevron-back" size={16} color={C.subtle} />

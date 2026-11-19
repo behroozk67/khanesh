@@ -6,6 +6,7 @@ import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { searchTests } from "@/content/khanesh/testSearch";
 import { pageFor, routeKey } from "@/lib/encyclopedia";
 import { bandOf, bySection, type EngineTest, ZONES } from "@/lib/engine";
+import { bucketTests } from "@/lib/buckets";
 import { parseRange } from "@/lib/history";
 
 import { C, Card, faDigits, ltr, styles as u, T, TONE } from "./ui";
@@ -33,8 +34,7 @@ export function ResultList({ tests }: { tests: EngineTest[] }) {
   const [open, setOpen] = useState(false);
   // Out-of-range first and open; the rest folds away (the engine's flags decide, nothing is judged here).
   const sorted = bySection(tests);
-  const out = sorted.filter((t) => t.abnormal || t.level === "critical");
-  const rest = sorted.filter((t) => !(t.abnormal || t.level === "critical"));
+  const { out, noVerdict, rest } = bucketTests(sorted);
   const showRest = open || out.length === 0;
   const row = (t: EngineTest) => {
         const st = stateOf(t);
@@ -77,6 +77,12 @@ export function ResultList({ tests }: { tests: EngineTest[] }) {
     <Card delay={240} style={u.soft}>
       <T b style={u.h2}>{out.length ? "خارج از محدوده" : "نتیجهٔ آزمایش‌ها"}</T>
       {out.map(row)}
+      {noVerdict.length > 0 && (
+        <>
+          <T b style={{ paddingVertical: 8 }}>بدون محدوده مرجع ({faDigits(noVerdict.length)})</T>
+          {noVerdict.map(row)}
+        </>
+      )}
       {!!out.length && !!rest.length && (
         <Pressable accessibilityRole="button" onPress={() => setOpen(!open)} style={[u.row, { justifyContent: "space-between", paddingVertical: 8 }]}>
           <T b>در محدودهٔ مرجع ({faDigits(rest.length)})</T>

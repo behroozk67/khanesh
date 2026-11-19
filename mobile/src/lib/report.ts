@@ -12,6 +12,7 @@ import { Platform } from "react-native";
 import { isRedTopic } from "../components/topic-icon";
 import { bandOf, RADAR_MIN_SYSTEMS, bySection, contextLine, DISCLAIMER_FA, EMERGENCY_BANNER, type Engine, type EngineTest, interpretationOf, noScoreText, overallTone, scoreTone, type Tone, TONE_WORD, topicOf, ZONES } from "./engine";
 import { type HistoryRecord, parseRange } from "./history";
+import { bucketTests } from "./buckets";
 import { faDate } from "./jdate";
 import { PALETTES } from "./theme";
 
@@ -145,8 +146,7 @@ export function reportHtml(rec: HistoryRecord, trend: TrendPoint[] = [], fontCss
   const tests = bySection(e.tests ?? []);
   const banner = rec.result.has_critical ? e.critical_banner ?? EMERGENCY_BANNER : null;
   const basis = contextLine(e.context);
-  const outs = tests.filter((t) => t.abnormal || t.level === "critical");
-  const rest = tests.filter((t) => !(t.abnormal || t.level === "critical"));
+  const { out: outs, noVerdict, rest } = bucketTests(tests);
   const paras = text.paragraphs
     .map((p) => `<div class="para"><span class="ico" style="background:${isRedTopic(topicOf(p, e.tests ?? [])) ? L.badSoft : L.brandSoft}"></span><p>${esc(p)}</p></div>`)
     .join("");
@@ -178,7 +178,7 @@ ${banner ? `<div class="card crit"><b style="color:${L.bad}">${esc(banner.title)
 ${basis ? `<div class="muted" style="margin-top:8px">تفسیر بر پایهٔ: <b>${esc(basis)}</b></div>` : ""}
 ${scoreCard(e)}
 ${overview(e)}
-<div class="card"><h2>${outs.length ? "خارج از محدوده" : "نتیجهٔ آزمایش‌ها"}</h2>${outs.map(row).join("")}${outs.length && rest.length ? `<div class="fold">در محدودهٔ مرجع (${fa(rest.length)})</div>` : ""}${rest.map(row).join("")}${tests.length ? "" : "نتیجه‌ای برای نمایش نیست."}</div>
+<div class="card"><h2>${outs.length ? "خارج از محدوده" : "نتیجهٔ آزمایش‌ها"}</h2>${outs.map(row).join("")}${noVerdict.length ? `<div class="fold">بدون محدوده مرجع (${fa(noVerdict.length)})</div>${noVerdict.map(row).join("")}` : ""}${outs.length && rest.length ? `<div class="fold">در محدودهٔ مرجع (${fa(rest.length)})</div>` : ""}${rest.map(row).join("")}${tests.length ? "" : "نتیجه‌ای برای نمایش نیست."}</div>
 ${text.summary || paras ? `<div class="card"><h2>تفسیر برای شما</h2>${text.summary ? `<p style="margin:4px 0"><b>${esc(text.summary)}</b></p>` : ""}${paras}</div>` : ""}
 ${text.recommendations.length ? `<div class="card"><h2>توصیه‌ها</h2>${text.recommendations.map((r) => `<div class="rec">• ${esc(r)}</div>`).join("")}</div>` : ""}
 ${e.score?.value != null ? trendCard(trend) : ""}

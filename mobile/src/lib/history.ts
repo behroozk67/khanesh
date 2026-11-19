@@ -96,6 +96,7 @@ export type Overview = {
   score: number | null;
   phenoDelta: number | null;
   abnormal: number;
+  noVerdict: number;
   total: number;
   daysSince: number;
 };
@@ -105,10 +106,16 @@ export function overview(list: HistoryRecord[], now = Date.now()): Overview | nu
   if (!last) return null;
   const e = last.result._engine ?? {};
   const tests: EngineTest[] = e.tests ?? [];
+  // Same three buckets as bucketTests() (lib/buckets.ts) — selfcheck pins both together. Inline here so this
+  // pure module keeps only its type-only engine import and `node src/lib/selfcheck.ts` can run it.
+  const critical = (t: EngineTest) => t.level === "critical";
+  const abnormal = tests.filter((t) => t.abnormal === true || critical(t)).length;
+  const noVerdict = tests.filter((t) => t.abnormal !== true && t.abnormal !== false && !critical(t)).length;
   return {
     score: e.score?.value ?? null,
     phenoDelta: e.phenoAge?.deltaYears ?? null,
-    abnormal: tests.filter((t) => t.abnormal).length,
+    abnormal,
+    noVerdict,
     total: tests.length,
     daysSince: Math.max(0, Math.floor((now - Date.parse(last.at)) / (24 * 3600 * 1000))),
   };

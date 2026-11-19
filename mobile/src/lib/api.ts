@@ -6,9 +6,10 @@ import { randomUUID } from "expo-crypto";
 import type { Engine } from "./engine";
 import { clearToken, getToken, setToken } from "./token-store";
 
-const BASE = process.env.EXPO_PUBLIC_API_URL ?? "";
+const BASE = (process.env.EXPO_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
 // A release build must never send the sheet photo and the token in the clear. Fails each request, not the launch: challenges and history need no server.
-const insecure = !__DEV__ && BASE !== "" && !BASE.startsWith("https://");
+// An empty URL fails closed too (relative URLs would post the photo to whatever origin served the bundle); only https passes.
+const insecure = !__DEV__ && !/^https:\/\//i.test(BASE);
 const fetch: typeof globalThis.fetch = (input, init) =>
   insecure ? Promise.reject(new ApiError("اتصال این نسخهٔ برنامه به سرور امن نیست. لطفاً نسخهٔ تازهٔ برنامه را نصب کنید.")) : globalThis.fetch(input, init);
 const KEY_JOB = "azmayar_job";
@@ -37,7 +38,17 @@ export type Progress = {
   degraded?: boolean;
 };
 
-export type PaymentRequired = { _requiresPayment: true; payment_url?: string; amount?: number; authority?: string };
+export type PaymentRequired = {
+  _requiresPayment: true;
+  payment_url?: string;
+  amount?: number;
+  authority?: string;
+  // P128 (site PaymentCard.jsx): the urgency banner is deliberately *outside* the paywall; dropping these
+  // fields hides an emergency from a patient who must pay first.
+  has_critical?: boolean;
+  urgency?: string | null;
+  critical_banner?: { title: string; body: string } | null;
+};
 
 export class ApiError extends Error {
   code?: string;
@@ -178,7 +189,15 @@ export async function pollJob(
       continue;
     }
     if (data.status === "awaiting_payment") {
-      return { _requiresPayment: true, payment_url: data.payment_url, amount: data.amount, authority: data.authority };
+      return {
+        _requiresPayment: true,
+        payment_url: data.payment_url,
+        amount: data.amount,
+        authority: data.authority,
+        has_critical: data.has_critical === true,
+        urgency: data.urgency ?? null,
+        critical_banner: data.critical_banner ?? null,
+      };
     }
 
     await AsyncStorage.removeItem(KEY_JOB);

@@ -9,6 +9,8 @@ import { type HistoryRecord, knownTests, overview, parseRange, pickLabels, score
 import { pdfHtml } from "./pdf-html.ts";
 import { makeBackup, mergeHabits, mergeHistory, parseBackup } from "./backup.ts";
 import { splitName } from "./names.ts";
+import { bucketTests } from "./buckets.ts";
+import { ocrWarningsOf, payNotice } from "./notices.ts";
 
 const eq = (a: unknown, b: unknown, msg = "") => {
   if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`selfcheck failed: ${msg} — got ${JSON.stringify(a)}, want ${JSON.stringify(b)}`);
@@ -281,5 +283,25 @@ eq(splitName("Ferritin (فریتین)").join("|"), "فریتین|Ferritin", "Eng
 eq(splitName("پنل آهن (Iron Panel)").join("|"), "پنل آهن|Iron Panel", "فارسی (English)");
 eq(splitName("Eosinophil Cationic Protein (ECP)")[1], null, "both Latin: no badge");
 eq(splitName("پنل ایمونوگلوبولین‌ها")[1], null, "no parentheses");
+
+// ---------- safety surfaces: paywall banner, OCR warnings, no-verdict rows ----------
+// N46: a row with `abnormal: null` is not "in range"; it gets its own bucket everywhere.
+const bRows = [{ abnormal: true as const }, { abnormal: false as const }, { abnormal: null }, { level: "critical" }];
+eq(bucketTests(bRows).out.length, 2, "abnormal + critical are out-of-range");
+eq(bucketTests(bRows).rest.length, 1, "only a known-normal row is in range");
+eq(bucketTests(bRows).noVerdict.length, 1, "a row without a verdict is its own bucket");
+const nullRec: HistoryRecord = { id: "n1", at: "2026-11-10T00:00:00Z", sampleDate: "2026-11-10", sig: "n1", patient: { age: null, sex: null }, result: { _engine: { tests: [{ key: "CEA", name: "CEA", value: 7, abnormal: null } as unknown as EngineTest] } } };
+eq(overview([nullRec])?.noVerdict, 1, "the home card counts the unjudged row");
+eq(overview([nullRec])?.abnormal, 0, "and does not call it abnormal");
+
+eq(payNotice({ has_critical: true })?.tone, "bad", "an emergency keeps its banner behind the paywall");
+eq(payNotice({ has_critical: true })?.body.includes("وابسته نیست"), true, "the banner says the warning is not paywalled");
+eq(payNotice({ has_critical: true, critical_banner: { title: "تیتر", body: "متن" } })?.title, "تیتر", "the server banner wins");
+eq(payNotice({ urgency: "soon" })?.tone, "warn", "a soon finding is warned before payment");
+eq(payNotice({ urgency: "this_week" }), null, "routine sheets get no banner");
+eq(payNotice(null), null, "no payment, no notice");
+
+eq(ocrWarningsOf({ ocr_warnings: [" صفحهٔ ۲ خوانده نشد ", "", "صفحهٔ ۲ خوانده نشد", 5] }), ["صفحهٔ ۲ خوانده نشد"], "warnings are trimmed and de-duplicated");
+eq(ocrWarningsOf(null), [], "no result, no warnings");
 
 console.log("selfcheck: all assertions passed");

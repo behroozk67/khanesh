@@ -18,6 +18,7 @@ import { contextLine, DISCLAIMER_FA, EMERGENCY_BANNER, interpretationOf } from "
 import { failure, tap } from "@/lib/feedback";
 import { type HistoryRecord, scoreTrend } from "@/lib/history";
 import { faDate } from "@/lib/jdate";
+import { ocrWarningsOf } from "@/lib/notices";
 import { exportReport } from "@/lib/report";
 import { loadHabits, loadHistory, loadProfile } from "@/lib/store";
 
@@ -55,6 +56,7 @@ export default function Result() {
   const text = interpretationOf(rec.result);
   const basis = contextLine(e.context);
   const banner = rec.result.has_critical ? e.critical_banner ?? EMERGENCY_BANNER : null;
+  const warnings = ocrWarningsOf(rec.result);
   // Trend up to this record: the 5 most recent scored analyses of the year before it.
   const upto = Date.parse(rec.sampleDate ?? rec.at);
   const trend = scoreTrend(all.filter((r) => Date.parse(r.sampleDate ?? r.at) <= upto), upto);
@@ -89,6 +91,15 @@ export default function Result() {
         <Card style={{ borderColor: C.bad, backgroundColor: C.badSoft }}>
           <T b style={{ color: C.bad }}>{banner.title}</T>
           <T>{banner.body}</T>
+        </Card>
+      )}
+      {warnings.length > 0 && (
+        <Card style={{ borderColor: C.warn, backgroundColor: C.amberSoft }}>
+          <T b style={{ color: C.noteInk }}>این برگه کامل خوانده نشد</T>
+          {warnings.map((w) => (
+            <T key={w} style={{ color: C.noteInk }}>{w}</T>
+          ))}
+          <T style={{ color: C.noteInk }}>تفسیر فقط بر همان بخشی است که خوانده شد؛ مقدارهای ناخوانا در تحلیل نیامده‌اند.</T>
         </Card>
       )}
       {!!basis && (

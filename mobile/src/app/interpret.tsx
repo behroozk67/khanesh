@@ -18,6 +18,7 @@ import { failure, success, tap, thump } from "@/lib/feedback";
 import { pregnancyPatient } from "@/lib/gate";
 import { payAndVerify } from "@/lib/pay";
 import { buildManual } from "@/lib/manual";
+import { payNotice } from "@/lib/notices";
 import { pdfErrorFa, pdfHtml } from "@/lib/pdf-html";
 import { missing, stepRoute } from "@/lib/ready";
 import { type AgeUnit, loadProfile, saveAnalysis } from "@/lib/store";
@@ -330,6 +331,17 @@ export default function Interpret() {
         {errorView}
         {pay && (
           <Card>
+            {(() => {
+              const notice = payNotice(pay.req);
+              if (!notice) return null;
+              const bad = notice.tone === "bad";
+              return (
+                <View style={[s.notice, { borderColor: bad ? C.bad : C.warn, backgroundColor: bad ? C.badSoft : C.amberSoft }]}>
+                  <T b style={{ color: bad ? C.bad : C.noteInk }}>{notice.title}</T>
+                  <T style={{ color: bad ? C.bad : C.noteInk }}>{notice.body}</T>
+                </View>
+              );
+            })()}
             <T b>برگه خوانده شد؛ برای دیدن تفسیر پرداخت کنید</T>
             {!!pay.req.amount && <T style={u.muted}>مبلغ: {faDigits(pay.req.amount.toLocaleString("en-US"))} تومان</T>}
             <Button
@@ -425,6 +437,7 @@ function Working({ progress, reading }: { progress: Progress | null; reading: bo
 
 const s = StyleSheet.create({
   upload: { backgroundColor: C.card, borderRadius: 18, padding: 14, gap: 12 },
+  notice: { borderWidth: 1, borderRadius: 14, padding: 10, gap: 4 },
   privacy: { flexDirection: "row", alignItems: "center", gap: 6 },
   sources: { flexDirection: "row", gap: 10 },
   source: { flex: 1, alignItems: "center", gap: 6, paddingVertical: 16, borderRadius: 16, backgroundColor: C.brandSoft, borderWidth: 1, borderColor: `${C.brand}55` },
