@@ -275,6 +275,8 @@ npx expo start
 | **دادهٔ بیمار** | تاریخچه و چالش‌ها فقط روی دستگاه؛ توکن ورود در SecureStore؛ `android.allowBackup` خاموش |
 | **نصب و انتشار** | APK از پروفایل `preview` (فقط ARM، R8 و shrink روشن)، AAB برای Google Play از پروفایل `production` |
 
+**دانلود APK:** [آزمایار اپ ۱٫۰٫۳](https://github.com/behroozk67/khanesh/releases/latest) (اندروید، ۵۹ مگابایت) — یادداشت انتشار و SHA-256 در [Releases](https://github.com/behroozk67/khanesh/releases).
+
 راهنمای کامل اجرا، بیلد و قواعد توسعه: [`mobile/README.md`](mobile/README.md).
 
 ---

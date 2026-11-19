@@ -69,6 +69,8 @@ bunx eas-cli build -p android --profile production   # AAB برای Google Play
 
 پروفایل‌ها در `eas.json` و پروژه در `app.json` (`extra.eas.projectId`). `appVersionSource` محلی است، پس شمارهٔ نسخه را در `app.json` بالا ببر.
 
+آخرین بیلد منتشرشده: [Releases → v1.0.3](https://github.com/behroozk67/khanesh/releases/latest) (APK، اندروید).
+
 ## کیفیت
 
 ```bash
