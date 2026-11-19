@@ -719,6 +719,28 @@ function detectSemenPages(ocrTests) {
 //   فقط پسوندهایی که در NAME_MAP به‌عنوانِ روش ثبت شده‌اند و فقط وقتی باقیِ نام دست‌کم سه نویسه باشد؛
 //   «cl» تنها (کلرید) هرگز به کلیدِ خالی تبدیل نمی‌شود چون طولش کافی نیست. این جای املاهای بی‌پایانِ per-key را می‌گیرد.
 const GLUED_METHOD_SUFFIXES = ["clia", "eclia", "elisa", "cmia", "icma", "hplc", "ecl", "ifa", "cl"];
+// P161: نقشِ هر نیمهٔ نامِ قند. پیش از این هر نیمه‌ای که به GLU_F می‌رسید «قید» شمرده می‌شد، ولی `glucose`/`قند` هم
+//   به GLU_F نگاشت شده‌اند و خودشان نامِ عمومی‌اند: «RBS (Glucose)» قندِ تصادفی را ناشتا می‌کرد و «Glucose (Random) BS»
+//   از GLU_RANDOM به GLU_F می‌رفت (رگرسیونِ P155). اکنون قیدِ صریح بر نامِ عمومی غالب است؛ دو قیدِ متناقض رد می‌شوند
+//   و دو نامِ عمومی طبقِ تصمیمِ P160 ناشتا (GLU_F) می‌مانند.
+const GLU_ROLE_RANDOM = /^(r\.?b\.?s|rbs)$|random|تصادفی/;
+const GLU_ROLE_FASTING = /fbs|fasting|ناشتا|gtt0h|ogtt0h|glucose0h/;
+const GLU_ROLE_2H = /2hpp|2hp|2h|2hour|2hr|ppbs|postprandial|بعدازغذا|بعد از غذا/;
+const GLU_ROLE_GENERIC = /^(bs|b\.?s|bloodsugar|glucose|plasmaglucose|bloodglucose|قند|قندخون|گلوکز)$/;
+function gluNameRole(name) {
+  if (!name) return null;
+  if (GLU_ROLE_RANDOM.test(name)) return "random";
+  if (GLU_ROLE_FASTING.test(name)) return "fasting";
+  if (GLU_ROLE_2H.test(name)) return "two_hour";
+  if (GLU_ROLE_GENERIC.test(name)) return "generic";
+  return null;
+}
+/** قیدِ صریح + نامِ عمومی ⇒ کلیدِ قید. دو نامِ عمومی طبقِ تصمیمِ P160 ناشتا شمرده می‌شوند؛ دو قیدِ متناقض «نمی‌دانم» است. */
+function gluQualifiedKey(x, y) {
+  if (x === "generic" && y === "generic") return "GLU_F";   // P160: «Glucose (Blood Sugar)» ناشتا می‌ماند
+  if (y !== "generic") return null;
+  return x === "random" ? "GLU_RANDOM" : x === "fasting" ? "GLU_F" : x === "two_hour" ? "GLU_2H" : null;
+}
 function resolveAlias(key) {
   // هیچ تستِ دیگری با esr شروع نمی‌شود؛ «ESR 1hrs»، «ESR 1st hour»، «ESR 2hrs»
   if (/^esr/.test(key)) return "ESR";
@@ -754,8 +776,14 @@ function resolveAlias(key) {
     const b = NAME_MAP[key.slice(i)];
     if (a && b && a === b) return a;
     // P155 (جاب a57055d6): «F.B.S (Blood Sugar)» = «fbs»(GLU_F) + «bloodsugar»(GLU_RANDOM) به یک کلید نمی‌رسید و قندِ ۴۸۵ بی‌صدا
-    //   unmapped ماند (N2). «قندِ خونِ عمومی» + قیدِ ناشتا/۲ساعته یک آزمایش است و قید برنده است؛ دو قیدِ متفاوت (GLU_F + GLU_2H) هنوز رد می‌شود.
-    if ((a === "GLU_RANDOM" && (b === "GLU_F" || b === "GLU_2H")) || (b === "GLU_RANDOM" && (a === "GLU_F" || a === "GLU_2H"))) return a === "GLU_RANDOM" ? b : a;
+    //   unmapped ماند (N2). «قندِ خونِ عمومی» + قیدِ ناشتا/۲ساعته یک آزمایش است و قید برنده است.
+    // P161: از خودِ *نام* فهمیده می‌شود کدام نیمه قید است؛ دو قیدِ متفاوت (ناشتا + ۲ساعته) رد می‌شوند و دو نامِ عمومی
+    //   طبقِ تصمیمِ P160 ناشتا می‌مانند.
+    if (a?.startsWith("GLU_") && b?.startsWith("GLU_")) {
+      const qualified = gluQualifiedKey(gluNameRole(key.slice(0, i)), gluNameRole(key.slice(i)))
+        ?? gluQualifiedKey(gluNameRole(key.slice(i)), gluNameRole(key.slice(0, i)));
+      if (qualified) return qualified;
+    }
   }
   // برگهٔ HIS (۲۰۲۶-۱۱-۱۱): نامِ تعرفه‌ایِ «اندازه گیری کمی اوره خون/سرم/ پلاسما» ⇒ «اوره». فقط وقتی نامِ خام نگاشت نشد.
   const base = stripHisAffixes(key);

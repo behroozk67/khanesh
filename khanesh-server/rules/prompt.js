@@ -614,7 +614,11 @@ export function engineSummary(engineOut, patterns) {
   //   و بالای صفحه از اورژانس چیزی نمی‌گفت. نوزاد (لحنِ جدا) و برگهٔ بی‌یافتهٔ اورژانسی بی‌تغییر می‌ماند.
   if (patterns?.overall_urgency === "emergency" && !isNeonate(engineOut?.age)) {
     // P159: سرنوشتِ «وضعیت جدی و فوری» بی‌نام است؛ برای DKA نامِ احتمالی‌اش در خلاصه می‌آید.
-    const headOf = (f) => (f.rule_id === "dka_pattern" && /وجود کتون/.test(f.must_say ?? "") ? "قند خون بسیار بالا همراه با کتون؛ این ترکیب می‌تواند کتواسیدوز دیابتی باشد" : f.headline);
+    // P164: این نام فقط وقتی درست است که ردیفِ قند روی برگه باشد؛ DKAِ اوگلیسمیک (بیکربناتِ پایین + کتون، بی‌ردیفِ قند)
+    //   نباید در تیتر «قند خون بسیار بالا» بشنود. (جملهٔ P160 — 2622c4c — بی‌قید آمده بود.)
+    const hasGlucoseRow = (engineOut?.graded ?? []).some((g) => String(g?.test ?? "").startsWith("GLU_"))
+      || Object.keys(engineOut?.ungraded ?? {}).some((k) => k.startsWith("GLU_"));
+    const headOf = (f) => (hasGlucoseRow && f.rule_id === "dka_pattern" && /وجود کتون/.test(f.must_say ?? "") ? "قند خون بسیار بالا همراه با کتون؛ این ترکیب می‌تواند کتواسیدوز دیابتی باشد" : f.headline);
     const heads = [...new Set((patterns.findings ?? []).filter((f) => f.urgency === "emergency" && !f.minor && f.headline && f.rule_id !== "unexplained_abnormal").map(headOf))];
     const act = buildEngineRecommendations(patterns, engineOut)[0];
     if (heads.length && act) return heads.join("؛ ") + ". " + act;

@@ -109,7 +109,10 @@ test("P157-1: نوتروفیلِ مطلقِ بالا کنارِ DKA در متن�
     T("Glucose (Urine)", "4+", "Negative"), T("Ketone (Urine)", "3+", "Negative")];
   const { e, p } = run(rows);
   assert.ok(e.graded.some((g) => g.test === "NEUT_ABS" && g.abnormal));
-  assert.match(p.findings.find((f) => f.rule_id === "dka_pattern").must_say, /نوتروفیل مطلق 13776/);
+  // P163: برگه درصد چاپ کرده؛ همان درصد نقل می‌شود، نه عددِ ساخته‌شدهٔ ۱۳۷۷۶ (N5، absQuoteFa).
+  const dkaText = p.findings.find((f) => f.rule_id === "dka_pattern").must_say;
+  assert.match(dkaText, /نوتروفیل مطلق شما ٪82/);
+  assert.doesNotMatch(dkaText, /13776/);
   assert.ok(!p.findings.some((f) => f.rule_id === "unexplained_abnormal"), "نوتروفیل هنوز بی‌توضیح");
 });
 

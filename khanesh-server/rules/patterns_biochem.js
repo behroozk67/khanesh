@@ -8,7 +8,7 @@ import { isNeonate } from "./neonatal.js";
 import { SURVIVAL_LIMITS, parseReference } from "./units.js";
 import { THYROTOX_RECHECK_FA } from "./patterns_utils.js";
 import { overtThyrotoxicosis } from "./patterns_endocrine_rheum.js";
-import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION, ferritinBelowIdCut, hbVariantState, HB_VARIANT_FA } from "./patterns_utils.js";
+import { canBePregnant, qualVerdict, ungradedFa, ckChildFlag, CK_CHILD_SENTENCE, CK_CHILD_ACTION, ferritinBelowIdCut, hbVariantState, HB_VARIANT_FA, absQuoteFa } from "./patterns_utils.js";
 import { hemolysisRuleFires, hemolyticAnemiaFires } from "./patterns_hematology.js";   // P105 (M7): ژیلبرِ «بی‌خطرترین» کنارِ همولیزِ فعال گفته نمی‌شود
 
 // P154: کراتینین و گلبول سفیدِ بالا کنارِ DKA فقط «عدد» می‌گرفتند (زیرِ blocker پنهان و در «موارد دیگر» بی‌ارتباط). DKA مالکِ توضیحشان می‌شود.
@@ -18,8 +18,8 @@ function dkaCompanionTail(e) {
   const q = (g, n) => `${n} ${g.value}${g.range ? ` (حد طبیعی ${g.range})` : ""}`;
   const parts = [];
   if (cr) parts.push(`کم‌آبیِ بدن در این وضعیت شایع است و می‌تواند ${q(cr, "کراتینین")} را بالا ببرد، ولی اگر بعد از رفع کم‌آبی بالا ماند، پزشک کلیه را جداگانه بررسی می‌کند`);
-  if (wbc) parts.push(`خودِ بیماری و استرسِ بدن می‌تواند ${q(wbc, "گلبول سفید")} را بالا ببرد${neu ? ` (بخشِ اصلیِ این افزایش از نوتروفیل‌هاست: ${q(neu, "نوتروفیل مطلق")})` : ""}؛ ولی عفونت یکی از محرک‌های رایجِ کتواسیدوز است و پزشک آن را جداگانه بررسی می‌کند`);
-  if (neu && !wbc) parts.push(`استرسِ بدن می‌تواند ${q(neu, "نوتروفیل مطلق")} را بالا ببرد`);
+  if (wbc) parts.push(`خودِ بیماری و استرسِ بدن می‌تواند ${q(wbc, "گلبول سفید")} را بالا ببرد${neu ? ` (بخشِ اصلیِ این افزایش از نوتروفیل‌هاست: ${absQuoteFa(e, "NEUT_ABS", "نوتروفیل مطلق", neu, false)})` : ""}؛ ولی عفونت یکی از محرک‌های رایجِ کتواسیدوز است و پزشک آن را جداگانه بررسی می‌کند`);
+  if (neu && !wbc) parts.push(`استرسِ بدن می‌تواند ${absQuoteFa(e, "NEUT_ABS", "نوتروفیل مطلق", neu, false)} را بالا ببرد`);
   const nums = (cr ? 1 : 0) + (wbc ? 1 : 0) + (neu ? 1 : 0);   // P158: شمارش از تعدادِ عددهای نام‌برده (نوتروفیلِ داخلِ جملهٔ WBC هم عدد است)
   const again = nums > 2 ? "این اعداد" : nums === 2 ? "هر دو عدد" : "این عدد";
   return parts.length ? " " + parts.join("؛ ") + `. ${again} را بعد از درمان دوباره می‌سنجند.` : "";
@@ -715,8 +715,10 @@ export const RULES_BIOCHEM = [
       const urgency = critical ? "emergency" : soonHigh ? "soon" : urgent ? "this_week" : "routine";
       const rangeTxt = kg?.range ? ` (حد طبیعی ${kg.range})` : "";
       // P151: پتاسیمِ بالا کنارِ DKA معمولاً واقعی است (انسولینِ کم + اسیدوز ⇒ خروجِ K از سلول)، نه همولیز؛ زمانِ «۲۴–۴۸ ساعت» هم با «همین حالا اورژانس» نمی‌خواند.
-      // P158 (بازبین ۱ و ۲): متن و کاوئات برای هر مالکِ قندِ بسیار بالا (DKA/HHS/کتوزِ نامعلوم) و برای K بحرانی هم؛ فقط جملهٔ «اقدام» به !critical بسته است.
-      const dkaCtx = high && glucoseOwnerFires(e);
+      // P158 (بازبین ۱ و ۲): متن و کاوئات برای مالکِ اورژانسِ قند (DKA/HHS) و برای K بحرانی؛ فقط جملهٔ «اقدام» به !critical بسته است.
+      // P162 (بازبینیِ ۲۰۲۶-۱۱-۱۹): «قندِ بسیار بالا»ی ۲۵۰–۵۹۹ اورژانس نیست؛ کاوئاتِ همولیز و دستورِ «در اورژانس بگویید» نباید روی آن بنشیند (N20).
+      const gluEmergency = dkaOwns(e) || hhsOwns(e);
+      const dkaCtx = high && gluEmergency;
       const dkaK = dkaCtx && !critical;
       const DKA_K_FA = (dkaOwns(e) ? " در کتواسیدوز، کمبودِ انسولین و اسیدی‌شدنِ خون" : " در قندِ بسیار بالا، کمبودِ انسولین") + " پتاسیم را از سلول‌ها به خون می‌آورد، پس این عدد را کاذب فرض نکنید؛ در اورژانس پتاسیم را با آزمایشِ تکراری و نوار قلب پایش می‌کنند، چون با درمان ممکن است سریع تغییر کند.";
 
