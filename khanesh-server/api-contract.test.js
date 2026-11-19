@@ -734,11 +734,23 @@ test("T15e: پرداخت فقط کارِ خودش را باز می‌کند؛ jo
   const victim = createJob({ pagesTotal: 1, userId: null });
   setJobAwaitingPayment(victim, { planId: "starter", amount: 1000, authority: `A_TEST_T15e_own_${victim}`, paymentUrl: "/x", testsCount: 1, testNames: ["HGB"], pendingResult: { secret: "نتیجهٔ بیمارِ دیگر" } });
 
-  const req = await realFetch(`${baseUrl}/api/payment/request`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ planId: "starter", jobId: victim }),
-  });
+  // ساختِ پرداخت به درگاه نیاز دارد، ولی این مجموعه آفلاین است (مرزِ شبکه در بالای فایل بسته شده).
+  // T15c هم درگاه را stub می‌کند؛ اینجا فقط برای همین یک فراخوانی، پاسخِ موفقِ درگاه شبیه‌سازی می‌شود.
+  const stub = globalThis.fetch;
+  globalThis.fetch = async (input, init) =>
+    String(input).includes("zarinpal.com")
+      ? new Response(JSON.stringify({ data: { code: 100, authority: `A_TEST_T15e_req_${Date.now()}`, fee: 1000 } }), { status: 200 })
+      : stub(input, init);
+  let req;
+  try {
+    req = await realFetch(`${baseUrl}/api/payment/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId: "starter", jobId: victim }),
+    });
+  } finally {
+    globalThis.fetch = stub;
+  }
   assert.equal(req.status, 200);
   assert.equal((await getPaymentByAuthority((await req.json()).authority)).job_id, null, "jobId از بدنه نباید به پرداخت وصل شود");
 
